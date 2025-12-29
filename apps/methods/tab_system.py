@@ -506,7 +506,7 @@ def ensure_tab_references_valid(main_window) -> bool: #vers 1
         return False
 
 
-def refresh_current_tab_data(main_window) -> bool: #vers 2
+def refresh_current_tab_data(main_window) -> bool: #vers 3
     """Force refresh of current tab's data and references - Updated to refresh table display"""
     try:
         current_index = main_window.main_tab_widget.currentIndex()
@@ -538,12 +538,29 @@ def refresh_current_tab_data(main_window) -> bool: #vers 2
                     success = True
         
         # Also refresh the table display with current tab's data
-        if success and hasattr(main_window, 'current_img') and main_window.current_img:
-            # Get the shared table and populate it with current IMG data
-            shared_table = main_window.gui_layout.table
-            if hasattr(main_window.current_img, 'entries') and main_window.current_img.entries:
+        # Get the file object from the current tab directly to ensure we have the latest data
+        tab_widget = main_window.main_tab_widget.widget(current_index)
+        if tab_widget and hasattr(tab_widget, 'file_object') and tab_widget.file_object:
+            file_object = tab_widget.file_object
+            file_type = getattr(tab_widget, 'file_type', 'NONE')
+            
+            if file_type == 'IMG' and file_object:
+                # Get the shared table and populate it with the current tab's IMG data
+                shared_table = main_window.gui_layout.table
                 from apps.methods.populate_img_table import populate_img_table
-                populate_img_table(shared_table, main_window.current_img)
+                populate_img_table(shared_table, file_object)
+            elif file_type == 'COL' and file_object:
+                # Refresh COL display if needed
+                from apps.components.Col_Editor.col_workshop import COLWorkshop
+                workshop = tab_widget.findChild(COLWorkshop)
+                if workshop:
+                    workshop.refresh_display()
+            elif file_type == 'TXD' and file_object:
+                # Refresh TXD display if needed
+                from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+                workshop = tab_widget.findChild(TXDWorkshop)
+                if workshop:
+                    workshop.load_from_img_archive(file_object.file_path)
         
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Tab refresh result: {'Success' if success else 'Failed'}")
