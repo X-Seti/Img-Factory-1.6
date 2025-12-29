@@ -1,0 +1,481 @@
+{
+  "name": "Amiga Workbench 3.1",
+  "description": "Classic Amiga Workbench 3.1 blue/gray theme \ud83d\udcbe",
+  "category": "\ud83d\udcbb Computer Classics",
+  "author": "X-Seti",
+  "version": "1.0",
+  "colors": {
+    "bg_primary": "#c0c0c0",
+    "bg_secondary": "#b0b0b0",
+    "bg_tertiary": "#a0a0a0",
+    "panel_bg": "#c8c8c8",
+    "accent_primary": "#c8c8c8",
+    "accent_secondary": "#004499",
+    "text_primary": "#000000",
+    "text_secondary": "#333333",
+    "text_accent": "#818181",
+    "button_normal": "#d0d0d0",
+    "button_hover": "#e0e0e0",
+    "button_pressed": "#b0b0b0",
+    "border": "#808080",
+    "success": "#008800",
+    "warning": "#cc6600",
+    "error": "#cc0000",
+    "grid": "#aaaaaa",
+    "pin_default": "#666666",
+    "pin_highlight": "#FFEFEE",
+    "action_import": "#d0d0ff",
+    "action_export": "#d0ffd0",
+    "action_remove": "#ffd0d0",
+    "action_update": "#ffe0d0",
+    "action_convert": "#f0d0f0",
+    "panel_entries": "#d8d8d8",
+    "panel_filter": "#e0e0e0",
+    "toolbar_bg": "#c0c0c0",
+    "button_text_color": "#000000",
+    "button_text_hover": "#000000",
+    "button_text_pressed": "#000000",
+    "splitter_color_background": "#9e9e9e",
+    "splitter_color_shine": "#b7b7b7",
+    "splitter_color_shadow": "#8c8c8c",
+    "scrollbar_background": "#b6b6b6",
+    "scrollbar_handle": "#737373",
+    "scrollbar_handle_hover": "#666666",
+    "scrollbar_handle_pressed": "#595959",
+    "scrollbar_border": "#808080",
+    "selection_background": "#0066cc",
+    "selection_text": "#ffffff",
+    "table_row_even": "#9f9f9f",
+    "table_row_odd": "#bcbcbc",
+    "panel_margins": "5",
+    "panel_spacing": "2",
+    "button_min_height": "30",
+    "button_padding": "6",
+    "button_border_radius": "4",
+    "groupbox_border_radius": "5",
+    "splitter_handle_width": "8",
+    "splitter_handle_height": "6",
+    "table_header_height": "25",
+    "table_row_height": "22",
+    "table_border_width": "1",
+    "table_grid_line_width": "1",
+    "status_ready": "Ready",
+    "status_no_img": "No IMG loaded",
+    "status_loading": "Loading...",
+    "status_complete": "Complete",
+    "status_error": "Error",
+    "tab_dff": "DFF",
+    "tab_col": "COL",
+    "tab_both": "Both",
+    "info_file_label": "File:",
+    "info_type_label": "Type:",
+    "info_items_label": "Items:",
+    "info_size_label": "Size:",
+    "info_no_file": "No file loaded",
+    "info_unknown_type": "Unknown",
+    "group_file_info": "\ud83d\udccb File Information",
+    "group_img_files": "IMG Files",
+    "group_file_entries": "File Entries",
+    "group_editing_options": "Editing Options",
+    "group_filter_search": "Filter & Search",
+    "group_status_log": "\ud83d\udcca Status & Activity Log",
+    "filter_all_files": "All Files",
+    "filter_dff_models": "DFF Models",
+    "filter_txd_textures": "TXD Textures",
+    "filter_col_collision": "COL Collision",
+    "filter_ifp_animations": "IFP Animations",
+    "search_placeholder": "Search filename...",
+    "log_placeholder": "Activity log will appear here...",
+    "col_filename": "Filename",
+    "col_type": "Type",
+    "col_size": "Size",
+    "col_offset": "Offset",
+    "col_version": "Version",
+    "col_compression": "Compression",
+    "col_status": "Status",
+    "alternate_row": "#b1b1b1"
+  },
+  "menus": {
+    "menu_structure": [
+      "File",
+      "Edit",
+      "Dat",
+      "IMG",
+      "Model",
+      "Texture",
+      "Collision",
+      "Item Definition",
+      "Item Placement",
+      "Entry",
+      "Settings",
+      "Help"
+    ],
+    "menu_items": {
+      "File": [
+        {
+          "text": "New IMG...",
+          "icon": "document-new",
+          "shortcut": "Ctrl+N",
+          "action": "create_new_img"
+        },
+        {
+          "text": "Open IMG...",
+          "icon": "document-open",
+          "shortcut": "Ctrl+O",
+          "action": "open_img_file"
+        },
+        {
+          "text": "Open COL...",
+          "icon": "document-open",
+          "action": "open_col_file"
+        },
+        {
+          "separator": true
+        },
+        {
+          "text": "Close",
+          "icon": "window-close",
+          "action": "close_img_file"
+        },
+        {
+          "separator": true
+        },
+        {
+          "text": "Exit",
+          "icon": "application-exit",
+          "shortcut": "Ctrl+Q",
+          "action": "close"
+        }
+      ],
+      "IMG": [
+        {
+          "text": "Rebuild",
+          "icon": "document-save",
+          "action": "rebuild_img"
+        },
+        {
+          "text": "Save Entry...",
+          "icon": "document-save-entry",
+          "action": "save_img_entry"
+        },
+        {
+          "separator": true
+        },
+        {
+          "text": "Merge IMG Files",
+          "icon": "document-merge"
+        },
+        {
+          "text": "Split IMG File",
+          "icon": "edit-cut"
+        },
+        {
+          "separator": true
+        },
+        {
+          "text": "IMG Properties",
+          "icon": "dialog-information"
+        }
+      ],
+      "Entry": [
+        {
+          "text": "Import Files...",
+          "icon": "go-down",
+          "action": "import_files"
+        },
+        {
+          "text": "Export Selected...",
+          "icon": "go-up",
+          "action": "export_selected"
+        },
+        {
+          "text": "Export All...",
+          "icon": "go-up",
+          "action": "export_all"
+        },
+        {
+          "separator": true
+        },
+        {
+          "text": "Remove Selected",
+          "icon": "list-remove",
+          "action": "remove_selected"
+        },
+        {
+          "text": "Rename Entry",
+          "icon": "edit"
+        }
+      ],
+      "Settings": [
+        {
+          "text": "Preferences...",
+          "icon": "preferences-other",
+          "action": "show_settings"
+        },
+        {
+          "text": "Themes...",
+          "icon": "applications-graphics",
+          "action": "show_theme_settings"
+        },
+        {
+          "separator": true
+        },
+        {
+          "text": "Manage Templates...",
+          "icon": "folder",
+          "action": "manage_templates"
+        }
+      ],
+      "Help": [
+        {
+          "text": "User Guide",
+          "icon": "help-contents"
+        },
+        {
+          "text": "About IMG Factory",
+          "icon": "help-about",
+          "action": "show_about"
+        }
+      ]
+    }
+  },
+  "button_panels": {
+    "img_files": [
+      {
+        "text": "Open",
+        "action": "open",
+        "icon": "document-open",
+        "color": "#E3F2FD"
+      },
+      {
+        "text": "Close",
+        "action": "close",
+        "icon": "window-close",
+        "color": "#FFF3E0"
+      },
+      {
+        "text": "Close All",
+        "action": "close_all",
+        "icon": "edit-clear",
+        "color": "#FFF3E0"
+      },
+      {
+        "text": "Rebuild",
+        "action": "rebuild",
+        "icon": "view-refresh",
+        "color": "#E8F5E8"
+      },
+      {
+        "text": "Save Entry...",
+        "icon": "document-save-entry",
+        "action": "save_img_entry",
+        "color": "#E8F5E8"
+      },
+      {
+        "text": "Rebuild All",
+        "action": "rebuild_all",
+        "icon": "document-save",
+        "color": "#E8F5E8"
+      },
+      {
+        "text": "Merge",
+        "action": "merge",
+        "icon": "document-merge",
+        "color": "#F3E5F5"
+      },
+      {
+        "text": "Split",
+        "action": "split",
+        "icon": "edit-cut",
+        "color": "#F3E5F5"
+      },
+      {
+        "text": "Convert",
+        "action": "convert",
+        "icon": "transform",
+        "color": "#FFF8E1"
+      }
+    ],
+    "file_entries": [
+      {
+        "text": "Import",
+        "action": "import",
+        "icon": "document-import",
+        "color": "#E1F5FE"
+      },
+      {
+        "text": "Import via",
+        "action": "import_via",
+        "icon": "document-import",
+        "color": "#E1F5FE"
+      },
+      {
+        "text": "Export",
+        "action": "export",
+        "icon": "document-export",
+        "color": "#E0F2F1"
+      },
+      {
+        "text": "Export via",
+        "action": "export_via",
+        "icon": "document-export",
+        "color": "#E0F2F1"
+      },
+      {
+        "text": "Remove",
+        "action": "remove",
+        "icon": "edit-delete",
+        "color": "#FFEBEE"
+      },
+      {
+        "text": "Remove All",
+        "action": "remove_all",
+        "icon": "edit-clear",
+        "color": "#FFEBEE"
+      },
+      {
+        "text": "Refresh",
+        "action": "update",
+        "icon": "view-refresh",
+        "color": "#F9FBE7"
+      },
+      {
+        "text": "Quick Export",
+        "action": "quick_export",
+        "icon": "document-export",
+        "color": "#E0F2F1"
+      },
+      {
+        "text": "Pin selected",
+        "action": "pin",
+        "icon": "view-pin",
+        "color": "#FCE4EC"
+      }
+    ],
+    "editing_options": [
+      {
+        "text": "Col Edit",
+        "action": "col_edit",
+        "icon": "edit-col",
+        "color": "#FFE0B2"
+      },
+      {
+        "text": "Txd Edit",
+        "action": "txd_edit",
+        "icon": "edit-txd",
+        "color": "#E8EAF6"
+      },
+      {
+        "text": "Dff Edit",
+        "action": "dff_edit",
+        "icon": "edit-dff",
+        "color": "#F1F8E9"
+      },
+      {
+        "text": "Ipf Edit",
+        "action": "ipf_edit",
+        "icon": "edit-ipf",
+        "color": "#FFF3E0"
+      },
+      {
+        "text": "IPL Edit",
+        "action": "ipl_edit",
+        "icon": "edit-ipl",
+        "color": "#FFEBEE"
+      },
+      {
+        "text": "IDE Edit",
+        "action": "ide_edit",
+        "icon": "edit-ide",
+        "color": "#E0F2F1"
+      },
+      {
+        "text": "Dat Edit",
+        "action": "dat_edit",
+        "icon": "dat-editor",
+        "color": "#F3E5F5"
+      },
+      {
+        "text": "Zons Edit",
+        "action": "zons_edit",
+        "icon": "zon-editor",
+        "color": "#E1F5FE"
+      },
+      {
+        "text": "Weap Edit",
+        "action": "weap_edit",
+        "icon": "weap-editor",
+        "color": "#FFF8E1"
+      },
+      {
+        "text": "Vehi Edit",
+        "action": "vehi_edit",
+        "icon": "vehi-editor",
+        "color": "#E8F5E8"
+      },
+      {
+        "text": "Radar Map",
+        "action": "radar_map",
+        "icon": "radar-map",
+        "color": "#FCE4EC"
+      },
+      {
+        "text": "Paths Map",
+        "action": "paths_map",
+        "icon": "paths-map",
+        "color": "#F9FBE7"
+      },
+      {
+        "text": "Waterpro",
+        "action": "waterpro",
+        "icon": "waterpro",
+        "color": "#E3F2FD"
+      }
+    ]
+  },
+  "fonts": {
+    "default_font_family": "Segoe UI",
+    "default_font_size": 9,
+    "default_font_weight": "Normal",
+    "title_font_family": "Arial",
+    "title_font_size": 14,
+    "title_font_weight": "Bold",
+    "panel_font_family": "Arial",
+    "panel_font_size": 10,
+    "panel_font_weight": "Bold",
+    "button_font_family": "Arial",
+    "button_font_size": 10,
+    "button_font_weight": "Normal",
+    "menu_font_family": "Segoe UI",
+    "menu_font_size": 9,
+    "menu_font_weight": "Normal",
+    "infobar_font_family": "Courier New",
+    "infobar_font_size": 9,
+    "infobar_font_weight": "Normal",
+    "table_font_family": "Segoe UI",
+    "table_font_size": 9,
+    "table_font_weight": "Normal",
+    "tooltip_font_family": "Segoe UI",
+    "tooltip_font_size": 8,
+    "tooltip_font_weight": "Normal"
+  },
+  "styles": {
+    "button_shape": "Rounded",
+    "button_border_radius": 4,
+    "button_min_height": 30,
+    "button_padding_horizontal": 12,
+    "button_padding_vertical": 6,
+    "slider_height": 8,
+    "slider_handle_size": 16,
+    "slider_handle_radius": 8,
+    "checkbox_size": 18,
+    "checkbox_border_radius": 3,
+    "scrollbar_width": 12,
+    "scrollbar_handle_radius": 3,
+    "splitter_handle_width": 8,
+    "splitter_border_radius": 3,
+    "splitter_show_grip": true,
+    "panel_opacity": 95,
+    "enable_animations": true
+  }
+}

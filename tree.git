@@ -1,0 +1,314 @@
+.
+├── AI_Rules.md
+├── appfactory.settings.json
+├── apps
+│   ├── appfactory.settings.json
+│   ├── components
+│   │   ├── Col_Creator
+│   │   │   └── col_creator.py
+│   │   ├── Col_Viewer
+│   │   │   ├── col_viewer.py
+│   │   │   └── depends
+│   │   │       ├── COL_materials.md
+│   │   │       ├── COL_Materials.py
+│   │   │       ├── COL_Parser.py
+│   │   │       └── Materials Reference.md
+│   │   ├── File_Browser
+│   │   │   ├── dolphin_dialog.py
+│   │   │   └── highlight_status_dialog.py
+│   │   ├── File_Editor
+│   │   │   ├── file_dirtree_backend.py
+│   │   │   ├── file_dirtree_browser.py
+│   │   │   └── gta_file_editors.py
+│   │   ├── Hex_Editor
+│   │   │   ├── Hex_Editor_Panel.py
+│   │   │   ├── Hex_Editor.py
+│   │   │   └── __init__.py
+│   │   ├── Ide_Editor
+│   │   │   └── ide_editor.py
+│   │   ├── Img_Browser
+│   │   │   └── img_browser.py
+│   │   ├── Img_Creator
+│   │   │   └── img_creator.py
+│   │   ├── Img_Factory
+│   │   │   ├── depends
+│   │   │   │   ├── comprehensive.py
+│   │   │   │   ├── img_factory_thread.py
+│   │   │   │   └── mui_demo.py
+│   │   │   ├── imgfactory.py
+│   │   │   └── __init__.py
+│   │   ├── img_factory_debug.log
+│   │   ├── __init__.py
+│   │   ├── Map_Editor
+│   │   │   ├── Map_Workshop.py
+│   │   │   └── moomapper-090-src-r2_repacked
+│   │   │       ├── About.ddp
+│   │   │       ├── About.dfm
+│   │   │       ├── About.pas
+│   │   │       ├── AudioADF.pas
+│   │   │       ├── DirDialog.pas
+│   │   │       ├── EditorArchive.ddp
+│   │   │       ├── EditorArchive.dfm
+│   │   │       ├── EditorArchive.pas
+│   │   │       ├── EditorDAT.ddp
+│   │   │       ├── EditorDAT.dfm
+│   │   │       ├── EditorDAT.pas
+│   │   │       ├── EditorIDE.ddp
+│   │   │       ├── EditorIDE.dfm
+│   │   │       ├── EditorIDE.pas
+│   │   │       ├── EditorIPL.ddp
+│   │   │       ├── EditorIPL.dfm
+│   │   │       ├── EditorIPL.pas
+│   │   │       ├── EditorItem.ddp
+│   │   │       ├── EditorItem.dfm
+│   │   │       ├── EditorItem.pas
+│   │   │       ├── ExtraView.ddp
+│   │   │       ├── ExtraView.dfm
+│   │   │       ├── ExtraView.pas
+│   │   │       ├── GLViewDetached.ddp
+│   │   │       ├── GLViewDetached.dfm
+│   │   │       ├── GLViewDetached.pas
+│   │   │       ├── GLView.pas
+│   │   │       ├── GTACol.pas
+│   │   │       ├── GTADff.pas
+│   │   │       ├── GTAIde.pas
+│   │   │       ├── GTAImg.pas
+│   │   │       ├── GTAText.pas
+│   │   │       ├── GTATxd.pas
+│   │   │       ├── GTAZon.pas
+│   │   │       ├── KCow.ico
+│   │   │       ├── KEd.cfg
+│   │   │       ├── KEd.dof
+│   │   │       ├── KEd.dpr
+│   │   │       ├── KEd.res
+│   │   │       ├── Loading.ddp
+│   │   │       ├── Loading.dfm
+│   │   │       ├── Loading.pas
+│   │   │       ├── Main.ddp
+│   │   │       ├── Main.dfm
+│   │   │       ├── Main.pas
+│   │   │       ├── Output
+│   │   │       │   └── output folder.txt
+│   │   │       ├── readme.txt
+│   │   │       ├── RequiredTypes.pas
+│   │   │       ├── Startup.ddp
+│   │   │       ├── Startup.dfm
+│   │   │       ├── Startup.pas
+│   │   │       ├── TextureView.ddp
+│   │   │       ├── TextureView.dfm
+│   │   │       ├── TextureView.pas
+│   │   │       ├── Validate.ddp
+│   │   │       ├── Validate.dfm
+│   │   │       └── Validate.pas
+│   │   ├── Project_Manager
+│   │   │   └── img_project_manager.py
+│   │   ├── Tmp_Template
+│   │   │   ├── depends
+│   │   │   │   ├── col_3d_viewport.py
+│   │   │   │   └── svg_icon_factory.py
+│   │   │   └── gui_template.py
+│   │   ├── Txd_Converter
+│   │   │   └── txd_converter.py
+│   │   └── unified_signal_handler.py
+│   ├── core
+│   │   ├── advanced_img_tools.py
+│   │   ├── clean.py
+│   │   ├── close.py
+│   │   ├── col_viewer_integration.py
+│   │   ├── compression.py
+│   │   ├── convert.py
+│   │   ├── core.py
+│   │   ├── create.py
+│   │   ├── dialogs.py
+│   │   ├── double_click_rename.py
+│   │   ├── dump.py
+│   │   ├── export.py
+│   │   ├── export_via.py
+│   │   ├── extract.py
+│   │   ├── file_dirtree_backend.py
+│   │   ├── file_dirtree_browser.py
+│   │   ├── file_extraction.py
+│   │   ├── file_type_filter.py
+│   │   ├── gui_search.py
+│   │   ├── imgcol_convert.py
+│   │   ├── imgcol_rename.py
+│   │   ├── imgcol_replace.py
+│   │   ├── img_corruption_analyzer.py
+│   │   ├── img_detection.py
+│   │   ├── img_formats.py
+│   │   ├── img_merger.py
+│   │   ├── img_split.py
+│   │   ├── img_version15.py
+│   │   ├── img_version1.py
+│   │   ├── img_version2.py
+│   │   ├── import_via.py
+│   │   ├── impotr.py
+│   │   ├── inverse_selection.py
+│   │   ├── new_import_system.py
+│   │   ├── notepad.py
+│   │   ├── open.py
+│   │   ├── pin_entries.py
+│   │   ├── quick_export.py
+│   │   ├── rebuild_all.py
+│   │   ├── rebuild.py
+│   │   ├── reload.py
+│   │   ├── remove.py
+│   │   ├── remove_via.py
+│   │   ├── rename.py
+│   │   ├── right_click_actions.py
+│   │   ├── rw_analysis_trigger.py
+│   │   ├── rw_unk_snapshot.py
+│   │   ├── save_entry.py
+│   │   ├── shortcuts.py
+│   │   ├── sort.py
+│   │   ├── sort_via_ide.py
+│   │   ├── theme_integration.py
+│   │   ├── undo_system.py
+│   │   └── utils.py
+│   ├── debug
+│   │   └── debug_functions.py
+│   ├── gui
+│   │   ├── autosave_menu.py
+│   │   ├── col_dialogs.py
+│   │   ├── col_display.py
+│   │   ├── col_gui_integration.py
+│   │   ├── col_tab_css_theme.css
+│   │   ├── cross_platform_theme.py
+│   │   ├── directory_tree_system.py
+│   │   ├── file_menu_integration.py
+│   │   ├── gui_backend.py
+│   │   ├── gui_context.py
+│   │   ├── gui_infobar.py
+│   │   ├── gui_layout.py
+│   │   ├── gui_menu.py
+│   │   ├── gui_settings.py
+│   │   ├── ide_dialog.py
+│   │   ├── imgcol_tearoff.py
+│   │   ├── __init__.py
+│   │   ├── log_panel.py
+│   │   ├── main_window.py
+│   │   ├── panel_manager.py
+│   │   ├── pastel_button_theme.py
+│   │   ├── status_bar.py
+│   │   ├── tab_context_menu.py
+│   │   ├── tearoff_integration.py
+│   │   ├── tear_off.py
+│   │   ├── txd_context_menu.py
+│   │   └── unified_button_theme.py
+│   ├── __init__.py
+│   ├── locals
+│   │   ├── __init__.py
+│   │   ├── locales
+│   │   ├── localization.py
+│   │   └── local_settings.json
+│   ├── methods
+│   │   ├── col_3d_viewport.py
+│   │   ├── col_core_classes.py
+│   │   ├── col_dialogs.py
+│   │   ├── col_export_functions.py
+│   │   ├── col_functions.py
+│   │   ├── col_integration.py
+│   │   ├── col_loader.py
+│   │   ├── colour_ui_for_loaded_img.py
+│   │   ├── col_parsing_functions.py
+│   │   ├── col_parsing_helpers.py
+│   │   ├── col_preview_generator.py
+│   │   ├── col_structure_manager.py
+│   │   ├── col_validation.py
+│   │   ├── common_functions.py
+│   │   ├── dragdrop_functions.py
+│   │   ├── export_overwrite_check.py
+│   │   ├── export_shared.py
+│   │   ├── file_loading_functions.py
+│   │   ├── file_validation.py
+│   │   ├── find_dups_functions.py
+│   │   ├── ide_parser_functions.py
+│   │   ├── iff_import.py
+│   │   ├── img_analyze.py
+│   │   ├── imgcol_exists.py
+│   │   ├── img_core_classes.py
+│   │   ├── img_debug_functions.py
+│   │   ├── img_entry_operations.py
+│   │   ├── img_export_entry.py
+│   │   ├── img_export_functions.py
+│   │   ├── img_import_functions.py
+│   │   ├── img_integration.py
+│   │   ├── img_parsing_functions.py
+│   │   ├── img_routing_operations.py
+│   │   ├── img_shared_operations.py
+│   │   ├── img_templates.json
+│   │   ├── img_templates.py
+│   │   ├── img_validation.py
+│   │   ├── import_highlight_system.py
+│   │   ├── indexed_color_import.py
+│   │   ├── mirror_tab_shared.py
+│   │   ├── populate_col_table.py
+│   │   ├── populate_img_table.py
+│   │   ├── progressbar_functions.py
+│   │   ├── refresh_table_functions.py
+│   │   ├── rw_detection.py
+│   │   ├── rw_versions.py
+│   │   ├── svg_icon_factory.py
+│   │   ├── svg_shared_icons.py
+│   │   ├── table_handlers.py
+│   │   ├── tab_system.py
+│   │   ├── txd_serializer.py
+│   │   ├── txd_versions.py
+│   │   └── update_ui_for_loaded_img.py
+│   ├── support
+│   │   ├── imgfactory_diagnostic.py
+│   │   ├── unix_launcher.sh
+│   │   └── windows_launcher.bat
+│   ├── templates
+│   │   └── new_templates.json
+│   ├── themes
+│   │   ├── amiga_mui_light.json
+│   │   ├── amiga_wb light.json
+│   │   ├── amiga_wb_light.json
+│   │   ├── app_factory.json
+│   │   ├── blue_panels_dark.json
+│   │   ├── blue_theme_light.json
+│   │   ├── bluish_light.json
+│   │   ├── classic_dark.json
+│   │   ├── cyberpunk_dark.json
+│   │   ├── garujaro_dark.json
+│   │   ├── green_shad_light.json
+│   │   ├── green_theme_light.json
+│   │   ├── gta_forums_dark.json
+│   │   ├── gta_forums_light.json
+│   │   ├── gta_liberty_city_dark.json
+│   │   ├── gta_san_andreas_dark.json
+│   │   ├── gta_vice_city_dark.json
+│   │   ├── img_factory_dark.json
+│   │   ├── img_factory_light.json
+│   │   ├── knight_rider_dark.json
+│   │   ├── lavender_theme_light.json
+│   │   ├── matrix_dark.json
+│   │   ├── pastel_theme_light.json
+│   │   ├── peach_theme_light.json
+│   │   ├── pink_theme_light.json
+│   │   ├── professional_light.json
+│   │   ├── red_dead_theme_dark.json
+│   │   ├── red_theme_dark.json
+│   │   ├── rockstar_dark.json
+│   │   ├── synthwave_outrun_dark.json
+│   │   ├── system_kde.json
+│   │   ├── tea_and_toast_dark.json
+│   │   ├── themes_organization.md
+│   │   └── yellow_theme_light.json
+│   ├── unified_signal_handler.py
+│   └── utils
+│       ├── app_settings_system.py
+│       ├── themer_settings.json
+│       └── update_themes_script.py
+├── cc.py
+├── ChangeLog.md
+├── Credits.md
+├── dev-branch
+├── img_factory_debug.log
+├── launch_imgfactory.py
+├── package-lock.json
+├── TODO.md
+└── tree.git
+
+31 directories, 281 files

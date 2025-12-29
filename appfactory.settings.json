@@ -1,0 +1,14 @@
+{
+  "theme": "App_Factory",
+  "system_theme_detection": true,
+  "mui_tabs_enabled": true,
+  "bg_primary_image": "",
+  "bg_secondary_image": "",
+  "panel_bg_image": "",
+  "bg_primary_mode": "stretch",
+  "bg_secondary_mode": "stretch",
+  "panel_bg_mode": "stretch",
+  "bg_primary_opacity": 100,
+  "bg_secondary_opacity": 100,
+  "panel_bg_opacity": 100
+}

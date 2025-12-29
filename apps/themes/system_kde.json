@@ -1,0 +1,38 @@
+{
+  "name": "System Theme (kde)",
+  "description": "System theme detected automatically",
+  "category": "System",
+  "author": "System",
+  "version": "1.0",
+  "colors": {
+    "bg_primary": "#F5F5F5",
+    "bg_secondary": "#F5F5F5",
+    "bg_tertiary": "#E0E0E0",
+    "panel_bg": "#F5F5F5",
+    "accent_primary": "#4A90D9",
+    "accent_secondary": "#3584E4",
+    "text_primary": "#2D2D2D",
+    "text_secondary": "#666666",
+    "text_accent": "#3584E4",
+    "button_normal": "#E0E0E0",
+    "button_hover": "#D0D0D0",
+    "button_pressed": "#C0C0C0",
+    "border": "#CCCCCC",
+    "success": "#4CAF50",
+    "warning": "#FF9800",
+    "error": "#F44336",
+    "grid": "#E0E0E0",
+    "pin_default": "#757575",
+    "pin_highlight": "#3584E4",
+    "action_import": "#4A90D9",
+    "action_export": "#4CAF50",
+    "action_remove": "#F44336",
+    "action_update": "#FF9800",
+    "action_convert": "#9C27B0"
+  },
+  "mui_settings": {
+    "system_detected": true,
+    "is_dark_mode": false,
+    "original_system_theme": "kde"
+  }
+}
