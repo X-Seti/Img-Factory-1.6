@@ -1964,6 +1964,26 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
 
 
+    @staticmethod
+    def get_app_icon(size: int = 64) -> QIcon: #vers 1
+        """IMG Factory application icon - Archive/Package themed"""
+        svg_data = f'''<svg width="{size}" height="{size}" viewBox="0 0 64 64">
+            <defs>
+                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#357ABD;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <rect width="64" height="64" rx="8" fill="url(#grad)"/>
+            <!-- Archive box -->
+            <path d="M 32 12 L 52 22 L 52 42 L 32 52 L 12 42 L 12 22 Z" fill="#ffffff" opacity="0.9"/>
+            <path d="M 32 12 L 52 22 L 32 32 L 12 22 Z" fill="#ffffff" opacity="0.7"/>
+            <path d="M 12 22 L 12 42 L 32 52 L 32 32 Z" fill="#ffffff" opacity="0.5"/>
+            <!-- IMG text -->
+            <text x="32" y="40" font-family="Arial" font-size="12" font-weight="bold" fill="#357ABD" text-anchor="middle">IMG</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, None)
+
 
 # = STANDALONE FUNCTION WRAPPERS FOR BACKWARD COMPATIBILITY
 
