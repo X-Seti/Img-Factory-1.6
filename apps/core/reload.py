@@ -1,4 +1,4 @@
-#this belongs in core/reload.py - Version: 9
+#this belongs in core/reload.py - Version: 10
 # X-Seti - November16 2025 - IMG Factory 1.5 - Reload Functions - TAB AWARE
 """
 Reload Functions - TAB-AWARE VERSION
@@ -13,7 +13,7 @@ from apps.methods.tab_system import get_current_file_from_active_tab
 # reload_current_file
 # integrate_reload_functions
 
-def reload_current_file(main_window) -> bool: #vers 10
+def reload_current_file(main_window) -> bool: #vers 11
     """Reload file in current tab - TAB AWARE VERSION - FIXED to properly close and reopen from disk"""
     try:
         # Get file from active tab
@@ -42,14 +42,56 @@ def reload_current_file(main_window) -> bool: #vers 10
                 main_window.log_message("Reload cancelled by user")
             return False
         
-        # Store current state before closing
-        current_tab_index = main_window.main_tab_widget.currentIndex() if hasattr(main_window, 'main_tab_widget') else 0
+        # Store file path before closing tab
+        stored_file_path = file_path
+        stored_file_type = file_type
         
-        # Log that we're closing the file first
+        # Close the current tab
+        current_tab_index = main_window.main_tab_widget.currentIndex() if hasattr(main_window, "main_tab_widget") else 0
+        if hasattr(main_window, "log_message"):
+            main_window.log_message(f"Closing tab {current_tab_index} before reload: {filename}")
+        
+        # Use close_manager to close the tab
+        if hasattr(main_window, "close_manager") and main_window.close_manager:
+            main_window.close_manager.close_tab(current_tab_index)
+        elif hasattr(main_window, "close_tab"):
+            main_window.close_tab(current_tab_index)
+        
+        # Now reload in NEW tab based on type
+        if stored_file_type == "IMG":
+            if hasattr(main_window, "load_file_unified"):
+                result = main_window.load_file_unified(stored_file_path)
+            elif hasattr(main_window, "_load_img_file_in_new_tab"):
+                result = main_window._load_img_file_in_new_tab(stored_file_path)
+            else:
+                QMessageBox.critical(main_window, "Error", "No IMG load function available")
+                return False
+        elif stored_file_type == "COL":
+            if hasattr(main_window, "load_file_unified"):
+                result = main_window.load_file_unified(stored_file_path)
+            else:
+                QMessageBox.critical(main_window, "Error", "No COL load function available")
+                return False
+        else:
+            QMessageBox.warning(main_window, "Unsupported Type", f"Cannot reload {stored_file_type} files")
+            return False
+        
+        if result and hasattr(main_window, "log_message"):
+            main_window.log_message(f"File reloaded in new tab: {filename}")
+        return True if result else False
+        
+        # CLOSE TAB FIRST, then reload (opens in new tab)
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Closing file before reload: {filename}")
+            main_window.log_message(f"Closing tab before reload: {filename}")
         
-        # Close the current file properly to free resources
+        # Close the current tab
+        current_tab_index = main_window.main_tab_widget.currentIndex() if hasattr(main_window, 'main_tab_widget') else 0
+        if hasattr(main_window, 'close_manager') and main_window.close_manager:
+            main_window.close_manager.close_tab(current_tab_index)
+        elif hasattr(main_window, 'close_tab'):
+            main_window.close_tab(current_tab_index)
+        
+        # Now reload based on type - will open in new tab
         if file_type == 'IMG':
             # Close the IMG file properly if it has a close method
             if file_object and hasattr(file_object, 'close'):
