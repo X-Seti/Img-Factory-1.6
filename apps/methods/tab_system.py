@@ -268,21 +268,31 @@ def update_references(main_window, tab_index: int): #vers 1
         main_window.log_message(f"Error updating references: {str(e)}")
 
 
-def switch_tab(main_window, tab_index: int): #vers 1
-    """Handle tab switch event"""
+def switch_tab(main_window, tab_index: int): #vers 2
+    """Handle tab switch event - Updated to refresh table display"""
     try:
         if tab_index < 0:
             return
 
         main_window.log_message(f"Switching to tab {tab_index}")
 
+        # Update current_img, current_col, current_txd references
         update_references(main_window, tab_index)
 
-        file_object, file_type, _ = get_tab_data(
+        # Get file data for this tab
+        file_object, file_type, table_widget = get_tab_data(
             main_window.main_tab_widget.widget(tab_index)
         )
 
-        if file_type == 'COL' and file_object:
+        # Also get the main shared table from gui_layout
+        shared_table = main_window.gui_layout.table
+
+        if file_type == 'IMG' and file_object and file_object.entries:
+            # Populate the shared table with this tab's IMG data
+            from apps.methods.populate_img_table import populate_img_table
+            populate_img_table(shared_table, file_object)
+            
+        elif file_type == 'COL' and file_object:
             from apps.components.Col_Editor.col_workshop import COLWorkshop
             workshop = main_window.main_tab_widget.widget(tab_index).findChild(COLWorkshop)
             if workshop:
@@ -292,10 +302,12 @@ def switch_tab(main_window, tab_index: int): #vers 1
             from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
             workshop = main_window.main_tab_widget.widget(tab_index).findChild(TXDWorkshop)
             if workshop:
-                workshop.load_from_img_archive(file_path)
+                workshop.load_from_img_archive(file_object.file_path)
 
     except Exception as e:
         main_window.log_message(f"Error switching tab: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 
 def get_tab_file_data(main_window, tab_index: int) -> Tuple[Optional[Any], str]: #vers 4
@@ -494,8 +506,8 @@ def ensure_tab_references_valid(main_window) -> bool: #vers 1
         return False
 
 
-def refresh_current_tab_data(main_window) -> bool: #vers 1
-    """Force refresh of current tab's data and references"""
+def refresh_current_tab_data(main_window) -> bool: #vers 2
+    """Force refresh of current tab's data and references - Updated to refresh table display"""
     try:
         current_index = main_window.main_tab_widget.currentIndex()
         if current_index == -1:
@@ -525,6 +537,14 @@ def refresh_current_tab_data(main_window) -> bool: #vers 1
                     main_window.current_col = None
                     success = True
         
+        # Also refresh the table display with current tab's data
+        if success and hasattr(main_window, 'current_img') and main_window.current_img:
+            # Get the shared table and populate it with current IMG data
+            shared_table = main_window.gui_layout.table
+            if hasattr(main_window.current_img, 'entries') and main_window.current_img.entries:
+                from apps.methods.populate_img_table import populate_img_table
+                populate_img_table(shared_table, main_window.current_img)
+        
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Tab refresh result: {'Success' if success else 'Failed'}")
         
@@ -533,6 +553,8 @@ def refresh_current_tab_data(main_window) -> bool: #vers 1
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Error refreshing tab data: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
