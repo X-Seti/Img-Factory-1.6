@@ -502,35 +502,33 @@ class IMGFactoryMenuBar:
 
         tools_menu.addSeparator()
 
-        # File Analysis Tools
-        analyze_action = QAction("&Analyze IMG", self.main_window)
-        analyze_action.setStatusTip("Analyze IMG file structure and properties")
-        analyze_action.triggered.connect(self._analyze_img)
-        tools_menu.addAction(analyze_action)
+        # File Analysis Tools - Create Analyze submenu
+        analyze_menu = tools_menu.addMenu("&Analyze")
 
-        # File Analysis Tools TODO - complete functions
-        analyze_action = QAction("&Analyze COL", self.main_window)
-        analyze_action.setStatusTip("Analyze COL file structure and properties")
-        #analyze_action.triggered.connect(self._analyze_col)
-        tools_menu.addAction(analyze_action)
+        analyze_img_action = QAction("IMG File", self.main_window)
+        analyze_img_action.setStatusTip("Analyze IMG file structure and properties")
+        analyze_img_action.triggered.connect(self._analyze_img)
+        analyze_menu.addAction(analyze_img_action)
 
-        # File Analysis Tools TODO - complete functions
-        analyze_action = QAction("&Analyze DFF", self.main_window)
-        analyze_action.setStatusTip("Analyze DFF file structure and properties")
-        #analyze_action.triggered.connect(self._analyze_dff)
-        tools_menu.addAction(analyze_action)
+        analyze_col_action = QAction("COL File", self.main_window)
+        analyze_col_action.setStatusTip("Analyze COL file structure and properties")
+        #analyze_col_action.triggered.connect(self._analyze_col)
+        analyze_menu.addAction(analyze_col_action)
 
-        # File Analysis Tools TODO - complete functions
-        analyze_action = QAction("&Analyze TXD", self.main_window)
-        analyze_action.setStatusTip("Analyze TXD file structure and properties")
-        #analyze_action.triggered.connect(self._analyze_txd)
-        tools_menu.addAction(analyze_action)
+        analyze_dff_action = QAction("DFF Model", self.main_window)
+        analyze_dff_action.setStatusTip("Analyze DFF file structure and properties")
+        #analyze_dff_action.triggered.connect(self._analyze_dff)
+        analyze_menu.addAction(analyze_dff_action)
 
-        # File Analysis Tools TODO - complete functions
-        analyze_action = QAction("&Analyze File", self.main_window)
-        analyze_action.setStatusTip("Analyze file structure and properties")
-        #analyze_action.triggered.connect(self._analyze_file)
-        tools_menu.addAction(analyze_action)
+        analyze_txd_action = QAction("TXD Texture", self.main_window)
+        analyze_txd_action.setStatusTip("Analyze TXD file structure and properties")
+        #analyze_txd_action.triggered.connect(self._analyze_txd)
+        analyze_menu.addAction(analyze_txd_action)
+
+        analyze_file_action = QAction("Generic File", self.main_window)
+        analyze_file_action.setStatusTip("Analyze file structure and properties")
+        #analyze_file_action.triggered.connect(self._analyze_file)
+        analyze_menu.addAction(analyze_file_action)
 
         advanced_analyze_action = QAction("&Advanced Analysis", self.main_window)
         advanced_analyze_action.setStatusTip("Comprehensive analysis of IMG file health and structure")

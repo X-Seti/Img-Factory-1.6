@@ -11,6 +11,7 @@ FIXED: get_current_file_from_active_tab gets data from tab widget, not current_i
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QMessageBox
+from PyQt6.QtCore import Qt
 from typing import Optional, Tuple, Any, Dict, List
 
 ##Methods list -
@@ -35,6 +36,25 @@ from typing import Optional, Tuple, Any, Dict, List
 # update_references
 # update_tab_info
 # validate_tab_before_operation
+
+
+def _show_tab_context_menu(main_window, position, tab_widget): #vers 1
+    """Show context menu for tab-specific table"""
+    try:
+        from apps.core.right_click_actions import show_context_menu
+        # Temporarily set gui_layout.table to this tab's table
+        original_table = main_window.gui_layout.table if hasattr(main_window, "gui_layout") else None
+        tab_table = getattr(tab_widget, "table_ref", None)
+        
+        if tab_table and hasattr(main_window, "gui_layout"):
+            main_window.gui_layout.table = tab_table
+            show_context_menu(main_window, position)
+            # Restore
+            if original_table:
+                main_window.gui_layout.table = original_table
+    except Exception as e:
+        if hasattr(main_window, "log_message"):
+            main_window.log_message(f"Context menu error: {str(e)}")
 
 
 def create_tab(main_window, file_path=None, file_type=None, file_object=None): #vers 5
@@ -67,6 +87,14 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         else:
             main_window.log_message("No table found in new tab")
             tab_widget.table_ref = None
+
+        # Setup context menu for THIS tabs table
+        if tab_widget.table_ref:
+            tab_widget.table_ref.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            tab_widget.table_ref.customContextMenuRequested.connect(
+                lambda pos, tw=tab_widget: _show_tab_context_menu(main_window, pos, tw)
+            )
+            main_window.log_message(f"Context menu enabled for tab table")
 
         # Store file data directly on tab widget
         tab_widget.file_path = file_path
