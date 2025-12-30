@@ -101,6 +101,9 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
     if not table_widget or table_widget.rowCount() == 0:
         return
     
+    # Store current scroll position to restore later
+    scroll_position = table_widget.verticalScrollBar().value()
+    
     # Store selection state to preserve it after sorting
     selected_items = [item for item in table_widget.selectedItems()]
     selected_rows = set(item.row() for item in selected_items)
@@ -127,11 +130,13 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
     
     # Disable updates during sorting to prevent flickering and corruption
     table_widget.setUpdatesEnabled(False)
-    table_widget.clearSelection()  # Clear selection before repopulating
+    table_widget.setSortingEnabled(False)  # Temporarily disable sorting during operation
     
     # Clear the table and repopulate with sorted entries
+    table_widget.clearSelection()  # Clear selection before repopulating
     table_widget.setRowCount(0)  # Clear all rows
     
+    # Rebuild table with sorted entries
     for row_idx, entry in enumerate(sorted_entries):
         table_widget.insertRow(row_idx)
         for col_idx, header in enumerate([
@@ -142,14 +147,32 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
             table_widget.setItem(row_idx, col_idx, item)
     
     # Restore selection if possible
-    for row_idx, entry in enumerate(sorted_entries):
-        if row_idx in selected_rows:
-            for col_idx in range(table_widget.columnCount()):
-                table_widget.item(row_idx, col_idx).setSelected(True)
+    for row_idx in range(table_widget.rowCount()):
+        for col_idx in range(table_widget.columnCount()):
+            table_widget.item(row_idx, col_idx).setSelected(False)
+    
+    # Restore selection based on original selected data (not row positions)
+    if selected_items:
+        for row_idx, entry in enumerate(sorted_entries):
+            # Find which original entries were selected and re-select them
+            for original_row in selected_rows:
+                if original_row < len(entries):
+                    original_entry = entries[original_row]
+                    # Match by name or other unique identifier
+                    if entry.get("name", "") == original_entry.get("name", ""):
+                        for col_idx in range(table_widget.columnCount()):
+                            table_widget.item(row_idx, col_idx).setSelected(True)
+                        break
     
     # Re-enable updates
     table_widget.setUpdatesEnabled(True)
-    table_widget.viewport().update()  # Force a repaint to prevent corruption
+    table_widget.setSortingEnabled(True)  # Re-enable sorting
+    
+    # Restore scroll position
+    table_widget.verticalScrollBar().setValue(scroll_position)
+    
+    # Force a repaint to prevent corruption
+    table_widget.repaint()
 
 
 def get_associated_ide_file(img_path: str) -> Optional[str]:
