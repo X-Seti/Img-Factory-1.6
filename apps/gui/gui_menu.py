@@ -2362,7 +2362,15 @@ class IMGFactoryMenuBar:
                                         QMessageBox)
             from PyQt6.QtGui import QFont
             from apps.methods.img_factory_settings import IMGFactorySettings
-            self.img_settings = IMGFactorySettings()
+
+            from gui.img_factory_settings import IMGFactorySettings
+
+            # Create an instance of IMGFactorySettings
+            img_settings = IMGFactorySettings(self.main_window)
+
+            # Show the settings dialog
+            img_settings.exec_()
+
             dialog = QDialog(self.main_window)
 
             dialog.setWindowTitle("IMG Factory Settings")
