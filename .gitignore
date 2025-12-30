@@ -18,23 +18,20 @@ node_modules/
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
 # Editors
 .vscode/
 .idea/
 
-# Coverage reports
+# Coverage
 coverage/
 htmlcov/
 .coverage
 
-# MyPy cache
-.mypy_cache/
-
-# Pytest cache
-.pytest_cache/
+# Distribution / packaging
+dist/
+build/
+*.egg
+*.egg-info/
 ```
-*.log
-/apps/components/Img_Factory/__pycache__
-*.log
