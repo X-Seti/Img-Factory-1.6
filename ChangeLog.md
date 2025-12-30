@@ -14,9 +14,18 @@
 
 # X-Seti - October22 - December 04 2025 - IMG Factory 1.5 ChangeLog
 
-# IMG Factory 1.5 - ChangeLog - (New System)
+# IMG Factory 1.5/1.6 - ChangeLog - (New System)
 
 Complete history of fixes, updates, and improvements.
+
+**Fixed**: - December 28, 2025
+- Many functions have been fixed and not documented
+- Search function has been fixed, botton and menus
+- Replaced old memory core for storing img data
+- inverse has been fixed.
+- import. remove functions now show clean file window lists, no more corruption.
+- reload has been fixed, now safely reloads the img file.
+- Tab system has been reworked.
 
 ---
 **Fixed**: - December 13, 2025
