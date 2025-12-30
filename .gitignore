@@ -36,3 +36,5 @@ htmlcov/
 .pytest_cache/
 ```
 *.log
+/apps/components/Img_Factory/__pycache__
+*.log
