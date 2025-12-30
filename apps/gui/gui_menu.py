@@ -2354,7 +2354,7 @@ class IMGFactoryMenuBar:
 
     def _show_app_settings(self): #vers 2
         """Show IMG Factory-specific settings dialog"""
-        self.main_window, print ("GUI Setting Manager")
+        print("GUI Setting Manager")
         try:
             from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QGroupBox, QCheckBox,
                                         QPushButton, QHBoxLayout, QSpinBox, QLabel,
@@ -2363,13 +2363,8 @@ class IMGFactoryMenuBar:
             from PyQt6.QtGui import QFont
             from apps.methods.img_factory_settings import IMGFactorySettings
 
-            from gui.img_factory_settings import IMGFactorySettings
-
             # Create an instance of IMGFactorySettings
-            img_settings = IMGFactorySettings(self.main_window)
-
-            # Show the settings dialog
-            img_settings.exec_()
+            img_settings = IMGFactorySettings()
 
             dialog = QDialog(self.main_window)
 
@@ -2391,11 +2386,11 @@ class IMGFactoryMenuBar:
             import_layout = QVBoxLayout()
 
             auto_save_cb = QCheckBox("Auto-save after import")
-            auto_save_cb.setChecked(self.main_window.img_settings.get("auto_save_on_import", True))
+            auto_save_cb.setChecked(img_settings.get("auto_save_on_import", True))
             import_layout.addWidget(auto_save_cb)
 
             auto_reload_cb = QCheckBox("Auto-reload after import (reload from disk)")
-            auto_reload_cb.setChecked(self.main_window.img_settings.get("auto_reload_on_import", False))
+            auto_reload_cb.setChecked(img_settings.get("auto_reload_on_import", False))
             import_layout.addWidget(auto_reload_cb)
 
             import_group.setLayout(import_layout)
@@ -2406,14 +2401,14 @@ class IMGFactoryMenuBar:
             ide_layout = QVBoxLayout()
 
             load_ide_cb = QCheckBox("Load IDE file automatically if found with IMG")
-            load_ide_cb.setChecked(self.main_window.img_settings.get("load_ide_with_img", False))
+            load_ide_cb.setChecked(img_settings.get("load_ide_with_img", False))
             ide_layout.addWidget(load_ide_cb)
 
             ide_pref_layout = QHBoxLayout()
             ide_pref_layout.addWidget(QLabel("Preferred IDE tool:"))
             ide_combo = QComboBox()
             ide_combo.addItems(["TXD Workshop", "IDE Workshop"])
-            ide_combo.setCurrentText(self.main_window.img_settings.get("preferred_ide_name", "TXD Workshop"))
+            ide_combo.setCurrentText(img_settings.get("preferred_ide_name", "TXD Workshop"))
             ide_pref_layout.addWidget(ide_combo)
             ide_layout.addLayout(ide_pref_layout)
 

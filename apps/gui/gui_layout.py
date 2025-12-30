@@ -518,7 +518,7 @@ class IMGFactoryGUILayout:
 
             # Import tearoff system
             try:
-                from gui.tear_off import TearOffPanel
+                from apps.gui.tear_off import TearOffPanel
             except ImportError:
                 self.main_window.log_message("TearOffPanel not available")
                 return
@@ -1899,7 +1899,7 @@ class IMGFactoryGUILayout:
     def create_status_bar(self): #vers 1
         """Create status bar with unified progress integration"""
         try:
-            from gui.status_bar import create_status_bar
+            from apps.gui.status_bar import create_status_bar
             create_status_bar(self.main_window)
 
             # Integrate unified progress system
