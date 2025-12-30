@@ -734,88 +734,7 @@ class IMGFactoryGUILayout:
             self.main_window.log_message(f"Failed to launch TXD Workshop: {e}")
 
 
-    def set_button_display_mode(self, mode: str):
-        """
-        Set button display mode: 'text_only', 'icons_only', or 'icons_with_text'
-        """
-        try:
-            # Store the current mode
-            self.button_display_mode = mode
-            
-            # Update all buttons to reflect the new mode
-            self._update_all_buttons_display_mode()
-            
-            print(f"Button display mode set to: {mode}")
-            
-        except Exception as e:
-            print(f"Error setting button display mode: {e}")
 
-
-    def _update_all_buttons_display_mode(self):
-        """Update all buttons to reflect the current display mode"""
-        try:
-            # Get all button collections
-            all_buttons = []
-            if hasattr(self, 'img_buttons'):
-                all_buttons.extend(self.img_buttons)
-            if hasattr(self, 'entry_buttons'):
-                all_buttons.extend(self.entry_buttons)
-            if hasattr(self, 'options_buttons'):
-                all_buttons.extend(self.options_buttons)
-            
-            # Update each button
-            for btn in all_buttons:
-                self._update_button_display_mode(btn)
-                
-        except Exception as e:
-            print(f"Error updating all buttons display mode: {e}")
-
-
-    def _update_button_display_mode(self, btn):
-        """Update a single button to reflect the current display mode"""
-        try:
-            mode = getattr(self, 'button_display_mode', 'text_only')  # Default to text_only
-            
-            if mode == 'text_only':
-                # Show text only, hide icon
-                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
-                btn.setIcon(QIcon())  # Remove icon
-                btn.setMinimumWidth(0)  # Reset minimum width
-                btn.setMaximumWidth(16777215)  # Maximum width (default)
-                
-            elif mode == 'icons_only':
-                # Show icon only, hide text
-                btn.setText("")  # Remove text
-                # Keep the icon if it exists
-                if hasattr(btn, 'original_text'):
-                    btn.setToolTip(btn.original_text)  # Add tooltip with original text
-                elif hasattr(btn, 'localized_text'):
-                    btn.setToolTip(btn.localized_text)
-                else:
-                    btn.setToolTip(btn.text())
-                btn.setMinimumWidth(64)  # Set fixed width for icon-only mode
-                btn.setMaximumWidth(64)
-                btn.setMinimumHeight(64)  # Set fixed height for icon-only mode
-                btn.setMaximumHeight(64)
-                
-            elif mode == 'icons_with_text':
-                # Show both icon and text
-                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
-                # Keep the icon if it exists
-                btn.setMinimumWidth(0)  # Reset minimum width
-                btn.setMaximumWidth(16777215)  # Maximum width (default)
-                btn.setMinimumHeight(20)  # Reset height
-                btn.setMaximumHeight(22)
-                
-            else:
-                # Default to text only
-                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
-                btn.setIcon(QIcon())
-                btn.setMinimumWidth(0)
-                btn.setMaximumWidth(16777215)
-                
-        except Exception as e:
-            print(f"Error updating button display mode: {e}")
 
 
     def _update_button_theme(self, btn, bg_color): #vers 2
@@ -1412,6 +1331,73 @@ class IMGFactoryGUILayout:
             
         except Exception as e:
             print(f"Error setting button display mode: {e}")
+
+    def _update_all_buttons_display_mode(self):
+        """Update all buttons to reflect the current display mode"""
+        try:
+            # Get all button collections
+            all_buttons = []
+            if hasattr(self, 'img_buttons'):
+                all_buttons.extend(self.img_buttons)
+            if hasattr(self, 'entry_buttons'):
+                all_buttons.extend(self.entry_buttons)
+            if hasattr(self, 'options_buttons'):
+                all_buttons.extend(self.options_buttons)
+            
+            # Update each button
+            for btn in all_buttons:
+                self._update_button_display_mode(btn)
+                
+        except Exception as e:
+            print(f"Error updating all buttons display mode: {e}")
+
+    def _update_button_display_mode(self, btn):
+        """Update a single button to reflect the current display mode"""
+        try:
+            mode = getattr(self, 'button_display_mode', 'icons_with_text')  # Default to icons_with_text
+            
+            if mode == 'text_only':
+                # Show text only, hide icon
+                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
+                btn.setIcon(QIcon())  # Remove icon
+                btn.setMinimumWidth(0)  # Reset minimum width
+                btn.setMaximumWidth(16777215)  # Maximum width (default)
+                
+            elif mode == 'icons_only':
+                # Show icon only, hide text
+                btn.setText("")  # Remove text
+                # Keep the icon if it exists
+                if hasattr(btn, 'original_text'):
+                    btn.setToolTip(btn.original_text)  # Add tooltip with original text
+                elif hasattr(btn, 'localized_text'):
+                    btn.setToolTip(btn.localized_text)
+                else:
+                    btn.setToolTip(btn.text())
+                btn.setMinimumWidth(64)  # Set fixed width for icon-only mode
+                btn.setMaximumWidth(64)
+                btn.setMinimumHeight(64)  # Set fixed height for icon-only mode
+                btn.setMaximumHeight(64)
+                
+            elif mode == 'icons_with_text':
+                # Show both icon and text
+                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
+                # Keep the icon if it exists
+                btn.setMinimumWidth(0)  # Reset minimum width
+                btn.setMaximumWidth(16777215)  # Maximum width (default)
+                btn.setMinimumHeight(20)  # Reset height
+                btn.setMaximumHeight(22)
+                
+            else:
+                # Default to icons_with_text
+                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
+                # Keep the icon if it exists
+                btn.setMinimumWidth(0)  # Reset minimum width
+                btn.setMaximumWidth(16777215)  # Maximum width (default)
+                btn.setMinimumHeight(20)  # Reset height
+                btn.setMaximumHeight(22)
+                
+        except Exception as e:
+            print(f"Error updating button display mode: {e}")
 
     def update_button_settings(self, settings):
         """Update button settings from app settings"""

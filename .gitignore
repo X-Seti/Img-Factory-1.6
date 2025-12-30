@@ -9,6 +9,9 @@ __pycache__/
 .venv/
 venv/
 node_modules/
+*.egg-info/
+dist/
+build/
 
 # Logs and temp files
 *.log
@@ -24,15 +27,23 @@ node_modules/
 .vscode/
 .idea/
 
-# Coverage reports
+# Coverage
+.coverage
 coverage/
 htmlcov/
-.coverage
 
-# MyPy cache
-.mypy_cache/
+# Python specific
+*.pyo
+*.pyd
+.Python
+*.so
 
-# Pytest cache
-.pytest_cache/
+# Backup files
+*~
+*.bak
+*.swp
+
+# OS generated files
+.DS_Store
+Thumbs.db
 ```
-*.log
