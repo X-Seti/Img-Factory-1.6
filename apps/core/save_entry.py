@@ -177,9 +177,12 @@ def save_img_entry(main_window): #vers 1
         _refresh_table_with_rw_data(main_window)
         if hasattr(main_window, 'refresh_table'):
             main_window.refresh_table()
-        QMessageBox.information(main_window, "Save Complete",
-            "IMG file saved successfully with RW version detection!\n"
-            "All changes have been written to disk.")
+            QMessageBox.information(main_window, "Save Complete",
+            "IMG file saved successfully with RW version detection!\n All changes have been written to disk.")
+            from apps.core.reload import reload_current_file
+            reload_current_file(main_window)
+            main_window.log_message("Auto-reloaded after save")
+
         if hasattr(main_window, 'log_message'):
             main_window.log_message("Save completed with RW data populated")
         return True

@@ -11,9 +11,10 @@ from PyQt6.QtWidgets import (
     QMessageBox, QSizePolicy, QButtonGroup, QListWidget, QListWidgetItem,
     QFormLayout, QScrollArea, QFrame
 )
-from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QPoint
+from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QPoint, QItemSelectionModel
 from PyQt6.QtGui import QFont, QAction, QIcon, QShortcut, QKeySequence, QPalette, QTextCursor
 from apps.core.gui_search import ASearchDialog, SearchManager
+
 from apps.methods.imgfactory_svg_icons import (
     get_add_icon, get_open_icon, get_refresh_icon, get_close_icon, 
     get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
@@ -55,7 +56,7 @@ from apps.core.open import _detect_and_open_file, open_file_dialog, _detect_file
 from apps.core.close import close_img_file, close_all_img, install_close_functions, setup_close_manager
 from apps.methods.colour_ui_for_loaded_img import integrate_color_ui_system
 from apps.gui.gui_context import open_col_editor_dialog
-from apps.methods.refresh_table_functions import refresh_table
+#from apps.methods.refresh_table_functions import refresh_table
 
 
 def edit_txd_file(main_window): #vers 3
@@ -1906,8 +1907,10 @@ class IMGFactoryGUILayout:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Select all entries error: {str(e)}")
 
+
     def select_inverse(self):  # vers 3
         """Invert the current selection in the table"""
+
         try:
             if self.table:
                 # Get the selection model
@@ -1917,10 +1920,10 @@ class IMGFactoryGUILayout:
                     currently_selected_rows = set()
                     for index in selection_model.selectedIndexes():
                         currently_selected_rows.add(index.row())
-                    
+
                     # Clear current selection
                     self.table.clearSelection()
-                    
+
                     # Select all rows that were NOT selected, and deselect those that were
                     for row in range(self.table.rowCount()):
                         if row in currently_selected_rows:
@@ -1930,7 +1933,7 @@ class IMGFactoryGUILayout:
                             # Select this row (these were originally NOT selected)
                             for col in range(self.table.columnCount()):
                                 index = self.table.model().index(row, col)
-                                selection_model.select(index, QAbstractItemView.SelectionFlag.Select)
+                                selection_model.select(index, QAbstractItemView.SelectionBehavior.SelectRows)
                 else:
                     # Fallback method if selection model is not available
                     # Get all items in the table
@@ -1940,18 +1943,14 @@ class IMGFactoryGUILayout:
                             item = self.table.item(row, col)
                             if item:
                                 all_items.append(item)
-
                     # Store currently selected items
                     currently_selected = set(self.table.selectedItems())
-
                     # Clear selection
                     self.table.clearSelection()
-
                     # Select items that were not selected
                     for item in all_items:
                         if item not in currently_selected:
                             item.setSelected(True)
-
                 if hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message("Selection inverted")
             else:
@@ -1960,6 +1959,7 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Select inverse error: {str(e)}")
+
 
     def sort_entries(self, sort_order="name"):  # vers 2
         """Sort entries in the table with various options"""

@@ -71,5 +71,7 @@
   "button_icon_size": 18,
   "button_text_size": 12,
   "separate_button_format": true,
-  "language": "en"
+  "language": "en",
+  "auto_save_on_import": true,
+  "auto_reload_on_import": true
 }

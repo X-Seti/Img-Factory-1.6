@@ -91,6 +91,12 @@ class CrossPlatformThemeSystem:
                     color: #333333;
                 }
                 QTableWidget::item:selected {
+            QTableWidget::item:hover {
+                background-color: rgba(100, 150, 255, 0.25);
+            }
+            QTableWidget::item:selected:hover {
+                background-color: rgba(90, 150, 250, 0.5);
+            }
                     background-color: #e3f2fd;
                     color: #1976d2;
                 }
@@ -268,6 +274,12 @@ class CrossPlatformThemeSystem:
                 color: #333333 !important;
             }
             QTableWidget::item:selected {
+            QTableWidget::item:hover {
+                background-color: rgba(100, 150, 255, 0.25);
+            }
+            QTableWidget::item:selected:hover {
+                background-color: rgba(90, 150, 250, 0.5);
+            }
                 background-color: #e3f2fd !important;
                 color: #1976d2 !important;
             }

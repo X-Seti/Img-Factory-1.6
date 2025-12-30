@@ -84,6 +84,21 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         tables = tab_widget.findChildren(QTableWidget)
         if tables:
             tab_widget.table_ref = tables[-1]
+            # Enable mouse tracking for hover effects
+            tab_widget.table_ref.setMouseTracking(True)
+            tab_widget.table_ref.viewport().setMouseTracking(True)
+            
+            # Apply hover stylesheet
+            existing_style = tab_widget.table_ref.styleSheet()
+            hover_style = """
+                QTableWidget::item:hover {
+                    background-color: rgba(100, 150, 255, 0.25);
+                }
+                QTableWidget::item:selected:hover {
+                    background-color: rgba(90, 150, 250, 0.5);
+                }
+            """
+            tab_widget.table_ref.setStyleSheet(existing_style + hover_style)
         else:
             main_window.log_message("No table found in new tab")
             tab_widget.table_ref = None

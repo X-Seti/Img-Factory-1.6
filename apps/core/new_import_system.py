@@ -161,19 +161,9 @@ def import_files_dialog(main_window) -> bool:
         # Import WITHOUT auto-save
         success_list, failed_list = _add_multiple_files_to_img(file_object, file_paths, main_window)
         imported_count = len(success_list)
-
         if imported_count > 0:
-            # Refresh UI after import
-            _refresh_ui_after_import(main_window)
-            main_window.log_message(f"Imported {imported_count} file(s) - use Save Entry to save changes")
+            main_window.log_message(f"Imported {imported_count} file(s) - use Save Entry, then Reload to see changes")
             return True
-        else:
-            main_window.log_message("Import failed: No files were imported")
-            return False
-
-    except Exception as e:
-        main_window.log_message(f"Import error: {str(e)}")
-        return False
 
 
 def import_files_list(main_window, file_paths: List[str]) -> bool:
@@ -362,7 +352,7 @@ def _find_file_in_directory(directory: str, filename: str) -> Optional[str]:
     return None
 
 
-def _refresh_ui_after_import(main_window) -> None:
+def _refresh_ui_after_import(main_window) -> None: #vers 2
     """Refresh UI after import"""
     try:
         if hasattr(main_window, 'refresh_current_tab_data'):

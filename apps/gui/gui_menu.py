@@ -91,6 +91,7 @@ class MenuDefinition:
             "Settings": [
                 MenuAction("preferences", "&Theme Prefs ", "Ctrl+,"),
                 MenuAction("customize_gui", "Customize &GUI"),
+                MenuAction("app_settings", "&App Settings"),
                 MenuAction("sep1", ""),
                 MenuAction("language", "&Language"),
                 MenuAction("sep2", ""),
@@ -869,6 +870,7 @@ class IMGFactoryMenuBar:
             # Settings menu
             "preferences": self._show_preferences,
             "customize_interface": self._show_gui_settings,
+            "app_settings": self._show_app_settings,
             "customize_gui": self._customize_gui,
             "customize_menus": self._customize_menus, #moved to tab
             "themes": self._show_theme_settings,
@@ -2543,6 +2545,60 @@ class IMGFactoryMenuBar:
             "GUI Settings",
             "GUI customization dialog coming soon!"
         )
+
+    def _show_app_settings(self): #vers 1
+        """Show application settings dialog"""
+        try:
+            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QGroupBox, QCheckBox, QPushButton, QHBoxLayout
+
+            dialog = QDialog(self.main_window)
+            dialog.setWindowTitle("App Settings")
+            dialog.setMinimumWidth(400)
+
+            layout = QVBoxLayout(dialog)
+
+            # Import/Export Group
+            import_export_group = QGroupBox("Import/Export Behavior")
+            import_layout = QVBoxLayout()
+
+            # Auto-save checkbox
+            auto_save_cb = QCheckBox("Auto-save after import")
+            auto_save_cb.setChecked(True)
+            import_layout.addWidget(auto_save_cb)
+
+            auto_reload_cb = QCheckBox("Auto-reload after import (reload from disk)")
+            auto_reload_cb.setChecked(False)
+            import_layout.addWidget(auto_reload_cb)
+
+            import_export_group.setLayout(import_layout)
+            layout.addWidget(import_export_group)
+
+            # Buttons
+            button_layout = QHBoxLayout()
+            ok_btn = QPushButton("OK")
+            cancel_btn = QPushButton("Cancel")
+
+            def save_settings():
+                if hasattr(self.main_window, "app_settings"):
+                    self.main_window.app_settings.current_settings["auto_save_on_import"] = auto_save_cb.isChecked()
+                    self.main_window.app_settings.current_settings["auto_reload_on_import"] = auto_reload_cb.isChecked()
+                    self.main_window.app_settings.save_settings()
+                dialog.accept()
+
+            ok_btn.clicked.connect(save_settings)
+            cancel_btn.clicked.connect(dialog.reject)
+
+            button_layout.addStretch()
+            button_layout.addWidget(ok_btn)
+            button_layout.addWidget(cancel_btn)
+            layout.addLayout(button_layout)
+
+            dialog.exec()
+
+        except Exception as e:
+            QMessageBox.warning(self.main_window, "Error", f"Failed to open App Settings: {str(e)}")
+
+
 
     def _show_theme_settings(self):
         """Show theme settings"""

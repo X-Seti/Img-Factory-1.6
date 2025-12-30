@@ -917,6 +917,17 @@ def context_menu_event(main_window, event): #vers 2
             return
 
         table = main_window.gui_layout.table
+        # Apply hover stylesheet\
+        existing_style = table.styleSheet()
+        hover_style = """
+                QTableWidget::item:hover {
+                    background-color: rgba(100, 150, 255, 0.25);
+                }
+                QTableWidget::item:selected:hover {
+                    background-color: rgba(90, 150, 250, 0.5);
+                }
+                """
+
         # Get the item at the position where the right-click occurred
         item = table.itemAt(event.pos())
         if not item:
