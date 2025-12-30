@@ -1288,27 +1288,41 @@ class IMGFactoryGUILayout:
         return file_window
 
 
-    def create_right_panel_with_pastel_buttons(self): #vers 3
+    # Updated function for gui_layout.py - Replace existing create_right_panel_with_pastel_buttons
+
+    def create_right_panel_with_pastel_buttons(self): #vers 4
         """Create right panel with theme-controlled pastel buttons"""
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
-
         right_layout.setContentsMargins(4, 4, 4, 4)
-        space_between_btnv = 8  # Vertical Button spacing
-        space_between_btnh = 6  # Horizontal Button spacing
 
-        right_layout.setSpacing(0)
+        # Get spacing from settings
+        if hasattr(self.main_window, 'app_settings') and hasattr(self.main_window.app_settings, 'current_settings'):
+            space_between_btnv = self.main_window.app_settings.current_settings.get('button_spacing_vertical', 8)
+            space_between_btnh = self.main_window.app_settings.current_settings.get('button_spacing_horizontal', 6)
+            button_height = self.main_window.app_settings.current_settings.get('button_height', 32)
+        else:
+            # Defaults if settings not available
+            space_between_btnv = 8
+            space_between_btnh = 6
+            button_height = 32
+
+        right_layout.setSpacing(space_between_btnv)
 
         # IMG Section with theme colors
         img_box = QGroupBox("IMG, COL, TXD Files")
         img_layout = QGridLayout()
-        img_layout.setSpacing(space_between_btnv, space_between_btnh)
+        img_layout.setSpacing(space_between_btnv)
+        img_layout.setHorizontalSpacing(space_between_btnh)
+        img_layout.setVerticalSpacing(space_between_btnv)
 
         # Use theme-controlled button data
         img_buttons_data = self._get_img_buttons_data()
 
         for i, (label, action_type, icon, color, method_name) in enumerate(img_buttons_data):
             btn = self.create_pastel_button(label, action_type, icon, color, method_name)
+            btn.setMaximumHeight(button_height)
+            btn.setMinimumHeight(button_height - 4)
             self.img_buttons.append(btn)
             # Add to backend as well
             if hasattr(self, 'backend'):
@@ -1321,13 +1335,17 @@ class IMGFactoryGUILayout:
         # Entries Section with theme colors
         entries_box = QGroupBox("File Entries")
         entries_layout = QGridLayout()
-        entries_layout.setSpacing(space_between_btnv, space_between_btnh)
+        entries_layout.setSpacing(space_between_btnv)
+        entries_layout.setHorizontalSpacing(space_between_btnh)
+        entries_layout.setVerticalSpacing(space_between_btnv)
 
         # Use theme-controlled button data
         entry_buttons_data = self._get_entry_buttons_data()
 
         for i, (label, action_type, icon, color, method_name) in enumerate(entry_buttons_data):
             btn = self.create_pastel_button(label, action_type, icon, color, method_name)
+            btn.setMaximumHeight(button_height)
+            btn.setMinimumHeight(button_height - 4)
             self.entry_buttons.append(btn)
             # Add to backend as well
             if hasattr(self, 'backend'):
@@ -1340,13 +1358,17 @@ class IMGFactoryGUILayout:
         # Options Section with theme colors
         options_box = QGroupBox("Editing Options")
         options_layout = QGridLayout()
-        options_layout.setSpacing(space_between_btnv, space_between_btnh)
+        options_layout.setSpacing(space_between_btnv)
+        options_layout.setHorizontalSpacing(space_between_btnh)
+        options_layout.setVerticalSpacing(space_between_btnv)
 
         # Use theme-controlled button data
         options_buttons_data = self._get_options_buttons_data()
 
         for i, (label, action_type, icon, color, method_name) in enumerate(options_buttons_data):
             btn = self.create_pastel_button(label, action_type, icon, color, method_name)
+            btn.setMaximumHeight(button_height)
+            btn.setMinimumHeight(button_height - 4)
             self.options_buttons.append(btn)
             # Add to backend as well
             if hasattr(self, 'backend'):
@@ -1356,18 +1378,9 @@ class IMGFactoryGUILayout:
         options_box.setLayout(options_layout)
         right_layout.addWidget(options_box)
 
-        # Search button section - positioned at the bottom right
-        search_button_layout = QHBoxLayout()
-        search_button_layout.addStretch()  # Add stretch to push button to the right
-        search_btn = self.create_pastel_button("Search", "search", "search", self._get_button_theme_template()['select_action'], "show_search_dialog")
-        # Add to backend as well
-        if hasattr(self, 'backend'):
-            self.backend.options_buttons.append(search_btn)  # Add to options buttons for consistency
-        search_button_layout.addWidget(search_btn)
-        right_layout.addLayout(search_button_layout)
-
+        # Add stretch to push everything up
+        right_layout.addStretch()
         return right_panel
-
 
 
     def set_button_display_mode(self, mode: str):
