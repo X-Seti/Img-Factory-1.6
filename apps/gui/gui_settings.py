@@ -490,8 +490,17 @@ class SettingsDialog(QDialog): #vers 4
     def _apply_button_display_mode(self): #vers 4
         """Apply button display mode"""
         parent = self.parent()
-        if parent and hasattr(parent, "gui_layout") and hasattr(parent.gui_layout, "create_right_panel_with_pastel_buttons"):
-            parent.gui_layout.create_right_panel_with_pastel_buttons()
+        if parent and hasattr(parent, "gui_layout") and hasattr(parent.gui_layout, "set_button_display_mode"):
+            # Get the current button display mode from settings
+            button_mode = self.app_settings.current_settings.get("button_display_mode", "both")
+            # Convert to the format expected by the layout
+            if button_mode == "icons_only":
+                layout_mode = "icons_only"
+            elif button_mode == "text_only":
+                layout_mode = "text_only"
+            else:
+                layout_mode = "icons_with_text"  # Default to showing both
+            parent.gui_layout.set_button_display_mode(layout_mode)
         if parent:
             parent.update()
 

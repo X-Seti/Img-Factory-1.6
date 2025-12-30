@@ -2352,310 +2352,16 @@ class IMGFactoryMenuBar:
         )
 
 
-    def _show_app_settings(self): #vers 2
+    def _show_app_settings(self):
         """Show IMG Factory-specific settings dialog"""
-        self.main_window, print ("GUI Setting Manager")
         try:
-            from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QGroupBox, QCheckBox,
-                                        QPushButton, QHBoxLayout, QSpinBox, QLabel,
-                                        QComboBox, QFontComboBox, QTabWidget, QWidget,
-                                        QMessageBox)
-            from PyQt6.QtGui import QFont
             from apps.methods.img_factory_settings import IMGFactorySettings
-            self.img_settings = IMGFactorySettings()
-            dialog = QDialog(self.main_window)
-
-            dialog.setWindowTitle("IMG Factory Settings")
-            dialog.setMinimumWidth(500)
-            dialog.setMinimumHeight(400)
-
-            main_layout = QVBoxLayout(dialog)
-
-            # Create tabbed interface
-            tabs = QTabWidget()
-
-            # ===== TAB 1: General =====
-            general_tab = QWidget()
-            general_layout = QVBoxLayout(general_tab)
-
-            # Import/Export Group
-            import_group = QGroupBox("Import/Export Behavior")
-            import_layout = QVBoxLayout()
-
-            auto_save_cb = QCheckBox("Auto-save after import")
-            auto_save_cb.setChecked(self.main_window.img_settings.get("auto_save_on_import", True))
-            import_layout.addWidget(auto_save_cb)
-
-            auto_reload_cb = QCheckBox("Auto-reload after import (reload from disk)")
-            auto_reload_cb.setChecked(self.main_window.img_settings.get("auto_reload_on_import", False))
-            import_layout.addWidget(auto_reload_cb)
-
-            import_group.setLayout(import_layout)
-            general_layout.addWidget(import_group)
-
-            # IDE Integration Group
-            ide_group = QGroupBox("IDE Integration")
-            ide_layout = QVBoxLayout()
-
-            load_ide_cb = QCheckBox("Load IDE file automatically if found with IMG")
-            load_ide_cb.setChecked(self.main_window.img_settings.get("load_ide_with_img", False))
-            ide_layout.addWidget(load_ide_cb)
-
-            ide_pref_layout = QHBoxLayout()
-            ide_pref_layout.addWidget(QLabel("Preferred IDE tool:"))
-            ide_combo = QComboBox()
-            ide_combo.addItems(["TXD Workshop", "IDE Workshop"])
-            ide_combo.setCurrentText(self.main_window.img_settings.get("preferred_ide_name", "TXD Workshop"))
-            ide_pref_layout.addWidget(ide_combo)
-            ide_layout.addLayout(ide_pref_layout)
-
-            ide_group.setLayout(ide_layout)
-            general_layout.addWidget(ide_group)
-
-            # Window Behavior Group
-            window_group = QGroupBox("Window Behavior")
-            window_layout = QVBoxLayout()
-
-            remember_size_cb = QCheckBox("Remember window size")
-            remember_size_cb.setChecked(self.main_window.img_settings.get("remember_window_size", True))
-            window_layout.addWidget(remember_size_cb)
-
-            remember_pos_cb = QCheckBox("Remember window position")
-            remember_pos_cb.setChecked(self.main_window.img_settings.get("remember_window_position", True))
-            window_layout.addWidget(remember_pos_cb)
-
-            window_group.setLayout(window_layout)
-            general_layout.addWidget(window_group)
-
-            general_layout.addStretch()
-            tabs.addTab(general_tab, "General")
-
-            # ===== TAB 2: Interface =====
-            interface_tab = QWidget()
-            interface_layout = QVBoxLayout(interface_tab)
-
-            # Button Spacing Group
-            button_group = QGroupBox("Button Layout")
-            button_layout = QVBoxLayout()
-
-            h_spacing_layout = QHBoxLayout()
-            h_spacing_layout.addWidget(QLabel("Horizontal spacing:"))
-            h_spacing_spin = QSpinBox()
-            h_spacing_spin.setRange(0, 50)
-            h_spacing_spin.setValue(self.main_window.img_settings.get("button_horizontal_spacing", 10))
-            h_spacing_spin.setSuffix(" px")
-            h_spacing_layout.addWidget(h_spacing_spin)
-            h_spacing_layout.addStretch()
-            button_layout.addLayout(h_spacing_layout)
-
-            v_spacing_layout = QHBoxLayout()
-            v_spacing_layout.addWidget(QLabel("Vertical spacing:"))
-            v_spacing_spin = QSpinBox()
-            v_spacing_spin.setRange(0, 50)
-            v_spacing_spin.setValue(self.main_window.img_settings.get("button_vertical_spacing", 10))
-            v_spacing_spin.setSuffix(" px")
-            v_spacing_layout.addWidget(v_spacing_spin)
-            v_spacing_layout.addStretch()
-            button_layout.addLayout(v_spacing_layout)
-
-            button_group.setLayout(button_layout)
-            interface_layout.addWidget(button_group)
-
-            # Font Settings Group
-            font_group = QGroupBox("Font Settings")
-            font_layout = QVBoxLayout()
-
-            use_custom_font_cb = QCheckBox("Use custom font settings")
-            use_custom_font_cb.setChecked(self.main_window.img_settings.get("use_custom_font", False))
-            font_layout.addWidget(use_custom_font_cb)
-
-            font_family_layout = QHBoxLayout()
-            font_family_layout.addWidget(QLabel("Font:"))
-            font_combo = QFontComboBox()
-            font_combo.setCurrentFont(QFont(self.main_window.img_settings.get("font_family", "Segoe UI")))
-            font_combo.setEnabled(use_custom_font_cb.isChecked())
-            font_family_layout.addWidget(font_combo)
-            font_layout.addLayout(font_family_layout)
-
-            font_size_layout = QHBoxLayout()
-            font_size_layout.addWidget(QLabel("Size:"))
-            font_size_spin = QSpinBox()
-            font_size_spin.setRange(6, 24)
-            font_size_spin.setValue(self.main_window.img_settings.get("font_size", 9))
-            font_size_spin.setSuffix(" pt")
-            font_size_spin.setEnabled(use_custom_font_cb.isChecked())
-            font_size_layout.addWidget(font_size_spin)
-            font_size_layout.addStretch()
-            font_layout.addLayout(font_size_layout)
-
-            font_style_layout = QHBoxLayout()
-            font_bold_cb = QCheckBox("Bold")
-            font_bold_cb.setChecked(self.main_window.img_settings.get("font_bold", False))
-            font_bold_cb.setEnabled(use_custom_font_cb.isChecked())
-            font_style_layout.addWidget(font_bold_cb)
-
-            font_italic_cb = QCheckBox("Italic")
-            font_italic_cb.setChecked(self.main_window.img_settings.get("font_italic", False))
-            font_italic_cb.setEnabled(use_custom_font_cb.isChecked())
-            font_style_layout.addWidget(font_italic_cb)
-            font_style_layout.addStretch()
-            font_layout.addLayout(font_style_layout)
-
-            # Enable/disable font controls based on checkbox
-            def toggle_font_controls(checked):
-                font_combo.setEnabled(checked)
-                font_size_spin.setEnabled(checked)
-                font_bold_cb.setEnabled(checked)
-                font_italic_cb.setEnabled(checked)
-
-            use_custom_font_cb.toggled.connect(toggle_font_controls)
-
-            font_group.setLayout(font_layout)
-            interface_layout.addWidget(font_group)
-
-            interface_layout.addStretch()
-            tabs.addTab(interface_tab, "Interface")
-
-            # ===== TAB 3: Advanced =====
-            advanced_tab = QWidget()
-            advanced_layout = QVBoxLayout(advanced_tab)
-
-            # File Handling Group
-            file_group = QGroupBox("File Handling")
-            file_layout = QVBoxLayout()
-
-            recent_files_layout = QHBoxLayout()
-            recent_files_layout.addWidget(QLabel("Recent files limit:"))
-            recent_files_spin = QSpinBox()
-            recent_files_spin.setRange(5, 50)
-            recent_files_spin.setValue(self.main_window.img_settings.get("recent_files_limit", 10))
-            recent_files_layout.addWidget(recent_files_spin)
-            recent_files_layout.addStretch()
-            file_layout.addLayout(recent_files_layout)
-
-            auto_backup_cb = QCheckBox("Create automatic backups")
-            auto_backup_cb.setChecked(self.main_window.img_settings.get("auto_backup", False))
-            file_layout.addWidget(auto_backup_cb)
-
-            backup_count_layout = QHBoxLayout()
-            backup_count_layout.addWidget(QLabel("Number of backups:"))
-            backup_count_spin = QSpinBox()
-            backup_count_spin.setRange(1, 10)
-            backup_count_spin.setValue(self.main_window.img_settings.get("backup_count", 3))
-            backup_count_spin.setEnabled(auto_backup_cb.isChecked())
-            backup_count_layout.addWidget(backup_count_spin)
-            backup_count_layout.addStretch()
-            file_layout.addLayout(backup_count_layout)
-
-            auto_backup_cb.toggled.connect(backup_count_spin.setEnabled)
-
-            file_group.setLayout(file_layout)
-            advanced_layout.addWidget(file_group)
-
-            advanced_layout.addStretch()
-            tabs.addTab(advanced_tab, "Advanced")
-
-            # Add tabs to main layout
-            main_layout.addWidget(tabs)
-
-            # Buttons
-            button_layout = QHBoxLayout()
-
-            reset_btn = QPushButton("Reset to Defaults")
-            ok_btn = QPushButton("OK")
-            apply_btn = QPushButton("Apply")
-            cancel_btn = QPushButton("Cancel")
-
-            def save_settings():
-                """Save all settings"""
-                # General tab
-                self.main_window.img_settings.set("auto_save_on_import", auto_save_cb.isChecked())
-                self.main_window.img_settings.set("auto_reload_on_import", auto_reload_cb.isChecked())
-                self.main_window.img_settings.set("load_ide_with_img", load_ide_cb.isChecked())
-                self.main_window.img_settings.set("preferred_ide_name", ide_combo.currentText())
-                self.main_window.img_settings.set("remember_window_size", remember_size_cb.isChecked())
-                self.main_window.img_settings.set("remember_window_position", remember_pos_cb.isChecked())
-
-                # Interface tab
-                self.main_window.img_settings.set("button_horizontal_spacing", h_spacing_spin.value())
-                self.main_window.img_settings.set("button_vertical_spacing", v_spacing_spin.value())
-                self.main_window.img_settings.set("use_custom_font", use_custom_font_cb.isChecked())
-                self.main_window.img_settings.set("font_family", font_combo.currentFont().family())
-                self.main_window.img_settings.set("font_size", font_size_spin.value())
-                self.main_window.img_settings.set("font_bold", font_bold_cb.isChecked())
-                self.main_window.img_settings.set("font_italic", font_italic_cb.isChecked())
-
-                # Advanced tab
-                self.main_window.img_settings.set("recent_files_limit", recent_files_spin.value())
-                self.main_window.img_settings.set("auto_backup", auto_backup_cb.isChecked())
-                self.main_window.img_settings.set("backup_count", backup_count_spin.value())
-
-                self.main_window.img_settings.save_settings()
-
-            def apply_settings():
-                """Apply settings without closing"""
-                save_settings()
-                # Apply immediate changes if needed
-                if hasattr(self.main_window, 'apply_app_settings'):
-                    self.img_settings = IMGFactorySettings()
-                    self.main_window.apply_app_settings()
-                QMessageBox.information(dialog, "Settings Applied", "Settings have been applied successfully.")
-
-
-            def apply_app_settings(self):
-                """Apply IMG Factory-specific settings to the application"""
-                from PyQt6.QtWidgets import QApplication
-                from PyQt6.QtGui import QFont
-
-                # Apply font settings if custom font is enabled
-                if self.img_settings.get("use_custom_font", False):
-                    font = QFont(self.img_settings.get("font_family", "Segoe UI"))
-                    font.setPointSize(self.img_settings.get("font_size", 9))
-                    font.setBold(self.img_settings.get("font_bold", False))
-                    font.setItalic(self.img_settings.get("font_italic", False))
-                    self.setFont(font)
-                    QApplication.instance().setFont(font)
-
-                # Apply window size/position if enabled
-                if self.img_settings.get("remember_window_size", True):
-                    width = self.img_settings.get("last_window_width", 1200)
-                    height = self.img_settings.get("last_window_height", 800)
-                    self.resize(width, height)
-
-                if self.img_settings.get("remember_window_position", True):
-                    x = self.img_settings.get("last_window_x", -1)
-                    y = self.img_settings.get("last_window_y", -1)
-                    if x >= 0 and y >= 0:
-                        self.move(x, y)
-
-
-            def reset_settings():
-                """Reset to defaults"""
-                reply = QMessageBox.question(dialog, "Reset Settings",
-                                            "Are you sure you want to reset all settings to defaults?",
-                                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                if reply == QMessageBox.StandardButton.Yes:
-                    self.main_window.img_settings.reset_to_defaults()
-                    dialog.accept()
-                    # Reopen dialog to show defaults
-                    self._show_app_settings()
-
-            reset_btn.clicked.connect(reset_settings)
-            ok_btn.clicked.connect(lambda: (save_settings(), dialog.accept()))
-            apply_btn.clicked.connect(apply_settings)
-            cancel_btn.clicked.connect(dialog.reject)
-
-            button_layout.addWidget(reset_btn)
-            button_layout.addStretch()
-            button_layout.addWidget(ok_btn)
-            button_layout.addWidget(apply_btn)
-            button_layout.addWidget(cancel_btn)
-
-            main_layout.addLayout(button_layout)
-
-            dialog.exec()
-
+            # Create an instance of IMGFactorySettings with the main window as parent
+            img_settings = IMGFactorySettings(self.main_window)
+            # Show the settings dialog
+            img_settings.exec()
         except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self.main_window, "Error", f"Failed to open IMG Factory Settings: {str(e)}")
 
 
@@ -2664,24 +2370,32 @@ class IMGFactoryMenuBar:
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtGui import QFont
 
+        # Check if main window has img_settings attribute
+        if hasattr(self.main_window, 'img_settings'):
+            img_settings = self.main_window.img_settings
+        else:
+            # Create a temporary instance if not available
+            from apps.methods.img_factory_settings import IMGFactorySettings
+            img_settings = IMGFactorySettings()
+
         # Apply font settings if custom font is enabled
-        if self.img_settings.get("use_custom_font", False):
-            font = QFont(self.img_settings.get("font_family", "Segoe UI"))
-            font.setPointSize(self.img_settings.get("font_size", 9))
-            font.setBold(self.img_settings.get("font_bold", False))
-            font.setItalic(self.img_settings.get("font_italic", False))
+        if img_settings.get("use_custom_font", False):
+            font = QFont(img_settings.get("font_family", "Segoe UI"))
+            font.setPointSize(img_settings.get("font_size", 9))
+            font.setBold(img_settings.get("font_bold", False))
+            font.setItalic(img_settings.get("font_italic", False))
             self.setFont(font)
             QApplication.instance().setFont(font)
 
         # Apply window size/position if enabled
-        if self.img_settings.get("remember_window_size", True):
-            width = self.img_settings.get("last_window_width", 1200)
-            height = self.img_settings.get("last_window_height", 800)
+        if img_settings.get("remember_window_size", True):
+            width = img_settings.get("last_window_width", 1200)
+            height = img_settings.get("last_window_height", 800)
             self.resize(width, height)
 
-        if self.img_settings.get("remember_window_position", True):
-            x = self.img_settings.get("last_window_x", -1)
-            y = self.img_settings.get("last_window_y", -1)
+        if img_settings.get("remember_window_position", True):
+            x = img_settings.get("last_window_x", -1)
+            y = img_settings.get("last_window_y", -1)
             if x >= 0 and y >= 0:
                 self.move(x, y)
 

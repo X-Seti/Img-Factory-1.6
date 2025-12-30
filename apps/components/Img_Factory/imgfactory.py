@@ -410,6 +410,23 @@ class IMGFactory(QMainWindow):
         self.open_files = {}
         self.tab_counter = 0
         self.load_thread: Optional[IMGLoadThread] = None
+        
+        # IMG Factory specific settings (for menu system compatibility)
+        try:
+            from apps.methods.img_factory_settings import IMGFactorySettings
+            self.img_settings = IMGFactorySettings()
+        except ImportError:
+            # Fallback if IMGFactorySettings is not available
+            class DummyIMGSettings:
+                def get(self, key, default=None):
+                    return default
+                def set(self, key, value):
+                    pass
+                def save_settings(self):
+                    pass
+                def reset_to_defaults(self):
+                    pass
+            self.img_settings = DummyIMGSettings()
 
         # === PHASE 2: ESSENTIAL COMPONENTS (Fast) ===
 
