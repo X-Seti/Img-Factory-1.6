@@ -197,6 +197,7 @@ class IMGFactoryGUILayout:
             # Selection methods
             'select_all_entries': lambda: self.select_all_entries(),
             'select_inverse': lambda: self.select_inverse(),
+            'show_search_dialog': lambda: self.show_search_dialog(),
             'sort_entries': lambda: self.sort_entries(),
             'sort_entries_to_match_ide': lambda: self.sort_entries_to_match_ide(),
             'pin_selected_entries': lambda: self.pin_selected_entries(),
@@ -1908,9 +1909,8 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"Select all entries error: {str(e)}")
 
 
-    def select_inverse(self):  # vers 3
+    def select_inverse(self):  # vers 4
         """Invert the current selection in the table"""
-
         try:
             if self.table:
                 # Get the selection model
@@ -1924,16 +1924,12 @@ class IMGFactoryGUILayout:
                     # Clear current selection
                     self.table.clearSelection()
 
-                    # Select all rows that were NOT selected, and deselect those that were
+                    # Select all rows that were NOT selected
                     for row in range(self.table.rowCount()):
-                        if row in currently_selected_rows:
-                            # Leave deselected (these were originally selected)
-                            pass
-                        else:
-                            # Select this row (these were originally NOT selected)
-                            for col in range(self.table.columnCount()):
-                                index = self.table.model().index(row, col)
-                                selection_model.select(index, QItemSelectionModel.SelectionFlag.Select)
+                        if row not in currently_selected_rows:
+                            # Select the entire row by selecting the first cell in the row
+                            index = self.table.model().index(row, 0)
+                            selection_model.select(index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows)
                 else:
                     # Fallback method if selection model is not available
                     # Get all items in the table
@@ -1959,10 +1955,102 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Select inverse error: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
-    def sort_entries(self, sort_order="name"):  # vers 2
-        """Sort entries in the table with various options"""
+    def sort_entries(self, sort_order="name"):  # vers 3
+        """Sort entries in the table with various options - shows dialog for options"""
+        try:
+            if self.table:
+                # Show sort options dialog
+                from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox, QLabel
+                dialog = QDialog(self.main_window)
+                dialog.setWindowTitle("Sort Options")
+                dialog.setModal(True)
+                
+                layout = QVBoxLayout()
+                
+                # Sort by label and combo box
+                sort_layout = QHBoxLayout()
+                sort_layout.addWidget(QLabel("Sort by:"))
+                sort_combo = QComboBox()
+                sort_combo.addItems(["Name", "Type", "Size", "IDE Model Order"])
+                sort_layout.addWidget(sort_combo)
+                layout.addLayout(sort_layout)
+                
+                # OK and Cancel buttons
+                button_layout = QHBoxLayout()
+                ok_btn = QPushButton("OK")
+                cancel_btn = QPushButton("Cancel")
+                
+                def on_ok():
+                    selected_sort = sort_combo.currentText().lower().replace(" ", "_").replace("model_", "")
+                    if "ide" in sort_combo.currentText().lower():
+                        selected_sort = "ide_order"
+                    dialog.accept()
+                    # Import the sorting functionality
+                    from apps.core.sort import sort_entries_in_table, get_associated_ide_file, parse_ide_file
+                    
+                    # Get the current IMG file path if available
+                    img_path = None
+                    if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
+                        img_path = self.main_window.current_img.file_path
+                    
+                    ide_entries = []
+                    
+                    # If sorting by IDE order, try to find and parse the associated IDE file
+                    if selected_sort == "ide_order":
+                        if img_path:
+                            ide_path = get_associated_ide_file(img_path)
+                            if ide_path:
+                                ide_entries = parse_ide_file(ide_path)
+                                if ide_entries:
+                                    self.main_window.log_message(f"Found associated IDE file: {ide_path}")
+                                else:
+                                    self.main_window.log_message(f"IDE file found but could not be parsed: {ide_path}")
+                                    # Fall back to name sorting if IDE parsing failed
+                                    selected_sort = "name"
+                            else:
+                                self.main_window.log_message("No associated IDE file found, using name sort")
+                                selected_sort = "name"
+                        else:
+                            self.main_window.log_message("No IMG file loaded, using name sort")
+                            selected_sort = "name"
+                    
+                    # Perform the sorting
+                    sort_entries_in_table(self.table, selected_sort, ide_entries)
+                    
+                    if selected_sort == "ide_order":
+                        self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
+                    else:
+                        self.main_window.log_message(f"Entries sorted by {selected_sort} (TXDs at bottom)")
+                
+                def on_cancel():
+                    dialog.reject()
+                
+                ok_btn.clicked.connect(on_ok)
+                cancel_btn.clicked.connect(on_cancel)
+                
+                button_layout.addWidget(ok_btn)
+                button_layout.addWidget(cancel_btn)
+                
+                layout.addLayout(button_layout)
+                dialog.setLayout(layout)
+                
+                # Show the dialog
+                result = dialog.exec()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Table not available for sorting")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Sort entries error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def sort_entries_to_match_ide(self):  # vers 2
+        """Sort entries to match IDE model order - direct sort without dialog"""
         try:
             if self.table:
                 # Import the sorting functionality
@@ -1975,44 +2063,34 @@ class IMGFactoryGUILayout:
                 
                 ide_entries = []
                 
-                # If sorting by IDE order, try to find and parse the associated IDE file
-                if sort_order == "ide_order":
-                    if img_path:
-                        ide_path = get_associated_ide_file(img_path)
-                        if ide_path:
-                            ide_entries = parse_ide_file(ide_path)
-                            if ide_entries:
-                                self.main_window.log_message(f"Found associated IDE file: {ide_path}")
-                            else:
-                                self.main_window.log_message(f"IDE file found but could not be parsed: {ide_path}")
-                                # Fall back to name sorting if IDE parsing failed
-                                sort_order = "name"
+                # Find and parse the associated IDE file
+                if img_path:
+                    ide_path = get_associated_ide_file(img_path)
+                    if ide_path:
+                        ide_entries = parse_ide_file(ide_path)
+                        if ide_entries:
+                            self.main_window.log_message(f"Found associated IDE file: {ide_path}")
                         else:
-                            self.main_window.log_message("No associated IDE file found, using name sort")
-                            sort_order = "name"
+                            self.main_window.log_message(f"IDE file found but could not be parsed: {ide_path}")
+                            return  # Don't fall back to name sort since user specifically wants IDE sort
                     else:
-                        self.main_window.log_message("No IMG file loaded, using name sort")
-                        sort_order = "name"
+                        self.main_window.log_message("No associated IDE file found")
+                        return
+                else:
+                    self.main_window.log_message("No IMG file loaded")
+                    return
                 
                 # Perform the sorting
-                sort_entries_in_table(self.table, sort_order, ide_entries)
-                
-                if sort_order == "ide_order":
-                    self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
-                else:
-                    self.main_window.log_message("Entries sorted by name (TXDs at bottom)")
+                sort_entries_in_table(self.table, "ide_order", ide_entries)
+                self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
             else:
                 if hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message("Table not available for sorting")
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Sort entries error: {str(e)}")
+                self.main_window.log_message(f"Sort entries to match IDE error: {str(e)}")
             import traceback
             traceback.print_exc()
-
-    def sort_entries_to_match_ide(self):  # vers 1
-        """Sort entries to match IDE model order"""
-        self.sort_entries(sort_order="ide_order")
 
     def pin_selected_entries(self):  # vers 1
         """Pin selected entries to keep them at the top of the table"""
@@ -2052,6 +2130,16 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Pin selected entries error: {str(e)}")
+
+    def show_search_dialog(self):  # vers 1
+        """Show the search dialog"""
+        try:
+            # Create and show the search dialog
+            search_dialog = ASearchDialog(self.main_window)
+            search_dialog.exec()
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Search dialog error: {str(e)}")
 
     def move_entries_up(self):  # vers 1
         """Move selected entries up in the table"""
