@@ -1933,7 +1933,7 @@ class IMGFactoryGUILayout:
                             # Select this row (these were originally NOT selected)
                             for col in range(self.table.columnCount()):
                                 index = self.table.model().index(row, col)
-                                selection_model.select(index, QAbstractItemView.SelectionBehavior.SelectRows)
+                                selection_model.select(index, QItemSelectionModel.SelectionFlag.Select)
                 else:
                     # Fallback method if selection model is not available
                     # Get all items in the table
