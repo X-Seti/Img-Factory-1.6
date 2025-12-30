@@ -2,9 +2,9 @@
   "debug_mode": false,
   "debug_level": "INFO",
   "current_theme": "App_Factory",
-  "theme": "img_factory_dark",
+  "theme": "manjaro2_dark",
   "button_display_mode": "both",
-  "use_custom_gadgets": true,
+  "use_custom_gadgets": false,
   "enable_corner_resize": true,
   "use_svg_icons": true,
   "font_family": "Sans Serif",
@@ -42,7 +42,6 @@
   "button_size": 24,
   "icon_size": 16,
   "button_format": "both",
-  "gta_root_override_enabled": 2,
   "default_font_family": "Noto Sans",
   "default_font_size": 9,
   "title_font_family": "Arial",
@@ -66,12 +65,5 @@
   "table_font_size": 9,
   "table_font_weight": "Normal",
   "tooltip_font_size": 8,
-  "tooltip_font_weight": "Normal",
-  "right_panel_width": 279,
-  "button_icon_size": 18,
-  "button_text_size": 12,
-  "separate_button_format": true,
-  "language": "en",
-  "auto_save_on_import": true,
-  "auto_reload_on_import": true
+  "tooltip_font_weight": "Normal"
 }

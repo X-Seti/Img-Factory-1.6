@@ -7502,9 +7502,6 @@ class IconProvider: #vers 2
             svg_data = svg_str.encode('utf-8')
 
             renderer = QSvgRenderer(QByteArray(svg_data))
-            if not renderer.isValid():
-                print(f"Invalid SVG data in app_settings")
-                return QIcon()
             pixmap = QPixmap(size, size)
             pixmap.fill(QColor(0, 0, 0, 0))  # Transparent background
 

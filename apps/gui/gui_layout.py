@@ -492,8 +492,6 @@ class IMGFactoryGUILayout:
         self.tearoff_button.setStyleSheet(button_style)
 
 
-    # FIXED TEAROFF METHODS
-
     def _handle_tab_widget_tearoff(self): #vers 2
         """Handle tearoff button click for tab widget - FIXED"""
         try:
@@ -566,8 +564,9 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
+
     def _dock_tab_widget_back(self): #vers 2
-        """Dock torn off tab widget back to main window - FIXED"""
+        """Dock torn off tab widget back to main window """
         try:
             # Check if actually torn off
             if not hasattr(self.tab_widget, 'is_torn_off') or not self.tab_widget.is_torn_off:
@@ -1253,7 +1252,7 @@ class IMGFactoryGUILayout:
         tree_layout.setContentsMargins(0, 0, 0, 0)
 
         # Placeholder content - will be replaced by integration
-        placeholder_label = QLabel("🌳 Directory Tree")
+        placeholder_label = QLabel("Directory Tree")
         placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         placeholder_label.setStyleSheet("font-size: 14px; color: #888; font-style: italic;")
         tree_layout.addWidget(placeholder_label)
@@ -1293,17 +1292,21 @@ class IMGFactoryGUILayout:
         """Create right panel with theme-controlled pastel buttons"""
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
+
         right_layout.setContentsMargins(4, 4, 4, 4)
-        right_layout.setSpacing(6)
+        space_between_btnv = 8  # Vertical Button spacing
+        space_between_btnh = 6  # Horizontal Button spacing
+
+        right_layout.setSpacing(0)
 
         # IMG Section with theme colors
         img_box = QGroupBox("IMG, COL, TXD Files")
         img_layout = QGridLayout()
-        img_layout.setSpacing(2)
-        
+        img_layout.setSpacing(space_between_btnv, space_between_btnh)
+
         # Use theme-controlled button data
         img_buttons_data = self._get_img_buttons_data()
-        
+
         for i, (label, action_type, icon, color, method_name) in enumerate(img_buttons_data):
             btn = self.create_pastel_button(label, action_type, icon, color, method_name)
             self.img_buttons.append(btn)
@@ -1311,18 +1314,18 @@ class IMGFactoryGUILayout:
             if hasattr(self, 'backend'):
                 self.backend.img_buttons.append(btn)
             img_layout.addWidget(btn, i // 3, i % 3)
-        
+
         img_box.setLayout(img_layout)
         right_layout.addWidget(img_box)
 
-        # Entries Section with theme colors  
+        # Entries Section with theme colors
         entries_box = QGroupBox("File Entries")
         entries_layout = QGridLayout()
-        entries_layout.setSpacing(2)
-        
+        entries_layout.setSpacing(space_between_btnv, space_between_btnh)
+
         # Use theme-controlled button data
         entry_buttons_data = self._get_entry_buttons_data()
-        
+
         for i, (label, action_type, icon, color, method_name) in enumerate(entry_buttons_data):
             btn = self.create_pastel_button(label, action_type, icon, color, method_name)
             self.entry_buttons.append(btn)
@@ -1330,18 +1333,18 @@ class IMGFactoryGUILayout:
             if hasattr(self, 'backend'):
                 self.backend.entry_buttons.append(btn)
             entries_layout.addWidget(btn, i // 3, i % 3)
-        
+
         entries_box.setLayout(entries_layout)
         right_layout.addWidget(entries_box)
 
         # Options Section with theme colors
         options_box = QGroupBox("Editing Options")
         options_layout = QGridLayout()
-        options_layout.setSpacing(2)
-        
+        options_layout.setSpacing(space_between_btnv, space_between_btnh)
+
         # Use theme-controlled button data
         options_buttons_data = self._get_options_buttons_data()
-        
+
         for i, (label, action_type, icon, color, method_name) in enumerate(options_buttons_data):
             btn = self.create_pastel_button(label, action_type, icon, color, method_name)
             self.options_buttons.append(btn)
@@ -1349,7 +1352,7 @@ class IMGFactoryGUILayout:
             if hasattr(self, 'backend'):
                 self.backend.options_buttons.append(btn)
             options_layout.addWidget(btn, i // 3, i % 3)
-        
+
         options_box.setLayout(options_layout)
         right_layout.addWidget(options_box)
 
@@ -1364,6 +1367,8 @@ class IMGFactoryGUILayout:
         right_layout.addLayout(search_button_layout)
 
         return right_panel
+
+
 
     def set_button_display_mode(self, mode: str):
         """

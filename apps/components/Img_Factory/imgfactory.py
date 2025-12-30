@@ -137,7 +137,7 @@ from apps.methods.col_export_functions import integrate_col_export_functions
 
 # App metadata
 App_name = "Img Factory 1.6"
-App_build = "December 11 - "
+App_build = "December 30 - "
 App_auth = "X-Seti"
 
 ##Methods list -
