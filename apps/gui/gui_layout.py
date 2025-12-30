@@ -333,7 +333,6 @@ class IMGFactoryGUILayout:
             ("Rename", "rename", "edit-rename", colors['edit_action'], "rename_selected"),
             ("Select All", "select_all", "edit-select-all", colors['select_action'], "select_all_entries"),
             ("Inverse", "sel_inverse", "edit-select", colors['select_action'], "select_inverse"),
-            ("Search", "search", "search", colors['select_action'], "show_search_dialog"),
             ("Sort via", "sort", "view-sort", colors['select_action'], "sort_entries"),
             ("Sort IDE", "sort_ide", "view-sort-ide", colors['select_action'], "sort_entries_to_match_ide"),
             ("Pin selected", "pin_selected", "pin", colors['select_action'], "pin_selected_entries"),
@@ -1354,8 +1353,16 @@ class IMGFactoryGUILayout:
         options_box.setLayout(options_layout)
         right_layout.addWidget(options_box)
 
-        # Add stretch to push everything up
-        right_layout.addStretch()
+        # Search button section - positioned at the bottom right
+        search_button_layout = QHBoxLayout()
+        search_button_layout.addStretch()  # Add stretch to push button to the right
+        search_btn = self.create_pastel_button("Search", "search", "search", self._get_button_theme_template()['select_action'], "show_search_dialog")
+        # Add to backend as well
+        if hasattr(self, 'backend'):
+            self.backend.options_buttons.append(search_btn)  # Add to options buttons for consistency
+        search_button_layout.addWidget(search_btn)
+        right_layout.addLayout(search_button_layout)
+
         return right_panel
 
     def set_button_display_mode(self, mode: str):

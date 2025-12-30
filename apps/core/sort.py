@@ -101,6 +101,10 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
     if not table_widget or table_widget.rowCount() == 0:
         return
     
+    # Store selection state to preserve it after sorting
+    selected_items = [item for item in table_widget.selectedItems()]
+    selected_rows = set(item.row() for item in selected_items)
+    
     # Get all entries from the table
     entries = []
     for row in range(table_widget.rowCount()):
@@ -121,6 +125,10 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
     else:
         sorted_entries = sort_img_entries_by_name(entries)
     
+    # Disable updates during sorting to prevent flickering and corruption
+    table_widget.setUpdatesEnabled(False)
+    table_widget.clearSelection()  # Clear selection before repopulating
+    
     # Clear the table and repopulate with sorted entries
     table_widget.setRowCount(0)  # Clear all rows
     
@@ -132,6 +140,16 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
             value = entry.get(header.lower(), "")
             item = QTableWidgetItem(str(value))
             table_widget.setItem(row_idx, col_idx, item)
+    
+    # Restore selection if possible
+    for row_idx, entry in enumerate(sorted_entries):
+        if row_idx in selected_rows:
+            for col_idx in range(table_widget.columnCount()):
+                table_widget.item(row_idx, col_idx).setSelected(True)
+    
+    # Re-enable updates
+    table_widget.setUpdatesEnabled(True)
+    table_widget.viewport().update()  # Force a repaint to prevent corruption
 
 
 def get_associated_ide_file(img_path: str) -> Optional[str]:
