@@ -814,6 +814,16 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
     
 
+    @staticmethod
+    def lock_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Lock icon for pinned entries"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path fill="currentColor" 
+                d="M18,8H17V6A5,5 0 0,0 12,1A5,5 0 0,0 7,6V8H6A2,2 0 0,0 4,10V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V10A2,2 0 0,0 18,8M12,3A3,3 0 0,1 15,6V8H9V6A3,3 0 0,1 12,3M18,20H6V10H18V20Z"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+    
+
 # - ARROW ICONS
 
     @staticmethod

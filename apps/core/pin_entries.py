@@ -24,6 +24,37 @@ from apps.methods.tab_system import get_current_file_from_active_tab, validate_t
 # get_pinned_entries
 # integrate_pin_functions
 
+def _update_status_bar_pinned_info(main_window, file_object=None):
+    """Update status bar with pinned entries information"""
+    try:
+        if not file_object and hasattr(main_window, 'current_img'):
+            file_object = main_window.current_img
+        elif not file_object and hasattr(main_window, 'current_file'):
+            file_object = main_window.current_file
+        
+        if file_object and hasattr(file_object, 'entries'):
+            pinned_entries = get_pinned_entries(file_object)
+            pinned_count = len(pinned_entries)
+            
+            if pinned_count > 0:
+                status_msg = f"Pinned entries: {pinned_count} | Status: Locked from future changes"
+                if hasattr(main_window, 'show_permanent_status'):
+                    main_window.show_permanent_status(status_msg)
+                elif hasattr(main_window, 'status_label'):
+                    main_window.status_label.setText(status_msg)
+                elif hasattr(main_window, 'show_status'):
+                    main_window.show_status(status_msg, 0)  # 0 = permanent
+            else:
+                if hasattr(main_window, 'set_ready_status'):
+                    main_window.set_ready_status()
+        else:
+            if hasattr(main_window, 'set_ready_status'):
+                main_window.set_ready_status()
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Error updating pinned status: {str(e)}")
+
+
 def pin_selected_entries(main_window): #vers 1
     """Pin selected entries to prevent changes and add pin icon in status column"""
     try:
@@ -65,6 +96,10 @@ def pin_selected_entries(main_window): #vers 1
             main_window.refresh_table()
         
         main_window.log_message(f"Pinned {pinned_count} entries")
+        
+        # Update status bar with pinned information
+        _update_status_bar_pinned_info(main_window, file_object)
+        
         return True
         
     except Exception as e:
@@ -116,6 +151,10 @@ def unpin_selected_entries(main_window): #vers 1
             main_window.refresh_table()
         
         main_window.log_message(f"Unpinned {unpinned_count} entries")
+        
+        # Update status bar with pinned information
+        _update_status_bar_pinned_info(main_window, file_object)
+        
         return True
         
     except Exception as e:
@@ -172,6 +211,10 @@ def toggle_pinned_entries(main_window): #vers 1
             main_window.refresh_table()
         
         main_window.log_message(f"Toggled pin status: {pinned_count} pinned, {unpinned_count} unpinned")
+        
+        # Update status bar with pinned information
+        _update_status_bar_pinned_info(main_window, file_object)
+        
         return True
         
     except Exception as e:
@@ -268,6 +311,29 @@ def _load_pin_config(main_window, file_object):
         return False
 
 
+def mark_entry_as_modified(entry, field_changed=None):
+    """Mark an entry as modified to track changes for save operations"""
+    try:
+        # Mark the entry as modified
+        entry.is_modified = True
+        
+        # Set a timestamp for when it was modified
+        import time
+        entry.modification_time = time.time()
+        
+        # Track what field was changed if specified
+        if field_changed:
+            if not hasattr(entry, 'modified_fields'):
+                entry.modified_fields = []
+            if field_changed not in entry.modified_fields:
+                entry.modified_fields.append(field_changed)
+        
+        return True
+    except Exception as e:
+        print(f"Error marking entry as modified: {e}")
+        return False
+
+
 def integrate_pin_functions(main_window) -> bool: #vers 1
     """Integrate pin functions into main window"""
     try:
@@ -275,6 +341,9 @@ def integrate_pin_functions(main_window) -> bool: #vers 1
         main_window.pin_selected_entries = lambda: pin_selected_entries(main_window)
         main_window.unpin_selected_entries = lambda: unpin_selected_entries(main_window)
         main_window.toggle_pinned_entries = lambda: toggle_pinned_entries(main_window)
+        
+        # Add the mark_entry_as_modified function
+        main_window.mark_entry_as_modified = mark_entry_as_modified
         
         # Add aliases for different naming conventions that GUI might use
         main_window.pin_entries = main_window.pin_selected_entries
@@ -299,5 +368,6 @@ __all__ = [
     'toggle_pinned_entries',
     'is_entry_pinned',
     'get_pinned_entries',
+    'mark_entry_as_modified',
     'integrate_pin_functions'
 ]
