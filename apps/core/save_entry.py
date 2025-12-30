@@ -126,12 +126,22 @@ def save_img_entry(main_window): #vers 1
                 has_changes = True
                 renamed_count += 1
             # Check if entry was renamed by comparing to original names if available
-            elif hasattr(entry, 'original_name') and entry.original_name != entry.name:
+            elif hasattr(entry, 'original_name') and hasattr(entry, 'name') and entry.original_name != entry.name:
+                has_changes = True
+                renamed_count += 1
+            # Check for other modification indicators
+            elif hasattr(entry, 'modified') and entry.modified:
+                has_changes = True
+                renamed_count += 1
+            elif hasattr(entry, 'is_new_entry') and entry.is_new_entry:
+                has_changes = True
+                renamed_count += 1
+            elif hasattr(entry, 'is_replaced') and entry.is_replaced:
                 has_changes = True
                 renamed_count += 1
     if renamed_count > 0:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Changes detected: {renamed_count} renamed entries")
+            main_window.log_message(f"Changes detected: {renamed_count} renamed or modified entries")
     # Check has_new_or_modified_entries method
     if hasattr(file_object, 'has_new_or_modified_entries') and file_object.has_new_or_modified_entries():
         has_changes = True

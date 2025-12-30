@@ -129,7 +129,7 @@ class IMGTablePopulator:
             img_debugger.error(f"Error populating IMG table: {str(e)}")
             return False
 
-    def populate_table_row_minimal(self, table: Any, row: int, entry: Any): #vers 4
+    def populate_table_row_minimal(self, table: Any, row: int, entry: Any): #vers 5
         """Populate single table row with MINIMAL processing - keep all 8 columns"""
         try:
             # Check if this entry should be highlighted - OPTIMIZED
@@ -142,37 +142,40 @@ class IMGTablePopulator:
                 else:
                     highlight_type = "imported"
             
+            # Check if entry is pinned
+            is_pinned = hasattr(entry, 'is_pinned') and entry.is_pinned
+            
             # Create items with minimal processing
             name_text = str(entry.name) if hasattr(entry, 'name') else f"Entry_{row}"
-            name_item = self.create_img_table_item(name_text, is_highlighted, highlight_type)
+            name_item = self.create_img_table_item(name_text, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 0, name_item)
             
             entry_type = self.get_img_entry_type_simple(entry)
-            type_item = self.create_img_table_item(entry_type, is_highlighted, highlight_type)
+            type_item = self.create_img_table_item(entry_type, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 1, type_item)
             
             size_text = self.format_img_entry_size_simple(entry)
-            size_item = self.create_img_table_item(size_text, is_highlighted, highlight_type)
+            size_item = self.create_img_table_item(size_text, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 2, size_item)
             
             offset_text = f"0x{entry.offset:08X}" if hasattr(entry, 'offset') else "N/A"
-            offset_item = self.create_img_table_item(offset_text, is_highlighted, highlight_type)
+            offset_item = self.create_img_table_item(offset_text, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 3, offset_item)
             
             rw_address_text = self.get_rw_address_light(entry)
-            rw_address_item = self.create_img_table_item(rw_address_text, is_highlighted, highlight_type)
+            rw_address_item = self.create_img_table_item(rw_address_text, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 4, rw_address_item)
             
             version_text = self.get_rw_version_light(entry)
-            version_item = self.create_img_table_item(version_text, is_highlighted, highlight_type)
+            version_item = self.create_img_table_item(version_text, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 5, version_item)
             
             info_text = self.get_compression_info(entry)
-            info_item = self.create_img_table_item(info_text, is_highlighted, highlight_type)
+            info_item = self.create_img_table_item(info_text, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 6, info_item)
             
             status_text = self.get_info_light(entry)
-            status_item = self.create_img_table_item(status_text, is_highlighted, highlight_type)
+            status_item = self.create_img_table_item(status_text, is_highlighted, highlight_type, is_pinned)
             table.setItem(row, 7, status_item)
         except Exception as e:
             img_debugger.error(f"Error populating table row {row}: {str(e)}")
@@ -297,14 +300,22 @@ class IMGTablePopulator:
         except Exception:
             return "Original"
 
-    def create_img_table_item(self, text: str, is_highlighted: bool = False, highlight_type: str = None) -> QTableWidgetItem: #vers 5
+    def create_img_table_item(self, text: str, is_highlighted: bool = False, highlight_type: str = None, is_pinned: bool = False) -> QTableWidgetItem: #vers 6
         """Create table item with optional highlighting and pin icon - OPTIMIZED"""
         try:
             from PyQt6.QtWidgets import QTableWidgetItem
-            from PyQt6.QtGui import QColor, QBrush, QFont
+            from PyQt6.QtGui import QColor, QBrush, QFont, QIcon
             from PyQt6.QtCore import Qt
             
             item = QTableWidgetItem(str(text))
+            
+            # Apply pinned icon if needed
+            if is_pinned:
+                # Import the SVG icon factory and add lock icon
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                lock_icon = SVGIconFactory.lock_icon(size=16, color=None)
+                item.setIcon(lock_icon)
+                item.setToolTip(item.toolTip() + " | Pinned" if item.toolTip() else "Pinned")
             
             # Apply highlighting if needed - OPTIMIZED
             if is_highlighted and highlight_type:
@@ -316,7 +327,7 @@ class IMGTablePopulator:
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                    item.setToolTip("Recently imported file")
+                    item.setToolTip(item.toolTip() + " | Recently imported file" if item.toolTip() else "Recently imported file")
                     
                 elif highlight_type == "replaced":
                     # Light yellow background for replaced files
@@ -326,7 +337,7 @@ class IMGTablePopulator:
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                    item.setToolTip("Recently replaced file")
+                    item.setToolTip(item.toolTip() + " | Recently replaced file" if item.toolTip() else "Recently replaced file")
                     
             return item
         except Exception:
