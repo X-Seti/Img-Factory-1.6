@@ -99,6 +99,11 @@ def rename_img_entry(main_window): #vers 2
             QMessageBox.information(main_window, "No Selection", "Please select an IMG entry to rename")
             return False
         
+        # Check if the entry is pinned
+        if hasattr(selected_entry, 'is_pinned') and selected_entry.is_pinned:
+            QMessageBox.warning(main_window, "Pinned Entry", "Cannot rename a pinned entry. Please unpin it first.")
+            return False
+        
         # Get current name
         current_name = getattr(selected_entry, 'name', '')
         if not current_name:

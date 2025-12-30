@@ -25,7 +25,7 @@ from apps.methods.tab_system import get_current_file_from_active_tab, validate_t
 # integrate_pin_functions
 
 def pin_selected_entries(main_window): #vers 1
-    """Pin selected entries to keep them visible and prevent changes"""
+    """Pin selected entries to prevent changes and add pin icon in status column"""
     try:
         # Validate tab and get file object
         if not validate_tab_before_operation(main_window, "Pin Entries"):
@@ -54,6 +54,9 @@ def pin_selected_entries(main_window): #vers 1
                 # Add pinned attribute to entry
                 entry.is_pinned = True
                 pinned_count += 1
+        
+        # Save pin state to a config file
+        _save_pin_config(main_window, file_object)
         
         # Refresh table to show pinned status
         if hasattr(main_window, 'refresh_img_table'):
@@ -102,6 +105,9 @@ def unpin_selected_entries(main_window): #vers 1
                 if hasattr(entry, 'is_pinned'):
                     delattr(entry, 'is_pinned')
                 unpinned_count += 1
+        
+        # Save pin state to a config file
+        _save_pin_config(main_window, file_object)
         
         # Refresh table to show unpinned status
         if hasattr(main_window, 'refresh_img_table'):
@@ -156,6 +162,9 @@ def toggle_pinned_entries(main_window): #vers 1
                     entry.is_pinned = True
                     pinned_count += 1
         
+        # Save pin state to a config file
+        _save_pin_config(main_window, file_object)
+        
         # Refresh table to show updated pin status
         if hasattr(main_window, 'refresh_img_table'):
             main_window.refresh_img_table()
@@ -183,6 +192,80 @@ def get_pinned_entries(file_object) -> List: #vers 1
         return []
     
     return [entry for entry in file_object.entries if is_entry_pinned(entry)]
+
+
+def _save_pin_config(main_window, file_object):
+    """Save pin state to a config file for persistence"""
+    try:
+        if not hasattr(file_object, 'file_path') or not file_object.file_path:
+            return False
+        
+        import json
+        import os
+        
+        # Get the IMG file path without extension
+        img_path = file_object.file_path
+        base_path = os.path.splitext(img_path)[0]
+        pin_config_path = f"{base_path}.pin"
+        
+        # Create a list of pinned entry names
+        pinned_entries = []
+        if hasattr(file_object, 'entries') and file_object.entries:
+            for entry in file_object.entries:
+                if is_entry_pinned(entry):
+                    pinned_entries.append(entry.name if hasattr(entry, 'name') else "")
+        
+        # Save the pinned entries to the config file
+        with open(pin_config_path, 'w', encoding='utf-8') as f:
+            json.dump(pinned_entries, f)
+        
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Saved pin configuration to {pin_config_path}")
+        
+        return True
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Error saving pin config: {str(e)}")
+        return False
+
+
+def _load_pin_config(main_window, file_object):
+    """Load pin state from a config file"""
+    try:
+        if not hasattr(file_object, 'file_path') or not file_object.file_path:
+            return False
+        
+        import json
+        import os
+        
+        # Get the IMG file path without extension
+        img_path = file_object.file_path
+        base_path = os.path.splitext(img_path)[0]
+        pin_config_path = f"{base_path}.pin"
+        
+        # Check if pin config file exists
+        if not os.path.exists(pin_config_path):
+            return False
+        
+        # Load the pinned entries from the config file
+        with open(pin_config_path, 'r', encoding='utf-8') as f:
+            pinned_entries = json.load(f)
+        
+        # Mark entries as pinned if they are in the config
+        if hasattr(file_object, 'entries') and file_object.entries:
+            for entry in file_object.entries:
+                entry_name = entry.name if hasattr(entry, 'name') else ""
+                if entry_name in pinned_entries:
+                    entry.is_pinned = True
+        
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Loaded pin configuration from {pin_config_path}")
+        
+        return True
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Error loading pin config: {str(e)}")
+        return False
 
 
 def integrate_pin_functions(main_window) -> bool: #vers 1
