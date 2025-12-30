@@ -1,1 +1,6 @@
 (empty)
+/apps/core/__pycache__
+/apps/gui/__pycache__
+/apps/methods/__pycache__
+/apps/locals/__pycache__
+/apps/utils/__pycache__
