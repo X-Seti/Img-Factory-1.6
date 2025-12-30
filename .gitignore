@@ -1,1 +1,9 @@
 Nothing needs to be added to .gitignore since the only modified file is a source code file (.py) and there are no build artifacts, dependencies, or temporary files in the changes.
+/apps/core/__pycache__
+/apps/gui/__pycache__
+/apps/methods/__pycache__
+/apps/utils/__pycache__
+/apps/locals/__pycache__
+/apps/components/Tmp_Template/depends/__pycache__
+/apps/components/Col_Editor/__pycache__
+/apps/components/Txd_Editor/__pycache__
