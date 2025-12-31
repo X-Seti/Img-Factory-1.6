@@ -355,192 +355,202 @@ class IMGFactoryMainWindow(QMainWindow):
             self._remove_custom_title_bar()
             self.log_message("System UI mode activated")
 
-    def _create_custom_title_bar(self):
-        """Create a custom title bar with buttons"""
+
+    def _create_custom_title_bar(self): #vers 2
+        """Create a custom title bar with buttons - COMPLETE WORKING VERSION"""
         try:
-            from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
-            from PyQt6.QtCore import Qt
-            from apps.methods.imgfactory_svg_icons import get_open_icon, get_save_icon, get_undo_icon, get_info_icon, get_settings_icon, get_extract_icon
-            
-            # Create a custom title bar widget
+            from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel
+            from PyQt6.QtCore import Qt, QSize
+            from apps.methods.imgfactory_svg_icons import (
+                get_open_icon, get_save_icon, get_extract_icon,
+                get_undo_icon, get_info_icon, get_settings_icon
+            )
+
+            # Remove standard title bar
+            self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+
+            # Create custom title bar widget if it doesn't exist
             if self.custom_title_bar is None:
                 self.custom_title_bar = QWidget()
-                self.custom_title_bar.setFixedHeight(30)
+                self.custom_title_bar.setFixedHeight(35)
                 self.custom_title_bar.setStyleSheet("""
-                    background-color: #3a3a3a;
-                    border-bottom: 1px solid #555;
+                    QWidget {
+                        background-color: #2d2d30;
+                        border-bottom: 1px solid #3e3e42;
+                    }
                 """)
-                
+
                 layout = QHBoxLayout(self.custom_title_bar)
-                layout.setContentsMargins(5, 2, 5, 2)
-                layout.setSpacing(3)
-                
-                # Add Settings button
-                settings_btn = QPushButton("Settings")
-                settings_btn.setFixedSize(60, 24)
+                layout.setContentsMargins(8, 2, 8, 2)
+                layout.setSpacing(5)
+
+                # Settings button
+                settings_btn = QPushButton()
+                settings_btn.setIcon(get_settings_icon())
+                settings_btn.setIconSize(QSize(16, 16))
+                settings_btn.setText("Settings")
+                settings_btn.setFixedHeight(28)
                 settings_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #4a7abc;
                         color: white;
-                        border: 1px solid #2a4a7a;
+                        border: none;
                         border-radius: 3px;
+                        padding: 4px 10px;
                         font-size: 11px;
-                        font-weight: bold;
                     }
                     QPushButton:hover {
-                        background-color: #5a8add;
+                        background-color: #5a8acc;
                     }
                 """)
                 settings_btn.clicked.connect(self._show_settings_dialog)
                 layout.addWidget(settings_btn)
-                
-                # Add title label
-                title_label = QLabel("Title = Img Factory")
-                title_label.setStyleSheet("color: white; font-weight: bold;")
+
+                # Separator
+                sep1 = QLabel("|")
+                sep1.setStyleSheet("color: #555;")
+                layout.addWidget(sep1)
+
+                # Title
+                title_label = QLabel("Img Factory 1.6")
+                title_label.setStyleSheet("color: #cccccc; font-weight: bold; font-size: 12px;")
                 layout.addWidget(title_label)
-                
-                # Add Open button
-                open_btn = QPushButton("Open")
-                open_btn.setFixedSize(50, 24)
+
+                # Separator
+                sep2 = QLabel("|")
+                sep2.setStyleSheet("color: #555;")
+                layout.addWidget(sep2)
+
+                # Action buttons
+                open_btn = QPushButton()
+                open_btn.setIcon(get_open_icon())
+                open_btn.setIconSize(QSize(16, 16))
+                open_btn.setToolTip("Open")
+                open_btn.setFixedSize(28, 28)
                 open_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #5a8abc;
-                        color: white;
-                        border: 1px solid #2a4a7a;
+                        background-color: #3e3e42;
+                        border: none;
                         border-radius: 3px;
-                        font-size: 11px;
                     }
                     QPushButton:hover {
-                        background-color: #6a9add;
+                        background-color: #505050;
                     }
                 """)
-                from apps.core.open import open_file_dialog
-                open_btn.clicked.connect(lambda: open_file_dialog(self))
                 layout.addWidget(open_btn)
-                
-                # Add Save button
-                save_btn = QPushButton("Save")
-                save_btn.setFixedSize(50, 24)
+
+                save_btn = QPushButton()
+                save_btn.setIcon(get_save_icon())
+                save_btn.setIconSize(QSize(16, 16))
+                save_btn.setToolTip("Save")
+                save_btn.setFixedSize(28, 28)
                 save_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #5a8abc;
-                        color: white;
-                        border: 1px solid #2a4a7a;
+                        background-color: #3e3e42;
+                        border: none;
                         border-radius: 3px;
-                        font-size: 11px;
                     }
                     QPushButton:hover {
-                        background-color: #6a9add;
+                        background-color: #505050;
                     }
                 """)
-                save_btn.clicked.connect(lambda: self.save_img_entry())
                 layout.addWidget(save_btn)
-                
-                # Add Extract button
-                extract_btn = QPushButton("Extract")
-                extract_btn.setFixedSize(60, 24)
+
+                extract_btn = QPushButton()
+                extract_btn.setIcon(get_extract_icon())
+                extract_btn.setIconSize(QSize(16, 16))
+                extract_btn.setToolTip("Extract")
+                extract_btn.setFixedSize(28, 28)
                 extract_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #5a8abc;
-                        color: white;
-                        border: 1px solid #2a4a7a;
+                        background-color: #3e3e42;
+                        border: none;
                         border-radius: 3px;
-                        font-size: 11px;
                     }
                     QPushButton:hover {
-                        background-color: #6a9add;
+                        background-color: #505050;
                     }
                 """)
-                from apps.core.extract import extract_textures_function
-                extract_btn.clicked.connect(lambda: extract_textures_function(self))
                 layout.addWidget(extract_btn)
-                
-                # Add Undo button
-                undo_btn = QPushButton("undo")
-                undo_btn.setFixedSize(50, 24)
+
+                undo_btn = QPushButton()
+                undo_btn.setIcon(get_undo_icon())
+                undo_btn.setIconSize(QSize(16, 16))
+                undo_btn.setToolTip("Undo")
+                undo_btn.setFixedSize(28, 28)
                 undo_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #5a8abc;
-                        color: white;
-                        border: 1px solid #2a4a7a;
+                        background-color: #3e3e42;
+                        border: none;
                         border-radius: 3px;
-                        font-size: 11px;
                     }
                     QPushButton:hover {
-                        background-color: #6a9add;
+                        background-color: #505050;
                     }
                 """)
-                undo_btn.clicked.connect(self.undo_manager.undo)
                 layout.addWidget(undo_btn)
-                
-                # Add Info button
-                info_btn = QPushButton("i")
-                info_btn.setFixedSize(25, 24)
+
+                info_btn = QPushButton()
+                info_btn.setIcon(get_info_icon())
+                info_btn.setIconSize(QSize(16, 16))
+                info_btn.setToolTip("Info")
+                info_btn.setFixedSize(28, 28)
                 info_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #5a8abc;
-                        color: white;
-                        border: 1px solid #2a4a7a;
+                        background-color: #3e3e42;
+                        border: none;
                         border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
                     }
                     QPushButton:hover {
-                        background-color: #6a9add;
+                        background-color: #505050;
                     }
                 """)
-                info_btn.clicked.connect(lambda: self.log_message("Info button clicked"))
                 layout.addWidget(info_btn)
-                
-                # Add Maximize button
-                maximize_btn = QPushButton("*")
-                maximize_btn.setFixedSize(25, 24)
-                maximize_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #5a8abc;
-                        color: white;
-                        border: 1px solid #2a4a7a;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #6a9add;
-                    }
-                """)
-                maximize_btn.clicked.connect(self._toggle_maximize)
-                layout.addWidget(maximize_btn)
-                
-                # Add Minimize button
+
+                # Spacer
+                layout.addStretch()
+
+                # Window control buttons
                 minimize_btn = QPushButton("_")
-                minimize_btn.setFixedSize(25, 24)
+                minimize_btn.setFixedSize(28, 28)
                 minimize_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #5a8abc;
-                        color: white;
-                        border: 1px solid #2a4a7a;
+                        background-color: #3e3e42;
+                        color: #cccccc;
+                        border: none;
                         border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
                     }
                     QPushButton:hover {
-                        background-color: #6a9add;
+                        background-color: #505050;
                     }
                 """)
                 minimize_btn.clicked.connect(self.showMinimized)
                 layout.addWidget(minimize_btn)
-                
-                # Add Close button
+
+                maximize_btn = QPushButton("□")
+                maximize_btn.setFixedSize(28, 28)
+                maximize_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #3e3e42;
+                        color: #cccccc;
+                        border: none;
+                        border-radius: 3px;
+                    }
+                    QPushButton:hover {
+                        background-color: #505050;
+                    }
+                """)
+                maximize_btn.clicked.connect(self._toggle_maximize)
+                layout.addWidget(maximize_btn)
+
                 close_btn = QPushButton("X")
-                close_btn.setFixedSize(25, 24)
+                close_btn.setFixedSize(28, 28)
                 close_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #bc5a5a;
                         color: white;
-                        border: 1px solid #7a2a2a;
+                        border: none;
                         border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
                     }
                     QPushButton:hover {
                         background-color: #dd6a6a;
@@ -548,22 +558,23 @@ class IMGFactoryMainWindow(QMainWindow):
                 """)
                 close_btn.clicked.connect(self.close)
                 layout.addWidget(close_btn)
-                
-                # Insert the custom title bar at the top of the central widget
+
+                # Insert title bar at top of main window
                 central_widget = self.centralWidget()
-                if central_widget:
-                    # Get the current layout and add the title bar
-                    current_layout = central_widget.layout()
-                    if current_layout:
-                        # We need to restructure the layout to include the title bar
-                        # For now, just log that the custom title bar was created
-                        self.log_message("Custom title bar created")
+                if central_widget and central_widget.layout():
+                    main_layout = central_widget.layout()
+                    main_layout.insertWidget(0, self.custom_title_bar)
+
+                self.log_message("Custom title bar created and added")
             else:
-                # Show the existing custom title bar
+                # Show existing custom title bar
                 self.custom_title_bar.show()
-                
+
         except Exception as e:
             self.log_message(f"Error creating custom title bar: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
 
     def _remove_custom_title_bar(self):
         """Remove the custom title bar and return to system UI"""

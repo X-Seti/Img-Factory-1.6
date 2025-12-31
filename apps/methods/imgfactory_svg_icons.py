@@ -1995,6 +1995,19 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, None)
 
 
+
+def get_minimize_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Wrapper for SVGIconFactory.get_minimize_icon"""
+    return SVGIconFactory.minimize_icon(size, color)
+
+def get_maximize_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Wrapper for SVGIconFactory.get_maximize_icon"""
+    return SVGIconFactory.maximize_icon(size, color)
+
+def get_info_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Wrapper for SVGIconFactory.get_info_icon"""
+    return SVGIconFactory.info_icon(size, color)
+
 # = STANDALONE FUNCTION WRAPPERS FOR BACKWARD COMPATIBILITY
 
 def get_app_icon(size: int = 64) -> QIcon: #vers 1
