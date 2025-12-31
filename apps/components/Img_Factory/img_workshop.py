@@ -199,11 +199,20 @@ class IMGFactoryGUILayout:
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
 
-        #self.setWindowTitle(App_name)
-        #self.setWindowIcon(SVGIconFactory.img_workshop_icon())
-        #self.icon_factory = SVGIconFactory()
+        # Set default fonts
+        from PyQt6.QtGui import QFont
+        default_font = QFont("Fira Sans Condensed", 14)
+        self.setFont(default_font)
+        self.title_font = QFont("Arial", 14)
+        self.panel_font = QFont("Arial", 10)
+        self.button_font = QFont("Arial", 10)
+        self.infobar_font = QFont("Courier New", 9)
+        self.standalone_mode = (main_window is None)
 
+        self.setWindowTitle(App_name)
+        self.setWindowIcon(SVGIconFactory.img_workshop_icon())
         self.icon_factory = SVGIconFactory()
+
         self.main_window = main_window
         self.table = None
         self.log = None
@@ -211,6 +220,59 @@ class IMGFactoryGUILayout:
         self.img_buttons = []
         self.entry_buttons = []
         self.options_buttons = []
+
+
+        if main_window and hasattr(main_window, 'app_settings'):
+            self.app_settings = main_window.app_settings
+        else:
+            # FIXED: Create AppSettings for standalone mode
+            try:
+                from apps.utils.app_settings_system import AppSettings
+                self.app_settings = AppSettings()
+            except Exception as e:
+                print(f"Could not initialize AppSettings: {e}")
+                self.app_settings = None
+
+        if hasattr(self.app_settings, 'theme_changed'):
+            self.app_settings.theme_changed.connect(self._refresh_icons)
+
+        self._show_boxes = True
+        self._show_mesh = True
+
+        self._checkerboard_size = 16
+        self._overlay_opacity = 50
+        self.zoom_level = 1.0
+        self.pan_offset = QPoint(0, 0)
+        self.background_color = QColor(42, 42, 42)
+        self.background_mode = 'solid'
+        self.placeholder_text = "No Surface"
+        #self.setMinimumSize(200, 200)
+        preview_widget = False
+
+        # Docking state
+        self.is_docked = (main_window is not None)
+        self.dock_widget = None
+        self.is_overlay = False
+        self.overlay_table = None
+        self.overlay_tab_index = -1
+
+        self.setWindowTitle(App_name + ": No File")
+        self.resize(1400, 800)
+        self.use_system_titlebar = False
+        #self.window_always_on_top = False
+
+        # Window flags
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+
+        self._initialize_features()
+
+        # Corner resize variables
+        self.dragging = False
+        self.drag_position = None
+        self.resizing = False
+        self.resize_corner = None
+        self.corner_size = 20
+        self.hover_corner = None
 
         # Status bar components
         self.status_bar = None
@@ -235,67 +297,6 @@ class IMGFactoryGUILayout:
         self.undo_stack = []
         self.button_display_mode = 'both'
         self.last_save_directory = None
-
-        # Set default fonts
-        from PyQt6.QtGui import QFont
-        default_font = QFont("Fira Sans Condensed", 14)
-        #self.setFont(default_font)
-        self.title_font = QFont("Arial", 14)
-        self.panel_font = QFont("Arial", 10)
-        self.button_font = QFont("Arial", 10)
-        self.infobar_font = QFont("Courier New", 9)
-        self.standalone_mode = (main_window is None)
-
-        if main_window and hasattr(main_window, 'app_settings'):
-            self.app_settings = main_window.app_settings
-        else:
-            # FIXED: Create AppSettings for standalone mode
-            try:
-                from apps.utils.app_settings_system import AppSettings
-                self.app_settings = AppSettings()
-            except Exception as e:
-                print(f"Could not initialize AppSettings: {e}")
-                self.app_settings = None
-        if hasattr(self.app_settings, 'theme_changed'):
-            self.app_settings.theme_changed.connect(self._refresh_icons)
-
-        self._show_boxes = True
-        self._show_mesh = True
-
-        self._checkerboard_size = 16
-        self._overlay_opacity = 50
-        self.zoom_level = 1.0
-        self.pan_offset = QPoint(0, 0)
-        self.background_color = QColor(42, 42, 42)
-        self.background_mode = 'solid'
-        self.placeholder_text = "No Surface"
-        #self.setMinimumSize(200, 200)
-        preview_widget = False
-
-        # Docking state
-        self.is_docked = (main_window is not None)
-        self.dock_widget = None
-        self.is_overlay = False
-        self.overlay_table = None
-        self.overlay_tab_index = -1
-
-        #self.setWindowTitle(App_name + ": No File")
-        #self.resize(1400, 800)
-        #self.use_system_titlebar = False
-        #self.window_always_on_top = False
-
-        # Window flags
-        #self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-
-        self._initialize_features()
-
-        # Corner resize variables
-        self.dragging = False
-        self.drag_position = None
-        self.resizing = False
-        self.resize_corner = None
-        self.corner_size = 20
-        self.hover_corner = None
 
 
         # Setup UI FIRST
