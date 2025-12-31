@@ -308,6 +308,34 @@ class IMGFactoryGUILayout:
         self._apply_theme()
 
 
+    def _log_missing_method(self, method_name): #vers 1
+        """Log missing method - unified placeholder"""
+        if hasattr(self.main_window, 'log_message') and hasattr(self.main_window, 'gui_layout'):
+            self.main_window.log_message(f"Method '{method_name}' not yet implemented")
+        else:
+            print(f"Method '{method_name}' not yet implemented")
+
+
+    def _safe_log(self, message): #vers 1
+        """Safe logging that won't cause circular dependency"""
+        if hasattr(self.main_window, 'log_message') and hasattr(self.main_window, 'gui_layout'):
+            self.main_window.log_message(message)
+        else:
+            print(f"GUI Layout: {message}")
+
+
+    def log_message(self, message): #vers 1
+        """Add message to activity log"""
+        if self.log:
+            from PyQt6.QtCore import QDateTime
+            timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
+            self.log.append(f"[{timestamp}] {message}")
+            # Auto-scroll to bottom
+            self.log.verticalScrollBar().setValue(
+                self.log.verticalScrollBar().maximum()
+            )
+
+
     def setup_ui(self): #vers 7
         """Setup the main UI layout"""
         #main_layout = QVBoxLayout(self)
@@ -4135,34 +4163,6 @@ class IMGFactoryGUILayout:
 
         return action_widget
 
-
-# - Marker 5 - logging
-
-    def _log_missing_method(self, method_name): #vers 1
-        """Log missing method - unified placeholder"""
-        if hasattr(self.main_window, 'log_message') and hasattr(self.main_window, 'gui_layout'):
-            self.main_window.log_message(f"Method '{method_name}' not yet implemented")
-        else:
-            print(f"Method '{method_name}' not yet implemented")
-
-
-    def _safe_log(self, message): #vers 1
-        """Safe logging that won't cause circular dependency"""
-        if hasattr(self.main_window, 'log_message') and hasattr(self.main_window, 'gui_layout'):
-            self.main_window.log_message(message)
-        else:
-            print(f"GUI Layout: {message}")
-
-    def log_message(self, message): #vers 1
-        """Add message to activity log"""
-        if self.log:
-            from PyQt6.QtCore import QDateTime
-            timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
-            self.log.append(f"[{timestamp}] {message}")
-            # Auto-scroll to bottom
-            self.log.verticalScrollBar().setValue(
-                self.log.verticalScrollBar().maximum()
-            )
 
 # - Functions and main Logic
 
