@@ -2903,6 +2903,32 @@ class IMGFactory(QMainWindow):
         return self.reload_current_file()
 
 
+    def switch_to_img_file(self, file_name: str): #vers 1
+        """Switch to the tab containing the specified file"""
+        try:
+            # Look for the tab with the matching file name
+            for i in range(self.main_tab_widget.count()):
+                tab_text = self.main_tab_widget.tabText(i)
+                if tab_text == file_name or tab_text.startswith(file_name):
+                    # Switch to this tab
+                    self.main_tab_widget.setCurrentIndex(i)
+                    
+                    # Update the main window references
+                    from apps.methods.tab_system import switch_tab
+                    switch_tab(self, i)
+                    
+                    self.log_message(f"Switched to file: {file_name}")
+                    return True
+            
+            # If file not found, log a message
+            self.log_message(f"File not found in open tabs: {file_name}")
+            return False
+            
+        except Exception as e:
+            self.log_message(f"Error switching to file {file_name}: {str(e)}")
+            return False
+
+
     def load_file_unified(self, file_path: str): #vers 8
         """Unified file loader for IMG and COL files"""
         try:
