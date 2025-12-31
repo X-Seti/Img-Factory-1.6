@@ -6,6 +6,9 @@
 │   ├── components
 │   │   ├── Col_Creator
 │   │   │   └── col_creator.py
+│   │   ├── Col_Editor
+│   │   │   ├── col_workshop.py
+│   │   │   └── img_factory_debug.log
 │   │   ├── Col_Viewer
 │   │   │   ├── col_viewer.py
 │   │   │   └── depends
@@ -35,6 +38,7 @@
 │   │   │   │   ├── comprehensive.py
 │   │   │   │   ├── img_factory_thread.py
 │   │   │   │   └── mui_demo.py
+│   │   │   ├── img_factory_debug.log
 │   │   │   ├── imgfactory.py
 │   │   │   └── __init__.py
 │   │   ├── img_factory_debug.log
@@ -109,12 +113,18 @@
 │   │   │   └── gui_template.py
 │   │   ├── Txd_Converter
 │   │   │   └── txd_converter.py
+│   │   ├── Txd_Editor
+│   │   │   ├── depends
+│   │   │   └── txd_workshop.py
 │   │   └── unified_signal_handler.py
 │   ├── core
 │   │   ├── advanced_img_tools.py
 │   │   ├── clean.py
 │   │   ├── close.py
 │   │   ├── col_viewer_integration.py
+│   │   ├── col_workshop_css_theme.css
+│   │   ├── col_workshop_display.py
+│   │   ├── col_workshop_gui_integration.py
 │   │   ├── compression.py
 │   │   ├── convert.py
 │   │   ├── core.py
@@ -166,13 +176,15 @@
 │   │   ├── undo_system.py
 │   │   └── utils.py
 │   ├── debug
-│   │   └── debug_functions.py
+│   │   ├── debug_functions.py
+│   │   └── placeholder
 │   ├── gui
 │   │   ├── autosave_menu.py
 │   │   ├── col_dialogs.py
 │   │   ├── col_display.py
 │   │   ├── col_gui_integration.py
 │   │   ├── col_tab_css_theme.css
+│   │   ├── col_workshop_dialogs.py
 │   │   ├── cross_platform_theme.py
 │   │   ├── directory_tree_system.py
 │   │   ├── file_menu_integration.py
@@ -180,6 +192,7 @@
 │   │   ├── gui_context.py
 │   │   ├── gui_infobar.py
 │   │   ├── gui_layout.py
+│   │   ├── gui_layout.py-old
 │   │   ├── gui_menu.py
 │   │   ├── gui_settings.py
 │   │   ├── ide_dialog.py
@@ -215,6 +228,10 @@
 │   │   ├── col_preview_generator.py
 │   │   ├── col_structure_manager.py
 │   │   ├── col_validation.py
+│   │   ├── col_workshop_classes.py
+│   │   ├── col_workshop_loader.py
+│   │   ├── col_workshop_parser.py
+│   │   ├── col_workshop_structures.py
 │   │   ├── common_functions.py
 │   │   ├── dragdrop_functions.py
 │   │   ├── export_overwrite_check.py
@@ -231,6 +248,8 @@
 │   │   ├── img_entry_operations.py
 │   │   ├── img_export_entry.py
 │   │   ├── img_export_functions.py
+│   │   ├── img_factory_settings.py
+│   │   ├── imgfactory_svg_icons.py
 │   │   ├── img_import_functions.py
 │   │   ├── img_integration.py
 │   │   ├── img_parsing_functions.py
@@ -241,6 +260,7 @@
 │   │   ├── img_validation.py
 │   │   ├── import_highlight_system.py
 │   │   ├── indexed_color_import.py
+│   │   ├── __init__.py
 │   │   ├── mirror_tab_shared.py
 │   │   ├── populate_col_table.py
 │   │   ├── populate_img_table.py
@@ -248,12 +268,12 @@
 │   │   ├── refresh_table_functions.py
 │   │   ├── rw_detection.py
 │   │   ├── rw_versions.py
-│   │   ├── svg_icon_factory.py
-│   │   ├── svg_shared_icons.py
 │   │   ├── table_handlers.py
 │   │   ├── tab_system.py
+│   │   ├── txd_context_menu.py
 │   │   ├── txd_serializer.py
 │   │   ├── txd_versions.py
+│   │   ├── txd_workshop_theme.py
 │   │   └── update_ui_for_loaded_img.py
 │   ├── support
 │   │   ├── imgfactory_diagnostic.py
@@ -271,6 +291,7 @@
 │   │   ├── bluish_light.json
 │   │   ├── classic_dark.json
 │   │   ├── cyberpunk_dark.json
+│   │   ├── default_green.json
 │   │   ├── garujaro_dark.json
 │   │   ├── green_shad_light.json
 │   │   ├── green_theme_light.json
@@ -283,6 +304,8 @@
 │   │   ├── img_factory_light.json
 │   │   ├── knight_rider_dark.json
 │   │   ├── lavender_theme_light.json
+│   │   ├── manjaro2_dark.json
+│   │   ├── manjaro_dark.json
 │   │   ├── matrix_dark.json
 │   │   ├── pastel_theme_light.json
 │   │   ├── peach_theme_light.json
@@ -303,12 +326,121 @@
 │       └── update_themes_script.py
 ├── cc.py
 ├── ChangeLog.md
+├── col_workshop.png
+├── converted.py
+│   ├── 3way.py
+│   ├── adler32.py
+│   ├── algebra.py
+│   ├── algparam.py
+│   ├── arc4.py
+│   ├── authenc.py
+│   ├── base32.py
+│   ├── base64.py
+│   ├── basecode.py
+│   ├── blowfish.py
+│   ├── blumshub.py
+│   ├── cbcmac.py
+│   ├── ccm.py
+│   ├── CCOLFile.py
+│   ├── CCOLManager.py
+│   ├── CDebugger.py
+│   ├── CFileParser.py
+│   ├── CFileUtility.py
+│   ├── CFileWriter.py
+│   ├── channels.py
+│   ├── CIDEFile.py
+│   ├── CIMGFile.py
+│   ├── cmac.py
+│   ├── convert_cpp_to_py.py
+│   ├── CPathUtility.py
+│   ├── cpu.py
+│   ├── crc.py
+│   ├── CRegistryUtility.py
+│   ├── cryptlib_bds.py
+│   ├── CStringUtility.py
+│   ├── default.py
+│   ├── dessp.py
+│   ├── dh2.py
+│   ├── dh.py
+│   ├── dll.py
+│   ├── dlltest.py
+│   ├── dsa.py
+│   ├── eax.py
+│   ├── ec2n.py
+│   ├── elgamal.py
+│   ├── emsa2.py
+│   ├── eprecomp.py
+│   ├── esign.py
+│   ├── files.py
+│   ├── fips140.py
+│   ├── gf2_32.py
+│   ├── gf256.py
+│   ├── gfpcrypt.py
+│   ├── Globals.py
+│   ├── gost.py
+│   ├── gzip.py
+│   ├── hex.py
+│   ├── hmac.py
+│   ├── hrtimer.py
+│   ├── idea.py
+│   ├── iterhash.py
+│   ├── luc.py
+│   ├── mars.py
+│   ├── marss.py
+│   ├── md2.py
+│   ├── md4.py
+│   ├── md5.py
+│   ├── misc.py
+│   ├── modes.py
+│   ├── mqueue.py
+│   ├── mqv.py
+│   ├── oaep.py
+│   ├── osrng.py
+│   ├── pch.py
+│   ├── pkcspad.py
+│   ├── pssr.py
+│   ├── pubkey.py
+│   ├── rabin.py
+│   ├── randpool.py
+│   ├── rc2.py
+│   ├── rc5.py
+│   ├── rc6.py
+│   ├── rdtables.py
+│   ├── regtest.py
+│   ├── rng.py
+│   ├── rsa.py
+│   ├── rw.py
+│   ├── safer.py
+│   ├── seal.py
+│   ├── seed.py
+│   ├── serpent.py
+│   ├── sha3.py
+│   ├── shacal2.py
+│   ├── shark.py
+│   ├── simple.py
+│   ├── skipjack.py
+│   ├── square.py
+│   ├── stdafx.py
+│   ├── strciphr.py
+│   ├── tea.py
+│   ├── tiger.py
+│   ├── trdlocal.py
+│   ├── twofish.py
+│   ├── TXD Generator 2.py
+│   ├── wake.py
+│   ├── winpipes.py
+│   ├── xtrcrypt.py
+│   ├── xtr.py
+│   └── zlib.py
 ├── Credits.md
-├── dev-branch
+├── imgfactory1.6.png
 ├── img_factory_debug.log
+├── launch_col_workshop.py
 ├── launch_imgfactory.py
+├── launch_txd_workshop.py
+├── main-branch
 ├── package-lock.json
 ├── TODO.md
 └── tree.git
 
-31 directories, 281 files
+35 directories, 409 files
