@@ -1657,26 +1657,43 @@ class IMGFactoryGUILayout:
         """)
 
 
-    def _apply_vertical_splitter_theme(self): #vers 6
-        """Apply theme styling to the vertical splitter"""
+    def _apply_vertical_splitter_theme(self): #vers 7
+        """Apply theme styling to both vertical splitters"""
         theme_colors = self._get_theme_colors("default")
 
         # Extract variables FIRST
         bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
         bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
 
-        self.left_vertical_splitter.setStyleSheet(f"""
-            QSplitter::handle:vertical {{
-                background-color: {bg_secondary};
-                border: 1px solid {bg_tertiary};
-                height: 4px;
-                margin: 1px 2px;
-                border-radius: 2px;
-            }}
-            QSplitter::handle:vertical:hover {{
-                background-color: {bg_tertiary};
-            }}
-        """)
+        # Apply to left vertical splitter if it exists
+        if hasattr(self, 'left_vertical_splitter') and self.left_vertical_splitter:
+            self.left_vertical_splitter.setStyleSheet(f"""
+                QSplitter::handle:vertical {{
+                    background-color: {bg_secondary};
+                    border: 1px solid {bg_tertiary};
+                    height: 4px;
+                    margin: 1px 2px;
+                    border-radius: 2px;
+                }}
+                QSplitter::handle:vertical:hover {{
+                    background-color: {bg_tertiary};
+                }}
+            """)
+
+        # Apply to middle vertical splitter if it exists
+        if hasattr(self, 'middle_vertical_splitter') and self.middle_vertical_splitter:
+            self.middle_vertical_splitter.setStyleSheet(f"""
+                QSplitter::handle:vertical {{
+                    background-color: {bg_secondary};
+                    border: 1px solid {bg_tertiary};
+                    height: 4px;
+                    margin: 1px 2px;
+                    border-radius: 2px;
+                }}
+                QSplitter::handle:vertical:hover {{
+                    background-color: {bg_tertiary};
+                }}
+            """)
 
 
     def _apply_log_theme_styling(self): #vers 7

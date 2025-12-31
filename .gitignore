@@ -1,1 +1,10 @@
-Nothing should be ignored based on the provided file changes, as they only contain source code files (.py files) without any build artifacts, dependencies, or temporary files.
+```gitignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+```
