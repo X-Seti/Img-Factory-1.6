@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-#this belongs in components.Col_Editor.col_workshop.py - Version: 12
-# X-Seti - August10 2025 - Converted col editor using gui base template.
+#this belongs in components.Col_Editor.img_workshop.py - Version: 1
+# X-Seti - December31 2025 - gui base template.
 
 """
 components/Col_Editor/col_workshop.py
@@ -23,7 +23,6 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 
-
 # Add project root to path for standalone mode
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
@@ -34,24 +33,70 @@ if str(project_root) not in sys.path:
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
-from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
+from PyQt6.QtWidgets import (
+    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QSplitter,
+    QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox, QLabel,
+    QPushButton, QComboBox, QLineEdit, QHeaderView, QAbstractItemView,
+    QMenuBar, QStatusBar, QProgressBar, QTabWidget, QCheckBox, QSpinBox,
+    QMessageBox, QSizePolicy, QButtonGroup, QListWidget, QListWidgetItem,
+    QFormLayout, QScrollArea, QFrame
+)
+
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray, QTimer, QItemSelectionModel
+
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor, QFont, QAction, QIcon, QShortcut, QKeySequence, QPalette, QTextCursor
+
 from PyQt6.QtSvg import QSvgRenderer
+from apps.core.gui_search import ASearchDialog, SearchManager
+
+from apps.methods.imgfactory_svg_icons import (
+    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon,
+    get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
+    get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
+    get_rebuild_icon
+)
+from apps.locals.localization import tr_button
+from typing import Optional, Dict, Any, List, Callable
+from dataclasses import dataclass, field
+from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
+from apps.components.Ide_Editor.ide_editor import open_ide_editor
+from apps.gui.gui_backend import GUIBackend, ButtonDisplayMode
+
+#core
+from apps.core.impotr import import_files_function
+from apps.core.import_via import import_via_function
+#from apps.core.import_via import integrate_import_via_functions
+from apps.core.remove import remove_selected_function
+from apps.core.remove_via import integrate_remove_via_functions
+from apps.core.remove_via import remove_via_function as remove_via_entries_function
+from apps.core.export import export_selected_function
+# export_all_function, integrate_export_functions
+from apps.core.export_via import export_via_function
+from apps.core.quick_export import quick_export_function
+from apps.core.clean import integrate_clean_utilities
+from apps.core.rebuild import rebuild_current_img_native
+from apps.core.rebuild_all import rebuild_all_open_tabs
+#from apps.core.rebuild import rebuild_current_img #old function.
+from apps.core.dump import dump_all_function # dump_selected_function, integrate_dump_functions
+from apps.core.img_split import split_img, integrate_split_functions
+from apps.core.img_merger import merge_img_function
+from apps.core.convert import convert_img, convert_img_format
+from apps.core.rename import rename_entry
+from apps.core.imgcol_replace import replace_selected
+from apps.core.extract import extract_textures_function
+from apps.core.reload import reload_current_file
+from apps.core.create import create_new_img
+from apps.core.open import _detect_and_open_file, open_file_dialog, _detect_file_type
+from apps.core.close import close_img_file, close_all_img, install_close_functions, setup_close_manager
+from apps.methods.colour_ui_for_loaded_img import integrate_color_ui_system
+from apps.gui.gui_context import open_col_editor_dialog
 
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
-# COL Workshop parser system
-from apps.methods.col_workshop_classes import (
-    COLModel, COLVersion, COLHeader, COLBounds,
-    COLSphere, COLBox, COLVertex, COLFace
-)
-
-from apps.methods.col_workshop_structures import setup_col_table_structure, populate_col_table
-from apps.methods.col_workshop_parser import COLParser
-from apps.methods.col_workshop_loader import COLFile
-
-
+# Add root directory to path
+App_name = "IMG Workshop"
+DEBUG_STANDALONE = False
 
 # Temporary 3D viewport placeholder
 class COL3DViewport(QWidget):
@@ -67,10 +112,6 @@ class COL3DViewport(QWidget):
 
 VIEWPORT_AVAILABLE = False  # 3D viewport not yet implemented
 
-# Add root directory to path
-App_name = "Col Workshop"
-DEBUG_STANDALONE = False
-
 # Import AppSettings
 try:
     from apps.utils.app_settings_system import AppSettings, SettingsDialog
@@ -80,65 +121,75 @@ except ImportError:
     print("Warning: AppSettings not available")
 
 
-class COLModelListWidget(QListWidget): #vers 1
-    """Enhanced model list widget"""
-
-    model_selected = pyqtSignal(int)  # Model index
-    model_context_menu = pyqtSignal(int, object)  # Model index, position
-
-    def __init__(self, parent=None):
-        self.icon_factory = SVGIconFactory()
-        super().__init__(parent)
-        self.current_file = None
-
-        # Enable context menu
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
-
-        # Connect selection
-        self.currentRowChanged.connect(self.on_selection_changed)
-
-
-    def populate_models(self): #vers 1
-        """Populate model list"""
-        self.clear()
-
-        if not self.current_file or not hasattr(self.current_file, 'models'):
+def edit_txd_file(main_window): #vers 3
+    """Edit selected TXD file with TXD Workshop"""
+    try:
+        entries_table = main_window.gui_layout.table
+        selected_items = entries_table.selectedItems()
+        if not selected_items:
+            main_window.log_message("No TXD file selected")
             return
 
-        for i, model in enumerate(self.current_file.models):
-            name = getattr(model, 'name', f'Model_{i}')
-            version = getattr(model, 'version', COLVersion.COL_1)
+        row = selected_items[0].row()
+        filename_item = entries_table.item(row, 0)
+        filename = filename_item.text()
 
-            # Count collision elements
-            spheres = len(getattr(model, 'spheres', []))
-            boxes = len(getattr(model, 'boxes', []))
-            faces = len(getattr(model, 'faces', []))
+        if not filename.lower().endswith('.txd'):
+            main_window.log_message("Selected file is not a TXD file")
+            return
 
-            item_text = f"{name} ({version.name} - S:{spheres} B:{boxes} F:{faces})"
+        # Open TXD Workshop
+        from apps.components.Txd_Editor.txd_workshop import open_txd_workshop  # FIXED PATH
 
-            item = QListWidgetItem(item_text)
-            item.setData(Qt.ItemDataRole.UserRole, i)  # Store model index
-            self.addItem(item)
+        # Pass current IMG path if available
+        img_path = None
+        if hasattr(main_window, 'current_img') and main_window.current_img:
+            img_path = main_window.current_img.file_path
 
+        workshop = open_txd_workshop(main_window, img_path)
 
-    def on_selection_changed(self, row): #vers 1
-        """Handle selection change"""
-        if row >= 0:
-            self.model_selected.emit(row)
+        if workshop:
+            main_window.log_message(f"TXD Workshop opened for: {filename}")
+        else:
+            main_window.log_message(f"Failed to open TXD Workshop")
 
-
-    def show_context_menu(self, position): #vers 1
-        """Show context menu"""
-        item = self.itemAt(position)
-        if item:
-            model_index = item.data(Qt.ItemDataRole.UserRole)
-            self.model_context_menu.emit(model_index, self.mapToGlobal(position))
+    except Exception as e:
+        main_window.log_message(f"Error opening TXD Workshop: {e}")
 
 
+def edit_col_file(main_window): #vers 1
+    """Edit selected COL file with COL Workshop - matches TXD pattern"""
+    try:
+        entries_table = main_window.gui_layout.table
+        selected_items = entries_table.selectedItems()
 
-class COLWorkshop(QWidget): #vers 3
-    """COL Workshop - Main window"""
+        if not selected_items:
+            main_window.log_message("No COL file selected")
+            return
+
+        row = selected_items[0].row()
+        filename = entries_table.item(row, 0).text()
+
+        if not filename.lower().endswith('.col'):
+            main_window.log_message("Selected file is not a COL file")
+            return
+
+        from apps.components.Col_Editor.col_workshop import open_col_workshop
+
+        img_path = None
+        if hasattr(main_window, 'current_img') and main_window.current_img:
+            img_path = main_window.current_img.file_path
+
+        workshop = open_col_workshop(main_window, img_path)
+
+        if workshop:
+            main_window.log_message(f"COL Workshop opened for: {filename}")
+    except Exception as e:
+        main_window.log_message(f"Error opening COL Workshop: {e}")
+
+
+class IMGFactoryGUILayout:
+    """Handles the complete GUI layout for IMG Factory 1.5 with theme system"""
 
     workshop_closed = pyqtSignal()
     window_closed = pyqtSignal()
@@ -148,12 +199,38 @@ class COLWorkshop(QWidget): #vers 3
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
 
-        super().__init__(parent)
-        self.setWindowTitle(App_name)
-        self.setWindowIcon(SVGIconFactory.col_workshop_icon())
-        self.icon_factory = SVGIconFactory()
+        #self.setWindowTitle(App_name)
+        #self.setWindowIcon(SVGIconFactory.img_workshop_icon())
+        #self.icon_factory = SVGIconFactory()
 
+        self.icon_factory = SVGIconFactory()
         self.main_window = main_window
+        self.table = None
+        self.log = None
+        self.main_splitter = None
+        self.img_buttons = []
+        self.entry_buttons = []
+        self.options_buttons = []
+
+        # Status bar components
+        self.status_bar = None
+        self.status_label = None
+        self.progress_bar = None
+        self.img_info_label = None
+
+        # Tab-related components
+        self.main_type_tabs = None
+        self.tab_widget = None
+        self.left_vertical_splitter = None
+        self.status_window = None
+        self.info_bar = None
+        self.tearoff_button = None
+
+        # Initialize backend for button management
+        self.backend = GUIBackend(main_window)
+
+        # Initialize method_mappings FIRST before buttons
+        self.method_mappings = self._create_method_mappings()
 
         self.undo_stack = []
         self.button_display_mode = 'both'
@@ -162,7 +239,7 @@ class COLWorkshop(QWidget): #vers 3
         # Set default fonts
         from PyQt6.QtGui import QFont
         default_font = QFont("Fira Sans Condensed", 14)
-        self.setFont(default_font)
+        #self.setFont(default_font)
         self.title_font = QFont("Arial", 14)
         self.panel_font = QFont("Arial", 10)
         self.button_font = QFont("Arial", 10)
@@ -192,7 +269,7 @@ class COLWorkshop(QWidget): #vers 3
         self.background_color = QColor(42, 42, 42)
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
-        self.setMinimumSize(200, 200)
+        #self.setMinimumSize(200, 200)
         preview_widget = False
 
         # Docking state
@@ -202,13 +279,13 @@ class COLWorkshop(QWidget): #vers 3
         self.overlay_table = None
         self.overlay_tab_index = -1
 
-        self.setWindowTitle(App_name + ": No File")
-        self.resize(1400, 800)
-        self.use_system_titlebar = False
-        self.window_always_on_top = False
+        #self.setWindowTitle(App_name + ": No File")
+        #self.resize(1400, 800)
+        #self.use_system_titlebar = False
+        #self.window_always_on_top = False
 
         # Window flags
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        #self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
 
         self._initialize_features()
 
@@ -220,16 +297,12 @@ class COLWorkshop(QWidget): #vers 3
         self.corner_size = 20
         self.hover_corner = None
 
-        if parent:
-            parent_pos = parent.pos()
-            self.move(parent_pos.x() + 50, parent_pos.y() + 80)
-
 
         # Setup UI FIRST
         self.setup_ui()
 
         # Setup hotkeys
-        self._setup_hotkeys()
+        #self._setup_hotkeys()
 
         # Apply theme ONCE at the end
         self._apply_theme()
@@ -237,51 +310,34 @@ class COLWorkshop(QWidget): #vers 3
 
     def setup_ui(self): #vers 7
         """Setup the main UI layout"""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
-        main_layout.setSpacing(5)
+        #main_layout = QVBoxLayout(self)
+        #main_layout.setContentsMargins(5, 5, 5, 5)
+        #main_layout.setSpacing(5)
 
         # Toolbar
         toolbar = self._create_toolbar()
-        main_layout.addWidget(toolbar)
+        #main_layout.addWidget(toolbar)
 
         # Tab bar for multiple col files
-        self.col_tabs = QTabWidget()
-        self.col_tabs.setTabsClosable(True)
+        #self.col_tabs = QTabWidget()
+        #self.col_tabs.setTabsClosable(True)
         #self.col_tabs.tabCloseRequested.connect(self._close_col_tab)
 
 
         # Create initial tab with main content
-        initial_tab = QWidget()
-        tab_layout = QVBoxLayout(initial_tab)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
+        #initial_tab = QWidget()
+        #tab_layout = QVBoxLayout(initial_tab)
+        #tab_layout.setContentsMargins(0, 0, 0, 0)
 
 
         # Main splitter
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Create all panels first
-        left_panel = self._create_left_panel()
+        #left_panel = self._create_left_panel()
         middle_panel = self._create_middle_panel()
         right_panel = self._create_right_panel()
 
-        # Add panels to splitter based on mode
-        if left_panel is not None:  # IMG Factory mode
-            main_splitter.addWidget(left_panel)
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
-            # Set proportions (2:3:5)
-            main_splitter.setStretchFactor(0, 2)
-            main_splitter.setStretchFactor(1, 3)
-            main_splitter.setStretchFactor(2, 5)
-        else:  # Standalone mode
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
-            # Set proportions (1:1)
-            main_splitter.setStretchFactor(0, 1)
-            main_splitter.setStretchFactor(1, 1)
-
-        main_layout.addWidget(main_splitter)
 
         # Status indicators if available
         if hasattr(self, '_setup_status_indicators'):
@@ -298,30 +354,85 @@ class COLWorkshop(QWidget): #vers 3
 
     def _update_status_indicators(self): #vers 2
         """Update status indicators"""
-        if hasattr(self, 'status_collision'):
-            self.status_textures.setText(f"collision: {len(self.collision_list)}")
+        pass
 
-        if hasattr(self, 'status_selected'):
-            if self.selected_texture:
-                name = self.selected_collision.get('name', 'Unknown')
-                self.status_selected.setText(f"Selected: {name}")
-            else:
-                self.status_selected.setText("Selected: None")
 
-        if hasattr(self, 'status_size'):
-            if self.current_txd_data:
-                size_kb = len(self.current_col_data) / 1024
-                self.status_size.setText(f"COL Size: {size_kb:.1f} KB")
-            else:
-                self.status_size.setText("COL Size: Unknown")
+# - Button Mapping
 
-        if hasattr(self, 'status_modified'):
-            if self.windowTitle().endswith("*"):
-                self.status_modified.setText("MODIFIED")
-                self.status_modified.setStyleSheet("color: orange; font-weight: bold;")
-            else:
-                self.status_modified.setText("")
-                self.status_modified.setStyleSheet("")
+    def _create_method_mappings(self): #vers 5
+        """Create centralized method mappings for all buttons"""
+        method_mappings = {
+            # IMG/COL Operations            'edit_txd_file': lambda: edit_txd_file(self.main_window),
+            'create_new_img': lambda: create_new_img(self.main_window),
+            'open_img_file': lambda: open_file_dialog(self.main_window),
+            'reload_table': lambda: reload_current_file(self.main_window),
+            'useless_button': lambda: self._safe_log("🎯 useless_button!"),
+            'close_img_file': lambda: close_img_file(self.main_window),
+            'close_all_img': lambda: close_all_img(self.main_window),
+            'rebuild_img': lambda: rebuild_current_img_native(self.main_window),
+            #'rebuild_all_img': lambda: integrate_batch_rebuild_functions(self.main_window),
+            'rebuild_all_img': lambda: rebuild_all_open_tabs(self.main_window),
+            #'save_img_entry': lambda: save_img_entry_function(self.main_window),
+            'save_img_entry': lambda: self.main_window.save_img_entry(),
+            'merge_img': lambda: merge_img_function(self.main_window),
+            'split_img': lambda: split_img(self.main_window),
+            'convert_img_format': lambda: convert_img_format(self.main_window),
+
+            # Import methods
+            'import_files': lambda: import_files_function(self.main_window),
+            'import_files_via': lambda: import_via_function(self.main_window),
+            'refresh_table': lambda: refresh_table(self.main_window),
+
+            # Export methods
+            'export_selected': lambda: self.main_window.export_selected(),
+            'export_selected_via': lambda: self.main_window.export_via(),
+            'quick_export_selected': lambda: self.main_window.quick_export(),            'edit_txd_file': lambda: edit_txd_file(self.main_window),
+            'dump_entries': lambda: self.main_window.dump_all(),
+
+            # Remove methods
+            'remove_selected': lambda: remove_selected_function(self.main_window),
+            'remove_via_entries': lambda: remove_via_entries_function(self.main_window),
+
+            # Selection methods
+            'select_all_entries': lambda: self.select_all_entries(),
+            'select_inverse': lambda: self.select_inverse(),
+            'show_search_dialog': lambda: self.show_search_dialog(),
+            'sort_entries': lambda: self.sort_entries(),
+            'sort_entries_to_match_ide': lambda: self.sort_entries_to_match_ide(),
+            'pin_selected_entries': lambda: self.pin_selected_entries(),
+
+            # Edit methods
+            'rename_selected': lambda: rename_entry(self.main_window),
+            'replace_selected': lambda: replace_selected(self.main_window),
+            'extract_textures': lambda: extract_textures_function(self.main_window),
+
+            # Editor methods
+            'edit_col_file': lambda: edit_col_file(self.main_window),
+            'edit_txd_file': lambda: edit_txd_file(self.main_window),
+            'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
+            'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
+            'edit_ide_file': lambda: open_ide_editor(self.main_window),
+            'edit_ipl_file': lambda: self._log_missing_method('edit_ipl_file'),
+            'edit_dat_file': lambda: self._log_missing_method('edit_dat_file'),
+            'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
+            'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
+            'edit_vehi_file': lambda: self._log_missing_method('edit_vehi_file'),
+            'edit_peds_file': lambda: self._log_missing_method('edit_peds_file'),
+            'edit_radar_map': lambda: self._log_missing_method('edit_radar_map'),
+            'edit_paths_map': lambda: self._log_missing_method('edit_paths_map'),
+            'edit_waterpro': lambda: self._log_missing_method('edit_waterpro'),
+            'edit_weather': lambda: self._log_missing_method('edit_weather'),
+            'edit_2dfx': lambda: self._log_missing_method('edit_2dfx'),
+            'edit_objects': lambda: self._log_missing_method('edit_objects'),
+            'editscm': lambda: self._log_missing_method('editscm'),
+            'editgxt': lambda: self._log_missing_method('editgxt'),
+            'editmenu': lambda: self._log_missing_method('editmenu'),
+        }
+
+        print(f"Method mappings created: {len(method_mappings)} methods")
+        return method_mappings
+
+
 # - Panel Creation
 
     def _create_status_bar(self): #vers 1
@@ -353,6 +464,159 @@ class COLWorkshop(QWidget): #vers 3
 
 
 # - Settings Reusable
+
+    def create_main_ui_with_splitters(self, main_layout): #vers 3
+        """Create the main UI with correct 3-section layout"""
+        # Create main horizontal splitter
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left side - vertical layout with 3 sections
+        left_panel = self._create_left_three_section_panel()
+
+        # Right side - control buttons with pastel colors
+        right_panel = self.create_right_panel_with_pastel_buttons()
+
+        # Add panels to splitter
+        self.main_splitter.addWidget(left_panel)
+        self.main_splitter.addWidget(right_panel)
+
+        # Set splitter proportions and force constraints
+        self.main_splitter.setSizes([1000, 280])  # Fixed right panel to 280px
+
+        # Add size constraints to force the right panel width
+        right_panel.setMaximumWidth(280)  # Fixed at 280px
+        right_panel.setMinimumWidth(280)  # Fixed at 280px
+
+        # Style the main horizontal splitter handle with theme colors
+        self._apply_main_splitter_theme()
+
+        # Prevent panels from collapsing completely
+        self.main_splitter.setCollapsible(0, False)  # Left panel
+        self.main_splitter.setCollapsible(1, False)  # Right panel
+
+        # Add splitter to main layout
+        main_layout.addWidget(self.main_splitter)
+
+
+    def _create_left_three_section_panel(self): #vers 3
+        """Create left panel with 3 sections: File Window, Status Window"""
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(3, 3, 3, 3)
+        left_layout.setSpacing(0)  # No spacing - splitter handles this
+
+        # Create vertical splitter for the sections
+        self.left_vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # 1. MIDDLE: File Window (table with sub-tabs)
+        file_window = self._create_file_window()
+        self.left_vertical_splitter.addWidget(file_window)
+
+        # 2. BOTTOM: Status Window (log and status)
+        status_window = self.create_status_window()
+        self.left_vertical_splitter.addWidget(status_window)
+
+        # Set section proportions: File(760px), Status(200px)
+        self.left_vertical_splitter.setSizes([760, 200])
+
+        # Prevent sections from collapsing completely
+        self.left_vertical_splitter.setCollapsible(0, True)  # File window
+        self.left_vertical_splitter.setCollapsible(1, True)  # Status window
+
+        # Apply theme styling to vertical splitter
+        self._apply_vertical_splitter_theme()
+
+        left_layout.addWidget(self.left_vertical_splitter)
+        return left_container
+
+
+    # SETTINGS & CONFIGURATION
+    def apply_settings_changes(self, settings): #vers 1
+        """Apply settings changes to the GUI layout"""
+        try:
+            # Apply tab settings if they exist
+            if any(key.startswith('tab_') or key in ['main_tab_height', 'individual_tab_height', 'tab_font_size', 'tab_padding', 'tab_container_height'] for key in settings.keys()):
+                main_height = settings.get("main_tab_height", 30)
+                tab_height = settings.get("individual_tab_height", 24)
+                font_size = settings.get("tab_font_size", 9)
+                padding = settings.get("tab_padding", 4)
+                container_height = settings.get("tab_container_height", 40)
+
+                self._apply_dynamic_tab_styling(
+                    main_height, tab_height, font_size, padding, container_height
+                )
+
+            # Apply button icon settings
+            if 'show_button_icons' in settings:
+                self._update_button_icons_state(settings['show_button_icons'])
+
+            # Apply other GUI settings as needed
+            if 'table_row_height' in settings:
+                self._update_table_row_height(settings['table_row_height'])
+
+            if 'widget_spacing' in settings:
+                self._update_widget_spacing(settings['widget_spacing'])
+
+            # Apply theme changes
+            if 'theme_changed' in settings:
+                self.apply_all_window_themes()
+
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error applying settings changes: {str(e)}")
+
+    def _update_table_row_height(self, height): #vers 1
+        """Update table row height"""
+        try:
+            if hasattr(self, 'table') and self.table:
+                self.table.verticalHeader().setDefaultSectionSize(height)
+        except Exception:
+            pass
+
+    def _update_widget_spacing(self, spacing): #vers 1
+        """Update widget spacing"""
+        try:
+            if hasattr(self, 'main_splitter') and self.main_splitter:
+                # Update splitter spacing
+                self.main_splitter.setHandleWidth(max(4, spacing))
+        except Exception:
+            pass
+
+# - RESPONSIVE DESIGN & ADAPTIVE LAYOUT
+
+    def handle_resize_event(self, event): #vers 1
+        """Handle window resize to adapt button text"""
+        if self.main_splitter:
+            sizes = self.main_splitter.sizes()
+            if len(sizes) > 1:
+                right_panel_width = sizes[1]
+                self.adapt_buttons_to_width(right_panel_width)
+
+    def adapt_buttons_to_width(self, width): #vers 1
+        """Adapt button text based on available width"""
+        all_buttons = []
+        if hasattr(self, 'img_buttons'):
+            all_buttons.extend(self.img_buttons)
+        if hasattr(self, 'entry_buttons'):
+            all_buttons.extend(self.entry_buttons)
+        if hasattr(self, 'options_buttons'):
+            all_buttons.extend(self.options_buttons)
+
+        for button in all_buttons:
+            if hasattr(button, 'full_text'):
+                if width > 280:
+                    button.setText(button.full_text)
+                elif width > 200:
+                    # Medium text - remove some words
+                    text = button.full_text.replace(' via', '>').replace(' lst', '')
+                    button.setText(text)
+                elif width > 150:
+                    button.setText(button.short_text)
+                else:
+                    # Icon only mode
+                    button.setText("")
+
+
 
     def _show_workshop_settings(self): #vers 1
         """Show complete workshop settings dialog"""
@@ -624,10 +888,6 @@ class COLWorkshop(QWidget): #vers 3
 
         bg_layout.addLayout(cb_layout)
 
-        # Connect checkerboard controls
-        #cb_slider.valueChanged.connect(cb_spin.setValue)
-        #cb_spin.valueChanged.connect(cb_slider.setValue)
-
         # Hint
         cb_hint = QLabel("Smaller = tighter pattern, larger = bigger squares")
         cb_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
@@ -661,10 +921,6 @@ class COLWorkshop(QWidget): #vers 3
         opacity_layout.addWidget(opacity_spin)
 
         overlay_layout.addLayout(opacity_layout)
-
-        # Connect opacity controls
-        #opacity_slider.valueChanged.connect(opacity_spin.setValue)
-        #opacity_spin.valueChanged.connect(opacity_slider.setValue)
 
         # Hint
         opacity_hint = QLabel("0")
@@ -700,6 +956,8 @@ class COLWorkshop(QWidget): #vers 3
                 background: #1984d8;
             }
         """)
+
+
 
 
         def apply_settings():
@@ -1418,9 +1676,9 @@ class COLWorkshop(QWidget): #vers 3
         self.titlebar.setObjectName("titlebar")
 
         # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
+        #self.titlebar.installEventFilter(self)
+        #self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        #self.titlebar.setMouseTracking(True)
 
         self.layout = QHBoxLayout(self.titlebar)
         self.layout.setContentsMargins(5, 5, 5, 5)
@@ -1440,7 +1698,7 @@ class COLWorkshop(QWidget): #vers 3
         # Settings button
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon())
+        #self.settings_btn.setIcon(self.icon_factory.settings_icon())
         self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(20, 20))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
@@ -1458,32 +1716,23 @@ class COLWorkshop(QWidget): #vers 3
         layout.addStretch()
         #layout.addStretch()
 
-        # Only show "Open IMG" button if NOT standalone
-        if not self.standalone_mode:
-            self.open_img_btn = QPushButton("OpenIMG")
-            self.open_img_btn.setFont(self.button_font)
-            self.open_img_btn.setIcon(self.icon_factory.folder_icon())
-            self.open_img_btn.setIconSize(QSize(20, 20))
-            self.open_img_btn.clicked.connect(self.open_img_archive)
-            layout.addWidget(self.open_img_btn)
-
         # Open button
         self.open_btn = QPushButton()
         self.open_btn.setFont(self.button_font)
-        self.open_btn.setIcon(self.icon_factory.open_icon())
+        #self.open_btn.setIcon(self.icon_factory.open_icon())
         self.open_btn.setText("Open")
         self.open_btn.setIconSize(QSize(20, 20))
         self.open_btn.setShortcut("Ctrl+O")
         if self.button_display_mode == 'icons':
             self.open_btn.setFixedSize(40, 40)
         self.open_btn.setToolTip("Open COL file (Ctrl+O)")
-        self.open_btn.clicked.connect(self._open_file)
+        #self.open_btn.clicked.connect(self._open_file)
         layout.addWidget(self.open_btn)
 
         # Save button
         self.save_btn = QPushButton()
         self.save_btn.setFont(self.button_font)
-        self.save_btn.setIcon(self.icon_factory.save_icon())
+        #self.save_btn.setIcon(self.icon_factory.save_icon())
         self.save_btn.setText("Save")
         self.save_btn.setIconSize(QSize(20, 20))
         self.save_btn.setShortcut("Ctrl+S")
@@ -1491,26 +1740,12 @@ class COLWorkshop(QWidget): #vers 3
             self.save_btn.setFixedSize(40, 40)
         self.save_btn.setEnabled(False)  # Enable when modified
         self.save_btn.setToolTip("Save COL file (Ctrl+S)")
-        self.save_btn.clicked.connect(self._save_file)
+        #self.save_btn.clicked.connect(self._save_file)
         layout.addWidget(self.save_btn)
-
-        # Save button
-        self.saveall_btn = QPushButton()
-        self.saveall_btn.setFont(self.button_font)
-        self.saveall_btn.setIcon(self.icon_factory.saveas_icon())
-        self.saveall_btn.setText("Save All")
-        self.saveall_btn.setIconSize(QSize(20, 20))
-        self.saveall_btn.setShortcut("Ctrl+S")
-        if self.button_display_mode == 'icons':
-            self.saveall_btn.setFixedSize(40, 40)
-        self.saveall_btn.setEnabled(False)  # Enable when modified
-        self.saveall_btn.setToolTip("Save COL file (Ctrl+S)")
-        #self.saveall_btn.clicked.connect(self._saveall_file)
-        #layout.addWidget(self.saveall_btn)
 
         self.export_all_btn = QPushButton("Extract")
         self.export_all_btn.setFont(self.button_font)
-        self.export_all_btn.setIcon(self.icon_factory.package_icon())
+        #self.export_all_btn.setIcon(self.icon_factory.package_icon())
         self.export_all_btn.setIconSize(QSize(20, 20))
         self.export_all_btn.setToolTip("Export all as col, cst or 3ds files")
         #self.export_all_btn.clicked.connect(self.export_all)
@@ -1519,7 +1754,7 @@ class COLWorkshop(QWidget): #vers 3
 
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon())
+        #self.undo_btn.setIcon(self.icon_factory.undo_icon())
         self.undo_btn.setText("Undo")
         self.undo_btn.setIconSize(QSize(20, 20))
         #self.undo_btn.clicked.connect(self._undo_last_action)
@@ -1538,7 +1773,7 @@ class COLWorkshop(QWidget): #vers 3
 
         self.info_btn.setIconSize(QSize(20, 20))
         self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_col_info)
+        #self.info_btn.clicked.connect(self._show_col_info)
         layout.addWidget(self.info_btn)
 
         # Properties/Theme button
@@ -1549,7 +1784,7 @@ class COLWorkshop(QWidget): #vers 3
         self.properties_btn.setFixedSize(35, 35)
         self.properties_btn.clicked.connect(self._launch_theme_settings)
         self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
+        #self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
         layout.addWidget(self.properties_btn)
 
         # Dock button [D]
@@ -1560,7 +1795,7 @@ class COLWorkshop(QWidget): #vers 3
         self.dock_btn.setMinimumHeight(30)
         self.dock_btn.setToolTip("Dock")
 
-        self.dock_btn.clicked.connect(self.toggle_dock_mode)
+        #self.dock_btn.clicked.connect(self.toggle_dock_mode)
         layout.addWidget(self.dock_btn)
 
         # Tear-off button [T] - only in IMG Factory mode
@@ -1570,7 +1805,7 @@ class COLWorkshop(QWidget): #vers 3
             self.tearoff_btn.setMinimumWidth(40)
             self.tearoff_btn.setMaximumWidth(40)
             self.tearoff_btn.setMinimumHeight(30)
-            self.tearoff_btn.clicked.connect(self._toggle_tearoff)
+            #self.tearoff_btn.clicked.connect(self._toggle_tearoff)
             self.tearoff_btn.setToolTip("TXD Workshop - Tearoff window")
 
             layout.addWidget(self.tearoff_btn)
@@ -1582,7 +1817,7 @@ class COLWorkshop(QWidget): #vers 3
         self.minimize_btn.setMinimumWidth(40)
         self.minimize_btn.setMaximumWidth(40)
         self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.showMinimized)
+        #self.minimize_btn.clicked.connect(self.showMinimized)
         self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
         layout.addWidget(self.minimize_btn)
 
@@ -1592,7 +1827,7 @@ class COLWorkshop(QWidget): #vers 3
         self.maximize_btn.setMinimumWidth(40)
         self.maximize_btn.setMaximumWidth(40)
         self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self._toggle_maximize)
+        #self.maximize_btn.clicked.connect(self._toggle_maximize)
         self.maximize_btn.setToolTip("Maximize/Restore Window")
         layout.addWidget(self.maximize_btn)
 
@@ -1602,7 +1837,7 @@ class COLWorkshop(QWidget): #vers 3
         self.close_btn.setMinimumWidth(40)
         self.close_btn.setMaximumWidth(40)
         self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.close)
+        #self.close_btn.clicked.connect(self.close)
         self.close_btn.setToolTip("Close Window") # closes tab
         layout.addWidget(self.close_btn)
 
@@ -1677,7 +1912,7 @@ class COLWorkshop(QWidget): #vers 3
         self.analyze_btn.setIconSize(icon_size)
         self.analyze_btn.setFixedHeight(btn_height)
         self.analyze_btn.setMinimumWidth(btn_width)
-        self.analyze_btn.clicked.connect(self._analyze_collision)
+        #self.analyze_btn.clicked.connect(self._analyze_collision)
         self.analyze_btn.setEnabled(False)
         self.analyze_btn.setToolTip("Analyze collision data")
         layout.addWidget(self.analyze_btn)
@@ -1837,7 +2072,7 @@ class COLWorkshop(QWidget): #vers 3
         self.analyze_btn = QPushButton("Analyze")
         self.analyze_btn.setFont(self.button_font)
         self.analyze_btn.setFixedHeight(btn_height)
-        self.analyze_btn.clicked.connect(self._analyze_collision)
+        #self.analyze_btn.clicked.connect(self._analyze_collision)
         self.analyze_btn.setEnabled(False)
         self.analyze_btn.setToolTip("Analyze collision data")
         layout.addWidget(self.analyze_btn)
@@ -1949,47 +2184,372 @@ class COLWorkshop(QWidget): #vers 3
 
         self.col_list_widget = QListWidget()
         self.col_list_widget.setAlternatingRowColors(True)
-        self.col_list_widget.itemClicked.connect(self._on_col_selected)
+        #self.col_list_widget.itemClicked.connect(self._on_col_selected)
         layout.addWidget(self.col_list_widget)
         return panel
 
 
     def _create_middle_panel(self): #vers 4
         """Create middle panel with COL models table - theme-aware"""
-        panel = QGroupBox("COL Models")
-
-        # Get theme colors
-        if self.app_settings:
-            colors = self.app_settings.get_theme_colors()
-            bg_color = colors.get('panel_bg', '#2b2b2b')
-            border_color = colors.get('border', '#3a3a3a')
-            text_color = colors.get('text_primary', '#e0e0e0')
-        else:
-            bg_color = '#2b2b2b'
-            border_color = '#3a3a3a'
-            text_color = '#e0e0e0'
-
-        layout = QVBoxLayout(panel)
-        layout.setSpacing(5)
-
-        # Model table widget (like TXD Workshop texture_table)
-        self.collision_list = QTableWidget()
-        # Compatibility for table functions
-        class _GuiLayout:
-            def __init__(self, table):
-                self.table = table
-        self.gui_layout = _GuiLayout(self.collision_list)
-        self.collision_list.setColumnCount(8)
-        self.collision_list.setHorizontalHeaderLabels(["Model Name", "Type", "Version", "Size", "Spheres", "Boxes", "Vertices", "Faces"])
-        self.collision_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.collision_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.collision_list.setAlternatingRowColors(True)
-        self.collision_list.itemSelectionChanged.connect(self._on_collision_selected)
-        self.collision_list.horizontalHeader().setStretchLastSection(True)  # Details column stretches
-        layout.addWidget(self.collision_list)
-        self.collision_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.collision_list.customContextMenuRequested.connect(self._show_collision_context_menu)
+        panel = QGroupBox("File Window")
+        self._create_file_window()
         return panel
+
+    def _create_file_window(self): #vers 3
+        """Create file window with tabs for different views"""
+        file_window = QWidget()
+        file_layout = QVBoxLayout(file_window)
+        file_layout.setContentsMargins(5, 5, 5, 5)
+        file_layout.setSpacing(3)
+
+        # Create tab widget
+        self.tab_widget = QTabWidget()
+
+        # Tab 1: File Entries (main table)
+        entries_tab = QWidget()
+        entries_layout = QVBoxLayout(entries_tab)
+        entries_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Create main table
+        self.table = QTableWidget()
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels([
+            "Num", "Name", "Extension", "Size", "Hash", "Hex", "Version", "Compression", "Status"
+        ])
+
+        # Table configuration
+        self.table.setAlternatingRowColors(True)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.table.setSortingEnabled(True)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+
+        # Column sizing
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Num
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Name
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Extension
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Size
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Hash
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)  # Hex Value
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # Version
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)  # Compression
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)  # Status
+
+        # Apply theme styling to table
+        self._apply_table_theme_styling()
+
+        entries_layout.addWidget(self.table)
+        self.tab_widget.addTab(entries_tab, "File Entries")
+
+
+        # Tab 2: Directory Tree (placeholder for integration)
+        tree_tab = QWidget()
+        tree_layout = QVBoxLayout(tree_tab)
+        tree_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Placeholder content - will be replaced by integration
+        placeholder_label = QLabel("Directory Tree")
+        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder_label.setStyleSheet("font-size: 14px; color: #888; font-style: italic;")
+        tree_layout.addWidget(placeholder_label)
+
+        info_label = QLabel("Directory tree will appear here after integration.")
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setStyleSheet("color: #666; font-size: 12px;")
+        tree_layout.addWidget(info_label)
+
+        tree_layout.addStretch()
+
+        # Add the tab to the widget
+        self.tab_widget.addTab(tree_tab, "Directory Tree")
+
+        # Tab 3: Search Results (future enhancement)
+        search_tab = QWidget()
+        search_layout = QVBoxLayout(search_tab)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+
+        search_placeholder = QLabel("Search results will be displayed here")
+        search_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        search_placeholder.setStyleSheet("font-style: italic;")
+        search_layout.addWidget(search_placeholder)
+
+        self.tab_widget.addTab(search_tab, "Search Results")
+
+        # Apply theme styling to file window tabs
+        self._apply_file_list_window_theme_styling()
+
+        #self._setup_tearoff_button_for_tabs()
+
+        file_layout.addWidget(self.tab_widget)
+        return file_window
+
+    def create_status_window(self): #vers 5
+        """Create status window with log"""
+        self.status_window = QWidget()
+        status_layout = QVBoxLayout(self.status_window)
+        status_layout.setContentsMargins(5, 5, 5, 5)
+        status_layout.setSpacing(3)
+
+        # Title
+        title_layout = QHBoxLayout()
+        title_label = QLabel("Activity Log")
+        title_label.setStyleSheet("font-weight: bold; font-size: 10pt;")
+        title_layout.addWidget(title_label)
+
+        # Status indicators
+        title_layout.addStretch()
+
+        # Status label
+        self.status_label = QLabel("Ready")
+        title_layout.addWidget(self.status_label)
+        status_layout.addLayout(title_layout)
+
+        # Log with scrollbars
+        self.log = QTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setPlaceholderText("Activity log will appear here...")
+
+        # Enable scrollbars for log
+        self.log.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.log.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Apply theme styling to log
+        self._apply_log_theme_styling()
+        status_layout.addWidget(self.log)
+
+        # Apply theme styling to status window
+        self._apply_status_window_theme_styling()
+
+        return self.status_window
+
+
+    def _apply_table_theme_styling(self): #vers 5
+        """Apply theme styling to the table widget"""
+        theme_colors = self._get_theme_colors("default")
+
+        # Use standard theme variables from app_settings_system.py
+        panel_bg = theme_colors.get('panel_bg', '#ffffff')
+        bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
+        bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
+        border = theme_colors.get('border', '#dee2e6')
+        text_primary = theme_colors.get('text_primary', '#000000')
+        text_secondary = theme_colors.get('text_secondary', '#495057')
+        accent_primary = theme_colors.get('accent_primary', '#1976d2')
+
+        self.table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {bg_secondary};
+                alternate-background-color: {bg_tertiary};
+                border: 1px solid {border};
+                border-radius: 3px;
+                gridline-color: {border};
+                color: {text_primary};
+                font-size: 9pt;
+            }}
+            QTableWidget::item {{
+                padding: 5px;
+                border: none;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {accent_primary};
+                color: white;
+            }}
+            QHeaderView::section {{
+                background-color: {panel_bg};
+                color: {text_secondary};
+                padding: 5px;
+                border: 1px solid {border};
+                font-weight: bold;
+                font-size: 9pt;
+            }}
+        """)
+
+
+    def _apply_table_theme_styling(self): #vers 5
+        """Apply theme styling to the table widget"""
+        theme_colors = self._get_theme_colors("default")
+
+        # Use standard theme variables from app_settings_system.py
+        panel_bg = theme_colors.get('panel_bg', '#ffffff')
+        bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
+        bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
+        border = theme_colors.get('border', '#dee2e6')
+        text_primary = theme_colors.get('text_primary', '#000000')
+        text_secondary = theme_colors.get('text_secondary', '#495057')
+        accent_primary = theme_colors.get('accent_primary', '#1976d2')
+
+        self.table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {bg_secondary};
+                alternate-background-color: {bg_tertiary};
+                border: 1px solid {border};
+                border-radius: 3px;
+                gridline-color: {border};
+                color: {text_primary};
+                font-size: 9pt;
+            }}
+            QTableWidget::item {{
+                padding: 5px;
+                border: none;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {accent_primary};
+                color: white;
+            }}
+            QHeaderView::section {{
+                background-color: {panel_bg};
+                color: {text_secondary};
+                padding: 5px;
+                border: 1px solid {border};
+                font-weight: bold;
+                font-size: 9pt;
+            }}
+        """)
+
+
+    def _get_theme_colors(self, theme_name): #vers 3
+        """Get theme colors - properly connected to app_settings_system"""
+        try:
+            # Method 1: Use app_settings get_theme_colors() method
+            if hasattr(self.main_window, 'app_settings') and hasattr(self.main_window.app_settings, 'get_theme_colors'):
+                colors = self.main_window.app_settings.get_theme_colors()
+                if colors:
+                    print(f"Using app_settings theme colors: {len(colors)} colors loaded")
+                    return colors
+
+            # Method 2: Try direct theme access
+            if hasattr(self.main_window, 'app_settings') and hasattr(self.main_window.app_settings, 'themes'):
+                current_theme = self.main_window.app_settings.current_settings.get("theme", "IMG_Factory")
+                theme_data = self.main_window.app_settings.themes.get(current_theme, {})
+                colors = theme_data.get('colors', {})
+                if colors:
+                    print(f"Using direct theme access: {current_theme}")
+                    return colors
+
+        except Exception as e:
+            print(f"Theme color lookup error: {e}")
+
+        # Fallback with proper theme variables
+        print("Using fallback theme colors")
+        is_dark = self._is_dark_theme()
+        if is_dark:
+            return {
+                'bg_primary': '#2b2b2b', 'bg_secondary': '#3c3c3c', 'bg_tertiary': '#4a4a4a',
+                'panel_bg': '#333333', 'text_primary': '#ffffff', 'text_secondary': '#cccccc',
+                'border': '#666666', 'accent_primary': '#FFECEE', 'button_normal': '#404040'
+            }
+        else:
+            return {
+                'bg_primary': '#ffffff', 'bg_secondary': '#f8f9fa', 'bg_tertiary': '#e9ecef',
+                'panel_bg': '#f0f0f0', 'text_primary': '#000000', 'text_secondary': '#495057',
+                'border': '#dee2e6', 'accent_primary': '#1976d2', 'button_normal': '#e0e0e0'
+            }
+
+
+    def set_button_display_mode(self, mode: str):
+        """
+        Set button display mode: 'text_only', 'icons_only', or 'icons_with_text'
+        """
+        try:
+            # Store the current mode
+            self.button_display_mode = mode
+
+            # Update all buttons to reflect the new mode
+            self._update_all_buttons_display_mode()
+
+            # Also update via backend if available
+            if hasattr(self, 'backend'):
+                # Convert string mode to enum
+                if mode == "text_only":
+                    display_mode = ButtonDisplayMode.TEXT_ONLY
+                elif mode == "icons_only":
+                    display_mode = ButtonDisplayMode.ICONS_ONLY
+                elif mode == "icons_with_text":
+                    display_mode = ButtonDisplayMode.ICONS_WITH_TEXT
+                else:
+                    display_mode = ButtonDisplayMode.ICONS_WITH_TEXT  # Default
+
+                self.backend.set_button_display_mode(display_mode)
+
+            print(f"Button display mode set to: {mode}")
+
+        except Exception as e:
+            print(f"Error setting button display mode: {e}")
+
+    def update_button_settings(self, settings):
+        """Update button settings from app settings"""
+        # Update button display mode
+        button_mode = settings.get('button_display_mode', 'icons_with_text')
+        self.set_button_display_mode(button_mode)
+
+        # Update button size if available
+        button_size = settings.get('button_size', None)
+        if button_size:
+            self.set_button_size(button_size)
+
+        # Update icon size if available
+        icon_size = settings.get('icon_size', 16)
+        self.set_icon_size(icon_size)
+
+        # Update pastel effect setting
+        use_pastel = settings.get('use_pastel_buttons', True)
+        self.set_pastel_effect(use_pastel)
+
+        # Update high contrast setting
+        high_contrast = settings.get('high_contrast_buttons', False)
+        self.set_high_contrast(high_contrast)
+
+        # Update button format
+        button_format = settings.get('button_format', 'both')
+        self.set_button_format(button_format)
+
+
+    def set_button_size(self, size):
+        """Set button size for all buttons"""
+        if hasattr(self, 'backend'):
+            all_buttons = (self.img_buttons + self.entry_buttons + self.options_buttons +
+                          self.backend.img_buttons + self.backend.entry_buttons + self.backend.options_buttons)
+            for btn in all_buttons:
+                btn.setMaximumHeight(size)
+                btn.setMinimumHeight(max(20, size - 4))  # Maintain reasonable min height
+
+
+    def set_icon_size(self, size):
+        """Set icon size for all buttons"""
+        if hasattr(self, 'backend'):
+            all_buttons = (self.img_buttons + self.entry_buttons + self.options_buttons +
+                          self.backend.img_buttons + self.backend.entry_buttons + self.backend.options_buttons)
+            for btn in all_buttons:
+                if btn.icon():
+                    btn.setIconSize(QSize(size, size))
+
+
+    def set_pastel_effect(self, enabled):
+        """Enable or disable pastel effect on buttons"""
+        # This would modify the button styling based on pastel setting
+        # Implementation depends on how pastel vs regular buttons are handled
+        pass
+
+
+    def set_high_contrast(self, enabled):
+        """Enable or disable high contrast mode for buttons"""
+        # This would modify the button styling for high contrast
+        pass
+
+
+    def set_button_format(self, format_type):
+        """Set button format: 'both', 'icon_only', 'text_only', or 'separate'"""
+        # Update the button format based on setting
+        if format_type == 'separate':
+            # This would change how the text is displayed on buttons
+            pass
+        elif format_type == 'both':
+            self.set_button_display_mode('icons_with_text')
+        elif format_type == 'icon_only':
+            self.set_button_display_mode('icons_only')
+        elif format_type == 'text_only':
+            self.set_button_display_mode('text_only')
 
 
     def _create_right_panel(self): #vers 11
@@ -1997,176 +2557,100 @@ class COLWorkshop(QWidget): #vers 3
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
-        has_bumpmap = False
-        main_layout = QVBoxLayout(panel)
-        #main_layout.setContentsMargins(5, 5, 5, 5)
-        top_layout = QHBoxLayout()
-
-        # Transform panel (icon)
-        transform_icon_panel = self._create_transform_icon_panel()
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_icon_panel)
-
-        # Transform panel (text)
-        transform_text_panel = self._create_transform_text_panel()
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_text_panel)
-
-        # Preview area (center) - 3D Viewport
-        self.preview_widget = COL3DViewport()
-        top_layout.addWidget(self.preview_widget, stretch=2)
-
-        # Preview controls (right side, vertical)
-        self.preview_controls = self._create_preview_controls()
-        top_layout.addWidget(self.preview_controls, stretch=0)
-        main_layout.addLayout(top_layout, stretch=1)
-
-        # Information group below
-        info_group = QGroupBox("")
-        info_group.setFont(self.title_font)
-        info_layout = QVBoxLayout(info_group)
-        info_group.setMaximumHeight(140)
-
-        # === LINE 1: collision name ===
-        name_layout = QHBoxLayout()
-        name_label = QLabel("COL Name:")
-        name_label.setFont(self.panel_font)
-        name_layout.addWidget(name_label)
-
-        self.info_name = QLineEdit()
-        self.info_name.setText("Click to edit...")
-        self.info_name.setFont(self.panel_font)
-        self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: px; border: 1px solid #3a3a3a;")
-        #self.info_name.returnPressed.connect(self._save_surface_name)
-        #self.info_name.editingFinished.connect(self._save_surface_name)
-        self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
-        name_layout.addWidget(self.info_name, stretch=1)
-        info_layout.addLayout(name_layout)
-
-        # === LINES 2 & 3: Adaptive based on display mode ===
-        if self.button_display_mode == 'icons':
-            # MERGED: Single compact line for icon mode
-            merged_line = self._create_merged_icons_line()
-            info_layout.addLayout(merged_line)
-        else:
-            # SEPARATE: Original two-line layout for text/both modes
-            # Line 2: Format controls
-            format_layout = QHBoxLayout()
-            format_layout.setSpacing(5)
-
-            self.format_combo = QComboBox()
-            self.format_combo.setFont(self.panel_font)
-            self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
-            #self.format_combo.currentTextChanged.connect(self._change_format)
-            self.format_combo.setEnabled(False)
-            self.format_combo.setMaximumWidth(100)
-            format_layout.addWidget(self.format_combo)
-
-            format_layout.addStretch()
-
-            # Switch button
-            self.switch_btn = QPushButton("Mesh")
-            self.switch_btn.setFont(self.button_font)
-            self.switch_btn.setIcon(self.icon_factory.flip_vert_icon())
-            self.switch_btn.setIconSize(QSize(20, 20))
-            #self.switch_btn.clicked.connect(self.switch_surface_view)
-            self.switch_btn.setEnabled(False)
-            self.switch_btn.setToolTip("Cycle: Wireframe → Mesh → Painted → Overlay")
-            format_layout.addWidget(self.switch_btn)
-
-            # Convert
-            self.convert_btn = QPushButton("Convert")
-            self.convert_btn.setFont(self.button_font)
-            self.convert_btn.setIcon(self.icon_factory.convert_icon())
-            self.convert_btn.setIconSize(QSize(20, 20))
-            self.convert_btn.setToolTip("Convert Collision format")
-            #self.convert_btn.clicked.connect(self._convert_surface)
-            self.convert_btn.setEnabled(False)
-            format_layout.addWidget(self.convert_btn)
-
-            # Line 3: shadow + Bumpmaps
-            mipbump_layout = QHBoxLayout()
-            mipbump_layout.setSpacing(5)
-
-            self.info_format = QLabel("Shadow Mesh: ")
-            self.info_format.setFont(self.panel_font)
-            self.info_format.setMinimumWidth(100)
-            mipbump_layout.addWidget(self.info_format)
-
-            self.show_shadow_btn = QPushButton("View")
-            self.show_shadow_btn.setFont(self.button_font)
-            self.show_shadow_btn.setIcon(self.icon_factory.view_icon())
-            self.show_shadow_btn.setIconSize(QSize(20, 20))
-            self.show_shadow_btn.setToolTip("View all levels")
-            #self.show_shadow_btn.clicked.connect(self._open_mipmap_manager)
-            self.show_shadow_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.show_shadow_btn)
-
-            self.create_shadow_btn = QPushButton("Create")
-            self.create_shadow_btn.setFont(self.button_font)
-            self.create_shadow_btn.setIcon(self.icon_factory.add_icon())
-            self.create_shadow_btn.setIconSize(QSize(20, 20))
-            self.create_shadow_btn.setToolTip("Generate Shadow Mesh")
-            #self.create_shadow_btn.clicked.connect(self.shadow_dialog)
-            self.create_shadow_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.create_shadow_btn)
-
-            self.remove_shadow_btn = QPushButton("Remove")
-            self.remove_shadow_btn.setFont(self.button_font)
-            self.remove_shadow_btn.setIcon(self.icon_factory.delete_icon())
-            self.remove_shadow_btn.setIconSize(QSize(20, 20))
-            self.remove_shadow_btn.setToolTip("Remove Shodow Mesh")
-            #self.remove_shadow_btn.clicked.connect(self._remove_shadow)
-            self.remove_shadow_btn.setEnabled(False)
-            mipbump_layout.addWidget(self.remove_shadow_btn)
-
-            mipbump_layout.addSpacing(30)
-            view_layout = QHBoxLayout()
-
-            self.compress_btn = QPushButton("Compress")
-            self.compress_btn.setFont(self.button_font)
-            self.compress_btn.setIcon(self.icon_factory.compress_icon())
-            self.compress_btn.setIconSize(QSize(20, 20))
-            self.compress_btn.setToolTip("Compress Collision")
-            #self.compress_btn.clicked.connect(self._compress_surface)
-            self.compress_btn.setEnabled(False)
-            format_layout.addWidget(self.compress_btn)
-
-            self.uncompress_btn = QPushButton("Uncompress")
-            self.uncompress_btn.setFont(self.button_font)
-            self.uncompress_btn.setIcon(self.icon_factory.uncompress_icon())
-            self.uncompress_btn.setIconSize(QSize(20, 20))
-            self.uncompress_btn.setToolTip("Uncompress Collision")
-            #self.uncompress_btn.clicked.connect(self._uncompress_surface)
-            self.uncompress_btn.setEnabled(False)
-            format_layout.addWidget(self.uncompress_btn)
-
-            self.import_btn = QPushButton("Import")
-            self.import_btn.setFont(self.button_font)
-            self.import_btn.setIcon(self.icon_factory.import_icon())
-            self.import_btn.setIconSize(QSize(20, 20))
-            self.import_btn.setToolTip("Import col, cst, 3ds files")
-            #self.import_btn.clicked.connect(self._import_selected)
-            self.import_btn.setEnabled(False)
-            format_layout.addWidget(self.import_btn)
-
-            self.export_btn = QPushButton("Export")
-            self.export_btn.setFont(self.button_font)
-            self.export_btn.setIcon(self.icon_factory.export_icon())
-            self.export_btn.setIconSize(QSize(20, 20))
-            self.export_btn.setToolTip("Export col, cst, 3ds files")
-            #self.export_btn.clicked.connect(self.export_selected)
-            self.export_btn.setEnabled(False)
-            format_layout.addWidget(self.export_btn)
-
-            info_layout.addLayout(format_layout)
-            info_layout.addLayout(view_layout)
-            info_layout.addLayout(mipbump_layout)
-
-        main_layout.addWidget(info_group, stretch=0)
+        self.create_right_panel_with_pastel_buttons()
         return panel
 
+    def create_right_panel_with_pastel_buttons(self): #vers 4
+        """Create right panel with theme-controlled pastel buttons"""
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(4, 4, 4, 4)
+
+        # Get spacing from settings
+        if hasattr(self.main_window, 'app_settings') and hasattr(self.main_window.app_settings, 'current_settings'):
+            space_between_btnv = self.main_window.app_settings.current_settings.get('button_spacing_vertical', 8)
+            space_between_btnh = self.main_window.app_settings.current_settings.get('button_spacing_horizontal', 6)
+            button_height = self.main_window.app_settings.current_settings.get('button_height', 32)
+        else:
+            # Defaults if settings not available
+            space_between_btnv = 8
+            space_between_btnh = 6
+            button_height = 32
+
+        right_layout.setSpacing(space_between_btnv)
+
+        # IMG Section with theme colors
+        img_box = QGroupBox("IMG, COL, TXD Files")
+        img_layout = QGridLayout()
+        img_layout.setSpacing(space_between_btnv)
+        img_layout.setHorizontalSpacing(space_between_btnh)
+        img_layout.setVerticalSpacing(space_between_btnv)
+
+        # Use theme-controlled button data
+        img_buttons_data = self._get_img_buttons_data()
+
+        for i, (label, action_type, icon, color, method_name) in enumerate(img_buttons_data):
+            btn = self.create_pastel_button(label, action_type, icon, color, method_name)
+            btn.setMaximumHeight(button_height)
+            btn.setMinimumHeight(button_height - 4)
+            self.img_buttons.append(btn)
+            # Add to backend as well
+            if hasattr(self, 'backend'):
+                self.backend.img_buttons.append(btn)
+            img_layout.addWidget(btn, i // 3, i % 3)
+
+        img_box.setLayout(img_layout)
+        right_layout.addWidget(img_box)
+
+        # Entries Section with theme colors
+        entries_box = QGroupBox("File Entries")
+        entries_layout = QGridLayout()
+        entries_layout.setSpacing(space_between_btnv)
+        entries_layout.setHorizontalSpacing(space_between_btnh)
+        entries_layout.setVerticalSpacing(space_between_btnv)
+
+        # Use theme-controlled button data
+        entry_buttons_data = self._get_entry_buttons_data()
+
+        for i, (label, action_type, icon, color, method_name) in enumerate(entry_buttons_data):
+            btn = self.create_pastel_button(label, action_type, icon, color, method_name)
+            btn.setMaximumHeight(button_height)
+            btn.setMinimumHeight(button_height - 4)
+            self.entry_buttons.append(btn)
+            # Add to backend as well
+            if hasattr(self, 'backend'):
+                self.backend.entry_buttons.append(btn)
+            entries_layout.addWidget(btn, i // 3, i % 3)
+
+        entries_box.setLayout(entries_layout)
+        right_layout.addWidget(entries_box)
+
+        # Options Section with theme colors
+        options_box = QGroupBox("Editing Options")
+        options_layout = QGridLayout()
+        options_layout.setSpacing(space_between_btnv)
+        options_layout.setHorizontalSpacing(space_between_btnh)
+        options_layout.setVerticalSpacing(space_between_btnv)
+
+        # Use theme-controlled button data
+        options_buttons_data = self._get_options_buttons_data()
+
+        for i, (label, action_type, icon, color, method_name) in enumerate(options_buttons_data):
+            btn = self.create_pastel_button(label, action_type, icon, color, method_name)
+            btn.setMaximumHeight(button_height)
+            btn.setMinimumHeight(button_height - 4)
+            self.options_buttons.append(btn)
+            # Add to backend as well
+            if hasattr(self, 'backend'):
+                self.backend.options_buttons.append(btn)
+            options_layout.addWidget(btn, i // 3, i % 3)
+
+        options_box.setLayout(options_layout)
+        right_layout.addWidget(options_box)
+
+        # Add stretch to push everything up
+        right_layout.addStretch()
+        return right_panel
 
     def _create_preview_controls(self): #vers 5
         """Create preview control buttons - vertical layout on right"""
@@ -2353,40 +2837,1011 @@ class COLWorkshop(QWidget): #vers 3
             if hasattr(self, 'info_bar'):
                 self.info_bar.setFont(self.infobar_font)
 
+# - Logic taken from old GUI_layout
+# - Theme Functions
 
-    def _load_img_col_list(self): #vers 2
-        """Load COL files from IMG archive"""
+    def _lighten_color(self, color, factor): #vers 2
+        """Lighten a hex color by factor (>1.0 lightens, <1.0 darkens)"""
         try:
-            # Safety check for standalone mode
-            if self.standalone_mode or not hasattr(self, 'col_list_widget') or self.col_list_widget is None:
-                return
+            if not color.startswith('#'):
+                return color
 
-            self.col_list_widget.clear()
-            self.col_list = []
+            color = color.lstrip('#')
+            r, g, b = tuple(int(color[i:i+2], 16) for i in (0, 2, 4))
 
-            if not self.current_img:
-                return
+            # Lighten by moving towards white
+            r = min(255, int(r + (255 - r) * (factor - 1.0)))
+            g = min(255, int(g + (255 - g) * (factor - 1.0)))
+            b = min(255, int(b + (255 - b) * (factor - 1.0)))
 
-            for entry in self.current_img.entries:
-                if entry.name.lower().endswith('.col'):
-                    self.col_list.append(entry)
-                    item = QListWidgetItem(entry.name)
-                    item.setData(Qt.ItemDataRole.UserRole, entry)
-                    size_kb = entry.size / 1024
-                    item.setToolTip(f"{entry.name}\nSize: {size_kb:.1f} KB")
-                    self.col_list_widget.addItem(item)
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except:
+            return color
 
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"📋 Found {len(self.txd_list)} COL files")
+
+    def _darken_color(self, color, factor): #vers 2
+        """Darken a hex color by factor (0.0-1.0, where 0.8 = 20% darker)"""
+        try:
+            if not color.startswith('#'):
+                return color
+
+            color = color.lstrip('#')
+            r, g, b = tuple(int(color[i:i+2], 16) for i in (0, 2, 4))
+
+            # Darken by multiplying by factor
+            r = max(0, int(r * factor))
+            g = max(0, int(g * factor))
+            b = max(0, int(b * factor))
+
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except:
+            return color
+
+
+    def _is_dark_theme(self): #vers 2
+        """Detect if the application is using a dark theme"""
+        try:
+            # Method 1: Check if main window has theme property or setting
+            if hasattr(self.main_window, 'current_theme'):
+                return 'dark' in self.main_window.current_theme.lower()
+
+            # Method 2: Check app_settings for theme
+            if hasattr(self.main_window, 'app_settings'):
+                current_settings = getattr(self.main_window.app_settings, 'current_settings', {})
+                theme_name = current_settings.get('theme', '').lower()
+                if theme_name:
+                    return 'dark' in theme_name
+
+            # Method 3: Check if you have a theme_mode property
+            if hasattr(self, 'theme_mode'):
+                return self.theme_mode == 'dark'
+
+            # Method 4: Check application palette as fallback
+            from PyQt6.QtWidgets import QApplication
+            palette = QApplication.palette()
+            window_color = palette.color(QPalette.ColorRole.Window)
+            # If window background is darker, assume dark theme
+            return window_color.lightness() < 128
+
         except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error loading COL list: {str(e)}")
+            # Fallback to light theme if detection fails
+            print(f"Theme detection failed: {e}, defaulting to light theme")
+            return False
 
 
-  #  def setup_col_table_structure(workshop): pass
-  #  def populate_col_table(workshop, col_file):
-  #      for model in col_file.models:
-  #          print(f"Model: {model.header.name}")
+    def set_theme_mode(self, theme_name): #vers 2
+        """Set the current theme mode and refresh all styling"""
+        self.theme_mode = 'dark' if 'dark' in theme_name.lower() else 'light'
+        print(f"Theme mode set to: {self.theme_mode}")
+
+        # Force refresh all buttons with new theme colors
+        self._refresh_all_buttons()
+
+        # Apply all window themes
+        self.apply_all_window_themes()
+
+
+    def _get_icon_color(self): #vers 1
+        """Get icon color from current theme"""
+        if APPSETTINGS_AVAILABLE and self.app_settings:
+            colors = self.app_settings.get_theme_colors()
+            return colors.get('text_primary', '#ffffff')
+        return '#ffffff'
+
+# - Tearoff - Panel Functions
+
+
+    def _toggle_tearoff(self): #vers 2
+        """Toggle tear-off state (merge back to IMG Factory) - IMPROVED"""
+        try:
+            if self.is_docked:
+                # Undock from main window
+                self._undock_from_main()
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"{App_name} torn off from main window")
+            else:
+                # Dock back to main window
+                self._dock_to_main()
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"{App_name} docked back to main window")
+
+        except Exception as e:
+            print(f"Error toggling tear-off: {str(e)}")
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Tear-off Error", f"Could not toggle tear-off state:\n{str(e)}")
+
+
+    def _apply_tearoff_button_theme(self): #vers 1
+        """Apply theme-aware styling to tearoff button"""
+        if not self.tearoff_button:
+            return
+
+        is_dark = self._is_dark_theme()
+
+        if is_dark:
+            # Dark theme tearoff button
+            button_style = """
+                QPushButton {
+                    border: 1px solid {border_color};
+                    border-radius: 1px;
+                    background-color: {button_bg};
+                    color: {text_color};
+                    font-size: 12px;
+                    font-weight: bold;
+                    padding: 0px;
+                    margin: 2px;
+                }
+                QPushButton:hover {
+                    background-color: {hover_bg};
+                    border: 1px solid {border_color};
+                    color: {text_secondary};
+                }
+                QPushButton:pressed {
+                    background-color: {pressed_bg};
+                    border: 1px solid {border_color};
+                    color: {text_primary};
+                }
+            """
+        else:
+            # Light theme tearoff button
+            button_style = """
+                QPushButton {
+                    border: 1px solid {border_color};
+                    border-radius: 1px;
+                    background-color: {button_bg};
+                    color: {text_color};
+                    font-size: 12px;
+                    font-weight: bold;
+                    padding: 0px;
+                    margin: 2px;
+                }
+                QPushButton:hover {
+                    background-color: {hover_bg};
+                    border: 1px solid {border_color};
+                    color: {text_secondary};
+                }
+                QPushButton:pressed {
+                    background-color: {pressed_bg};
+                    border: 1px solid {border_color};
+                    color: {text_primary};
+                }
+
+            """
+
+        self.tearoff_button.setStyleSheet(button_style)
+
+
+    def _handle_tab_widget_tearoff(self): #vers 2
+        """Handle tearoff button click for tab widget - FIXED"""
+        try:
+            if not self.tab_widget:
+                return
+
+            # Check if already torn off
+            if hasattr(self.tab_widget, 'is_torn_off') and self.tab_widget.is_torn_off:
+                # Dock it back
+                self._dock_tab_widget_back()
+                return
+
+            # Store original parent info BEFORE removing from layout
+            original_parent = self.tab_widget.parent()
+            original_layout = original_parent.layout() if original_parent else None
+
+            if not original_parent or not original_layout:
+                self.main_window.log_message("Cannot tear off: no parent layout found")
+                return
+
+            # Store references on tab widget BEFORE manipulation
+            self.tab_widget.original_parent = original_parent
+            self.tab_widget.original_layout = original_layout
+
+            # Import tearoff system
+            try:
+                from apps.gui.tear_off import TearOffPanel
+            except ImportError:
+                self.main_window.log_message("TearOffPanel not available")
+                return
+
+            # Create tearoff panel WITHOUT a layout initially
+            panel_id = "file_tabs_panel"
+            title = "File Tabs"
+            tearoff_panel = TearOffPanel(panel_id, title, self.main_window)
+
+            # Create layout for tearoff panel if it doesn't have one
+            if not tearoff_panel.layout():
+                tearoff_panel_layout = QVBoxLayout(tearoff_panel)
+                tearoff_panel_layout.setContentsMargins(2, 2, 2, 2)
+            else:
+                tearoff_panel_layout = tearoff_panel.layout()
+
+            # Remove tab widget from current parent layout
+            original_layout.removeWidget(self.tab_widget)
+
+            # Add tab widget to tearoff panel
+            tearoff_panel_layout.addWidget(self.tab_widget)
+
+            # Store tearoff panel reference
+            self.tab_widget.tearoff_panel = tearoff_panel
+            self.tab_widget.is_torn_off = True
+
+            # Update button appearance
+            self._update_tearoff_button_state(True)
+
+            # Show tearoff panel
+            tearoff_panel.show()
+            tearoff_panel.raise_()
+
+            # Position near cursor
+            from PyQt6.QtGui import QCursor
+            cursor_pos = QCursor.pos()
+            tearoff_panel.move(cursor_pos.x() - 100, cursor_pos.y() - 50)
+
+            self.main_window.log_message("Tab widget torn off to separate window")
+
+        except Exception as e:
+            self.main_window.log_message(f"Error handling tab widget tearoff: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _dock_tab_widget_back(self): #vers 2
+        """Dock torn off tab widget back to main window """
+        try:
+            # Check if actually torn off
+            if not hasattr(self.tab_widget, 'is_torn_off') or not self.tab_widget.is_torn_off:
+                self.main_window.log_message("Tab widget is not torn off")
+                return
+
+            # Get stored references with safety checks
+            original_parent = getattr(self.tab_widget, 'original_parent', None)
+            original_layout = getattr(self.tab_widget, 'original_layout', None)
+            tearoff_panel = getattr(self.tab_widget, 'tearoff_panel', None)
+
+            # Validate we have the required references
+            if not original_parent:
+                self.main_window.log_message("Cannot dock back: no original parent stored")
+                return
+
+            if not original_layout:
+                self.main_window.log_message("Cannot dock back: no original layout stored")
+                return
+
+            # Verify original parent still exists and has layout
+            try:
+                if original_parent.layout() != original_layout:
+                    self.main_window.log_message("Original layout changed, using current layout")
+                    original_layout = original_parent.layout()
+                    if not original_layout:
+                        self.main_window.log_message("Original parent no longer has a layout")
+                        return
+            except:
+                self.main_window.log_message("Original parent is no longer valid")
+                return
+
+            # Remove from tearoff panel first
+            if tearoff_panel:
+                try:
+                    tearoff_panel_layout = tearoff_panel.layout()
+                    if tearoff_panel_layout:
+                        tearoff_panel_layout.removeWidget(self.tab_widget)
+                    tearoff_panel.hide()
+                    tearoff_panel.deleteLater()
+                except Exception as e:
+                    self.main_window.log_message(f"Error cleaning up tearoff panel: {str(e)}")
+
+            # Add back to original parent layout
+            try:
+                original_layout.addWidget(self.tab_widget)
+            except Exception as e:
+                self.main_window.log_message(f"Error adding back to original layout: {str(e)}")
+                return
+
+            # Clean up references
+            try:
+                delattr(self.tab_widget, 'original_parent')
+                delattr(self.tab_widget, 'original_layout')
+                delattr(self.tab_widget, 'tearoff_panel')
+                delattr(self.tab_widget, 'is_torn_off')
+            except:
+                pass  # Attributes might not exist
+
+            # Update button appearance
+            self._update_tearoff_button_state(False)
+
+            # Force widget to show and update
+            self.tab_widget.show()
+            self.tab_widget.update()
+
+            self.main_window.log_message("Tab widget docked back to main window")
+
+        except Exception as e:
+            self.main_window.log_message(f"Error docking tab widget back: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _update_tearoff_button_state(self, is_torn_off): #vers 2
+        """Update tearoff button appearance based on state - SAFER VERSION"""
+        try:
+            if not hasattr(self, 'tearoff_button') or not self.tearoff_button:
+                return
+
+            if is_torn_off:
+                self.tearoff_button.setText("⧈")  # Different icon when torn off
+                self.tearoff_button.setToolTip("Dock tab widget back to main window")
+            else:
+                self.tearoff_button.setText("⧉")  # Original icon when docked
+                self.tearoff_button.setToolTip("Tear off tab widget to separate window")
+
+            # Reapply theme styling to ensure consistency
+            if hasattr(self, '_apply_tearoff_button_theme'):
+                self._apply_tearoff_button_theme()
+
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error updating tearoff button state: {str(e)}")
+            else:
+                print(f"Error updating tearoff button state: {str(e)}")
+
+
+# - Button Functions
+
+    def _refresh_all_buttons(self): #vers 4
+        """Refresh all buttons with current theme colors"""
+        try:
+            # Get new theme colors
+            img_colors = self._get_img_buttons_data()
+            entry_colors = self._get_entry_buttons_data()
+            options_colors = self._get_options_buttons_data()
+
+            # Update IMG buttons
+            if hasattr(self, 'img_buttons'):
+                for i, btn in enumerate(self.img_buttons):
+                    if i < len(img_colors):
+                        label, action_type, icon, color, method_name = img_colors[i]
+                        self._update_button_theme(btn, color)
+
+            # Update Entry buttons
+            if hasattr(self, 'entry_buttons'):
+                for i, btn in enumerate(self.entry_buttons):
+                    if i < len(entry_colors):
+                        label, action_type, icon, color, method_name = entry_colors[i]
+                        self._update_button_theme(btn, color)
+
+            # Update Options buttons
+            if hasattr(self, 'options_buttons'):
+                for i, btn in enumerate(self.options_buttons):
+                    if i < len(options_colors):
+                        label, action_type, icon, color, method_name = options_colors[i]
+                        self._update_button_theme(btn, color)
+
+            print(f"Refreshed {len(self.img_buttons + self.entry_buttons + self.options_buttons)} buttons for theme")
+
+        except Exception as e:
+            print(f"Error refreshing buttons: {e}")
+
+
+    def set_button_display_mode(self, mode: str):
+        """
+        Set button display mode: 'text_only', 'icons_only', or 'icons_with_text'
+        """
+        try:
+            # Store the current mode
+            self.button_display_mode = mode
+
+            # Update all buttons to reflect the new mode
+            self._update_all_buttons_display_mode()
+
+            print(f"Button display mode set to: {mode}")
+
+        except Exception as e:
+            print(f"Error setting button display mode: {e}")
+
+
+    def _update_all_buttons_display_mode(self):
+        """Update all buttons to reflect the current display mode"""
+        try:
+            # Get all button collections
+            all_buttons = []
+            if hasattr(self, 'img_buttons'):
+                all_buttons.extend(self.img_buttons)
+            if hasattr(self, 'entry_buttons'):
+                all_buttons.extend(self.entry_buttons)
+            if hasattr(self, 'options_buttons'):
+                all_buttons.extend(self.options_buttons)
+
+            # Update each button
+            for btn in all_buttons:
+                self._update_button_display_mode(btn)
+
+        except Exception as e:
+            print(f"Error updating all buttons display mode: {e}")
+
+
+    def _update_button_display_mode(self, btn):
+        """Update a single button to reflect the current display mode"""
+        try:
+            mode = getattr(self, 'button_display_mode', 'text_only')  # Default to text_only
+
+            if mode == 'text_only':
+                # Show text only, hide icon
+                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
+                btn.setIcon(QIcon())  # Remove icon
+                btn.setMinimumWidth(0)  # Reset minimum width
+                btn.setMaximumWidth(16777215)  # Maximum width (default)
+
+            elif mode == 'icons_only':
+                # Show icon only, hide text
+                btn.setText("")  # Remove text
+                # Keep the icon if it exists
+                if hasattr(btn, 'original_text'):
+                    btn.setToolTip(btn.original_text)  # Add tooltip with original text
+                elif hasattr(btn, 'localized_text'):
+                    btn.setToolTip(btn.localized_text)
+                else:
+                    btn.setToolTip(btn.text())
+                btn.setMinimumWidth(64)  # Set fixed width for icon-only mode
+                btn.setMaximumWidth(64)
+                btn.setMinimumHeight(64)  # Set fixed height for icon-only mode
+                btn.setMaximumHeight(64)
+
+            elif mode == 'icons_with_text':
+                # Show both icon and text
+                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
+                # Keep the icon if it exists
+                btn.setMinimumWidth(0)  # Reset minimum width
+                btn.setMaximumWidth(16777215)  # Maximum width (default)
+                btn.setMinimumHeight(20)  # Reset height
+                btn.setMaximumHeight(22)
+
+            else:
+                # Default to text only
+                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
+                btn.setIcon(QIcon())
+                btn.setMinimumWidth(0)
+                btn.setMaximumWidth(16777215)
+
+        except Exception as e:
+            print(f"Error updating button display mode: {e}")
+
+
+    def _update_button_theme(self, btn, bg_color): #vers 2
+        """Update a single button's theme styling"""
+        try:
+            is_dark_theme = self._is_dark_theme()
+
+            if is_dark_theme:
+                # Dark theme styling
+                button_bg = self._darken_color(bg_color, 0.4)
+                border_color = self._lighten_color(bg_color, 1.3)
+                text_color = self._lighten_color(bg_color, 1.5)
+                hover_bg = self._darken_color(bg_color, 0.3)
+                hover_border = self._lighten_color(bg_color, 1.4)
+                pressed_bg = self._darken_color(bg_color, 0.5)
+            else:
+                # Light theme styling
+                button_bg = bg_color
+                border_color = self._darken_color(bg_color, 0.6)
+                text_color = self._darken_color(bg_color, 1.8)
+                hover_bg = self._darken_color(bg_color, 0.9)
+                hover_border = self._darken_color(bg_color, 0.5)
+                pressed_bg = self._darken_color(bg_color, 0.8)
+
+
+            # Apply updated styling
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {button_bg};
+                    border: 1px solid {border_color};
+                    border-radius: 3px;
+                    padding: 2px 6px;
+                    font-size: 8pt;
+                    font-weight: bold;
+                    color: {text_color};
+                }}
+                QPushButton:hover {{
+                    background-color: {hover_bg};
+                    border: 1px solid {hover_border};
+                }}
+                QPushButton:pressed {{
+                    background-color: {pressed_bg};
+                }}
+            """)
+        except Exception as e:
+            print(f"Error updating button theme: {e}")
+
+
+    def _apply_main_splitter_theme(self): #vers 6
+        """Apply theme styling to main horizontal splitter"""
+        theme_colors = self._get_theme_colors("default")
+
+        # Extract variables FIRST
+        bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
+        bg_primary = theme_colors.get('bg_primary', '#ffffff')
+        bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
+
+        self.main_splitter.setStyleSheet(f"""
+            QSplitter::handle:horizontal {{
+                background-color: {bg_secondary};
+                border: 1px solid {bg_primary};
+                border-left: 1px solid {bg_tertiary};
+                width: 8px;
+                margin: 2px 1px;
+                border-radius: 3px;
+            }}
+
+            QSplitter::handle:horizontal:hover {{
+                background-color: {bg_primary};
+                border-color: {bg_tertiary};
+            }}
+
+            QSplitter::handle:horizontal:pressed {{
+                background-color: {bg_tertiary};
+            }}
+        """)
+
+
+    def _apply_vertical_splitter_theme(self): #vers 6
+        """Apply theme styling to the vertical splitter"""
+        theme_colors = self._get_theme_colors("default")
+
+        # Extract variables FIRST
+        bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
+        bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
+
+        self.left_vertical_splitter.setStyleSheet(f"""
+            QSplitter::handle:vertical {{
+                background-color: {bg_secondary};
+                border: 1px solid {bg_tertiary};
+                height: 4px;
+                margin: 1px 2px;
+                border-radius: 2px;
+            }}
+            QSplitter::handle:vertical:hover {{
+                background-color: {bg_tertiary};
+            }}
+        """)
+
+
+    def _apply_log_theme_styling(self): #vers 7
+        """Apply theme styling to the log widget"""
+        theme_colors = self._get_theme_colors("default")
+
+        # Extract variables FIRST
+        panel_bg = theme_colors.get('panel_bg', '#f0f0f0')
+        text_primary = theme_colors.get('text_primary', '#000000')
+        border = theme_colors.get('border', '#dee2e6')
+
+        self.log.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {panel_bg};
+                color: {text_primary};
+                border: 1px solid {border};
+                border-radius: 3px;
+                padding: 5px;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 9pt;
+            }}
+        """)
+
+    def _apply_status_window_theme_styling(self): #vers 1
+        """Apply theme styling to the status window"""
+        theme_colors = self._get_theme_colors("default")
+        if hasattr(self, 'status_window'):
+             # Extract variables FIRST
+            panel_bg = theme_colors.get('panel_bg', '#f0f0f0')
+            text_primary = theme_colors.get('text_primary', '#000000')
+            border = theme_colors.get('border', '#dee2e6')
+
+            self.status_window.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {panel_bg};
+                    border: 1px solid {border};
+                    border-radius: 3px;
+                }}
+                QLabel {{
+                    color: #{text_primary};
+                    font-weight: bold;
+                }}
+            """)
+
+
+    def _apply_file_list_window_theme_styling(self): #vers 7
+        """Apply theme styling to the file list window"""
+        theme_colors = self._get_theme_colors("default")
+
+        # Extract variables FIRST
+        bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
+        border = theme_colors.get('border', '#dee2e6')
+        button_normal = theme_colors.get('button_normal', '#e0e0e0')
+        text_primary = theme_colors.get('text_primary', '#000000')
+        bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
+
+        if hasattr(self, 'tab_widget'):
+            self.tab_widget.setStyleSheet(f"""
+                QTabWidget::pane {{
+                    background-color: {bg_secondary};
+                    border: 1px solid {border};
+                    border-radius: 3px;
+                }}
+                QTabBar::tab {{
+                    background-color: {button_normal};
+                    color: {text_primary};
+                    padding: 5px 10px;
+                    margin: 2px;
+                    border-radius: 3px;
+                }}
+                QTabBar::tab:selected {{
+                    background-color: {bg_tertiary};
+                    border: 1px solid {border};
+                }}
+            """)
+
+
+    def _get_theme_colors(self, theme_name): #vers 3
+        """Get theme colors - properly connected to app_settings_system"""
+        try:
+            # Method 1: Use app_settings get_theme_colors() method
+            if hasattr(self.main_window, 'app_settings') and hasattr(self.main_window.app_settings, 'get_theme_colors'):
+                colors = self.main_window.app_settings.get_theme_colors()
+                if colors:
+                    print(f"Using app_settings theme colors: {len(colors)} colors loaded")
+                    return colors
+
+            # Method 2: Try direct theme access
+            if hasattr(self.main_window, 'app_settings') and hasattr(self.main_window.app_settings, 'themes'):
+                current_theme = self.main_window.app_settings.current_settings.get("theme", "IMG_Factory")
+                theme_data = self.main_window.app_settings.themes.get(current_theme, {})
+                colors = theme_data.get('colors', {})
+                if colors:
+                    print(f"Using direct theme access: {current_theme}")
+                    return colors
+
+        except Exception as e:
+            print(f"Theme color lookup error: {e}")
+
+        # Fallback with proper theme variables
+        print("Using fallback theme colors")
+        is_dark = self._is_dark_theme()
+        if is_dark:
+            return {
+                'bg_primary': '#2b2b2b', 'bg_secondary': '#3c3c3c', 'bg_tertiary': '#4a4a4a',
+                'panel_bg': '#333333', 'text_primary': '#ffffff', 'text_secondary': '#cccccc',
+                'border': '#666666', 'accent_primary': '#FFECEE', 'button_normal': '#404040'
+            }
+        else:
+            return {
+                'bg_primary': '#ffffff', 'bg_secondary': '#f8f9fa', 'bg_tertiary': '#e9ecef',
+                'panel_bg': '#f0f0f0', 'text_primary': '#000000', 'text_secondary': '#495057',
+                'border': '#dee2e6', 'accent_primary': '#1976d2', 'button_normal': '#e0e0e0'
+            }
+
+
+    def apply_all_window_themes(self): #vers 1
+        """Apply theme styling to all windows"""
+        if hasattr(self, 'tearoff_button') and self.tearoff_button:
+            self._apply_tearoff_button_theme()
+
+        self._apply_table_theme_styling()
+        self._apply_log_theme_styling()
+        self._apply_vertical_splitter_theme()
+        self._apply_main_splitter_theme()
+        self._apply_status_window_theme_styling()
+        self._apply_file_list_window_theme_styling()
+
+
+    def apply_table_theme(self): #vers 1
+        """Legacy method - Apply theme styling to table and related components"""
+        # This method is called by main application for compatibility
+        self.apply_all_window_themes()
+
+
+
+    def create_pastel_button(self, label, action_type, icon, bg_color, method_name, use_pastel=True, high_contrast=False): #vers 3
+        """Create a button with pastel coloring that adapts to light/dark themes"""
+        # Get localized label
+        localized_label = tr_button(label)
+
+        # Create button with the [%][text] format - showing both icon and text by default
+        btn = QPushButton(localized_label)
+        btn.setMaximumHeight(24)  # Slightly taller to accommodate both icon and text
+        btn.setMinimumHeight(22)
+
+        # Detect if we're using a dark theme
+        is_dark_theme = self._is_dark_theme()
+
+        # Determine if we should use high contrast based on settings
+        if hasattr(self.main_window, 'app_settings'):
+            use_pastel = self.main_window.app_settings.current_settings.get('use_pastel_buttons', True)
+            high_contrast = self.main_window.app_settings.current_settings.get('high_contrast_buttons', False) and not use_pastel
+
+        if high_contrast:
+            # High contrast theme - use more distinct colors
+            if is_dark_theme:
+                button_bg = "#333333"  # Dark gray
+                border_color = "#ffffff"  # White border
+                text_color = "#ffffff"    # White text
+                hover_bg = "#555555"      # Lighter gray on hover
+                hover_border = "#ffffff"  # White border on hover
+                pressed_bg = "#111111"    # Darker gray when pressed
+            else:
+                button_bg = "#ffffff"  # White background
+                border_color = "#000000"  # Black border
+                text_color = "#000000"    # Black text
+                hover_bg = "#e0e0e0"      # Light gray on hover
+                hover_border = "#000000"  # Black border on hover
+                pressed_bg = "#cccccc"    # Medium gray when pressed
+        elif use_pastel:
+            # Original pastel theme
+            if is_dark_theme:
+                # Dark theme: darker pastel background, lighter edges, light text
+                button_bg = self._darken_color(bg_color, 0.4)  # Much darker pastel
+                border_color = self._lighten_color(bg_color, 1.3)  # Light border
+                text_color = self._lighten_color(bg_color, 1.5)   # Light text
+                hover_bg = self._darken_color(bg_color, 0.3)      # Slightly lighter on hover
+                hover_border = self._lighten_color(bg_color, 1.4)  # Even lighter border on hover
+                pressed_bg = self._darken_color(bg_color, 0.5)    # Darker when pressed
+            else:
+                # Light theme: light pastel background, dark edges, dark text
+                button_bg = bg_color  # Original pastel color
+                border_color = self._darken_color(bg_color, 0.6)  # Dark border
+                text_color = self._darken_color(bg_color, 1.8)    # Dark text
+                hover_bg = self._darken_color(bg_color, 0.9)      # Slightly darker on hover
+                hover_border = self._darken_color(bg_color, 0.5)  # Darker border on hover
+                pressed_bg = self._darken_color(bg_color, 0.8)    # Darker when pressed
+        else:
+            # Standard theme without pastel effect
+            if is_dark_theme:
+                button_bg = "#2d2d2d"  # Dark gray
+                border_color = "#555555"  # Medium gray border
+                text_color = "#ffffff"    # White text
+                hover_bg = "#3d3d3d"      # Lighter gray on hover
+                hover_border = "#666666"  # Lighter border on hover
+                pressed_bg = "#1d1d1d"    # Darker gray when pressed
+            else:
+                button_bg = "#f0f0f0"  # Light gray
+                border_color = "#a0a0a0"  # Medium gray border
+                text_color = "#000000"    # Black text
+                hover_bg = "#e0e0e0"      # Lighter gray on hover
+                hover_border = "#909090"  # Darker border on hover
+                pressed_bg = "#d0d0d0"    # Medium gray when pressed
+
+        # Set icon based on the icon identifier
+        # Detect if we're using a dark theme to potentially adjust icon colors
+        is_dark_theme = self._is_dark_theme()
+        icon_obj = self._get_svg_icon(icon, is_dark_theme)
+        if icon_obj:
+            btn.setIcon(icon_obj)
+            # Get icon size from settings if available
+            icon_size = 16
+            if hasattr(self.main_window, 'app_settings'):
+                icon_size = self.main_window.app_settings.current_settings.get('icon_size', 16)
+            btn.setIconSize(QSize(icon_size, icon_size))
+
+        # Apply theme-aware styling
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {button_bg};
+                border: 1px solid {border_color};
+                border-radius: 3px;
+                padding: 3px 8px;
+                font-size: 8pt;
+                font-weight: bold;
+                color: {text_color};
+            }}
+            QPushButton:hover {{
+                background-color: {hover_bg};
+                border: 1px solid {hover_border};
+            }}
+            QPushButton:pressed {{
+                background-color: {pressed_bg};
+            }}
+        """)
+
+        # Set action type property
+        btn.setProperty("action-type", action_type)
+
+        # Store original and localized labels for later use
+        btn.original_text = label
+        btn.localized_text = localized_label
+        btn.full_text = localized_label
+        btn.short_text = self._get_short_text(localized_label)
+        btn.icon_name = icon
+
+        # Connect to method_mappings
+        try:
+            if method_name in self.method_mappings:
+                btn.clicked.connect(self.method_mappings[method_name])
+                if hasattr(self.main_window, 'gui_layout'):
+                    print(f"Connected '{label}' to method_mappings[{method_name}]")
+            else:
+                btn.clicked.connect(lambda: self._safe_log(f"Method '{method_name}' not in method_mappings"))
+                if hasattr(self.main_window, 'gui_layout'):
+                    print(f"Method '{method_name}' not found in method_mappings for '{label}'")
+        except Exception as e:
+            if hasattr(self.main_window, 'gui_layout'):
+                print(f"Error connecting button '{label}': {e}")
+            btn.clicked.connect(lambda: self._safe_log(f"Button '{label}' connection error"))
+
+        return btn
+
+
+    def _get_short_text(self, label): #vers 1
+        """Get short text for button"""
+        # First get the localized version of the label
+        localized_label = tr_button(label)
+
+        short_map = {
+            "Create": "New", "Open": "Open", "Reload": "Reload", "     ": " ",
+            "Close": "Close", "Close All": "Close A", "Rebuild": "Rebld",
+            "Rebuild All": "Rebld Al", "Save Entry": "Save", "Merge": "Merge",
+            "Device": "Dev", "Convert": "Conv", "Import": "Imp",  # Updated for localized "Device"
+            "Import via": "Imp via", "Refresh": "Refresh", "Export": "Exp",
+            "Export via": "Exp via", "Quick Exp": "Q Exp", "Remove": "Rem",
+            "Remove via": "Rem via", "Dump": "Dump", "Pin selected": "Pin",
+            "Rename": "Rename", "Extract": "Extract", "Select All": "Select",
+            "Inverse": "Inverse", "Sort via": "Sort", "Col Edit": "Col Edit",
+            "Txd Edit": "Txd Edit", "Dff Edit": "Dff Edit", "Ipf Edit": "Ipf Edit",
+            "IDE Edit": "IDE Edit", "IPL Edit": "IPL Edit", "Dat Edit": "Dat Edit",
+            "Zons Cull Ed": "Zons Cull", "Weap Edit": "Weap Edit", "Vehi Edit": "Vehi Edit",
+            "Peds Edit": "Peds Edit", "Radar Map": "Radar Map", "Paths Map": "Paths Map",
+            "Waterpro": "Waterpro", "Weather": "Weather", "Handling": "Handling",
+            "Objects": "Objects", "SCM code": "SCM Code", "GXT font": "GXT Edit",
+            "Menu Edit": "Menu Ed",
+        }
+        return short_map.get(localized_label, localized_label)
+
+
+    def _get_options_buttons_data(self): #vers 3
+        """Get Options buttons data with theme colors"""
+        colors = self._get_button_theme_template()
+        return [
+            ("Col Edit", "col_edit", "col-edit", colors['editor_col'], "edit_col_file"),
+            ("Txd Edit", "txd_edit", "txd-edit", colors['editor_txd'], "edit_txd_file"),
+            ("Dff Edit", "dff_edit", "dff-edit", colors['editor_dff'], "edit_dff_file"),
+            ("Ipf Edit", "ipf_edit", "ipf-edit", colors['editor_data'], "edit_ipf_file"),
+            ("IDE Edit", "ide_edit", "ide-edit", colors['editor_data'], "edit_ide_file"),
+            ("IPL Edit", "ipl_edit", "ipl-edit", colors['editor_data'], "edit_ipl_file"),
+            ("Dat Edit", "dat_edit", "dat-edit", colors['editor_data'], "edit_dat_file"),
+            ("Zons Cull Ed", "zones_cull", "zones-cull", colors['editor_data'], "edit_zones_cull"),
+            ("Weap Edit", "weap_edit", "weap-edit", colors['editor_vehicle'], "edit_weap_file"),
+            ("Vehi Edit", "vehi_edit", "vehi-edit", colors['editor_vehicle'], "edit_vehi_file"),
+            ("Peds Edit", "peds_edit", "peds-edit", colors['editor_vehicle'], "edit_peds_file"),
+            ("Radar Map", "radar_map", "radar-map", colors['editor_map'], "edit_radar_map"),
+            ("Paths Map", "paths_map", "paths-map", colors['editor_map'], "edit_paths_map"),
+            ("Waterpro", "timecyc", "timecyc", colors['editor_data'], "edit_waterpro"),
+            ("Weather", "timecyc", "timecyc", colors['editor_data'], "edit_weather"),
+            ("Handling", "handling", "handling", colors['editor_vehicle'], "edit_handling"),
+            ("Objects", "ojs_breakble", "ojs-breakble", colors['editor_data'], "edit_objects"),
+            ("SCM code", "scm_code", "scm-code", colors['editor_script'], "editscm"),
+            ("GXT font", "gxt_font", "gxt-font", colors['editor_script'], "editgxt"),
+            ("Menu Edit", "menu_font", "menu-font", colors['editor_script'], "editmenu"),
+        ]
+
+
+
+    def _get_button_theme_template(self, theme_name="default"): #vers 2
+        """Get button color templates based on theme"""
+        if self._is_dark_theme():
+            return {
+                # Dark Theme Button Colors
+                'create_action': '#3D5A5A',     # Dark teal for create/new actions
+                'open_action': '#3D4A5F',       # Dark blue for open/load actions
+                'reload_action': '#2D4A3A',     # Dark green for refresh/reload
+                'close_action': '#5A4A3D',      # Dark orange for close actions
+                'build_action': '#2D4A3A',      # Dark mint for build/rebuild
+                'save_action': '#4A2D4A',       # Dark purple for save actions
+                'merge_action': '#3A2D4A',      # Dark violet for merge/split
+                'convert_action': '#4A4A2D',    # Dark yellow for convert
+                'import_action': '#2D4A4F',     # Dark cyan for import
+                'export_action': '#2D4A3A',     # Dark emerald for export
+                'remove_action': '#4A2D2D',     # Dark red for remove/delete
+                'edit_action': '#4A3A2D',       # Dark amber for edit actions
+                'select_action': '#3A4A2D',     # Dark lime for select actions
+                'editor_col': '#2D3A4F',        # Dark blue for COL editor
+                'editor_txd': '#4A2D4A',        # Dark magenta for TXD editor
+                'editor_dff': '#2D4A4F',        # Dark cyan for DFF editor
+                'editor_data': '#3A4A2D',       # Dark olive for data editors
+                'editor_map': '#4A2D4A',        # Dark purple for map editors
+                'editor_vehicle': '#2D4A3A',    # Dark teal for vehicle editors
+                'editor_script': '#4A3A2D',     # Dark gold for script editors
+                'placeholder': '#2A2A2A',       # Dark gray for spacers
+            }
+        else:
+            return {
+                # Light Theme Button Colors
+                'create_action': '#EEFAFA',     # Light teal for create/new actions
+                'open_action': '#E3F2FD',       # Light blue for open/load actions
+                'reload_action': '#E8F5E8',     # Light green for refresh/reload
+                'close_action': '#FFF3E0',      # Light orange for close actions
+                'build_action': '#E8F5E8',      # Light mint for build/rebuild
+                'save_action': '#F8BBD9',       # Light pink for save actions
+                'merge_action': '#F3E5F5',      # Light violet for merge/split
+                'convert_action': '#FFF8E1',    # Light yellow for convert
+                'import_action': '#E1F5FE',     # Light cyan for import
+                'export_action': '#E8F5E8',     # Light emerald for export
+                'remove_action': '#FFEBEE',     # Light red for remove/delete
+                'edit_action': '#FFF8E1',       # Light amber for edit actions
+                'select_action': '#F1F8E9',     # Light lime for select actions
+                'editor_col': '#E3F2FD',        # Light blue for COL editor
+                'editor_txd': '#F8BBD9',        # Light pink for TXD editor
+                'editor_dff': '#E1F5FE',        # Light cyan for DFF editor
+                'editor_data': '#D3F2AD',       # Light lime for data editors
+                'editor_map': '#F8BBD9',        # Light pink for map editors
+                'editor_vehicle': '#E3F2BD',    # Light olive for vehicle editors
+                'editor_script': '#FFD0BD',     # Light peach for script editors
+                'placeholder': '#FEFEFE',       # Light gray for spacers
+            }
+
+
+    def _get_img_buttons_data(self): #vers 3
+        """Get IMG buttons data with theme colors"""
+        colors = self._get_button_theme_template()
+        return [
+            ("Create", "new", "document-new", colors['create_action'], "create_new_img"),
+            ("Open", "open", "document-open", colors['open_action'], "open_img_file"),
+            ("Reload", "reload", "document-reload", colors['reload_action'], "reload_table"),
+            ("     ", "space", "placeholder", colors['placeholder'], "useless_button"),
+            ("Close", "close", "window-close", colors['close_action'], "close_img_file"),
+            ("Close All", "close_all", "edit-clear", colors['close_action'], "close_all_img"),
+            ("Rebuild", "rebuild", "view-rebuild", colors['build_action'], "rebuild_img"),
+            ("Rebuild All", "rebuild_all", "document-save", colors['build_action'], "rebuild_all_img"),
+            ("Save Entry", "save_entry", "document-save-entry", colors['save_action'], "save_img_entry"),
+            ("Merge", "merge", "document-merge", colors['merge_action'], "merge_img"),
+            ("Split via", "split", "edit-cut", colors['merge_action'], "split_img"),
+            ("Convert", "convert", "transform", colors['convert_action'], "convert_img_format"),
+        ]
+
+
+    def _get_entry_buttons_data(self): #vers 3
+        """Get Entry buttons data with theme colors"""
+        colors = self._get_button_theme_template()
+        return [
+            ("Import", "import", "document-import", colors['import_action'], "import_files"),
+            ("Import via", "import_via", "document-import", colors['import_action'], "import_files_via"),
+            ("Refresh", "update", "view-refresh", colors['reload_action'], "refresh_table"),
+            ("Export", "export", "document-export", colors['export_action'], "export_selected"),
+            ("Export via", "export_via", "document-export", colors['export_action'], "export_selected_via"),
+            ("Dump", "dump", "document-dump", colors['merge_action'], "dump_entries"),
+            #("Quick Exp", "quick_export", "document-send", colors['export_action'], "quick_export_selected"),
+            ("Remove", "remove", "edit-delete", colors['remove_action'], "remove_selected"),
+            ("Remove via", "remove_via", "document-remvia", colors['remove_action'], "remove_via_entries"),
+            ("Extract", "extract", "document-export", colors['export_action'], "extract_textures"),
+            ("Rename", "rename", "edit-rename", colors['edit_action'], "rename_selected"),
+            ("Select All", "select_all", "edit-select-all", colors['select_action'], "select_all_entries"),
+            ("Inverse", "sel_inverse", "edit-select", colors['select_action'], "select_inverse"),
+            ("Sort via", "sort", "view-sort", colors['select_action'], "sort_entries"),
+            ("Sort IDE", "sort_ide", "view-sort-ide", colors['select_action'], "sort_entries_to_match_ide"),
+            ("Pin selected", "pin_selected", "pin", colors['select_action'], "pin_selected_entries"),
+        ]
+
+
+    def _get_options_buttons_data(self): #vers 3
+        """Get Options buttons data with theme colors"""
+        colors = self._get_button_theme_template()
+        return [
+            ("Col Edit", "col_edit", "col-edit", colors['editor_col'], "edit_col_file"),
+            ("Txd Edit", "txd_edit", "txd-edit", colors['editor_txd'], "edit_txd_file"),
+            ("Dff Edit", "dff_edit", "dff-edit", colors['editor_dff'], "edit_dff_file"),
+            ("Ipf Edit", "ipf_edit", "ipf-edit", colors['editor_data'], "edit_ipf_file"),
+            ("IDE Edit", "ide_edit", "ide-edit", colors['editor_data'], "edit_ide_file"),
+            ("IPL Edit", "ipl_edit", "ipl-edit", colors['editor_data'], "edit_ipl_file"),
+            ("Dat Edit", "dat_edit", "dat-edit", colors['editor_data'], "edit_dat_file"),
+            ("Zons Cull Ed", "zones_cull", "zones-cull", colors['editor_data'], "edit_zones_cull"),
+            ("Weap Edit", "weap_edit", "weap-edit", colors['editor_vehicle'], "edit_weap_file"),
+            ("Vehi Edit", "vehi_edit", "vehi-edit", colors['editor_vehicle'], "edit_vehi_file"),
+            ("Peds Edit", "peds_edit", "peds-edit", colors['editor_vehicle'], "edit_peds_file"),
+            ("Radar Map", "radar_map", "radar-map", colors['editor_map'], "edit_radar_map"),
+            ("Paths Map", "paths_map", "paths-map", colors['editor_map'], "edit_paths_map"),
+            ("Waterpro", "timecyc", "timecyc", colors['editor_data'], "edit_waterpro"),
+            ("Weather", "timecyc", "timecyc", colors['editor_data'], "edit_weather"),
+            ("Handling", "handling", "handling", colors['editor_vehicle'], "edit_handling"),
+            ("Objects", "ojs_breakble", "ojs-breakble", colors['editor_data'], "edit_objects"),
+            ("SCM code", "scm_code", "scm-code", colors['editor_script'], "editscm"),
+            ("GXT font", "gxt_font", "gxt-font", colors['editor_script'], "editgxt"),
+            ("Menu Edit", "menu_font", "menu-font", colors['editor_script'], "editmenu"),
+        ]
+
 
 # - Rest of the logic for the panels
 
@@ -2681,29 +4136,499 @@ class COLWorkshop(QWidget): #vers 3
         return action_widget
 
 
-# - Marker 5
+# - Marker 5 - logging
 
-    def _toggle_tearoff(self): #vers 2
-        """Toggle tear-off state (merge back to IMG Factory) - IMPROVED"""
+    def _log_missing_method(self, method_name): #vers 1
+        """Log missing method - unified placeholder"""
+        if hasattr(self.main_window, 'log_message') and hasattr(self.main_window, 'gui_layout'):
+            self.main_window.log_message(f"Method '{method_name}' not yet implemented")
+        else:
+            print(f"Method '{method_name}' not yet implemented")
+
+
+    def _safe_log(self, message): #vers 1
+        """Safe logging that won't cause circular dependency"""
+        if hasattr(self.main_window, 'log_message') and hasattr(self.main_window, 'gui_layout'):
+            self.main_window.log_message(message)
+        else:
+            print(f"GUI Layout: {message}")
+
+    def log_message(self, message): #vers 1
+        """Add message to activity log"""
+        if self.log:
+            from PyQt6.QtCore import QDateTime
+            timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
+            self.log.append(f"[{timestamp}] {message}")
+            # Auto-scroll to bottom
+            self.log.verticalScrollBar().setValue(
+                self.log.verticalScrollBar().maximum()
+            )
+
+# - Functions and main Logic
+
+
+    def show_progress(self, value, text="Working..."): #vers 1
+        """Show progress using unified progress system"""
         try:
-            if self.is_docked:
-                # Undock from main window
-                self._undock_from_main()
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{App_name} torn off from main window")
+            from apps.methods.progressbar_functions import show_progress as unified_show_progress
+            unified_show_progress(self.main_window, value, text)
+        except ImportError:
+            # Fallback to old system if unified not available
+            if hasattr(self.main_window, 'show_progress'):
+                self.main_window.show_progress(text, 0, 100)
+                self.main_window.update_progress(value)
+            elif hasattr(self.main_window, 'progress_bar'):
+                self.main_window.progress_bar.setValue(value)
+                self.main_window.progress_bar.setVisible(value >= 0)
             else:
-                # Dock back to main window
-                self._dock_to_main()
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{App_name} docked back to main window")
-                    
+                # Final fallback to status bar
+                if hasattr(self.main_window, 'statusBar'):
+                    self.main_window.statusBar().showMessage(f"{text} ({value}%)")
+
+    def hide_progress(self): #vers 1
+        """Hide progress using unified progress system"""
+        try:
+            from apps.methods.progressbar_functions import hide_progress as unified_hide_progress
+            unified_hide_progress(self.main_window, "Ready")
+        except ImportError:
+            # Fallback to old system
+            if hasattr(self.main_window, 'hide_progress'):
+                self.main_window.hide_progress()
+            elif hasattr(self.main_window, 'statusBar'):
+                self.main_window.statusBar().showMessage("Ready")
+
+    def update_file_info(self, info_text): #vers 1
+        """Update file info using unified progress for completion"""
+        if hasattr(self.main_window, 'update_img_status'):
+            # Extract info from text if possible
+            if "entries" in info_text:
+                try:
+                    count = int(info_text.split()[0])
+                    self.main_window.update_img_status(entry_count=count)
+                except:
+                    pass
+
+    def create_status_bar(self): #vers 1
+        """Create status bar with unified progress integration"""
+        try:
+            from apps.gui.status_bar import create_status_bar
+            create_status_bar(self.main_window)
+
+            # Integrate unified progress system
+            try:
+                from apps.methods.progressbar_functions import integrate_progress_system
+                integrate_progress_system(self.main_window)
+                self.log_message("Status bar with unified progress created")
+            except ImportError:
+                self.log_message("Status bar created (unified progress not available)")
+
+        except ImportError:
+            # Fallback - create basic status bar
+            from PyQt6.QtWidgets import QStatusBar
+            self.main_window.setStatusBar(QStatusBar())
+            self.main_window.statusBar().showMessage("Ready")
+            self.log_message("Basic status bar created (gui.status_bar not available)")
         except Exception as e:
-            print(f"Error toggling tear-off: {str(e)}")
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Tear-off Error", f"Could not toggle tear-off state:\n{str(e)}")
+            self.log_message(f"Status bar creation error: {str(e)}")
+
+    def select_all_entries(self):  # vers 1
+        """Select all entries in the table"""
+        try:
+            if self.table and hasattr(self.table, 'selectAll'):
+                self.table.selectAll()
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("All entries selected")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Table not available for selection")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Select all entries error: {str(e)}")
+
+
+    def select_inverse(self):  # vers 4
+        """Invert the current selection in the table"""
+        try:
+            if self.table:
+                # Get the selection model
+                selection_model = self.table.selectionModel()
+                if selection_model:
+                    # Store currently selected rows (only consider row level, not individual cells)
+                    currently_selected_rows = set()
+                    for index in selection_model.selectedIndexes():
+                        currently_selected_rows.add(index.row())
+
+                    # Clear current selection
+                    self.table.clearSelection()
+
+                    # Select all rows that were NOT selected
+                    for row in range(self.table.rowCount()):
+                        if row not in currently_selected_rows:
+                            # Select the entire row by selecting the first cell in the row
+                            index = self.table.model().index(row, 0)
+                            selection_model.select(index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows)
+                else:
+                    # Fallback method if selection model is not available
+                    # Get all items in the table
+                    all_items = []
+                    for row in range(self.table.rowCount()):
+                        for col in range(self.table.columnCount()):
+                            item = self.table.item(row, col)
+                            if item:
+                                all_items.append(item)
+                    # Store currently selected items
+                    currently_selected = set(self.table.selectedItems())
+                    # Clear selection
+                    self.table.clearSelection()
+                    # Select items that were not selected
+                    for item in all_items:
+                        if item not in currently_selected:
+                            item.setSelected(True)
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Selection inverted")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Table not available for selection")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Select inverse error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def sort_entries(self, sort_order="name"):  # vers 3
+        """Sort entries in the table with various options - shows dialog for options"""
+        try:
+            if self.table:
+                # Show sort options dialog
+                from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox, QLabel
+                dialog = QDialog(self.main_window)
+                dialog.setWindowTitle("Sort Options")
+                dialog.setModal(True)
+
+                layout = QVBoxLayout()
+
+                # Sort by label and combo box
+                sort_layout = QHBoxLayout()
+                sort_layout.addWidget(QLabel("Sort by:"))
+                sort_combo = QComboBox()
+                sort_combo.addItems(["Name", "Type", "Size", "IDE Model Order"])
+                sort_layout.addWidget(sort_combo)
+                layout.addLayout(sort_layout)
+
+                # OK and Cancel buttons
+                button_layout = QHBoxLayout()
+                ok_btn = QPushButton("OK")
+                cancel_btn = QPushButton("Cancel")
+
+                def on_ok():
+                    selected_sort = sort_combo.currentText().lower().replace(" ", "_").replace("model_", "")
+                    if "ide" in sort_combo.currentText().lower():
+                        selected_sort = "ide_order"
+                    dialog.accept()
+                    # Import the sorting functionality
+                    from apps.core.sort import sort_entries_in_table, get_associated_ide_file, parse_ide_file
+
+                    # Get the current IMG file path if available
+                    img_path = None
+                    if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
+                        img_path = self.main_window.current_img.file_path
+
+                    ide_entries = []
+
+                    # If sorting by IDE order, try to find and parse the associated IDE file
+                    if selected_sort == "ide_order":
+                        if img_path:
+                            ide_path = get_associated_ide_file(img_path)
+                            if ide_path:
+                                ide_entries = parse_ide_file(ide_path)
+                                if ide_entries:
+                                    self.main_window.log_message(f"Found associated IDE file: {ide_path}")
+                                else:
+                                    self.main_window.log_message(f"IDE file found but could not be parsed: {ide_path}")
+                                    # Fall back to name sorting if IDE parsing failed
+                                    selected_sort = "name"
+                            else:
+                                self.main_window.log_message("No associated IDE file found, using name sort")
+                                selected_sort = "name"
+                        else:
+                            self.main_window.log_message("No IMG file loaded, using name sort")
+                            selected_sort = "name"
+
+                    # Perform the sorting
+                    sort_entries_in_table(self.table, selected_sort, ide_entries)
+
+                    if selected_sort == "ide_order":
+                        self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
+                    else:
+                        self.main_window.log_message(f"Entries sorted by {selected_sort} (TXDs at bottom)")
+
+                def on_cancel():
+                    dialog.reject()
+
+                ok_btn.clicked.connect(on_ok)
+                cancel_btn.clicked.connect(on_cancel)
+
+                button_layout.addWidget(ok_btn)
+                button_layout.addWidget(cancel_btn)
+
+                layout.addLayout(button_layout)
+                dialog.setLayout(layout)
+
+                # Show the dialog
+                result = dialog.exec()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Table not available for sorting")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Sort entries error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def sort_entries_to_match_ide(self):  # vers 2
+        """Sort entries to match IDE model order - direct sort without dialog"""
+        try:
+            if self.table:
+                # Import the sorting functionality
+                from apps.core.sort import sort_entries_in_table, get_associated_ide_file, parse_ide_file
+
+                # Get the current IMG file path if available
+                img_path = None
+                if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
+                    img_path = self.main_window.current_img.file_path
+
+                ide_entries = []
+
+                # Find and parse the associated IDE file
+                if img_path:
+                    ide_path = get_associated_ide_file(img_path)
+                    if ide_path:
+                        ide_entries = parse_ide_file(ide_path)
+                        if ide_entries:
+                            self.main_window.log_message(f"Found associated IDE file: {ide_path}")
+                        else:
+                            self.main_window.log_message(f"IDE file found but could not be parsed: {ide_path}")
+                            return  # Don't fall back to name sort since user specifically wants IDE sort
+                    else:
+                        self.main_window.log_message("No associated IDE file found")
+                        return
+                else:
+                    self.main_window.log_message("No IMG file loaded")
+                    return
+
+                # Perform the sorting
+                sort_entries_in_table(self.table, "ide_order", ide_entries)
+                self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Table not available for sorting")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Sort entries to match IDE error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def pin_selected_entries(self):  # vers 1
+        """Pin selected entries to keep them at the top of the table"""
+        try:
+            if self.table and self.table.selectedItems():
+                # Get selected rows
+                selected_items = self.table.selectedItems()
+                selected_rows = set(item.row() for item in selected_items)
+
+                # Store the selected rows data
+                pinned_data = []
+                for row in sorted(selected_rows):
+                    row_data = []
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(row, col)
+                        if item:
+                            row_data.append(item.text())
+                        else:
+                            row_data.append("")
+                    pinned_data.append(row_data)
+
+                # Remove selected rows from the table (in reverse order to maintain indices)
+                for row in sorted(selected_rows, reverse=True):
+                    self.table.removeRow(row)
+
+                # Insert pinned rows at the top
+                for i, row_data in enumerate(pinned_data):
+                    self.table.insertRow(i)
+                    for j, cell_data in enumerate(row_data):
+                        self.table.setItem(i, j, QTableWidgetItem(cell_data))
+
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"{len(pinned_data)} entries pinned to top")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("No selected entries to pin or table not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Pin selected entries error: {str(e)}")
+
+    def show_search_dialog(self):  # vers 1
+        """Show the search dialog"""
+        try:
+            # Create and show the search dialog
+            search_dialog = ASearchDialog(self.main_window)
+            search_dialog.exec()
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Search dialog error: {str(e)}")
+
+    def move_entries_up(self):  # vers 1
+        """Move selected entries up in the table"""
+        try:
+            if self.table and self.table.selectedItems():
+                # Get selected rows
+                selected_items = self.table.selectedItems()
+                selected_rows = sorted(set(item.row() for item in selected_items))
+
+                # Check if any selected rows are already at the top
+                if 0 in selected_rows:
+                    if hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message("Cannot move entries up: some are already at top")
+                    return
+
+                # Store data for selected rows
+                selected_data = []
+                for row in selected_rows:
+                    row_data = []
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(row, col)
+                        if item:
+                            row_data.append(item.text())
+                        else:
+                            row_data.append("")
+                    selected_data.append(row_data)
+
+                # Remove selected rows from the table (in reverse order to maintain indices)
+                for row in sorted(selected_rows, reverse=True):
+                    self.table.removeRow(row)
+
+                # Calculate new positions (move up by 1)
+                new_start_pos = min(selected_rows) - 1
+                if new_start_pos < 0:
+                    new_start_pos = 0
+
+                # Insert rows at new positions
+                for i, row_data in enumerate(selected_data):
+                    insert_row = new_start_pos + i
+                    self.table.insertRow(insert_row)
+                    for j, cell_data in enumerate(row_data):
+                        self.table.setItem(insert_row, j, QTableWidgetItem(cell_data))
+
+                # Re-select the moved rows
+                self.table.clearSelection()
+                for i in range(len(selected_data)):
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(new_start_pos + i, col)
+                        if item:
+                            item.setSelected(True)
+
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"{len(selected_data)} entries moved up")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("No selected entries to move or table not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Move entries up error: {str(e)}")
+
+    def move_entries_down(self):  # vers 1
+        """Move selected entries down in the table"""
+        try:
+            if self.table and self.table.selectedItems():
+                # Get selected rows
+                selected_items = self.table.selectedItems()
+                selected_rows = sorted(set(item.row() for item in selected_items))
+
+                # Check if any selected rows are already at the bottom
+                if max(selected_rows) >= self.table.rowCount() - 1:
+                    if hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message("Cannot move entries down: some are already at bottom")
+                    return
+
+                # Store data for selected rows
+                selected_data = []
+                for row in reversed(selected_rows):  # Process in reverse to maintain indices when removing
+                    row_data = []
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(row, col)
+                        if item:
+                            row_data.append(item.text())
+                        else:
+                            row_data.append("")
+                    selected_data.insert(0, row_data)  # Insert at beginning to maintain order
+
+                # Remove selected rows from the table (in reverse order to maintain indices)
+                for row in sorted(selected_rows, reverse=True):
+                    self.table.removeRow(row)
+
+                # Calculate new positions (move down by 1)
+                new_start_pos = min(selected_rows) + 1
+
+                # Insert rows at new positions
+                for i, row_data in enumerate(selected_data):
+                    insert_row = new_start_pos + i
+                    self.table.insertRow(insert_row)
+                    for j, cell_data in enumerate(row_data):
+                        self.table.setItem(insert_row, j, QTableWidgetItem(cell_data))
+
+                # Re-select the moved rows
+                self.table.clearSelection()
+                for i in range(len(selected_data)):
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(new_start_pos + i, col)
+                        if item:
+                            item.setSelected(True)
+
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"{len(selected_data)} entries moved down")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("No selected entries to move or table not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Move entries down error: {str(e)}")
 
 
 # - Marker 6
+
+    def add_txd_editor_button(self): #vers 3
+        """Add TXD Editor button to toolbar"""
+        if hasattr(self.main_window, 'button_panel'):
+            txd_button = QPushButton("TXD Editor")
+            txd_button.clicked.connect(self.launch_txd_editor)
+            txd_button.setToolTip("Open TXD Texture Editor")
+            self.main_window.button_panel.addWidget(txd_button)
+
+
+    def launch_txd_editor(self): #vers 3
+        """Launch TXD Workshop - works with or without IMG loaded"""
+        try:
+            from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+
+            # Get current IMG path if available (optional)
+            img_path = None
+            if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
+                img_path = self.main_window.current_img.file_path
+
+            # Open workshop - works without IMG too
+            workshop = open_txd_workshop(self.main_window, img_path)
+
+            if workshop:
+                if img_path:
+                    self.main_window.log_message("TXD Workshop opened with IMG")
+                else:
+                    self.main_window.log_message("TXD Workshop opened (standalone mode)")
+            else:
+                self.main_window.log_message("Failed to open TXD Workshop")
+
+        except Exception as e:
+            self.main_window.log_message(f"Failed to launch TXD Workshop: {e}")
 
     def _open_settings_dialog(self): #vers 1
         """Open settings dialog and refresh on save"""
@@ -3379,14 +5304,6 @@ class COLWorkshop(QWidget): #vers 3
         menu.exec(self.mapToGlobal(pos))
 
 
-    def _get_icon_color(self): #vers 1
-        """Get icon color from current theme"""
-        if APPSETTINGS_AVAILABLE and self.app_settings:
-            colors = self.app_settings.get_theme_colors()
-            return colors.get('text_primary', '#ffffff')
-        return '#ffffff'
-
-
     def _apply_fonts_to_widgets(self): #vers 1
         """Apply fonts from AppSettings to all widgets"""
         if not hasattr(self, 'default_font'):
@@ -3507,461 +5424,6 @@ class COLWorkshop(QWidget): #vers 3
                 self.main_window.log_message(f"Refresh error: {str(e)}")
 
 
-#------ Col functions
-
-    def _open_file(self): #vers 1
-        """Open file dialog and load COL file"""
-        try:
-            file_path, _ = QFileDialog.getOpenFileName(
-                self,
-                "Open COL File",
-                "",
-                "COL Files (*.col);;All Files (*)"
-            )
-
-            if file_path:
-                self.open_col_file(file_path)
-
-        except Exception as e:
-            print(f"Error in open file dialog: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
-
-
-    def _save_file(self): #vers 1
-        """Save current COL file"""
-        try:
-            if not self.current_col_file:
-                QMessageBox.warning(self, "Save", "No COL file loaded to save")
-                return
-
-            if not self.current_file_path:
-                # No path yet, do Save As
-                self._save_file_as()
-                return
-
-            # Save to current path
-            if self.current_col_file.save():
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Saved COL: {os.path.basename(self.current_file_path)}")
-
-                QMessageBox.information(self, "Save", f"COL file saved successfully:\n{os.path.basename(self.current_file_path)}")
-                print(f"Saved COL file: {self.current_file_path}")
-            else:
-                error_msg = self.current_col_file.save_error if hasattr(self.current_col_file, 'save_error') else "Unknown error"
-                QMessageBox.critical(self, "Save Error", f"Failed to save COL file:\n{error_msg}")
-                print(f"Save failed: {error_msg}")
-
-        except Exception as e:
-            print(f"Error saving file: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
-
-
-    def _save_file_as(self): #vers 1
-        """Save As dialog"""
-        try:
-            file_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save COL File As",
-                "",
-                "COL Files (*.col);;All Files (*)"
-            )
-
-            if file_path:
-                self.current_file_path = file_path
-                self.current_col_file.file_path = file_path
-                self._save_file()
-
-        except Exception as e:
-            print(f"Error in save as dialog: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
-
-
-    def _load_settings(self): #vers 1
-        """Load settings from config file"""
-        import json
-
-        settings_file = os.path.join(
-            os.path.dirname(__file__),
-            'col_workshop_settings.json'
-        )
-
-        try:
-            if os.path.exists(settings_file):
-                with open(settings_file, 'r') as f:
-                    settings = json.load(f)
-                    self.save_to_source_location = settings.get('save_to_source_location', True)
-                    self.last_save_directory = settings.get('last_save_directory', None)
-        except Exception as e:
-            print(f"Failed to load settings: {e}")
-
-
-    def _save_settings(self): #vers 1
-        """Save settings to config file"""
-        import json
-
-        settings_file = os.path.join(
-            os.path.dirname(__file__),
-            'col_workshop_settings.json'
-        )
-
-        try:
-            settings = {
-                'save_to_source_location': self.save_to_source_location,
-                'last_save_directory': self.last_save_directory
-            }
-
-            with open(settings_file, 'w') as f:
-                json.dump(settings, indent=2, fp=f)
-        except Exception as e:
-            print(f"Failed to save settings: {e}")
-
-
-    def open_col_file(self, file_path): #vers 3
-        """Open standalone COL file - supports COL1, COL2, COL3"""
-        try:
-            from apps.methods.col_workshop_loader import COLFile
-
-            # Create and load COL file
-            # col_file = COLFile()
-            # col_file.load_from_file(file_path)
-
-            #from apps.methods.col_workshop_loader import load_col_with_progress
-            #col_file = load_col_with_progress(file_path, self)
-
-            #if not col_file:  # Just check if None
-            #    return False
-
-            col_file = COLFile(debug=True)
-            if not col_file.load(file_path):
-                return False
-
-            # Store loaded file
-            self.current_col_file = col_file
-            self.current_file_path = file_path
-
-            # Update window title with model count
-            model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
-            version_str = f"COL ({model_count} models)"
-            self.setWindowTitle(f"{App_name} - {os.path.basename(file_path)} - {version_str}")
-
-            # Populate UI
-            #self._populate_collision_list()  # ADD THIS LINE
-            setup_col_table_structure(self)
-            populate_col_table(self, col_file)
-
-            # Select first model by default
-            if self.collision_list.rowCount() > 0:
-                self.collision_list.selectRow(0)
-                self._on_collision_selected()
-
-
-            # Enable buttons
-            if hasattr(self, 'save_btn'):
-                self.save_btn.setEnabled(True)
-            if hasattr(self, 'analyze_btn'):
-                self.analyze_btn.setEnabled(True)
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Loaded COL: {os.path.basename(file_path)} ({model_count} models)")
-
-            print(f"Opened COL file: {file_path} with {model_count} models")
-            return True
-
-        except Exception as e:
-            print(f"Error opening COL file: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to open COL file:\n{str(e)}")
-            return False
-
-
-    def load_from_img_archive(self, img_path): #vers 1
-        """Load COL files from IMG archive"""
-        try:
-            # TODO: Implement IMG archive COL loading
-            # This would extract COL files from the IMG and populate the list
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Loading COL files from IMG: {os.path.basename(img_path)}")
-
-            print(f"IMG archive COL loading - not yet implemented: {img_path}")
-            return False
-
-        except Exception as e:
-            print(f"Error loading from IMG archive: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to load from IMG:\n{str(e)}")
-            return False
-
-
-    def _analyze_collision(self): #vers 1
-        """Analyze current COL file"""
-        try:
-            if not self.current_col_file or not self.current_file_path:
-                QMessageBox.warning(self, "Analyze", "No COL file loaded to analyze")
-                return
-
-            # Import analysis functions
-            from apps.methods.col_operations import get_col_detailed_analysis
-            from gui.col_dialogs import show_col_analysis_dialog
-
-            # Get detailed analysis
-            analysis_data = get_col_detailed_analysis(self.current_file_path)
-
-            if 'error' in analysis_data:
-                QMessageBox.warning(self, "Analysis Error", f"Analysis failed:\n{analysis_data['error']}")
-                return
-
-            # Show analysis dialog
-            show_col_analysis_dialog(self, analysis_data, os.path.basename(self.current_file_path))
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Analyzed COL: {os.path.basename(self.current_file_path)}")
-
-        except Exception as e:
-            print(f"Error analyzing file: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
-
-
-    def _on_col_selected(self, item): #vers 1
-        """Handle COL file selection"""
-        try:
-            entry = item.data(Qt.ItemDataRole.UserRole)
-            if entry:
-                txd_data = self._extract_col_from_img(entry)
-                if txd_data:
-                    self.current_col_data = col_data
-                    self.current_col_name = entry.name
-                    self._load_col_files(col_data, entry.name)
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error selecting COL: {str(e)}")
-
-
-    def _extract_col_from_img(self, entry): #vers 2
-        """Extract TXD data from IMG entry"""
-        try:
-            if not self.current_img:
-                return None
-            return self.current_img.read_entry_data(entry)
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Extract error: {str(e)}")
-            return None
-
-
-    def _on_collision_selected(self): #vers 6
-        """Handle COL model selection from table"""
-        try:
-            selected_rows = self.collision_list.selectionModel().selectedRows()
-            if not selected_rows:
-                print("No rows selected")
-                return
-
-            row = selected_rows[0].row()
-            details_item = self.collision_list.item(row, 1)
-
-            if not details_item:
-                print("No details item found")
-                return
-
-            model_index = details_item.data(Qt.ItemDataRole.UserRole)
-            print(f"Selected row {row}, model index {model_index}")
-
-            if not self.current_col_file or not hasattr(self.current_col_file, 'models'):
-                print("No COL file or models")
-                return
-
-            if model_index is None or model_index < 0 or model_index >= len(self.current_col_file.models):
-                print(f"Invalid model index: {model_index}")
-                return
-
-            # Get selected model
-            model = self.current_col_file.models[model_index]
-            model_name = getattr(model, 'name', f'Model_{model_index}')
-
-            # Update info display
-            if hasattr(self, 'info_name'):
-                self.info_name.setText(model_name)
-
-            # Update preview widget
-            if hasattr(self, 'preview_widget'):
-                if VIEWPORT_AVAILABLE and isinstance(self.preview_widget, COL3DViewport):
-                    # Use 3D viewport
-                    self.preview_widget.set_current_model(model, model_index)
-                    print(f"3D viewport updated for {model_name}")
-                else:
-                    # Use 2D preview fallback
-                    width = max(400, self.preview_widget.width())
-                    height = max(400, self.preview_widget.height())
-                    print(f"Rendering 2D preview: {width}x{height} for {model_name}")
-                    preview_pixmap = self._render_collision_preview(model, width, height)
-                    self.preview_widget.setPixmap(preview_pixmap)
-                    self.preview_widget.setScaledContents(False)
-                    print(f"2D preview updated for {model_name}")
-            else:
-                print("No preview_widget attribute found")
-
-        except Exception as e:
-            print(f"Error selecting model: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-
-    def _show_collision_context_menu(self, position): #vers 1
-        """Show context menu for collision list"""
-        item = self.collision_list.itemAt(position)
-        if not item:
-            return
-
-        menu = QMenu(self)
-
-        # Get model index
-        row = self.collision_list.row(item)
-        if row < 0 or not self.current_col_file:
-            return
-
-        model = self.current_col_file.models[row]
-
-        # Show Details action
-        details_action = menu.addAction("📋 Show Details")
-        details_action.triggered.connect(lambda: self._show_model_details(model, row))
-
-        # Copy Info action
-        copy_action = menu.addAction("Copy Info to Clipboard")
-        copy_action.triggered.connect(lambda: self._copy_model_info(model, row))
-
-        menu.exec(self.collision_list.mapToGlobal(position))
-
-
-    def _show_model_details(self, model, index): #vers 1
-        """Show detailed model information dialog"""
-        from PyQt6.QtWidgets import QDialog, QTextEdit, QVBoxLayout, QPushButton
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Model Details - {model.name}")
-        dialog.setMinimumSize(500, 400)
-
-        layout = QVBoxLayout(dialog)
-
-        # Create detailed info text
-        info_text = f"""Model: {model.name}
-    Index: {index}
-    Version: {model.version.name if hasattr(model.version, 'name') else model.version}
-
-    Bounding Box:
-    Center: ({model.bounding_box.center.x:.3f}, {model.bounding_box.center.y:.3f}, {model.bounding_box.center.z:.3f})
-    Min: ({model.bounding_box.min.x:.3f}, {model.bounding_box.min.y:.3f}, {model.bounding_box.min.z:.3f})
-    Max: ({model.bounding_box.max.x:.3f}, {model.bounding_box.max.y:.3f}, {model.bounding_box.max.z:.3f})
-    Radius: {model.bounding_box.radius:.3f}
-
-    Collision Data:
-    Spheres: {len(model.spheres)}
-    Boxes: {len(model.boxes)}
-    Vertices: {len(model.vertices)}
-    Faces: {len(model.faces)}
-
-    """
-
-        # Add first 3 vertices if available
-        if len(model.vertices) > 0:
-            info_text += "\nVertices:\n"
-            for i in range(min(30000, len(model.vertices))):
-                v = model.vertices[i]
-                info_text += f"  [{i}] ({v.position.x:.3f}, {v.position.y:.3f}, {v.position.z:.3f})\n"
-
-        # Add material info from faces
-        if len(model.faces) > 0:
-            materials = set()
-            for face in model.faces:
-                if hasattr(face, 'material'):
-                    mat_id = face.material.material_id if hasattr(face.material, 'material_id') else face.material
-                    materials.add(mat_id)
-            info_text += f"\nUnique Materials: {len(materials)}\n"
-            info_text += f"Material IDs: {sorted(materials)}\n"
-
-        text_edit = QTextEdit()
-        text_edit.setPlainText(info_text)
-        text_edit.setReadOnly(True)
-        layout.addWidget(text_edit)
-
-        # Copy button
-        copy_btn = QPushButton("Copy to Clipboard")
-        copy_btn.clicked.connect(lambda: self._copy_text_to_clipboard(info_text))
-        layout.addWidget(copy_btn)
-
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
-        layout.addWidget(close_btn)
-
-        dialog.exec()
-
-
-    def _copy_model_info(self, model, index): #vers 1
-        """Copy model info to clipboard"""
-        info = f"{model.name} | S:{len(model.spheres)} B:{len(model.boxes)} V:{len(model.vertices)} F:{len(model.faces)}"
-        self._copy_text_to_clipboard(info)
-        if hasattr(self, 'status_bar'):
-            self.status_bar.showMessage("Model info copied to clipboard", 2000)
-
-
-    def _copy_text_to_clipboard(self, text): #vers 1
-        """Copy text to system clipboard"""
-        from PyQt6.QtWidgets import QApplication
-        clipboard = QApplication.clipboard()
-        clipboard.setText(text)
-
-
-    def _populate_collision_list(self): #vers 4
-        """Populate collision table with models - matches TXD Workshop style"""
-        try:
-            self.collision_list.setRowCount(0)
-
-            if not self.current_col_file or not hasattr(self.current_col_file, 'models'):
-                return
-
-            for i, model in enumerate(self.current_col_file.models):
-                # Get model info
-                name = getattr(model, 'name', f'Model_{i}')
-                version = getattr(model, 'version', COLVersion.COL_1)
-
-                # Count collision elements
-                spheres = len(getattr(model, 'spheres', []))
-                boxes = len(getattr(model, 'boxes', []))
-                faces = len(getattr(model, 'faces', []))
-                vertices = len(getattr(model, 'vertices', []))
-
-                # Add row
-                row = self.collision_list.rowCount()
-                self.collision_list.insertRow(row)
-
-                # Create thumbnail item
-                thumb_item = QTableWidgetItem()
-                thumbnail = self._generate_collision_thumbnail(model, 64, 64)
-                thumb_item.setData(Qt.ItemDataRole.DecorationRole, thumbnail)
-                thumb_item.setFlags(thumb_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
-                # Create details text
-                details = f"Name: {name}\n"
-                details += f"Version: {version.name}\n"
-                details += f"Spheres: {spheres} | Boxes: {boxes}\n"
-                details += f"Faces: {faces} | Vertices: {vertices}"
-
-                details_item = QTableWidgetItem(details)
-                details_item.setFlags(details_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                details_item.setData(Qt.ItemDataRole.UserRole, i)  # Store model index
-
-                # Set items
-                self.collision_list.setItem(row, 0, thumb_item)
-                self.collision_list.setItem(row, 1, details_item)
-
-                # Set row height
-                self.collision_list.setRowHeight(row, 100)
-
-            print(f"Populated collision table with {len(self.current_col_file.models)} models")
-
-        except Exception as e:
-            print(f"Error populating collision table: {str(e)}")
-
-
     def _create_preview_widget(self, level_data=None): #vers 3
         """Create preview widget - large collision preview like TXD Workshop"""
         if level_data is None:
@@ -4014,14 +5476,7 @@ class COLWorkshop(QWidget): #vers 3
 # ----- Render functions
 
 
-
-
-
-
-
-
-
-    def _setup_hotkeys(self): #vers 3
+    def _setup_hotkeys_disabled(self): #vers 4 - kept for later
         """Setup Plasma6-style keyboard shortcuts for this application - checks for existing methods"""
         from PyQt6.QtGui import QShortcut, QKeySequence
         from PyQt6.QtCore import Qt
@@ -4407,10 +5862,11 @@ class COLWorkshop(QWidget): #vers 3
 
         dialog.exec()
 
-    def _show_col_info(self): #vers 4
+
+    def _show_img_info(self): #vers 4
         """Show TXD Workshop information dialog - About and capabilities"""
         dialog = QDialog(self)
-        dialog.setWindowTitle("About COL Workshop")
+        dialog.setWindowTitle("About" + App_name)
         dialog.setMinimumWidth(600)
         dialog.setMinimumHeight(500)
 
@@ -4418,7 +5874,7 @@ class COLWorkshop(QWidget): #vers 3
         layout.setSpacing(15)
 
         # Header
-        header = QLabel("COL Workshop for IMG Factory 1.5")
+        header = QLabel(App_name)
         header.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
@@ -4429,7 +5885,7 @@ class COLWorkshop(QWidget): #vers 3
         layout.addWidget(author_label)
 
         # Version info
-        version_label = QLabel("Version: 1.5 - October 2025")
+        version_label = QLabel("Version: 1.5 - November 2025")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version_label)
 
@@ -4497,6 +5953,81 @@ class COLWorkshop(QWidget): #vers 3
 
 #class SvgIcons: #vers 1 - Once functions are updated this class will be moved to the bottom
     """SVG icon data to QIcon with theme color support"""
+
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False) -> QIcon:
+        """Get SVG icon based on icon name identifier"""
+        icon_map = {
+            # Create/new icons
+            "new": get_add_icon(),
+            "document-new": get_add_icon(),
+
+            # Open icons
+            "open": get_open_icon(),
+            "document-open": get_open_icon(),
+
+            # Reload/refresh icons
+            "reload": get_refresh_icon(),
+            "document-reload": get_refresh_icon(),
+            "view-refresh": get_refresh_icon(),
+            "update": get_refresh_icon(),
+            "rebuild": get_rebuild_icon(),
+            "view-rebuild": get_rebuild_icon(),
+
+            # Close icons
+            "close": get_close_icon(),
+            "window-close": get_close_icon(),
+            "edit-clear": get_close_icon(),
+
+            # Save icons
+            "save_entry": get_save_icon(),
+            "document-save": get_save_icon(),
+            "document-save-entry": get_save_icon(),
+
+            # Import icons
+            "import": get_import_icon(),
+            "document-import": get_import_icon(),
+            "import_via": get_import_icon(),
+
+            # Export icons
+            "export": get_export_icon(),
+            "document-export": get_export_icon(),
+            "export_via": get_export_icon(),
+            "document-send": get_export_icon(),
+
+            # Remove/delete icons
+            "remove": get_remove_icon(),
+            "edit-delete": get_remove_icon(),
+            "remove_via": get_remove_icon(),
+            "document-remvia": get_remove_icon(),
+
+            # Edit icons
+            "rename": get_edit_icon(),
+            "edit-rename": get_edit_icon(),
+            "edit_select": get_edit_icon(),
+            "edit-select": get_edit_icon(),
+            "select_all": get_edit_icon(),
+            "edit-select-all": get_edit_icon(),
+            "sel_inverse": get_edit_icon(),
+            "sort": get_edit_icon(),
+            "view-sort": get_edit_icon(),
+            "pin_selected": get_edit_icon(),
+            "pin": get_edit_icon(),
+            "extract": get_export_icon(),
+
+            # Other icons
+            "document-merge": get_view_icon(),
+            "edit-cut": get_view_icon(),
+            "transform": get_view_icon(),
+            "document-dump": get_view_icon(),
+
+            # Search icons
+            "search": get_search_icon(),
+
+            # Placeholder (no icon)
+            "placeholder": None,
+        }
+
+        return icon_map.get(icon_name, None)
 
 #moved to scg_icon_factory
 
@@ -4766,7 +6297,7 @@ class ZoomablePreview(QLabel): #vers 2
             self.zoom_out()
 
 
-class COLEditorDialog(QDialog): #vers 3
+class IMGEditorDialog(QDialog): #vers 3
     """Enhanced COL Editor Dialog"""
 
 
@@ -4881,162 +6412,6 @@ class COLEditorDialog(QDialog): #vers 3
 
         # Properties changes
         self.properties_widget.property_changed.connect(self.on_property_changed)
-
-
-    def load_col_file(self, file_path: str) -> bool: #vers 2
-        """Load COL file - ENHANCED VERSION"""
-        try:
-            self.file_path = file_path
-            self.status_bar.showMessage("Loading COL file...")
-            self.progress_bar.setVisible(True)
-
-            # Load the file
-            self.current_file = COLFile(file_path)
-
-            if not self.current_file.load():
-                error_msg = getattr(self.current_file, 'load_error', 'Unknown error')
-                QMessageBox.critical(self, "Load Error", f"Failed to load COL file:\n{error_msg}")
-                self.progress_bar.setVisible(False)
-                self.status_bar.showMessage("Ready")
-                return False
-
-            # Update UI
-            self.model_list.set_col_file(self.current_file)
-            self.viewer_3d.set_current_file(self.current_file)
-
-            # Select first model if available
-            if hasattr(self.current_file, 'models') and self.current_file.models:
-                self.model_list.setCurrentRow(0)
-
-            model_count = len(getattr(self.current_file, 'models', []))
-            self.status_bar.showMessage(f"Loaded: {os.path.basename(file_path)} ({model_count} models)")
-            self.progress_bar.setVisible(False)
-
-            self.setWindowTitle(f"COL Editor - {os.path.basename(file_path)}")
-            self.is_modified = False
-
-            print(f"COL file loaded: {file_path}")
-            return True
-
-        except Exception as e:
-            self.progress_bar.setVisible(False)
-            self.status_bar.showMessage("Ready")
-            error_msg = f"Error loading COL file: {str(e)}"
-            QMessageBox.critical(self, "Error", error_msg)
-            print(error_msg)
-            return False
-
-
-    def open_file(self): #vers 1
-        """Open file dialog"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open COL File", "", "COL Files (*.col);;All Files (*)"
-        )
-
-        if file_path:
-            self.load_col_file(file_path)
-
-
-    def save_file(self): #vers 1
-        """Save current file"""
-        if not self.current_file:
-            QMessageBox.warning(self, "Save", "No file loaded to save")
-            return
-
-        if not self.file_path:
-            self.save_file_as()
-            return
-
-        try:
-            self.status_bar.showMessage("Saving COL file...")
-
-            # TODO: Implement actual saving
-            # For now, just show a message
-            QMessageBox.information(self, "Save",
-                "COL file saving will be implemented in a future version.\n"
-                "Currently the editor is in view-only mode.")
-
-            self.status_bar.showMessage("Ready")
-
-        except Exception as e:
-            error_msg = f"Error saving COL file: {str(e)}"
-            QMessageBox.critical(self, "Save Error", error_msg)
-            print(error_msg)
-
-
-    def save_file_as(self): #vers 1
-        """Save file as dialog"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save COL File", "", "COL Files (*.col);;All Files (*)"
-        )
-
-        if file_path:
-            self.file_path = file_path
-            self.save_file()
-
-
-    def analyze_file(self): #vers 1
-        """Analyze current COL file"""
-        if not self.current_file or not self.file_path:
-            QMessageBox.warning(self, "Analyze", "No file loaded to analyze")
-            return
-
-        try:
-            self.status_bar.showMessage("Analyzing COL file...")
-
-            # Import locally when needed
-            from apps.methods.col_operations import get_col_detailed_analysis
-            from gui.col_dialogs import show_col_analysis_dialog
-
-            self.status_bar.showMessage("Analyzing COL file...")
-
-            # Get detailed analysis
-            analysis_data = get_col_detailed_analysis(self.file_path)
-
-            if 'error' in analysis_data:
-                QMessageBox.warning(self, "Analysis Error", f"Analysis failed: {analysis_data['error']}")
-                return
-
-            # Show analysis dialog
-            show_col_analysis_dialog(self, analysis_data, os.path.basename(self.file_path))
-
-            self.status_bar.showMessage("Ready")
-
-        except Exception as e:
-            error_msg = f"Error analyzing COL file: {str(e)}"
-            QMessageBox.critical(self, "Analysis Error", error_msg)
-            print(error_msg)
-
-
-    def on_model_selected(self, model_index: int): #vers 1
-        """Handle model selection"""
-        try:
-            if not self.current_file or not hasattr(self.current_file, 'models'):
-                return
-
-            if model_index < 0 or model_index >= len(self.current_file.models):
-                return
-
-            # Update current model
-            self.current_model = self.current_file.models[model_index]
-
-            # Update viewer
-            self.viewer_3d.set_current_model(self.current_model, model_index)
-
-            # Update properties
-            self.properties_widget.set_current_model(self.current_model)
-
-            # Update list selection if needed
-            if self.model_list.currentRow() != model_index:
-                self.model_list.setCurrentRow(model_index)
-
-            model_name = getattr(self.current_model, 'name', f'Model_{model_index}')
-            self.status_bar.showMessage(f"Selected: {model_name}")
-
-            print(f"Model selected: {model_name} (index {model_index})")
-
-        except Exception as e:
-            print(f"Error selecting model: {str(e)}")
 
 
     def _create_viewport_controls(self): #vers 1
@@ -5289,56 +6664,14 @@ class COLEditorDialog(QDialog): #vers 3
 
 
     # Add import/export functionality when docked
-    def _add_import_export_functionality(self): #vers 1
-        """Add import/export functionality when docked to img factory"""
-        try:
-            # Only add these when docked to img factory
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                # Add import button to toolbar if not already present
-                if not hasattr(self, 'import_btn'):
-                    # Import button would be added to the toolbar in _create_toolbar
-                    pass
-                    
-                # Add export button to toolbar if not already present
-                if not hasattr(self, 'export_btn'):
-                    # Export button would be added to the toolbar in _create_toolbar
-                    pass
-                    
-                self.main_window.log_message(f"{App_name} import/export functionality ready")
-                
-        except Exception as e:
-            print(f"Error adding import/export functionality: {str(e)}")
 
-
-    def _import_col_data(self): #vers 1
-        """Import COL data from external source"""
-        try:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} import functionality - not yet implemented")
-                # TODO: Implement actual import functionality
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Import", "Import functionality coming soon!")
-        except Exception as e:
-            print(f"Error importing COL data: {str(e)}")
-
-
-    def _export_col_data(self): #vers 1
-        """Export COL data to external source"""
-        try:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} export functionality - not yet implemented")
-                # TODO: Implement actual export functionality
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Export", "Export functionality coming soon!")
-        except Exception as e:
-            print(f"Error exporting COL data: {str(e)}")
 
 
 # Convenience functions
-def open_col_editor(parent=None, file_path: str = None) -> COLEditorDialog: #vers 2
+def open_col_editor(parent=None, file_path: str = None) -> IMGEditorDialog: #vers 2
     """Open COL editor dialog - ENHANCED VERSION"""
     try:
-        editor = COLEditorDialog(parent)
+        editor = IMGEditorDialog(parent)
 
         if file_path:
             if editor.load_col_file(file_path):
@@ -5354,83 +6687,6 @@ def open_col_editor(parent=None, file_path: str = None) -> COLEditorDialog: #ver
         if parent:
             QMessageBox.critical(parent, "COL Editor Error", f"Failed to open COL editor:\n{str(e)}")
         return None
-
-
-def create_new_model(model_name: str = "New Model") -> COLModel: #vers 1
-
-    try:
-        model = COLModel()
-        model.name = model_name
-        model.version = COLVersion.COL_2  # Default to COL2
-        model.spheres = []
-        model.boxes = []
-        model.vertices = []
-        model.faces = []
-
-        # Initialize bounding box
-        if hasattr(model, 'calculate_bounding_box'):
-            model.calculate_bounding_box()
-
-        print(f"Created new COL model: {model_name}")
-        return model
-
-    except Exception as e:
-        print(f"Error creating new COL model: {str(e)}")
-        return None
-
-
-def delete_model(col_file: COLFile, model_index: int) -> bool: #vers 1
-    """Delete model from COL file"""
-    try:
-        if not hasattr(col_file, 'models') or not col_file.models:
-            return False
-
-        if model_index < 0 or model_index >= len(col_file.models):
-            return False
-
-        model_name = getattr(col_file.models[model_index], 'name', f'Model_{model_index}')
-        del col_file.models[model_index]
-
-        print(f"Deleted COL model: {model_name}")
-        return True
-
-    except Exception as e:
-        print(f"Error deleting COL model: {str(e)}")
-        return False
-
-
-def export_model(model: COLModel, file_path: str) -> bool: #vers 1
-    """Export single model to file"""
-    try:
-        # TODO: Implement model export
-        print(f"Model export to {file_path} - not yet implemented")
-        return False
-
-    except Exception as e:
-        print(f"Error exporting model: {str(e)}")
-        return False
-
-
-def import_elements(model: COLModel, file_path: str) -> bool: #vers 1
-    """Import collision elements from file"""
-    try:
-        # TODO: Implement element import
-        print(f"Element import from {file_path} - not yet implemented")
-        return False
-
-    except Exception as e:
-        print(f"Error importing elements: {str(e)}")
-        return False
-
-
-def refresh_model_list(list_widget: COLModelListWidget, col_file: COLFile): #vers 1
-    """Refresh model list widget"""
-    try:
-        list_widget.set_col_file(col_file)
-        print("Model list refreshed")
-
-    except Exception as e:
-        print(f"Error refreshing model list: {str(e)}")
 
 
 def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
@@ -5467,7 +6723,7 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
 
 
 
-def apply_changes(editor: COLEditorDialog) -> bool: #vers 1
+def apply_changes(editor: IMGEditorDialog) -> bool: #vers 1
     """Apply all pending changes"""
     try:
         # TODO: Implement change application
@@ -5512,7 +6768,7 @@ def open_workshop(main_window, img_path=None): #vers 3
 
 
 # Compatibility alias for imports
-COLEditorDialog = COLWorkshop  #vers 1
+IMGEditorDialog = IMGFactoryGUILayout  #vers 1
 
 
 def open_col_workshop(main_window, img_path=None): #vers 1
@@ -5525,7 +6781,7 @@ def open_col_workshop(main_window, img_path=None): #vers 1
                     workshop.open_col_file(img_path)
                 elif hasattr(workshop, "load_col_file"):
                     workshop.load_col_file(img_path)
-        workshop.setWindowTitle("COL Workshop - IMG Factory 1.5")
+        workshop.setWindowTitle(App_name + " 1.5")
         workshop.show()
         return workshop
     except Exception as e:
@@ -5533,7 +6789,7 @@ def open_col_workshop(main_window, img_path=None): #vers 1
             main_window.log_message(f"Error: {str(e)}")
         return None
 
-COLEditorDialog = COLWorkshop
+IMGEditorDialog = IMGFactoryGUILayout
 
 if __name__ == "__main__":
     import sys
@@ -5545,7 +6801,7 @@ if __name__ == "__main__":
         app = QApplication(sys.argv)
         print("QApplication created")
 
-        workshop = COLWorkshop()
+        workshop = IMGFactoryGUILayout()
         print(App_name + " instance created")
 
         workshop.setWindowTitle(App_name + " - Standalone")
@@ -5563,3 +6819,17 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
+# LEGACY COMPATIBILITY FUNCTIONS
+
+def create_control_panel(main_window): #vers 1
+    """Create the main control panel - LEGACY FUNCTION"""
+    # Redirect to new method for compatibility
+    if hasattr(main_window, 'gui_layout'):
+        return main_window.gui_layout.create_right_panel_with_pastel_buttons()
+    return None
+
+
+__all__ = [
+    'IMGFactoryGUILayout',
+    'create_control_panel',  # Legacy compatibility
+]

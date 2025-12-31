@@ -92,7 +92,8 @@ from apps.gui.ide_dialog import integrate_ide_dialog
 from apps.gui.gui_backend import ButtonDisplayMode, GUIBackend
 from apps.gui.main_window import IMGFactoryMainWindow
 from apps.gui.col_display import update_col_info_bar_enhanced
-from apps.gui.gui_layout import IMGFactoryGUILayout
+#from apps.gui.gui_layout import IMGFactoryGUILayout
+from apps.components.Img_Factory.img_workshop import IMGFactoryGUILayout
 from apps.gui.unified_button_theme import apply_unified_button_theme
 from apps.gui.gui_menu import IMGFactoryMenuBar
 from apps.gui.autosave_menu import integrate_autosave_menu
