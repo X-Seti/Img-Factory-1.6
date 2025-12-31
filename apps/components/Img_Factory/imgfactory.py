@@ -2885,6 +2885,10 @@ class IMGFactory(QMainWindow):
                 self.open_files[current_index]['file_object'] = img_file
                 self.log_message(f"IMG file object stored in tab {current_index}")
 
+            # Refresh the directory file list in the left panel
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'refresh_directory_files'):
+                self.gui_layout.refresh_directory_files()
+
             # Use isolated file window update
             success = self.gui_layout.update_file_window_only(img_file)
 
