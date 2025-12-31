@@ -110,6 +110,11 @@ class IMGCloseManager:
                 self.main_window.current_col = None
             if hasattr(self.main_window, 'current_txd'):
                 self.main_window.current_txd = None
+
+            # Refresh the directory file list in the left panel
+            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'refresh_directory_files'):
+                self.main_window.gui_layout.refresh_directory_files()
+
             self.main_window._update_ui_for_no_img()
 
             self.log_message("All tabs closed")
@@ -160,6 +165,10 @@ class IMGCloseManager:
                 self.main_window.current_col = None
             if hasattr(self.main_window, 'current_txd'):
                 self.main_window.current_txd = None
+
+            # Refresh the directory file list in the left panel
+            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'refresh_directory_files'):
+                self.main_window.gui_layout.refresh_directory_files()
 
             self.main_window.main_tab_widget.setTabText(current_index, "No File")
             self.main_window._update_ui_for_no_img()

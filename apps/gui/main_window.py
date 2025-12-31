@@ -122,9 +122,72 @@ class IMGFactoryMainWindow(QMainWindow):
         # Setup panels
         self.setup_panels()
         
+        # Initialize UI mode based on settings
+        self.initialize_ui_mode()
+        
         # Show window
         self.show()
     
+
+    def initialize_ui_mode(self):
+        """Initialize UI mode based on settings after setup is complete"""
+        try:
+            # Check if app_settings is available and apply UI mode
+            if hasattr(self, 'app_settings') and hasattr(self.app_settings, 'current_settings'):
+                ui_mode = self.app_settings.current_settings.get('ui_mode', 'system')
+                show_toolbar = self.app_settings.current_settings.get('show_toolbar', True)
+                show_status_bar = self.app_settings.current_settings.get('show_status_bar', True)
+                show_menu_bar = self.app_settings.current_settings.get('show_menu_bar', True)
+                
+                self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
+            else:
+                # Default to system UI mode if no settings available
+                self.apply_ui_mode('system', True, True, True)
+        except Exception as e:
+            self.log_message(f"Error initializing UI mode: {str(e)}")
+            # Fallback to system UI mode
+            self.apply_ui_mode('system', True, True, True)
+
+    def save_img_entry(self):
+        """Save IMG entry - placeholder method"""
+        try:
+            # This would be implemented based on your specific IMG saving logic
+            self.log_message("Save IMG entry function called")
+            # Add your actual save logic here
+        except Exception as e:
+            self.log_message(f"Error saving IMG entry: {str(e)}")
+
+    def export_selected(self):
+        """Export selected entries - placeholder method"""
+        try:
+            self.log_message("Export selected function called")
+            # Add your actual export logic here
+        except Exception as e:
+            self.log_message(f"Error exporting selected: {str(e)}")
+
+    def export_via(self):
+        """Export via function - placeholder method"""
+        try:
+            self.log_message("Export via function called")
+            # Add your actual export via logic here
+        except Exception as e:
+            self.log_message(f"Error exporting via: {str(e)}")
+
+    def quick_export(self):
+        """Quick export function - placeholder method"""
+        try:
+            self.log_message("Quick export function called")
+            # Add your actual quick export logic here
+        except Exception as e:
+            self.log_message(f"Error quick exporting: {str(e)}")
+
+    def dump_all(self):
+        """Dump all entries - placeholder method"""
+        try:
+            self.log_message("Dump all function called")
+            # Add your actual dump logic here
+        except Exception as e:
+            self.log_message(f"Error dumping all: {str(e)}")
 
     def import_files_via(self):
         """Import files via IDE or folder"""
@@ -522,6 +585,14 @@ class IMGFactoryMainWindow(QMainWindow):
                 dialog.exec()
         except Exception as e:
             self.log_message(f"Error showing settings: {str(e)}")
+
+    def _show_info_dialog(self):
+        """Show info dialog"""
+        try:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Info", "IMG Factory 1.5\nCustom UI Mode Active")
+        except Exception as e:
+            self.log_message(f"Error showing info dialog: {str(e)}")
 
     def _toggle_maximize(self):
         """Toggle window maximize state"""

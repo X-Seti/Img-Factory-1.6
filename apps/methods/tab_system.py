@@ -307,6 +307,10 @@ def update_references(main_window, tab_index: int): #vers 1
         main_window.current_col = file_object if file_type == 'COL' else None
         main_window.current_txd = file_object if file_type == 'TXD' else None
 
+        # Refresh the directory file list in the left panel when switching to an IMG file
+        if file_type == 'IMG' and hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'refresh_directory_files'):
+            main_window.gui_layout.refresh_directory_files()
+
     except Exception as e:
         main_window.log_message(f"Error updating references: {str(e)}")
 

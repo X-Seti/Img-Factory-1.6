@@ -1173,8 +1173,8 @@ class IMGFactoryGUILayout:
         main_layout.addWidget(self.main_splitter)
 
 
-    def _create_left_file_list_panel(self): #vers 1
-        """Create left panel for file list (similar to COL Workshop left panel)"""
+    def _create_left_file_list_panel(self): #vers 2
+        """Create left panel for file list showing files in the same directory as the loaded IMG file (similar to COL Workshop left panel)"""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(150)
@@ -1183,16 +1183,30 @@ class IMGFactoryGUILayout:
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        header = QLabel("Open Files")
+        # Header with refresh button
+        header_layout = QHBoxLayout()
+        header = QLabel("Directory Files")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        header_layout.addWidget(header)
+        
+        # Refresh button to update the file list
+        refresh_button = QPushButton("Refresh")
+        refresh_button.setFixedSize(60, 20)
+        refresh_button.clicked.connect(self.refresh_directory_files)
+        header_layout.addWidget(refresh_button)
+        header_layout.addStretch()  # Add stretch to push refresh button to the right
+        
+        layout.addLayout(header_layout)
 
-        # Create a list widget for open IMG files
-        self.open_files_list = QListWidget()
-        self.open_files_list.setAlternatingRowColors(True)
+        # Create a list widget for files in the same directory
+        self.directory_files_list = QListWidget()
+        self.directory_files_list.setAlternatingRowColors(True)
         # Connect to a function to handle file selection
-        self.open_files_list.itemClicked.connect(self._on_open_file_selected)
-        layout.addWidget(self.open_files_list)
+        self.directory_files_list.itemClicked.connect(self._on_directory_file_selected)
+        layout.addWidget(self.directory_files_list)
+        
+        # Initially populate the list (will be empty until an IMG file is loaded)
+        self.refresh_directory_files()
         return panel
 
 
@@ -2403,6 +2417,95 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error updating open files list: {str(e)}")
+
+
+    def refresh_directory_files(self):  # vers 1
+        """Refresh the list of files in the same directory as the currently loaded IMG file"""
+        try:
+            # Clear the current list
+            if hasattr(self, 'directory_files_list') and self.directory_files_list:
+                self.directory_files_list.clear()
+                
+                # Get the current IMG file path
+                if (hasattr(self.main_window, 'current_img') and 
+                    self.main_window.current_img and 
+                    hasattr(self.main_window.current_img, 'file_path') and
+                    self.main_window.current_img.file_path):
+                    
+                    # Get the directory of the current IMG file
+                    img_dir = os.path.dirname(self.main_window.current_img.file_path)
+                    
+                    # Get all files in the directory (excluding the current IMG file to avoid confusion)
+                    current_img_filename = os.path.basename(self.main_window.current_img.file_path)
+                    
+                    # List all files in the directory
+                    all_files = os.listdir(img_dir)
+                    
+                    # Filter for common file types that might be related to IMG files
+                    valid_extensions = ('.img', '.txd', '.col', '.dff', '.ide', '.ipl', '.dat', '.ifp', '.cfg', '.txt', '.ini')
+                    filtered_files = [f for f in all_files if f.lower().endswith(valid_extensions) and f != current_img_filename]
+                    
+                    # Add the files to the list
+                    for filename in sorted(filtered_files):
+                        item = QListWidgetItem(filename)
+                        # Store the full path as user data
+                        full_path = os.path.join(img_dir, filename)
+                        item.setData(Qt.ItemDataRole.UserRole, full_path)
+                        self.directory_files_list.addItem(item)
+                
+                # If no IMG file is loaded, show a placeholder
+                if self.directory_files_list.count() == 0:
+                    placeholder = QListWidgetItem("No directory files")
+                    placeholder.setFlags(Qt.ItemFlag.NoItemFlags)  # Make it non-selectable
+                    self.directory_files_list.addItem(placeholder)
+                    
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error refreshing directory files: {str(e)}")
+
+
+    def _on_directory_file_selected(self, item):  # vers 1
+        """Handle selection of a file in the same directory as the loaded IMG file"""
+        try:
+            # Get the file path from the item's user data
+            file_path = item.data(Qt.ItemDataRole.UserRole)
+            
+            if file_path and os.path.isfile(file_path):
+                # Check the file extension to determine how to handle it
+                file_ext = os.path.splitext(file_path)[1].lower()
+                
+                # Log the selected file
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"Selected file: {os.path.basename(file_path)} ({file_ext})")
+                
+                # For now, we'll just open the file with the appropriate handler
+                # based on its extension, but in a real implementation you might want
+                # to have specific logic for different file types
+                if file_ext == '.img':
+                    # Open IMG file
+                    if hasattr(self.main_window, 'open_img_file_from_path'):
+                        self.main_window.open_img_file_from_path(file_path)
+                    else:
+                        self.main_window.log_message(f"Opening IMG file: {file_path}")
+                elif file_ext == '.txd':
+                    # Open TXD file with TXD Workshop
+                    from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                    workshop = open_txd_workshop(self.main_window, file_path)
+                    if workshop:
+                        self.main_window.log_message(f"TXD Workshop opened for: {file_path}")
+                elif file_ext == '.col':
+                    # Open COL file with COL Workshop
+                    from apps.components.Col_Editor.col_workshop import open_col_workshop
+                    workshop = open_col_workshop(self.main_window, file_path)
+                    if workshop:
+                        self.main_window.log_message(f"COL Workshop opened for: {file_path}")
+                else:
+                    # For other file types, you might want to open them in a text editor or handle differently
+                    self.main_window.log_message(f"Selected file: {file_path}")
+                    
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error selecting directory file: {str(e)}")
 
 
 # LEGACY COMPATIBILITY FUNCTIONS
