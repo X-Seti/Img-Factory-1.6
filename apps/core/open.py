@@ -144,9 +144,9 @@ def add_to_recent_files(main_window, file_path):
             main_window.log_message(f"Error adding to recent files: {str(e)}")
 
 
-def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 3
+def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 7
     """Check if IDE file exists in same folder as IMG file and prompt user to load it
-    Updated to version 3: When auto-load setting is enabled, skip loading and popup entirely."""
+    Updated to version 7: When auto-load setting is enabled, skip both loading and popup entirely."""
     try:
         import os
         from PyQt6.QtWidgets import QMessageBox
@@ -166,8 +166,8 @@ def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 3
         # Check if IDE file exists
         if os.path.exists(ide_file_path):
             if auto_load_enabled:
-                # If auto-loading is enabled, skip both loading and popup
-                main_window.log_message(f"Skipped IDE file (auto-load disabled): {os.path.basename(ide_file_path)}")
+                # If auto-loading is enabled, skip both loading and popup entirely
+                main_window.log_message(f"Skipped IDE file (auto-load setting enabled): {os.path.basename(ide_file_path)}")
             else:
                 # Ask user if they want to load the IDE file
                 reply = QMessageBox.question(
@@ -194,8 +194,8 @@ def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 3
             for file in os.listdir(img_dir):
                 if file.lower().endswith('.ide'):
                     if auto_load_enabled:
-                        # If auto-loading is enabled, skip both loading and popup
-                        main_window.log_message(f"Skipped IDE file (auto-load disabled): {file}")
+                        # If auto-loading is enabled, skip both loading and popup entirely
+                        main_window.log_message(f"Skipped IDE file (auto-load setting enabled): {file}")
                         break  # Only skip one IDE file
                     else:
                         # Ask user if they want to load this IDE file
