@@ -57,9 +57,10 @@ class SettingsDialog(QDialog): #vers 4
         # Tab widget
         self.tab_widget = QTabWidget()
         
-        # Create 3 tabs only
+        # Create 4 tabs
         self.tab_widget.addTab(self._create_buttons_tab(), "Buttons")
         self.tab_widget.addTab(self._create_gui_tab(), "GUI")
+        self.tab_widget.addTab(self._create_ui_tab(), "UI")
         self.tab_widget.addTab(self._create_fonts_tab(), "Fonts")
         
         layout.addWidget(self.tab_widget)
@@ -272,6 +273,46 @@ class SettingsDialog(QDialog): #vers 4
         
         return widget
     
+    def _create_ui_tab(self): #vers 1
+        """Create UI settings tab for custom vs system UI"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # UI Mode Selection
+        ui_mode_group = QGroupBox("UI Mode")
+        ui_mode_layout = QVBoxLayout(ui_mode_group)
+        
+        self.ui_mode_group = QButtonGroup(self)
+        
+        self.system_ui_radio = QRadioButton("System UI [Settings] [Title] [ ] [_][X]")
+        self.custom_ui_radio = QRadioButton("Custom UI [Settings] Title = Img Factory [Open][Save][Extract][undo][i][*] [ ] [_][X]")
+        
+        self.ui_mode_group.addButton(self.system_ui_radio, 0)
+        self.ui_mode_group.addButton(self.custom_ui_radio, 1)
+        
+        ui_mode_layout.addWidget(self.system_ui_radio)
+        ui_mode_layout.addWidget(self.custom_ui_radio)
+        
+        layout.addWidget(ui_mode_group)
+        
+        # Additional UI settings
+        appearance_group = QGroupBox("Appearance")
+        appearance_layout = QVBoxLayout(appearance_group)
+        
+        self.show_toolbar_check = QCheckBox("Show toolbar buttons")
+        self.show_status_bar_check = QCheckBox("Show status bar")
+        self.show_menu_bar_check = QCheckBox("Show menu bar")
+        
+        appearance_layout.addWidget(self.show_toolbar_check)
+        appearance_layout.addWidget(self.show_status_bar_check)
+        appearance_layout.addWidget(self.show_menu_bar_check)
+        
+        layout.addWidget(appearance_group)
+        
+        layout.addStretch()
+        
+        return widget
+    
     def _create_fonts_tab(self): #vers 4
         """Create fonts settings tab"""
         widget = QWidget()
@@ -378,6 +419,17 @@ class SettingsDialog(QDialog): #vers 4
         
         # Fonts tab
         self.font_scale_slider.setValue(settings.get('font_scale', 100))
+        
+        # UI tab
+        ui_mode = settings.get('ui_mode', 'system')
+        if ui_mode == 'custom':
+            self.custom_ui_radio.setChecked(True)
+        else:
+            self.system_ui_radio.setChecked(True)
+        
+        self.show_toolbar_check.setChecked(settings.get('show_toolbar', True))
+        self.show_status_bar_check.setChecked(settings.get('show_status_bar', True))
+        self.show_menu_bar_check.setChecked(settings.get('show_menu_bar', True))
 
     def _apply_settings(self): #vers 4
         """Apply settings without closing"""
@@ -413,10 +465,21 @@ class SettingsDialog(QDialog): #vers 4
         # Font settings
         settings['font_scale'] = self.font_scale_slider.value()
         
+        # UI settings
+        if self.custom_ui_radio.isChecked():
+            settings['ui_mode'] = 'custom'
+        else:
+            settings['ui_mode'] = 'system'
+        
+        settings['show_toolbar'] = self.show_toolbar_check.isChecked()
+        settings['show_status_bar'] = self.show_status_bar_check.isChecked()
+        settings['show_menu_bar'] = self.show_menu_bar_check.isChecked()
+        
         # Apply changes to main window
         self._apply_theme_to_main_window()
         self._apply_button_display_mode()
         self._apply_tab_heights()
+        self._apply_ui_mode()
         
         # Emit signal
         self.settings_changed.emit()
@@ -547,3 +610,28 @@ class SettingsDialog(QDialog): #vers 4
                 if hasattr(btn, "_original_text"):
                     btn.setText(btn._original_text)
                 btn.setMinimumWidth(80)
+
+    def _apply_ui_mode(self): #vers 1
+        """Apply UI mode settings to main window"""
+        parent = self.parent()
+        if not parent:
+            return
+        
+        # Get the UI mode settings
+        ui_mode = self.app_settings.current_settings.get('ui_mode', 'system')
+        show_toolbar = self.app_settings.current_settings.get('show_toolbar', True)
+        show_status_bar = self.app_settings.current_settings.get('show_status_bar', True)
+        show_menu_bar = self.app_settings.current_settings.get('show_menu_bar', True)
+        
+        # Apply UI mode to main window
+        if hasattr(parent, 'apply_ui_mode'):
+            parent.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
+        else:
+            # Fallback implementation if the method doesn't exist yet
+            if hasattr(parent, 'menuBar') and callable(parent.menuBar):
+                menu_bar = parent.menuBar()
+                menu_bar.setVisible(show_menu_bar)
+            
+            if hasattr(parent, 'statusBar') and callable(parent.statusBar):
+                status_bar = parent.statusBar()
+                status_bar.setVisible(show_status_bar)
