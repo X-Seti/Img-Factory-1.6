@@ -2351,15 +2351,14 @@ class IMGFactoryMenuBar:
             "GUI customization dialog coming soon!"
         )
 
-
-    def _show_app_settings(self): #vers 2
-        """Show IMG Factory-specific settings dialog"""
+    def _show_app_settings(self): #vers 3
+        """Show IMG Factory-specific settings dialog with UI tab"""
         print("GUI Setting Manager")
         try:
             from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QGroupBox, QCheckBox,
                                         QPushButton, QHBoxLayout, QSpinBox, QLabel,
                                         QComboBox, QFontComboBox, QTabWidget, QWidget,
-                                        QMessageBox)
+                                        QMessageBox, QRadioButton, QButtonGroup)
             from PyQt6.QtGui import QFont
             from apps.methods.img_factory_settings import IMGFactorySettings
 
@@ -2377,7 +2376,7 @@ class IMGFactoryMenuBar:
             # Create tabbed interface
             tabs = QTabWidget()
 
-            # ===== TAB 1: General =====
+            # ===== TAB 1: General ===== [Keep existing code]
             general_tab = QWidget()
             general_layout = QVBoxLayout(general_tab)
 
@@ -2433,7 +2432,7 @@ class IMGFactoryMenuBar:
             general_layout.addStretch()
             tabs.addTab(general_tab, "General")
 
-            # ===== TAB 2: Interface =====
+            # ===== TAB 2: Interface ===== [Keep existing code]
             interface_tab = QWidget()
             interface_layout = QVBoxLayout(interface_tab)
 
@@ -2504,7 +2503,6 @@ class IMGFactoryMenuBar:
             font_style_layout.addStretch()
             font_layout.addLayout(font_style_layout)
 
-            # Enable/disable font controls based on checkbox
             def toggle_font_controls(checked):
                 font_combo.setEnabled(checked)
                 font_size_spin.setEnabled(checked)
@@ -2519,7 +2517,58 @@ class IMGFactoryMenuBar:
             interface_layout.addStretch()
             tabs.addTab(interface_tab, "Interface")
 
-            # ===== TAB 3: Advanced =====
+            # ===== TAB 3: UI MODE (NEW) =====
+            ui_tab = QWidget()
+            ui_layout = QVBoxLayout(ui_tab)
+
+            # UI Mode Selection
+            ui_mode_group = QGroupBox("UI Mode")
+            ui_mode_layout = QVBoxLayout(ui_mode_group)
+
+            ui_mode_button_group = QButtonGroup(dialog)
+
+            system_ui_radio = QRadioButton("System UI - [Settings] [Title] [ ] [_] [X]")
+            custom_ui_radio = QRadioButton("Custom UI - [Settings] Img Factory [Open][Save][Extract][Undo][i][*] [ ] [_] [X]")
+
+            ui_mode_button_group.addButton(system_ui_radio, 0)
+            ui_mode_button_group.addButton(custom_ui_radio, 1)
+
+            # Load current setting
+            current_ui_mode = img_settings.get("ui_mode", "system")
+            if current_ui_mode == "custom":
+                custom_ui_radio.setChecked(True)
+            else:
+                system_ui_radio.setChecked(True)
+
+            ui_mode_layout.addWidget(system_ui_radio)
+            ui_mode_layout.addWidget(custom_ui_radio)
+
+            ui_mode_group.setLayout(ui_mode_layout)
+            ui_layout.addWidget(ui_mode_group)
+
+            # Additional UI settings
+            appearance_group = QGroupBox("Appearance")
+            appearance_layout = QVBoxLayout(appearance_group)
+
+            show_toolbar_check = QCheckBox("Show toolbar buttons")
+            show_toolbar_check.setChecked(img_settings.get("show_toolbar", True))
+            appearance_layout.addWidget(show_toolbar_check)
+
+            show_status_bar_check = QCheckBox("Show status bar")
+            show_status_bar_check.setChecked(img_settings.get("show_status_bar", True))
+            appearance_layout.addWidget(show_status_bar_check)
+
+            show_menu_bar_check = QCheckBox("Show menu bar")
+            show_menu_bar_check.setChecked(img_settings.get("show_menu_bar", True))
+            appearance_layout.addWidget(show_menu_bar_check)
+
+            appearance_group.setLayout(appearance_layout)
+            ui_layout.addWidget(appearance_group)
+
+            ui_layout.addStretch()
+            tabs.addTab(ui_tab, "UI")
+
+            # ===== TAB 4: Advanced ===== [Keep existing code]
             advanced_tab = QWidget()
             advanced_layout = QVBoxLayout(advanced_tab)
 
@@ -2588,6 +2637,16 @@ class IMGFactoryMenuBar:
                 img_settings.set("font_bold", font_bold_cb.isChecked())
                 img_settings.set("font_italic", font_italic_cb.isChecked())
 
+                # UI tab (NEW)
+                if custom_ui_radio.isChecked():
+                    img_settings.set("ui_mode", "custom")
+                else:
+                    img_settings.set("ui_mode", "system")
+
+                img_settings.set("show_toolbar", show_toolbar_check.isChecked())
+                img_settings.set("show_status_bar", show_status_bar_check.isChecked())
+                img_settings.set("show_menu_bar", show_menu_bar_check.isChecked())
+
                 # Advanced tab
                 img_settings.set("recent_files_limit", recent_files_spin.value())
                 img_settings.set("auto_backup", auto_backup_cb.isChecked())
@@ -2598,46 +2657,25 @@ class IMGFactoryMenuBar:
             def apply_settings():
                 """Apply settings without closing"""
                 save_settings()
-                # Apply immediate changes if needed
+
+                # Apply UI mode to main window
+                if hasattr(self.main_window, 'apply_ui_mode'):
+                    ui_mode = "custom" if custom_ui_radio.isChecked() else "system"
+                    show_toolbar = show_toolbar_check.isChecked()
+                    show_status_bar = show_status_bar_check.isChecked()
+                    show_menu_bar = show_menu_bar_check.isChecked()
+                    self.main_window.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
+
+                # Apply other immediate changes
                 if hasattr(self.main_window, 'apply_app_settings'):
-                    # Create a new instance to get the saved settings
                     temp_img_settings = IMGFactorySettings()
-                    # Update the main window's reference to the settings
                     if not hasattr(self.main_window, 'img_settings'):
                         self.main_window.img_settings = temp_img_settings
                     else:
-                        # Update the existing settings object with current values
                         self.main_window.img_settings.current_settings = temp_img_settings.current_settings
                     self.main_window.apply_app_settings()
+
                 QMessageBox.information(dialog, "Settings Applied", "Settings have been applied successfully.")
-
-
-            def apply_app_settings():
-                """Apply IMG Factory-specific settings to the application"""
-                from PyQt6.QtWidgets import QApplication
-                from PyQt6.QtGui import QFont
-
-                # Apply font settings if custom font is enabled
-                if img_settings.get("use_custom_font", False):
-                    font = QFont(img_settings.get("font_family", "Segoe UI"))
-                    font.setPointSize(img_settings.get("font_size", 9))
-                    font.setBold(img_settings.get("font_bold", False))
-                    font.setItalic(img_settings.get("font_italic", False))
-                    dialog.setFont(font)
-                    QApplication.instance().setFont(font)
-
-                # Apply window size/position if enabled
-                if img_settings.get("remember_window_size", True):
-                    width = img_settings.get("last_window_width", 1200)
-                    height = img_settings.get("last_window_height", 800)
-                    dialog.resize(width, height)
-
-                if img_settings.get("remember_window_position", True):
-                    x = img_settings.get("last_window_x", -1)
-                    y = img_settings.get("last_window_y", -1)
-                    if x >= 0 and y >= 0:
-                        dialog.move(x, y)
-
 
             def reset_settings():
                 """Reset to defaults"""
@@ -2647,11 +2685,10 @@ class IMGFactoryMenuBar:
                 if reply == QMessageBox.StandardButton.Yes:
                     img_settings.reset_to_defaults()
                     dialog.accept()
-                    # Reopen dialog to show defaults
                     self._show_app_settings()
 
             reset_btn.clicked.connect(reset_settings)
-            ok_btn.clicked.connect(lambda: (save_settings(), dialog.accept()))
+            ok_btn.clicked.connect(lambda: (save_settings(), apply_settings(), dialog.accept()))
             apply_btn.clicked.connect(apply_settings)
             cancel_btn.clicked.connect(dialog.reject)
 
@@ -2667,6 +2704,7 @@ class IMGFactoryMenuBar:
 
         except Exception as e:
             QMessageBox.warning(self.main_window, "Error", f"Failed to open IMG Factory Settings: {str(e)}")
+
 
 
     def apply_app_settings(self):
