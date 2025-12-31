@@ -2407,7 +2407,7 @@ class IMGFactoryMenuBar:
             ide_pref_layout = QHBoxLayout()
             ide_pref_layout.addWidget(QLabel("Preferred IDE tool:"))
             ide_combo = QComboBox()
-            ide_combo.addItems(["TXD Workshop", "IDE Workshop"])
+            ide_combo.addItems(["Text Editor", "IDE Workshop"])
             ide_combo.setCurrentText(img_settings.get("preferred_ide_name", "TXD Workshop"))
             ide_pref_layout.addWidget(ide_combo)
             ide_layout.addLayout(ide_pref_layout)

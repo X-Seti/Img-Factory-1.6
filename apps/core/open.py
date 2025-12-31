@@ -1,4 +1,4 @@
-#this belongs in core/ open.py - Version: 8
+#this belongs in core/ open.py - Version: 9
 # X-Seti - November10 2025 - IMG Factory 1.5 - Open Functions with Tab System
 
 """
@@ -133,7 +133,7 @@ def add_to_recent_files(main_window, file_path):
         
         # Log the action
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"📁 Added to recent files: {os.path.basename(file_path)}")
+            main_window.log_message(f"Added to recent files: {os.path.basename(file_path)}")
         
         # Update the recent files menu if it exists
         if hasattr(main_window, 'menu_bar_system') and hasattr(main_window.menu_bar_system, 'update_recent_files_menu'):
@@ -141,7 +141,7 @@ def add_to_recent_files(main_window, file_path):
             
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error adding to recent files: {str(e)}")
+            main_window.log_message(f"Error adding to recent files: {str(e)}")
 
 
 def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 1
@@ -174,14 +174,16 @@ def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 1
                 editor = open_ide_editor(main_window)
                 if editor:
                     editor.load_ide_file(ide_file_path)
-                    main_window.log_message(f"✅ Loaded IDE file: {os.path.basename(ide_file_path)}")
+                    main_window.log_message(f"Loaded IDE file: {os.path.basename(ide_file_path)}")
                 else:
-                    main_window.log_message(f"❌ Failed to open IDE editor for: {os.path.basename(ide_file_path)}")
+                    main_window.log_message(f"Failed to open IDE editor for: {os.path.basename(ide_file_path)}")
             else:
-                main_window.log_message(f"ℹ️ IDE file available but not loaded: {os.path.basename(ide_file_path)}")
+                main_window.log_message(f"IDE file available but not loaded: {os.path.basename(ide_file_path)}")
         else:
             # Look for any IDE file in the same directory (case-insensitive)
             for file in os.listdir(img_dir):
+                #  load_ide_cb.setChecked(img_settings.get("load_ide_with_img", False))
+
                 if file.lower().endswith('.ide'):
                     # Ask user if they want to load this IDE file
                     reply = QMessageBox.question(
@@ -198,15 +200,15 @@ def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 1
                         editor = open_ide_editor(main_window)
                         if editor:
                             editor.load_ide_file(ide_path)
-                            main_window.log_message(f"✅ Loaded IDE file: {file}")
+                            main_window.log_message(f"Loaded IDE file: {file}")
                         else:
-                            main_window.log_message(f"❌ Failed to open IDE editor for: {file}")
+                            main_window.log_message(f"Failed to open IDE editor for: {file}")
                     else:
-                        main_window.log_message(f"ℹ️ IDE file available but not loaded: {file}")
+                        main_window.log_message(f"IDE file available but not loaded: {file}")
                     break  # Only check for one IDE file
                     
     except Exception as e:
-        main_window.log_message(f"⚠️ Error checking for IDE file: {str(e)}")
+        main_window.log_message(f"Error checking for IDE file: {str(e)}")
 
 
 def _load_col_file(main_window, file_path): #vers 4
