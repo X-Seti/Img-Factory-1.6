@@ -1,10 +1,11 @@
-#this belongs in core/file_dirtree_backend.py - Version: 2
-# X-Seti - August14 2025 - IMG Factory 1.5 - File Browser Backend Classes
+#this belongs in components/File_Editor/file_dirtree_backend.py - Version: 3
+# X-Seti - January03 2025 - IMG Factory 1.6 - File Browser Backend Classes
 
 """
 FILE BROWSER BACKEND CLASSES
 Contains dialog classes and helper functions for the file browser
 Separated from main file to keep under size limits
+NO EMOJIS - Uses SVG icons from imgfactory_svg_icons.py
 """
 
 import os
@@ -16,7 +17,14 @@ from PyQt6.QtWidgets import (
     QTextBrowser, QListWidget, QMessageBox, QGroupBox, QLineEdit
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
+
+# SVG Icons
+from apps.methods.imgfactory_svg_icons import (
+    get_folder_icon, get_file_icon, get_img_file_icon,
+    get_txd_file_icon, get_col_file_icon, get_edit_icon,
+    get_view_icon, get_settings_icon, get_image_icon
+)
 
 ##Methods list -
 # format_file_size_backend
@@ -33,7 +41,7 @@ from PyQt6.QtGui import QFont
 class BrowserSettingsDialog(QDialog):
     """Browser settings dialog"""
     
-    def __init__(self, current_settings, parent=None):
+    def __init__(self, current_settings, parent=None): #vers 1
         super().__init__(parent)
         self.setWindowTitle("Browser Settings")
         self.setModal(True)
@@ -60,16 +68,6 @@ class BrowserSettingsDialog(QDialog):
         self.show_extensions_check.setChecked(self.current_settings.get('show_extensions', True))
         general_layout.addRow("Show file extensions:", self.show_extensions_check)
         
-        self.font_size_spin = QSpinBox()
-        self.font_size_spin.setRange(8, 24)
-        self.font_size_spin.setValue(self.current_settings.get('font_size', 13))
-        general_layout.addRow("Font size:", self.font_size_spin)
-        
-        self.max_depth_spin = QSpinBox()
-        self.max_depth_spin.setRange(1, 10)
-        self.max_depth_spin.setValue(self.current_settings.get('max_depth', 4))
-        general_layout.addRow("Tree depth:", self.max_depth_spin)
-        
         tabs.addTab(general_tab, "General")
         
         # View tab
@@ -77,24 +75,19 @@ class BrowserSettingsDialog(QDialog):
         view_layout = QFormLayout(view_tab)
         
         self.view_mode_combo = QComboBox()
-        self.view_mode_combo.addItems(["tree", "list", "details"])
-        self.view_mode_combo.setCurrentText(self.current_settings.get('view_mode', 'tree'))
-        view_layout.addRow("Default view mode:", self.view_mode_combo)
+        self.view_mode_combo.addItems(["Tree", "List", "Grid"])
+        view_layout.addRow("View mode:", self.view_mode_combo)
         
-        self.sort_mode_combo = QComboBox()
-        self.sort_mode_combo.addItems(["name", "size", "date", "type"])
-        self.sort_mode_combo.setCurrentText(self.current_settings.get('sort_mode', 'name'))
-        view_layout.addRow("Default sort mode:", self.sort_mode_combo)
-        
-        self.auto_expand_check = QCheckBox()
-        self.auto_expand_check.setChecked(self.current_settings.get('auto_expand', True))
-        view_layout.addRow("Auto-expand first level:", self.auto_expand_check)
+        self.font_size_spin = QSpinBox()
+        self.font_size_spin.setRange(8, 16)
+        self.font_size_spin.setValue(self.current_settings.get('font_size', 11))
+        view_layout.addRow("Font size:", self.font_size_spin)
         
         tabs.addTab(view_tab, "View")
         
         layout.addWidget(tabs)
         
-        # Dialog buttons
+        # Buttons
         button_layout = QHBoxLayout()
         
         ok_btn = QPushButton("OK")
@@ -107,82 +100,65 @@ class BrowserSettingsDialog(QDialog):
         
         layout.addLayout(button_layout)
         
-    def get_settings(self): #vers 1
-        """Get updated settings"""
+    def get_settings(self) -> dict: #vers 1
+        """Get current settings from dialog"""
         return {
             'show_hidden': self.show_hidden_check.isChecked(),
             'show_extensions': self.show_extensions_check.isChecked(),
-            'font_size': self.font_size_spin.value(),
-            'view_mode': self.view_mode_combo.currentText(),
-            'sort_mode': self.sort_mode_combo.currentText(),
-            'max_depth': self.max_depth_spin.value(),
-            'auto_expand': self.auto_expand_check.isChecked(),
+            'view_mode': self.view_mode_combo.currentText().lower(),
+            'font_size': self.font_size_spin.value()
         }
 
 
 class FilePropertiesDialog(QDialog):
     """File properties dialog"""
     
-    def __init__(self, file_path, parent=None):
+    def __init__(self, file_path: str, parent=None): #vers 1
         super().__init__(parent)
         self.file_path = file_path
-        self.setWindowTitle(f"Properties - {os.path.basename(file_path)}")
+        self.setWindowTitle("File Properties")
         self.setModal(True)
-        self.setFixedSize(350, 400)
+        self.setFixedSize(450, 400)
         self.setup_ui()
         
     def setup_ui(self): #vers 1
         """Setup properties dialog UI"""
         layout = QVBoxLayout(self)
         
-        # File icon and name
-        header_layout = QHBoxLayout()
+        # File info
+        info_group = QGroupBox("File Information")
+        info_layout = QFormLayout(info_group)
         
-        # Icon (placeholder)
-        icon_label = QLabel("📄")
-        icon_label.setFont(QFont("", 24))
-        header_layout.addWidget(icon_label)
-        
-        # File name
-        name_label = QLabel(os.path.basename(self.file_path))
-        name_label.setFont(QFont("", 12, QFont.Weight.Bold))
-        header_layout.addWidget(name_label)
-        
-        header_layout.addStretch()
-        layout.addLayout(header_layout)
-        
-        # Properties
-        props_group = QGroupBox("Properties")
-        props_layout = QFormLayout(props_group)
-        
-        # Basic info
-        props_layout.addRow("Location:", QLabel(os.path.dirname(self.file_path)))
-        
-        if os.path.isfile(self.file_path):
-            size = os.path.getsize(self.file_path)
-            props_layout.addRow("Size:", QLabel(format_file_size_backend(size)))
+        try:
+            stats = os.stat(self.file_path)
             
-        # Dates
-        if os.path.exists(self.file_path):
-            mod_time = os.path.getmtime(self.file_path)
-            mod_date = datetime.datetime.fromtimestamp(mod_time)
-            props_layout.addRow("Modified:", QLabel(mod_date.strftime('%Y-%m-%d %H:%M:%S')))
+            info_layout.addRow("Name:", QLabel(os.path.basename(self.file_path)))
+            info_layout.addRow("Path:", QLabel(os.path.dirname(self.file_path)))
+            info_layout.addRow("Size:", QLabel(format_file_size_backend(stats.st_size)))
+            info_layout.addRow("Type:", QLabel(get_file_type_display_backend(
+                os.path.splitext(self.file_path)[1])))
             
-        layout.addWidget(props_group)
+            modified_time = datetime.datetime.fromtimestamp(stats.st_mtime)
+            info_layout.addRow("Modified:", QLabel(modified_time.strftime("%Y-%m-%d %H:%M:%S")))
+            
+            info_layout.addRow("Attributes:", QLabel(get_file_attributes_backend(self.file_path)))
+            
+        except Exception as e:
+            info_layout.addRow("Error:", QLabel(str(e)))
         
-        layout.addStretch()
+        layout.addWidget(info_group)
         
         # Close button
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn)
 
+
 class FileSearchDialog(QDialog):
     """File search dialog"""
     
-    def __init__(self, search_path, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
-        self.search_path = search_path
         self.setWindowTitle("Search Files")
         self.setModal(True)
         self.setFixedSize(500, 400)
@@ -192,50 +168,34 @@ class FileSearchDialog(QDialog):
         """Setup search dialog UI"""
         layout = QVBoxLayout(self)
         
-        # Search criteria
-        criteria_group = QGroupBox("Search Criteria")
-        criteria_layout = QFormLayout(criteria_group)
+        # Search input
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(QLabel("Search for:"))
         
-        self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("*.txt, *.py, etc.")
-        criteria_layout.addRow("File name:", self.name_edit)
+        self.search_input = QLineEdit()
+        search_layout.addWidget(self.search_input)
         
-        self.content_edit = QLineEdit()
-        self.content_edit.setPlaceholderText("Text to search for")
-        criteria_layout.addRow("Content:", self.content_edit)
-        
-        layout.addWidget(criteria_group)
-        
-        # Search button
-        search_btn = QPushButton("🔍 Search")
+        search_btn = QPushButton("Search")
         search_btn.clicked.connect(self.perform_search)
-        layout.addWidget(search_btn)
+        search_layout.addWidget(search_btn)
         
-        # Results
-        results_group = QGroupBox("Search Results")
-        results_layout = QVBoxLayout(results_group)
+        layout.addLayout(search_layout)
         
+        # Results list
         self.results_list = QListWidget()
-        results_layout.addWidget(self.results_list)
+        layout.addWidget(self.results_list)
         
-        layout.addWidget(results_group)
-        
-        # Dialog buttons
+        # Close button
         button_layout = QHBoxLayout()
         
-        ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.accept)
-        button_layout.addWidget(ok_btn)
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        button_layout.addWidget(close_btn)
         
         layout.addLayout(button_layout)
         
     def perform_search(self): #vers 1
         """Perform file search"""
-        # Implementation would search for files
         self.results_list.addItem("Search functionality not yet implemented")
 
 
@@ -255,24 +215,25 @@ def format_file_size_backend(size: int) -> str: #vers 1
     return f"{size:.1f} PB"
 
 
-def get_file_type_icon_backend(file_ext: str) -> str: #vers 1
-    """Get icon for file type"""
+def get_file_type_icon_backend(file_ext: str) -> QIcon: #vers 2
+    """Get SVG icon for file type - Returns QIcon, not emoji string"""
     icon_map = {
-        '.img': '💽',
-        '.dir': '📋',
-        '.ide': '📝',
-        '.ipl': '📍',
-        '.dat': '📄',
-        '.dff': '🎭',
-        '.txd': '🖼️',
-        '.col': '🛡️',
-        '.cfg': '⚙️',
-        '.txt': '📝',
-        '.py': '🐍',
-        '.json': '📊',
-        '.log': '📊'
+        '.img': get_img_file_icon,
+        '.dir': get_file_icon,
+        '.ide': get_edit_icon,
+        '.ipl': get_view_icon,
+        '.dat': get_file_icon,
+        '.dff': get_image_icon,
+        '.txd': get_txd_file_icon,
+        '.col': get_col_file_icon,
+        '.cfg': get_settings_icon,
+        '.txt': get_edit_icon,
+        '.py': get_edit_icon,
+        '.json': get_view_icon,
+        '.log': get_view_icon
     }
-    return icon_map.get(file_ext, '📄')
+    icon_func = icon_map.get(file_ext, get_file_icon)
+    return icon_func()
 
 
 def get_file_type_display_backend(file_ext: str) -> str: #vers 1

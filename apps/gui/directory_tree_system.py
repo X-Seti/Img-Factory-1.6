@@ -1,10 +1,11 @@
-#this belongs in gui/directory_tree_system.py - Version: 2
-# X-Seti - August10 2025 - IMG Factory 1.5 - Interactive Directory Tree System
+#this belongs in gui/directory_tree_system.py - Version: 3
+# X-Seti - January03 2025 - IMG Factory 1.6 - Interactive Directory Tree System
 
 """
 INTERACTIVE DIRECTORY TREE SYSTEM
 Replaces the placeholder "Directory Tree" tab with full functionality.
 Parses game directories and provides context-sensitive file operations.
+NO EMOJIS - Uses SVG icons from imgfactory_svg_icons.py
 """
 
 import os
@@ -17,12 +18,24 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon, QFont
 
+# SVG Icons
+from apps.methods.imgfactory_svg_icons import (
+    get_folder_icon, get_file_icon, get_img_file_icon,
+    get_txd_file_icon, get_col_file_icon, get_refresh_icon,
+    get_close_icon, get_checkmark_icon, get_view_icon,
+    get_error_icon, get_search_icon, get_settings_icon,
+    get_edit_icon, get_image_icon, get_copy_icon,
+    get_tree_icon, get_properties_icon
+)
+
 ##Methods list -
 # analyze_directory
 # apply_tree_styling
 # copy_path_to_clipboard
 # create_directory_tree_widget
+# create_simple_directory_tree_widget
 # get_file_context_actions
+# get_file_type_display
 # get_file_type_icon
 # handle_tree_item_click
 # handle_tree_item_double_click
@@ -31,20 +44,25 @@ from PyQt6.QtGui import QAction, QIcon, QFont
 # open_in_explorer
 # parse_game_directory_structure
 # populate_directory_tree
+# populate_tree
+# populate_tree_recursive
 # refresh_tree
+# setup_connections
 # setup_directory_tree_context_menu
 # setup_directory_tree_toolbar
+# setup_ui
 # show_context_menu
+# update_directory_stats
 # update_directory_tree_info
 
 class DirectoryTreeWidget(QWidget):
     """Interactive directory tree widget for game file navigation"""
     
     # Signals
-    file_selected = pyqtSignal(str)  # file_path
-    img_file_requested = pyqtSignal(str)  # img_path
-    text_file_requested = pyqtSignal(str)  # text_path
-    directory_changed = pyqtSignal(str)  # directory_path
+    file_selected = pyqtSignal(str)
+    img_file_requested = pyqtSignal(str)
+    text_file_requested = pyqtSignal(str)
+    directory_changed = pyqtSignal(str)
     
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -84,277 +102,125 @@ class DirectoryTreeWidget(QWidget):
         self.tree.setRootIsDecorated(True)
         self.tree.setIndentation(20)
         
-        # Apply theme-aware styling
+        # Apply theme styling
         self.apply_tree_styling()
         
         tree_layout.addWidget(self.tree)
-        
         splitter.addWidget(tree_widget)
         
-        # Right: Information panel
-        info_widget = QWidget()
+        # Right: File info panel
+        info_widget = QGroupBox("File Information")
         info_layout = QVBoxLayout(info_widget)
-        info_layout.setContentsMargins(5, 5, 5, 5)
         
-        # Selected file info
-        self.selected_file_label = QLabel("No file selected")
-        self.selected_file_label.setFont(QFont("", 10, QFont.Weight.Bold))
-        info_layout.addWidget(self.selected_file_label)
+        self.info_text = QTextEdit()
+        self.info_text.setReadOnly(True)
+        self.info_text.setMaximumHeight(200)
+        info_layout.addWidget(self.info_text)
         
-        self.file_path_label = QLabel("")
-        self.file_path_label.setWordWrap(True)
-        info_layout.addWidget(self.file_path_label)
-        
-        self.file_type_label = QLabel("")
-        info_layout.addWidget(self.file_type_label)
-        
-        self.file_size_label = QLabel("")
-        info_layout.addWidget(self.file_size_label)
-        
-        # Action buttons
-        button_layout = QVBoxLayout()
-        
-        self.load_img_btn = QPushButton("Load IMG")
-        self.load_img_btn.setEnabled(False)
-        self.load_img_btn.clicked.connect(self.load_selected_img)
-        button_layout.addWidget(self.load_img_btn)
-        
-        self.edit_text_btn = QPushButton("📝 Edit Text")
-        self.edit_text_btn.setEnabled(False)
-        self.edit_text_btn.clicked.connect(self.edit_selected_text)
-        button_layout.addWidget(self.edit_text_btn)
-        
-        self.explore_btn = QPushButton("🗂️ Explore")
-        self.explore_btn.setEnabled(False)
-        self.explore_btn.clicked.connect(self.explore_selected)
-        button_layout.addWidget(self.explore_btn)
-        
-        info_layout.addLayout(button_layout)
-        
-        # Directory statistics
-        self.stats_label = QLabel("Directory statistics will appear here")
-        self.stats_label.setWordWrap(True)
-        self.stats_label.setStyleSheet("font-size: 10px; color: #666;")
-        info_layout.addWidget(self.stats_label)
-        
-        info_layout.addStretch()
         splitter.addWidget(info_widget)
+        splitter.setSizes([600, 200])
         
-        # Set splitter proportions (tree 70%, info 30%)
-        splitter.setSizes([700, 300])
+        layout.addWidget(splitter)
         
-    def apply_tree_styling(self): #vers 2
-        """Apply theme-aware styling using IMG Factory theme system"""
-        try:
-            # Get theme colors from main window's app_settings
-            theme_colors = self.get_theme_colors()
-            
-            if not theme_colors:
-                # Fallback to basic styling if no theme available
-                self.apply_fallback_styling()
-                return
-            
-            # Use theme colors for styling
-            tree_style = f"""
-                QTreeWidget {{
-                    background-color: {theme_colors.get('bg_secondary', '#ffffff')};
-                    color: {theme_colors.get('text_primary', '#333333')};
-                    font-size: 13px;
-                    font-family: 'Segoe UI', Arial, sans-serif;
-                    border: 1px solid {theme_colors.get('border', '#cccccc')};
-                    outline: none;
-                    selection-background-color: {theme_colors.get('accent_primary', '#FFECEE')};
-                    alternate-background-color: {theme_colors.get('bg_tertiary', '#f0f0f0')};
-                }}
-                QTreeWidget::item {{
-                    padding: 4px;
-                    border: none;
-                    color: {theme_colors.get('text_primary', '#333333')};
-                    min-height: 20px;
-                }}
-                QTreeWidget::item:hover {{
-                    background-color: {theme_colors.get('button_hover', '#e8e8e8')};
-                    color: {theme_colors.get('text_primary', '#333333')};
-                }}
-                QTreeWidget::item:selected {{
-                    background-color: {theme_colors.get('accent_primary', '#FFECEE')};
-                    color: #ffffff;
-                }}
-                QTreeWidget::item:selected:hover {{
-                    background-color: {theme_colors.get('accent_secondary', '#FFECEE')};
-                    color: #ffffff;
-                }}
-                QTreeWidget::branch {{
-                    background-color: transparent;
-                }}
-                QTreeWidget::branch:hover {{
-                    background-color: {theme_colors.get('button_hover', '#e8e8e8')};
-                }}
-                QHeaderView::section {{
-                    background-color: {theme_colors.get('panel_bg', '#f5f5f5')};
-                    color: {theme_colors.get('text_primary', '#333333')};
-                    padding: 6px;
-                    border: 1px solid {theme_colors.get('border', '#cccccc')};
-                    font-weight: bold;
-                }}
-            """
-            
-            self.tree.setStyleSheet(tree_style)
-            self.log_message(f"🎨 Applied theme styling to directory tree")
-            
-        except Exception as e:
-            self.log_message(f"❌ Error applying theme styling: {str(e)}")
-            self.apply_fallback_styling()
-            
-    def get_theme_colors(self): #vers 1
-        """Get theme colors from main window's app_settings"""
-        try:
-            # Try to get theme colors from parent main window
-            main_window = self.get_main_window()
-            if main_window and hasattr(main_window, 'app_settings'):
-                app_settings = main_window.app_settings
-                
-                # Use the app_settings method to get current theme colors
-                if hasattr(app_settings, 'get_theme_colors'):
-                    return app_settings.get_theme_colors()
-                elif hasattr(app_settings, 'get_theme'):
-                    theme = app_settings.get_theme()
-                    return theme.get('colors', {})
-                    
-            return {}
-            
-        except Exception as e:
-            self.log_message(f"❌ Error getting theme colors: {str(e)}")
-            return {}
-            
-    def get_main_window(self): #vers 1
-        """Get the main window from parent hierarchy"""
-        try:
-            parent = self.parent()
-            while parent:
-                # Look for IMGFactory main window
-                if hasattr(parent, 'app_settings') or 'IMGFactory' in str(type(parent)):
-                    return parent
-                parent = parent.parent()
-            return None
-        except:
-            return None
-            
-    def apply_fallback_styling(self): #vers 1
-        """Apply fallback styling when theme system is not available"""
-        try:
-            # Simple fallback styling
-            fallback_style = """
-                QTreeWidget {
-                    background-color: #fafafa;
-                    color: #333333;
-                    font-size: 13px;
-                    font-family: 'Segoe UI', Arial, sans-serif;
-                    border: 1px solid #cccccc;
-                    outline: none;
-                    selection-background-color: #FFECEE;
-                    alternate-background-color: #f0f0f0;
-                }
-                QTreeWidget::item {
-                    padding: 4px;
-                    border: none;
-                    min-height: 20px;
-                }
-                QTreeWidget::item:hover {
-                    background-color: #e8e8e8;
-                }
-                QTreeWidget::item:selected {
-                    background-color: #FFECEE;
-                    color: #ffffff;
-                }
-                QHeaderView::section {
-                    background-color: #f5f5f5;
-                    color: #333333;
-                    padding: 6px;
-                    border: 1px solid #cccccc;
-                    font-weight: bold;
-                }
-            """
-            
-            self.tree.setStyleSheet(fallback_style)
-            self.log_message("🎨 Applied fallback styling to directory tree")
-            
-        except Exception as e:
-            self.log_message(f"❌ Error applying fallback styling: {str(e)}")
+        # Path label at bottom
+        self.path_label = QLabel("No directory loaded")
+        self.path_label.setStyleSheet("padding: 5px; background-color: #2a2a2a; color: #ffffff;")
+        layout.addWidget(self.path_label)
         
     def setup_connections(self): #vers 1
         """Setup signal connections"""
         pass
         
     def create_toolbar(self): #vers 1
-        """Create directory tree toolbar"""
-        toolbar = QWidget()
-        layout = QHBoxLayout(toolbar)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Game root button
-        self.set_root_btn = QPushButton("🎮 Set Game Root")
-        self.set_root_btn.clicked.connect(self.set_game_root)
-        layout.addWidget(self.set_root_btn)
+        """Create toolbar for directory navigation"""
+        toolbar = QToolBar()
+        toolbar.setMovable(False)
         
         # Refresh button
-        self.refresh_btn = QPushButton("🔄 Refresh")
-        self.refresh_btn.clicked.connect(self.refresh_tree)
-        layout.addWidget(self.refresh_btn)
+        refresh_action = QAction("Refresh", self)
+        refresh_action.setIcon(get_refresh_icon())
+        refresh_action.triggered.connect(self.refresh_tree)
+        toolbar.addAction(refresh_action)
         
-        # Path display
-        self.path_label = QLabel("No root set")
-        self.path_label.setStyleSheet("font-style: italic; color: #666;")
-        layout.addWidget(self.path_label)
+        toolbar.addSeparator()
         
-        layout.addStretch()
+        # Search field
+        toolbar.addWidget(QLabel(" Search: "))
+        self.search_field = QLineEdit()
+        self.search_field.setPlaceholderText("Filter files...")
+        self.search_field.setMaximumWidth(200)
+        toolbar.addWidget(self.search_field)
+        
         return toolbar
         
-    def set_game_root(self): #vers 1
-        """Set game root directory"""
-        try:
-            from PyQt6.QtWidgets import QFileDialog
-            directory = QFileDialog.getExistingDirectory(
-                self, "Select GTA Game Root Directory"
-            )
-            
-            if directory:
-                self.game_root = directory
-                self.current_root = directory
-                self.path_label.setText(f"Root: {directory}")
-                self.populate_tree(directory)
-                self.log_message(f"🎮 Game root set: {directory}")
-                
-        except Exception as e:
-            self.log_message(f"❌ Error setting game root: {str(e)}")
-            
+    def apply_tree_styling(self): #vers 1
+        """Apply theme-aware styling to tree"""
+        # Detect if dark theme
+        if self.is_dark_theme():
+            stylesheet = """
+                QTreeWidget {
+                    background-color: #1e1e1e;
+                    color: #ffffff;
+                    border: 1px solid #3a3a3a;
+                }
+                QTreeWidget::item:selected {
+                    background-color: #3a7ca8;
+                }
+                QTreeWidget::item:hover {
+                    background-color: #2a2a2a;
+                }
+            """
+        else:
+            stylesheet = """
+                QTreeWidget {
+                    background-color: #ffffff;
+                    color: #000000;
+                    border: 1px solid #cccccc;
+                }
+                QTreeWidget::item:selected {
+                    background-color: #0078d7;
+                    color: #ffffff;
+                }
+                QTreeWidget::item:hover {
+                    background-color: #e5f3ff;
+                }
+            """
+        self.tree.setStyleSheet(stylesheet)
+        
+    def is_dark_theme(self) -> bool: #vers 1
+        """Detect if dark theme is active"""
+        # Check background color
+        bg_color = self.palette().color(self.backgroundRole())
+        return bg_color.lightness() < 128
+        
     def populate_tree(self, root_path: str): #vers 1
-        """Populate directory tree"""
+        """Populate tree with directory structure"""
         try:
             self.tree.clear()
+            self.current_root = root_path
             
-            if not os.path.exists(root_path):
-                self.log_message(f"❌ Directory does not exist: {root_path}")
-                return
-                
             # Create root item
             root_item = QTreeWidgetItem(self.tree)
             root_item.setText(0, os.path.basename(root_path) or root_path)
             root_item.setData(0, Qt.ItemDataRole.UserRole, root_path)
+            root_item.setIcon(0, get_folder_icon())
             
-            # Populate children
-            self.populate_tree_recursive(root_item, root_path, max_depth=3)
+            # Populate recursively
+            self.populate_tree_recursive(root_item, root_path)
             
             # Expand root
             root_item.setExpanded(True)
             
-            # Update stats
+            # Update path label
+            self.path_label.setText(f"Root: {root_path}")
+            
+            # Update statistics
             self.update_directory_stats(root_path)
             
-            self.log_message(f"🌳 Directory tree populated: {root_path}")
+            self.log_message(f"Directory tree populated: {root_path}")
             
         except Exception as e:
-            self.log_message(f"❌ Error populating tree: {str(e)}")
+            self.log_message(f"Error populating tree: {str(e)}")
             
     def populate_tree_recursive(self, parent_item: QTreeWidgetItem, 
                                dir_path: str, max_depth: int = 2, 
@@ -372,40 +238,40 @@ class DirectoryTreeWidget(QWidget):
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, item_path)
                 
                 if os.path.isdir(item_path):
-                    # Directory icon
-                    tree_item.setText(0, f"📁 {item}")
+                    # Directory
+                    tree_item.setIcon(0, get_folder_icon())
                     
                     # Recursively add subdirectories
                     self.populate_tree_recursive(tree_item, item_path, 
                                                max_depth, current_depth + 1)
                 else:
-                    # File icon based on extension
+                    # File
                     file_ext = os.path.splitext(item)[1].lower()
                     icon = self.get_file_type_icon(file_ext)
-                    tree_item.setText(0, f"{icon} {item}")
+                    tree_item.setIcon(0, icon)
                     
         except PermissionError:
-            # Skip directories we can't access
             pass
         except Exception as e:
-            self.log_message(f"❌ Error reading directory: {str(e)}")
+            self.log_message(f"Error reading directory: {str(e)}")
             
-    def get_file_type_icon(self, file_ext: str) -> str: #vers 1
-        """Get icon for file type"""
+    def get_file_type_icon(self, file_ext: str) -> QIcon: #vers 2
+        """Get SVG icon for file type"""
         icon_map = {
-            '.img': '💽',
-            '.dir': '📋',
-            '.ide': '📝',
-            '.ipl': '📍',
-            '.dat': '📄',
-            '.dff': '🎭',
-            '.txd': '🖼️',
-            '.col': '🛡️',
-            '.cfg': '⚙️',
-            '.txt': '📝',
-            '.log': '📊'
+            '.img': get_img_file_icon,
+            '.dir': get_file_icon,
+            '.ide': get_edit_icon,
+            '.ipl': get_view_icon,
+            '.dat': get_file_icon,
+            '.dff': get_image_icon,
+            '.txd': get_txd_file_icon,
+            '.col': get_col_file_icon,
+            '.cfg': get_settings_icon,
+            '.txt': get_edit_icon,
+            '.log': get_view_icon
         }
-        return icon_map.get(file_ext, '📄')
+        icon_func = icon_map.get(file_ext, get_file_icon)
+        return icon_func()
         
     def get_file_type_display(self, file_ext: str) -> str: #vers 1
         """Get display name for file type"""
@@ -422,199 +288,67 @@ class DirectoryTreeWidget(QWidget):
             '.txt': 'Text File',
             '.log': 'Log File'
         }
-        return type_map.get(file_ext, 'Unknown File')
-        
-    def format_file_size(self, size: int) -> str: #vers 1
-        """Format file size for display"""
-        for unit in ['B', 'KB', 'MB', 'GB']:
-            if size < 1024:
-                return f"{size:.1f} {unit}"
-            size /= 1024
-        return f"{size:.1f} TB"
+        return type_map.get(file_ext, 'File')
         
     def handle_tree_item_click(self, item: QTreeWidgetItem, column: int): #vers 1
         """Handle tree item click"""
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
-        if file_path:
+        
+        if os.path.isfile(file_path):
+            # Update info panel
+            file_size = os.path.getsize(file_path)
+            file_ext = os.path.splitext(file_path)[1]
+            file_type = self.get_file_type_display(file_ext)
+            
+            info = f"File: {os.path.basename(file_path)}"
+            info += f"Path: {file_path}"
+            info += f"Type: {file_type}"
+            info += f"Size: {file_size:,} bytes"
+            
+            self.info_text.setText(info)
             self.file_selected.emit(file_path)
-            self.update_file_info(file_path)
             
     def handle_tree_item_double_click(self, item: QTreeWidgetItem, column: int): #vers 1
-        """Handle tree item double click"""
+        """Handle tree item double-click"""
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
-        if file_path and os.path.isfile(file_path):
-            file_ext = os.path.splitext(file_path)[1].lower()
-            
-            if file_ext == '.img':
-                self.img_file_requested.emit(file_path)
-            elif file_ext in ['.ide', '.ipl', '.dat', '.txt']:
-                self.text_file_requested.emit(file_path)
-                
-    def load_selected_img(self): #vers 1
-        """Load selected IMG file"""
-        try:
-            selection = self.tree.currentItem()
-            if selection:
-                file_path = selection.data(0, Qt.ItemDataRole.UserRole)
-                if file_path and file_path.lower().endswith('.img'):
-                    self.img_file_requested.emit(file_path)
-                    
-        except Exception as e:
-            self.log_message(f"❌ Error loading IMG: {str(e)}")
-            
-    def edit_selected_text(self): #vers 1
-        """Edit selected text file"""
-        try:
-            selection = self.tree.currentItem()
-            if selection:
-                file_path = selection.data(0, Qt.ItemDataRole.UserRole)
-                if file_path:
-                    file_ext = os.path.splitext(file_path)[1].lower()
-                    if file_ext in ['.ide', '.ipl', '.dat', '.txt']:
-                        self.text_file_requested.emit(file_path)
-                        
-        except Exception as e:
-            self.log_message(f"❌ Error editing text: {str(e)}")
-            
-    def explore_selected(self): #vers 1
-        """Open selected path in system explorer"""
-        try:
-            selection = self.tree.currentItem()
-            if selection:
-                file_path = selection.data(0, Qt.ItemDataRole.UserRole)
-                if file_path:
-                    self.open_in_explorer(file_path)
-                    
-        except Exception as e:
-            self.log_message(f"❌ Error exploring: {str(e)}")
-            
-    def update_file_info(self, file_path: str): #vers 1
-        """Update file information display"""
-        try:
-            self.selected_file_label.setText(f"{os.path.basename(file_path)}")
-            self.file_path_label.setText(f"Path: {file_path}")
-            
-            if os.path.isfile(file_path):
-                # File info
-                size = os.path.getsize(file_path)
-                self.file_size_label.setText(f"Size: {self.format_file_size(size)}")
-                
-                file_ext = os.path.splitext(file_path)[1].lower()
-                self.file_type_label.setText(f"Type: {self.get_file_type_display(file_ext)}")
-                
-                # Enable appropriate buttons
-                self.load_img_btn.setEnabled(file_ext == '.img')
-                self.edit_text_btn.setEnabled(file_ext in ['.ide', '.ipl', '.dat'])
-                self.explore_btn.setEnabled(True)
-                
-            else:
-                # Directory info
-                self.file_type_label.setText("Type: 📁 Directory")
-                self.file_size_label.setText("Size: Directory")
-                
-                self.load_img_btn.setEnabled(False)
-                self.edit_text_btn.setEnabled(False)
-                self.explore_btn.setEnabled(True)
-                
-        except Exception as e:
-            self.log_message(f"❌ Error updating file info: {str(e)}")
-            
-    def update_directory_stats(self, dir_path: str): #vers 1
-        """Update directory statistics"""
-        try:
-            stats = self.analyze_directory(dir_path)
-            
-            stats_text = f"""
-📊 Directory Analysis:
-• IMG Files: {stats['img_files']}
-• Text Files: {stats['text_files']} (IDE: {stats['ide_files']}, IPL: {stats['ipl_files']}, DAT: {stats['dat_files']})
-• Model Files: {stats['dff_files']} DFF
-• Texture Files: {stats['txd_files']} TXD
-• Collision Files: {stats['col_files']} COL
-• Total Files: {stats['total_files']}
-• Total Size: {self.format_file_size(stats['total_size'])}
-            """.strip()
-            
-            self.stats_label.setText(stats_text)
-            
-        except Exception as e:
-            self.stats_label.setText(f"Error analyzing directory: {str(e)}")
-            
-    def analyze_directory(self, dir_path: str) -> Dict[str, int]: #vers 1
-        """Analyze directory contents"""
-        stats = {
-            'img_files': 0, 'ide_files': 0, 'ipl_files': 0, 'dat_files': 0,
-            'dff_files': 0, 'txd_files': 0, 'col_files': 0, 'text_files': 0,
-            'total_files': 0, 'total_size': 0
-        }
-        
-        try:
-            for root, dirs, files in os.walk(dir_path):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    file_ext = os.path.splitext(file)[1].lower()
-                    
-                    stats['total_files'] += 1
-                    
-                    try:
-                        stats['total_size'] += os.path.getsize(file_path)
-                    except:
-                        pass
-                    
-                    if file_ext == '.img':
-                        stats['img_files'] += 1
-                    elif file_ext == '.ide':
-                        stats['ide_files'] += 1
-                        stats['text_files'] += 1
-                    elif file_ext == '.ipl':
-                        stats['ipl_files'] += 1
-                        stats['text_files'] += 1
-                    elif file_ext == '.dat':
-                        stats['dat_files'] += 1
-                        stats['text_files'] += 1
-                    elif file_ext == '.dff':
-                        stats['dff_files'] += 1
-                    elif file_ext == '.txd':
-                        stats['txd_files'] += 1
-                    elif file_ext == '.col':
-                        stats['col_files'] += 1
-                        
-        except Exception as e:
-            self.log_message(f"❌ Error analyzing directory: {str(e)}")
-            
-        return stats
-        
-    def show_context_menu(self, position): #vers 1
-        """Show context menu for tree item"""
-        item = self.tree.itemAt(position)
-        if not item:
-            return
-            
-        file_path = item.data(0, Qt.ItemDataRole.UserRole)
-        if not file_path:
-            return
-            
-        menu = QMenu(self)
         
         if os.path.isfile(file_path):
             file_ext = os.path.splitext(file_path)[1].lower()
             
             if file_ext == '.img':
-                load_action = menu.addAction("Load IMG File")
-                load_action.triggered.connect(lambda: self.img_file_requested.emit(file_path))
+                self.img_file_requested.emit(file_path)
+            else:
+                self.text_file_requested.emit(file_path)
                 
-            elif file_ext in ['.ide', '.ipl', '.dat', '.txt']:
-                edit_action = menu.addAction("📝 Edit Text File")
-                edit_action.triggered.connect(lambda: self.text_file_requested.emit(file_path))
-                
-        # Common actions
+    def show_context_menu(self, position): #vers 1
+        """Show context menu for selected item"""
+        item = self.tree.itemAt(position)
+        if not item:
+            return
+            
+        file_path = item.data(0, Qt.ItemDataRole.UserRole)
+        
+        menu = QMenu(self)
+        
+        # Open in explorer
+        explore_action = QAction("Open in Explorer", self)
+        explore_action.setIcon(get_folder_icon())
+        explore_action.triggered.connect(lambda: self.open_in_explorer(file_path))
+        menu.addAction(explore_action)
+        
+        # Copy path
+        copy_path_action = QAction("Copy Path", self)
+        copy_path_action.setIcon(get_copy_icon())
+        copy_path_action.triggered.connect(lambda: self.copy_path_to_clipboard(file_path))
+        menu.addAction(copy_path_action)
+        
         menu.addSeparator()
         
-        explore_action = menu.addAction("🗂️ Open in Explorer")
-        explore_action.triggered.connect(lambda: self.open_in_explorer(file_path))
-        
-        copy_path_action = menu.addAction("📋 Copy Path")
-        copy_path_action.triggered.connect(lambda: self.copy_path_to_clipboard(file_path))
+        # Properties
+        props_action = QAction("Properties", self)
+        props_action.setIcon(get_properties_icon())
+        props_action.triggered.connect(lambda: self.show_file_properties(file_path))
+        menu.addAction(props_action)
         
         menu.exec(self.tree.mapToGlobal(position))
         
@@ -627,13 +361,13 @@ class DirectoryTreeWidget(QWidget):
             system = platform.system()
             if system == "Windows":
                 subprocess.run(["explorer", "/select,", file_path])
-            elif system == "Darwin":  # macOS
+            elif system == "Darwin":
                 subprocess.run(["open", "-R", file_path])
-            else:  # Linux
+            else:
                 subprocess.run(["xdg-open", os.path.dirname(file_path)])
                 
         except Exception as e:
-            self.log_message(f"❌ Error opening explorer: {str(e)}")
+            self.log_message(f"Error opening explorer: {str(e)}")
             
     def copy_path_to_clipboard(self, file_path: str): #vers 1
         """Copy file path to clipboard"""
@@ -641,37 +375,63 @@ class DirectoryTreeWidget(QWidget):
             from PyQt6.QtWidgets import QApplication
             clipboard = QApplication.clipboard()
             clipboard.setText(file_path)
-            self.log_message(f"📋 Path copied: {file_path}")
+            self.log_message(f"Path copied: {file_path}")
         except Exception as e:
-            self.log_message(f"❌ Error copying path: {str(e)}")
+            self.log_message(f"Error copying path: {str(e)}")
             
+
+    def show_file_properties(self, file_path: str): #vers 1
+        """Show file properties dialog"""
+        try:
+            stats = os.stat(file_path)
+            info = f"File: {os.path.basename(file_path)}\n"
+            info += f"Full Path: {file_path}\n"
+            info += f"Size: {stats.st_size:,} bytes\n"
+
+            QMessageBox.information(self, "File Properties", info)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not get properties: {str(e)}")
+
+
     def refresh_tree(self): #vers 1
         """Refresh the directory tree"""
         if self.current_root:
             self.populate_tree(self.current_root)
-            self.log_message("🔄 Directory tree refreshed")
+            self.log_message("Directory tree refreshed")
         else:
-            self.log_message("⚠️ No directory to refresh")
+            self.log_message("No directory to refresh")
             
-    def log_message(self, message: str): #vers 1
-        """Log message (to be connected to main window)"""
-        print(f"[DirectoryTree] {message}")
+    def update_directory_stats(self, root_path: str): #vers 1
+        """Update directory statistics"""
+        try:
+            file_count = 0
+            dir_count = 0
+
+            for root, dirs, files in os.walk(root_path):
+                file_count += len(files)
+                dir_count += len(dirs)
+
+            stats = f"Directories: {dir_count} | Files: {file_count}"
+            self.log_message(stats)
+
+        except Exception as e:
+            self.log_message(f"Error calculating stats: {str(e)}")
 
 
-def create_directory_tree_widget(main_window): #vers 3
+def create_directory_tree_widget(main_window): #vers 4
     """Create comprehensive file browser widget for main window"""
     try:
         # Import the new comprehensive file browser
-        from apps.core.file_dirtree_browser import create_file_browser_widget
+        from apps.components.File_Editor.file_dirtree_browser import create_file_browser_widget
         
         # Create the comprehensive file browser instead of simple tree
         browser_widget = create_file_browser_widget(main_window)
         
         if not browser_widget:
-            main_window.log_message("❌ Failed to create file browser widget")
+            main_window.log_message("Failed to create file browser widget")
             return None
         
-        # Connect signals to main window - FIXED: Use correct method names
+        # Connect signals to main window
         if hasattr(main_window, 'load_file_unified'):
             browser_widget.file_opened.connect(main_window.load_file_unified)
         elif hasattr(main_window, 'open_img_file'):
@@ -681,48 +441,47 @@ def create_directory_tree_widget(main_window): #vers 3
             def load_file_wrapper(file_path):
                 try:
                     main_window.log_message(f"Loading file from browser: {file_path}")
-                    # Try different loading methods
                     if hasattr(main_window, '_load_img_file_in_new_tab'):
                         main_window._load_img_file_in_new_tab(file_path)
                     elif hasattr(main_window, 'load_file_unified'):
                         main_window.load_file_unified(file_path)
                     else:
-                        main_window.log_message(f"❌ No suitable file loading method found")
+                        main_window.log_message(f"No suitable file loading method found")
                 except Exception as e:
-                    main_window.log_message(f"❌ Error loading file from browser: {str(e)}")
+                    main_window.log_message(f"Error loading file from browser: {str(e)}")
             
             browser_widget.file_opened.connect(load_file_wrapper)
         
         # Connect directory change signal
         browser_widget.directory_changed.connect(
-            lambda path: main_window.log_message(f"📁 Directory changed: {path}")
+            lambda path: main_window.log_message(f"Directory changed: {path}")
         )
         
         # Set up initial directory if game root is available
         if hasattr(main_window, 'game_root') and main_window.game_root:
             browser_widget.browse_directory(main_window.game_root)
         
-        main_window.log_message("✅ Comprehensive file browser widget created")
+        main_window.log_message("Comprehensive file browser widget created")
         return browser_widget
         
     except ImportError as e:
-        main_window.log_message(f"❌ File browser import failed: {str(e)}")
-        main_window.log_message("⚠️ Falling back to simple directory tree")
+        main_window.log_message(f"File browser import failed: {str(e)}")
+        main_window.log_message("Falling back to simple directory tree")
         
         # Fallback to simple tree if comprehensive browser fails
         return create_simple_directory_tree_widget(main_window)
         
     except Exception as e:
-        main_window.log_message(f"❌ Error creating file browser: {str(e)}")
+        main_window.log_message(f"Error creating file browser: {str(e)}")
         return None
 
 
-def create_simple_directory_tree_widget(main_window): #vers 1
+def create_simple_directory_tree_widget(main_window): #vers 2
     """Create simple directory tree widget as fallback"""
     try:
         tree_widget = DirectoryTreeWidget(main_window)
         
-        # Connect signals to main window - FIXED: Use correct method names
+        # Connect signals to main window
         if hasattr(main_window, 'load_file_unified'):
             tree_widget.img_file_requested.connect(main_window.load_file_unified)
         elif hasattr(main_window, 'open_img_file'):
@@ -732,15 +491,14 @@ def create_simple_directory_tree_widget(main_window): #vers 1
             def load_file_wrapper(file_path):
                 try:
                     main_window.log_message(f"Loading file from directory tree: {file_path}")
-                    # Try different loading methods
                     if hasattr(main_window, '_load_img_file_in_new_tab'):
                         main_window._load_img_file_in_new_tab(file_path)
                     elif hasattr(main_window, 'load_file_unified'):
                         main_window.load_file_unified(file_path)
                     else:
-                        main_window.log_message(f"❌ No suitable file loading method found")
+                        main_window.log_message(f"No suitable file loading method found")
                 except Exception as e:
-                    main_window.log_message(f"❌ Error loading file from directory tree: {str(e)}")
+                    main_window.log_message(f"Error loading file from directory tree: {str(e)}")
             
             tree_widget.img_file_requested.connect(load_file_wrapper)
         
@@ -750,20 +508,20 @@ def create_simple_directory_tree_widget(main_window): #vers 1
         
         tree_widget.log_message = main_window.log_message
         
-        main_window.log_message("✅ Simple directory tree widget created (fallback)")
+        main_window.log_message("Simple directory tree widget created (fallback)")
         return tree_widget
         
     except Exception as e:
-        main_window.log_message(f"❌ Error creating simple directory tree: {str(e)}")
+        main_window.log_message(f"Error creating simple directory tree: {str(e)}")
         return None
 
 
-def integrate_directory_tree_system(main_window): #vers 3
+def integrate_directory_tree_system(main_window): #vers 4
     """Replace placeholder with functional directory tree - PRESERVE TAB STRUCTURE"""
     try:
         # Find the directory tree tab in gui_layout
         if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'tab_widget'):
-            main_window.log_message("❌ Tab widget not found for directory tree integration")
+            main_window.log_message("Tab widget not found for directory tree integration")
             return False
 
         tab_widget = main_window.gui_layout.tab_widget
@@ -778,17 +536,17 @@ def integrate_directory_tree_system(main_window): #vers 3
                     directory_tab_index = i
                     break
         else:
-            main_window.log_message("❌ Tab widget is None or has no count method")
+            main_window.log_message("Tab widget is None or has no count method")
             return False
 
         if directory_tab_index == -1:
-            main_window.log_message("❌ Directory Tree tab not found")
+            main_window.log_message("Directory Tree tab not found")
             return False
 
         # Get the existing tab widget at this index (to replace its contents)
         existing_tab = tab_widget.widget(directory_tab_index)
         if not existing_tab:
-            main_window.log_message("❌ Directory Tree tab widget not found")
+            main_window.log_message("Directory Tree tab widget not found")
             return False
 
         # Clear the existing tab contents but keep the tab
@@ -812,48 +570,47 @@ def integrate_directory_tree_system(main_window): #vers 3
         # Add the directory tree to the existing tab (replace placeholder)
         existing_layout.addWidget(directory_tree)
 
-        # Update the tab text with icon
-        tab_widget.setTabText(directory_tab_index, "🌳 Directory Tree")
+        # Update the tab text and icon
+        tab_widget.setTabText(directory_tab_index, "Directory Tree")
+        tab_widget.setTabIcon(directory_tab_index, get_tree_icon())
 
         # Store reference for later use
         main_window.directory_tree = directory_tree
 
-        main_window.log_message("✅ Directory tree system integrated (tab structure preserved)")
-        main_window.log_message("🌳 Use 'Set Game Root' in File menu to browse GTA directories")
+        main_window.log_message("Directory tree system integrated (tab structure preserved)")
+        main_window.log_message("Use 'Set Game Root' in File menu to browse GTA directories")
 
         return True
 
     except Exception as e:
-        main_window.log_message(f"❌ Error integrating directory tree: {str(e)}")
+        main_window.log_message(f"Error integrating directory tree: {str(e)}")
         return False
 
 
-def update_directory_tree_info(main_window): #vers 1
-    """Update directory tree info when game root is set"""
-    try:
-        if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'tab_widget'):
+    def update_directory_tree_info(main_window): #vers 1
+        """Update directory tree info when game root is set"""
+        try:
+            if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'tab_widget'):
+                return False
+
+            tab_widget = main_window.gui_layout.tab_widget
+            directory_tab = tab_widget.widget(1)
+
+            if directory_tab:
+                text_widgets = directory_tab.findChildren(QTextEdit)
+                if text_widgets:
+                    text_widget = text_widgets[0]
+                    if hasattr(main_window, 'game_root'):
+                        text_widget.setText(f"Game Root: {main_window.game_root}\n\nDetected: GTA SA installation\n\nDirectory tree functionality will be implemented here.\n\nFor now, you can:\n• Load IMG files via File → Open\n• Use the project folder system for exports")
+                    else:
+                        text_widget.setText("No game root set.\n\nUse File → Set Game Root Folder to select your GTA installation.")
+
+            return True
+
+        except Exception as e:
+            if hasattr(main_window, 'log_message'):
+                main_window.log_message(f"Error updating directory tree: {str(e)}")
             return False
-            
-        tab_widget = main_window.gui_layout.tab_widget
-        directory_tab = tab_widget.widget(1)  # Directory tree is tab 1
-        
-        if directory_tab:
-            # Find the text widget and update it
-            text_widgets = directory_tab.findChildren(QTextEdit)
-            if text_widgets:
-                text_widget = text_widgets[0]
-                if hasattr(main_window, 'game_root'):
-                    text_widget.setText(f"Game Root: {main_window.game_root}\n\nDetected: GTA SA installation\n\nDirectory tree functionality will be implemented here.\n\nFor now, you can:\n• Load IMG files via File → Open\n• Use the project folder system for exports")
-                else:
-                    text_widget.setText("No game root set.\n\nUse File → Set Game Root Folder to select your GTA installation.")
-                    
-        return True
-        
-    except Exception as e:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error updating directory tree: {str(e)}")
-        return False
-
 
 __all__ = [
     'DirectoryTreeWidget',
