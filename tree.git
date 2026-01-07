@@ -20,8 +20,7 @@
 │   │   │   ├── dolphin_dialog.py
 │   │   │   └── highlight_status_dialog.py
 │   │   ├── File_Editor
-│   │   │   ├── file_dirtree_backend.py
-│   │   │   ├── file_dirtree_browser.py
+│   │   │   ├── directory_tree_browser.py
 │   │   │   └── gta_file_editors.py
 │   │   ├── Hex_Editor
 │   │   │   ├── Hex_Editor_Panel.py
@@ -186,13 +185,11 @@
 │   │   ├── col_tab_css_theme.css
 │   │   ├── col_workshop_dialogs.py
 │   │   ├── cross_platform_theme.py
-│   │   ├── directory_tree_system.py
 │   │   ├── file_menu_integration.py
 │   │   ├── gui_backend.py
 │   │   ├── gui_context.py
 │   │   ├── gui_infobar.py
 │   │   ├── gui_layout.py
-│   │   ├── gui_layout.py-old
 │   │   ├── gui_menu.py
 │   │   ├── gui_settings.py
 │   │   ├── ide_dialog.py
@@ -250,6 +247,7 @@
 │   │   ├── img_export_functions.py
 │   │   ├── img_factory_settings.py
 │   │   ├── imgfactory_svg_icons.py
+│   │   ├── imgfactory_ui_settings.py
 │   │   ├── img_import_functions.py
 │   │   ├── img_integration.py
 │   │   ├── img_parsing_functions.py
@@ -443,4 +441,4 @@
 ├── TODO.md
 └── tree.git
 
-35 directories, 409 files
+35 directories, 407 files
