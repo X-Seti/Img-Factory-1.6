@@ -415,7 +415,6 @@ def handle_auto_detect_game(main_window): #vers 3
         override_enabled = getattr(main_window, 'app_settings', None) and main_window.app_settings.current_settings.get('gta_root_override_enabled', False) if hasattr(main_window, 'app_settings') else False
         
         if not detected_info and override_enabled:
-            # If override is enabled but no standard installations found, allow user to set any folder
             from PyQt6.QtWidgets import QMessageBox
             result = QMessageBox.question(
                 main_window,
