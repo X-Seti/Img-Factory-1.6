@@ -19,7 +19,7 @@
     "BUTTON_ACTIONS",
     "FILE_OPERATIONS"
   ],
-  "working_gta_folder": "/home/x2/.steam/steam/steamapps/common",
+  "working_gta_folder": "/home/x2/Projects/GTASOLBeta70.5(FireBull)",
   "assists_folder": "/home/x2/Desktop/Assists",
   "textures_folder": "/home/x2/Desktop/Textures",
   "collisions_folder": "/home/x2/Desktop/Collisions",
@@ -65,5 +65,6 @@
   "table_font_size": 9,
   "table_font_weight": "Normal",
   "tooltip_font_size": 8,
-  "tooltip_font_weight": "Normal"
+  "tooltip_font_weight": "Normal",
+  "gta_root_override_enabled": 2
 }

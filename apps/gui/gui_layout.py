@@ -1133,37 +1133,113 @@ class IMGFactoryGUILayout:
         return short_map.get(localized_label, localized_label)
 
 
-    def create_main_ui_with_splitters(self, main_layout): #vers 3
-        """Create the main UI with correct 3-section layout"""
-        # Create main horizontal splitter
+    def create_main_ui_with_splitters(self, main_layout): #vers 4
+        """Create the main UI with 3-panel layout similar to COL Workshop"""
+        # Create main horizontal splitter for 3 panels
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Left side - vertical layout with 3 sections
-        left_panel = self._create_left_three_section_panel()
+        # LEFT: File list panel (like COL Workshop)
+        left_panel = self._create_left_file_list_panel()
         
-        # Right side - control buttons with pastel colors
+        # MIDDLE: File window (table with sub-tabs) - main content area
+        middle_panel = self._create_middle_file_window_panel()
+        
+        # RIGHT: Control buttons with pastel colors
         right_panel = self.create_right_panel_with_pastel_buttons()
         
         # Add panels to splitter
         self.main_splitter.addWidget(left_panel)
+        self.main_splitter.addWidget(middle_panel)
         self.main_splitter.addWidget(right_panel)
         
-        # Set splitter proportions and force constraints
-        self.main_splitter.setSizes([1000, 280])  # Fixed right panel to 280px
+        # Set splitter proportions (similar to COL Workshop: 2:3:2 ratio)
+        self.main_splitter.setSizes([200, 700, 280])  # Left: 200px, Middle: 700px, Right: 280px
         
-        # Add size constraints to force the right panel width
-        right_panel.setMaximumWidth(280)  # Fixed at 280px
-        right_panel.setMinimumWidth(280)  # Fixed at 280px
+        # Add size constraints
+        left_panel.setMaximumWidth(400)  # Max 400px
+        left_panel.setMinimumWidth(150)  # Min 150px
+        right_panel.setMaximumWidth(350)  # Max 350px
+        right_panel.setMinimumWidth(200)  # Min 200px
         
         # Style the main horizontal splitter handle with theme colors
         self._apply_main_splitter_theme()
         
-        # Prevent panels from collapsing completely
-        self.main_splitter.setCollapsible(0, False)  # Left panel
-        self.main_splitter.setCollapsible(1, False)  # Right panel
+        # Allow all panels to be collapsible so user can adjust
+        self.main_splitter.setCollapsible(0, True)  # Left panel
+        self.main_splitter.setCollapsible(1, True)  # Middle panel
+        self.main_splitter.setCollapsible(2, True)  # Right panel
         
         # Add splitter to main layout
         main_layout.addWidget(self.main_splitter)
+
+
+    def _create_left_file_list_panel(self): #vers 2
+        """Create left panel for file list showing files in the same directory as the loaded IMG file (similar to COL Workshop left panel)"""
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(150)
+        panel.setMaximumWidth(400)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Header with refresh button
+        header_layout = QHBoxLayout()
+        header = QLabel("Directory Files")
+        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        header_layout.addWidget(header)
+        
+        # Refresh button to update the file list
+        refresh_button = QPushButton("Refresh")
+        refresh_button.setFixedSize(60, 20)
+        refresh_button.clicked.connect(self.refresh_directory_files)
+        header_layout.addWidget(refresh_button)
+        header_layout.addStretch()  # Add stretch to push refresh button to the right
+        
+        layout.addLayout(header_layout)
+
+        # Create a list widget for files in the same directory
+        self.directory_files_list = QListWidget()
+        self.directory_files_list.setAlternatingRowColors(True)
+        # Connect to a function to handle file selection
+        self.directory_files_list.itemClicked.connect(self._on_directory_file_selected)
+        layout.addWidget(self.directory_files_list)
+        
+        # Initially populate the list (will be empty until an IMG file is loaded)
+        self.refresh_directory_files()
+        return panel
+
+
+    def _create_middle_file_window_panel(self): #vers 1
+        """Create middle panel with file window (table with sub-tabs) - main content area"""
+        middle_container = QWidget()
+        middle_layout = QVBoxLayout(middle_container)
+        middle_layout.setContentsMargins(3, 3, 3, 3)
+        middle_layout.setSpacing(0)  # No spacing - splitter handles this
+
+        # Create vertical splitter for the sections in middle panel
+        self.middle_vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # 1. TOP: File Window (table with sub-tabs)
+        file_window = self._create_file_window()
+        self.middle_vertical_splitter.addWidget(file_window)
+
+        # 2. BOTTOM: Status Window (log and status)
+        status_window = self.create_status_window()
+        self.middle_vertical_splitter.addWidget(status_window)
+
+        # Set section proportions: File(760px), Status(200px)
+        self.middle_vertical_splitter.setSizes([760, 200])
+
+        # Prevent sections from collapsing completely
+        self.middle_vertical_splitter.setCollapsible(0, True)  # File window
+        self.middle_vertical_splitter.setCollapsible(1, True)  # Status window
+
+        # Apply theme styling to vertical splitter
+        self._apply_vertical_splitter_theme()
+
+        middle_layout.addWidget(self.middle_vertical_splitter)
+        return middle_container
 
 
     def _create_left_three_section_panel(self): #vers 3
@@ -1595,26 +1671,43 @@ class IMGFactoryGUILayout:
         """)
 
 
-    def _apply_vertical_splitter_theme(self): #vers 6
-        """Apply theme styling to the vertical splitter"""
+    def _apply_vertical_splitter_theme(self): #vers 7
+        """Apply theme styling to both vertical splitters"""
         theme_colors = self._get_theme_colors("default")
 
         # Extract variables FIRST
         bg_secondary = theme_colors.get('bg_secondary', '#f8f9fa')
         bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
 
-        self.left_vertical_splitter.setStyleSheet(f"""
-            QSplitter::handle:vertical {{
-                background-color: {bg_secondary};
-                border: 1px solid {bg_tertiary};
-                height: 4px;
-                margin: 1px 2px;
-                border-radius: 2px;
-            }}
-            QSplitter::handle:vertical:hover {{
-                background-color: {bg_tertiary};
-            }}
-        """)
+        # Apply to left vertical splitter if it exists
+        if hasattr(self, 'left_vertical_splitter') and self.left_vertical_splitter:
+            self.left_vertical_splitter.setStyleSheet(f"""
+                QSplitter::handle:vertical {{
+                    background-color: {bg_secondary};
+                    border: 1px solid {bg_tertiary};
+                    height: 4px;
+                    margin: 1px 2px;
+                    border-radius: 2px;
+                }}
+                QSplitter::handle:vertical:hover {{
+                    background-color: {bg_tertiary};
+                }}
+            """)
+
+        # Apply to middle vertical splitter if it exists
+        if hasattr(self, 'middle_vertical_splitter') and self.middle_vertical_splitter:
+            self.middle_vertical_splitter.setStyleSheet(f"""
+                QSplitter::handle:vertical {{
+                    background-color: {bg_secondary};
+                    border: 1px solid {bg_tertiary};
+                    height: 4px;
+                    margin: 1px 2px;
+                    border-radius: 2px;
+                }}
+                QSplitter::handle:vertical:hover {{
+                    background-color: {bg_tertiary};
+                }}
+            """)
 
 
     def _apply_log_theme_styling(self): #vers 7
@@ -2281,6 +2374,139 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Move entries down error: {str(e)}")
+
+    def _on_open_file_selected(self, item):  # vers 1
+        """Handle selection of an open file in the left panel"""
+        try:
+            # Get the file path or identifier from the item
+            file_name = item.text()
+            
+            # Switch to the corresponding tab or IMG file
+            if hasattr(self.main_window, 'switch_to_img_file'):
+                self.main_window.switch_to_img_file(file_name)
+            elif hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Selected file: {file_name}")
+                
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error selecting file: {str(e)}")
+
+    def update_open_files_list(self):  # vers 1
+        """Update the left panel list with all open files"""
+        try:
+            if hasattr(self, 'open_files_list') and self.open_files_list:
+                # Clear the current list
+                self.open_files_list.clear()
+                
+                # Get the main window's open_files dictionary
+                if hasattr(self.main_window, 'open_files'):
+                    for tab_index, file_info in self.main_window.open_files.items():
+                        # Get the tab name from the tab widget
+                        tab_name = self.main_window.main_tab_widget.tabText(tab_index)
+                        if tab_name and tab_name != "No File":
+                            item = QListWidgetItem(tab_name)
+                            item.setData(Qt.ItemDataRole.UserRole, tab_index)  # Store tab index
+                            self.open_files_list.addItem(item)
+                
+                # If no files are open, add a placeholder
+                if self.open_files_list.count() == 0:
+                    placeholder = QListWidgetItem("No open files")
+                    placeholder.setFlags(Qt.ItemFlag.NoItemFlags)  # Make it non-selectable
+                    self.open_files_list.addItem(placeholder)
+                    
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error updating open files list: {str(e)}")
+
+
+    def refresh_directory_files(self):  # vers 1
+        """Refresh the list of files in the same directory as the currently loaded IMG file"""
+        try:
+            # Clear the current list
+            if hasattr(self, 'directory_files_list') and self.directory_files_list:
+                self.directory_files_list.clear()
+                
+                # Get the current IMG file path
+                if (hasattr(self.main_window, 'current_img') and 
+                    self.main_window.current_img and 
+                    hasattr(self.main_window.current_img, 'file_path') and
+                    self.main_window.current_img.file_path):
+                    
+                    # Get the directory of the current IMG file
+                    img_dir = os.path.dirname(self.main_window.current_img.file_path)
+                    
+                    # Get all files in the directory (excluding the current IMG file to avoid confusion)
+                    current_img_filename = os.path.basename(self.main_window.current_img.file_path)
+                    
+                    # List all files in the directory
+                    all_files = os.listdir(img_dir)
+                    
+                    # Filter for common file types that might be related to IMG files
+                    valid_extensions = ('.img', '.txd', '.col', '.dff', '.ide', '.ipl', '.dat', '.ifp', '.cfg', '.txt', '.ini')
+                    filtered_files = [f for f in all_files if f.lower().endswith(valid_extensions) and f != current_img_filename]
+                    
+                    # Add the files to the list
+                    for filename in sorted(filtered_files):
+                        item = QListWidgetItem(filename)
+                        # Store the full path as user data
+                        full_path = os.path.join(img_dir, filename)
+                        item.setData(Qt.ItemDataRole.UserRole, full_path)
+                        self.directory_files_list.addItem(item)
+                
+                # If no IMG file is loaded, show a placeholder
+                if self.directory_files_list.count() == 0:
+                    placeholder = QListWidgetItem("No directory files")
+                    placeholder.setFlags(Qt.ItemFlag.NoItemFlags)  # Make it non-selectable
+                    self.directory_files_list.addItem(placeholder)
+                    
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error refreshing directory files: {str(e)}")
+
+
+    def _on_directory_file_selected(self, item):  # vers 1
+        """Handle selection of a file in the same directory as the loaded IMG file"""
+        try:
+            # Get the file path from the item's user data
+            file_path = item.data(Qt.ItemDataRole.UserRole)
+            
+            if file_path and os.path.isfile(file_path):
+                # Check the file extension to determine how to handle it
+                file_ext = os.path.splitext(file_path)[1].lower()
+                
+                # Log the selected file
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"Selected file: {os.path.basename(file_path)} ({file_ext})")
+                
+                # For now, we'll just open the file with the appropriate handler
+                # based on its extension, but in a real implementation you might want
+                # to have specific logic for different file types
+                if file_ext == '.img':
+                    # Open IMG file
+                    if hasattr(self.main_window, 'open_img_file_from_path'):
+                        self.main_window.open_img_file_from_path(file_path)
+                    else:
+                        self.main_window.log_message(f"Opening IMG file: {file_path}")
+                elif file_ext == '.txd':
+                    # Open TXD file with TXD Workshop
+                    from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                    workshop = open_txd_workshop(self.main_window, file_path)
+                    if workshop:
+                        self.main_window.log_message(f"TXD Workshop opened for: {file_path}")
+                elif file_ext == '.col':
+                    # Open COL file with COL Workshop
+                    from apps.components.Col_Editor.col_workshop import open_col_workshop
+                    workshop = open_col_workshop(self.main_window, file_path)
+                    if workshop:
+                        self.main_window.log_message(f"COL Workshop opened for: {file_path}")
+                else:
+                    # For other file types, you might want to open them in a text editor or handle differently
+                    self.main_window.log_message(f"Selected file: {file_path}")
+                    
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error selecting directory file: {str(e)}")
+
 
 # LEGACY COMPATIBILITY FUNCTIONS
 

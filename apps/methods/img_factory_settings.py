@@ -1,5 +1,5 @@
-#this belongs in methods/img_factory_settings.py - Version: 1
-# X-Seti - December30 2025 - IMG Factory 1.6
+#this belongs in methods/img_factory_settings.py - Version: 2
+# X-Seti - December31 2025 - IMG Factory 1.6
 """
 IMG Factory-specific settings manager
 Handles application-specific settings separate from global theme settings
@@ -22,7 +22,7 @@ class IMGFactorySettings:
 
             # IDE Integration
             "load_ide_with_img": False,
-            "preferred_ide_name": "TXD Workshop",  # or "IDE Workshop"
+            "preferred_ide_name": "TXD Workshop",
 
             # Button Layout
             "button_horizontal_spacing": 10,
@@ -40,8 +40,14 @@ class IMGFactorySettings:
             "remember_window_position": True,
             "last_window_width": 1200,
             "last_window_height": 800,
-            "last_window_x": -1,  # -1 means center
+            "last_window_x": -1,
             "last_window_y": -1,
+
+            # UI Mode (NEW)
+            "ui_mode": "system",
+            "show_toolbar": True,
+            "show_status_bar": True,
+            "show_menu_bar": True,
 
             # File handling
             "recent_files_limit": 10,
@@ -62,21 +68,19 @@ class IMGFactorySettings:
                     settings.update(loaded)
                     return settings
             except Exception as e:
-                print(f"Error loading IMG Factory settings: {e}")
+                print(f"Error loading settings: {e}")
                 return self.defaults.copy()
         return self.defaults.copy()
 
-    def save_settings(self) -> bool:
+    def save_settings(self):
         """Save current settings to file"""
         try:
             with open(self.settings_file, 'w') as f:
                 json.dump(self.current_settings, f, indent=4)
-            return True
         except Exception as e:
-            print(f"Error saving IMG Factory settings: {e}")
-            return False
+            print(f"Error saving settings: {e}")
 
-    def get(self, key: str, default=None):
+    def get(self, key: str, default=None) -> Any:
         """Get a setting value"""
         return self.current_settings.get(key, default)
 

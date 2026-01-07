@@ -44,6 +44,7 @@ from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, Sett
 
 # Components
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
+from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
 
 # Debug
 from apps.debug.debug_functions import set_col_debug_enabled
@@ -98,7 +99,6 @@ from apps.gui.unified_button_theme import apply_unified_button_theme
 from apps.gui.gui_menu import IMGFactoryMenuBar
 from apps.gui.autosave_menu import integrate_autosave_menu
 from apps.gui.file_menu_integration import add_project_menu_items
-from apps.gui.directory_tree_system import integrate_directory_tree_system
 from apps.gui.tearoff_integration import integrate_tearoff_system
 from apps.gui.gui_context import (open_col_file_dialog, open_col_batch_proc_dialog, open_col_editor_dialog, analyze_col_file_dialog)
 
@@ -434,7 +434,7 @@ class IMGFactory(QMainWindow):
 
         # Create GUI layout
         self.gui_layout = IMGFactoryGUILayout(self)
-        integrate_directory_tree_system(self)
+        integrate_directory_tree_browser(self)
 
         # Menu system
         self.menubar = self.menuBar()
@@ -586,6 +586,7 @@ class IMGFactory(QMainWindow):
 
         # Restore settings
         self._restore_settings()
+        self.autoload_game_root()
 
         # Utility functions
         self.setup_missing_utility_functions()
@@ -630,6 +631,34 @@ class IMGFactory(QMainWindow):
                 scrollbar.setValue(scrollbar.maximum())
         except Exception:
             pass
+
+    def autoload_game_root(self): #vers 1
+        """Autoload game root from settings"""
+        try:
+            # Try QSettings first
+            from PyQt6.QtCore import QSettings
+            settings = QSettings("IMG-Factory", "IMG-Factory")
+            game_root = settings.value("game_root", "", type=str)
+
+            # If not in QSettings, try img_factory.json
+            if not game_root:
+                from apps.core.settings import load_project_settings
+                project_settings = load_project_settings(self)
+                game_root = project_settings.get('game_root', '')
+
+            # If found and valid, set it
+            if game_root and os.path.exists(game_root):
+                self.game_root = game_root
+                self.log_message(f"Autoloaded game root: {game_root}")
+
+                # Update directory tree if it exists
+                if hasattr(self, 'directory_tree'):
+                    self.directory_tree.browse_directory(game_root)
+            else:
+                self.log_message("No saved game root found")
+
+        except Exception as e:
+            self.log_message(f"Error autoloading game root: {str(e)}")
 
 
     def _apply_button_display_mode_from_settings(self):
@@ -2885,6 +2914,10 @@ class IMGFactory(QMainWindow):
                 self.open_files[current_index]['file_object'] = img_file
                 self.log_message(f"IMG file object stored in tab {current_index}")
 
+            # Refresh the directory file list in the left panel
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'refresh_directory_files'):
+                self.gui_layout.refresh_directory_files()
+
             # Use isolated file window update
             success = self.gui_layout.update_file_window_only(img_file)
 
@@ -2901,6 +2934,32 @@ class IMGFactory(QMainWindow):
     def reload_table(self): #vers 1
         """Reload current file - called by reload button"""
         return self.reload_current_file()
+
+
+    def switch_to_img_file(self, file_name: str): #vers 1
+        """Switch to the tab containing the specified file"""
+        try:
+            # Look for the tab with the matching file name
+            for i in range(self.main_tab_widget.count()):
+                tab_text = self.main_tab_widget.tabText(i)
+                if tab_text == file_name or tab_text.startswith(file_name):
+                    # Switch to this tab
+                    self.main_tab_widget.setCurrentIndex(i)
+                    
+                    # Update the main window references
+                    from apps.methods.tab_system import switch_tab
+                    switch_tab(self, i)
+                    
+                    self.log_message(f"Switched to file: {file_name}")
+                    return True
+            
+            # If file not found, log a message
+            self.log_message(f"File not found in open tabs: {file_name}")
+            return False
+            
+        except Exception as e:
+            self.log_message(f"Error switching to file {file_name}: {str(e)}")
+            return False
 
 
     def load_file_unified(self, file_path: str): #vers 8

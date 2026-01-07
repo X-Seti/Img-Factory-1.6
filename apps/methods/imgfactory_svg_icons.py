@@ -1994,6 +1994,310 @@ class SVGIconFactory: #vers 7
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, None)
 
+#Add ons for File Editor
+
+    @staticmethod
+    def get_back_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Back/left arrow navigation icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M19 12H5M12 19l-7-7 7-7"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_forward_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Forward/right arrow navigation icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M5 12h14M12 5l7 7-7 7"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_up_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Up/parent directory icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M12 19V5M5 12l7-7 7 7"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_home_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Home directory icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 22V12h6v10"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_copy_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Copy/clipboard icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_paste_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Paste icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_cut_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Cut/scissors icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="6" cy="6" r="3"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <circle cx="6" cy="18" r="3"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="20" y1="4" x2="8.12" y2="15.88"
+                stroke="currentColor" stroke-width="2"/>
+            <line x1="14.47" y1="14.48" x2="20" y2="20"
+                stroke="currentColor" stroke-width="2"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_rename_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Rename/edit text icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_terminal_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Terminal/console icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="2" y="3" width="20" height="18" rx="2"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M7 8l4 4-4 4M13 16h4"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_tools_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Tools/wrench icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_link_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Link/chain icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_calculator_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Calculator/compute icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <rect x="4" y="2" width="16" height="20" rx="2"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="8" y1="6" x2="16" y2="6"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="16" y1="10" x2="16" y2="14"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8" y1="10" x2="8" y2="10.01"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="10" x2="12" y2="10.01"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8" y1="14" x2="8" y2="14.01"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="14" x2="12" y2="14.01"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8" y1="18" x2="8" y2="18.01"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="18" x2="12" y2="18.01"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="16" y1="18" x2="16" y2="18.01"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_tree_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Tree/hierarchy icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <line x1="8" y1="6" x2="21" y2="6"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8" y1="12" x2="21" y2="12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8" y1="18" x2="21" y2="18"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_properties_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Properties/details icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="12" y1="16" x2="12" y2="12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_new_folder_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """New folder icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-7l-2-2H5a2 2 0 00-2 2z"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="12" y1="11" x2="12" y2="17"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="9" y1="14" x2="15" y2="14"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_new_file_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """New file icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M14 2v6h6"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="12" y1="11" x2="12" y2="17"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="9" y1="14" x2="15" y2="14"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+def get_checkmark_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_checkmark_icon"""
+    return SVGIconFactory.get_checkmark_icon(size, color)
+
+def get_trash_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_trash_icon"""
+    return SVGIconFactory.get_trash_icon(size, color)
+
+def get_folder_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_folder_icon"""
+    return SVGIconFactory.get_folder_icon(size, color)
+
+def get_new_file_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_file_icon"""
+    return SVGIconFactory.get_new_file_icon(size, color)
+
+def get_file_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_new_file_icon"""
+    return SVGIconFactory.get_file_icon(size, color)
+
+def get_back_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_back_icon"""
+    return SVGIconFactory.get_back_icon(size, color)
+
+def get_forward_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_forward_icon"""
+    return SVGIconFactory.get_forward_icon(size, color)
+
+def get_up_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_up_icon"""
+    return SVGIconFactory.get_up_icon(size, color)
+
+def get_home_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_home_icon"""
+    return SVGIconFactory.get_home_icon(size, color)
+
+def get_copy_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_copy_icon"""
+    return SVGIconFactory.get_copy_icon(size, color)
+
+def get_paste_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_paste_icon"""
+    return SVGIconFactory.get_paste_icon(size, color)
+
+def get_cut_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_cut_icon"""
+    return SVGIconFactory.get_cut_icon(size, color)
+
+def get_rename_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_rename_icon"""
+    return SVGIconFactory.get_rename_icon(size, color)
+
+def get_terminal_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_terminal_icon"""
+    return SVGIconFactory.get_terminal_icon(size, color)
+
+def get_tools_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_tools_icon"""
+    return SVGIconFactory.get_tools_icon(size, color)
+
+def get_link_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_link_icon"""
+    return SVGIconFactory.get_link_icon(size, color)
+
+def get_calculator_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_calculator_icon"""
+    return SVGIconFactory.get_calculator_icon(size, color)
+
+def get_tree_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_tree_icon"""
+    return SVGIconFactory.get_tree_icon(size, color)
+
+def get_properties_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_properties_icon"""
+    return SVGIconFactory.get_properties_icon(size, color)
+
+def get_new_folder_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_new_folder_icon"""
+    return SVGIconFactory.get_new_folder_icon(size, color)
+
+def get_new_file_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_new_file_icon"""
+    return SVGIconFactory.get_new_file_icon(size, color)
+
+def get_image_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Wrapper for SVGIconFactory.get_image_icon"""
+    return SVGIconFactory.image_icon(size, color)
+
+def get_info_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Wrapper for SVGIconFactory.get_info_icon"""
+    return SVGIconFactory.info_icon(size, color)
+
+
+def get_minimize_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Wrapper for SVGIconFactory.get_minimize_icon"""
+    return SVGIconFactory.minimize_icon(size, color)
+
+def get_maximize_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Wrapper for SVGIconFactory.get_maximize_icon"""
+    return SVGIconFactory.maximize_icon(size, color)
 
 # = STANDALONE FUNCTION WRAPPERS FOR BACKWARD COMPATIBILITY
 

@@ -1,2 +1,46 @@
-(empty)
+```
+# Compiled and build artifacts
 *.pyc
+__pycache__/
+*.o
+*.obj
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Distribution artifacts
+dist/
+build/
+*.egg-info/
+
+# MyPy cache
+.mypy_cache/
+
+# Pytest cache
+.pytest_cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```
