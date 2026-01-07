@@ -144,82 +144,62 @@ def add_to_recent_files(main_window, file_path):
             main_window.log_message(f"Error adding to recent files: {str(e)}")
 
 
-def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 7
-    """Check if IDE file exists in same folder as IMG file and prompt user to load it
-    Updated to version 7: When auto-load setting is enabled, skip both loading and popup entirely."""
+def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 8
+    """Check if IDE file exists in same folder as IMG file
+    When checkbox is CHECKED: Auto-load IDE silently
+    When checkbox is UNCHECKED: Do nothing (no prompt, no load)"""
     try:
         import os
         from PyQt6.QtWidgets import QMessageBox
         from PyQt6.QtCore import QSettings
-        
+
         # Get settings to check if auto-loading is enabled
         settings = QSettings("IMG-Factory", "IMG-Factory")
         auto_load_enabled = settings.value("load_ide_with_img", False, type=bool)
-        
-        # Get the directory and base name of the IMG file
+
+        # If auto-loading is DISABLED, skip entirely (no prompt, no load)
+        if not auto_load_enabled:
+            main_window.log_message("IDE auto-load disabled, skipping IDE check")
+            return
+
+        # Auto-loading is ENABLED, proceed to find and load IDE
         img_dir = os.path.dirname(img_file_path)
         img_basename = os.path.splitext(os.path.basename(img_file_path))[0]
-        
+
         # Look for corresponding IDE file (same name as IMG file)
         ide_file_path = os.path.join(img_dir, img_basename + ".ide")
-        
+
         # Check if IDE file exists
         if os.path.exists(ide_file_path):
-            if auto_load_enabled:
-                # If auto-loading is enabled, skip both loading and popup entirely
-                main_window.log_message(f"Skipped IDE file (auto-load setting enabled): {os.path.basename(ide_file_path)}")
-            else:
-                # Ask user if they want to load the IDE file
-                reply = QMessageBox.question(
-                    main_window,
-                    "IDE File Found",
-                    f"IDE file found with IMG file:\n{os.path.basename(ide_file_path)}\n\n"
-                    f"Do you want to load this IDE file?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                )
-                
-                if reply == QMessageBox.StandardButton.Yes:
-                    # Load the IDE file using the IDE editor
-                    from apps.components.Ide_Editor.ide_editor import open_ide_editor
-                    editor = open_ide_editor(main_window)
-                    if editor:
-                        editor.load_ide_file(ide_file_path)
-                        main_window.log_message(f"Loaded IDE file: {os.path.basename(ide_file_path)}")
-                    else:
-                        main_window.log_message(f"Failed to open IDE editor for: {os.path.basename(ide_file_path)}")
+            # Auto-load the IDE file silently
+            try:
+                from apps.components.Ide_Editor.ide_editor import open_ide_editor
+                editor = open_ide_editor(main_window)
+                if editor:
+                    editor.load_ide_file(ide_file_path)
+                    main_window.log_message(f"Auto-loaded IDE file: {os.path.basename(ide_file_path)}")
                 else:
-                    main_window.log_message(f"IDE file available but not loaded: {os.path.basename(ide_file_path)}")
+                    main_window.log_message(f"Failed to open IDE editor for: {os.path.basename(ide_file_path)}")
+            except Exception as e:
+                main_window.log_message(f"Error auto-loading IDE: {str(e)}")
         else:
             # Look for any IDE file in the same directory (case-insensitive)
             for file in os.listdir(img_dir):
                 if file.lower().endswith('.ide'):
-                    if auto_load_enabled:
-                        # If auto-loading is enabled, skip both loading and popup entirely
-                        main_window.log_message(f"Skipped IDE file (auto-load setting enabled): {file}")
-                        break  # Only skip one IDE file
-                    else:
-                        # Ask user if they want to load this IDE file
-                        reply = QMessageBox.question(
-                            main_window,
-                            "IDE File Found",
-                            f"IDE file found in same folder:\n{file}\n\n"
-                            f"Do you want to load this IDE file?",
-                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                        )
-                        
-                        if reply == QMessageBox.StandardButton.Yes:
-                            ide_path = os.path.join(img_dir, file)
-                            from apps.components.Ide_Editor.ide_editor import open_ide_editor
-                            editor = open_ide_editor(main_window)
-                            if editor:
-                                editor.load_ide_file(ide_path)
-                                main_window.log_message(f"Loaded IDE file: {file}")
-                            else:
-                                main_window.log_message(f"Failed to open IDE editor for: {file}")
+                    # Auto-load this IDE file silently
+                    try:
+                        ide_path = os.path.join(img_dir, file)
+                        from apps.components.Ide_Editor.ide_editor import open_ide_editor
+                        editor = open_ide_editor(main_window)
+                        if editor:
+                            editor.load_ide_file(ide_path)
+                            main_window.log_message(f"Auto-loaded IDE file: {file}")
                         else:
-                            main_window.log_message(f"IDE file available but not loaded: {file}")
-                        break  # Only check for one IDE file
-                    
+                            main_window.log_message(f"Failed to open IDE editor for: {file}")
+                    except Exception as e:
+                        main_window.log_message(f"Error auto-loading IDE: {str(e)}")
+                    break  # Only load one IDE file
+
     except Exception as e:
         main_window.log_message(f"Error checking for IDE file: {str(e)}")
 

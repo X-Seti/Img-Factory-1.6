@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QMenuBar, QMenu, QFileDialog, QMessageBox
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QSettings, Qt
 import os
+from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
 
 ##Methods list -
 # add_project_menu_items
@@ -185,8 +186,9 @@ def handle_browse_game_directory(main_window): #vers 1
             main_window.log_message("Directory tree widget not found, attempting integration...")
 
             try:
-                from apps.gui.directory_tree_system import integrate_directory_tree_system
-                if integrate_directory_tree_system(main_window):
+                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                #from apps.gui.directory_tree_system import integrate_directory_tree_system
+                if integrate_directory_tree_browser(main_window):
                     main_window.log_message("Directory tree integrated successfully")
 
                     # Now try to populate it
@@ -208,7 +210,7 @@ def handle_browse_game_directory(main_window): #vers 1
                     "Directory Tree System Missing",
                     "The directory tree system is not available.\n\nPlease ensure all components are installed."
                 )
-                return False
+                return
 
         # Show success message with appropriate features
         if hasattr(main_window, 'directory_tree') and hasattr(main_window.directory_tree, 'menubar'):
@@ -258,11 +260,11 @@ def handle_set_game_root_folder(main_window): #vers 4
             # Clear the reference after validation
             if hasattr(validate_game_root_folder, '_override_check'):
                 delattr(validate_game_root_folder, '_override_check')
-                
+
             if game_info:
                 main_window.game_root = folder
                 main_window.log_message(f"Game root set: {folder}")
-                
+
                 # Log detection info
                 if game_info.get('game_name', '').endswith('(Override)'):
                     main_window.log_message(f"Game root set with override: {folder}")
@@ -288,7 +290,7 @@ def handle_set_game_root_folder(main_window): #vers 4
                     message = f"Game root configured with override:\n{folder}\n\nThis folder will be used as your GTA installation directory regardless of standard file detection.\n\nWould you like to browse the directory now?"
                 else:
                     message = f"Game root configured:\n{folder}\n\nDetected: {game_info['game_name']}\nEXE: {game_info['exe_file']}\nDAT: {game_info['dat_file']}\nIDE: {game_info['ide_file']}\n\nWould you like to browse the directory now?"
-                
+
                 result = QMessageBox.question(
                     main_window,
                     "Game Root Set Successfully",
@@ -305,12 +307,12 @@ def handle_set_game_root_folder(main_window): #vers 4
             else:
                 # Invalid game root
                 override_enabled = getattr(main_window, 'app_settings', None) and main_window.app_settings.current_settings.get('gta_root_override_enabled', False) if hasattr(main_window, 'app_settings') else False
-                
+
                 if override_enabled:
                     # If override is enabled but no standard files found, still allow setting
                     main_window.game_root = folder
                     main_window.log_message(f"Game root set with override: {folder}")
-                    
+
                     # Update directory tree if it exists
                     if hasattr(main_window, 'directory_tree') and main_window.directory_tree:
                         main_window.directory_tree.game_root = folder
@@ -321,10 +323,10 @@ def handle_set_game_root_folder(main_window): #vers 4
                         if hasattr(main_window.directory_tree, 'populate_tree'):
                             main_window.directory_tree.populate_tree(folder)
                             main_window.log_message("Directory tree auto-populated")
-                    
+
                     # Save settings
                     save_project_settings(main_window)
-                    
+
                     # Show success message
                     result = QMessageBox.question(
                         main_window,
@@ -333,10 +335,10 @@ def handle_set_game_root_folder(main_window): #vers 4
                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                         QMessageBox.StandardButton.Yes
                     )
-                    
+
                     if result == QMessageBox.StandardButton.Yes:
                         handle_browse_game_directory(main_window)
-                    
+
                     return True
                 else:
                     QMessageBox.warning(
@@ -358,6 +360,7 @@ def handle_set_game_root_folder(main_window): #vers 4
             f"An error occurred while setting the game root:\n\n{str(e)}"
         )
         return False
+
 
 def handle_set_project_folder(main_window): #vers 1
     """Handle Set Project Folder menu action"""

@@ -2202,6 +2202,9 @@ def get_checkmark_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_checkmark_icon"""
     return SVGIconFactory.get_checkmark_icon(size, color)
 
+def get_trash_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_trash_icon"""
+    return SVGIconFactory.get_trash_icon(size, color)
 
 def get_folder_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_folder_icon"""

@@ -44,6 +44,7 @@ from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, Sett
 
 # Components
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
+from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
 
 # Debug
 from apps.debug.debug_functions import set_col_debug_enabled
@@ -98,7 +99,6 @@ from apps.gui.unified_button_theme import apply_unified_button_theme
 from apps.gui.gui_menu import IMGFactoryMenuBar
 from apps.gui.autosave_menu import integrate_autosave_menu
 from apps.gui.file_menu_integration import add_project_menu_items
-from apps.gui.directory_tree_system import integrate_directory_tree_system
 from apps.gui.tearoff_integration import integrate_tearoff_system
 from apps.gui.gui_context import (open_col_file_dialog, open_col_batch_proc_dialog, open_col_editor_dialog, analyze_col_file_dialog)
 
@@ -434,7 +434,7 @@ class IMGFactory(QMainWindow):
 
         # Create GUI layout
         self.gui_layout = IMGFactoryGUILayout(self)
-        integrate_directory_tree_system(self)
+        integrate_directory_tree_browser(self)
 
         # Menu system
         self.menubar = self.menuBar()
@@ -586,6 +586,7 @@ class IMGFactory(QMainWindow):
 
         # Restore settings
         self._restore_settings()
+        self.autoload_game_root()
 
         # Utility functions
         self.setup_missing_utility_functions()
@@ -630,6 +631,34 @@ class IMGFactory(QMainWindow):
                 scrollbar.setValue(scrollbar.maximum())
         except Exception:
             pass
+
+    def autoload_game_root(self): #vers 1
+        """Autoload game root from settings"""
+        try:
+            # Try QSettings first
+            from PyQt6.QtCore import QSettings
+            settings = QSettings("IMG-Factory", "IMG-Factory")
+            game_root = settings.value("game_root", "", type=str)
+
+            # If not in QSettings, try img_factory.json
+            if not game_root:
+                from apps.core.settings import load_project_settings
+                project_settings = load_project_settings(self)
+                game_root = project_settings.get('game_root', '')
+
+            # If found and valid, set it
+            if game_root and os.path.exists(game_root):
+                self.game_root = game_root
+                self.log_message(f"Autoloaded game root: {game_root}")
+
+                # Update directory tree if it exists
+                if hasattr(self, 'directory_tree'):
+                    self.directory_tree.browse_directory(game_root)
+            else:
+                self.log_message("No saved game root found")
+
+        except Exception as e:
+            self.log_message(f"Error autoloading game root: {str(e)}")
 
 
     def _apply_button_display_mode_from_settings(self):
