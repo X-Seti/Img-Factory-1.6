@@ -431,7 +431,6 @@
 │   ├── xtr.py
 │   └── zlib.py
 ├── Credits.md
-├── imgfactory1.6.png
 ├── img_factory_debug.log
 ├── launch_col_workshop.py
 ├── launch_imgfactory.py
@@ -441,4 +440,4 @@
 ├── TODO.md
 └── tree.git
 
-35 directories, 407 files
+35 directories, 406 files
