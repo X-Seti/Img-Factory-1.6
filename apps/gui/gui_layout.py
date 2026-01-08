@@ -1138,8 +1138,8 @@ class IMGFactoryGUILayout:
         # Create main horizontal splitter for 3 panels
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # LEFT: File list panel (like COL Workshop)
-        left_panel = self._create_left_file_list_panel()
+        # LEFT: File list panel (like COL Workshop) #disabled
+        #left_panel = self._create_left_file_list_panel()
         
         # MIDDLE: File window (table with sub-tabs) - main content area
         middle_panel = self._create_middle_file_window_panel()
@@ -1148,7 +1148,7 @@ class IMGFactoryGUILayout:
         right_panel = self.create_right_panel_with_pastel_buttons()
         
         # Add panels to splitter
-        self.main_splitter.addWidget(left_panel)
+        #self.main_splitter.addWidget(left_panel)
         self.main_splitter.addWidget(middle_panel)
         self.main_splitter.addWidget(right_panel)
         
@@ -1156,8 +1156,8 @@ class IMGFactoryGUILayout:
         self.main_splitter.setSizes([200, 700, 280])  # Left: 200px, Middle: 700px, Right: 280px
         
         # Add size constraints
-        left_panel.setMaximumWidth(400)  # Max 400px
-        left_panel.setMinimumWidth(150)  # Min 150px
+        #left_panel.setMaximumWidth(400)  # Max 400px
+        #left_panel.setMinimumWidth(150)  # Min 150px
         right_panel.setMaximumWidth(350)  # Max 350px
         right_panel.setMinimumWidth(200)  # Min 200px
         
@@ -1173,7 +1173,7 @@ class IMGFactoryGUILayout:
         main_layout.addWidget(self.main_splitter)
 
 
-    def _create_left_file_list_panel(self): #vers 2
+    def _create_left_file_list_panel_disabled(self): #vers 2
         """Create left panel for file list showing files in the same directory as the loaded IMG file (similar to COL Workshop left panel)"""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
