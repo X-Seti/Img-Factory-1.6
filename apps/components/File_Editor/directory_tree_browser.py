@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
     QMenuBar, QMenu, QToolBar, QPushButton, QLineEdit, QLabel, QMessageBox,
-    QSplitter, QTextEdit, QGroupBox, QInputDialog, QDialog, QFormLayout,
+    QGroupBox, QInputDialog, QDialog, QFormLayout,
     QCheckBox, QListWidget, QFileDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSettings
@@ -86,7 +86,7 @@ class DirectoryTreeBrowser(QWidget):
     file_opened = pyqtSignal(str)
     directory_changed = pyqtSignal(str)
     
-    def __init__(self, parent=None): #vers 1
+    def __init__(self, parent=None, main_window=None): #vers 1
         super().__init__(parent)
         self.current_path = None
         self.clipboard_files = []
@@ -94,6 +94,9 @@ class DirectoryTreeBrowser(QWidget):
         self.navigation_history = []
         self.history_index = -1
         self.browser_settings = self.load_browser_settings()
+        self.main_window = main_window
+        # Set up log method - will be set by caller if main_window is provided
+        self.log_message = lambda msg: print(f"Browser: {msg}")  # Default fallback
         self.setup_ui()
         self.setup_connections()
         
@@ -131,24 +134,12 @@ class DirectoryTreeBrowser(QWidget):
         #self.path_label.setStyleSheet("padding: 3px 5px; background-color: #2a2a2a; color: #ffffff;")
         #layout.addWidget(self.path_label)
         
-        # Main browser area
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        
-        # Left: Directory tree
+        # Main browser area - Full size tree only
         self.tree = QTreeWidget()
         self.tree.setHeaderLabel("Directory Structure")
         self.setup_tree_view()
         #self.apply_browser_styling()
-        splitter.addWidget(self.tree)
-        
-        #TODO bug: AttributeError: 'DirectoryTreeBrowser' object has no attribute 'info_text'
-        #This info_text should be passed to activity log panel
-        # Right: File info
-        #info_widget = self.create_info_panel()
-        #splitter.addWidget(info_widget)
-        
-        #splitter.setSizes([700])
-        layout.addWidget(splitter)
+        layout.addWidget(self.tree)
         
 
     def setup_tree_view(self): #vers 1
@@ -376,17 +367,6 @@ class DirectoryTreeBrowser(QWidget):
         return toolbar
         
 
-    def create_info_panel(self): #vers 1
-        """Create file info panel"""
-        widget = QGroupBox("File Information")
-        layout = QVBoxLayout(widget)
-
-        self.info_text = QTextEdit()
-        self.info_text.setReadOnly(True)
-        layout.addWidget(self.info_text)
-        
-        return widget
-        
 
     def browse_directory(self, path: str): #vers 1
         """Browse to specific directory"""
@@ -550,19 +530,19 @@ class DirectoryTreeBrowser(QWidget):
             
 
     def update_file_info(self, file_path: str): #vers 1
-        """Update file info panel"""
+        """Update file info panel - now sends to activity log"""
         try:
             stats = os.stat(file_path)
             file_ext = os.path.splitext(file_path)[1]
             
-            info = f"File: {os.path.basename(file_path)}\n"
-            info += f"Type: {self.get_file_type_display(file_ext)}\n"
-            info += f"Size: {stats.st_size:,} bytes\n"
-            info += f"Path: {file_path}\n"
+            info = f"File: {os.path.basename(file_path)} | "
+            info += f"Type: {self.get_file_type_display(file_ext)} | "
+            info += f"Size: {stats.st_size:,} bytes | "
+            info += f"Path: {file_path}"
             
-            self.info_text.setText(info)
+            self.log_message(info)
         except Exception as e:
-            self.info_text.setText(f"Error: {str(e)}")
+            self.log_message(f"Error getting file info: {str(e)}")
             
 
     def show_context_menu(self, position): #vers 1
