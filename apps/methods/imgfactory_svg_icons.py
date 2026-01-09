@@ -2081,6 +2081,24 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
+    def get_undo_icon(size: int = 24, color: str = None) -> QIcon:  #vers 1
+        """Undo arrow icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 12a9 9 0 1 1 9 9c0-.5-.1-1-.2-1.5L15 16l-3-3-3 3 1.8 3.5c-.1.5-.2 1-.2 1.5a7 7 0 0 0 14 0H3z"
+                fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_redo_icon(size: int = 24, color: str = None) -> QIcon:  #vers 1
+        """Redo arrow icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M21 12a9 9 0 1 1 -9 -9c0 .5 .1 1 .2 1.5L9 8l3 3 3-3-1.8-3.5C13.1 5 13 5.5 13 6a7 7 0 0 0 -14 0h18z"
+                fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
     def get_terminal_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
         """Terminal/console icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
@@ -2211,8 +2229,16 @@ def get_folder_icon(size: int = 24, color: str = None) -> QIcon:
     return SVGIconFactory.get_folder_icon(size, color)
 
 def get_new_file_icon(size: int = 24, color: str = None) -> QIcon:
-    """Wrapper for SVGIconFactory.get_file_icon"""
+    """Wrapper for SVGIconFactory.get_new_file_icon"""
     return SVGIconFactory.get_new_file_icon(size, color)
+
+def get_undo_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_undo_icon"""
+    return SVGIconFactory.get_undo_icon(size, color)
+
+def get_redo_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_redo_icon"""
+    return SVGIconFactory.get_redo_icon(size, color)
 
 def get_file_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_new_file_icon"""

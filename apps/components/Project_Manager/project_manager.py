@@ -204,7 +204,11 @@ def show_project_manager_dialog(main_window):
     tabs.addTab(settings_tab, "Settings")
     
     layout.addWidget(tabs)
-    
+
+    load_project_btn = QPushButton("Load Project")
+    load_project_btn.clicked.connect(lambda: handle_set_game_root_folder(main_window))
+    layout.addWidget(load_project_btn)
+
     # Close button
     close_btn = QPushButton("Close")
     close_btn.clicked.connect(dialog.accept)

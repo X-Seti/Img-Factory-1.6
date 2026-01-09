@@ -104,7 +104,8 @@
 │   │   │       ├── Validate.dfm
 │   │   │       └── Validate.pas
 │   │   ├── Project_Manager
-│   │   │   └── img_project_manager.py
+│   │   │   ├── img_project_manager.py
+│   │   │   └── project_manager.py
 │   │   ├── Tmp_Template
 │   │   │   ├── depends
 │   │   │   │   ├── col_3d_viewport.py
@@ -273,6 +274,7 @@
 │   │   ├── txd_versions.py
 │   │   ├── txd_workshop_theme.py
 │   │   └── update_ui_for_loaded_img.py
+│   ├── projects.json
 │   ├── support
 │   │   ├── imgfactory_diagnostic.py
 │   │   ├── unix_launcher.sh
@@ -324,7 +326,7 @@
 │       └── update_themes_script.py
 ├── cc.py
 ├── ChangeLog.md
-├── col_workshop.png
+├── col_editor.png
 ├── converted.py
 │   ├── 3way.py
 │   ├── adler32.py
@@ -431,6 +433,7 @@
 │   ├── xtr.py
 │   └── zlib.py
 ├── Credits.md
+├── img_factory1.6.png
 ├── img_factory_debug.log
 ├── launch_col_workshop.py
 ├── launch_imgfactory.py
@@ -440,4 +443,4 @@
 ├── TODO.md
 └── tree.git
 
-35 directories, 406 files
+35 directories, 409 files
