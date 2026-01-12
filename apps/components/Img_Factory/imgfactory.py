@@ -406,8 +406,7 @@ class IMGFactory(QMainWindow):
         # Apply UI mode from settings
 
         if hasattr(self, 'img_settings'):
-            from apps.gui.gui_layout_custom import (_create_toolbar, _show_workshop_settings)
-            from apps.gui.gui_layout_custom import IMGFactoryGUILayout
+            from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
 
             ui_mode = self.img_settings.current_settings.get("ui_mode", "system")
             show_toolbar = self.img_settings.current_settings.get("show_toolbar", True)
@@ -727,6 +726,10 @@ class IMGFactory(QMainWindow):
             status_bar = self.statusBar()
             if status_bar:
                 status_bar.setVisible(show_status_bar)
+        
+        # Handle toolbar visibility - delegate to gui_layout since it manages the toolbar
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'apply_ui_mode'):
+            self.gui_layout.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
         self.setGeometry(current_geometry)
         if was_visible:
@@ -2588,6 +2591,27 @@ class IMGFactory(QMainWindow):
             dialog.exec()
         except Exception as e:
             self.log_message(f"Settings dialog error: {str(e)}")
+
+
+    def _show_workshop_settings(self): #vers 1
+        """Show workshop settings dialog - called from custom UI"""
+        self.log_message("Workshop settings requested")
+        try:
+            # Use the method from gui_layout_custom
+            if hasattr(self.gui_layout, '_show_workshop_settings'):
+                # Add safeguard to prevent duplicate dialogs
+                if hasattr(self, '_settings_dialog_open') and self._settings_dialog_open:
+                    return  # Already open, ignore duplicate call
+                self._settings_dialog_open = True
+                try:
+                    self.gui_layout._show_workshop_settings()
+                finally:
+                    self._settings_dialog_open = False
+            else:
+                # Fallback to regular settings
+                self.show_gui_settings()
+        except Exception as e:
+            self.log_message(f"Workshop settings dialog error: {str(e)}")
 
 
     def show_about(self):

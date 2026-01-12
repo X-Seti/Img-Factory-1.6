@@ -40,14 +40,36 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             # Ensure custom titlebar exists
             if not hasattr(self, '_custom_titlebar') or self._custom_titlebar is None:
                 self._custom_titlebar = self._create_toolbar()
+                # Connect window control buttons to main window methods
+                if hasattr(self, 'minimize_btn'):
+                    self.minimize_btn.clicked.disconnect()  # Disconnect any existing connection
+                    self.minimize_btn.clicked.connect(self.showMinimized)
+                if hasattr(self, 'maximize_btn'):
+                    self.maximize_btn.clicked.disconnect()  # Disconnect any existing connection
+                    self.maximize_btn.clicked.connect(self.toggle_maximize_restore)
+                if hasattr(self, 'close_btn'):
+                    self.close_btn.clicked.disconnect()  # Disconnect any existing connection
+                    self.close_btn.clicked.connect(self.close)
             # Insert at top of central widget's layout if not already present
             central_widget = self.centralWidget()
-            if central_widget and central_widget.layout():
+            if central_widget:
+                # Clear the central widget layout first to avoid conflicts
                 layout = central_widget.layout()
-                # Remove the titlebar if it's already in the layout to avoid duplication
-                if hasattr(self, '_custom_titlebar') and self._custom_titlebar.parent() is None:
-                    layout.insertWidget(0, self._custom_titlebar)
-            self._custom_titlebar.show()
+                if layout is None:
+                    # Create a new layout if none exists
+                    from PyQt6.QtWidgets import QVBoxLayout
+                    layout = QVBoxLayout(central_widget)
+                
+                # Remove existing titlebar if it exists
+                if hasattr(self, '_custom_titlebar') and self._custom_titlebar.parent():
+                    self._custom_titlebar.setParent(None)
+                
+                # Insert titlebar at the beginning of the layout
+                layout.insertWidget(0, self._custom_titlebar)
+            
+            # Show the titlebar if it should be visible
+            if show_toolbar and self._custom_titlebar:
+                self._custom_titlebar.show()
         else:
             # Use system window
             self.setWindowFlags(
@@ -58,6 +80,9 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             )
             # Hide custom titlebar if it exists
             if hasattr(self, '_custom_titlebar') and self._custom_titlebar:
+                # Remove from layout to restore normal system behavior
+                if self._custom_titlebar.parent():
+                    self._custom_titlebar.setParent(None)
                 self._custom_titlebar.hide()
 
         # Apply visibility settings for toolbar, status bar, and menu bar
@@ -172,10 +197,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
     def toggle_maximize_restore(self):
         if self.isMaximized():
             self.showNormal()
-            self._max_btn.setText("□")
         else:
             self.showMaximized()
-            self._max_btn.setText("❐")
 
 
     def _create_toolbar(self): #vers 2 = keep style and theme.
@@ -193,11 +216,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         if not hasattr(globals(), 'App_name'):
             from apps.components.Img_Factory.imgfactory import App_name
 
-        # Create tab widget
-        self.tab_widget = QTabWidget()
-
+        # Create the toolbar widget (this will be the custom titlebar)
         self.titlebar = QWidget()
-        #self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
         self.titlebar.setFixedHeight(45)
         self.titlebar.setObjectName("titlebar")
 
@@ -206,20 +226,13 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.titlebar.setMouseTracking(True)
 
+        # Create layout for the titlebar
         self.layout = QHBoxLayout(self.titlebar)
         self.layout.setContentsMargins(5, 5, 5, 5)
         self.layout.setSpacing(5)
 
         # Get icon color from theme
         icon_color = "#ffffff"  # Default white for dark theme
-
-        self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
-
-        #layout = QHBoxLayout(self.toolbar)
-        self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.setSpacing(5)
 
         # Settings button
         self.settings_btn = QPushButton()
@@ -249,7 +262,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.f_entries_btn.setText("File Entries")
         self.f_entries_btn.setIconSize(QSize(20, 20))
         self.f_entries_btn.setShortcut("Ctrl+tab")
-        if self.button_display_mode == 'icons':
+        if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
             self.f_entries_btn.setFixedSize(40, 40)
         self.f_entries_btn.setToolTip("File Entries (Ctrl+tab)")
         #self.f_entries_btn.clicked.connect(self.f_entries_file)
@@ -262,7 +275,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.dirtree_btn.setText("Directory Tree")
         self.dirtree_btn.setIconSize(QSize(20, 20))
         self.dirtree_btn.setShortcut("Ctrl+tab")
-        if self.button_display_mode == 'icons':
+        if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
             self.dirtree_btn.setFixedSize(40, 40)
         self.dirtree_btn.setEnabled(False)  # Enable when modified
         self.dirtree_btn.setToolTip("Directory Tree (Ctrl+tab)")
@@ -276,7 +289,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.s_results_btn.setText("Search Results")
         self.s_results_btn.setIconSize(QSize(20, 20))
         self.s_results_btn.setShortcut("Ctrl+tab")
-        if self.button_display_mode == 'icons':
+        if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
             self.s_results_btn.setFixedSize(40, 40)
         self.s_results_btn.setEnabled(False)  # Enable when modified
         self.s_results_btn.setToolTip("Search Results (Ctrl+tab)")
@@ -349,7 +362,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.close_btn.setToolTip("Close Window") # closes tab
         self.layout.addWidget(self.close_btn)
 
-        return self.toolbar
+        return self.titlebar
 
 
     def show_workshop_settings(self): #vers 1
@@ -715,16 +728,30 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
     def _show_workshop_settings(self): #vers 2
         """Show complete workshop settings dialog with custom UI toggle"""
+        # Prevent duplicate dialogs
+        if hasattr(self, '_settings_dialog_open') and self._settings_dialog_open:
+            return  # Already open, ignore duplicate call
+        
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
                                      QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
                                      QFontComboBox)
         from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QFont
+        
+        self._settings_dialog_open = True
         dialog = QDialog(self.main_window)
         dialog.setWindowTitle("Img Factory Settings")
         dialog.setMinimumWidth(650)
         dialog.setMinimumHeight(650)
+        
+        # Make sure to reset the flag when dialog closes
+        def cleanup_on_close():
+            if hasattr(self, '_settings_dialog_open'):
+                self._settings_dialog_open = False
+        
+        dialog.finished.connect(cleanup_on_close)
+        
         layout = QVBoxLayout(dialog)
 
         # Create tabs
