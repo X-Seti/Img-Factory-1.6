@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget, QFrame,
     QGroupBox, QPushButton, QLabel, QCheckBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QObject, pyqtSignal
 from PyQt6.QtGui import QIcon
 from .gui_layout import IMGFactoryGUILayout
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -15,6 +15,19 @@ from apps.methods.imgfactory_svg_icons import (
     get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
     get_rebuild_icon, get_undobar_icon, get_undo_icon, get_redo_icon
 )
+
+
+class TitleBarEventFilter(QObject):
+    """Event filter for custom title bar to handle dragging"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.start_pos = None
+    
+    def eventFilter(self, obj, event):
+        # Implement drag functionality if needed
+        # For now, just return False to let events pass through normally
+        return False
 
 
 class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
@@ -197,7 +210,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.titlebar.setObjectName("titlebar")
 
         # Install event filter for drag detection
-        self.titlebar.installEventFilter(self)
+        self.titlebar_event_filter = TitleBarEventFilter()
+        self.titlebar.installEventFilter(self.titlebar_event_filter)
         self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.titlebar.setMouseTracking(True)
 
@@ -313,7 +327,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.minimize_btn.setMinimumWidth(40)
         self.minimize_btn.setMaximumWidth(40)
         self.minimize_btn.setMinimumHeight(30)
-        #self.minimize_btn.clicked.connect(self.showMinimized)
+        self.minimize_btn.clicked.connect(self.main_window.showMinimized)
         self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
         self.layout.addWidget(self.minimize_btn)
 
@@ -323,7 +337,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.maximize_btn.setMinimumWidth(40)
         self.maximize_btn.setMaximumWidth(40)
         self.maximize_btn.setMinimumHeight(30)
-        #self.maximize_btn.clicked.connect(self._toggle_maximize)
+        self.maximize_btn.clicked.connect(self.toggle_maximize_restore)
         self.maximize_btn.setToolTip("Maximize/Restore Window")
         self.layout.addWidget(self.maximize_btn)
 
@@ -333,7 +347,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.close_btn.setMinimumWidth(40)
         self.close_btn.setMaximumWidth(40)
         self.close_btn.setMinimumHeight(30)
-        #self.close_btn.clicked.connect(self.close)
+        self.close_btn.clicked.connect(self.main_window.close)
         self.close_btn.setToolTip("Close Window") # closes tab
         self.layout.addWidget(self.close_btn)
 
