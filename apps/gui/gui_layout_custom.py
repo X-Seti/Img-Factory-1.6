@@ -83,6 +83,19 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     except:
                         pass  # Ignore if no connections exist
                     self.close_btn.clicked.connect(self.main_window.close)
+            
+            # Add the custom titlebar to the main window's layout at the top if not already added
+            if self._custom_titlebar:
+                # Check if the titlebar is already in the layout to avoid duplicates
+                central_widget = self.main_window.centralWidget()
+                if central_widget and central_widget.layout():
+                    main_layout = central_widget.layout()
+                    # Check if titlebar is already the first widget
+                    if main_layout.itemAt(0) and main_layout.itemAt(0).widget() != self._custom_titlebar:
+                        # Remove from any existing position first to avoid issues
+                        self._custom_titlebar.setParent(None)
+                        # Insert at the top
+                        main_layout.insertWidget(0, self._custom_titlebar)
         else:
             # For system UI mode, ensure custom titlebar is hidden if it exists
             if hasattr(self, '_custom_titlebar') and self._custom_titlebar:
