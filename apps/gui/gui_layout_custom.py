@@ -48,17 +48,6 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Store the UI mode preference for later use
         self.ui_mode = ui_mode
         
-        # Apply visibility settings for toolbar, status bar, and menu bar
-        if hasattr(self.main_window, 'menuBar') and callable(self.main_window.menuBar):
-            menu_bar = self.main_window.menuBar()
-            if menu_bar:
-                menu_bar.setVisible(show_menu_bar)
-        
-        if hasattr(self.main_window, 'statusBar') and callable(self.main_window.statusBar):
-            status_bar = self.main_window.statusBar()
-            if status_bar:
-                status_bar.setVisible(show_status_bar)
-        
         # Handle custom titlebar if needed
         if ui_mode == "custom":
             # For custom UI mode, we need to set up the custom titlebar
@@ -96,10 +85,27 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                         self._custom_titlebar.setParent(None)
                         # Insert at the top
                         main_layout.insertWidget(0, self._custom_titlebar)
+        
         else:
             # For system UI mode, ensure custom titlebar is hidden if it exists
             if hasattr(self, '_custom_titlebar') and self._custom_titlebar:
                 self._custom_titlebar.hide()
+        
+        # Apply visibility settings for menu bar and status bar after handling custom titlebar
+        if hasattr(self.main_window, 'menuBar') and callable(self.main_window.menuBar):
+            menu_bar = self.main_window.menuBar()
+            if menu_bar:
+                menu_bar.setVisible(show_menu_bar)
+                
+                # In custom mode, make sure menu appears under the custom titlebar
+                if ui_mode == "custom":
+                    # Force the menu to be visible even in custom mode if requested
+                    menu_bar.setVisible(show_menu_bar)
+        
+        if hasattr(self.main_window, 'statusBar') and callable(self.main_window.statusBar):
+            status_bar = self.main_window.statusBar()
+            if status_bar:
+                status_bar.setVisible(show_status_bar)
 
 
     def _apply_window_flags(self): #vers 1
@@ -242,6 +248,14 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.settings_btn.setIcon(self.icon_factory.settings_icon())
         self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(20, 20))
+        
+        # Disconnect any existing connections to prevent duplicates
+        try:
+            self.settings_btn.clicked.disconnect()
+        except TypeError:
+            # No connections to disconnect, which is fine
+            pass
+        
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip("Img Factory Settings")
         self.layout.addWidget(self.settings_btn)
@@ -258,6 +272,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.layout.addStretch()
 
         # Main Filelist window
+        # Connect tab buttons to switch tabs
         self.f_entries_btn = QPushButton()
         self.f_entries_btn.setFont(self.button_font)
         self.f_entries_btn.setIcon(self.icon_factory.package_icon())
@@ -267,7 +282,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
             self.f_entries_btn.setFixedSize(40, 40)
         self.f_entries_btn.setToolTip("File Entries (Ctrl+tab)")
-        #self.f_entries_btn.clicked.connect(self.f_entries_file)
+        # Connect to switch to File Entries tab (index 0)
+        self.f_entries_btn.clicked.connect(lambda: self._switch_to_tab(0))
         self.layout.addWidget(self.f_entries_btn)
 
         # File Browser
@@ -279,9 +295,9 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.dirtree_btn.setShortcut("Ctrl+tab")
         if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
             self.dirtree_btn.setFixedSize(40, 40)
-        self.dirtree_btn.setEnabled(False)  # Enable when modified
         self.dirtree_btn.setToolTip("Directory Tree (Ctrl+tab)")
-        #self.dirtree_btn.clicked.connect(self._save_file)
+        # Connect to switch to Directory Tree tab (index 1)
+        self.dirtree_btn.clicked.connect(lambda: self._switch_to_tab(1))
         self.layout.addWidget(self.dirtree_btn)
 
         # Search Results - Search function results page.
@@ -293,9 +309,9 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.s_results_btn.setShortcut("Ctrl+tab")
         if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
             self.s_results_btn.setFixedSize(40, 40)
-        self.s_results_btn.setEnabled(False)  # Enable when modified
         self.s_results_btn.setToolTip("Search Results (Ctrl+tab)")
-        #self.s_results_btn.clicked.connect(self._saveall_file)
+        # Connect to switch to Search Results tab (index 2)
+        self.s_results_btn.clicked.connect(lambda: self._switch_to_tab(2))
         self.layout.addWidget(self.s_results_btn)
 
         self.undo_btn = QPushButton()
@@ -727,6 +743,44 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             }
         """)
 
+
+    def _show_workshop_settings(self): #vers 2
+        """Show complete workshop settings dialog with custom UI toggle"""
+        # Prevent duplicate dialogs
+        if hasattr(self, '_settings_dialog_open') and self._settings_dialog_open:
+            return  # Already open, ignore duplicate call
+        
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
+                                     QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
+                                     QFontComboBox)
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QFont
+        
+        self._settings_dialog_open = True
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle("Img Factory Settings")
+        dialog.setMinimumWidth(650)
+        dialog.setMinimumHeight(650)
+        
+        # Make sure to reset the flag when dialog closes
+        def cleanup_on_close():
+            if hasattr(self, '_settings_dialog_open'):
+                self._settings_dialog_open = False
+        
+    def _switch_to_tab(self, index: int):
+        """Switch to the specified tab in the main tab widget"""
+        try:
+            # Check if the main window has a tab widget and it's accessible
+            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'tab_widget'):
+                tab_widget = self.main_window.gui_layout.tab_widget
+                if tab_widget and index < tab_widget.count():
+                    tab_widget.setCurrentIndex(index)
+            elif hasattr(self, 'tab_widget') and self.tab_widget and index < self.tab_widget.count():
+                # Fallback to local tab widget if available
+                self.tab_widget.setCurrentIndex(index)
+        except Exception as e:
+            print(f"Error switching to tab {index}: {str(e)}")
 
     def _show_workshop_settings(self): #vers 2
         """Show complete workshop settings dialog with custom UI toggle"""
