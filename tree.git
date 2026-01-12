@@ -190,7 +190,9 @@
 │   │   ├── gui_backend.py
 │   │   ├── gui_context.py
 │   │   ├── gui_infobar.py
+│   │   ├── gui_layout_custom.py
 │   │   ├── gui_layout.py
+│   │   ├── gui_layout.py.txt
 │   │   ├── gui_menu.py
 │   │   ├── gui_settings.py
 │   │   ├── ide_dialog.py
@@ -249,6 +251,7 @@
 │   │   ├── img_factory_settings.py
 │   │   ├── imgfactory_svg_icons.py
 │   │   ├── imgfactory_ui_settings.py
+│   │   ├── imgfactory_ui_settings.py.txt
 │   │   ├── img_import_functions.py
 │   │   ├── img_integration.py
 │   │   ├── img_parsing_functions.py
@@ -443,4 +446,4 @@
 ├── TODO.md
 └── tree.git
 
-35 directories, 409 files
+35 directories, 412 files
