@@ -17,6 +17,25 @@ from apps.methods.imgfactory_svg_icons import (
 )
 
 
+# Temporary 3D viewport placeholder
+class COL3DViewport(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(400, 400)
+        layout = QVBoxLayout(self)
+        label = QLabel("3D Viewport - Placeholder")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(label)
+    def set_current_file(self, col_file): pass
+    def set_view_options(self, **options): pass
+
+VIEWPORT_AVAILABLE = False  # 3D viewport not yet implemented
+
+# Add root directory to path
+App_name = "Img Factory"
+vers = "1.6"
+DEBUG_STANDALONE = False
+
 class TitleBarEventFilter(QObject):
     """Event filter for custom title bar to handle dragging"""
     
@@ -29,6 +48,14 @@ class TitleBarEventFilter(QObject):
         # For now, just return False to let events pass through normally
         return False
 
+# Import AppSettings
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    APPSETTINGS_AVAILABLE = False
+    print("Warning: AppSettings not available")
+
 
 class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
     """Custom UI version of IMGFactoryGUILayout with modern theme and layout"""
@@ -38,9 +65,35 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Load setting: use system titlebar by default
         self.use_system_titlebar = True
         if hasattr(self.main_window, 'app_settings'):
-            self.use_system_titlebar = self.main_window.app_settings.current_settings.get('use_system_titlebar', True)
+            self.use_system_titlebar = self.main_window.app_settings.current_settings.get('use_system_titlebar', False)
+
         # Apply initial window flags
         self._apply_window_flags()
+
+        # ONLY set window-specific stuff in standalone mode
+
+        #self.setWindowTitle(App_name + ": No File")
+        #self.resize(1400, 800)
+        self.window_always_on_top = False
+        #self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+
+        # Corner resize variables for standalone
+        self.dragging = False
+        self.drag_position = None
+        self.resizing = False
+        self.resize_corner = None
+        self.corner_size = 20
+        self.hover_corner = None
+        self._initialize_features()
+
+    @property
+    def window_context(self): #vers 1
+        """Get the appropriate window context for method calls
+
+        Returns self.main_window if available (when embedded in IMG Factory),
+        otherwise returns self (when running standalone)
+        """
+        return self.main_window if self.main_window is not None else self
 
     def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool):
         """Apply UI mode: 'system' or 'custom'"""
@@ -1046,6 +1099,608 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         
         # Show menu at cursor position
         menu.exec(self.mapToGlobal(position))
+
+    def _apply_always_on_top(self): #vers 1
+        """Apply always on top window flag"""
+        current_flags = self.windowFlags()
+
+        if self.window_always_on_top:
+            new_flags = current_flags | Qt.WindowType.WindowStaysOnTopHint
+        else:
+            new_flags = current_flags & ~Qt.WindowType.WindowStaysOnTopHint
+
+        if new_flags != current_flags:
+            # Save state
+            current_geometry = self.geometry()
+            was_visible = self.isVisible()
+
+            self.setWindowFlags(new_flags)
+
+            self.setGeometry(current_geometry)
+            if was_visible:
+                self.show()
+
+
+    def _scan_available_locales(self): #vers 2
+        """Scan locale folder and return list of available languages"""
+        import os
+        import configparser
+
+        locales = []
+        locale_path = os.path.join(os.path.dirname(__file__), 'locale')
+
+        if not os.path.exists(locale_path):
+            # Easter egg: Amiga Workbench 3.1 style error
+            self._show_amiga_locale_error()
+            # Return default English
+            return [("English", "en", None)]
+
+        try:
+            for filename in os.listdir(locale_path):
+                if filename.endswith('.lang'):
+                    filepath = os.path.join(locale_path, filename)
+
+                    try:
+                        config = configparser.ConfigParser()
+                        config.read(filepath, encoding='utf-8')
+
+                        if 'Metadata' in config:
+                            lang_name = config['Metadata'].get('LanguageName', 'Unknown')
+                            lang_code = config['Metadata'].get('LanguageCode', 'unknown')
+                            locales.append((lang_name, lang_code, filepath))
+
+                    except Exception as e:
+                        if self.main_window and hasattr(self.main_window, 'log_message'):
+                            self.window_context.log_message(f"Failed to load locale {filename}: {e}")
+
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"Locale scan error: {e}")
+
+        locales.sort(key=lambda x: x[0])
+
+        if not locales:
+            locales = [("English", "en", None)]
+
+        return locales
+
+
+    def _show_amiga_locale_error(self): #vers 2
+        """Show Amiga Workbench 3.1 style error dialog"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QFont
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Workbench Request")
+        dialog.setFixedSize(450, 150)
+
+        # Amiga Workbench styling
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #aaaaaa;
+                border: 2px solid #ffffff;
+            }
+            QLabel {
+                color: #000000;
+                background-color: #aaaaaa;
+            }
+            QPushButton {
+                background-color: #8899aa;
+                color: #000000;
+                border: 2px outset #ffffff;
+                padding: 5px 15px;
+                min-width: 80px;
+            }
+            QPushButton:pressed {
+                border: 2px inset #555555;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Amiga Topaz font style
+        amiga_font = QFont("Courier", 10, QFont.Weight.Normal)
+
+        # Error message
+        message = QLabel("Workbench 3.1 installer\n\nPlease insert Local disk in any drive")
+        message.setFont(amiga_font)
+        message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(message)
+
+        layout.addStretch()
+
+        # Button layout
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        # Retry and Cancel buttons (Amiga style)
+        retry_btn = QPushButton("Retry")
+        retry_btn.setFont(amiga_font)
+        retry_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(retry_btn)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFont(amiga_font)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
+
+        dialog.exec()
+
+
+# - Docking functions
+
+    def _update_dock_button_visibility(self): #vers 2
+        """Show/hide dock and tearoff buttons based on docked state"""
+        if hasattr(self, 'dock_btn'):
+            # Hide D button when docked, show when standalone
+            self.dock_btn.setVisible(not self.is_docked)
+
+        if hasattr(self, 'tearoff_btn'):
+            # T button only visible when docked and not in standalone mode
+            self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
+
+
+    def toggle_dock_mode(self): #vers 2
+        """Toggle between docked and standalone mode"""
+        if self.is_docked:
+            self._undock_from_main()
+        else:
+            self._dock_to_main()
+
+        self._update_dock_button_visibility()
+
+
+    def _dock_to_main(self): #vers 9
+        """Dock handled by overlay system in imgfactory - IMPROVED"""
+        try:
+            if hasattr(self, 'is_overlay') and self.is_overlay:
+                self.show()
+                self.raise_()
+                return
+
+            # For proper docking, we need to be called from imgfactory
+            # This method should be handled by imgfactory's overlay system
+            if self.main_window and hasattr(self.main_window, App_name + '_docked'):
+                # If available, use the main window's docking system
+                self.main_window.open_col_workshop_docked()
+            else:
+                # Fallback: just show the window
+                self.show()
+                self.raise_()
+
+            # Update dock state
+            self.is_docked = True
+            self._update_dock_button_visibility()
+
+            if hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"{App_name} docked to main window")
+
+
+        except Exception as e:
+            print(f"Error docking: {str(e)}")
+            self.show()
+
+
+    def _undock_from_main(self): #vers 4
+        """Undock from overlay mode to standalone window - IMPROVED"""
+        try:
+            if hasattr(self, 'is_overlay') and self.is_overlay:
+                # Switch from overlay to normal window
+                self.setWindowFlags(Qt.WindowType.Window)
+                self.is_overlay = False
+                self.overlay_table = None
+
+            # Set proper window flags for standalone mode
+            self.setWindowFlags(Qt.WindowType.Window)
+
+            # Ensure proper size when undocking
+            if hasattr(self, 'original_size'):
+                self.resize(self.original_size)
+            else:
+                self.resize(1000, 700)  # Reasonable default size
+
+            self.is_docked = False
+            self._update_dock_button_visibility()
+
+            self.show()
+            self.raise_()
+
+            if hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"{App_name} undocked to standalone")
+
+        except Exception as e:
+            print(f"Error undocking: {str(e)}")
+            # Fallback
+            self.setWindowFlags(Qt.WindowType.Window)
+            self.show()
+
+
+    def _apply_button_mode(self, dialog): #vers 1
+        """Apply button display mode"""
+        mode_index = self.button_mode_combo.currentIndex()
+        mode_map = {0: 'both', 1: 'icons', 2: 'text'}
+
+        new_mode = mode_map[mode_index]
+
+        if new_mode != self.button_display_mode:
+            self.button_display_mode = new_mode
+            self._update_all_buttons()
+
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                mode_names = {0: 'Icons + Text', 1: 'Icons Only', 2: 'Text Only'}
+                self.window_context.log_message(f"✨ Button style: {mode_names[mode_index]}")
+
+        dialog.close()
+
+
+# - Window functionality
+
+    def _initialize_features(self): #vers 3
+        """Initialize all features after UI setup"""
+        try:
+            self._apply_theme()
+            self._update_status_indicators()
+
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message("All features initialized")
+
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"Feature init error: {str(e)}")
+
+
+    def _is_on_draggable_area(self, pos): #vers 7
+        """Check if position is on draggable titlebar area
+
+        Args:
+            pos: Position in titlebar coordinates (from eventFilter)
+
+        Returns:
+            True if position is on titlebar but not on any button
+        """
+        if not hasattr(self, 'titlebar'):
+            print("[DRAG] No titlebar attribute")
+            return False
+
+        # Verify pos is within titlebar bounds
+        if not self.titlebar.rect().contains(pos):
+            print(f"[DRAG] Position {pos} outside titlebar rect {self.titlebar.rect()}")
+            return False
+
+        # Check if clicking on any button - if so, NOT draggable
+        for widget in self.titlebar.findChildren(QPushButton):
+            if widget.isVisible():
+                # Get button geometry in titlebar coordinates
+                button_rect = widget.geometry()
+                if button_rect.contains(pos):
+                    print(f"[DRAG] Clicked on button: {widget.toolTip()}")
+                    return False
+
+        # Not on any button = draggable
+        print(f"[DRAG] On draggable area at {pos}")
+        return True
+
+
+# - From the fixed gui - move, drag
+
+    def _update_all_buttons(self): #vers 4
+        """Update all buttons to match display mode"""
+        buttons_to_update = [
+            # Toolbar buttons
+            ('open_btn', 'Open'),
+            ('save_btn', 'Save'),
+            ('save_col_btn', 'Save TXD'),
+        ]
+
+        # Adjust transform panel width based on mode
+        if hasattr(self, 'nav_icon_panel'):
+            if self.button_display_mode == 'icons':
+                self.nav_icon_panel.setMaximumWidth(50)
+            else:
+                self.nav_text_panel.setMaximumWidth(200)
+
+        for btn_name, btn_text in buttons_to_update:
+            if hasattr(self, btn_name):
+                button = getattr(self, btn_name)
+                self._apply_button_mode_to_button(button, btn_text)
+        self._update_dock_button_visibility()
+
+    def paintEvent(self, event): #vers 2
+        """Paint corner resize triangles"""
+        super().paintEvent(event)
+
+        from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Colors
+        normal_color = QColor(100, 100, 100, 150)
+        hover_color = QColor(150, 150, 255, 200)
+
+        w = self.width()
+        h = self.height()
+        grip_size = 8  # Make corners visible (8x8px)
+        size = self.corner_size
+
+        # Define corner triangles
+        corners = {
+            'top-left': [(0, 0), (size, 0), (0, size)],
+            'top-right': [(w, 0), (w-size, 0), (w, size)],
+            'bottom-left': [(0, h), (size, h), (0, h-size)],
+            'bottom-right': [(w, h), (w-size, h), (w, h-size)]
+        }
+        corners2 = {
+            "top-left": [(0, grip_size), (0, 0), (grip_size, 0)],
+            "top-right": [(w-grip_size, 0), (w, 0), (w, grip_size)],
+            "bottom-left": [(0, h-grip_size), (0, h), (grip_size, h)],
+            "bottom-right": [(w-grip_size, h), (w, h), (w, h-grip_size)]
+        }
+
+        # Get theme colors for corner indicators
+        if self.app_settings:
+            theme_colors = self.app_settings.get_theme_colors()
+            accent_color = QColor(theme_colors.get('accent_primary', '#1976d2'))
+            accent_color.setAlpha(180)
+        else:
+            accent_color = QColor(100, 150, 255, 180)
+
+        hover_color = QColor(accent_color)
+        hover_color.setAlpha(255)
+
+        # Draw all corners with hover effect
+        for corner_name, points in corners.items():
+            path = QPainterPath()
+            path.moveTo(points[0][0], points[0][1])
+            path.lineTo(points[1][0], points[1][1])
+            path.lineTo(points[2][0], points[2][1])
+            path.closeSubpath()
+
+            # Use hover color if mouse is over this corner
+            color = hover_color if self.hover_corner == corner_name else accent_color
+
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(color))
+            painter.drawPath(path)
+
+        painter.end()
+
+
+    def _get_resize_corner(self, pos): #vers 3
+        """Determine which corner is under mouse position"""
+        size = self.corner_size; w = self.width(); h = self.height()
+
+        if pos.x() < size and pos.y() < size:
+            return "top-left"
+        if pos.x() > w - size and pos.y() < size:
+            return "top-right"
+        if pos.x() < size and pos.y() > h - size:
+            return "bottom-left"
+        if pos.x() > w - size and pos.y() > h - size:
+            return "bottom-right"
+
+        return None
+
+
+    def mousePressEvent(self, event): #vers 8
+        """Handle ALL mouse press - dragging and resizing"""
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+
+        pos = event.pos()
+
+        # Check corner resize FIRST
+        self.resize_corner = self._get_resize_corner(pos)
+        if self.resize_corner:
+            self.resizing = True
+            self.drag_position = event.globalPosition().toPoint()
+            self.initial_geometry = self.geometry()
+            event.accept()
+            return
+
+        # Check if on titlebar
+        if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
+            titlebar_pos = self.titlebar.mapFromParent(pos)
+            if self._is_on_draggable_area(titlebar_pos):
+                self.windowHandle().startSystemMove()
+                event.accept()
+                return
+
+        super().mousePressEvent(event)
+
+
+    def mouseMoveEvent(self, event): #vers 4
+        """Handle mouse move for resizing and hover effects
+
+        Window dragging is handled by eventFilter to avoid conflicts
+        """
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            if self.resizing and self.resize_corner:
+                self._handle_corner_resize(event.globalPosition().toPoint())
+                event.accept()
+                return
+        else:
+            # Update hover state and cursor
+            corner = self._get_resize_corner(event.pos())
+            if corner != self.hover_corner:
+                self.hover_corner = corner
+                self.update()  # Trigger repaint for hover effect
+            self._update_cursor(corner)
+
+        # Let parent handle everything else
+        super().mouseMoveEvent(event)
+
+
+    def mouseReleaseEvent(self, event): #vers 2
+        """Handle mouse release"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = False
+            self.resizing = False
+            self.resize_corner = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+
+
+    def _handle_corner_resize(self, global_pos): #vers 2
+        """Handle window resizing from corners"""
+        if not self.resize_corner or not self.drag_position:
+            return
+
+        delta = global_pos - self.drag_position
+        geometry = self.initial_geometry
+
+        min_width = 800
+        min_height = 600
+
+        # Calculate new geometry based on corner
+        if self.resize_corner == "top-left":
+            new_x = geometry.x() + delta.x()
+            new_y = geometry.y() + delta.y()
+            new_width = geometry.width() - delta.x()
+            new_height = geometry.height() - delta.y()
+
+            if new_width >= min_width and new_height >= min_height:
+                self.setGeometry(new_x, new_y, new_width, new_height)
+
+        elif self.resize_corner == "top-right":
+            new_y = geometry.y() + delta.y()
+            new_width = geometry.width() + delta.x()
+            new_height = geometry.height() - delta.y()
+
+            if new_width >= min_width and new_height >= min_height:
+                self.setGeometry(geometry.x(), new_y, new_width, new_height)
+
+        elif self.resize_corner == "bottom-left":
+            new_x = geometry.x() + delta.x()
+            new_width = geometry.width() - delta.x()
+            new_height = geometry.height() + delta.y()
+
+            if new_width >= min_width and new_height >= min_height:
+                self.setGeometry(new_x, geometry.y(), new_width, new_height)
+
+        elif self.resize_corner == "bottom-right":
+            new_width = geometry.width() + delta.x()
+            new_height = geometry.height() + delta.y()
+
+            if new_width >= min_width and new_height >= min_height:
+                self.resize(new_width, new_height)
+
+
+    def _get_resize_direction(self, pos): #vers 1
+        """Determine resize direction based on mouse position"""
+        rect = self.rect()
+        margin = self.resize_margin
+
+        left = pos.x() < margin
+        right = pos.x() > rect.width() - margin
+        top = pos.y() < margin
+        bottom = pos.y() > rect.height() - margin
+
+        if left and top:
+            return "top-left"
+        elif right and top:
+            return "top-right"
+        elif left and bottom:
+            return "bottom-left"
+        elif right and bottom:
+            return "bottom-right"
+        elif left:
+            return "left"
+        elif right:
+            return "right"
+        elif top:
+            return "top"
+        elif bottom:
+            return "bottom"
+
+        return None
+
+
+    def _update_cursor(self, direction): #vers 1
+        """Update cursor based on resize direction"""
+        if direction == "top" or direction == "bottom":
+            self.setCursor(Qt.CursorShape.SizeVerCursor)
+        elif direction == "left" or direction == "right":
+            self.setCursor(Qt.CursorShape.SizeHorCursor)
+        elif direction == "top-left" or direction == "bottom-right":
+            self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        elif direction == "top-right" or direction == "bottom-left":
+            self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+
+    def _handle_resize(self, global_pos): #vers 1
+        """Handle window resizing"""
+        if not self.resize_direction or not self.drag_position:
+            return
+
+        delta = global_pos - self.drag_position
+        geometry = self.frameGeometry()
+
+        min_width = 800
+        min_height = 600
+
+        # Handle horizontal resizing
+        if "left" in self.resize_direction:
+            new_width = geometry.width() - delta.x()
+            if new_width >= min_width:
+                geometry.setLeft(geometry.left() + delta.x())
+        elif "right" in self.resize_direction:
+            new_width = geometry.width() + delta.x()
+            if new_width >= min_width:
+                geometry.setRight(geometry.right() + delta.x())
+
+        # Handle vertical resizing
+        if "top" in self.resize_direction:
+            new_height = geometry.height() - delta.y()
+            if new_height >= min_height:
+                geometry.setTop(geometry.top() + delta.y())
+        elif "bottom" in self.resize_direction:
+            new_height = geometry.height() + delta.y()
+            if new_height >= min_height:
+                geometry.setBottom(geometry.bottom() + delta.y())
+
+        self.setGeometry(geometry)
+        self.drag_position = global_pos
+
+
+    def resizeEvent(self, event): #vers 1
+        '''Keep resize grip in bottom-right corner'''
+        super().resizeEvent(event)
+        if hasattr(self, 'size_grip'):
+            self.size_grip.move(self.width() - 16, self.height() - 16)
+
+
+    def mouseDoubleClickEvent(self, event): #vers 2
+        """Handle double-click - maximize/restore
+
+        Handled here instead of eventFilter for better control
+        """
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Convert to titlebar coordinates if needed
+            if hasattr(self, 'titlebar'):
+                titlebar_pos = self.titlebar.mapFromParent(event.pos())
+                if self._is_on_draggable_area(titlebar_pos):
+                    self._toggle_maximize()
+                    event.accept()
+                    return
+
+        super().mouseDoubleClickEvent(event)
+
+
+    def closeEvent(self, event): #vers 1
+        """Handle close event"""
+        self.window_closed.emit()
+        event.accept()
+
 
 
 # Export functions
