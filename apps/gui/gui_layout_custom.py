@@ -300,7 +300,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undobar_icon())
+        self.undo_btn.setIcon(self.icon_factory.undo_icon())
         self.undo_btn.setText("Undo")
         self.undo_btn.setIconSize(QSize(20, 20))
         #self.undo_btn.clicked.connect(self._undo_last_action)
