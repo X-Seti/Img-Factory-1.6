@@ -180,6 +180,18 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
     def _create_toolbar(self): #vers 2 = keep style and theme.
         """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        from PyQt6.QtGui import QFont
+
+        # Initialize required variables if they don't exist
+        if not hasattr(self, 'title_font'):
+            self.title_font = QFont("Arial", 14)
+        if not hasattr(self, 'button_font'):
+            self.button_font = QFont("Arial", 10)
+        if not hasattr(self, 'icon_factory'):
+            self.icon_factory = SVGIconFactory()
+        if not hasattr(globals(), 'App_name'):
+            from apps.components.Img_Factory.imgfactory import App_name
 
         # Create tab widget
         self.tab_widget = QTabWidget()
@@ -199,7 +211,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.layout.setSpacing(5)
 
         # Get icon color from theme
-        #icon_color = self._get_icon_color()
+        icon_color = "#ffffff"  # Default white for dark theme
 
         self.toolbar = QFrame()
         self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -298,7 +310,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Properties/Theme button
         self.properties_btn = QPushButton()
         self.properties_btn.setFont(self.button_font)
-        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
+        self.properties_btn.setIcon(self.icon_factory.properties_icon(24, icon_color))
         self.properties_btn.setToolTip("Theme")
         self.properties_btn.setFixedSize(35, 35)
         self.properties_btn.clicked.connect(self._launch_theme_settings)
@@ -918,6 +930,40 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         # Show dialog
         dialog.exec()
+
+    def _show_imgfactory_info(self):
+        """Show information dialog about Img Factory"""
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.components.Img_Factory.imgfactory import App_name, App_auth
+        QMessageBox.information(
+            self, 
+            "About Img Factory", 
+            f"{App_name}\n\nApplication Information System\n\nDeveloped by: {App_auth}"
+        )
+
+    def _launch_theme_settings(self):
+        """Launch theme settings dialog"""
+        from apps.utils.app_settings_system import SettingsDialog
+        if hasattr(self.main_window, 'app_settings'):
+            dialog = SettingsDialog(self.main_window, self.main_window.app_settings)
+            dialog.exec()
+
+    def _show_settings_context_menu(self, position):
+        """Show context menu for settings button"""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        
+        # Add theme settings action
+        theme_action = menu.addAction("Theme Settings")
+        theme_action.triggered.connect(self._launch_theme_settings)
+        
+        # Add about action
+        about_action = menu.addAction("About")
+        about_action.triggered.connect(self._show_imgfactory_info)
+        
+        # Show menu at cursor position
+        menu.exec(self.mapToGlobal(position))
+
 
 # Export functions
 __all__ = [
