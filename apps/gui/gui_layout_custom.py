@@ -105,6 +105,10 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         toolbar = self._create_toolbar()
         main_vbox.addWidget(toolbar)
         
+        # Apply toolbar visibility based on stored preference
+        if hasattr(self, 'desired_toolbar_visibility'):
+            toolbar.setVisible(self.desired_toolbar_visibility)
+        
         # Create the main content (without toolbar) by calling parent method on a temporary widget
         temp_widget = QWidget()
         temp_layout = QVBoxLayout(temp_widget)
@@ -123,11 +127,15 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
     def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool):
         """Apply UI mode: 'system' or 'custom'"""
         # Since this is a layout component, we need to work with the main window
-        # Store the UI mode preference for later use
+        # Store the UI mode preference and toolbar visibility for later use
         self.ui_mode = ui_mode
+        self.desired_toolbar_visibility = show_toolbar
         
-        # For custom UI mode, the toolbar is already integrated in create_main_ui_with_splitters
-        # So we just need to handle visibility settings
+        # For custom UI mode, the toolbar is integrated in create_main_ui_with_splitters
+        # Make sure the titlebar (which includes our toolbar) visibility is managed properly
+        # Note: We'll apply this when the UI is created in create_main_ui_with_splitters
+        if hasattr(self, 'titlebar') and self.titlebar:
+            self.titlebar.setVisible(show_toolbar)
         
         # Apply visibility settings for menu bar and status bar
         if hasattr(self.main_window, 'menuBar') and callable(self.main_window.menuBar):
