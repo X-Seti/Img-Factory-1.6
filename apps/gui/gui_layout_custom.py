@@ -62,6 +62,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
     def __init__(self, main_window):
         super().__init__(main_window)
+
         # Load setting: use system titlebar by default
         self.use_system_titlebar = True
         if hasattr(self.main_window, 'app_settings'):
@@ -72,10 +73,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         # ONLY set window-specific stuff in standalone mode
 
-        #self.setWindowTitle(App_name + ": No File")
-        #self.resize(1400, 800)
         self.window_always_on_top = False
-        #self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
 
         # Corner resize variables for standalone
         self.dragging = False
@@ -152,6 +150,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 
                 # In custom mode, make sure menu appears under the custom titlebar
                 if ui_mode == "custom":
+
                     # Force the menu to be visible even in custom mode if requested
                     menu_bar.setVisible(show_menu_bar)
         
