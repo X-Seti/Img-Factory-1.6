@@ -83,6 +83,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.corner_size = 20
         self.hover_corner = None
         self._initialize_features()
+        self.enable_debug_check = False
 
     @property
     def window_context(self): #vers 1
@@ -93,64 +94,74 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         """
         return self.main_window if self.main_window is not None else self
 
-    def create_main_ui_with_splitters(self, parent_layout):
-        """Create the main UI with toolbar for custom layout"""
-        # Create main vertical layout
-        main_vbox = QVBoxLayout()
-        main_vbox.setContentsMargins(0, 0, 0, 0)
-        
-        # Add toolbar at the top
-        toolbar = self._create_toolbar()
-        main_vbox.addWidget(toolbar)
-        
-        # Apply toolbar visibility based on stored preference
-        if hasattr(self, 'desired_toolbar_visibility'):
-            toolbar.setVisible(self.desired_toolbar_visibility)
-        
-        # Create the main content (without toolbar) by calling parent method on a temporary widget
-        temp_widget = QWidget()
-        temp_layout = QVBoxLayout(temp_widget)
-        temp_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Call parent method to create the main UI content
-        super().create_main_ui_with_splitters(temp_layout)
-        
-        # Add the main content to the main layout
-        main_vbox.addWidget(temp_widget)
-        
-        # Add the entire layout to the parent
-        parent_layout.addLayout(main_vbox)
 
-
-    def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool):
+    def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool): #vers 4
         """Apply UI mode: 'system' or 'custom'"""
-        # Since this is a layout component, we need to work with the main window
-        # Store the UI mode preference and toolbar visibility for later use
+        # STORE MODE EARLY
         self.ui_mode = ui_mode
-        self.desired_toolbar_visibility = show_toolbar
-        
-        # For custom UI mode, the toolbar is integrated in create_main_ui_with_splitters
-        # Make sure the titlebar (which includes our toolbar) visibility is managed properly
-        # Note: We'll apply this when the UI is created in create_main_ui_with_splitters
+
+        # If toolbar exists, apply visibility immediately
         if hasattr(self, 'titlebar') and self.titlebar:
-            self.titlebar.setVisible(show_toolbar)
-        
-        # Apply visibility settings for menu bar and status bar
+            self.titlebar.setVisible(True)  # Always visible
+
+            # Control window buttons based on mode
+            show_controls = (ui_mode == 'custom')
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setVisible(show_controls)
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setVisible(show_controls)
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setVisible(show_controls)
+
+        # Menu bar visibility
         if hasattr(self.main_window, 'menuBar') and callable(self.main_window.menuBar):
             menu_bar = self.main_window.menuBar()
             if menu_bar:
                 menu_bar.setVisible(show_menu_bar)
-                
-                # In custom mode, make sure menu appears under the custom titlebar
-                if ui_mode == "custom":
 
-                    # Force the menu to be visible even in custom mode if requested
-                    menu_bar.setVisible(show_menu_bar)
-        
+        # Status bar visibility
         if hasattr(self.main_window, 'statusBar') and callable(self.main_window.statusBar):
             status_bar = self.main_window.statusBar()
             if status_bar:
                 status_bar.setVisible(show_status_bar)
+
+
+    def create_main_ui_with_splitters(self, parent_layout): #vers 6
+        """Create the main UI with toolbar for custom layout - TOOLBAR NOW IN _create_ui"""
+        # NO LONGER CREATE TOOLBAR HERE - it's handled in imgfactory._create_ui
+
+        # Create temp widget for main content
+        temp_widget = QWidget()
+        temp_layout = QVBoxLayout(temp_widget)
+        temp_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Call parent method to create the main UI content
+        super().create_main_ui_with_splitters(temp_layout)
+
+        # Add the main content directly to parent layout
+        parent_layout.addWidget(temp_widget)
+
+
+        # NOW apply ui_mode visibility settings AFTER toolbar exists
+        ui_mode = getattr(self, 'ui_mode', 'system')
+        if ui_mode == 'custom':
+            # Show window controls in custom mode
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setVisible(True)
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setVisible(True)
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setVisible(True)
+        else:
+            # Hide window controls in system mode
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setVisible(False)
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setVisible(False)
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setVisible(False)
+
+
 
 
     def _apply_window_flags(self): #vers 1
@@ -173,79 +184,6 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             self.main_window.show()
 
 
-    def _create_custom_titlebar(self):
-        """Create a minimal custom title bar using only existing SVG icons"""
-        from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
-        from PyQt6.QtCore import Qt, QSize
-        from apps.methods.imgfactory_svg_icons import (
-            get_settings_icon, get_open_icon, get_save_icon,
-            get_search_icon, get_view_icon, get_close_icon
-        )
-
-        titlebar = QFrame()
-        titlebar.setFixedHeight(30)
-        titlebar.setStyleSheet("background: #2b2b2b; border-bottom: 1px solid #444;")
-        layout = QHBoxLayout(titlebar)
-        layout.setContentsMargins(8, 0, 8, 0)
-
-        # Settings button
-        settings_btn = QPushButton()
-        settings_btn.setIcon(get_settings_icon())
-        settings_btn.setFixedSize(24, 24)
-        settings_btn.clicked.connect(lambda: self.main_window.show_imgfactory_settings())
-        layout.addWidget(settings_btn)
-        layout.addSpacing(10)
-
-        # App title
-        title_label = QLabel("Img Factory")
-        title_label.setStyleSheet("color: white; font-weight: bold;")
-        layout.addWidget(title_label)
-        layout.addStretch()
-
-        # Tab-like buttons (using available icons)
-        tabs = [
-            ("File Entries", get_open_icon),
-            ("Directory Tree", get_view_icon),
-            ("Search Results", get_search_icon)
-        ]
-        for text, icon_func in tabs:
-            btn = QPushButton(text)
-            btn.setIcon(icon_func())
-            btn.setIconSize(QSize(16, 16))
-            btn.setStyleSheet("""
-                QPushButton {
-                    color: white;
-                    padding: 2px 6px;
-                    border: 1px solid #555;
-                    border-radius: 3px;
-                    background: #3a3a3a;
-                    font-size: 9pt;
-                }
-                QPushButton:hover {
-                    background: #4a4a4a;
-                }
-            """)
-            layout.addWidget(btn)
-
-        layout.addStretch()
-
-        # Window controls (text fallback — no minimize/maximize SVGs defined)
-        min_btn = QPushButton("_")
-        max_btn = QPushButton("□")
-        close_btn = QPushButton("✕")
-        for btn in [min_btn, max_btn, close_btn]:
-            btn.setFixedSize(24, 24)
-            btn.setStyleSheet("QPushButton { color: white; background: transparent; }")
-        min_btn.clicked.connect(self.main_window.showMinimized)
-        max_btn.clicked.connect(lambda: self.main_window.showNormal() if self.main_window.isMaximized() else self.main_window.showMaximized())
-        close_btn.clicked.connect(self.main_window.close)
-        layout.addWidget(min_btn)
-        layout.addWidget(max_btn)
-        layout.addWidget(close_btn)
-
-        return titlebar
-
-
     def toggle_maximize_restore(self):
         if self.main_window.isMaximized():
             self.main_window.showNormal()
@@ -253,183 +191,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             self.main_window.showMaximized()
 
 
-    def _create_toolbar(self): #vers 2 = keep style and theme.
-        """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
-        from apps.methods.imgfactory_svg_icons import SVGIconFactory
-        from PyQt6.QtGui import QFont
-
-        # Initialize required variables if they don't exist
-        if not hasattr(self, 'title_font'):
-            self.title_font = QFont("Arial", 14)
-        if not hasattr(self, 'button_font'):
-            self.button_font = QFont("Arial", 10)
-        if not hasattr(self, 'icon_factory'):
-            self.icon_factory = SVGIconFactory()
-        if not hasattr(globals(), 'App_name'):
-            from apps.components.Img_Factory.imgfactory import App_name
-
-        # Create the toolbar widget (this will be the custom titlebar)
-        self.titlebar = QWidget()
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-
-        # Install event filter for drag detection
-        self.titlebar_event_filter = TitleBarEventFilter()
-        self.titlebar.installEventFilter(self.titlebar_event_filter)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
-        # Create layout for the titlebar
-        self.layout = QHBoxLayout(self.titlebar)
-        self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.setSpacing(5)
-
-        # Get icon color from theme
-        icon_color = "#ffffff"  # Default white for dark theme
-
-        # Settings button
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon())
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        
-        # Disconnect any existing connections to prevent duplicates
-        try:
-            self.settings_btn.clicked.disconnect()
-        except TypeError:
-            # No connections to disconnect, which is fine
-            pass
-        
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip("Img Factory Settings")
-        self.layout.addWidget(self.settings_btn)
-
-        self.layout.addStretch()
-
-        # App title in center
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.title_label)
-
-        self.layout.addStretch()
-        self.layout.addStretch()
-
-        # Main Filelist window
-        # Connect tab buttons to switch tabs
-        self.f_entries_btn = QPushButton()
-        self.f_entries_btn.setFont(self.button_font)
-        self.f_entries_btn.setIcon(self.icon_factory.package_icon())
-        self.f_entries_btn.setText("File Entries")
-        self.f_entries_btn.setIconSize(QSize(20, 20))
-        self.f_entries_btn.setShortcut("Ctrl+tab")
-        if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
-            self.f_entries_btn.setFixedSize(40, 40)
-        self.f_entries_btn.setToolTip("File Entries (Ctrl+tab)")
-        # Connect to switch to File Entries tab (index 0)
-        self.f_entries_btn.clicked.connect(lambda: self._switch_to_tab(0))
-        self.layout.addWidget(self.f_entries_btn)
-
-        # File Browser
-        self.dirtree_btn = QPushButton()
-        self.dirtree_btn.setFont(self.button_font)
-        self.dirtree_btn.setIcon(self.icon_factory.folder_icon())
-        self.dirtree_btn.setText("Directory Tree")
-        self.dirtree_btn.setIconSize(QSize(20, 20))
-        self.dirtree_btn.setShortcut("Ctrl+tab")
-        if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
-            self.dirtree_btn.setFixedSize(40, 40)
-        self.dirtree_btn.setToolTip("Directory Tree (Ctrl+tab)")
-        # Connect to switch to Directory Tree tab (index 1)
-        self.dirtree_btn.clicked.connect(lambda: self._switch_to_tab(1))
-        self.layout.addWidget(self.dirtree_btn)
-
-        # Search Results - Search function results page.
-        self.s_results_btn = QPushButton()
-        self.s_results_btn.setFont(self.button_font)
-        self.s_results_btn.setIcon(self.icon_factory.search_icon())
-        self.s_results_btn.setText("Search Results")
-        self.s_results_btn.setIconSize(QSize(20, 20))
-        self.s_results_btn.setShortcut("Ctrl+tab")
-        if hasattr(self, 'button_display_mode') and self.button_display_mode == 'icons':
-            self.s_results_btn.setFixedSize(40, 40)
-        self.s_results_btn.setToolTip("Search Results (Ctrl+tab)")
-        # Connect to switch to Search Results tab (index 2)
-        self.s_results_btn.clicked.connect(lambda: self._switch_to_tab(2))
-        self.layout.addWidget(self.s_results_btn)
-
-        self.undo_btn = QPushButton()
-        self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon())
-        self.undo_btn.setText("Undo")
-        self.undo_btn.setIconSize(QSize(20, 20))
-        #self.undo_btn.clicked.connect(self._undo_last_action)
-        self.undo_btn.setEnabled(False)
-        self.undo_btn.setToolTip("Undo last change")
-        self.layout.addWidget(self.undo_btn)
-
-        # Info button
-        self.info_btn = QPushButton("")
-        self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon())
-        self.info_btn.setMinimumWidth(40)
-        self.info_btn.setMaximumWidth(40)
-        self.info_btn.setMinimumHeight(30)
-        self.info_btn.setToolTip("Information")
-
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_imgfactory_info)
-        self.layout.addWidget(self.info_btn)
-
-        # Properties/Theme button
-        self.properties_btn = QPushButton()
-        self.properties_btn.setFont(self.button_font)
-        self.properties_btn.setIcon(self.icon_factory.properties_icon(24, icon_color))
-        self.properties_btn.setToolTip("Theme")
-        self.properties_btn.setFixedSize(35, 35)
-        self.properties_btn.clicked.connect(self._launch_theme_settings)
-        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
-        self.layout.addWidget(self.properties_btn)
-
-        # Window controls
-        self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon())
-        self.minimize_btn.setIconSize(QSize(20, 20))
-        self.minimize_btn.setMinimumWidth(40)
-        self.minimize_btn.setMaximumWidth(40)
-        self.minimize_btn.setMinimumHeight(30)
-        self.minimize_btn.clicked.connect(self.main_window.showMinimized)
-        self.minimize_btn.setToolTip("Minimize Window") # click tab to restore
-        self.layout.addWidget(self.minimize_btn)
-
-        self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon())
-        self.maximize_btn.setIconSize(QSize(20, 20))
-        self.maximize_btn.setMinimumWidth(40)
-        self.maximize_btn.setMaximumWidth(40)
-        self.maximize_btn.setMinimumHeight(30)
-        self.maximize_btn.clicked.connect(self.toggle_maximize_restore)
-        self.maximize_btn.setToolTip("Maximize/Restore Window")
-        self.layout.addWidget(self.maximize_btn)
-
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon())
-        self.close_btn.setIconSize(QSize(20, 20))
-        self.close_btn.setMinimumWidth(40)
-        self.close_btn.setMaximumWidth(40)
-        self.close_btn.setMinimumHeight(30)
-        self.close_btn.clicked.connect(self.main_window.close)
-        self.close_btn.setToolTip("Close Window") # closes tab
-        self.layout.addWidget(self.close_btn)
-
-        return self.titlebar
-
-
-    def show_workshop_settings(self): #vers 1
-        """Show complete workshop settings dialog"""
+    def _show_workshop_settings(self): #vers 3
+        """Show complete workshop settings dialog - FIXED DUPLICATION"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
                                     QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
@@ -437,10 +200,11 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QFont
 
-        dialog = QDialog(self)
-        dialog.setWindowTitle(App_name + "Settings")
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle("Img Factory Settings")
         dialog.setMinimumWidth(650)
         dialog.setMinimumHeight(650)
+        dialog.setModal(True)
 
         layout = QVBoxLayout(dialog)
 
@@ -457,12 +221,12 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         default_font_layout = QHBoxLayout()
 
         default_font_combo = QFontComboBox()
-        default_font_combo.setCurrentFont(self.font())
+        default_font_combo.setCurrentFont(self.main_window.font())
         default_font_layout.addWidget(default_font_combo)
 
         default_font_size = QSpinBox()
         default_font_size.setRange(8, 24)
-        default_font_size.setValue(self.font().pointSize())
+        default_font_size.setValue(self.main_window.font().pointSize())
         default_font_size.setSuffix(" pt")
         default_font_size.setFixedWidth(80)
         default_font_layout.addWidget(default_font_size)
@@ -479,6 +243,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             title_font_combo.setCurrentFont(self.title_font)
         else:
             title_font_combo.setCurrentFont(QFont("Arial", 14))
+
         title_font_layout.addWidget(title_font_combo)
 
         title_font_size = QSpinBox()
@@ -601,6 +366,29 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 
         # TAB 3: placeholder
+        debug_tab = QWidget()
+        debug_layout = QVBoxLayout(debug_tab)
+
+        debug_group = QGroupBox("Debug Options")
+        debug_group_layout = QVBoxLayout()
+
+        self.enable_debug_check = QCheckBox("Enable debug output to console")
+        if hasattr(self.main_window, 'img_settings'):
+            self.enable_debug_check.setChecked(self.main_window.img_settings.get("enable_debug", False))  # ADD self.
+        else:
+            self.enable_debug_check.setChecked(False)
+
+        debug_group_layout.addWidget(self.enable_debug_check)
+
+        debug_hint = QLabel("Shows diagnostic messages in console for troubleshooting")
+        debug_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
+        debug_group_layout.addWidget(debug_hint)
+
+        debug_group.setLayout(debug_group_layout)
+        debug_layout.addWidget(debug_group)  # Add group to tab layout
+
+        debug_layout.addStretch()
+        tabs.addTab(debug_tab, "Debug")
         # TAB 4: PERFORMANCE
 
         perf_tab = QWidget()
@@ -813,284 +601,1401 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             if hasattr(self, '_settings_dialog_open'):
                 self._settings_dialog_open = False
         
-    def _switch_to_tab(self, index: int):
-        """Switch to the specified tab in the main tab widget"""
-        try:
-            # Check if the main window has a tab widget and it's accessible
-            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'tab_widget'):
-                tab_widget = self.main_window.gui_layout.tab_widget
-                if tab_widget and index < tab_widget.count():
-                    tab_widget.setCurrentIndex(index)
-            elif hasattr(self, 'tab_widget') and self.tab_widget and index < self.tab_widget.count():
-                # Fallback to local tab widget if available
-                self.tab_widget.setCurrentIndex(index)
-        except Exception as e:
-            print(f"Error switching to tab {index}: {str(e)}")
 
-    def _show_workshop_settings(self): #vers 2
-        """Show complete workshop settings dialog with custom UI toggle"""
-        # Prevent duplicate dialogs
-        if hasattr(self, '_settings_dialog_open') and self._settings_dialog_open:
-            return  # Already open, ignore duplicate call
-        
+
+    def _show_workshop_settings(self): #vers 6
+        """Show complete workshop settings dialog - FULL VERSION"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
-                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
-                                     QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
-                                     QFontComboBox)
-        from PyQt6.QtCore import Qt
+                                    QTabWidget, QWidget, QGroupBox, QFormLayout,
+                                    QSpinBox, QComboBox, QSlider, QLabel, QCheckBox,
+                                    QFontComboBox, QGridLayout, QRadioButton, QButtonGroup,
+                                    QMessageBox, QFrame)
+        from PyQt6.QtCore import Qt, QSize
         from PyQt6.QtGui import QFont
-        
-        self._settings_dialog_open = True
+
         dialog = QDialog(self.main_window)
         dialog.setWindowTitle("Img Factory Settings")
-        dialog.setMinimumWidth(650)
+        dialog.setMinimumWidth(750)
         dialog.setMinimumHeight(650)
-        
-        # Make sure to reset the flag when dialog closes
-        def cleanup_on_close():
-            if hasattr(self, '_settings_dialog_open'):
-                self._settings_dialog_open = False
-        
-        dialog.finished.connect(cleanup_on_close)
-        
-        layout = QVBoxLayout(dialog)
+        dialog.setModal(True)
 
-        # Create tabs
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        # Create tabbed interface
         tabs = QTabWidget()
 
-        # TAB 1: FONTS (FIRST TAB)
+        # ==================== TAB 1: APPEARANCE ====================
+        appearance_tab = QWidget()
+        appearance_layout = QVBoxLayout(appearance_tab)
+
+        # Tab Sizing Group
+        tab_size_group = QGroupBox("Tab Bar Sizing")
+        tab_size_layout = QGridLayout(tab_size_group)
+
+        tab_size_layout.addWidget(QLabel("Main Type Tabs Height:"), 0, 0)
+        main_tab_height_spin = QSpinBox()
+        main_tab_height_spin.setRange(18, 50)
+        main_tab_height_spin.setValue(22)
+        main_tab_height_spin.setSuffix(" px")
+        main_tab_height_spin.setToolTip("Height for IMG/COL/TXD type tabs")
+        tab_size_layout.addWidget(main_tab_height_spin, 0, 1)
+
+        tab_size_layout.addWidget(QLabel("File Tabs Height:"), 1, 0)
+        individual_tab_height_spin = QSpinBox()
+        individual_tab_height_spin.setRange(18, 45)
+        individual_tab_height_spin.setValue(22)
+        individual_tab_height_spin.setSuffix(" px")
+        individual_tab_height_spin.setToolTip("Height for individual file tabs")
+        tab_size_layout.addWidget(individual_tab_height_spin, 1, 1)
+
+        tab_size_layout.addWidget(QLabel("Tab Minimum Width:"), 2, 0)
+        tab_min_width_spin = QSpinBox()
+        tab_min_width_spin.setRange(80, 200)
+        tab_min_width_spin.setValue(100)
+        tab_min_width_spin.setSuffix(" px")
+        tab_size_layout.addWidget(tab_min_width_spin, 2, 1)
+
+        tab_size_layout.addWidget(QLabel("Tab Padding:"), 3, 0)
+        tab_padding_spin = QSpinBox()
+        tab_padding_spin.setRange(1, 16)
+        tab_padding_spin.setValue(1)
+        tab_padding_spin.setSuffix(" px")
+        tab_size_layout.addWidget(tab_padding_spin, 3, 1)
+
+        tab_size_group.setLayout(tab_size_layout)
+        appearance_layout.addWidget(tab_size_group)
+
+        # UI Mode Group
+        ui_mode_group = QGroupBox("UI Mode")
+        ui_mode_layout = QVBoxLayout(ui_mode_group)
+
+        ui_mode_button_group = QButtonGroup(dialog)
+        system_ui_radio = QRadioButton("System UI - Standard window with menu bar")
+        custom_ui_radio = QRadioButton("Custom UI - Toolbar with integrated controls")
+
+        ui_mode_button_group.addButton(system_ui_radio, 0)
+        ui_mode_button_group.addButton(custom_ui_radio, 1)
+
+        # Load current mode
+        if hasattr(self.main_window, 'img_settings'):
+            current_mode = self.main_window.img_settings.get("ui_mode", "system")
+            if current_mode == "custom":
+                custom_ui_radio.setChecked(True)
+            else:
+                system_ui_radio.setChecked(True)
+        else:
+            system_ui_radio.setChecked(True)
+
+        ui_mode_layout.addWidget(system_ui_radio)
+        ui_mode_layout.addWidget(custom_ui_radio)
+        ui_mode_group.setLayout(ui_mode_layout)
+        appearance_layout.addWidget(ui_mode_group)
+
+        # Visibility Options
+        visibility_group = QGroupBox("Visibility Options")
+        visibility_layout = QVBoxLayout(visibility_group)
+
+        show_toolbar_check = QCheckBox("Show toolbar")
+        show_toolbar_check.setChecked(True)
+        visibility_layout.addWidget(show_toolbar_check)
+
+        show_status_bar_check = QCheckBox("Show status bar")
+        show_status_bar_check.setChecked(True)
+        visibility_layout.addWidget(show_status_bar_check)
+
+        show_menu_bar_check = QCheckBox("Show menu bar (System UI only)")
+        show_menu_bar_check.setChecked(True)
+        visibility_layout.addWidget(show_menu_bar_check)
+
+        visibility_group.setLayout(visibility_layout)
+        appearance_layout.addWidget(visibility_group)
+
+        appearance_layout.addStretch()
+        tabs.addTab(appearance_tab, "Appearance")
+
+        # ==================== TAB 2: FONTS ====================
         fonts_tab = QWidget()
         fonts_layout = QVBoxLayout(fonts_tab)
 
         # Default Font
         default_font_group = QGroupBox("Default Font")
-        default_font_layout = QHBoxLayout()
+        default_font_layout = QGridLayout()
+
         default_font_combo = QFontComboBox()
-        default_font_combo.setCurrentFont(self.font())
-        default_font_layout.addWidget(default_font_combo)
+        default_font_combo.setCurrentFont(self.main_window.font())
+        default_font_layout.addWidget(QLabel("Font:"), 0, 0)
+        default_font_layout.addWidget(default_font_combo, 0, 1, 1, 2)
+
+        default_font_layout.addWidget(QLabel("Size:"), 1, 0)
         default_font_size = QSpinBox()
         default_font_size.setRange(8, 24)
-        default_font_size.setValue(self.font().pointSize())
+        default_font_size.setValue(self.main_window.font().pointSize())
         default_font_size.setSuffix(" pt")
-        default_font_size.setFixedWidth(80)
-        default_font_layout.addWidget(default_font_size)
+        default_font_layout.addWidget(default_font_size, 1, 1)
+
+        default_font_bold = QCheckBox("Bold")
+        default_font_italic = QCheckBox("Italic")
+        default_font_layout.addWidget(default_font_bold, 1, 2)
+        default_font_layout.addWidget(default_font_italic, 1, 3)
+
         default_font_group.setLayout(default_font_layout)
         fonts_layout.addWidget(default_font_group)
 
         # Title Font
         title_font_group = QGroupBox("Title Font")
-        title_font_layout = QHBoxLayout()
+        title_font_layout = QGridLayout()
+
         title_font_combo = QFontComboBox()
-        if hasattr(self, 'title_font'):
-            title_font_combo.setCurrentFont(self.title_font)
+        if hasattr(self.main_window, 'title_font'):
+            title_font_combo.setCurrentFont(self.main_window.title_font)
         else:
             title_font_combo.setCurrentFont(QFont("Arial", 14))
-        title_font_layout.addWidget(title_font_combo)
+        title_font_layout.addWidget(QLabel("Font:"), 0, 0)
+        title_font_layout.addWidget(title_font_combo, 0, 1, 1, 2)
+
+        title_font_layout.addWidget(QLabel("Size:"), 1, 0)
         title_font_size = QSpinBox()
         title_font_size.setRange(10, 32)
-        title_font_size.setValue(getattr(self, 'title_font', QFont("Arial", 14)).pointSize())
+        title_font_size.setValue(getattr(self.main_window, 'title_font', QFont("Arial", 14)).pointSize())
         title_font_size.setSuffix(" pt")
-        title_font_size.setFixedWidth(80)
-        title_font_layout.addWidget(title_font_size)
+        title_font_layout.addWidget(title_font_size, 1, 1)
+
+        title_font_bold = QCheckBox("Bold")
+        title_font_italic = QCheckBox("Italic")
+        title_font_layout.addWidget(title_font_bold, 1, 2)
+        title_font_layout.addWidget(title_font_italic, 1, 3)
+
         title_font_group.setLayout(title_font_layout)
         fonts_layout.addWidget(title_font_group)
 
         # Panel Font
         panel_font_group = QGroupBox("Panel Headers Font")
-        panel_font_layout = QHBoxLayout()
+        panel_font_layout = QGridLayout()
+
         panel_font_combo = QFontComboBox()
-        if hasattr(self, 'panel_font'):
-            panel_font_combo.setCurrentFont(self.panel_font)
+        if hasattr(self.main_window, 'panel_font'):
+            panel_font_combo.setCurrentFont(self.main_window.panel_font)
         else:
             panel_font_combo.setCurrentFont(QFont("Arial", 10))
-        panel_font_layout.addWidget(panel_font_combo)
+        panel_font_layout.addWidget(QLabel("Font:"), 0, 0)
+        panel_font_layout.addWidget(panel_font_combo, 0, 1, 1, 2)
+
+        panel_font_layout.addWidget(QLabel("Size:"), 1, 0)
         panel_font_size = QSpinBox()
         panel_font_size.setRange(8, 18)
-        panel_font_size.setValue(getattr(self, 'panel_font', QFont("Arial", 10)).pointSize())
+        panel_font_size.setValue(getattr(self.main_window, 'panel_font', QFont("Arial", 10)).pointSize())
         panel_font_size.setSuffix(" pt")
-        panel_font_size.setFixedWidth(80)
-        panel_font_layout.addWidget(panel_font_size)
+        panel_font_layout.addWidget(panel_font_size, 1, 1)
+
+        panel_font_bold = QCheckBox("Bold")
+        panel_font_italic = QCheckBox("Italic")
+        panel_font_layout.addWidget(panel_font_bold, 1, 2)
+        panel_font_layout.addWidget(panel_font_italic, 1, 3)
+
         panel_font_group.setLayout(panel_font_layout)
         fonts_layout.addWidget(panel_font_group)
 
         # Button Font
         button_font_group = QGroupBox("Button Font")
-        button_font_layout = QHBoxLayout()
+        button_font_layout = QGridLayout()
+
         button_font_combo = QFontComboBox()
-        if hasattr(self, 'button_font'):
-            button_font_combo.setCurrentFont(self.button_font)
+        if hasattr(self.main_window, 'button_font'):
+            button_font_combo.setCurrentFont(self.main_window.button_font)
         else:
             button_font_combo.setCurrentFont(QFont("Arial", 10))
-        button_font_layout.addWidget(button_font_combo)
+        button_font_layout.addWidget(QLabel("Font:"), 0, 0)
+        button_font_layout.addWidget(button_font_combo, 0, 1, 1, 2)
+
+        button_font_layout.addWidget(QLabel("Size:"), 1, 0)
         button_font_size = QSpinBox()
-        button_font_size.setRange(8, 16)
-        button_font_size.setValue(getattr(self, 'button_font', QFont("Arial", 10)).pointSize())
+        button_font_size.setRange(8, 18)
+        button_font_size.setValue(getattr(self.main_window, 'button_font', QFont("Arial", 10)).pointSize())
         button_font_size.setSuffix(" pt")
-        button_font_size.setFixedWidth(80)
-        button_font_layout.addWidget(button_font_size)
+        button_font_layout.addWidget(button_font_size, 1, 1)
+
+        button_font_bold = QCheckBox("Bold")
+        button_font_italic = QCheckBox("Italic")
+        button_font_layout.addWidget(button_font_bold, 1, 2)
+        button_font_layout.addWidget(button_font_italic, 1, 3)
+
         button_font_group.setLayout(button_font_layout)
         fonts_layout.addWidget(button_font_group)
 
-        # Info Bar Font
-        infobar_font_group = QGroupBox("Info Bar Font")
-        infobar_font_layout = QHBoxLayout()
-        infobar_font_combo = QFontComboBox()
-        if hasattr(self, 'infobar_font'):
-            infobar_font_combo.setCurrentFont(self.infobar_font)
-        else:
-            infobar_font_combo.setCurrentFont(QFont("Courier New", 9))
-        infobar_font_layout.addWidget(infobar_font_combo)
-        infobar_font_size = QSpinBox()
-        infobar_font_size.setRange(7, 14)
-        infobar_font_size.setValue(getattr(self, 'infobar_font', QFont("Courier New", 9)).pointSize())
-        infobar_font_size.setSuffix(" pt")
-        infobar_font_size.setFixedWidth(80)
-        infobar_font_layout.addWidget(infobar_font_size)
-        infobar_font_group.setLayout(infobar_font_layout)
-        fonts_layout.addWidget(infobar_font_group)
         fonts_layout.addStretch()
         tabs.addTab(fonts_tab, "Fonts")
 
-        # TAB 2: DISPLAY SETTINGS
-        display_tab = QWidget()
-        display_layout = QVBoxLayout(display_tab)
+        # ==================== TAB 3: BUTTONS ====================
+        buttons_tab = QWidget()
+        buttons_layout = QVBoxLayout(buttons_tab)
 
-        # Button display mode
-        button_group = QGroupBox("Button Display Mode")
-        button_layout = QVBoxLayout()
-        button_mode_combo = QComboBox()
-        button_mode_combo.addItems(["Icons + Text", "Icons Only", "Text Only"])
-        current_mode = getattr(self, 'button_display_mode', 'icons_with_text')
-        mode_map = {'icons_with_text': 0, 'icons_only': 1, 'text_only': 2}
-        button_mode_combo.setCurrentIndex(mode_map.get(current_mode, 0))
-        button_layout.addWidget(button_mode_combo)
-        button_hint = QLabel("Changes how toolbar buttons are displayed")
-        button_hint.setStyleSheet("color: #888; font-style: italic;")
-        button_layout.addWidget(button_hint)
-        button_group.setLayout(button_layout)
-        display_layout.addWidget(button_group)
+        # Button Display Mode
+        display_group = QGroupBox("Button Display Mode")
+        display_layout = QVBoxLayout(display_group)
 
-        # Window chrome mode
-        window_chrome_group = QGroupBox("Window Decorations")
-        window_chrome_layout = QVBoxLayout()
-        use_system_ui_check = QCheckBox("Use system window decorations")
-        use_system_ui_check.setChecked(self.use_system_titlebar)
-        window_chrome_layout.addWidget(use_system_ui_check)
-        window_chrome_group.setLayout(window_chrome_layout)
-        display_layout.addWidget(window_chrome_group)
+        display_button_group = QButtonGroup(dialog)
+        icons_text_radio = QRadioButton("Show Icons and Text")
+        icons_only_radio = QRadioButton("Show Icons Only")
+        text_only_radio = QRadioButton("Show Text Only")
 
-        # Table display
-        table_group = QGroupBox("Surface List Display")
-        table_layout = QVBoxLayout()
-        show_thumbnails = QCheckBox("Show Surface types")
-        show_thumbnails.setChecked(True)
-        table_layout.addWidget(show_thumbnails)
-        show_warnings = QCheckBox("Show warning icons for suspicious files")
-        show_warnings.setChecked(True)
-        show_warnings.setToolTip("Shows surface types")
-        table_layout.addWidget(show_warnings)
-        table_group.setLayout(table_layout)
-        display_layout.addWidget(table_group)
-        display_layout.addStretch()
-        tabs.addTab(display_tab, "Display")
+        display_button_group.addButton(icons_text_radio, 0)
+        display_button_group.addButton(icons_only_radio, 1)
+        display_button_group.addButton(text_only_radio, 2)
+
+        icons_text_radio.setChecked(True)
+
+        display_layout.addWidget(icons_text_radio)
+        display_layout.addWidget(icons_only_radio)
+        display_layout.addWidget(text_only_radio)
+
+        display_group.setLayout(display_layout)
+        buttons_layout.addWidget(display_group)
+
+        # Button Sizing
+        button_size_group = QGroupBox("Button Sizing")
+        button_size_layout = QGridLayout(button_size_group)
+
+        button_size_layout.addWidget(QLabel("Button Height:"), 0, 0)
+        button_height_spin = QSpinBox()
+        button_height_spin.setRange(24, 48)
+        button_height_spin.setValue(32)
+        button_height_spin.setSuffix(" px")
+        button_size_layout.addWidget(button_height_spin, 0, 1)
+
+        button_size_layout.addWidget(QLabel("Icon Size:"), 1, 0)
+        icon_size_spin = QSpinBox()
+        icon_size_spin.setRange(12, 32)
+        icon_size_spin.setValue(16)
+        icon_size_spin.setSuffix(" px")
+        button_size_layout.addWidget(icon_size_spin, 1, 1)
+
+        button_size_layout.addWidget(QLabel("Horizontal Spacing:"), 2, 0)
+        h_spacing_spin = QSpinBox()
+        h_spacing_spin.setRange(2, 20)
+        h_spacing_spin.setValue(6)
+        h_spacing_spin.setSuffix(" px")
+        button_size_layout.addWidget(h_spacing_spin, 2, 1)
+
+        button_size_layout.addWidget(QLabel("Vertical Spacing:"), 3, 0)
+        v_spacing_spin = QSpinBox()
+        v_spacing_spin.setRange(2, 20)
+        v_spacing_spin.setValue(8)
+        v_spacing_spin.setSuffix(" px")
+        button_size_layout.addWidget(v_spacing_spin, 3, 1)
+
+        button_size_group.setLayout(button_size_layout)
+        buttons_layout.addWidget(button_size_group)
+
+        # Button Theme
+        button_theme_group = QGroupBox("Button Theme")
+        button_theme_layout = QVBoxLayout(button_theme_group)
+
+        pastel_check = QCheckBox("Enable pastel effect for buttons")
+        pastel_check.setChecked(True)
+        button_theme_layout.addWidget(pastel_check)
+
+        high_contrast_check = QCheckBox("High contrast buttons")
+        high_contrast_check.setChecked(False)
+        button_theme_layout.addWidget(high_contrast_check)
+
+        rounded_corners_check = QCheckBox("Rounded corners")
+        rounded_corners_check.setChecked(True)
+        button_theme_layout.addWidget(rounded_corners_check)
+
+        button_theme_group.setLayout(button_theme_layout)
+        buttons_layout.addWidget(button_theme_group)
+
+        buttons_layout.addStretch()
+        tabs.addTab(buttons_tab, "Buttons")
+
+        # ==================== TAB 4: ADVANCED ====================
+        advanced_tab = QWidget()
+        advanced_layout = QVBoxLayout(advanced_tab)
+
+        # File Handling
+        file_group = QGroupBox("File Handling")
+        file_layout = QVBoxLayout()
+
+        auto_save_check = QCheckBox("Auto-save after import")
+        auto_save_check.setChecked(True)
+        file_layout.addWidget(auto_save_check)
+
+        auto_reload_check = QCheckBox("Auto-reload after import (reload from disk)")
+        auto_reload_check.setChecked(False)
+        file_layout.addWidget(auto_reload_check)
+
+        load_ide_check = QCheckBox("Load IDE file automatically if found with IMG")
+        load_ide_check.setChecked(False)
+        file_layout.addWidget(load_ide_check)
+
+        file_group.setLayout(file_layout)
+        advanced_layout.addWidget(file_group)
+
+        # Backup Settings
+        backup_group = QGroupBox("Backup Settings")
+        backup_layout = QGridLayout()
+
+        auto_backup_check = QCheckBox("Enable automatic backups")
+        auto_backup_check.setChecked(False)
+        backup_layout.addWidget(auto_backup_check, 0, 0, 1, 2)
+
+        backup_layout.addWidget(QLabel("Backup count:"), 1, 0)
+        backup_count_spin = QSpinBox()
+        backup_count_spin.setRange(1, 10)
+        backup_count_spin.setValue(3)
+        backup_count_spin.setEnabled(False)
+        backup_layout.addWidget(backup_count_spin, 1, 1)
+
+        def toggle_backup_count(checked):
+            backup_count_spin.setEnabled(checked)
+
+        auto_backup_check.toggled.connect(toggle_backup_count)
+
+        backup_group.setLayout(backup_layout)
+        advanced_layout.addWidget(backup_group)
+
+        # Recent Files
+        recent_group = QGroupBox("Recent Files")
+        recent_layout = QHBoxLayout()
+        recent_layout.addWidget(QLabel("Recent files limit:"))
+        recent_files_spin = QSpinBox()
+        recent_files_spin.setRange(5, 50)
+        recent_files_spin.setValue(10)
+        recent_layout.addWidget(recent_files_spin)
+        recent_layout.addStretch()
+        recent_group.setLayout(recent_layout)
+        advanced_layout.addWidget(recent_group)
+
+        # Window Settings
+        window_group = QGroupBox("Window Settings")
+        window_layout = QVBoxLayout()
+
+        remember_size_check = QCheckBox("Remember window size")
+        remember_size_check.setChecked(True)
+        window_layout.addWidget(remember_size_check)
+
+        remember_pos_check = QCheckBox("Remember window position")
+        remember_pos_check.setChecked(True)
+        window_layout.addWidget(remember_pos_check)
+
+        window_group.setLayout(window_layout)
+        advanced_layout.addWidget(window_group)
+
+        advanced_layout.addStretch()
+        tabs.addTab(advanced_tab, "Advanced")
+
+        # ==================== TAB 5: PREVIEW ====================
+        preview_tab = QWidget()
+        preview_layout = QVBoxLayout(preview_tab)
+
+        # Button Preview
+        preview_group = QGroupBox("Button Preview")
+        preview_inner_layout = QVBoxLayout()
+
+        preview_label = QLabel("Preview buttons will appear here based on your settings")
+        preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_label.setStyleSheet("padding: 20px; background: #f0f0f0; border: 1px solid #ccc;")
+        preview_inner_layout.addWidget(preview_label)
+
+        preview_group.setLayout(preview_inner_layout)
+        preview_layout.addWidget(preview_group)
+
+        # Overlay Settings
+        overlay_group = QGroupBox("Preview Overlay Settings")
+        overlay_layout = QVBoxLayout()
+
+        overlay_layout.addWidget(QLabel("Overlay opacity:"))
+
+        opacity_controls = QHBoxLayout()
+        opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        opacity_slider.setMinimum(0)
+        opacity_slider.setMaximum(100)
+        opacity_slider.setValue(50)
+        opacity_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        opacity_slider.setTickInterval(10)
+        opacity_controls.addWidget(opacity_slider)
+
+        opacity_spin = QSpinBox()
+        opacity_spin.setMinimum(0)
+        opacity_spin.setMaximum(100)
+        opacity_spin.setValue(50)
+        opacity_spin.setSuffix(" %")
+        opacity_spin.setFixedWidth(80)
+        opacity_controls.addWidget(opacity_spin)
+
+        # Connect opacity controls
+        opacity_slider.valueChanged.connect(opacity_spin.setValue)
+        opacity_spin.valueChanged.connect(opacity_slider.setValue)
+
+        overlay_layout.addLayout(opacity_controls)
+
+        opacity_hint = QLabel("Adjust transparency for preview overlays")
+        opacity_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
+        overlay_layout.addWidget(opacity_hint)
+
+        overlay_group.setLayout(overlay_layout)
+        preview_layout.addWidget(overlay_group)
+
+        preview_layout.addStretch()
+        tabs.addTab(preview_tab, "Preview")
 
         # Add tabs to dialog
         layout.addWidget(tabs)
 
-        # BUTTONS
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
+        # ==================== BUTTONS ====================
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        # Reset button
+        reset_btn = QPushButton("Reset to Defaults")
+        reset_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                font-size: 11px;
+            }
+        """)
+
+        def reset_to_defaults():
+            reply = QMessageBox.question(
+                dialog,
+                "Reset Settings",
+                "Are you sure you want to reset all settings to defaults?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                # Reset all controls to defaults
+                main_tab_height_spin.setValue(22)
+                individual_tab_height_spin.setValue(20)
+                tab_min_width_spin.setValue(100)
+                tab_padding_spin.setValue(1)
+                system_ui_radio.setChecked(True)
+                show_toolbar_check.setChecked(True)
+                show_status_bar_check.setChecked(True)
+                show_menu_bar_check.setChecked(True)
+                icons_text_radio.setChecked(True)
+                button_height_spin.setValue(32)
+                icon_size_spin.setValue(16)
+                h_spacing_spin.setValue(6)
+                v_spacing_spin.setValue(8)
+                pastel_check.setChecked(True)
+                high_contrast_check.setChecked(False)
+                rounded_corners_check.setChecked(True)
+                auto_save_check.setChecked(True)
+                auto_backup_check.setChecked(False)
+                recent_files_spin.setValue(10)
+
+        reset_btn.clicked.connect(reset_to_defaults)
+        button_layout.addWidget(reset_btn)
+
+        # Cancel button
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                font-size: 11px;
+            }
+        """)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
 
         # Apply button
-        apply_btn = QPushButton("Apply Settings")
+        apply_btn = QPushButton("Apply")
         apply_btn.setStyleSheet("""
-        QPushButton {
-            background: #0078d4;
-            color: white;
-            padding: 10px 24px;
-            font-weight: bold;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-        QPushButton:hover {
-            background: #1984d8;
-        }
+            QPushButton {
+                background: #0078d4;
+                color: white;
+                padding: 8px 20px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: #1984d8;
+            }
         """)
 
         def apply_settings():
-            # Apply fonts to UI
-            self.setFont(QFont(default_font_combo.currentFont().family(),
-                               default_font_size.value()))
-            self.title_font = QFont(title_font_combo.currentFont().family(),
-                                    title_font_size.value())
-            self.panel_font = QFont(panel_font_combo.currentFont().family(),
-                                    panel_font_size.value())
-            self.button_font = QFont(button_font_combo.currentFont().family(),
-                                     button_font_size.value())
-            self.infobar_font = QFont(infobar_font_combo.currentFont().family(),
-                                      infobar_font_size.value())
+            """Apply all settings"""
+            try:
+                # Apply tab sizing
+                main_tab_height = main_tab_height_spin.value()
+                individual_tab_height = individual_tab_height_spin.value()
+                tab_min_width = tab_min_width_spin.value()
+                tab_padding = tab_padding_spin.value()
 
-            # Apply button display mode
-            mode_map = {0: 'icons_with_text', 1: 'icons_only', 2: 'text_only'}
-            self.button_display_mode = mode_map[button_mode_combo.currentIndex()]
+                # Apply to main tab widget
+                if hasattr(self.main_window, 'main_tab_widget'):
+                    self.main_window.main_tab_widget.setStyleSheet(f"""
+                        QTabBar::tab {{
+                            height: {individual_tab_height}px;
+                            min-height: {individual_tab_height}px;
+                            max-height: {individual_tab_height}px;
+                            min-width: {tab_min_width}px;
+                            padding: {tab_padding}px 12px;
+                        }}
+                    """)
 
-            # Apply window decoration setting
-            self.use_system_titlebar = use_system_ui_check.isChecked()
-            self._apply_window_flags()
+                # Apply to main type tabs if exists
+                if hasattr(self.main_window, 'main_type_tabs'):
+                    self.main_window.main_type_tabs.setStyleSheet(f"""
+                        QTabBar::tab {{
+                            height: {main_tab_height}px;
+                            min-height: {main_tab_height}px;
+                            max-height: {main_tab_height}px;
+                            min-width: {tab_min_width}px;
+                            padding: {tab_padding}px 12px;
+                        }}
+                    """)
 
-            # Save setting
-            if hasattr(self.main_window, 'app_settings'):
-                self.main_window.app_settings.current_settings['use_system_titlebar'] = self.use_system_titlebar
-                self.main_window.app_settings.save_settings()
+                # Save all settings to img_settings
+                if hasattr(self.main_window, 'img_settings'):
+                    settings = self.main_window.img_settings
 
-            # Refresh display
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Workshop settings updated successfully")
+                    # UI Mode
+                    ui_mode = "custom" if custom_ui_radio.isChecked() else "system"
+                    settings.set("ui_mode", ui_mode)
+                    settings.set("show_toolbar", show_toolbar_check.isChecked())
+                    settings.set("show_status_bar", show_status_bar_check.isChecked())
+                    settings.set("show_menu_bar", show_menu_bar_check.isChecked())
+
+                    # Tab sizing
+                    settings.set("main_type_tab_height", main_tab_height)
+                    settings.set("individual_tab_height", individual_tab_height)
+                    settings.set("tab_min_width", tab_min_width)
+                    settings.set("tab_padding", tab_padding)
+
+                    # Button settings
+                    settings.set("button_height", button_height_spin.value())
+                    settings.set("button_icon_size", icon_size_spin.value())
+                    settings.set("button_spacing_horizontal", h_spacing_spin.value())
+                    settings.set("button_spacing_vertical", v_spacing_spin.value())
+                    settings.set("use_pastel_buttons", pastel_check.isChecked())
+                    settings.set("high_contrast_buttons", high_contrast_check.isChecked())
+
+                    # File handling
+                    settings.set("auto_save_on_import", auto_save_check.isChecked())
+                    settings.set("auto_reload_on_import", auto_reload_check.isChecked())
+                    settings.set("load_ide_with_img", load_ide_check.isChecked())
+
+                    # Backups
+                    settings.set("auto_backup", auto_backup_check.isChecked())
+                    settings.set("backup_count", backup_count_spin.value())
+
+                    # Recent files
+                    settings.set("recent_files_limit", recent_files_spin.value())
+
+                    # Window
+                    settings.set("remember_window_size", remember_size_check.isChecked())
+                    settings.set("remember_window_position", remember_pos_check.isChecked())
+
+                    #settings.set("enable_debug", enable_debug_check.isChecked())
+
+                    settings.save_settings()
+
+                # Apply fonts
+                if hasattr(self.main_window, 'setFont'):
+                    new_font = default_font_combo.currentFont()
+                    new_font.setPointSize(default_font_size.value())
+                    new_font.setBold(default_font_bold.isChecked())
+                    new_font.setItalic(default_font_italic.isChecked())
+                    self.main_window.setFont(new_font)
+
+                # Apply title font
+                if hasattr(self.main_window, 'title_font'):
+                    title_font = title_font_combo.currentFont()
+                    title_font.setPointSize(title_font_size.value())
+                    title_font.setBold(title_font_bold.isChecked())
+                    title_font.setItalic(title_font_italic.isChecked())
+                    self.main_window.title_font = title_font
+
+                # Apply panel font
+                if hasattr(self.main_window, 'panel_font'):
+                    panel_font = panel_font_combo.currentFont()
+                    panel_font.setPointSize(panel_font_size.value())
+                    panel_font.setBold(panel_font_bold.isChecked())
+                    panel_font.setItalic(panel_font_italic.isChecked())
+                    self.main_window.panel_font = panel_font
+
+                # Apply button font
+                if hasattr(self.main_window, 'button_font'):
+                    btn_font = button_font_combo.currentFont()
+                    btn_font.setPointSize(button_font_size.value())
+                    btn_font.setBold(button_font_bold.isChecked())
+                    btn_font.setItalic(button_font_italic.isChecked())
+                    self.main_window.button_font = btn_font
+
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Settings applied successfully")
+
+                QMessageBox.information(dialog, "Success", "Settings applied!\n\nNote: Some changes require restart to take full effect.")
+
+            except Exception as e:
+                QMessageBox.warning(dialog, "Error", f"Failed to apply settings:\n{str(e)}")
+
         apply_btn.clicked.connect(apply_settings)
-        btn_layout.addWidget(apply_btn)
+        button_layout.addWidget(apply_btn)
 
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.setStyleSheet("padding: 10px 24px; font-size: 13px;")
-        close_btn.clicked.connect(dialog.close)
-        btn_layout.addWidget(close_btn)
-        layout.addLayout(btn_layout)
+        # OK button (apply and close)
+        ok_btn = QPushButton("OK")
+        ok_btn.setStyleSheet("""
+            QPushButton {
+                background: #0078d4;
+                color: white;
+                padding: 8px 20px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: #1984d8;
+            }
+        """)
+        ok_btn.setDefault(True)
+
+        def ok_clicked():
+            apply_settings()
+            dialog.accept()
+
+        ok_btn.clicked.connect(ok_clicked)
+        button_layout.addWidget(ok_btn)
+
+        layout.addLayout(button_layout)
 
         # Show dialog
         dialog.exec()
 
-    def _show_imgfactory_info(self):
-        """Show information dialog about Img Factory"""
-        from PyQt6.QtWidgets import QMessageBox
-        from apps.components.Img_Factory.imgfactory import App_name, App_auth
-        QMessageBox.information(
-            self, 
-            "About Img Factory", 
-            f"{App_name}\n\nApplication Information System\n\nDeveloped by: {App_auth}"
-        )
 
-    def _launch_theme_settings(self):
+    def _create_toolbar(self): #vers 7
+        """Create toolbar - ALL BUTTONS CONNECTED"""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        from PyQt6.QtGui import QFont
+
+        if not hasattr(self, 'title_font'):
+            self.title_font = QFont("Arial", 14)
+        if not hasattr(self, 'button_font'):
+            self.button_font = QFont("Arial", 10)
+        if not hasattr(self, 'icon_factory'):
+            self.icon_factory = SVGIconFactory()
+        if not hasattr(globals(), 'App_name'):
+            from apps.components.Img_Factory.imgfactory import App_name
+
+        self.titlebar = QWidget()
+        self.titlebar.setFixedHeight(45)
+        self.titlebar.setObjectName("titlebar")
+
+        # Install event filter for drag detection
+        self.titlebar_event_filter = TitleBarEventFilter()
+        self.titlebar.installEventFilter(self.titlebar_event_filter)
+        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.titlebar.setMouseTracking(True)
+
+        layout = QHBoxLayout(self.titlebar)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+
+        # Get icon color from theme
+        icon_color = "#ffffff"
+
+        # Settings button - PREVENT DUPLICATE CONNECTIONS
+        self.settings_btn = QPushButton()
+        self.settings_btn.setFont(self.button_font)
+        self.settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.settings_btn.setText("Settings")
+        self.settings_btn.setIconSize(QSize(20, 20))
+
+        try:
+            self.settings_btn.clicked.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+
+        self.settings_btn.clicked.connect(self._show_workshop_settings)
+        self.settings_btn.setToolTip("Img Factory Settings")
+        layout.addWidget(self.settings_btn)
+
+        layout.addStretch()
+
+        # App title in center
+        self.title_label = QLabel(App_name)
+        self.title_label.setFont(self.title_font)
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.title_label)
+
+        layout.addStretch()
+
+        # ==================== TAB NAVIGATION BUTTONS ====================
+
+        # File Entries button - CONNECTED
+        self.f_entries_btn = QPushButton()
+        self.f_entries_btn.setFont(self.button_font)
+        self.f_entries_btn.setIcon(self.icon_factory.package_icon())
+        self.f_entries_btn.setText("File Entries")
+        self.f_entries_btn.setIconSize(QSize(20, 20))
+        self.f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
+        self.f_entries_btn.clicked.connect(lambda: self.entries_tab) #show active img file tab
+        layout.addWidget(self.f_entries_btn)
+
+        # Directory Tree button - CONNECTED
+        self.dirtree_btn = QPushButton()
+        self.dirtree_btn.setFont(self.button_font)
+        self.dirtree_btn.setIcon(self.icon_factory.folder_icon())
+        self.dirtree_btn.setText("Directory Tree")
+        self.dirtree_btn.setIconSize(QSize(20, 20))
+        self.dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
+        self.dirtree_btn.clicked.connect(lambda: self.show_project_manager_dialog)
+
+        layout.addWidget(self.dirtree_btn)
+
+        # Search button - CONNECTED (renamed from "Search Results")
+        self.search_btn = QPushButton()
+        self.search_btn.setFont(self.button_font)
+        self.search_btn.setIcon(self.icon_factory.search_icon())
+        self.search_btn.setText("Search")
+        self.search_btn.setIconSize(QSize(20, 20))
+        self.search_btn.setToolTip("Search Files (Ctrl+3)")
+        self.search_btn.clicked.connect(lambda: self.main_window.search_manager.show_search_dialog())
+        layout.addWidget(self.search_btn)
+
+        # Log button - NEW - CONNECTED
+        self.log_btn = QPushButton()
+        self.log_btn.setFont(self.button_font)
+        self.log_btn.setIcon(self.icon_factory.view_icon())
+        self.log_btn.setText("Log")
+        self.log_btn.setIconSize(QSize(20, 20))
+        self.log_btn.setToolTip("Toggle Activity Log")
+        self.log_btn.clicked.connect(self._toggle_log_visibility)
+        layout.addWidget(self.log_btn)
+
+        layout.addStretch()
+
+        # ==================== ACTION BUTTONS ====================
+
+        # Undo button - CONNECTED
+        self.undo_btn = QPushButton()
+        self.undo_btn.setFont(self.button_font)
+        self.undo_btn.setIcon(self.icon_factory.undo_icon())
+        self.undo_btn.setText("")
+        self.undo_btn.setIconSize(QSize(20, 20))
+        self.undo_btn.setMinimumWidth(40)
+        self.undo_btn.setMaximumWidth(40)
+        self.undo_btn.setMinimumHeight(30)
+        self.undo_btn.setToolTip("Undo last change")
+        self.undo_btn.setEnabled(False)
+
+        # Connect to undo manager if available
+        if hasattr(self.main_window, 'undo_manager'):
+            self.undo_btn.clicked.connect(self.main_window.undo_manager.undo)
+
+        layout.addWidget(self.undo_btn)
+
+        # Info button - CONNECTED
+        self.info_btn = QPushButton()
+        self.info_btn.setIcon(self.icon_factory.info_icon())
+        self.info_btn.setIconSize(QSize(20, 20))
+        self.info_btn.setMinimumWidth(40)
+        self.info_btn.setMaximumWidth(40)
+        self.info_btn.setMinimumHeight(30)
+        self.info_btn.setToolTip("Application Information")
+        self.info_btn.clicked.connect(self._show_imgfactory_info)
+        layout.addWidget(self.info_btn)
+
+        # Properties/Theme button - CONNECTED
+        self.properties_btn = QPushButton()
+        self.properties_btn.setFont(self.button_font)
+        self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, icon_color))
+        self.properties_btn.setIconSize(QSize(20, 20))
+        self.properties_btn.setMinimumWidth(40)
+        self.properties_btn.setMaximumWidth(40)
+        self.properties_btn.setMinimumHeight(30)
+        self.properties_btn.setToolTip("Theme Settings")
+        self.properties_btn.clicked.connect(self._launch_theme_settings)
+        self.properties_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
+        layout.addWidget(self.properties_btn)
+
+        #self.debug_btn = QPushButton()
+        #self.debug_btn.setFont(self.button_font)
+        #self.debug_btn.setText("DEBUG")
+        #self.debug_btn.setIconSize(QSize(20, 20))
+        #self.debug_btn.setToolTip("Show tab debug info")
+        #self.debug_btn.clicked.connect(self._debug_tabs)
+        #layout.addWidget(self.debug_btn)
+
+        # ==================== WINDOW CONTROLS (Custom UI only) ====================
+
+        ui_mode = getattr(self, 'ui_mode', 'system')
+
+        if ui_mode == 'custom':
+            self.minimize_btn = QPushButton()
+            self.minimize_btn.setIcon(self.icon_factory.minimize_icon())
+            self.minimize_btn.setIconSize(QSize(20, 20))
+            self.minimize_btn.setMinimumWidth(40)
+            self.minimize_btn.setMaximumWidth(40)
+            self.minimize_btn.setMinimumHeight(30)
+            self.minimize_btn.clicked.connect(self.main_window.showMinimized)
+            self.minimize_btn.setToolTip("Minimize Window")
+            layout.addWidget(self.minimize_btn)
+
+            self.maximize_btn = QPushButton()
+            self.maximize_btn.setIcon(self.icon_factory.maximize_icon())
+            self.maximize_btn.setIconSize(QSize(20, 20))
+            self.maximize_btn.setMinimumWidth(40)
+            self.maximize_btn.setMaximumWidth(40)
+            self.maximize_btn.setMinimumHeight(30)
+            self.maximize_btn.clicked.connect(self.toggle_maximize_restore)
+            self.maximize_btn.setToolTip("Maximize/Restore Window")
+            layout.addWidget(self.maximize_btn)
+
+            self.close_btn = QPushButton()
+            self.close_btn.setIcon(self.icon_factory.close_icon())
+            self.close_btn.setIconSize(QSize(20, 20))
+            self.close_btn.setMinimumWidth(40)
+            self.close_btn.setMaximumWidth(40)
+            self.close_btn.setMinimumHeight(30)
+            self.close_btn.clicked.connect(self.main_window.close)
+            self.close_btn.setToolTip("Close Window")
+            layout.addWidget(self.close_btn)
+
+        return self.titlebar
+
+
+    def _create_left_three_section_panel(self): #vers 3
+        """Create left panel with 3 sections: File Window, Status Window"""
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(3, 3, 3, 3)
+        left_layout.setSpacing(0)  # No spacing - splitter handles this
+
+        # Create vertical splitter for the sections
+        self.left_vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # 1. MIDDLE: File Window (table with sub-tabs)
+        file_window = self._create_file_window()
+        self.left_vertical_splitter.addWidget(file_window)
+
+        # 2. BOTTOM: Status Window (log and status)
+        status_window = self.create_status_window()
+        self.left_vertical_splitter.addWidget(status_window)
+
+        # Set section proportions: File(760px), Status(200px)
+        self.left_vertical_splitter.setSizes([760, 200])
+
+        # Prevent sections from collapsing completely
+        self.left_vertical_splitter.setCollapsible(0, True)  # File window
+        self.left_vertical_splitter.setCollapsible(1, True)  # Status window
+
+        # Apply theme styling to vertical splitter
+        self._apply_vertical_splitter_theme()
+
+        left_layout.addWidget(self.left_vertical_splitter)
+        return left_container
+
+
+    def _switch_to_tab(self, index: int): #vers 5
+        """Switch to the specified tab in the main tab widget"""
+        try:
+            # Check debug flag
+            debug_enabled = False
+            if hasattr(self.main_window, 'img_settings'):
+                debug_enabled = self.main_window.img_settings.get("enable_debug", False)
+
+            if debug_enabled:
+                print(f"\n=== SWITCH TO TAB {index} ===")
+                print(f"Has main_tab_widget: {hasattr(self.main_window, 'main_tab_widget')}")
+                print(f"Has gui_layout: {hasattr(self.main_window, 'gui_layout')}")
+
+            # Try main_tab_widget first (created in _create_ui)
+            if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
+                tab_widget = self.main_window.main_tab_widget
+
+                if debug_enabled:
+                    print(f"Using main_tab_widget, count: {tab_widget.count()}")
+
+                # Special handling for Directory Tree (index 1)
+                if index == 1:
+                    if not hasattr(self.main_window, 'directory_tree'):
+                        from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                        integrate_directory_tree_browser(self.main_window)
+
+                if index < tab_widget.count():
+                    tab_widget.setCurrentIndex(index)
+                    tab_name = tab_widget.tabText(index)
+
+                    if debug_enabled:
+                        print(f"✓ Switched to tab {index}: {tab_name}")
+
+                    if hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message(f"Switched to: {tab_name}")
+                else:
+                    if debug_enabled:
+                        print(f"✗ Tab {index} doesn't exist (only {tab_widget.count()} tabs)")
+                return
+
+            # Try gui_layout.tab_widget as fallback
+            if hasattr(self.main_window, 'gui_layout'):
+                if hasattr(self.main_window.gui_layout, 'tab_widget') and self.main_window.gui_layout.tab_widget:
+                    tab_widget = self.main_window.gui_layout.tab_widget
+
+                    if debug_enabled:
+                        print(f"Using gui_layout.tab_widget, count: {tab_widget.count()}")
+
+                    if index < tab_widget.count():
+                        tab_widget.setCurrentIndex(index)
+
+                        if debug_enabled:
+                            print(f"✓ Switched to tab {index}")
+                    return
+
+            if debug_enabled:
+                print("✗ No valid tab widget found!")
+
+        except Exception as e:
+            if debug_enabled:
+                print(f"✗ Error switching to tab {index}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+
+
+    def _toggle_log_visibility(self): #vers 1
+        """Toggle the activity log visibility"""
+        try:
+            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'log'):
+                log_widget = self.main_window.gui_layout.log
+                if log_widget:
+                    is_visible = log_widget.isVisible()
+                    log_widget.setVisible(not is_visible)
+
+                    if hasattr(self.main_window, 'log_message'):
+                        status = "hidden" if is_visible else "shown"
+                        self.main_window.log_message(f"Activity log {status}")
+        except Exception as e:
+            print(f"Error toggling log: {str(e)}")
+
+
+    def _show_imgfactory_info(self): #vers 1
+        """Show IMG Factory application information dialog"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QFont
+
+        try:
+            from apps.components.Img_Factory.imgfactory import App_name, App_auth, App_build
+        except:
+            App_name = "IMG Factory"
+            App_auth = "X-Seti"
+            App_build = "1.6"
+
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle("About IMG Factory")
+        dialog.setMinimumWidth(500)
+        dialog.setMinimumHeight(600)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Title
+        title = QLabel(f"{App_name} {App_build}")
+        title_font = QFont("Arial", 18, QFont.Weight.Bold)
+        title.setFont(title_font)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        # Author
+        author = QLabel(f"by {App_auth}")
+        author_font = QFont("Arial", 12)
+        author.setFont(author_font)
+        author.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        author.setStyleSheet("color: #666;")
+        layout.addWidget(author)
+
+        # Description
+        description = QTextEdit()
+        description.setReadOnly(True)
+        description.setMaximumHeight(200)
+        description.setHtml("""
+            <h3>Professional IMG Archive Manager</h3>
+            <p><b>IMG Factory</b> is a comprehensive tool for managing Grand Theft Auto game archives.</p>
+
+            <p><b>Features:</b></p>
+            <ul>
+                <li>IMG, COL, TXD, DFF file support</li>
+                <li>Import, export, and batch operations</li>
+                <li>Built-in editors for collision and texture files</li>
+                <li>IDE integration for proper file ordering</li>
+                <li>Template system for quick project setup</li>
+                <li>Undo/Redo system</li>
+                <li>Custom UI modes</li>
+            </ul>
+
+            <p><b>Based on:</b> Original IMG Factory by MexUK (2007)</p>
+            <p><b>Python Edition:</b> Complete rewrite in Python/PyQt6</p>
+        """)
+        layout.addWidget(description)
+
+        # Version info
+        version_info = QLabel(f"Version: {App_build} | Python Edition")
+        version_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version_info.setStyleSheet("color: #888; font-size: 10px;")
+        layout.addWidget(version_info)
+
+        layout.addStretch()
+
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.setFixedWidth(100)
+        close_btn.clicked.connect(dialog.accept)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(close_btn)
+        btn_layout.addStretch()
+
+        layout.addLayout(btn_layout)
+
+        dialog.exec()
+
+    def show_search_dialog(self):  # vers 1
+        """Show the search dialog"""
+        try:
+            # Create and show the search dialog
+            search_dialog = ASearchDialog(self.main_window)
+            search_dialog.exec()
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Search dialog error: {str(e)}")
+
+
+    def find_next(self):  # vers 1
+        """Find next occurrence of search term"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                self.main_window.search_manager.find_next()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Find Next: Search manager not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Find Next error: {str(e)}")
+
+
+    def find_previous(self):  # vers 1
+        """Find previous occurrence of search term"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                self.main_window.search_manager.find_previous()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Find Previous: Search manager not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Find Previous error: {str(e)}")
+
+
+    def replace_dialog(self):  # vers 1
+        """Show replace dialog"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                # Create and show the replace dialog
+                from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QCheckBox
+                dialog = QDialog(self.main_window)
+                dialog.setWindowTitle("Replace Text")
+                dialog.setModal(True)
+
+                layout = QVBoxLayout()
+
+                # Search text
+                search_layout = QHBoxLayout()
+                search_layout.addWidget(QLabel("Find:"))
+                search_input = QLineEdit()
+                search_layout.addWidget(search_input)
+                layout.addLayout(search_layout)
+
+                # Replace text
+                replace_layout = QHBoxLayout()
+                replace_layout.addWidget(QLabel("Replace with:"))
+                replace_input = QLineEdit()
+                replace_layout.addWidget(replace_input)
+                layout.addLayout(replace_layout)
+
+                # Options
+                case_sensitive_check = QCheckBox("Case sensitive")
+                layout.addWidget(case_sensitive_check)
+
+                regex_check = QCheckBox("Regular expression")
+                layout.addWidget(regex_check)
+
+                # Buttons
+                button_layout = QHBoxLayout()
+                replace_btn = QPushButton("Replace")
+                replace_all_btn = QPushButton("Replace All")
+                cancel_btn = QPushButton("Cancel")
+
+                def on_replace():
+                    search_text = search_input.text().strip()
+                    replace_text = replace_input.text()
+                    if not search_text:
+                        return
+
+                    options = {
+                        'case_sensitive': case_sensitive_check.isChecked(),
+                        'regex': regex_check.isChecked(),
+                        'search_mode': 'replace_one',
+                        'replace_text': replace_text
+                    }
+
+                    # Perform search first to find matches
+                    self.main_window.search_manager.perform_search(search_text, options)
+
+                def on_replace_all():
+                    search_text = search_input.text().strip()
+                    replace_text = replace_input.text()
+                    if not search_text:
+                        return
+
+                    options = {
+                        'case_sensitive': case_sensitive_check.isChecked(),
+                        'regex': regex_check.isChecked(),
+                        'search_mode': 'replace_all',
+                        'replace_text': replace_text
+                    }
+
+                    # Perform replace all
+                    self.main_window.search_manager.perform_search(search_text, options)
+                    dialog.accept()
+
+                replace_btn.clicked.connect(on_replace)
+                replace_all_btn.clicked.connect(on_replace_all)
+                cancel_btn.clicked.connect(dialog.reject)
+
+                button_layout.addWidget(replace_btn)
+                button_layout.addWidget(replace_all_btn)
+                button_layout.addStretch()
+                button_layout.addWidget(cancel_btn)
+
+                layout.addLayout(button_layout)
+                dialog.setLayout(layout)
+                dialog.exec()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Replace Dialog: Search manager not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Replace Dialog error: {str(e)}")
+
+
+    def advanced_search(self):  # vers 1
+        """Show advanced search options"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                self.main_window.search_manager.show_search_dialog()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Advanced Search: Search manager not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Advanced Search error: {str(e)}")
+
+
+    def clear_search(self):  # vers 1
+        """Clear current search"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                self.main_window.search_manager._clear_search()
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Search cleared")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Clear Search: Search manager not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Clear Search error: {str(e)}")
+
+
+    def move_entries_up(self):  # vers 1
+        """Move selected entries up in the table"""
+        try:
+            if self.table and self.table.selectedItems():
+                # Get selected rows
+                selected_items = self.table.selectedItems()
+                selected_rows = sorted(set(item.row() for item in selected_items))
+
+                # Check if any selected rows are already at the top
+                if 0 in selected_rows:
+                    if hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message("Cannot move entries up: some are already at top")
+                    return
+
+                # Store data for selected rows
+                selected_data = []
+                for row in selected_rows:
+                    row_data = []
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(row, col)
+                        if item:
+                            row_data.append(item.text())
+                        else:
+                            row_data.append("")
+                    selected_data.append(row_data)
+
+                # Remove selected rows from the table (in reverse order to maintain indices)
+                for row in sorted(selected_rows, reverse=True):
+                    self.table.removeRow(row)
+
+                # Calculate new positions (move up by 1)
+                new_start_pos = min(selected_rows) - 1
+                if new_start_pos < 0:
+                    new_start_pos = 0
+
+                # Insert rows at new positions
+                for i, row_data in enumerate(selected_data):
+                    insert_row = new_start_pos + i
+                    self.table.insertRow(insert_row)
+                    for j, cell_data in enumerate(row_data):
+                        self.table.setItem(insert_row, j, QTableWidgetItem(cell_data))
+
+                # Re-select the moved rows
+                self.table.clearSelection()
+                for i in range(len(selected_data)):
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(new_start_pos + i, col)
+                        if item:
+                            item.setSelected(True)
+
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"{len(selected_data)} entries moved up")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("No selected entries to move or table not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Move entries up error: {str(e)}")
+
+
+    def move_entries_down(self):  # vers 1
+        """Move selected entries down in the table"""
+        try:
+            if self.table and self.table.selectedItems():
+                # Get selected rows
+                selected_items = self.table.selectedItems()
+                selected_rows = sorted(set(item.row() for item in selected_items))
+
+                # Check if any selected rows are already at the bottom
+                if max(selected_rows) >= self.table.rowCount() - 1:
+                    if hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message("Cannot move entries down: some are already at bottom")
+                    return
+
+                # Store data for selected rows
+                selected_data = []
+                for row in reversed(selected_rows):  # Process in reverse to maintain indices when removing
+                    row_data = []
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(row, col)
+                        if item:
+                            row_data.append(item.text())
+                        else:
+                            row_data.append("")
+                    selected_data.insert(0, row_data)  # Insert at beginning to maintain order
+
+                # Remove selected rows from the table (in reverse order to maintain indices)
+                for row in sorted(selected_rows, reverse=True):
+                    self.table.removeRow(row)
+
+                # Calculate new positions (move down by 1)
+                new_start_pos = min(selected_rows) + 1
+
+                # Insert rows at new positions
+                for i, row_data in enumerate(selected_data):
+                    insert_row = new_start_pos + i
+                    self.table.insertRow(insert_row)
+                    for j, cell_data in enumerate(row_data):
+                        self.table.setItem(insert_row, j, QTableWidgetItem(cell_data))
+
+                # Re-select the moved rows
+                self.table.clearSelection()
+                for i in range(len(selected_data)):
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(new_start_pos + i, col)
+                        if item:
+                            item.setSelected(True)
+
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"{len(selected_data)} entries moved down")
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("No selected entries to move or table not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Move entries down error: {str(e)}")
+
+
+    def _debug_tabs(self): #vers 1
+        """Debug tab structure - TEMPORARY"""
+        msg = "=== TAB DEBUG ===\n"
+
+        # Check main_tab_widget
+        if hasattr(self.main_window, 'main_tab_widget'):
+            mtw = self.main_window.main_tab_widget
+            msg += f"main_tab_widget: {mtw}\n"
+            msg += f"  Count: {mtw.count()}\n"
+            for i in range(mtw.count()):
+                msg += f"  Tab {i}: {mtw.tabText(i)}\n"
+        else:
+            msg += "main_tab_widget: NOT FOUND\n"
+
+        msg += "\n"
+
+        # Check gui_layout.tab_widget
+        if hasattr(self.main_window, 'gui_layout'):
+            if hasattr(self.main_window.gui_layout, 'tab_widget'):
+                gtw = self.main_window.gui_layout.tab_widget
+                msg += f"gui_layout.tab_widget: {gtw}\n"
+                msg += f"  Count: {gtw.count()}\n"
+                for i in range(gtw.count()):
+                    msg += f"  Tab {i}: {gtw.tabText(i)}\n"
+            else:
+                msg += "gui_layout.tab_widget: NOT FOUND\n"
+        else:
+            msg += "gui_layout: NOT FOUND\n"
+
+        print(msg)
+        if hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(msg)
+
+
+    def _launch_theme_settings(self): #vers 1
         """Launch theme settings dialog"""
-        from apps.utils.app_settings_system import SettingsDialog
-        if hasattr(self.main_window, 'app_settings'):
-            dialog = SettingsDialog(self.main_window, self.main_window.app_settings)
-            dialog.exec()
+        try:
+            if hasattr(self.main_window, 'app_settings'):
+                from apps.utils.app_settings_system import SettingsDialog
+                dialog = SettingsDialog(self.main_window.app_settings, self.main_window)
+                dialog.exec()
+            else:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self.main_window,
+                    "Theme Settings",
+                    "Theme settings not available"
+                )
+        except Exception as e:
+            print(f"Error launching theme settings: {str(e)}")
 
-    def _show_settings_context_menu(self, position):
+
+    def _show_settings_context_menu(self, pos): #vers 1
         """Show context menu for settings button"""
         from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self)
-        
-        # Add theme settings action
+
+        menu = QMenu(self.main_window)
+
+        # Theme action
         theme_action = menu.addAction("Theme Settings")
         theme_action.triggered.connect(self._launch_theme_settings)
-        
-        # Add about action
-        about_action = menu.addAction("About")
-        about_action.triggered.connect(self._show_imgfactory_info)
-        
-        # Show menu at cursor position
-        menu.exec(self.mapToGlobal(position))
+
+        # IMG Factory settings action
+        imgfactory_action = menu.addAction("IMG Factory Settings")
+        imgfactory_action.triggered.connect(self._show_workshop_settings)
+
+        menu.exec(self.properties_btn.mapToGlobal(pos))
+
 
     def _apply_always_on_top(self): #vers 1
         """Apply always on top window flag"""

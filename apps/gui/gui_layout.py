@@ -1307,10 +1307,7 @@ class IMGFactoryGUILayout:
 
         # Create main table (no tabs - these are now in the toolbar)
         self.table = QTableWidget()
-        self.table.setColumnCount(9)
-        self.table.setHorizontalHeaderLabels([
-            "Num", "Name", "Extension", "Size", "Hash", "Hex", "Version", "Compression", "Status"
-        ])
+
 
         # Table configuration
         self.table.setAlternatingRowColors(True)
@@ -1319,18 +1316,7 @@ class IMGFactoryGUILayout:
         self.table.setSortingEnabled(True)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
-        # Column sizing
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Num
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Name
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Extension
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Size
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Hash
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)  # Hex Value
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # Version
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)  # Compression
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)  # Status
-
+#
         # Apply theme styling to table
         self._apply_table_theme_styling()
 
@@ -2066,9 +2052,9 @@ class IMGFactoryGUILayout:
                 dialog = QDialog(self.main_window)
                 dialog.setWindowTitle("Sort Options")
                 dialog.setModal(True)
-                
+
                 layout = QVBoxLayout()
-                
+
                 # Sort by label and combo box
                 sort_layout = QHBoxLayout()
                 sort_layout.addWidget(QLabel("Sort by:"))
@@ -2076,12 +2062,12 @@ class IMGFactoryGUILayout:
                 sort_combo.addItems(["Name", "Type", "Size", "IDE Model Order"])
                 sort_layout.addWidget(sort_combo)
                 layout.addLayout(sort_layout)
-                
+
                 # OK and Cancel buttons
                 button_layout = QHBoxLayout()
                 ok_btn = QPushButton("OK")
                 cancel_btn = QPushButton("Cancel")
-                
+
                 def on_ok():
                     selected_sort = sort_combo.currentText().lower().replace(" ", "_").replace("model_", "")
                     if "ide" in sort_combo.currentText().lower():
@@ -2089,14 +2075,14 @@ class IMGFactoryGUILayout:
                     dialog.accept()
                     # Import the sorting functionality
                     from apps.core.sort import sort_entries_in_table, get_associated_ide_file, parse_ide_file
-                    
+
                     # Get the current IMG file path if available
                     img_path = None
                     if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
                         img_path = self.main_window.current_img.file_path
-                    
+
                     ide_entries = []
-                    
+
                     # If sorting by IDE order, try to find and parse the associated IDE file
                     if selected_sort == "ide_order":
                         if img_path:
@@ -2115,27 +2101,27 @@ class IMGFactoryGUILayout:
                         else:
                             self.main_window.log_message("No IMG file loaded, using name sort")
                             selected_sort = "name"
-                    
+
                     # Perform the sorting
                     sort_entries_in_table(self.table, selected_sort, ide_entries)
-                    
+
                     if selected_sort == "ide_order":
                         self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
                     else:
                         self.main_window.log_message(f"Entries sorted by {selected_sort} (TXDs at bottom)")
-                
+
                 def on_cancel():
                     dialog.reject()
-                
+
                 ok_btn.clicked.connect(on_ok)
                 cancel_btn.clicked.connect(on_cancel)
-                
+
                 button_layout.addWidget(ok_btn)
                 button_layout.addWidget(cancel_btn)
-                
+
                 layout.addLayout(button_layout)
                 dialog.setLayout(layout)
-                
+
                 # Show the dialog
                 result = dialog.exec()
             else:
@@ -2153,14 +2139,14 @@ class IMGFactoryGUILayout:
             if self.table:
                 # Import the sorting functionality
                 from apps.core.sort import sort_entries_in_table, get_associated_ide_file, parse_ide_file
-                
+
                 # Get the current IMG file path if available
                 img_path = None
                 if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
                     img_path = self.main_window.current_img.file_path
-                
+
                 ide_entries = []
-                
+
                 # Find and parse the associated IDE file
                 if img_path:
                     ide_path = get_associated_ide_file(img_path)
@@ -2177,7 +2163,7 @@ class IMGFactoryGUILayout:
                 else:
                     self.main_window.log_message("No IMG file loaded")
                     return
-                
+
                 # Perform the sorting
                 sort_entries_in_table(self.table, "ide_order", ide_entries)
                 self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
@@ -2197,7 +2183,7 @@ class IMGFactoryGUILayout:
                 # Get selected rows
                 selected_items = self.table.selectedItems()
                 selected_rows = set(item.row() for item in selected_items)
-                
+
                 # Store the selected rows data
                 pinned_data = []
                 for row in sorted(selected_rows):
@@ -2209,17 +2195,17 @@ class IMGFactoryGUILayout:
                         else:
                             row_data.append("")
                     pinned_data.append(row_data)
-                
+
                 # Remove selected rows from the table (in reverse order to maintain indices)
                 for row in sorted(selected_rows, reverse=True):
                     self.table.removeRow(row)
-                
+
                 # Insert pinned rows at the top
                 for i, row_data in enumerate(pinned_data):
                     self.table.insertRow(i)
                     for j, cell_data in enumerate(row_data):
                         self.table.setItem(i, j, QTableWidgetItem(cell_data))
-                
+
                 if hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"{len(pinned_data)} entries pinned to top")
             else:

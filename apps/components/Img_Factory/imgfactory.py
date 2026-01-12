@@ -45,6 +45,7 @@ from apps.utils.app_settings_system import AppSettings, apply_theme_to_app, Sett
 # Components
 from apps.components.Img_Creator.img_creator import NewIMGDialog, IMGCreationThread
 from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+from apps.components.Project_Manager.project_manager import add_project_menu_items
 
 # Debug
 from apps.debug.debug_functions import set_col_debug_enabled
@@ -94,7 +95,6 @@ from apps.gui.gui_backend import ButtonDisplayMode, GUIBackend
 from apps.gui.main_window import IMGFactoryMainWindow
 from apps.gui.col_display import update_col_info_bar_enhanced
 from apps.gui.gui_layout import IMGFactoryGUILayout
-#from apps.components.Img_Factory.img_workshop import IMGFactoryGUILayout
 from apps.gui.unified_button_theme import apply_unified_button_theme
 from apps.gui.gui_menu import IMGFactoryMenuBar
 from apps.gui.autosave_menu import integrate_autosave_menu
@@ -393,7 +393,7 @@ class IMGLoadThread(QThread):
 
 class IMGFactory(QMainWindow):
     """Main IMG Factory application window"""
-    def __init__(self, settings): #vers 62
+    def __init__(self, settings): #vers 63
         """Initialize IMG Factory with optimized loading order"""
         super().__init__()
 
@@ -401,21 +401,19 @@ class IMGFactory(QMainWindow):
         self.settings = settings
         self.app_settings = settings if hasattr(settings, 'themes') else AppSettings()
 
+        # CRITICAL: Initialize IMG Factory settings BEFORE using them
+        from apps.methods.img_factory_settings import IMGFactorySettings
+        self.img_settings = IMGFactorySettings()
+
         self.apply_window_decoration_setting()
 
-        # Get UI mode from settings for later use
-        # Note: We apply the UI mode after gui_layout is created
-        if hasattr(self, 'img_settings'):
-            ui_mode = self.img_settings.current_settings.get("ui_mode", "system")
-            show_toolbar = self.img_settings.current_settings.get("show_toolbar", True)
-            show_status_bar = self.img_settings.current_settings.get("show_status_bar", True)
-            show_menu_bar = self.img_settings.current_settings.get("show_menu_bar", True)
-        else:
-            # Use app_settings as fallback
-            ui_mode = self.app_settings.current_settings.get("ui_mode", "system")
-            show_toolbar = self.app_settings.current_settings.get("show_toolbar", True)
-            show_status_bar = self.app_settings.current_settings.get("show_status_bar", True)
-            show_menu_bar = self.app_settings.current_settings.get("show_menu_bar", True)
+        # Get UI mode from img_settings (now initialized)
+        ui_mode = self.img_settings.get("ui_mode", "system")
+        show_toolbar = self.img_settings.get("show_toolbar", True)
+        show_status_bar = self.img_settings.get("show_status_bar", True)
+        show_menu_bar = self.img_settings.get("show_menu_bar", True)
+
+        print(f"DEBUG: Loading UI mode: {ui_mode!r}")
 
         # Window setup
         branch = get_current_git_branch()
@@ -480,14 +478,8 @@ class IMGFactory(QMainWindow):
         # Integrate functionality that menu system depends on
         integrate_sort_via_ide(self)
 
-        # Create GUI layout based on UI mode
-        ui_mode = getattr(self, 'img_settings', self.app_settings).current_settings.get("ui_mode", "system")
-        
-        # Get UI settings to pass to apply_ui_mode
-        show_toolbar = getattr(self, 'img_settings', self.app_settings).current_settings.get("show_toolbar", True)
-        show_status_bar = getattr(self, 'img_settings', self.app_settings).current_settings.get("show_status_bar", True)
-        show_menu_bar = getattr(self, 'img_settings', self.app_settings).current_settings.get("show_menu_bar", True)
-        
+        # Create GUI layout based on UI mode (using variables set earlier)
+        print(f"DEBUG: Creating GUI layout for mode: {ui_mode!r}")
         if ui_mode == "custom":
             from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
             self.gui_layout = IMGFactoryGUILayoutCustom(self)
@@ -517,8 +509,9 @@ class IMGFactory(QMainWindow):
         # Create main UI (includes tab system setup)
         self._create_ui()
 
-        # Additional UI integrations
         add_project_menu_items(self)
+
+        # Additional UI integrations
         integrate_tab_system(self)
         integrate_tearoff_system(self)
 
@@ -530,7 +523,7 @@ class IMGFactory(QMainWindow):
         integrate_img_functions(self)
         integrate_export_functions(self)
         integrate_import_functions(self)
-        
+
         # Apply button display mode from settings
         self._apply_button_display_mode_from_settings()
         integrate_remove_functions(self)
@@ -541,7 +534,7 @@ class IMGFactory(QMainWindow):
         integrate_imgcol_rename_functions(self)
         integrate_imgcol_replace_functions(self)
         integrate_imgcol_convert_functions(self)
-        
+
         # Integrate new functionality
         integrate_undo_system(self)
         integrate_pin_functions(self)
@@ -659,7 +652,7 @@ class IMGFactory(QMainWindow):
 
         # Apply comprehensive fixes for menu system and functionality
         fix_menu_system_and_functionality(self)
-        
+
         # Apply search and performance fixes
         self.apply_search_and_performance_fixes()
 
@@ -714,14 +707,25 @@ class IMGFactory(QMainWindow):
         if was_visible:
             self.show()
 
-    def apply_ui_mode(self, ui_mode: str, show_toolbar: bool = True, show_status_bar: bool = True, show_menu_bar: bool = True):
-        """Apply UI mode: 'system' or 'custom'"""
+    def apply_ui_mode(self, ui_mode, show_toolbar=True, show_status_bar=True, show_menu_bar=True): #vers 6
+        """Apply UI mode settings - custom or system UI"""
         current_geometry = self.geometry()
         was_visible = self.isVisible()
 
+        # In custom mode section:
         if ui_mode == "custom":
-            # Use frameless window
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+
+            # FORCE HIDE menu bar in custom mode
+            menu_bar = self.menuBar()
+            menu_bar.setVisible(False)
+            menu_bar.setMaximumHeight(0)  # Collapse it completely
+
+            # HIDE menu bar in custom mode (toolbar has Settings button)
+            if hasattr(self, 'menuBar') and callable(self.menuBar):
+                menu_bar = self.menuBar()
+                if menu_bar:
+                    menu_bar.setVisible(False)  # Always hidden in custom mode
         else:
             # Use system window
             self.setWindowFlags(
@@ -731,18 +735,19 @@ class IMGFactory(QMainWindow):
                 Qt.WindowType.WindowCloseButtonHint
             )
 
-        # Apply visibility settings for toolbar, status bar, and menu bar
-        if hasattr(self, 'menuBar') and callable(self.menuBar):
-            menu_bar = self.menuBar()
-            if menu_bar:
-                menu_bar.setVisible(show_menu_bar)
-        
+            # Show menu bar in system mode
+            if hasattr(self, 'menuBar') and callable(self.menuBar):
+                menu_bar = self.menuBar()
+                if menu_bar:
+                    menu_bar.setVisible(show_menu_bar)
+
+        # Status bar visibility
         if hasattr(self, 'statusBar') and callable(self.statusBar):
             status_bar = self.statusBar()
             if status_bar:
                 status_bar.setVisible(show_status_bar)
-        
-        # Handle toolbar visibility - delegate to gui_layout since it manages the toolbar
+
+        # Toolbar visibility - delegate to gui_layout
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'apply_ui_mode'):
             self.gui_layout.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
@@ -1392,6 +1397,65 @@ class IMGFactory(QMainWindow):
 
 
 # - Settings Reusable
+
+    def _load_saved_settings(self): #vers 1
+        """Load and apply all saved settings from img_settings"""
+        if not hasattr(self, 'img_settings'):
+            return
+
+        try:
+            # Load tab sizing settings
+            main_tab_height = self.img_settings.get("main_type_tab_height", 35)
+            individual_tab_height = self.img_settings.get("individual_tab_height", 28)
+            tab_min_width = self.img_settings.get("tab_min_width", 120)
+            tab_padding = self.img_settings.get("tab_padding", 8)
+
+            # Apply to main tab widget
+            if hasattr(self, 'main_tab_widget'):
+                self.main_tab_widget.setStyleSheet(f"""
+                    QTabBar::tab {{
+                        height: {individual_tab_height}px;
+                        min-height: {individual_tab_height}px;
+                        max-height: {individual_tab_height}px;
+                        min-width: {tab_min_width}px;
+                        padding: {tab_padding}px 12px;
+                    }}
+                """)
+
+            # Apply to main type tabs if exists
+            if hasattr(self, 'main_type_tabs'):
+                self.main_type_tabs.setStyleSheet(f"""
+                    QTabBar::tab {{
+                        height: {main_tab_height}px;
+                        min-height: {main_tab_height}px;
+                        max-height: {main_tab_height}px;
+                        min-width: {tab_min_width}px;
+                        padding: {tab_padding}px 12px;
+                    }}
+                """)
+
+            # Load and apply fonts
+            if self.img_settings.get("use_custom_font", False):
+                font_family = self.img_settings.get("font_family", "Arial")
+                font_size = self.img_settings.get("font_size", 10)
+                font_bold = self.img_settings.get("font_bold", False)
+                font_italic = self.img_settings.get("font_italic", False)
+
+                custom_font = QFont(font_family, font_size)
+                custom_font.setBold(font_bold)
+                custom_font.setItalic(font_italic)
+                self.setFont(custom_font)
+
+            # Load button display mode
+            button_mode = self.img_settings.get("button_display_mode", "icons_with_text")
+            if hasattr(self, 'button_display_mode'):
+                self.button_display_mode = button_mode
+
+            self.log_message("✅ Saved settings loaded")
+
+        except Exception as e:
+            self.log_message(f"⚠️ Error loading saved settings: {str(e)}")
+
 
     def setup_missing_utility_functions(self): #vers 1
         """Add missing utility functions that selection callbacks need"""
@@ -2691,7 +2755,8 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Debug controls error: {e}")
 
-    def _create_ui(self): #vers 11
+
+    def _create_ui(self): #vers 13
         """Create the main user interface - WITH TABS FIXED"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -2699,6 +2764,18 @@ class IMGFactory(QMainWindow):
         # Main layout
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(5, 5, 5, 5)
+
+        # IN CUSTOM UI MODE: Add toolbar FIRST (before tabs)
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, '_create_toolbar'):
+            try:
+                ui_mode = self.img_settings.get("ui_mode", "system")
+                if ui_mode == "custom":
+                    toolbar = self.gui_layout._create_toolbar()
+                    toolbar.setVisible(True)
+                    main_layout.addWidget(toolbar)  # Add toolbar at TOP
+                    print("DEBUG: Toolbar added to layout in custom mode")
+            except Exception as e:
+                print(f"Toolbar creation failed: {e}")
 
         # Create main tab widget for file handling
         self.main_tab_widget = QTabWidget()
