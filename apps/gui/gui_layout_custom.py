@@ -93,56 +93,41 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         """
         return self.main_window if self.main_window is not None else self
 
+    def create_main_ui_with_splitters(self, parent_layout):
+        """Create the main UI with toolbar for custom layout"""
+        # Create main vertical layout
+        main_vbox = QVBoxLayout()
+        main_vbox.setContentsMargins(0, 0, 0, 0)
+        
+        # Add toolbar at the top
+        toolbar = self._create_toolbar()
+        main_vbox.addWidget(toolbar)
+        
+        # Create the main content (without toolbar) by calling parent method on a temporary widget
+        temp_widget = QWidget()
+        temp_layout = QVBoxLayout(temp_widget)
+        temp_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Call parent method to create the main UI content
+        super().create_main_ui_with_splitters(temp_layout)
+        
+        # Add the main content to the main layout
+        main_vbox.addWidget(temp_widget)
+        
+        # Add the entire layout to the parent
+        parent_layout.addLayout(main_vbox)
+
+
     def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool):
         """Apply UI mode: 'system' or 'custom'"""
         # Since this is a layout component, we need to work with the main window
         # Store the UI mode preference for later use
         self.ui_mode = ui_mode
         
-        # Handle custom titlebar if needed
-        if ui_mode == "custom":
-            # For custom UI mode, we need to set up the custom titlebar
-            if not hasattr(self, '_custom_titlebar') or self._custom_titlebar is None:
-                self._custom_titlebar = self._create_toolbar()
-                # Connect window control buttons to main window methods
-                if hasattr(self, 'minimize_btn'):
-                    try:
-                        self.minimize_btn.clicked.disconnect()
-                    except:
-                        pass  # Ignore if no connections exist
-                    self.minimize_btn.clicked.connect(self.main_window.showMinimized)
-                if hasattr(self, 'maximize_btn'):
-                    try:
-                        self.maximize_btn.clicked.disconnect()
-                    except:
-                        pass  # Ignore if no connections exist
-                    self.maximize_btn.clicked.connect(self.main_window.showMaximized)
-                if hasattr(self, 'close_btn'):
-                    try:
-                        self.close_btn.clicked.disconnect()
-                    except:
-                        pass  # Ignore if no connections exist
-                    self.close_btn.clicked.connect(self.main_window.close)
-            
-            # Add the custom titlebar to the main window's layout at the top if not already added
-            if self._custom_titlebar:
-                # Check if the titlebar is already in the layout to avoid duplicates
-                central_widget = self.main_window.centralWidget()
-                if central_widget and central_widget.layout():
-                    main_layout = central_widget.layout()
-                    # Check if titlebar is already the first widget
-                    if main_layout.itemAt(0) and main_layout.itemAt(0).widget() != self._custom_titlebar:
-                        # Remove from any existing position first to avoid issues
-                        self._custom_titlebar.setParent(None)
-                        # Insert at the top
-                        main_layout.insertWidget(0, self._custom_titlebar)
+        # For custom UI mode, the toolbar is already integrated in create_main_ui_with_splitters
+        # So we just need to handle visibility settings
         
-        else:
-            # For system UI mode, ensure custom titlebar is hidden if it exists
-            if hasattr(self, '_custom_titlebar') and self._custom_titlebar:
-                self._custom_titlebar.hide()
-        
-        # Apply visibility settings for menu bar and status bar after handling custom titlebar
+        # Apply visibility settings for menu bar and status bar
         if hasattr(self.main_window, 'menuBar') and callable(self.main_window.menuBar):
             menu_bar = self.main_window.menuBar()
             if menu_bar:
