@@ -406,7 +406,7 @@ class IMGFactory(QMainWindow):
         # Apply UI mode from settings
 
         if hasattr(self, 'img_settings'):
-            from apps.gui.gui_layout_custom import (apply_ui_mode, _create_toolbar, _show_workshop_settings)
+            from apps.gui.gui_layout_custom import (_create_toolbar, _show_workshop_settings)
             from apps.gui.gui_layout_custom import IMGFactoryGUILayout
 
             ui_mode = self.img_settings.current_settings.get("ui_mode", "system")
@@ -696,6 +696,38 @@ class IMGFactory(QMainWindow):
             )
         else:
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setGeometry(current_geometry)
+        if was_visible:
+            self.show()
+
+    def apply_ui_mode(self, ui_mode: str, show_toolbar: bool = True, show_status_bar: bool = True, show_menu_bar: bool = True):
+        """Apply UI mode: 'system' or 'custom'"""
+        current_geometry = self.geometry()
+        was_visible = self.isVisible()
+
+        if ui_mode == "custom":
+            # Use frameless window
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        else:
+            # Use system window
+            self.setWindowFlags(
+                Qt.WindowType.Window |
+                Qt.WindowType.WindowMinimizeButtonHint |
+                Qt.WindowType.WindowMaximizeButtonHint |
+                Qt.WindowType.WindowCloseButtonHint
+            )
+
+        # Apply visibility settings for toolbar, status bar, and menu bar
+        if hasattr(self, 'menuBar') and callable(self.menuBar):
+            menu_bar = self.menuBar()
+            if menu_bar:
+                menu_bar.setVisible(show_menu_bar)
+        
+        if hasattr(self, 'statusBar') and callable(self.statusBar):
+            status_bar = self.statusBar()
+            if status_bar:
+                status_bar.setVisible(show_status_bar)
+
         self.setGeometry(current_geometry)
         if was_visible:
             self.show()
