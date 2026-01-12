@@ -584,6 +584,11 @@ class IMGFactoryGUILayout:
     def _dock_tab_widget_back(self): #vers 2
         """Dock torn off tab widget back to main window """
         try:
+            # First check if tab_widget exists
+            if not self.tab_widget:
+                self.main_window.log_message("No tab widget to dock back")
+                return
+                
             # Check if actually torn off
             if not hasattr(self.tab_widget, 'is_torn_off') or not self.tab_widget.is_torn_off:
                 self.main_window.log_message("Tab widget is not torn off")
@@ -616,7 +621,7 @@ class IMGFactoryGUILayout:
                 return
 
             # Remove from tearoff panel first
-            if tearoff_panel:
+            if tearoff_panel and self.tab_widget:
                 try:
                     tearoff_panel_layout = tearoff_panel.layout()
                     if tearoff_panel_layout:
@@ -627,27 +632,30 @@ class IMGFactoryGUILayout:
                     self.main_window.log_message(f"Error cleaning up tearoff panel: {str(e)}")
 
             # Add back to original parent layout
-            try:
-                original_layout.addWidget(self.tab_widget)
-            except Exception as e:
-                self.main_window.log_message(f"Error adding back to original layout: {str(e)}")
-                return
+            if self.tab_widget:
+                try:
+                    original_layout.addWidget(self.tab_widget)
+                except Exception as e:
+                    self.main_window.log_message(f"Error adding back to original layout: {str(e)}")
+                    return
 
             # Clean up references
-            try:
-                delattr(self.tab_widget, 'original_parent')
-                delattr(self.tab_widget, 'original_layout')
-                delattr(self.tab_widget, 'tearoff_panel')
-                delattr(self.tab_widget, 'is_torn_off')
-            except:
-                pass  # Attributes might not exist
+            if self.tab_widget:
+                try:
+                    delattr(self.tab_widget, 'original_parent')
+                    delattr(self.tab_widget, 'original_layout')
+                    delattr(self.tab_widget, 'tearoff_panel')
+                    delattr(self.tab_widget, 'is_torn_off')
+                except:
+                    pass  # Attributes might not exist
 
             # Update button appearance
             self._update_tearoff_button_state(False)
 
             # Force widget to show and update
-            self.tab_widget.show()
-            self.tab_widget.update()
+            if self.tab_widget:
+                self.tab_widget.show()
+                self.tab_widget.update()
 
             self.main_window.log_message("Tab widget docked back to main window")
 
@@ -1736,7 +1744,7 @@ class IMGFactoryGUILayout:
         text_primary = theme_colors.get('text_primary', '#000000')
         bg_tertiary = theme_colors.get('bg_tertiary', '#e9ecef')
 
-        if hasattr(self, 'tab_widget'):
+        if hasattr(self, 'tab_widget') and self.tab_widget is not None:
             self.tab_widget.setStyleSheet(f"""
                 QTabWidget::pane {{
                     background-color: {bg_secondary};
