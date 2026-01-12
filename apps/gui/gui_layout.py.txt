@@ -56,12 +56,8 @@ from apps.core.open import _detect_and_open_file, open_file_dialog, _detect_file
 from apps.core.close import close_img_file, close_all_img, install_close_functions, setup_close_manager
 from apps.methods.colour_ui_for_loaded_img import integrate_color_ui_system
 from apps.gui.gui_context import open_col_editor_dialog
+#from apps.methods.refresh_table_functions import refresh_table
 
-from apps.methods.imgfactory_svg_icons import (
-    get_settings_icon, get_open_icon, get_save_icon,
-    get_extract_icon, get_undo_icon, get_info_icon,
-    get_minimize_icon, get_maximize_icon, get_close_icon
-)
 
 def edit_txd_file(main_window): #vers 3
     """Edit selected TXD file with TXD Workshop"""

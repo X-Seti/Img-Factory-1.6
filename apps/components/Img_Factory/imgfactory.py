@@ -23,12 +23,12 @@ from PyQt6.QtWidgets import (
     QProgressBar, QHeaderView, QGroupBox, QComboBox, QLineEdit,
     QAbstractItemView, QTreeWidget, QTreeWidgetItem, QTabWidget,
     QGridLayout, QMenu, QButtonGroup, QRadioButton, QToolBar, QFormLayout,
-    QInputDialog
+    QInputDialog, QFrame
 )
 print("PyQt6.QtWidgets imported successfully")
 
-from PyQt6.QtCore import pyqtSignal, QMimeData, Qt, QThread, QTimer, QSettings
-from PyQt6.QtGui import QAction, QContextMenuEvent, QDragEnterEvent, QDropEvent, QFont, QIcon, QPixmap, QShortcut, QTextCursor
+from PyQt6.QtCore import pyqtSignal, QMimeData, Qt, QThread, QTimer, QSettings, QSize, QPoint, QRect, QByteArray, QItemSelectionModel
+from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QPalette, QTextCursor, QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor, QContextMenuEvent, QDragEnterEvent
 print("PyQt6.QtCore imported successfully")
 
 # Check for optional MSS library
@@ -101,6 +101,7 @@ from apps.gui.autosave_menu import integrate_autosave_menu
 from apps.components.Project_Manager.project_manager import add_project_menu_items
 from apps.gui.tearoff_integration import integrate_tearoff_system
 from apps.gui.gui_context import (open_col_file_dialog, open_col_batch_proc_dialog, open_col_editor_dialog, analyze_col_file_dialog)
+from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
 
 # Shared Methods
 from apps.methods.img_core_classes import (IMGFile, IMGEntry, IMGVersion, Platform, IMGEntriesTable, FilterPanel, IMGFileInfoPanel, TabFilterWidget, integrate_filtering, create_entries_table_panel, format_file_size)
@@ -122,7 +123,6 @@ from apps.methods.progressbar_functions import integrate_progress_system
 from apps.methods.update_ui_for_loaded_img import update_ui_for_loaded_img, integrate_update_ui_for_loaded_img
 
 from apps.methods.import_highlight_system import enable_import_highlighting
-#from apps.methods.refresh_table_functions import integrate_refresh_table
 from apps.methods.img_entry_operations import integrate_entry_operations
 from apps.methods.mirror_tab_shared import show_mirror_tab_selection
 from apps.methods.ide_parser_functions import integrate_ide_parser
@@ -132,13 +132,17 @@ from apps.methods.img_templates import IMGTemplateManager, TemplateManagerDialog
 from apps.methods.img_import_functions import integrate_img_import_functions
 from apps.methods.img_export_functions import integrate_img_export_functions
 from apps.methods.col_export_functions import integrate_col_export_functions
-
-#from apps.methods.table_handlers import (
-#    setup_missing_utility_functions, unified_double_click_handler, unified_selection_handler)
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
+from apps.methods.imgfactory_svg_icons import (
+    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon,
+    get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
+    get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
+    get_rebuild_icon, get_undobar_icon, get_undo_icon, get_redo_icon
+)
 
 # App metadata
 App_name = "Img Factory 1.6"
-App_build = "December 30 - "
+App_build = "January 11 - "
 App_auth = "X-Seti"
 
 ##Methods list -
@@ -397,10 +401,37 @@ class IMGFactory(QMainWindow):
         self.settings = settings
         self.app_settings = settings if hasattr(settings, 'themes') else AppSettings()
 
+        self.apply_window_decoration_setting()
+
+        # Apply UI mode from settings
+
+        if hasattr(self, 'img_settings'):
+            from apps.gui.gui_layout_custom import (apply_ui_mode, _create_toolbar, _show_workshop_settings)
+            from apps.gui.gui_layout_custom import IMGFactoryGUILayout
+
+            ui_mode = self.img_settings.current_settings.get("ui_mode", "system")
+            show_toolbar = self.img_settings.current_settings.get("show_toolbar", True)
+            show_status_bar = self.img_settings.current_settings.get("show_status_bar", True)
+            show_menu_bar = self.img_settings.current_settings.get("show_menu_bar", True)
+            self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
+
         # Window setup
         branch = get_current_git_branch()
         self.setWindowTitle(App_name + " - " + App_auth + " - " + App_build + " " + branch)
         self.setGeometry(100, 100, 1200, 800)
+
+        # Set default fonts
+        from PyQt6.QtGui import QFont
+        default_font = QFont("Fira Sans Condensed", 14)
+        #self.setFont(default_font)
+        self.title_font = QFont("Arial", 14)
+        self.panel_font = QFont("Arial", 10)
+        self.button_font = QFont("Arial", 10)
+        self.infobar_font = QFont("Courier New", 9)
+
+        self.undo_stack = []
+        self.button_display_mode = 'both'
+        self.last_save_directory = None
 
         # Core data initialization
         self.current_img: Optional[IMGFile] = None
@@ -411,6 +442,21 @@ class IMGFactory(QMainWindow):
         self.open_files = {}
         self.tab_counter = 0
         self.load_thread: Optional[IMGLoadThread] = None
+        self.info_bar = None
+        self._checkerboard_size = 16
+        self._overlay_opacity = 50
+        self.background_color = QColor(42, 42, 42)
+        self.background_mode = 'solid'
+
+        #self._initialize_features()
+
+        # Corner resize variables
+        self.dragging = False
+        self.drag_position = None
+        self.resizing = False
+        self.resize_corner = None
+        self.corner_size = 20
+        self.hover_corner = None
 
         # === PHASE 2: ESSENTIAL COMPONENTS (Fast) ===
 
@@ -433,8 +479,10 @@ class IMGFactory(QMainWindow):
         integrate_sort_via_ide(self)
 
         # Create GUI layout
-        self.gui_layout = IMGFactoryGUILayout(self)
-        integrate_directory_tree_browser(self)
+        #self.gui_layout = IMGFactoryGUILayout(self)
+
+        from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
+        self.gui_layout = IMGFactoryGUILayoutCustom(self)
 
         # Menu system
         self.menubar = self.menuBar()
@@ -459,8 +507,6 @@ class IMGFactory(QMainWindow):
         add_project_menu_items(self)
         integrate_tab_system(self)
         integrate_tearoff_system(self)
-
-        # === PHASE 4: ESSENTIAL INTEGRATIONS (Medium) ===
 
         # Core parsers (now safe to use log_message)
         integrate_ide_parser(self)
@@ -595,7 +641,7 @@ class IMGFactory(QMainWindow):
         self.reload_table = self.reload_current_file
 
         # === STARTUP COMPLETE ===
-        self.log_message("IMG Factory 1.5 initialized - Ready!")
+        self.log_message("IMG Factory 1.6 initialized - Ready!")
 
         # Apply comprehensive fixes for menu system and functionality
         fix_menu_system_and_functionality(self)
@@ -631,6 +677,29 @@ class IMGFactory(QMainWindow):
                 scrollbar.setValue(scrollbar.maximum())
         except Exception:
             pass
+
+
+    def apply_window_decoration_setting(self):
+        """Apply system vs custom window decoration based on settings"""
+
+        if not hasattr(self, 'app_settings'):
+            return
+        use_system = self.app_settings.current_settings.get('use_system_titlebar', True)
+        current_geometry = self.geometry()
+        was_visible = self.isVisible()
+        if use_system:
+            self.setWindowFlags(
+                Qt.WindowType.Window |
+                Qt.WindowType.WindowMinimizeButtonHint |
+                Qt.WindowType.WindowMaximizeButtonHint |
+                Qt.WindowType.WindowCloseButtonHint
+            )
+        else:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setGeometry(current_geometry)
+        if was_visible:
+            self.show()
+
 
     def autoload_game_root(self): #vers 1
         """Autoload game root from settings"""
@@ -1030,6 +1099,7 @@ class IMGFactory(QMainWindow):
 
         return workshop
 
+
     def _handle_col_overlay_tab_switch(self, workshop, new_tab_index): #vers 1
         """Handle hiding/showing COL Workshop overlay on tab switch"""
         if not hasattr(workshop, 'is_overlay') or not workshop.is_overlay:
@@ -1270,6 +1340,8 @@ class IMGFactory(QMainWindow):
                     if name_item:
                         self.log_message(f"Selected: {name_item.text()}")
 
+
+# - Settings Reusable
 
     def setup_missing_utility_functions(self): #vers 1
         """Add missing utility functions that selection callbacks need"""

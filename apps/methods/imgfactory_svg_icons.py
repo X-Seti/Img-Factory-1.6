@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/methods/img_svg_icons.py - Version: 7
+#this belongs in apps/methods/img_svg_icons.py - Version: 8
 # X-Seti - December17 2025 - Img Factory - Standardized SVG Icons
 
 """
@@ -67,6 +67,7 @@ from PyQt6.QtCore import Qt
 # trash_icon
 # uncompress_icon
 # undo_icon
+# redo_icon
 # view_icon
 # volume_down_icon
 # volume_up_icon
@@ -2081,20 +2082,38 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
-    def get_undo_icon(size: int = 24, color: str = None) -> QIcon:  #vers 1
-        """Undo arrow icon"""
+    def get_undo_icon(size: int = 24, color: str = None) -> QIcon:
+        """Undo curved arrow icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M3 12a9 9 0 1 1 9 9c0-.5-.1-1-.2-1.5L15 16l-3-3-3 3 1.8 3.5c-.1.5-.2 1-.2 1.5a7 7 0 0 0 14 0H3z"
+            <path d="M9 10 L9 6 L2 10 L9 14 L9 10 Z"
                 fill="currentColor"/>
+            <path d="M9 10 H16 C18.2 10 20 11.8 20 14 C20 16.2 18.2 18 16 18 H12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
-    def get_redo_icon(size: int = 24, color: str = None) -> QIcon:  #vers 1
-        """Redo arrow icon"""
+    def get_redo_icon(size: int = 24, color: str = None) -> QIcon:
+        """Redo curved arrow icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M21 12a9 9 0 1 1 -9 -9c0 .5 .1 1 .2 1.5L9 8l3 3 3-3-1.8-3.5C13.1 5 13 5.5 13 6a7 7 0 0 0 -14 0h18z"
+            <path d="M15 10 L15 6 L22 10 L15 14 L15 10 Z"
                 fill="currentColor"/>
+            <path d="M15 10 H8 C5.8 10 4 11.8 4 14 C4 16.2 5.8 18 8 18 H12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def get_undobar_icon(size: int = 24, color: str = None) -> QIcon:
+        """Undo with bar (reset/refresh) icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M12 4 L12 2 L8 5 L12 8 L12 6 C15.3 6 18 8.7 18 12 C18 15.3 15.3 18 12 18 C8.7 18 6 15.3 6 12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" fill="none"/>
+            <line x1="4" y1="12" x2="6" y2="12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2216,6 +2235,29 @@ class SVGIconFactory: #vers 7
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
+
+    @staticmethod
+    def get_extract_icon(size: int = 24, color: str = None) -> QIcon:
+        """Extract/unpack icon - archive with upward arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M14 2v6h6"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="12" y1="17" x2="12" y2="10"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <polyline points="9,13 12,10 15,13"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" fill="none"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+#Shortform
+
+def get_extract_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_extract_icon"""
+    return SVGIconFactory.get_extract_icon(size, color)
+
 def get_checkmark_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_checkmark_icon"""
     return SVGIconFactory.get_checkmark_icon(size, color)
@@ -2231,6 +2273,10 @@ def get_folder_icon(size: int = 24, color: str = None) -> QIcon:
 def get_new_file_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_new_file_icon"""
     return SVGIconFactory.get_new_file_icon(size, color)
+
+def get_undobar_icon(size: int = 24, color: str = None) -> QIcon:
+    """Wrapper for SVGIconFactory.get_undobar_icon"""
+    return SVGIconFactory.get_undobar_icon(size, color)
 
 def get_undo_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_undo_icon"""
