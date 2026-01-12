@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget, QFrame,
     QGroupBox, QPushButton, QLabel, QCheckBox
 )
-from PyQt6.QtCore import Qt, QObject, pyqtSignal
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QSize
 from PyQt6.QtGui import QIcon
 from .gui_layout import IMGFactoryGUILayout
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
