@@ -403,16 +403,19 @@ class IMGFactory(QMainWindow):
 
         self.apply_window_decoration_setting()
 
-        # Apply UI mode from settings
-
+        # Get UI mode from settings for later use
+        # Note: We apply the UI mode after gui_layout is created
         if hasattr(self, 'img_settings'):
-            from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
-
             ui_mode = self.img_settings.current_settings.get("ui_mode", "system")
             show_toolbar = self.img_settings.current_settings.get("show_toolbar", True)
             show_status_bar = self.img_settings.current_settings.get("show_status_bar", True)
             show_menu_bar = self.img_settings.current_settings.get("show_menu_bar", True)
-            self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
+        else:
+            # Use app_settings as fallback
+            ui_mode = self.app_settings.current_settings.get("ui_mode", "system")
+            show_toolbar = self.app_settings.current_settings.get("show_toolbar", True)
+            show_status_bar = self.app_settings.current_settings.get("show_status_bar", True)
+            show_menu_bar = self.app_settings.current_settings.get("show_menu_bar", True)
 
         # Window setup
         branch = get_current_git_branch()
@@ -480,12 +483,20 @@ class IMGFactory(QMainWindow):
         # Create GUI layout based on UI mode
         ui_mode = getattr(self, 'img_settings', self.app_settings).current_settings.get("ui_mode", "system")
         
+        # Get UI settings to pass to apply_ui_mode
+        show_toolbar = getattr(self, 'img_settings', self.app_settings).current_settings.get("show_toolbar", True)
+        show_status_bar = getattr(self, 'img_settings', self.app_settings).current_settings.get("show_status_bar", True)
+        show_menu_bar = getattr(self, 'img_settings', self.app_settings).current_settings.get("show_menu_bar", True)
+        
         if ui_mode == "custom":
             from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
             self.gui_layout = IMGFactoryGUILayoutCustom(self)
         else:
             from apps.gui.gui_layout import IMGFactoryGUILayout
             self.gui_layout = IMGFactoryGUILayout(self)
+
+        # Apply UI mode settings to the newly created layout
+        self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
         # Menu system
         self.menubar = self.menuBar()
