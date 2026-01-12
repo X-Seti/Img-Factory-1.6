@@ -31,74 +31,49 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
     def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool):
         """Apply UI mode: 'system' or 'custom'"""
-        current_geometry = self.geometry()
-        was_visible = self.isVisible()
-
+        # Since this is a layout component, we need to work with the main window
+        # Store the UI mode preference for later use
+        self.ui_mode = ui_mode
+        
+        # Apply visibility settings for toolbar, status bar, and menu bar
+        if hasattr(self.main_window, 'menuBar') and callable(self.main_window.menuBar):
+            menu_bar = self.main_window.menuBar()
+            if menu_bar:
+                menu_bar.setVisible(show_menu_bar)
+        
+        if hasattr(self.main_window, 'statusBar') and callable(self.main_window.statusBar):
+            status_bar = self.main_window.statusBar()
+            if status_bar:
+                status_bar.setVisible(show_status_bar)
+        
+        # Handle custom titlebar if needed
         if ui_mode == "custom":
-            # Use frameless window
-            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-            # Ensure custom titlebar exists
+            # For custom UI mode, we need to set up the custom titlebar
             if not hasattr(self, '_custom_titlebar') or self._custom_titlebar is None:
                 self._custom_titlebar = self._create_toolbar()
                 # Connect window control buttons to main window methods
                 if hasattr(self, 'minimize_btn'):
-                    self.minimize_btn.clicked.disconnect()  # Disconnect any existing connection
-                    self.minimize_btn.clicked.connect(self.showMinimized)
+                    try:
+                        self.minimize_btn.clicked.disconnect()
+                    except:
+                        pass  # Ignore if no connections exist
+                    self.minimize_btn.clicked.connect(self.main_window.showMinimized)
                 if hasattr(self, 'maximize_btn'):
-                    self.maximize_btn.clicked.disconnect()  # Disconnect any existing connection
-                    self.maximize_btn.clicked.connect(self.toggle_maximize_restore)
+                    try:
+                        self.maximize_btn.clicked.disconnect()
+                    except:
+                        pass  # Ignore if no connections exist
+                    self.maximize_btn.clicked.connect(self.main_window.showMaximized)
                 if hasattr(self, 'close_btn'):
-                    self.close_btn.clicked.disconnect()  # Disconnect any existing connection
-                    self.close_btn.clicked.connect(self.close)
-            # Insert at top of central widget's layout if not already present
-            central_widget = self.centralWidget()
-            if central_widget:
-                # Clear the central widget layout first to avoid conflicts
-                layout = central_widget.layout()
-                if layout is None:
-                    # Create a new layout if none exists
-                    from PyQt6.QtWidgets import QVBoxLayout
-                    layout = QVBoxLayout(central_widget)
-                
-                # Remove existing titlebar if it exists
-                if hasattr(self, '_custom_titlebar') and self._custom_titlebar.parent():
-                    self._custom_titlebar.setParent(None)
-                
-                # Insert titlebar at the beginning of the layout
-                layout.insertWidget(0, self._custom_titlebar)
-            
-            # Show the titlebar if it should be visible
-            if show_toolbar and self._custom_titlebar:
-                self._custom_titlebar.show()
+                    try:
+                        self.close_btn.clicked.disconnect()
+                    except:
+                        pass  # Ignore if no connections exist
+                    self.close_btn.clicked.connect(self.main_window.close)
         else:
-            # Use system window
-            self.setWindowFlags(
-                Qt.WindowType.Window |
-                Qt.WindowType.WindowMinimizeButtonHint |
-                Qt.WindowType.WindowMaximizeButtonHint |
-                Qt.WindowType.WindowCloseButtonHint
-            )
-            # Hide custom titlebar if it exists
+            # For system UI mode, ensure custom titlebar is hidden if it exists
             if hasattr(self, '_custom_titlebar') and self._custom_titlebar:
-                # Remove from layout to restore normal system behavior
-                if self._custom_titlebar.parent():
-                    self._custom_titlebar.setParent(None)
                 self._custom_titlebar.hide()
-
-        # Apply visibility settings for toolbar, status bar, and menu bar
-        if hasattr(self, 'menuBar') and callable(self.menuBar):
-            menu_bar = self.menuBar()
-            if menu_bar:
-                menu_bar.setVisible(show_menu_bar)
-        
-        if hasattr(self, 'statusBar') and callable(self.statusBar):
-            status_bar = self.statusBar()
-            if status_bar:
-                status_bar.setVisible(show_status_bar)
-
-        self.setGeometry(current_geometry)
-        if was_visible:
-            self.show()
 
 
     def _apply_window_flags(self): #vers 1
@@ -140,7 +115,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         settings_btn = QPushButton()
         settings_btn.setIcon(get_settings_icon())
         settings_btn.setFixedSize(24, 24)
-        settings_btn.clicked.connect(lambda: self.show_imgfactory_settings())
+        settings_btn.clicked.connect(lambda: self.main_window.show_imgfactory_settings())
         layout.addWidget(settings_btn)
         layout.addSpacing(10)
 
@@ -184,9 +159,9 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         for btn in [min_btn, max_btn, close_btn]:
             btn.setFixedSize(24, 24)
             btn.setStyleSheet("QPushButton { color: white; background: transparent; }")
-        min_btn.clicked.connect(self.showMinimized)
-        max_btn.clicked.connect(lambda: self.showNormal() if self.isMaximized() else self.showMaximized())
-        close_btn.clicked.connect(self.close)
+        min_btn.clicked.connect(self.main_window.showMinimized)
+        max_btn.clicked.connect(lambda: self.main_window.showNormal() if self.main_window.isMaximized() else self.main_window.showMaximized())
+        close_btn.clicked.connect(self.main_window.close)
         layout.addWidget(min_btn)
         layout.addWidget(max_btn)
         layout.addWidget(close_btn)
@@ -195,10 +170,10 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 
     def toggle_maximize_restore(self):
-        if self.isMaximized():
-            self.showNormal()
+        if self.main_window.isMaximized():
+            self.main_window.showNormal()
         else:
-            self.showMaximized()
+            self.main_window.showMaximized()
 
 
     def _create_toolbar(self): #vers 2 = keep style and theme.
