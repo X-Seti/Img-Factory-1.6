@@ -477,11 +477,15 @@ class IMGFactory(QMainWindow):
         # Integrate functionality that menu system depends on
         integrate_sort_via_ide(self)
 
-        # Create GUI layout
-        #self.gui_layout = IMGFactoryGUILayout(self)
-
-        from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
-        self.gui_layout = IMGFactoryGUILayoutCustom(self)
+        # Create GUI layout based on UI mode
+        ui_mode = getattr(self, 'img_settings', self.app_settings).current_settings.get("ui_mode", "system")
+        
+        if ui_mode == "custom":
+            from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
+            self.gui_layout = IMGFactoryGUILayoutCustom(self)
+        else:
+            from apps.gui.gui_layout import IMGFactoryGUILayout
+            self.gui_layout = IMGFactoryGUILayout(self)
 
         # Menu system
         self.menubar = self.menuBar()

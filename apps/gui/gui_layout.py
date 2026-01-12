@@ -413,24 +413,27 @@ class IMGFactoryGUILayout:
         self.apply_all_window_themes()
 
 
-    def _setup_tearoff_button_for_tabs(self): #vers 1
-        """Setup tearoff button in tab widget corner"""
+    def _setup_tearoff_button_for_tabs(self): #vers 2
+        """Setup tearoff button for the file window - no tabs version"""
         try:
             # Create tearoff button with square arrow icon
             self.tearoff_button = QPushButton("⧉")  # Square with arrow symbol
             self.tearoff_button.setFixedSize(24, 24)
-            self.tearoff_button.setToolTip("Tear off tab widget to separate window")
+            self.tearoff_button.setToolTip("Tear off file window to separate window")
 
             # Apply theme-aware styling
             self._apply_tearoff_button_theme()
 
             # Connect to tearoff handler
-            self.tearoff_button.clicked.connect(self._handle_tab_widget_tearoff)
+            self.tearoff_button.clicked.connect(self._handle_file_window_tearoff)
 
-            # Set as corner widget on the right side of tabs
-            self.tab_widget.setCornerWidget(self.tearoff_button, Qt.Corner.TopRightCorner)
+            # Since there are no tabs anymore, we'll add the button differently
+            # We'll place it as part of the file window itself
+            if hasattr(self, 'table'):
+                # Add button to a layout near the table
+                pass  # Skip for now since we're not using tabs
 
-            self.main_window.log_message("Tearoff button added to tab widget corner")
+            self.main_window.log_message("Tearoff button setup for file window")
 
         except Exception as e:
             self.main_window.log_message(f"Error setting up tearoff button: {str(e)}")
@@ -568,6 +571,15 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
+
+    def _handle_file_window_tearoff(self): #vers 1
+        """Handle tearoff button click for file window - no tabs version"""
+        try:
+            # Since there are no tabs, we'll just log for now
+            # The functionality will be adapted for the table/widget instead
+            self.main_window.log_message("File window tear-off functionality needs implementation")
+        except Exception as e:
+            self.main_window.log_message(f"Error handling file window tearoff: {str(e)}")
 
     def _dock_tab_widget_back(self): #vers 2
         """Dock torn off tab widget back to main window """
@@ -1278,28 +1290,20 @@ class IMGFactoryGUILayout:
         return left_container
 
 
-    def _create_file_window(self): #vers 3
-        """Create file window with tabs for different views"""
+    def _create_file_window(self): #vers 4
+        """Create file window with table as main content (tabs moved to toolbar)"""
         file_window = QWidget()
         file_layout = QVBoxLayout(file_window)
         file_layout.setContentsMargins(5, 5, 5, 5)
         file_layout.setSpacing(3)
-        
-        # Create tab widget
-        self.tab_widget = QTabWidget()
-        
-        # Tab 1: File Entries (main table)
-        entries_tab = QWidget()
-        entries_layout = QVBoxLayout(entries_tab)
-        entries_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Create main table
+
+        # Create main table (no tabs - these are now in the toolbar)
         self.table = QTableWidget()
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
             "Num", "Name", "Extension", "Size", "Hash", "Hex", "Version", "Compression", "Status"
         ])
-        
+
         # Table configuration
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -1318,53 +1322,17 @@ class IMGFactoryGUILayout:
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # Version
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)  # Compression
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)  # Status
-        
+
         # Apply theme styling to table
         self._apply_table_theme_styling()
-        
-        entries_layout.addWidget(self.table)
-        self.tab_widget.addTab(entries_tab, "File Entries")
-        
 
-        # Tab 2: Directory Tree (placeholder for integration)
-        tree_tab = QWidget()
-        tree_layout = QVBoxLayout(tree_tab)
-        tree_layout.setContentsMargins(0, 0, 0, 0)
+        file_layout.addWidget(self.table)
 
-        # Placeholder content - will be replaced by integration
-        placeholder_label = QLabel("Directory Tree")
-        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        placeholder_label.setStyleSheet("font-size: 14px; color: #888; font-style: italic;")
-        tree_layout.addWidget(placeholder_label)
-
-        info_label = QLabel("Directory tree will appear here after integration.")
-        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        info_label.setStyleSheet("color: #666; font-size: 12px;")
-        tree_layout.addWidget(info_label)
-
-        tree_layout.addStretch()
-
-        # Add the tab to the widget
-        self.tab_widget.addTab(tree_tab, "Directory Tree")
-        
-        # Tab 3: Search Results (future enhancement)
-        search_tab = QWidget()
-        search_layout = QVBoxLayout(search_tab)
-        search_layout.setContentsMargins(0, 0, 0, 0)
-
-        search_placeholder = QLabel("Search results will be displayed here")
-        search_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        search_placeholder.setStyleSheet("font-style: italic;")
-        search_layout.addWidget(search_placeholder)
-
-        self.tab_widget.addTab(search_tab, "Search Results")
-
-        # Apply theme styling to file window tabs
+        # Apply theme styling to file window
         self._apply_file_list_window_theme_styling()
 
         self._setup_tearoff_button_for_tabs()
 
-        file_layout.addWidget(self.tab_widget)
         return file_window
 
 
