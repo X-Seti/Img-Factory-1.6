@@ -17,61 +17,6 @@ from apps.methods.imgfactory_svg_icons import (
 )
 
 
-def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool):
-    """Apply UI mode: 'system' or 'custom'"""
-    self.icon_factory = SVGIconFactory()
-
-    # After QMainWindow setup
-    central_widget = QWidget()
-    self.setCentralWidget(central_widget)
-    self.main_layout = QVBoxLayout(central_widget)
-    self.main_layout.setContentsMargins(0, 0, 0, 0)
-
-    # Create custom titlebar (hidden by default)
-    self._custom_titlebar = self._create_toolbar()
-    self._custom_titlebar.hide()
-    self.main_layout.addWidget(self._custom_titlebar)
-
-    # Create content area
-    content_widget = QWidget()
-    content_layout = QVBoxLayout(content_widget)
-    self.gui_layout = IMGFactoryGUILayout(self)
-    self.gui_layout.create_main_ui_with_splitters(content_layout)
-    self.main_layout.addWidget(content_widget)
-
-    current_geometry = self.geometry()
-    was_visible = self.isVisible()
-
-    if ui_mode == "custom":
-        # Use frameless window
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        # Ensure custom titlebar exists
-        if not hasattr(self, '_custom_titlebar') or self._custom_titlebar is None:
-            self._custom_titlebar = self._create_toolbar()
-        # Insert at top of central widget's layout
-        central_widget = self.centralWidget()
-        if central_widget and central_widget.layout():
-            layout = central_widget.layout()
-            if self._custom_titlebar not in [layout.itemAt(i).widget() for i in range(layout.count())]:
-                layout.insertWidget(0, self._custom_titlebar)
-        self._custom_titlebar.show()
-    else:
-        # Use system window
-        self.setWindowFlags(
-            Qt.WindowType.Window |
-            Qt.WindowType.WindowMinimizeButtonHint |
-            Qt.WindowType.WindowMaximizeButtonHint |
-            Qt.WindowType.WindowCloseButtonHint
-        )
-        # Hide custom titlebar if it exists
-        if hasattr(self, '_custom_titlebar') and self._custom_titlebar:
-            self._custom_titlebar.hide()
-
-    self.setGeometry(current_geometry)
-    if was_visible:
-        self.show()
-
-
 class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
     """Custom UI version of IMGFactoryGUILayout with modern theme and layout"""
 
@@ -83,6 +28,52 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             self.use_system_titlebar = self.main_window.app_settings.current_settings.get('use_system_titlebar', True)
         # Apply initial window flags
         self._apply_window_flags()
+
+    def apply_ui_mode(self, ui_mode: str, show_toolbar: bool, show_status_bar: bool, show_menu_bar: bool):
+        """Apply UI mode: 'system' or 'custom'"""
+        current_geometry = self.geometry()
+        was_visible = self.isVisible()
+
+        if ui_mode == "custom":
+            # Use frameless window
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+            # Ensure custom titlebar exists
+            if not hasattr(self, '_custom_titlebar') or self._custom_titlebar is None:
+                self._custom_titlebar = self._create_toolbar()
+            # Insert at top of central widget's layout if not already present
+            central_widget = self.centralWidget()
+            if central_widget and central_widget.layout():
+                layout = central_widget.layout()
+                # Remove the titlebar if it's already in the layout to avoid duplication
+                if hasattr(self, '_custom_titlebar') and self._custom_titlebar.parent() is None:
+                    layout.insertWidget(0, self._custom_titlebar)
+            self._custom_titlebar.show()
+        else:
+            # Use system window
+            self.setWindowFlags(
+                Qt.WindowType.Window |
+                Qt.WindowType.WindowMinimizeButtonHint |
+                Qt.WindowType.WindowMaximizeButtonHint |
+                Qt.WindowType.WindowCloseButtonHint
+            )
+            # Hide custom titlebar if it exists
+            if hasattr(self, '_custom_titlebar') and self._custom_titlebar:
+                self._custom_titlebar.hide()
+
+        # Apply visibility settings for toolbar, status bar, and menu bar
+        if hasattr(self, 'menuBar') and callable(self.menuBar):
+            menu_bar = self.menuBar()
+            if menu_bar:
+                menu_bar.setVisible(show_menu_bar)
+        
+        if hasattr(self, 'statusBar') and callable(self.statusBar):
+            status_bar = self.statusBar()
+            if status_bar:
+                status_bar.setVisible(show_status_bar)
+
+        self.setGeometry(current_geometry)
+        if was_visible:
+            self.show()
 
 
     def _apply_window_flags(self): #vers 1
@@ -930,5 +921,5 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 # Export functions
 __all__ = [
-    'apply_ui_mode', '_create_toolbar', '_show_workshop_settings'
+    'IMGFactoryGUILayoutCustom', '_create_toolbar', '_show_workshop_settings'
 ]
