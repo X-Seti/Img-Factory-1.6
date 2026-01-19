@@ -42,6 +42,15 @@ class SearchManager:
             self.main_window.log_message(f"Search setup error: {e}")
             return False
     
+    def _setup_shortcuts(self):
+        """Setup search keyboard shortcuts"""
+        try:
+            from .shortcuts import setup_search_shortcuts
+            setup_search_shortcuts(self.main_window)
+            self.main_window.log_message("Search shortcuts setup complete")
+        except Exception as e:
+            self.main_window.log_message(f"Search shortcuts setup error: {e}")
+    
     def _connect_search_input(self):
         """Connect search input widget"""
         search_input = self._find_search_input()
