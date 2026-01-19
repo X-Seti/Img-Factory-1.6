@@ -1542,6 +1542,11 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     if not hasattr(self.main_window, 'directory_tree'):
                         from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
                         integrate_directory_tree_browser(self.main_window)
+                    
+                    # Ensure the directory tree is properly populated with the game root
+                    if hasattr(self.main_window, 'directory_tree') and hasattr(self.main_window, 'game_root'):
+                        if hasattr(self.main_window.directory_tree, 'browse_directory'):
+                            self.main_window.directory_tree.browse_directory(self.main_window.game_root)
 
                 if index < tab_widget.count():
                     tab_widget.setCurrentIndex(index)
@@ -1555,6 +1560,14 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 else:
                     if debug_enabled:
                         print(f"✗ Tab {index} doesn't exist (only {tab_widget.count()} tabs)")
+                        
+                    # Try to handle the case where the tab doesn't exist but we want to show the content
+                    if index == 0:  # File entries
+                        self._switch_to_file_entries()
+                    elif index == 1:  # Directory tree
+                        self._switch_to_directory_tree()
+                    elif index == 2:  # Search
+                        self._switch_to_search()
                 return
 
             # Try gui_layout.tab_widget as fallback
@@ -1570,10 +1583,26 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
                         if debug_enabled:
                             print(f"✓ Switched to tab {index}")
+                    else:
+                        # If the tab doesn't exist, try our button-based functions
+                        if index == 0:  # File entries
+                            self._switch_to_file_entries()
+                        elif index == 1:  # Directory tree
+                            self._switch_to_directory_tree()
+                        elif index == 2:  # Search
+                            self._switch_to_search()
                     return
 
             if debug_enabled:
                 print("✗ No valid tab widget found!")
+
+            # As a final fallback, try to use our button-based switching functions
+            if index == 0:  # File entries
+                self._switch_to_file_entries()
+            elif index == 1:  # Directory tree
+                self._switch_to_directory_tree()
+            elif index == 2:  # Search
+                self._switch_to_search()
 
         except Exception as e:
             if debug_enabled:
@@ -1593,7 +1622,12 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     # Bring focus to the table
                     table.setFocus()
                     table.raise_()
-                    self.main_window.log_message("→ Switched to File Entries")
+                    self.main_window.log_message("→ Switched to File Entries - should be TAB 0")
+                    
+                    # If we have a main tab widget, make sure we're showing the right tab
+                    if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
+                        if self.main_window.main_tab_widget.count() > 0:
+                            self.main_window.main_tab_widget.setCurrentIndex(0)  # Switch to first tab (File Entries)
                 else:
                     self.main_window.log_message("File entries table not available")
             else:
@@ -1630,38 +1664,28 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     self.main_window.log_message("Failed to load Directory Tree browser")
                     return
 
-            # Show the directory tree in the main content area
-            # Look for the main content area where we can show the directory tree
-            if hasattr(self.main_window, 'gui_layout'):
-                # The directory_tree should be accessible via main_window.directory_tree
-                if hasattr(self.main_window, 'directory_tree'):
-                    # Show the directory tree widget in the main content area
-                    if hasattr(self.main_window.gui_layout, 'left_panel') and self.main_window.gui_layout.left_panel:
-                        # Clear the current content in the left panel and add the directory tree
-                        layout = self.main_window.gui_layout.left_panel.layout()
-                        if not layout:
-                            from PyQt6.QtWidgets import QVBoxLayout
-                            layout = QVBoxLayout(self.main_window.gui_layout.left_panel)
-                        
-                        # Clear existing widgets
-                        for i in reversed(range(layout.count())):
-                            layout.itemAt(i).widget().setParent(None)
-                        
-                        # Add the directory tree
-                        layout.addWidget(self.main_window.directory_tree)
-                        self.main_window.log_message("→ Switched to Directory Tree")
-                        
-                        # Browse to the game root
-                        if hasattr(self.main_window.directory_tree, 'browse_directory'):
-                            self.main_window.directory_tree.browse_directory(self.main_window.game_root)
-                        elif hasattr(self.main_window.directory_tree, 'populate_tree'):
-                            self.main_window.directory_tree.populate_tree(self.main_window.game_root)
-                    else:
-                        self.main_window.log_message("Main content panel not available")
-                else:
-                    self.main_window.log_message("Directory tree not available")
+            # Make sure the directory tree is properly initialized
+            if hasattr(self.main_window, 'directory_tree'):
+                # Browse to the game root
+                if hasattr(self.main_window.directory_tree, 'browse_directory'):
+                    self.main_window.directory_tree.browse_directory(self.main_window.game_root)
+                elif hasattr(self.main_window.directory_tree, 'populate_tree'):
+                    self.main_window.directory_tree.populate_tree(self.main_window.game_root)
+                
+                # If we have a main tab widget, try to switch to the directory tree tab if it exists
+                if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
+                    # Look for a directory tree tab
+                    tab_widget = self.main_window.main_tab_widget
+                    for i in range(tab_widget.count()):
+                        if "Directory" in tab_widget.tabText(i) or "Tree" in tab_widget.tabText(i):
+                            tab_widget.setCurrentIndex(i)
+                            self.main_window.log_message("→ Switched to Directory Tree Tab")
+                            return
+                
+                # If no tab was found or no tab widget exists, just ensure the directory tree is available
+                self.main_window.log_message("→ Directory Tree ready - browsing to game root")
             else:
-                self.main_window.log_message("GUI layout not available")
+                self.main_window.log_message("Directory tree not available")
 
         except Exception as e:
             self.main_window.log_message(f"Error: {str(e)}")
@@ -1689,6 +1713,15 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 search_dialog.exec()
                 
                 self.main_window.log_message("→ Showing Search Dialog")
+            
+            # If we have a main tab widget, try to switch to the search tab if it exists
+            if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
+                tab_widget = self.main_window.main_tab_widget
+                for i in range(tab_widget.count()):
+                    if "Search" in tab_widget.tabText(i):
+                        tab_widget.setCurrentIndex(i)
+                        self.main_window.log_message("→ Switched to Search Tab")
+                        return
         except Exception as e:
             self.main_window.log_message(f"Error: {str(e)}")
 
