@@ -145,7 +145,7 @@ def show_project_manager_dialog(main_window):
     from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QTabWidget, QWidget
     
     dialog = QDialog(main_window)
-    dialog.setWindowTitle("Project Manager")
+    dialog.setWindowTitle("Project Manager for 1.5")
     dialog.setMinimumSize(600, 400)
     
     layout = QVBoxLayout(dialog)

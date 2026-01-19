@@ -167,7 +167,11 @@ class IMGFactoryGUILayout:
     def _create_method_mappings(self): #vers 5
         """Create centralized method mappings for all buttons"""
         method_mappings = {
-            # IMG/COL Operations            'edit_txd_file': lambda: edit_txd_file(self.main_window),
+            # Nav Operations
+            'filelistwindow': lambda: _switch_to_file_entries(self.main_window),
+            'switch_to_dirlist': lambda: _switch_to_directory_tree(self.main_window),
+            'switch_to_search': lambda: _switch_to_search(self.main_window),
+            # IMG/COL Operations
             'create_new_img': lambda: create_new_img(self.main_window),
             'open_img_file': lambda: open_file_dialog(self.main_window),
             'reload_table': lambda: reload_current_file(self.main_window),
@@ -252,6 +256,9 @@ class IMGFactoryGUILayout:
         if self._is_dark_theme():
             return {
                 # Dark Theme Button Colors
+                'filelistwindow': '#3D4A5F',       # Light blue for open/load actions
+                'dirlistwindow': '#3D4A5F',       # Light blue for open/load actions
+                'filesearch': '#3D4A5F',       # Light blue for open/load actions
                 'create_action': '#3D5A5A',     # Dark teal for create/new actions
                 'open_action': '#3D4A5F',       # Dark blue for open/load actions
                 'reload_action': '#2D4A3A',     # Dark green for refresh/reload
@@ -277,6 +284,9 @@ class IMGFactoryGUILayout:
         else:
             return {
                 # Light Theme Button Colors
+                'filelistwindow': '#E3F2FD',       # Light blue for open/load actions
+                'dirlistwindow': '#E3F2FD',       # Light blue for open/load actions
+                'filesearch': '#E3F2FD',       # Light blue for open/load actions
                 'create_action': '#EEFAFA',     # Light teal for create/new actions
                 'open_action': '#E3F2FD',       # Light blue for open/load actions
                 'reload_action': '#E8F5E8',     # Light green for refresh/reload
@@ -299,6 +309,15 @@ class IMGFactoryGUILayout:
                 'editor_script': '#FFD0BD',     # Light peach for script editors
                 'placeholder': '#FEFEFE',       # Light gray for spacers
             }
+
+    def _get_nav_buttons_data(self): #vers 1 - only show on gui_layout.py but hidden on gui_layout_custom.py
+        """Get IMG buttons data with theme colors"""
+        colors = self._get_button_theme_template()
+        return [
+            ("File List", "filelist", "doc-filelist", colors['filelistwindow'], "switch_to_img_file"),
+            ("Dir Tree", "dirtree", "doc-dirtree", colors['dirtree'], "switch_to_dirlist"),
+            ("Search", "search", "file-search", colors['filesearch'], "switch_to_search"),
+        ]
 
 
     def _get_img_buttons_data(self): #vers 3
@@ -580,6 +599,7 @@ class IMGFactoryGUILayout:
             self.main_window.log_message("File window tear-off functionality needs implementation")
         except Exception as e:
             self.main_window.log_message(f"Error handling file window tearoff: {str(e)}")
+
 
     def _dock_tab_widget_back(self): #vers 2
         """Dock torn off tab widget back to main window """
