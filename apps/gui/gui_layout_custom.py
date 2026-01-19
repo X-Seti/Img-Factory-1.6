@@ -1666,9 +1666,19 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 
     def _switch_to_search(self): #vers 1
-        """Show search dialog"""
+        """Show search dialog and log results to status window and log tab"""
         try:
             if hasattr(self.main_window, 'search_manager') and self.main_window.search_manager:
+                # Connect search results to log system
+                if hasattr(self.main_window.search_manager, 'search_results_signal'):
+                    # Connect search results to both status window and log
+                    def handle_search_results(results):
+                        self.main_window.log_message(f"Search completed: Found {len(results)} results")
+                        if hasattr(self, 'log') and self.log:
+                            self.log.append(f"[SEARCH] Found {len(results)} results")
+                    
+                    self.main_window.search_manager.search_results_signal.connect(handle_search_results)
+                
                 self.main_window.search_manager.show_search_dialog()
             else:
                 self.main_window.log_message("Search manager not available")
@@ -1688,8 +1698,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         return wrapper
 
 
-    def _toggle_log_visibility(self): #vers 2
-        """Toggle activity log visibility"""
+    def _toggle_log_visibility(self): #vers 3
+        """Toggle extended activity log visibility including search results, imports, exports, and removals"""
         try:
             if not hasattr(self, 'log') or not self.log:
                 self.main_window.log_message("Log widget not available")
@@ -1700,13 +1710,119 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
             if not is_visible:
                 self.main_window.log_message("=" * 60)
-                self.main_window.log_message("ACTIVITY LOG - All operations")
+                self.main_window.log_message("EXTENDED ACTIVITY LOG - All operations tracked")
+                self.main_window.log_message("Includes: Search Results | Imports | Exports | Removals | System Events")
                 self.main_window.log_message("=" * 60)
                 if hasattr(self, 'log_btn'):
                     self.log_btn.setText("Hide Log")
             else:
                 if hasattr(self, 'log_btn'):
                     self.log_btn.setText("Log")
+
+        except Exception as e:
+            self.main_window.log_message(f"Error: {str(e)}")
+
+
+    def handle_set_assists_project_folder(self): #vers 1
+        """Handle Set Project folder (Assists) menu action - Creates Assists folder with Models, Maps, Collisions, Textures, Other"""
+        try:
+            from PyQt6.QtWidgets import QFileDialog, QMessageBox
+            import os
+            
+            # Start from user's home directory
+            start_dir = os.path.expanduser("~")
+            
+            # Select base directory where "Assists" folder will be created
+            base_folder = QFileDialog.getExistingDirectory(
+                self.main_window,
+                "Select Base Directory for Assists Folder",
+                start_dir,
+                QFileDialog.Option.ShowDirsOnly
+            )
+            
+            if base_folder:
+                # Create the main "Assists" folder
+                assists_folder = os.path.join(base_folder, "Assists")
+                
+                # Create the Assists folder and subfolders
+                subfolders = ["Models", "Maps", "Collisions", "Textures", "Other"]
+                
+                os.makedirs(assists_folder, exist_ok=True)
+                self.main_window.log_message(f"Created Assists folder: {assists_folder}")
+                
+                for subfolder in subfolders:
+                    subfolder_path = os.path.join(assists_folder, subfolder)
+                    os.makedirs(subfolder_path, exist_ok=True)
+                    self.main_window.log_message(f"Created subfolder: {subfolder_path}")
+                
+                # Store the assists folder path for other functions
+                if not hasattr(self.main_window, 'assists_folder'):
+                    self.main_window.assists_folder = assists_folder
+                
+                # Show success message
+                QMessageBox.information(
+                    self.main_window,
+                    "Assists Project Folder Created",
+                    f"Assists project folder structure created successfully:\n{assists_folder}\n\nSubfolders created:\n• Models/\n• Maps/\n• Collisions/\n• Textures/\n• Other/"
+                )
+                
+                self.main_window.log_message(f"Assists project folder ready: {assists_folder}")
+                
+            else:
+                self.main_window.log_message("Assists project folder creation cancelled")
+                
+        except Exception as e:
+            self.main_window.log_message(f"Error creating Assists project folder: {str(e)}")
+
+
+    def _switch_to_directory_tree(self): #vers 1
+        """Switch to Directory Tree tab and initialize if needed - loads directory_tree_browser.py"""
+        try:
+            if not hasattr(self, 'tab_widget') or not self.tab_widget:
+                self.main_window.log_message("Tab widget not available")
+                return
+
+            # Integrate directory tree browser if not already done
+            if not hasattr(self.main_window, 'directory_tree'):
+                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                if integrate_directory_tree_browser(self.main_window):
+                    self.main_window.log_message("Directory Tree browser loaded successfully")
+                else:
+                    self.main_window.log_message("Failed to load Directory Tree browser")
+                    return
+
+            # Find Directory Tree tab
+            directory_tab_index = -1
+            for i in range(self.tab_widget.count()):
+                tab_text = self.tab_widget.tabText(i)
+                if "Directory Tree" in tab_text or "Directory" in tab_text:
+                    directory_tab_index = i
+                    break
+
+            if directory_tab_index == -1:
+                # Try to integrate it
+                self.main_window.log_message("Integrating Directory Tree...")
+                try:
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                    if integrate_directory_tree_browser(self.main_window):
+                        for i in range(self.tab_widget.count()):
+                            if "Directory Tree" in self.tab_widget.tabText(i):
+                                directory_tab_index = i
+                                break
+                except Exception as e:
+                    self.main_window.log_message(f"Error integrating: {str(e)}")
+                    return
+
+            # Switch to tab
+            if directory_tab_index >= 0:
+                self.tab_widget.setCurrentIndex(directory_tab_index)
+
+                # Populate tree if game root is set
+                if hasattr(self.main_window, 'game_root') and self.main_window.game_root:
+                    if hasattr(self.main_window.directory_tree, 'browse_directory'):
+                        self.main_window.directory_tree.browse_directory(self.main_window.game_root)
+                    elif hasattr(self.main_window.directory_tree, 'populate_tree'):
+                        self.main_window.directory_tree.populate_tree(self.main_window.game_root)
 
         except Exception as e:
             self.main_window.log_message(f"Error: {str(e)}")
@@ -2380,18 +2496,59 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 # - Window functionality
 
-    def _initialize_features(self): #vers 3
-        """Initialize all features after UI setup"""
+    def _initialize_features(self): #vers 4
+        """Initialize all features after UI setup - including enhanced logging"""
         try:
             self._apply_theme()
             self._update_status_indicators()
+            
+            # Connect various system events to the extended log
+            self._connect_extended_logging()
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.window_context.log_message("All features initialized")
+                self.window_context.log_message("Extended logging system active")
 
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.window_context.log_message(f"Feature init error: {str(e)}")
+
+    
+    def _connect_extended_logging(self): #vers 1
+        """Connect various system events to the extended log system"""
+        try:
+            # Connect search results to log
+            if hasattr(self.main_window, 'search_manager') and self.main_window.search_manager:
+                if hasattr(self.main_window.search_manager, 'search_results_signal'):
+                    def log_search_results(results):
+                        self.main_window.log_message(f"[SEARCH RESULT] Found {len(results)} items")
+                        
+                    self.main_window.search_manager.search_results_signal.connect(log_search_results)
+            
+            # Connect import/export events if available
+            if hasattr(self.main_window, 'import_manager'):
+                def log_import(event_data):
+                    self.main_window.log_message(f"[IMPORT] {event_data}")
+                
+                def log_export(event_data):
+                    self.main_window.log_message(f"[EXPORT] {event_data}")
+                
+                # Connect import/export signals if they exist
+                if hasattr(self.main_window.import_manager, 'import_signal'):
+                    self.main_window.import_manager.import_signal.connect(log_import)
+                if hasattr(self.main_window, 'export_signal'):
+                    self.main_window.export_signal.connect(log_export)
+            
+            # Connect file removal events
+            def log_removal(file_path):
+                self.main_window.log_message(f"[REMOVAL] Removed: {file_path}")
+            
+            # This would connect to actual removal signals when they exist in the system
+            self.main_window.log_removal_handler = log_removal
+
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.window_context.log_message(f"Logging connection error: {str(e)}")
 
 
     def _is_on_draggable_area(self, pos): #vers 7
