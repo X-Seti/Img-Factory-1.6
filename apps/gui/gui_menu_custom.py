@@ -369,12 +369,9 @@ class CustomMenuManager:
     
     def _show_about(self): #vers 1
         QMessageBox.about(
-            self.main_window,
-            "About IMG Factory 1.6",
-            "<h2>IMG Factory 1.6</h2><p>X-Seti 2026</p>"
-        )
-
-            f"An error occurred while setting the game root:\n\n{str(e)}"
+        self.main_window,
+        "About IMG Factory 1.6",
+        "<h2>IMG Factory 1.6</h2><p>X-Seti 2026</p>",
         )
 
 
