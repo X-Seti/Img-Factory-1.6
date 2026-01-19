@@ -1,26 +1,34 @@
-```json
-{
-  "projects": [
-    {
-      "name": "AI Model Training Platform",
-      "description": "A comprehensive platform for training and managing AI models with version control and experiment tracking.",
-      "technologies": ["Python", "TensorFlow", "PyTorch", "Docker", "Kubernetes"],
-      "status": "active",
-      "start_date": "2023-09-15",
-      "end_date": null,
-      "team_size": 12,
-      "repository_url": "https://github.com/example/ai-training-platform"
-    },
-    {
-      "name": "Data Analytics Dashboard",
-      "description": "Real-time data visualization dashboard for business intelligence and analytics.",
-      "technologies": ["React", "Node.js", "MongoDB", "D3.js", "AWS"],
-      "status": "completed",
-      "start_date": "2023-06-01",
-      "end_date": "2023-11-30",
-      "team_size": 8,
-      "repository_url": "https://github.com/example/analytics-dashboard"
-    }
-  ]
-}
-```
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Virtual environments
+venv/
+.venv/
+.env
+.env.local
+.env.*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# Build and distribution
+dist/
+build/
+target/
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Python cache
+.mypy_cache/
+.pytest_cache/
