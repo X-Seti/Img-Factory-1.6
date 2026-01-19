@@ -1,14 +1,6 @@
 === IMG Factory Debug Log ===
-Started: 2026-01-19 20:57:02
+Started: 2026-01-19 21:25:30
 Python: 3.13.11 (main, Dec  7 2025, 13:01:45) [GCC 15.2.1 20251112]
 Platform: linux
 ==================================================
 
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for Ferry.dff
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train.dff
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train_dl.dff
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train_dr.dff
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for TRAM.dff
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for Ferry.txd
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for TRAIN.TXD
-[20:57:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for tram.txd

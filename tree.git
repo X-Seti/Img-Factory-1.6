@@ -192,7 +192,7 @@
 │   │   ├── gui_infobar.py
 │   │   ├── gui_layout_custom.py
 │   │   ├── gui_layout.py
-│   │   ├── gui_layout.py.txt
+│   │   ├── gui_menu_custom.py
 │   │   ├── gui_menu.py
 │   │   ├── gui_settings.py
 │   │   ├── ide_dialog.py
@@ -251,7 +251,6 @@
 │   │   ├── img_factory_settings.py
 │   │   ├── imgfactory_svg_icons.py
 │   │   ├── imgfactory_ui_settings.py
-│   │   ├── imgfactory_ui_settings.py.txt
 │   │   ├── img_import_functions.py
 │   │   ├── img_integration.py
 │   │   ├── img_parsing_functions.py
@@ -329,7 +328,6 @@
 │       └── update_themes_script.py
 ├── cc.py
 ├── ChangeLog.md
-├── col_editor.png
 ├── converted.py
 │   ├── 3way.py
 │   ├── adler32.py
@@ -436,7 +434,6 @@
 │   ├── xtr.py
 │   └── zlib.py
 ├── Credits.md
-├── img_factory1.6.png
 ├── img_factory_debug.log
 ├── launch_col_workshop.py
 ├── launch_imgfactory.py
@@ -446,4 +443,4 @@
 ├── TODO.md
 └── tree.git
 
-35 directories, 412 files
+35 directories, 409 files
