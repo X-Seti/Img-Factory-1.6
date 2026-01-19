@@ -440,7 +440,7 @@ class IMGFactoryMenuBar:
                                 get_trash_icon, get_checkmark_icon, get_view_icon,
                                 get_folder_icon, get_file_icon, get_package_icon,
                                 get_shield_icon, get_image_icon, get_palette_icon,
-                                get_error_icon #, get_move_icon
+                                get_error_icon, get_cut_icon
                             )
 
                             # Map icon names to functions
@@ -455,7 +455,7 @@ class IMGFactoryMenuBar:
                                 "edit-cut": get_trash_icon,  # or appropriate icon
                                 "edit-copy": get_file_icon,  # or appropriate icon
                                 "edit-paste": get_file_icon,  # or appropriate icon
-                                "edit-move": get_move_icon,  # or appropriate icon
+                                "edit-move": get_cut_icon,  # or appropriate icon - was get_move_icon which doesn't exist
                                 "edit-select-all": get_checkmark_icon,
                                 "edit-find": get_search_icon,
                                 "edit-find-next": get_search_icon,  # or appropriate icon
