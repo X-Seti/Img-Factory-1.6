@@ -6,9 +6,10 @@ Custom UI Menu System - For gui_layout_custom.py
 Uses global theme and SVG icons
 """
 
-from PyQt6.QtWidgets import QMenu, QMessageBox, QFileDialog
+from PyQt6.QtWidgets import QMenu, QMessageBox, QFileDialog, QTextEdit, QLabel
 from PyQt6.QtCore import Qt, QPoint, QSettings
 from PyQt6.QtGui import QAction, QCursor, QKeySequence
+import json
 
 ##Functions list -
 # create_main_popup_menu
@@ -203,26 +204,22 @@ class CustomMenuManager:
         
         project_folder_action = QAction(SVGIconFactory.folder_icon(), "Set Project Folder...", self.main_window)
         project_folder_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
-        project_folder_action.triggered.connect(handle_set_project_folder())
+        project_folder_action.triggered.connect(lambda: self._set_project_folder())
         menu.addAction(project_folder_action)
         
         game_root_action = QAction(SVGIconFactory.folder_icon(), "Set Game Root Folder...", self.main_window)
         game_root_action.setShortcut(QKeySequence("Ctrl+Shift+G"))
-        game_root_action.triggered.connect(handle_set_game_root_folder())
+        game_root_action.triggered.connect(lambda: self._set_game_root())
         menu.addAction(game_root_action)
         
         menu.addSeparator()
-        
-        main_window.manage_projects_action = manage_projects_action
-        main_window.set_project_folder_action = set_project_folder_action
-        main_window.set_game_root_action = set_game_root_action
 
         # Initialize project manager
         main_window.project_manager = ProjectManager(main_window)
 
         project_settings_action = QAction(SVGIconFactory.get_settings_icon(), "Project Settings...", self.main_window)
         #project_settings_action.triggered.connect(self._project_settings)
-        project_settings_action.triggered.connect(self.show_project_manager_dialog)
+        project_settings_action.triggered.connect(lambda: show_project_manager_dialog(self.main_window))
         menu.addAction(project_settings_action)
     
     
@@ -298,7 +295,7 @@ class CustomMenuManager:
     
     def _import_files(self): #vers 1
         try:
-            from apps.core.impotr import import_files_function
+            from apps.core.import import import_files_function
             import_files_function(self.main_window)
         except: pass
     
