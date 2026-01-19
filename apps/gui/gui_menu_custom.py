@@ -374,9 +374,6 @@ class CustomMenuManager:
             "<h2>IMG Factory 1.6</h2><p>X-Seti 2026</p>"
         )
 
-            f"An error occurred while setting the game root:\n\n{str(e)}"
-        )
-
 
 def create_main_popup_menu(main_window): #vers 1
     """Create popup menu manager"""
