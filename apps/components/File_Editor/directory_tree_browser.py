@@ -904,50 +904,61 @@ class DirectoryTreeBrowser(QWidget):
             print(f"[DirectoryBrowser] {message}")
 
 
-def integrate_directory_tree_browser(main_window): #vers 2
-    """Integrate directory browser into main window"""
+def integrate_directory_tree_browser(main_window): #vers 3
+    """Integrate directory browser into main window - updated for button-based UI"""
     try:
-        if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'tab_widget'):
-            main_window.log_message("Tab widget not found")
-            return False
-        tab_widget = main_window.gui_layout.tab_widget
-        directory_tab_index = -1
-        if tab_widget and hasattr(tab_widget, 'count'):
-            for i in range(tab_widget.count()):
-                if "Directory Tree" in tab_widget.tabText(i):
-                    directory_tab_index = i
-                    break
-        if directory_tab_index == -1:
-            main_window.log_message("Directory Tree tab not found")
-            return False
-        existing_tab = tab_widget.widget(directory_tab_index)
-        if not existing_tab:
-            return False
-        existing_layout = existing_tab.layout()
-        if existing_layout:
-            while existing_layout.count():
-                child = existing_layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
-        else:
-            from PyQt6.QtWidgets import QVBoxLayout
-            existing_layout = QVBoxLayout(existing_tab)
+        # First, create the directory browser
         directory_browser = DirectoryTreeBrowser(main_window)
+        
+        # Store it in main window for later access
+        main_window.directory_tree = directory_browser
+        
+        # Connect file opening if available
         if hasattr(main_window, 'load_file_unified'):
             directory_browser.file_opened.connect(main_window.load_file_unified)
-        existing_layout.addWidget(directory_browser)
-        tab_widget.setTabText(directory_tab_index, "Directory Tree")
-        tab_widget.setTabIcon(directory_tab_index, get_folder_icon())
-        main_window.directory_tree = directory_browser
+            
+        # Check if we have a tab widget (for backwards compatibility)
+        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'tab_widget'):
+            tab_widget = main_window.gui_layout.tab_widget
+            directory_tab_index = -1
+            if tab_widget and hasattr(tab_widget, 'count'):
+                for i in range(tab_widget.count()):
+                    if "Directory Tree" in tab_widget.tabText(i):
+                        directory_tab_index = i
+                        break
+            if directory_tab_index != -1:
+                existing_tab = tab_widget.widget(directory_tab_index)
+                if existing_tab:
+                    existing_layout = existing_tab.layout()
+                    if existing_layout:
+                        while existing_layout.count():
+                            child = existing_layout.takeAt(0)
+                            if child.widget():
+                                child.widget().deleteLater()
+                    else:
+                        from PyQt6.QtWidgets import QVBoxLayout
+                        existing_layout = QVBoxLayout(existing_tab)
+                    existing_layout.addWidget(directory_browser)
+                    tab_widget.setTabText(directory_tab_index, "Directory Tree")
+                    tab_widget.setTabIcon(directory_tab_index, get_folder_icon())
+        else:
+            # No tab widget - the directory browser is still available as main_window.directory_tree
+            # It can be accessed by the switch functions when needed
+            pass
+            
+        # Load saved game root if available
         settings = QSettings("IMG-Factory", "IMG-Factory")
         saved_root = settings.value("game_root", "", type=str)
         if saved_root and os.path.exists(saved_root):
             directory_browser.browse_directory(saved_root)
             main_window.log_message(f"Loaded saved game root: {saved_root}")
+        
         main_window.log_message("Directory browser integrated")
         return True
     except Exception as e:
         main_window.log_message(f"Error integrating directory browser: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 __all__ = [
