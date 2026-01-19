@@ -295,7 +295,7 @@ class CustomMenuManager:
     
     def _import_files(self): #vers 1
         try:
-            from apps.core.import import import_files_function
+            from apps.core.impotr import import_files_function
             import_files_function(self.main_window)
         except: pass
     
