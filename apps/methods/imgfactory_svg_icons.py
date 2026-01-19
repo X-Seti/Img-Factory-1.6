@@ -1976,6 +1976,77 @@ class SVGIconFactory: #vers 7
 
 
     @staticmethod
+    def menu_m_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Menu icon with letter M"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <text x="12" y="17"
+                font-size="14"
+                fill="currentColor"
+                text-anchor="middle"
+                font-weight="bold"
+                font-family="Arial">M</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+    @staticmethod
+    def app_icon_cube(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """Application icon - 3D cube with I, M, G letters on visible faces"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <!-- Cube structure -->
+            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
+                stroke="currentColor" stroke-width="1.5"
+                fill="none"
+                stroke-linecap="round"
+                stroke-linejoin="round"/>
+
+            <!-- Top edge -->
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"
+                stroke="currentColor" stroke-width="1.5"
+                fill="none"
+                stroke-linecap="round"
+                stroke-linejoin="round"/>
+
+            <!-- Center vertical line -->
+            <line x1="12" y1="22.08" x2="12" y2="12"
+                stroke="currentColor" stroke-width="1.5"
+                stroke-linecap="round"/>
+
+            <!-- Letter I on top face -->
+            <text x="12" y="8"
+                font-size="5"
+                fill="currentColor"
+                text-anchor="middle"
+                font-weight="bold"
+                font-family="Arial">I</text>
+
+            <!-- Letter M on left face -->
+            <text x="7" y="14"
+                font-size="5"
+                fill="currentColor"
+                text-anchor="middle"
+                font-weight="bold"
+                font-family="Arial">M</text>
+
+            <!-- Letter G on right face -->
+            <text x="17" y="14"
+                font-size="5"
+                fill="currentColor"
+                text-anchor="middle"
+                font-weight="bold"
+                font-family="Arial">G</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+    @staticmethod
+    def get_app_icon(size: int = 32, color: str = None) -> QIcon: #vers 2
+        """Get application icon - IMG cube with letters"""
+        return SVGIconFactory.app_icon_cube(size, color)
+
+    @staticmethod
     def get_app_icon(size: int = 64) -> QIcon: #vers 1
         """IMG Factory application icon - Archive/Package themed"""
         svg_data = f'''<svg width="{size}" height="{size}" viewBox="0 0 64 64">

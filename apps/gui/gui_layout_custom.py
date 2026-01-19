@@ -16,6 +16,7 @@ from apps.methods.imgfactory_svg_icons import (
     get_rebuild_icon, get_undobar_icon, get_undo_icon, get_redo_icon
 )
 
+from apps.gui.gui_menu_custom import CustomMenuManager, show_popup_menu_at_button
 
 # Temporary 3D viewport placeholder
 class COL3DViewport(QWidget):
@@ -81,9 +82,13 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.resizing = False
         self.resize_corner = None
         self.corner_size = 20
+        self.resize_margin = 10  # Edge margin for resize detection
         self.hover_corner = None
         self._initialize_features()
         self.enable_debug_check = False
+        self.custom_menu_manager = CustomMenuManager(main_window)
+        main_window.custom_menu_manager = self.custom_menu_manager
+
 
     @property
     def window_context(self): #vers 1
@@ -601,7 +606,6 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             if hasattr(self, '_settings_dialog_open'):
                 self._settings_dialog_open = False
         
-
 
     def _show_workshop_settings(self): #vers 6
         """Show complete workshop settings dialog - FULL VERSION"""
@@ -1295,6 +1299,16 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Get icon color from theme
         icon_color = "#ffffff"
 
+        # M Menu button - BEFORE settings
+        self.menu_btn = QPushButton()
+        self.menu_btn.setFont(self.button_font)
+        self.menu_btn.setIcon(self.icon_factory.menu_m_icon())
+        self.menu_btn.setText("Menu")
+        self.menu_btn.setIconSize(QSize(20, 20))
+        self.menu_btn.clicked.connect(self._show_popup_menu)
+        self.menu_btn.setToolTip("Main Menu")
+        layout.addWidget(self.menu_btn)
+
         # Settings button - PREVENT DUPLICATE CONNECTIONS
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
@@ -1321,7 +1335,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         layout.addStretch()
 
-        # ==================== TAB NAVIGATION BUTTONS ====================
+    # = TAB NAVIGATION BUTTONS
 
         # File Entries button - CONNECTED
         self.f_entries_btn = QPushButton()
@@ -1330,7 +1344,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.f_entries_btn.setText("File Entries")
         self.f_entries_btn.setIconSize(QSize(20, 20))
         self.f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
-        self.f_entries_btn.clicked.connect(lambda: self.entries_tab) #show active img file tab
+        #self.f_entries_btn.clicked.connect(lambda: self.entries_tab)
+        self.f_entries_btn.clicked.connect(self._switch_to_file_entries) #show active img file tab
         layout.addWidget(self.f_entries_btn)
 
         # Directory Tree button - CONNECTED
@@ -1340,7 +1355,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.dirtree_btn.setText("Directory Tree")
         self.dirtree_btn.setIconSize(QSize(20, 20))
         self.dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
-        self.dirtree_btn.clicked.connect(lambda: self.show_project_manager_dialog)
+        self.dirtree_btn.clicked.connect(self._switch_to_directory_tree)
+        #self.dirtree_btn.clicked.connect(lambda: self.show_project_manager_dialog)
 
         layout.addWidget(self.dirtree_btn)
 
@@ -1351,7 +1367,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.search_btn.setText("Search")
         self.search_btn.setIconSize(QSize(20, 20))
         self.search_btn.setToolTip("Search Files (Ctrl+3)")
-        self.search_btn.clicked.connect(lambda: self.main_window.search_manager.show_search_dialog())
+        #self.search_btn.clicked.connect(lambda: self.main_window.search_manager.show_search_dialog())
+        self.search_btn.clicked.connect(self._switch_to_search)
         layout.addWidget(self.search_btn)
 
         # Log button - NEW - CONNECTED
@@ -1456,6 +1473,17 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         return self.titlebar
 
+    def _show_popup_menu(self): #vers 1
+        """Show main popup menu"""
+        try:
+            if hasattr(self, 'menu_btn'):
+                show_popup_menu_at_button(self.main_window, self.menu_btn)
+            else:
+                self.custom_menu_manager.show_popup_menu()
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Menu error: {str(e)}")
+
 
     def _create_left_three_section_panel(self): #vers 3
         """Create left panel with 3 sections: File Window, Status Window"""
@@ -1554,20 +1582,134 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 traceback.print_exc()
 
 
-    def _toggle_log_visibility(self): #vers 1
-        """Toggle the activity log visibility"""
+    def _switch_to_file_entries(self): #vers 2
+        """Switch to File Entries tab (main IMG table)"""
         try:
-            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'log'):
-                log_widget = self.main_window.gui_layout.log
-                if log_widget:
-                    is_visible = log_widget.isVisible()
-                    log_widget.setVisible(not is_visible)
+            # Get tab widget from main_window
+            tab_widget = None
+            if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
+                tab_widget = self.main_window.main_tab_widget
+            elif hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'tab_widget'):
+                tab_widget = self.main_window.gui_layout.tab_widget
 
-                    if hasattr(self.main_window, 'log_message'):
-                        status = "hidden" if is_visible else "shown"
-                        self.main_window.log_message(f"Activity log {status}")
+            if not tab_widget:
+                self.main_window.log_message("Tab widget not available")
+                return
+
+            if tab_widget.count() > 0:
+                tab_widget.setCurrentIndex(0)
+                self.main_window.log_message("→ Switched to File Entries")
+            else:
+                self.main_window.log_message("No tabs available")
+
         except Exception as e:
-            print(f"Error toggling log: {str(e)}")
+            self.main_window.log_message(f"Error: {str(e)}")
+
+
+    def _switch_to_directory_tree(self): #vers 1
+        """Switch to Directory Tree tab and initialize if needed"""
+        try:
+            if not hasattr(self, 'tab_widget') or not self.tab_widget:
+                self.main_window.log_message("Tab widget not available")
+                return
+
+            # Check if we have a game root set
+            if not hasattr(self.main_window, 'game_root') or not self.main_window.game_root:
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self.main_window,
+                    "No Game Root Set",
+                    "No game root directory is set.\n\nWould you like to set one now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+
+                if reply == QMessageBox.StandardButton.Yes:
+                    from apps.gui.file_menu_integration import handle_set_game_root_folder
+                    handle_set_game_root_folder(self.main_window)
+                return
+
+            # Find Directory Tree tab
+            directory_tab_index = -1
+            for i in range(self.tab_widget.count()):
+                tab_text = self.tab_widget.tabText(i)
+                if "Directory Tree" in tab_text or "Directory" in tab_text:
+                    directory_tab_index = i
+                    break
+
+            if directory_tab_index == -1:
+                # Try to integrate it
+                self.main_window.log_message("Integrating Directory Tree...")
+                try:
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                    if integrate_directory_tree_browser(self.main_window):
+                        for i in range(self.tab_widget.count()):
+                            if "Directory Tree" in self.tab_widget.tabText(i):
+                                directory_tab_index = i
+                                break
+                except Exception as e:
+                    self.main_window.log_message(f"Error integrating: {str(e)}")
+                    return
+
+            # Switch to tab
+            if directory_tab_index >= 0:
+                self.tab_widget.setCurrentIndex(directory_tab_index)
+
+                # Populate tree
+                if hasattr(self.main_window, 'directory_tree'):
+                    if hasattr(self.main_window.directory_tree, 'browse_directory'):
+                        self.main_window.directory_tree.browse_directory(self.main_window.game_root)
+                    elif hasattr(self.main_window.directory_tree, 'populate_tree'):
+                        self.main_window.directory_tree.populate_tree(self.main_window.game_root)
+
+        except Exception as e:
+            self.main_window.log_message(f"Error: {str(e)}")
+
+
+    def _switch_to_search(self): #vers 1
+        """Show search dialog"""
+        try:
+            if hasattr(self.main_window, 'search_manager') and self.main_window.search_manager:
+                self.main_window.search_manager.show_search_dialog()
+            else:
+                self.main_window.log_message("Search manager not available")
+        except Exception as e:
+            self.main_window.log_message(f"Error: {str(e)}")
+
+
+    def _log_button_press(self, button_name: str, action_func=None): #vers 1
+        """Wrapper to log button presses before executing action"""
+        def wrapper():
+            try:
+                self.main_window.log_message(f"[BUTTON] {button_name}")
+                if action_func:
+                    action_func()
+            except Exception as e:
+                self.main_window.log_message(f"[ERROR] {button_name}: {str(e)}")
+        return wrapper
+
+
+    def _toggle_log_visibility(self): #vers 2
+        """Toggle activity log visibility"""
+        try:
+            if not hasattr(self, 'log') or not self.log:
+                self.main_window.log_message("Log widget not available")
+                return
+
+            is_visible = self.log.isVisible()
+            self.log.setVisible(not is_visible)
+
+            if not is_visible:
+                self.main_window.log_message("=" * 60)
+                self.main_window.log_message("ACTIVITY LOG - All operations")
+                self.main_window.log_message("=" * 60)
+                if hasattr(self, 'log_btn'):
+                    self.log_btn.setText("Hide Log")
+            else:
+                if hasattr(self, 'log_btn'):
+                    self.log_btn.setText("Log")
+
+        except Exception as e:
+            self.main_window.log_message(f"Error: {str(e)}")
 
 
     def _show_imgfactory_info(self): #vers 1
@@ -2308,289 +2450,13 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 self._apply_button_mode_to_button(button, btn_text)
         self._update_dock_button_visibility()
 
-    def paintEvent(self, event): #vers 2
-        """Paint corner resize triangles"""
-        super().paintEvent(event)
 
-        from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Colors
-        normal_color = QColor(100, 100, 100, 150)
-        hover_color = QColor(150, 150, 255, 200)
-
-        w = self.width()
-        h = self.height()
-        grip_size = 8  # Make corners visible (8x8px)
-        size = self.corner_size
-
-        # Define corner triangles
-        corners = {
-            'top-left': [(0, 0), (size, 0), (0, size)],
-            'top-right': [(w, 0), (w-size, 0), (w, size)],
-            'bottom-left': [(0, h), (size, h), (0, h-size)],
-            'bottom-right': [(w, h), (w-size, h), (w, h-size)]
-        }
-        corners2 = {
-            "top-left": [(0, grip_size), (0, 0), (grip_size, 0)],
-            "top-right": [(w-grip_size, 0), (w, 0), (w, grip_size)],
-            "bottom-left": [(0, h-grip_size), (0, h), (grip_size, h)],
-            "bottom-right": [(w-grip_size, h), (w, h), (w, h-grip_size)]
-        }
-
-        # Get theme colors for corner indicators
-        if self.app_settings:
-            theme_colors = self.app_settings.get_theme_colors()
-            accent_color = QColor(theme_colors.get('accent_primary', '#1976d2'))
-            accent_color.setAlpha(180)
+    def _toggle_maximize(self): #vers 1
+        """Toggle window maximize state"""
+        if self.main_window.isMaximized():
+            self.main_window.showNormal()
         else:
-            accent_color = QColor(100, 150, 255, 180)
-
-        hover_color = QColor(accent_color)
-        hover_color.setAlpha(255)
-
-        # Draw all corners with hover effect
-        for corner_name, points in corners.items():
-            path = QPainterPath()
-            path.moveTo(points[0][0], points[0][1])
-            path.lineTo(points[1][0], points[1][1])
-            path.lineTo(points[2][0], points[2][1])
-            path.closeSubpath()
-
-            # Use hover color if mouse is over this corner
-            color = hover_color if self.hover_corner == corner_name else accent_color
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawPath(path)
-
-        painter.end()
-
-
-    def _get_resize_corner(self, pos): #vers 3
-        """Determine which corner is under mouse position"""
-        size = self.corner_size; w = self.width(); h = self.height()
-
-        if pos.x() < size and pos.y() < size:
-            return "top-left"
-        if pos.x() > w - size and pos.y() < size:
-            return "top-right"
-        if pos.x() < size and pos.y() > h - size:
-            return "bottom-left"
-        if pos.x() > w - size and pos.y() > h - size:
-            return "bottom-right"
-
-        return None
-
-
-    def mousePressEvent(self, event): #vers 8
-        """Handle ALL mouse press - dragging and resizing"""
-        if event.button() != Qt.MouseButton.LeftButton:
-            super().mousePressEvent(event)
-            return
-
-        pos = event.pos()
-
-        # Check corner resize FIRST
-        self.resize_corner = self._get_resize_corner(pos)
-        if self.resize_corner:
-            self.resizing = True
-            self.drag_position = event.globalPosition().toPoint()
-            self.initial_geometry = self.geometry()
-            event.accept()
-            return
-
-        # Check if on titlebar
-        if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
-            titlebar_pos = self.titlebar.mapFromParent(pos)
-            if self._is_on_draggable_area(titlebar_pos):
-                self.windowHandle().startSystemMove()
-                event.accept()
-                return
-
-        super().mousePressEvent(event)
-
-
-    def mouseMoveEvent(self, event): #vers 4
-        """Handle mouse move for resizing and hover effects
-
-        Window dragging is handled by eventFilter to avoid conflicts
-        """
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            if self.resizing and self.resize_corner:
-                self._handle_corner_resize(event.globalPosition().toPoint())
-                event.accept()
-                return
-        else:
-            # Update hover state and cursor
-            corner = self._get_resize_corner(event.pos())
-            if corner != self.hover_corner:
-                self.hover_corner = corner
-                self.update()  # Trigger repaint for hover effect
-            self._update_cursor(corner)
-
-        # Let parent handle everything else
-        super().mouseMoveEvent(event)
-
-
-    def mouseReleaseEvent(self, event): #vers 2
-        """Handle mouse release"""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = False
-            self.resizing = False
-            self.resize_corner = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            event.accept()
-
-
-    def _handle_corner_resize(self, global_pos): #vers 2
-        """Handle window resizing from corners"""
-        if not self.resize_corner or not self.drag_position:
-            return
-
-        delta = global_pos - self.drag_position
-        geometry = self.initial_geometry
-
-        min_width = 800
-        min_height = 600
-
-        # Calculate new geometry based on corner
-        if self.resize_corner == "top-left":
-            new_x = geometry.x() + delta.x()
-            new_y = geometry.y() + delta.y()
-            new_width = geometry.width() - delta.x()
-            new_height = geometry.height() - delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.setGeometry(new_x, new_y, new_width, new_height)
-
-        elif self.resize_corner == "top-right":
-            new_y = geometry.y() + delta.y()
-            new_width = geometry.width() + delta.x()
-            new_height = geometry.height() - delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.setGeometry(geometry.x(), new_y, new_width, new_height)
-
-        elif self.resize_corner == "bottom-left":
-            new_x = geometry.x() + delta.x()
-            new_width = geometry.width() - delta.x()
-            new_height = geometry.height() + delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.setGeometry(new_x, geometry.y(), new_width, new_height)
-
-        elif self.resize_corner == "bottom-right":
-            new_width = geometry.width() + delta.x()
-            new_height = geometry.height() + delta.y()
-
-            if new_width >= min_width and new_height >= min_height:
-                self.resize(new_width, new_height)
-
-
-    def _get_resize_direction(self, pos): #vers 1
-        """Determine resize direction based on mouse position"""
-        rect = self.rect()
-        margin = self.resize_margin
-
-        left = pos.x() < margin
-        right = pos.x() > rect.width() - margin
-        top = pos.y() < margin
-        bottom = pos.y() > rect.height() - margin
-
-        if left and top:
-            return "top-left"
-        elif right and top:
-            return "top-right"
-        elif left and bottom:
-            return "bottom-left"
-        elif right and bottom:
-            return "bottom-right"
-        elif left:
-            return "left"
-        elif right:
-            return "right"
-        elif top:
-            return "top"
-        elif bottom:
-            return "bottom"
-
-        return None
-
-
-    def _update_cursor(self, direction): #vers 1
-        """Update cursor based on resize direction"""
-        if direction == "top" or direction == "bottom":
-            self.setCursor(Qt.CursorShape.SizeVerCursor)
-        elif direction == "left" or direction == "right":
-            self.setCursor(Qt.CursorShape.SizeHorCursor)
-        elif direction == "top-left" or direction == "bottom-right":
-            self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        elif direction == "top-right" or direction == "bottom-left":
-            self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-        else:
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-
-
-    def _handle_resize(self, global_pos): #vers 1
-        """Handle window resizing"""
-        if not self.resize_direction or not self.drag_position:
-            return
-
-        delta = global_pos - self.drag_position
-        geometry = self.frameGeometry()
-
-        min_width = 800
-        min_height = 600
-
-        # Handle horizontal resizing
-        if "left" in self.resize_direction:
-            new_width = geometry.width() - delta.x()
-            if new_width >= min_width:
-                geometry.setLeft(geometry.left() + delta.x())
-        elif "right" in self.resize_direction:
-            new_width = geometry.width() + delta.x()
-            if new_width >= min_width:
-                geometry.setRight(geometry.right() + delta.x())
-
-        # Handle vertical resizing
-        if "top" in self.resize_direction:
-            new_height = geometry.height() - delta.y()
-            if new_height >= min_height:
-                geometry.setTop(geometry.top() + delta.y())
-        elif "bottom" in self.resize_direction:
-            new_height = geometry.height() + delta.y()
-            if new_height >= min_height:
-                geometry.setBottom(geometry.bottom() + delta.y())
-
-        self.setGeometry(geometry)
-        self.drag_position = global_pos
-
-
-    def resizeEvent(self, event): #vers 1
-        '''Keep resize grip in bottom-right corner'''
-        super().resizeEvent(event)
-        if hasattr(self, 'size_grip'):
-            self.size_grip.move(self.width() - 16, self.height() - 16)
-
-
-    def mouseDoubleClickEvent(self, event): #vers 2
-        """Handle double-click - maximize/restore
-
-        Handled here instead of eventFilter for better control
-        """
-        if event.button() == Qt.MouseButton.LeftButton:
-            # Convert to titlebar coordinates if needed
-            if hasattr(self, 'titlebar'):
-                titlebar_pos = self.titlebar.mapFromParent(event.pos())
-                if self._is_on_draggable_area(titlebar_pos):
-                    self._toggle_maximize()
-                    event.accept()
-                    return
-
-        super().mouseDoubleClickEvent(event)
+            self.main_window.showMaximized()
 
 
     def closeEvent(self, event): #vers 1
