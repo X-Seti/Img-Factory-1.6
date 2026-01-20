@@ -779,7 +779,7 @@ class IMGFactory(QMainWindow):
                 self.log_message(f"Autoloaded game root: {game_root}")
 
                 # Update directory tree if it exists
-                if hasattr(self, 'directory_tree'):
+                if hasattr(self, 'directory_tree') and hasattr(self.directory_tree, 'browse_directory'):
                     self.directory_tree.browse_directory(game_root)
             else:
                 self.log_message("No saved game root found")
