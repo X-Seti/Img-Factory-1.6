@@ -937,8 +937,13 @@ class DirectoryTreeBrowser(QWidget):
             if results:
                 for file_path in results:
                     results_list.addItem(file_path)
+                # Log the search results to the main window
+                self.log_message(f"Search found {len(results)} files matching '{pattern}'")
+                for file_path in results:
+                    self.log_message(f"  • {file_path}")
             else:
                 results_list.addItem("No files found")
+                self.log_message(f"No files found matching '{pattern}'")
         search_btn.clicked.connect(perform_search)
         dialog.exec()
 
@@ -1047,18 +1052,33 @@ def integrate_directory_tree_browser(main_window): #vers 4
             # It can be added to a central widget or managed by the switch functions
             main_window.log_message("No tab widget found - directory tree stored for button-based UI")
 
-        # Load saved game root if available
-        settings = QSettings("IMG-Factory", "IMG-Factory")
-        saved_root = settings.value("game_root", "", type=str)
-        if saved_root and os.path.exists(saved_root):
-            directory_browser.browse_directory(saved_root)
-            main_window.log_message(f"Loaded saved game root: {saved_root}")
+        # Load game root from project manager if available, otherwise from settings
+        project_path_to_use = None
+        
+        # First priority: Check if project manager has a current project with game_root
+        if hasattr(main_window, 'project_manager') and main_window.project_manager and main_window.project_manager.current_project:
+            current_project_settings = main_window.project_manager.get_project_settings(main_window.project_manager.current_project)
+            project_path_to_use = current_project_settings.get('game_root', '')
+            if project_path_to_use and os.path.exists(project_path_to_use):
+                directory_browser.browse_directory(project_path_to_use)
+                main_window.log_message(f"Loaded project game root from active project: {project_path_to_use}")
+        
+        # Second priority: Check QSettings for saved root
+        elif not project_path_to_use:
+            settings = QSettings("IMG-Factory", "IMG-Factory")
+            saved_root = settings.value("game_root", "", type=str)
+            if saved_root and os.path.exists(saved_root):
+                directory_browser.browse_directory(saved_root)
+                main_window.log_message(f"Loaded saved game root: {saved_root}")
+        
+        # Third priority: Check main window's game_root attribute
         elif hasattr(main_window, 'game_root') and main_window.game_root:
             # Use the game_root from the main window if available
             directory_browser.browse_directory(main_window.game_root)
             main_window.log_message(f"Loaded project game root: {main_window.game_root}")
+        
+        # Last resort: Browse to workspace directory
         else:
-            # If no specific project root is set, browse to workspace directory
             import os
             workspace_dir = os.getcwd()  # Start with current working directory
             # Or check if there's a projects.json to determine the project directory
