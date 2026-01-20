@@ -1611,7 +1611,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 traceback.print_exc()
 
 
-    def _switch_to_file_entries(self): #vers 2
+    def _switch_to_file_entries(self): #vers 3
         """Switch to File Entries view (main IMG table)"""
         try:
             # In the new UI, this might involve showing the main table area
@@ -1628,6 +1628,23 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
                         if self.main_window.main_tab_widget.count() > 0:
                             self.main_window.main_tab_widget.setCurrentIndex(0)  # Switch to first tab (File Entries)
+                    
+                    # If using central widget layout, make sure table is visible
+                    if hasattr(self.main_window, 'central_widget') and self.main_window.central_widget:
+                        from PyQt6.QtWidgets import QVBoxLayout
+                        layout = self.main_window.central_widget.layout()
+                        if not layout:
+                            layout = QVBoxLayout(self.main_window.central_widget)
+                        
+                        # Clear the layout and add the table widget
+                        while layout.count():
+                            child = layout.takeAt(0)
+                            if child.widget():
+                                child.widget().hide()
+                        
+                        # Add the table to the layout
+                        table.show()
+                        layout.addWidget(table)
                 else:
                     self.main_window.log_message("File entries table not available")
             else:
@@ -1635,9 +1652,11 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         except Exception as e:
             self.main_window.log_message(f"Error switching to file entries: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
-    def _switch_to_directory_tree(self): #vers 1
+    def _switch_to_directory_tree(self): #vers 2
         """Switch to Directory Tree view and initialize if needed"""
         try:
             # Check if we have a game root set
@@ -1671,7 +1690,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     self.main_window.directory_tree.browse_directory(self.main_window.game_root)
                 elif hasattr(self.main_window.directory_tree, 'populate_tree'):
                     self.main_window.directory_tree.populate_tree(self.main_window.game_root)
-                
+
                 # If we have a main tab widget, try to switch to the directory tree tab if it exists
                 if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
                     # Look for a directory tree tab
@@ -1681,14 +1700,36 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                             tab_widget.setCurrentIndex(i)
                             self.main_window.log_message("→ Switched to Directory Tree Tab")
                             return
-                
+
                 # If no tab was found or no tab widget exists, just ensure the directory tree is available
                 self.main_window.log_message("→ Directory Tree ready - browsing to game root")
+                
+                # If the directory tree widget exists but is not visible, try to make it visible
+                # This is important for the button-based UI
+                if hasattr(self.main_window, 'central_widget') and self.main_window.central_widget:
+                    # Add directory tree to central widget if possible
+                    from PyQt6.QtWidgets import QVBoxLayout
+                    layout = self.main_window.central_widget.layout()
+                    if not layout:
+                        layout = QVBoxLayout(self.main_window.central_widget)
+                    
+                    # Clear the layout and add the directory tree
+                    while layout.count():
+                        child = layout.takeAt(0)
+                        if child.widget():
+                            child.widget().hide()
+                    
+                    # Add the directory tree to the layout
+                    self.main_window.directory_tree.show()
+                    layout.addWidget(self.main_window.directory_tree)
+                    
             else:
                 self.main_window.log_message("Directory tree not available")
 
         except Exception as e:
             self.main_window.log_message(f"Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
     def _switch_to_search(self): #vers 1
