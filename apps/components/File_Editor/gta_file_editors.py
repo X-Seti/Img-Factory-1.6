@@ -732,6 +732,12 @@ def filter_objects(self):
         # Show all rows
         for row in range(self.objects_table.rowCount()):
             self.objects_table.setRowHidden(row, False)
+        self.status_label.setText(f"Showing all {self.objects_table.rowCount()} objects")
+        # Log to main window if available
+        if hasattr(self.parent(), 'log_message'):
+            self.parent().log_message(f"IDE Editor: Showing all {self.objects_table.rowCount()} objects")
+        elif hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(f"IDE Editor: Showing all {self.objects_table.rowCount()} objects")
         return
     
     hidden_count = 0
@@ -768,6 +774,23 @@ def filter_objects(self):
     
     visible_count = self.objects_table.rowCount() - hidden_count
     self.status_label.setText(f"Showing {visible_count} of {self.objects_table.rowCount()} objects")
+    
+    # Log the search results to the main window
+    if hasattr(self.parent(), 'log_message'):
+        self.parent().log_message(f"IDE Editor: Found {visible_count} objects matching '{filter_type}: {filter_text}'")
+        for obj in matched_objects[:10]:  # Log first 10 matches to avoid flooding
+            self.parent().log_message(f"  • {obj}")
+        if len(matched_objects) > 10:
+            self.parent().log_message(f"  ... and {len(matched_objects) - 10} more")
+    elif hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+        self.main_window.log_message(f"IDE Editor: Found {visible_count} objects matching '{filter_type}: {filter_text}'")
+        for obj in matched_objects[:10]:  # Log first 10 matches to avoid flooding
+            self.main_window.log_message(f"  • {obj}")
+        if len(matched_objects) > 10:
+            self.main_window.log_message(f"  ... and {len(matched_objects) - 10} more")
+    else:
+        # If no main window access, log to console
+        print(f"IDE Editor: Found {visible_count} objects matching '{filter_type}: {filter_text}'")
 
 def show_object_context_menu(self, position):
     """Show context menu for objects table"""
