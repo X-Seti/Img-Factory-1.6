@@ -162,7 +162,15 @@ class SearchManager:
             
             # Log results
             if matches:
+                # Send detailed logging to main window
                 self.main_window.log_message(f"Found {len(matches)} matches for '{search_text}'")
+                # Show first few matches in the activity window
+                for idx in matches[:10]:  # Show first 10 matches
+                    entry_name = self.main_window.current_img.entries[idx].name
+                    self.main_window.log_message(f"  Entry {idx}: {entry_name}")
+                if len(matches) > 10:
+                    self.main_window.log_message(f"  ... and {len(matches) - 10} more matches")
+
                 if matches:
                     self._select_first_match()
             else:

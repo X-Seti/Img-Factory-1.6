@@ -440,7 +440,11 @@
 ├── launch_txd_workshop.py
 ├── main-branch
 ├── package-lock.json
+├── PROJECT_MANAGER_UPDATES.md
+├── test_logic.py
+├── test_project_manager_fixes.py
+├── test_project_manager.py
 ├── TODO.md
 └── tree.git
 
-35 directories, 409 files
+35 directories, 413 files
