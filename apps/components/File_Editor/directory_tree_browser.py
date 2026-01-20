@@ -189,6 +189,10 @@ class DirectoryTreeBrowser(QWidget):
         self.navigation_history = []
         self.history_index = -1
         self.browser_settings = self.load_browser_settings()
+        
+        # Set the initial path based on project manager or other sources
+        self._set_initial_path()
+        
         self.setup_ui()
         self.setup_connections()
 
@@ -279,6 +283,44 @@ class DirectoryTreeBrowser(QWidget):
     def setup_connections(self): #vers 1
         """Setup signal connections"""
         pass
+
+
+    def _set_initial_path(self):
+        """Set the initial path based on project manager or other sources"""
+        # First priority: Check if project manager has a current project with game_root
+        if (hasattr(self.main_window, 'project_manager') and 
+            self.main_window.project_manager and 
+            self.main_window.project_manager.current_project):
+            
+            current_project_settings = self.main_window.project_manager.get_project_settings(
+                self.main_window.project_manager.current_project
+            )
+            project_path = current_project_settings.get('game_root', '')
+            if project_path and os.path.exists(project_path):
+                self.current_path = project_path
+                self.log_message(f"Using project game root from active project: {project_path}")
+                return
+
+        # Second priority: Check if main window has a game_root attribute
+        if hasattr(self.main_window, 'game_root') and self.main_window.game_root:
+            if os.path.exists(self.main_window.game_root):
+                self.current_path = self.main_window.game_root
+                self.log_message(f"Using game_root from main window: {self.main_window.game_root}")
+                return
+
+        # Third priority: Check QSettings for saved root
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("IMG-Factory", "IMG-Factory")
+        saved_root = settings.value("game_root", "", type=str)
+        if saved_root and os.path.exists(saved_root):
+            self.current_path = saved_root
+            self.log_message(f"Using saved game root from settings: {saved_root}")
+            return
+
+        # Last resort: Use workspace directory
+        workspace_dir = os.getcwd()
+        self.current_path = workspace_dir
+        self.log_message(f"Using workspace directory as fallback: {workspace_dir}")
 
 
     def create_menubar(self): #vers 1
@@ -472,6 +514,12 @@ class DirectoryTreeBrowser(QWidget):
                 self.navigation_history = self.navigation_history[:self.history_index + 1]
             self.navigation_history.append(path)
             self.history_index = len(self.navigation_history) - 1
+            
+            # Save the current path to settings so it persists
+            from PyQt6.QtCore import QSettings
+            settings = QSettings("IMG-Factory", "IMG-Factory")
+            settings.setValue("game_root", path)
+            
             self.log_message(f"Browsing: {path}")
 
 
@@ -941,9 +989,19 @@ class DirectoryTreeBrowser(QWidget):
                 self.log_message(f"Search found {len(results)} files matching '{pattern}'")
                 for file_path in results:
                     self.log_message(f"  • {file_path}")
+                
+                # Also send to main window's activity window if available
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"Directory search found {len(results)} files matching '{pattern}'")
+                    for file_path in results[:10]:  # Limit to first 10 to avoid flooding
+                        self.main_window.log_message(f"  Found: {file_path}")
+                    if len(results) > 10:
+                        self.main_window.log_message(f"  ... and {len(results)-10} more files")
             else:
                 results_list.addItem("No files found")
                 self.log_message(f"No files found matching '{pattern}'")
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"Directory search: No files found matching '{pattern}'")
         search_btn.clicked.connect(perform_search)
         dialog.exec()
 

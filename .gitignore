@@ -1,1 +1,47 @@
-Nothing should be ignored since only Python source files (.py) were modified and no build artifacts, dependencies, or temporary files are present in the changes.
+```python
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+dist/
+build/
+*.egg-info/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Python specific
+*.pyo
+*.pyd
+*.so
+*.egg
+
+# Backup files
+*~
+*.bak
+*.backup
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```
