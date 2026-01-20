@@ -63,7 +63,7 @@ class ProjectManager:
         except Exception as e:
             self.main_window.log_message(f"Error saving projects: {str(e)}")
             
-    def create_project(self, name: str, project_folder: str = "", game_root: str = "") -> bool:
+    def create_project(self, name: str, project_folder: str = "", game_root: str = "", assists_path: str = "") -> bool:
         """Create a new project"""
         if name in self.projects:
             self.main_window.log_message(f"Project '{name}' already exists")
@@ -73,6 +73,7 @@ class ProjectManager:
             "name": name,
             "project_folder": project_folder,
             "game_root": game_root,
+            "assists_path": assists_path,
             "created_date": str(Path.home() / "Documents"),  # placeholder
             "last_used": ""
         }
@@ -140,6 +141,8 @@ class ProjectManager:
                         self.main_window.directory_tree.populate_tree(project_settings["game_root"])
             if "project_folder" in project_settings and project_settings["project_folder"]:
                 self.main_window.project_folder = project_settings["project_folder"]
+            if "assists_path" in project_settings and project_settings["assists_path"]:
+                self.main_window.assists_path = project_settings["assists_path"]
                 
             self.main_window.log_message(f"Switched to project: {name}")
             return True
@@ -200,12 +203,127 @@ def show_project_manager_dialog(main_window):
     current_proj_label = QLabel(f"Current Project: {main_window.project_manager.current_project or 'None'}")
     settings_layout.addWidget(current_proj_label)
     
+    # Create editable settings area
+    settings_group = QGroupBox("Project Settings")
+    settings_form = QFormLayout(settings_group)
+    
+    # Project name field
+    project_name_field = QLineEdit()
+    settings_form.addRow("Project Name:", project_name_field)
+    
+    # Project folder field
+    project_folder_field = QLineEdit()
+    project_folder_btn = QPushButton("Browse...")
+    project_folder_hbox = QHBoxLayout()
+    project_folder_hbox.addWidget(project_folder_field)
+    project_folder_hbox.addWidget(project_folder_btn)
+    settings_form.addRow("Project Folder:", project_folder_hbox)
+    
+    # Game root field
+    game_root_field = QLineEdit()
+    game_root_btn = QPushButton("Browse...")
+    game_root_hbox = QHBoxLayout()
+    game_root_hbox.addWidget(game_root_field)
+    game_root_hbox.addWidget(game_root_btn)
+    settings_form.addRow("Game Root:", game_root_hbox)
+    
+    # Assists path field
+    assists_path_field = QLineEdit()
+    assists_path_btn = QPushButton("Browse...")
+    assists_path_hbox = QHBoxLayout()
+    assists_path_hbox.addWidget(assists_path_field)
+    assists_path_hbox.addWidget(assists_path_btn)
+    settings_form.addRow("Assists Path:", assists_path_hbox)
+    
+    settings_layout.addWidget(settings_group)
+    
+    # Edit and Save buttons
+    edit_save_layout = QHBoxLayout()
+    edit_btn = QPushButton("Edit Settings")
+    save_btn = QPushButton("Save Settings")
+    save_btn.setEnabled(False)
+    edit_save_layout.addWidget(edit_btn)
+    edit_save_layout.addWidget(save_btn)
+    edit_save_layout.addStretch()
+    settings_layout.addLayout(edit_save_layout)
+    
+    # Connect browse buttons
+    def browse_project_folder():
+        folder = QFileDialog.getExistingDirectory(main_window, "Select Project Folder", project_folder_field.text() or os.path.expanduser("~"))
+        if folder:
+            project_folder_field.setText(folder)
+    
+    def browse_game_root():
+        folder = QFileDialog.getExistingDirectory(main_window, "Select Game Root Folder", game_root_field.text() or os.path.expanduser("~"))
+        if folder:
+            game_root_field.setText(folder)
+    
+    def browse_assists_path():
+        folder = QFileDialog.getExistingDirectory(main_window, "Select Assists Folder", assists_path_field.text() or os.path.expanduser("~"))
+        if folder:
+            assists_path_field.setText(folder)
+            # Create assists folder structure if not already created
+            create_assists_folder_structure(main_window, folder)
+    
+    project_folder_btn.clicked.connect(browse_project_folder)
+    game_root_btn.clicked.connect(browse_game_root)
+    assists_path_btn.clicked.connect(browse_assists_path)
+    
+    # Toggle edit mode
+    def toggle_edit_mode():
+        is_editing = not project_name_field.isReadOnly()
+        project_name_field.setReadOnly(is_editing)
+        project_folder_field.setReadOnly(is_editing)
+        game_root_field.setReadOnly(is_editing)
+        assists_path_field.setReadOnly(is_editing)
+        edit_btn.setText("Edit Settings" if is_editing else "Cancel Edit")
+        save_btn.setEnabled(not is_editing)
+    
+    edit_btn.clicked.connect(toggle_edit_mode)
+    
+    # Save settings
+    def save_project_settings():
+        if not main_window.project_manager.current_project:
+            QMessageBox.warning(main_window, "No Project", "No project is currently active.")
+            return
+        
+        # Collect updated settings
+        updated_settings = {
+            "name": project_name_field.text().strip(),
+            "project_folder": project_folder_field.text().strip(),
+            "game_root": game_root_field.text().strip(),
+            "assists_path": assists_path_field.text().strip()
+        }
+        
+        # Update project settings
+        old_name = main_window.project_manager.current_project
+        main_window.project_manager.update_project_settings(old_name, updated_settings)
+        
+        # If project name changed, rename the project
+        if updated_settings["name"] != old_name:
+            main_window.project_manager.rename_project(old_name, updated_settings["name"])
+        
+        # Update main window attributes
+        main_window.project_manager.set_current_project(updated_settings["name"])
+        
+        # Refresh UI
+        toggle_edit_mode()  # Return to read-only mode
+        QMessageBox.information(main_window, "Settings Saved", "Project settings have been saved successfully!")
+    
+    save_btn.clicked.connect(save_project_settings)
+    
+    # Load current project settings if available
     if main_window.project_manager.current_project:
         proj_settings = main_window.project_manager.get_project_settings(main_window.project_manager.current_project)
-        settings_text = QTextEdit()
-        settings_text.setPlainText(json.dumps(proj_settings, indent=2))
-        settings_text.setReadOnly(True)
-        settings_layout.addWidget(settings_text)
+        project_name_field.setText(proj_settings.get("name", ""))
+        project_folder_field.setText(proj_settings.get("project_folder", ""))
+        game_root_field.setText(proj_settings.get("game_root", ""))
+        assists_path_field.setText(proj_settings.get("assists_path", ""))
+        # Make fields read-only initially
+        project_name_field.setReadOnly(True)
+        project_folder_field.setReadOnly(True)
+        game_root_field.setReadOnly(True)
+        assists_path_field.setReadOnly(True)
     
     tabs.addTab(settings_tab, "Settings")
     
@@ -250,7 +368,14 @@ def create_new_project(main_window, parent_dialog=None):
             os.path.expanduser("~")
         )
         
-        if main_window.project_manager.create_project(name, project_folder, game_root):
+        # Get assists path
+        assists_path = QFileDialog.getExistingDirectory(
+            main_window,
+            "Select Assists Folder (for importing/exporting models)",
+            os.path.expanduser("~")
+        )
+        
+        if main_window.project_manager.create_project(name, project_folder, game_root, assists_path):
             # Refresh the project list in the dialog if it exists
             if parent_dialog and hasattr(parent_dialog, 'findChildren'):
                 # Find the project list widget and refresh
@@ -258,6 +383,10 @@ def create_new_project(main_window, parent_dialog=None):
                     if widget.count() == 0 or widget.item(0).text() != name:
                         widget.clear()
                         widget.addItems(list(main_window.project_manager.projects.keys()))
+            
+            # Create assists folder structure if path was provided
+            if assists_path:
+                create_assists_folder_structure(main_window, assists_path)
             
             QMessageBox.information(
                 main_window,
@@ -632,10 +761,39 @@ def create_project_folder_structure(main_window, base_folder: str) -> bool:
         return False
 
 
+def create_assists_folder_structure(main_window, base_folder: str) -> bool:
+    """Create standard assists folder structure for importing/exporting models"""
+    try:
+        folders_to_create = [
+            "Models",      # DFF files
+            "Maps",        # IPL files  
+            "Collisions",  # COL files
+            "Textures"     # TXD files
+        ]
+
+        created_folders = []
+
+        for folder in folders_to_create:
+            folder_path = os.path.join(base_folder, folder)
+            try:
+                os.makedirs(folder_path, exist_ok=True)
+                created_folders.append(folder)
+            except Exception as e:
+                main_window.log_message(f"Could not create folder {folder}: {str(e)}")
+
+        main_window.log_message(f"Created assists folders: {', '.join(created_folders)}")
+        return len(created_folders) > 0
+
+    except Exception as e:
+        main_window.log_message(f"Error creating assists structure: {str(e)}")
+        return False
+
+
 __all__ = [
     'ProjectManager',
     'add_project_menu_items',
     'show_project_manager_dialog',
     'handle_set_project_folder',
-    'handle_set_game_root_folder'
+    'handle_set_game_root_folder',
+    'create_assists_folder_structure'
 ]
