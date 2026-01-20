@@ -19,15 +19,109 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QSettings
 from PyQt6.QtGui import QAction
 # SVG Icons
-from apps.methods.imgfactory_svg_icons import (
-    get_folder_icon, get_file_icon, get_img_file_icon,
-    get_txd_file_icon, get_col_file_icon, get_refresh_icon,
-    get_view_icon, get_edit_icon, get_image_icon,
-    get_copy_icon, get_paste_icon, get_cut_icon, get_rename_icon,
-    get_back_icon, get_forward_icon, get_up_icon, get_home_icon,
-    get_search_icon, get_properties_icon, get_new_folder_icon,
-    get_trash_icon, get_undo_icon, get_redo_icon
-)
+try:
+    from apps.methods.imgfactory_svg_icons import (
+        get_folder_icon, get_file_icon, get_img_file_icon,
+        get_txd_file_icon, get_col_file_icon, get_refresh_icon,
+        get_view_icon, get_edit_icon, get_image_icon,
+        get_copy_icon, get_paste_icon, get_cut_icon, get_rename_icon,
+        get_back_icon, get_forward_icon, get_up_icon, get_home_icon,
+        get_search_icon, get_properties_icon, get_new_folder_icon,
+        get_trash_icon, get_undo_icon, get_redo_icon
+    )
+except ImportError:
+    # Fallback implementations if the icons module is not available
+    def get_folder_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+    
+    def get_file_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_img_file_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_txd_file_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_col_file_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_refresh_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_view_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_edit_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_image_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_copy_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_paste_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_cut_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_rename_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_back_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_forward_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_up_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_home_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_search_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_properties_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_new_folder_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_trash_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_undo_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+        
+    def get_redo_icon():
+        from PyQt6.QtGui import QIcon
+        return QIcon()
 
 App_name = "File_Editor"
 standalone = False
@@ -403,6 +497,8 @@ class DirectoryTreeBrowser(QWidget):
 
     def count_tree_items(self, item): #vers 1
         """Count total items in tree"""
+        if not item:
+            return 0
         count = 1
         for i in range(item.childCount()):
             count += self.count_tree_items(item.child(i))
@@ -926,7 +1022,7 @@ def integrate_directory_tree_browser(main_window): #vers 4
         if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'tab_widget'):
             tab_widget = main_window.gui_layout.tab_widget
             directory_tab_index = -1
-            if tab_widget and hasattr(tab_widget, 'count'):
+            if tab_widget is not None and hasattr(tab_widget, 'count'):
                 for i in range(tab_widget.count()):
                     if "Directory Tree" in tab_widget.tabText(i):
                         directory_tab_index = i

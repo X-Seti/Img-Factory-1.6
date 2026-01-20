@@ -69,12 +69,7 @@ def add_project_menu_items(main_window): #vers 3
         game_root_action.setShortcut("Ctrl+Shift+G")
         file_menu.addAction(game_root_action)
 
-        # NEW: Directory Browser action
-        directory_browser_action = QAction("Browse Game Directory...", main_window)
-        directory_browser_action.setToolTip("Browse game directory and switch to Directory Tree tab")
-        directory_browser_action.triggered.connect(lambda: handle_browse_game_directory(main_window))
-        directory_browser_action.setShortcut("Ctrl+Shift+B")
-        file_menu.addAction(directory_browser_action)
+
 
         # Auto-detect Game action
         auto_detect_action = QAction("Auto-Detect Game...", main_window)
@@ -93,7 +88,6 @@ def add_project_menu_items(main_window): #vers 3
         # Store actions for later reference
         main_window.project_folder_action = project_folder_action
         main_window.game_root_action = game_root_action
-        main_window.directory_browser_action = directory_browser_action
         main_window.auto_detect_action = auto_detect_action
         main_window.project_settings_action = project_settings_action
 
@@ -101,7 +95,6 @@ def add_project_menu_items(main_window): #vers 3
         load_project_settings(main_window)
 
         main_window.log_message("Project menu items added to existing File menu")
-        main_window.log_message("Use Ctrl+Shift+B for Directory Browser")
 
         return True
 
@@ -115,22 +108,24 @@ def handle_browse_game_directory(main_window): #vers 1
     try:
         # First check if we have a game root set
         if not hasattr(main_window, 'game_root') or not main_window.game_root:
-            # No game root set, prompt user to set one
+            # No game root set, prompt user to open Project Manager
+            from PyQt6.QtWidgets import QMessageBox
             result = QMessageBox.question(
                 main_window,
-                "No Game Root Set",
-                "No game root directory is set.\n\nWould you like to set one now?",
+                "No Project Configured",
+                "No project is currently configured.\n\nWould you like to open the Project Manager now?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes
             )
 
             if result == QMessageBox.StandardButton.Yes:
-                # Open game root selection dialog
-                if not handle_set_game_root_folder(main_window):
-                    return False
+                # Open the project manager instead of just setting game root
+                from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                show_project_manager_dialog(main_window)
             else:
-                main_window.log_message("Directory browser cancelled - no game root set")
+                main_window.log_message("Directory browser cancelled - no project configured")
                 return False
+            return
 
         # Now we should have a game root, switch to Directory Tree tab
         if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'tab_widget'):
@@ -149,6 +144,7 @@ def handle_browse_game_directory(main_window): #vers 1
 
         if directory_tab_index == -1:
             main_window.log_message("Directory Tree tab not found")
+            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(
                 main_window,
                 "Directory Tree Not Available",
@@ -205,6 +201,7 @@ def handle_browse_game_directory(main_window): #vers 1
 
             except ImportError:
                 main_window.log_message("Directory tree system not available")
+                from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.warning(
                     main_window,
                     "Directory Tree System Missing",
@@ -220,6 +217,7 @@ def handle_browse_game_directory(main_window): #vers 1
             # Simple directory tree
             success_message = f"Directory Tree tab activated!\n\nBrowsing: {main_window.game_root}\n\nYou can now:\n• Browse game files\n• Load IMG files by double-clicking\n• Use context menus for file operations"
 
+        from PyQt6.QtWidgets import QMessageBox
         QMessageBox.information(
             main_window,
             "Directory Browser",
@@ -231,6 +229,7 @@ def handle_browse_game_directory(main_window): #vers 1
 
     except Exception as e:
         main_window.log_message(f"Error in directory browser: {str(e)}")
+        from PyQt6.QtWidgets import QMessageBox
         QMessageBox.critical(
             main_window,
             "Directory Browser Error",

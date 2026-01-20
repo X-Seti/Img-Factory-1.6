@@ -203,27 +203,14 @@ class CustomMenuManager:
     def create_project_menu(self, menu): #vers 1
         """Add Project menu actions with SVG icons"""
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
-        
-        project_folder_action = QAction(SVGIconFactory.folder_icon(), "Set Project Folder...", self.main_window)
-        project_folder_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
-        project_folder_action.triggered.connect(lambda: self._set_project_folder())
-        menu.addAction(project_folder_action)
-        
-        game_root_action = QAction(SVGIconFactory.folder_icon(), "Set Game Root Folder...", self.main_window)
-        game_root_action.setShortcut(QKeySequence("Ctrl+Shift+G"))
-        game_root_action.triggered.connect(lambda: self._set_game_root())
-        menu.addAction(game_root_action)
-        
-        menu.addSeparator()
 
         # Initialize project manager if it doesn't exist
         if not hasattr(self.main_window, 'project_manager'):
             self.main_window.project_manager = ProjectManager(self.main_window)
 
-        project_settings_action = QAction(SVGIconFactory.get_settings_icon(), "Project Settings...", self.main_window)
-        #project_settings_action.triggered.connect(self._project_settings)
-        project_settings_action.triggered.connect(lambda: show_project_manager_dialog(self.main_window))
-        menu.addAction(project_settings_action)
+        project_manager_action = QAction(SVGIconFactory.get_settings_icon(), "Project Manager...", self.main_window)
+        project_manager_action.triggered.connect(lambda: show_project_manager_dialog(self.main_window))
+        menu.addAction(project_manager_action)
     
     
     def create_help_menu(self, menu): #vers 1

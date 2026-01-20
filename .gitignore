@@ -1,1 +1,14 @@
-Nothing should be ignored since the changes only include source code files (.py) without any build artifacts, dependencies, or temporary files.
+```
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+.vscode/
+.idea/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+```

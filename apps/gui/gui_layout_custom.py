@@ -1687,14 +1687,15 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 from PyQt6.QtWidgets import QMessageBox
                 reply = QMessageBox.question(
                     self.main_window,
-                    "No Game Root Set",
-                    "No game root directory is set.\n\nWould you like to set one now?",
+                    "No Project Configured",
+                    "No project is currently configured.\n\nWould you like to open the Project Manager now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
 
                 if reply == QMessageBox.StandardButton.Yes:
-                    from apps.gui.file_menu_integration import handle_set_game_root_folder
-                    handle_set_game_root_folder(self.main_window)
+                    # Open the project manager instead of just setting game root
+                    from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                    show_project_manager_dialog(self.main_window)
                 return
 
             # Integrate directory tree browser if not already done
