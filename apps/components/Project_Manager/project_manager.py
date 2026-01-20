@@ -124,6 +124,13 @@ class ProjectManager:
             project_settings = self.projects[name]
             if "game_root" in project_settings and project_settings["game_root"]:
                 self.main_window.game_root = project_settings["game_root"]
+                
+                # Ensure directory tree is integrated
+                if not hasattr(self.main_window, 'directory_tree') or not self.main_window.directory_tree:
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                    integrate_directory_tree_browser(self.main_window)
+                
+                # Update directory tree if it exists
                 if hasattr(self.main_window, 'directory_tree') and self.main_window.directory_tree:
                     self.main_window.directory_tree.game_root = project_settings["game_root"]
                     self.main_window.directory_tree.current_root = project_settings["game_root"]
@@ -131,7 +138,6 @@ class ProjectManager:
                         self.main_window.directory_tree.path_label.setText(f"Root: {project_settings['game_root']}")
                     if hasattr(self.main_window.directory_tree, 'populate_tree'):
                         self.main_window.directory_tree.populate_tree(project_settings["game_root"])
-                        
             if "project_folder" in project_settings and project_settings["project_folder"]:
                 self.main_window.project_folder = project_settings["project_folder"]
                 

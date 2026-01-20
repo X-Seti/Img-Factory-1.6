@@ -904,9 +904,14 @@ class DirectoryTreeBrowser(QWidget):
             print(f"[DirectoryBrowser] {message}")
 
 
-def integrate_directory_tree_browser(main_window): #vers 3
+def integrate_directory_tree_browser(main_window): #vers 4
     """Integrate directory browser into main window - updated for button-based UI"""
     try:
+        # Check if directory tree already exists to avoid duplication
+        if hasattr(main_window, 'directory_tree') and main_window.directory_tree:
+            main_window.log_message("Directory tree already exists")
+            return True
+
         # First, create the directory browser
         directory_browser = DirectoryTreeBrowser(main_window)
         
@@ -942,17 +947,21 @@ def integrate_directory_tree_browser(main_window): #vers 3
                     tab_widget.setTabText(directory_tab_index, "Directory Tree")
                     tab_widget.setTabIcon(directory_tab_index, get_folder_icon())
         else:
-            # No tab widget - the directory browser is still available as main_window.directory_tree
-            # It can be accessed by the switch functions when needed
-            pass
-            
+            # For button-based UI - we need to make sure the directory browser is accessible
+            # It can be added to a central widget or managed by the switch functions
+            main_window.log_message("No tab widget found - directory tree stored for button-based UI")
+
         # Load saved game root if available
         settings = QSettings("IMG-Factory", "IMG-Factory")
         saved_root = settings.value("game_root", "", type=str)
         if saved_root and os.path.exists(saved_root):
             directory_browser.browse_directory(saved_root)
             main_window.log_message(f"Loaded saved game root: {saved_root}")
-        
+        elif hasattr(main_window, 'game_root') and main_window.game_root:
+            # Use the game_root from the main window if available
+            directory_browser.browse_directory(main_window.game_root)
+            main_window.log_message(f"Loaded project game root: {main_window.game_root}")
+
         main_window.log_message("Directory browser integrated")
         return True
     except Exception as e:
