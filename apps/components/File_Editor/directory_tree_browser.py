@@ -961,6 +961,43 @@ def integrate_directory_tree_browser(main_window): #vers 4
             # Use the game_root from the main window if available
             directory_browser.browse_directory(main_window.game_root)
             main_window.log_message(f"Loaded project game root: {main_window.game_root}")
+        else:
+            # If no specific project root is set, browse to workspace directory
+            import os
+            workspace_dir = os.getcwd()  # Start with current working directory
+            # Or check if there's a projects.json to determine the project directory
+            projects_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "projects.json")
+            if os.path.exists(projects_file):
+                try:
+                    import json
+                    with open(projects_file, 'r') as f:
+                        projects_data = json.load(f)
+                    # The projects.json is a dictionary with project names as keys
+                    # Get the first project's game_root or project_folder
+                    if isinstance(projects_data, dict) and projects_data:
+                        first_project_key = next(iter(projects_data.keys()))
+                        first_project = projects_data[first_project_key]
+                        if isinstance(first_project, dict):
+                            # Try to get game_root first, then project_folder
+                            project_path = first_project.get('game_root', first_project.get('project_folder', workspace_dir))
+                            if os.path.exists(project_path):
+                                directory_browser.browse_directory(project_path)
+                                main_window.log_message(f"Loaded project directory: {project_path}")
+                            else:
+                                directory_browser.browse_directory(workspace_dir)
+                                main_window.log_message(f"Loaded workspace directory: {workspace_dir}")
+                        else:
+                            directory_browser.browse_directory(workspace_dir)
+                            main_window.log_message(f"Loaded workspace directory: {workspace_dir}")
+                    else:
+                        directory_browser.browse_directory(workspace_dir)
+                        main_window.log_message(f"Loaded workspace directory: {workspace_dir}")
+                except Exception as e:
+                    directory_browser.browse_directory(workspace_dir)
+                    main_window.log_message(f"Loaded workspace directory (fallback): {workspace_dir}")
+            else:
+                directory_browser.browse_directory(workspace_dir)
+                main_window.log_message(f"Loaded workspace directory: {workspace_dir}")
 
         main_window.log_message("Directory browser integrated")
         return True
