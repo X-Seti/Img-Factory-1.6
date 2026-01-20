@@ -1611,7 +1611,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 traceback.print_exc()
 
 
-    def _switch_to_file_entries(self): #vers 3
+    def _switch_to_file_entries(self): #vers 4
         """Switch to File Entries view (main IMG table)"""
         try:
             # In the new UI, this might involve showing the main table area
@@ -1628,6 +1628,29 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     if hasattr(self.main_window, 'main_tab_widget') and self.main_window.main_tab_widget:
                         if self.main_window.main_tab_widget.count() > 0:
                             self.main_window.main_tab_widget.setCurrentIndex(0)  # Switch to first tab (File Entries)
+                    
+                    # If we previously switched to directory tree, we might need to switch back to the original table
+                    if hasattr(self.main_window, '_original_table_widget') and hasattr(self.main_window, 'directory_tree'):
+                        original_table = self.main_window._original_table_widget
+                        directory_tree = self.main_window.directory_tree
+                        
+                        # Check if the directory tree is currently in the main table area
+                        parent_widget = original_table.parentWidget()
+                        if parent_widget:
+                            layout = parent_widget.layout()
+                            if layout:
+                                # Look for the directory tree in the layout and replace it with the original table
+                                for i in range(layout.count()):
+                                    item = layout.itemAt(i)
+                                    if item and item.widget() and item.widget() is directory_tree:
+                                        # Remove the directory tree widget from layout
+                                        layout.takeAt(i)
+                                        directory_tree.hide()
+                                        
+                                        # Insert the original table back at the same position
+                                        original_table.show()
+                                        layout.insertWidget(i, original_table)
+                                        break
                     
                     # If using central widget layout, make sure table is visible
                     if hasattr(self.main_window, 'central_widget') and self.main_window.central_widget:
@@ -1656,7 +1679,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             traceback.print_exc()
 
 
-    def _switch_to_directory_tree(self): #vers 2
+    def _switch_to_directory_tree(self): #vers 3
         """Switch to Directory Tree view and initialize if needed"""
         try:
             # Check if we have a game root set
@@ -1704,10 +1727,42 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 # If no tab was found or no tab widget exists, just ensure the directory tree is available
                 self.main_window.log_message("→ Directory Tree ready - browsing to game root")
                 
-                # If the directory tree widget exists but is not visible, try to make it visible
-                # This is important for the button-based UI
-                if hasattr(self.main_window, 'central_widget') and self.main_window.central_widget:
-                    # Add directory tree to central widget if possible
+                # Try to place the directory tree in the main table area (where file entries normally appear)
+                # This is important for the button-based UI - the directory tree should appear in the file list window
+                if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'table'):
+                    table = self.main_window.gui_layout.table
+                    parent_widget = table.parentWidget()
+                    
+                    if parent_widget:
+                        # Get the parent layout
+                        layout = parent_widget.layout()
+                        if layout:
+                            # Replace the table with the directory tree in the same position
+                            # Find the table's position in the layout and replace it
+                            for i in range(layout.count()):
+                                item = layout.itemAt(i)
+                                if item and item.widget() and item.widget() is table:
+                                    # Remove the table widget from layout
+                                    layout.takeAt(i)
+                                    table.hide()
+                                    
+                                    # Insert the directory tree at the same position
+                                    self.main_window.directory_tree.show()
+                                    layout.insertWidget(i, self.main_window.directory_tree)
+                                    break
+                        else:
+                            # If no layout exists, try to add to the parent directly
+                            # Create a new layout for the parent
+                            from PyQt6.QtWidgets import QVBoxLayout
+                            new_layout = QVBoxLayout(parent_widget)
+                            parent_widget.setLayout(new_layout)
+                            new_layout.addWidget(self.main_window.directory_tree)
+                    
+                    # Store reference to original table so we can switch back
+                    if not hasattr(self.main_window, '_original_table_widget'):
+                        self.main_window._original_table_widget = table
+                elif hasattr(self.main_window, 'central_widget') and self.main_window.central_widget:
+                    # Fallback: Add directory tree to central widget if possible
                     from PyQt6.QtWidgets import QVBoxLayout
                     layout = self.main_window.central_widget.layout()
                     if not layout:
