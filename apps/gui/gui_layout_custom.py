@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget, QFrame,
     QGroupBox, QPushButton, QLabel, QCheckBox
 )
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QSize
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import QIcon
 from .gui_layout import IMGFactoryGUILayout
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -2594,6 +2594,9 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.window_context.log_message("All features initialized")
                 self.window_context.log_message("Extended logging system active")
+                
+                # Automatically switch to directory tree view at startup
+                QTimer.singleShot(100, self._switch_to_directory_tree)  # Delay to ensure UI is fully loaded
 
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
