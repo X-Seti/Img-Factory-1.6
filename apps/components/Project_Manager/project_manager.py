@@ -48,6 +48,21 @@ class ProjectManager:
             if os.path.exists(self.projects_file):
                 with open(self.projects_file, 'r') as f:
                     self.projects = json.load(f)
+                
+                # Update legacy projects to include new fields
+                for project_name, project_data in self.projects.items():
+                    if "assists_path" not in project_data:
+                        project_data["assists_path"] = ""
+                    if "created_date" not in project_data:
+                        project_data["created_date"] = str(Path.home() / "Documents")
+                    if "last_used" not in project_data:
+                        project_data["last_used"] = ""
+                    
+                    # Update the project in the dictionary
+                    self.projects[project_name] = project_data
+                
+                # Save the updated projects structure
+                self.save_projects()
             else:
                 # Initialize with empty projects dict
                 self.projects = {}
@@ -69,12 +84,13 @@ class ProjectManager:
             self.main_window.log_message(f"Project '{name}' already exists")
             return False
             
+        from datetime import datetime
         self.projects[name] = {
             "name": name,
             "project_folder": project_folder,
             "game_root": game_root,
             "assists_path": assists_path,
-            "created_date": str(Path.home() / "Documents"),  # placeholder
+            "created_date": datetime.now().isoformat(),
             "last_used": ""
         }
         self.save_projects()
@@ -123,6 +139,12 @@ class ProjectManager:
             self.current_project = name
             # Load the project settings into the main window
             project_settings = self.projects[name]
+            
+            # Update last used timestamp
+            from datetime import datetime
+            self.projects[name]["last_used"] = datetime.now().isoformat()
+            self.save_projects()
+            
             if "game_root" in project_settings and project_settings["game_root"]:
                 self.main_window.game_root = project_settings["game_root"]
                 
