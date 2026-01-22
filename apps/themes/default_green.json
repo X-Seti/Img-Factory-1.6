@@ -6,7 +6,7 @@
   "author": "X-Seti",
   "version": "1.0",
   "colors": {
-    "bg_primary": "#f8fff8",
+    "bg_primary": "#1A1A1A",
     "bg_secondary": "#f0f8f0",
     "bg_tertiary": "#e8f5e8",
     "panel_bg": "#f1f8f1",
@@ -37,17 +37,6 @@
     "action_convert": "#9c27b0",
     "panel_entries": "#e8f5e9",
     "panel_filter": "#fff3e0",
-    "toolbar_bg": "#f1f8f1",
-    "button_text_color": "#ffffff",
-    "button_text_hover": "#ffffff",
-    "button_text_pressed": "#ffffff",
-    "splitter_color_background": "#ffffff",
-    "splitter_color_shine": "#ffffff",
-    "splitter_color_shadow": "#ffffff",
-    "scrollbar_background": "#ffffff",
-    "scrollbar_handle": "#ffffff",
-    "scrollbar_handle_hover": "#ffffff",
-    "scrollbar_handle_pressed": "#ffffff",
-    "scrollbar_border": "#ffffff"
+    "toolbar_bg": "#f1f8f1"
   }
 }

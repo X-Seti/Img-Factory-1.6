@@ -2,7 +2,7 @@
   "debug_mode": false,
   "debug_level": "INFO",
   "current_theme": "App_Factory",
-  "theme": "manjaro2_dark",
+  "theme": "manjaro_dark",
   "button_display_mode": "both",
   "use_custom_gadgets": false,
   "enable_corner_resize": true,

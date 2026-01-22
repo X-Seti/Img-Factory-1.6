@@ -9,8 +9,8 @@
     "bg_secondary": "#3c3c3c",
     "bg_tertiary": "#4d4d4d",
     "panel_bg": "#404040",
-    "accent_primary": "#FFECEE",
-    "accent_secondary": "#FFECEE",
+    "accent_primary": "#464141",
+    "accent_secondary": "#534d4e",
     "text_primary": "#ffffff",
     "text_secondary": "#cccccc",
     "text_accent": "#569cd6",
@@ -24,7 +24,7 @@
     "grid": "#555555",
     "pin_default": "#cccccc",
     "pin_highlight": "#569cd6",
-    "action_import": "#FFECEE",
+    "action_import": "#413c3d",
     "action_export": "#4ec9b0",
     "action_remove": "#f44747",
     "action_update": "#ce9178",
@@ -475,7 +475,7 @@
     "splitter_handle_width": 8,
     "splitter_border_radius": 3,
     "splitter_show_grip": true,
-    "panel_opacity": 95,
+    "panel_opacity": 100,
     "enable_animations": true
   }
 }
