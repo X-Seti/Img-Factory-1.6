@@ -2393,6 +2393,14 @@ class IMGFactoryGUILayout:
                             item = QListWidgetItem(tab_name)
                             item.setData(Qt.ItemDataRole.UserRole, tab_index)  # Store tab index
                             self.open_files_list.addItem(item)
+
+                    for tab_index, file_info in self.main_window.open_files.items():
+                        # Get the tab name from the tab widget
+                        tab_name = self.main_window.main_tab_widget.tabText(tab_index)
+                        if tab_name and tab_name != "Tab 0":
+                            item = QListWidgetItem(tab_name)
+                            item.setData(Qt.ItemDataRole.UserRole, tab_index)  # Store tab index
+                            self.open_files_list.addItem(item)
                 
                 # If no files are open, add a placeholder
                 if self.open_files_list.count() == 0:
