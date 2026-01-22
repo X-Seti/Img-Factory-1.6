@@ -781,11 +781,15 @@ class IMGFactory(QMainWindow):
                 self.game_root = game_root
                 self.log_message(f"✓ Autoloaded game root: {game_root}")
 
+<<<<<<< HEAD
                 # Integrate directory tree if not already done
                 if not hasattr(self, 'directory_tree'):
                     from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
 
                 # Browse to game root
+=======
+                # Update directory tree if it exists
+>>>>>>> d42f53fdc804b7fb44f1c77e7a98c04cab936199
                 if hasattr(self, 'directory_tree') and hasattr(self.directory_tree, 'browse_directory'):
                     self.directory_tree.browse_directory(game_root)
                     self.log_message("✓ Directory Tree populated with game root")
