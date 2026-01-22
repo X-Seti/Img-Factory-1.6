@@ -1064,6 +1064,8 @@ class DirectoryTreeBrowser(QWidget):
 
 def integrate_directory_tree_browser(main_window): #vers 4
     """Integrate directory browser into main window - updated for button-based UI"""
+    import os
+    from pathlib import Path
     try:
         # Check if directory tree already exists to avoid duplication
         if hasattr(main_window, 'directory_tree') and main_window.directory_tree:

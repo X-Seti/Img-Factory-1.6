@@ -529,6 +529,8 @@ class IMGFactory(QMainWindow):
 
         # Apply button display mode from settings
         self._apply_button_display_mode_from_settings()
+        self._apply_button_settings_at_startup()
+
         integrate_remove_functions(self)
         integrate_save_entry_function(self)
         integrate_batch_rebuild_functions(self)
@@ -595,7 +597,6 @@ class IMGFactory(QMainWindow):
 
         # File filtering
         integrate_file_filtering(self)
-
 
         # === PHASE 6: GUI BACKEND & SHORTCUTS (Medium) ===
 
@@ -759,33 +760,92 @@ class IMGFactory(QMainWindow):
             self.show()
 
 
-    def autoload_game_root(self): #vers 1
-        """Autoload game root from settings"""
+    def autoload_game_root(self): #vers 2 - this create graphics correction on toolbar,
+        """Autoload game root and integrate directory tree at startup"""
         try:
             # Try QSettings first
             from PyQt6.QtCore import QSettings
             settings = QSettings("IMG-Factory", "IMG-Factory")
             game_root = settings.value("game_root", "", type=str)
 
-            # If not in QSettings, try img_factory.json
-            if not game_root:
-                from apps.core.settings import load_project_settings
-                project_settings = load_project_settings(self)
-                game_root = project_settings.get('game_root', '')
+            # If not in QSettings, try project manager
+            if not game_root and hasattr(self, 'project_manager') and self.project_manager:
+                if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
+                    project_settings = self.project_manager.get_project_settings(
+                        self.project_manager.current_project
+                    )
+                    game_root = project_settings.get('game_root', '')
 
-            # If found and valid, set it
+            # If found and valid, set it and load directory tree
             if game_root and os.path.exists(game_root):
                 self.game_root = game_root
-                self.log_message(f"Autoloaded game root: {game_root}")
+                self.log_message(f"✓ Autoloaded game root: {game_root}")
 
-                # Update directory tree if it exists
-                if hasattr(self, 'directory_tree'):
+                # Integrate directory tree if not already done
+                if not hasattr(self, 'directory_tree'):
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+
+                # Browse to game root
+                if hasattr(self, 'directory_tree') and hasattr(self.directory_tree, 'browse_directory'):
                     self.directory_tree.browse_directory(game_root)
+                    self.log_message("✓ Directory Tree populated with game root")
+
+                    # Switch to directory tree tab (tab 0) after short delay
+                    if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                        QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
             else:
-                self.log_message("No saved game root found")
+                self.log_message("ℹ No saved game root - showing home directory")
+
+                # Still integrate directory tree with home folder
+                if not hasattr(self, 'directory_tree'):
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                    if integrate_directory_tree_browser(self):
+                        home_dir = str(Path.home())
+                        if hasattr(self, 'directory_tree') and hasattr(self.directory_tree, 'browse_directory'):
+                            self.directory_tree.browse_directory(home_dir)
+                            self.log_message(f"✓ Directory Tree showing: {home_dir}")
+
+                            # Switch to directory tree tab
+                            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                                QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
 
         except Exception as e:
             self.log_message(f"Error autoloading game root: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _apply_button_settings_at_startup(self): #vers 1
+        """Apply button sizing and spacing settings at startup"""
+        try:
+            if hasattr(self, 'app_settings') and hasattr(self.app_settings, 'current_settings'):
+                # Get button settings
+                button_height = self.app_settings.current_settings.get('button_height', 32)
+                space_v = self.app_settings.current_settings.get('button_spacing_vertical', 8)
+                space_h = self.app_settings.current_settings.get('button_spacing_horizontal', 6)
+
+                # Apply to GUI layout if available
+                if hasattr(self, 'gui_layout'):
+                    # Apply button heights
+                    if hasattr(self.gui_layout, 'img_buttons'):
+                        for btn in self.gui_layout.img_buttons:
+                            btn.setMaximumHeight(button_height)
+                            btn.setMinimumHeight(button_height - 4)
+
+                    if hasattr(self.gui_layout, 'entry_buttons'):
+                        for btn in self.gui_layout.entry_buttons:
+                            btn.setMaximumHeight(button_height)
+                            btn.setMinimumHeight(button_height - 4)
+
+                    if hasattr(self.gui_layout, 'options_buttons'):
+                        for btn in self.gui_layout.options_buttons:
+                            btn.setMaximumHeight(button_height)
+                            btn.setMinimumHeight(button_height - 4)
+
+                    self.log_message(f"✓ Button sizing applied: {button_height}px height, {space_v}/{space_h}px spacing")
+
+        except Exception as e:
+            self.log_message(f"Error applying button settings: {str(e)}")
 
 
     def _apply_button_display_mode_from_settings(self):
@@ -2391,7 +2451,6 @@ class IMGFactory(QMainWindow):
         main_window.log_message("Button states stub added")
 
 
-    # MASTER FIX FUNCTION
     def apply_quick_fixes(main_window): #vers 2
         """Apply all quick fixes for missing methods"""
         try:
@@ -2444,14 +2503,17 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error handling COL file: {str(e)}")
             return False
 
+
     def create_new_img(self): #vers 5
         """Show new IMG creation dialog - FIXED: No signal connections"""
+
 
     def select_all_entries(self): #vers 3
         """Select all entries in current table"""
         if hasattr(self.gui_layout, 'table') and self.gui_layout.table:
             self.gui_layout.table.selectAll()
             self.log_message("Selected all entries")
+
 
     def select_inverse(self): #vers 2
         """Select inverse of current selection"""
@@ -2475,6 +2537,7 @@ class IMGFactory(QMainWindow):
                 self.log_message("❌ Table not available for selection")
         except Exception as e:
             self.log_message(f"❌ Select inverse error: {str(e)}")
+
 
     def sort_entries(self): #vers 1
         """Sort entries in the table"""
@@ -2502,6 +2565,7 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"❌ Sort entries error: {str(e)}")
 
+
     def pin_selected_entries(self): #vers 1
         """Pin selected entries to keep them at the top of the table"""
         try:
@@ -2517,6 +2581,7 @@ class IMGFactory(QMainWindow):
                 self.log_message("❌ Table not available for pinning")
         except Exception as e:
             self.log_message(f"❌ Pin selected error: {str(e)}")
+
 
     def sort_img_by_ide(self): #vers 1
         """Sort current IMG file entries to match IDE model order"""
@@ -2582,6 +2647,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"❌ Error sorting IMG by IDE: {str(e)}")
             return False
 
+
     def _parse_ide_for_model_order(self, ide_path: str) -> List[str]:
         """Parse IDE file and return list of model names in order"""
         try:
@@ -2603,6 +2669,7 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"❌ Error parsing IDE file: {str(e)}")
             return []
+
 
     def _sort_entries_by_ide_order(self, model_order: List[str]) -> List:
         """Sort current IMG entries based on IDE model order, with TXDs at the bottom"""
@@ -2725,6 +2792,7 @@ class IMGFactory(QMainWindow):
         col_module._global_debug_enabled = False
 
         self.log_message("COL debug output disabled")
+
 
     def toggle_col_debug(self): #vers 2 #restore
         """Toggle COL debug output"""
@@ -2966,8 +3034,6 @@ class IMGFactory(QMainWindow):
             return False
 
 
-    # CLOSE MANAGER INTEGRATION
-
     def _reindex_open_files_robust(self, removed_index): #vers 1
         """ROBUST: Reindex with data preservation"""
         try:
@@ -3014,8 +3080,6 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Error in robust reindexing: {str(e)}")
 
-
-    # INTEGRATION PATCH FOR EXISTING CLOSE MANAGER
 
     def patch_close_manager_for_robust_tabs(main_window): #vers 1
         """Patch existing close manager to use robust tab system"""
@@ -3095,12 +3159,14 @@ class IMGFactory(QMainWindow):
         except:
             return 'UNKNOWN'
 
+
     def has_col_file_loaded(main_window) -> bool: #vers 1
         """Check if a COL file is currently loaded - REPLACES has_col"""
         try:
             return hasattr(main_window, 'current_col') and main_window.current_col is not None
         except:
             return False
+
 
     def has_img_file_loaded(main_window) -> bool: #vers 1
         """Check if an IMG file is currently loaded"""
@@ -3109,6 +3175,7 @@ class IMGFactory(QMainWindow):
         except:
             return False
 
+
     def open_img_file(self): #vers 2
         """Open file dialog - FIXED: Call imported function correctly"""
         try:
@@ -3116,10 +3183,12 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Error opening file dialog: {str(e)}")
 
+
     def open_file_dialog(self): #vers 1
         """Unified file dialog - imported from apps.core."""
         from apps.core.open_img import open_file_dialog
         return open_file_dialog(self)
+
 
     def _clean_on_img_loaded(self, img_file: IMGFile): #vers 6
         """Handle IMG loading - USES ISOLATED FILE WINDOW"""
@@ -3142,7 +3211,7 @@ class IMGFactory(QMainWindow):
                 self.gui_layout.refresh_directory_files()
 
             # Use isolated file window update
-            success = self.gui_layout.update_file_window_only(img_file)
+            #success = self.gui_layout.update_file_window_only(img_file)
 
             # Properly hide progress and ensure GUI visibility
             self.gui_layout.hide_progress_properly()

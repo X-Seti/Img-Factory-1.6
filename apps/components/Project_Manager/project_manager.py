@@ -149,7 +149,7 @@ class ProjectManager:
                 self.main_window.game_root = project_settings["game_root"]
                 
                 # Explicitly call browse_directory to ensure proper path setting and UI update
-                if hasattr(self.main_window.directory_tree, 'browse_directory'):
+                if hasattr(self.main_window, 'directory_tree') and hasattr(self.main_window.directory_tree, 'browse_directory'):
                     self.main_window.directory_tree.browse_directory(project_settings["game_root"])
 
                 # Ensure directory tree is integrated
