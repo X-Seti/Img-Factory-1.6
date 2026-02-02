@@ -1578,6 +1578,16 @@ class IMGFactoryGUILayout:
         header_layout.addWidget(header)
         header_layout.addStretch()
 
+        # File Entries button - CONNECTED
+        f_entries_btn = QPushButton()
+        f_entries_btn.setIcon(self.icon_factory.package_icon())
+        f_entries_btn.setText("File Entries")
+        f_entries_btn.setIconSize(QSize(20, 20))
+        f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
+        #f_entries_btn.clicked.connect(lambda: self.entries_tab)
+        f_entries_btn.clicked.connect(self._switch_to_file_entries) #show active img file tab
+        header_layout.addWidget(self.f_entries_btn)
+
         # Directory Tree button - CONNECTED
         dirtree_btn = QPushButton()
         dirtree_btn.setIcon(self.icon_factory.folder_icon())
@@ -1593,15 +1603,15 @@ class IMGFactoryGUILayout:
         # Search button
         search_btn = QPushButton("Search")
         search_btn.setIcon(get_search_icon())
-        search_btn.setFixedHeight(24)
+        #search_btn.setFixedHeight(24)
         search_btn.setToolTip("Search in files (Ctrl+F)")
         search_btn.clicked.connect(self._show_search)
         header_layout.addWidget(search_btn)
 
         # Log toggle button
-        log_btn = QPushButton("Toggle Log")
+        log_btn = QPushButton("Show Logs")
         log_btn.setIcon(get_view_icon())
-        log_btn.setFixedHeight(24)
+        #log_btn.setFixedHeight(24)
         log_btn.setToolTip("Show/Hide Activity Log")
         log_btn.clicked.connect(self._toggle_log_visibility)
         header_layout.addWidget(log_btn)
@@ -1632,9 +1642,14 @@ class IMGFactoryGUILayout:
         return status_container
 
 
-    def _switch_to_directory_tree(self): #vers 6
-        """Switch to Directory Tree - hide table, show directory tree"""
+    def _switch_to_directory_tree(self): #vers 12
+        """Switch to Directory Tree - setup once, then block button"""
         try:
+            # If already setup, block second press
+            if hasattr(self.main_window, '_dirtree_setup_complete'):
+                self.main_window.log_message("Directory Tree already loaded - use 'Dir Tree' tab")
+                return
+
             # Check game root
             if not hasattr(self.main_window, 'game_root') or not self.main_window.game_root:
                 from PyQt6.QtWidgets import QMessageBox
@@ -1649,39 +1664,42 @@ class IMGFactoryGUILayout:
                     show_project_manager_dialog(self.main_window)
                 return
 
-            # Create directory tree if needed
+            # ONE-TIME SETUP: Create directory tree
             if not hasattr(self.main_window, 'directory_tree'):
                 from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
                 if not integrate_directory_tree_browser(self.main_window):
                     self.main_window.log_message("Failed to load Directory Tree")
                     return
 
-            # Place directory tree in Tab 0's file window (one time setup)
-            if not hasattr(self.main_window, '_dirtree_placed'):
-                if hasattr(self.main_window.gui_layout, 'middle_vertical_splitter'):
-                    splitter = self.main_window.gui_layout.middle_vertical_splitter
-                    if splitter and splitter.count() > 0:
-                        file_window = splitter.widget(0)
-                        layout = file_window.layout()
-                        if layout:
-                            # Add directory tree to layout (don't delete table)
-                            layout.addWidget(self.main_window.directory_tree)
-                            self.main_window._dirtree_placed = True
-                            self.main_window.log_message("✓ Directory tree added")
-
-            # Hide table, show directory tree
-            if hasattr(self.main_window.gui_layout, 'table'):
-                self.main_window.gui_layout.table.hide()
-            self.main_window.directory_tree.show()
+            # Place in file window
+            if hasattr(self.main_window.gui_layout, 'middle_vertical_splitter'):
+                splitter = self.main_window.gui_layout.middle_vertical_splitter
+                if splitter and splitter.count() > 0:
+                    file_window = splitter.widget(0)
+                    layout = file_window.layout()
+                    if layout:
+                        layout.addWidget(self.main_window.directory_tree)
+                        self.main_window.log_message("✓ Directory tree setup complete")
 
             # Browse to game root
             if hasattr(self.main_window.directory_tree, 'browse_directory'):
                 self.main_window.directory_tree.browse_directory(self.main_window.game_root)
 
+            # Update Tab 0 label to "Dir Tree"
+            if hasattr(self.main_window, 'main_tab_widget'):
+                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
+
+            # Mark setup as complete BEFORE showing
+            self.main_window._dirtree_setup_complete = True
+
+            # Show directory tree, hide table
+            if hasattr(self.main_window.gui_layout, 'table'):
+                self.main_window.gui_layout.table.hide()
+            self.main_window.directory_tree.show()
+
             # Switch to Tab 0
             if hasattr(self.main_window, 'main_tab_widget'):
                 self.main_window.main_tab_widget.setCurrentIndex(0)
-                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
                 self.main_window.log_message("→ Directory Tree")
 
         except Exception as e:

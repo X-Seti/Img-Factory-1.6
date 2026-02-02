@@ -3008,7 +3008,51 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 1
+    def _on_tab_changed(self, index): #vers 2
+        """Handle tab switching - Tab 0 = Dir Tree, others = IMG files"""
+        try:
+            if index == 0:  # Dir Tree tab
+                # Hide table, show directory tree
+                if hasattr(self.gui_layout, 'table'):
+                    self.gui_layout.table.hide()
+
+                if hasattr(self, 'directory_tree'):
+                    self.directory_tree.show()
+                    self.log_message("→ Directory Tree")
+                else:
+                    self.log_message("Directory tree not loaded - use Directory Tree button")
+
+            else:  # IMG file tabs (index > 0)
+                # Hide directory tree, show table
+                if hasattr(self, 'directory_tree'):
+                    self.directory_tree.hide()
+
+                if hasattr(self.gui_layout, 'table'):
+                    self.gui_layout.table.show()
+
+                # Get current tab's file object and repopulate table
+                current_tab = self.main_tab_widget.widget(index)
+                if current_tab and hasattr(current_tab, 'file_object'):
+                    file_object = current_tab.file_object
+                    self.current_img = file_object
+
+                    # Repopulate table
+                    if hasattr(self, '_populate_real_img_table'):
+                        self._populate_real_img_table(file_object)
+                        tab_name = self.main_tab_widget.tabText(index)
+                        self.log_message(f"→ {tab_name}")
+                    else:
+                        self.log_message("⚠ Table population method not available")
+                else:
+                    tab_name = self.main_tab_widget.tabText(index)
+                    self.log_message(f"→ {tab_name} (no file data)")
+
+        except Exception as e:
+            self.log_message(f"Tab switch error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _on_tab_changed_OLD(self, index): #vers 1
         """Handle tab switching - Tab 0 = Dir Tree, others = IMG files"""
         try:
             if index == 0:  # Dir Tree tab
