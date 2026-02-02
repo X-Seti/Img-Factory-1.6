@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QPoint, QItemSelectionModel
 from PyQt6.QtGui import QFont, QAction, QIcon, QShortcut, QKeySequence, QPalette, QTextCursor
 from apps.core.gui_search import ASearchDialog, SearchManager
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 from apps.methods.imgfactory_svg_icons import (
     get_add_icon, get_open_icon, get_refresh_icon, get_close_icon, 
@@ -1178,6 +1179,7 @@ class IMGFactoryGUILayout:
 
 
     def create_main_ui_with_splitters(self, main_layout): #vers 4
+
         """Create the main UI with 3-panel layout similar to COL Workshop"""
         # Create main horizontal splitter for 3 panels
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1475,6 +1477,7 @@ class IMGFactoryGUILayout:
         except Exception as e:
             print(f"Error setting button display mode: {e}")
 
+
     def update_button_settings(self, settings):
         """Update button settings from app settings"""
         # Update button display mode
@@ -1502,6 +1505,7 @@ class IMGFactoryGUILayout:
         button_format = settings.get('button_format', 'both')
         self.set_button_format(button_format)
 
+
     def set_button_size(self, size):
         """Set button size for all buttons"""
         if hasattr(self, 'backend'):
@@ -1511,6 +1515,7 @@ class IMGFactoryGUILayout:
                 btn.setMaximumHeight(size)
                 btn.setMinimumHeight(max(20, size - 4))  # Maintain reasonable min height
 
+
     def set_icon_size(self, size):
         """Set icon size for all buttons"""
         if hasattr(self, 'backend'):
@@ -1519,6 +1524,7 @@ class IMGFactoryGUILayout:
             for btn in all_buttons:
                 if btn.icon():
                     btn.setIconSize(QSize(size, size))
+
 
     def set_pastel_effect(self, enabled):
         """Enable or disable pastel effect on buttons"""
@@ -1545,7 +1551,210 @@ class IMGFactoryGUILayout:
             self.set_button_display_mode('text_only')
 
 
-    def create_status_window(self): #vers 5
+    def create_status_window(self): #vers 3
+        """Create toolbar - ALL BUTTONS CONNECTED"""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        from PyQt6.QtGui import QFont
+
+        if not hasattr(self, 'title_font'):
+            self.title_font = QFont("Arial", 14)
+        if not hasattr(self, 'button_font'):
+            self.button_font = QFont("Arial", 10)
+        if not hasattr(self, 'icon_factory'):
+            self.icon_factory = SVGIconFactory()
+        if not hasattr(globals(), 'App_name'):
+            from apps.components.Img_Factory.imgfactory import App_name
+
+        """Create status window with activity log"""
+        status_container = QWidget()
+        status_layout = QVBoxLayout(status_container)
+        status_layout.setContentsMargins(5, 5, 5, 5)
+        status_layout.setSpacing(2)
+
+        # Header with buttons
+        header_layout = QHBoxLayout()
+        header = QLabel("Activity Logs")
+        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        header_layout.addWidget(header)
+        header_layout.addStretch()
+
+        # Directory Tree button - CONNECTED
+        dirtree_btn = QPushButton()
+        dirtree_btn.setIcon(self.icon_factory.folder_icon())
+        dirtree_btn.setText("Directory Tree")
+        dirtree_btn.setIconSize(QSize(20, 20))
+        dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
+        dirtree_btn.clicked.connect(self._switch_to_directory_tree)
+        header_layout.addWidget(dirtree_btn)
+
+        # Import SVG icons
+        from apps.methods.imgfactory_svg_icons import get_search_icon, get_view_icon
+
+        # Search button
+        search_btn = QPushButton("Search")
+        search_btn.setIcon(get_search_icon())
+        search_btn.setFixedHeight(24)
+        search_btn.setToolTip("Search in files (Ctrl+F)")
+        search_btn.clicked.connect(self._show_search)
+        header_layout.addWidget(search_btn)
+
+        # Log toggle button
+        log_btn = QPushButton("Toggle Log")
+        log_btn.setIcon(get_view_icon())
+        log_btn.setFixedHeight(24)
+        log_btn.setToolTip("Show/Hide Activity Log")
+        log_btn.clicked.connect(self._toggle_log_visibility)
+        header_layout.addWidget(log_btn)
+
+        status_layout.addLayout(header_layout)
+
+        # Activity log text area
+        self.log = QTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setMaximumHeight(180)
+        self.log.setPlaceholderText("Activity log will appear here...")
+
+        # Enable scrollbars
+        self.log.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.log.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Apply theme styling to log
+        self._apply_log_theme_styling()
+
+        status_layout.addWidget(self.log)
+
+        # CRITICAL: Assign to self.status_window for theme styling
+        self.status_window = status_container
+
+        # Apply theme styling to status window
+        self._apply_status_window_theme_styling()
+
+        return status_container
+
+
+    def _switch_to_directory_tree(self): #vers 6
+        """Switch to Directory Tree - hide table, show directory tree"""
+        try:
+            # Check game root
+            if not hasattr(self.main_window, 'game_root') or not self.main_window.game_root:
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self.main_window,
+                    "No Project Configured",
+                    "No project is currently configured.\n\nWould you like to open the Project Manager now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                    show_project_manager_dialog(self.main_window)
+                return
+
+            # Create directory tree if needed
+            if not hasattr(self.main_window, 'directory_tree'):
+                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                if not integrate_directory_tree_browser(self.main_window):
+                    self.main_window.log_message("Failed to load Directory Tree")
+                    return
+
+            # Place directory tree in Tab 0's file window (one time setup)
+            if not hasattr(self.main_window, '_dirtree_placed'):
+                if hasattr(self.main_window.gui_layout, 'middle_vertical_splitter'):
+                    splitter = self.main_window.gui_layout.middle_vertical_splitter
+                    if splitter and splitter.count() > 0:
+                        file_window = splitter.widget(0)
+                        layout = file_window.layout()
+                        if layout:
+                            # Add directory tree to layout (don't delete table)
+                            layout.addWidget(self.main_window.directory_tree)
+                            self.main_window._dirtree_placed = True
+                            self.main_window.log_message("✓ Directory tree added")
+
+            # Hide table, show directory tree
+            if hasattr(self.main_window.gui_layout, 'table'):
+                self.main_window.gui_layout.table.hide()
+            self.main_window.directory_tree.show()
+
+            # Browse to game root
+            if hasattr(self.main_window.directory_tree, 'browse_directory'):
+                self.main_window.directory_tree.browse_directory(self.main_window.game_root)
+
+            # Switch to Tab 0
+            if hasattr(self.main_window, 'main_tab_widget'):
+                self.main_window.main_tab_widget.setCurrentIndex(0)
+                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
+                self.main_window.log_message("→ Directory Tree")
+
+        except Exception as e:
+            self.main_window.log_message(f"Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _ensure_tab_0_for_directory_tree(self): #vers 1
+        """Ensure Tab 0 exists and contains directory tree widget"""
+        try:
+            if not hasattr(self.main_window, 'main_tab_widget') or not self.main_window.main_tab_widget:
+                return False
+
+            tab_widget = self.main_window.main_tab_widget
+
+            # Check if Tab 0 exists
+            if tab_widget.count() == 0:
+                # Create Tab 0
+                from PyQt6.QtWidgets import QWidget, QVBoxLayout
+                tab_0 = QWidget()
+                tab_0_layout = QVBoxLayout(tab_0)
+                tab_0_layout.setContentsMargins(0, 0, 0, 0)
+
+                # Add directory tree if it exists
+                if hasattr(self.main_window, 'directory_tree'):
+                    tab_0_layout.addWidget(self.main_window.directory_tree)
+
+                tab_widget.insertTab(0, tab_0, "Dir Tree")
+                self.main_window.log_message("Created Tab 0 for Directory Tree")
+                return True
+            else:
+                # Tab 0 exists - ensure it has directory tree
+                tab_0 = tab_widget.widget(0)
+                if tab_0 and hasattr(self.main_window, 'directory_tree'):
+                    # Check if directory tree is already in tab 0
+                    if self.main_window.directory_tree.parent() != tab_0:
+                        layout = tab_0.layout()
+                        if not layout:
+                            from PyQt6.QtWidgets import QVBoxLayout
+                            layout = QVBoxLayout(tab_0)
+                            layout.setContentsMargins(0, 0, 0, 0)
+                        layout.addWidget(self.main_window.directory_tree)
+
+                    # Update tab label
+                    tab_widget.setTabText(0, "Dir Tree")
+                    return True
+            return False
+        except Exception as e:
+            self.main_window.log_message(f"Error ensuring Tab 0: {str(e)}")
+            return False
+
+
+    def _show_search(self): #vers 1
+        """Show search dialog"""
+        try:
+            if hasattr(self.main_window, 'search_manager'):
+                self.main_window.search_manager.show_search_dialog()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Search not available")
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Search error: {str(e)}")
+
+
+    def _toggle_log_visibility(self): #vers 1
+        """Toggle activity log visibility"""
+        if hasattr(self, 'log'):
+            self.log.setVisible(not self.log.isVisible())
+
+
+    def create_status_window_OLD(self): #vers 5 -kept old method
         """Create status window with log"""
         self.status_window = QWidget()
         status_layout = QVBoxLayout(self.status_window)
@@ -1581,7 +1790,7 @@ class IMGFactoryGUILayout:
 
         # Apply theme styling to status window
         self._apply_status_window_theme_styling()
-        
+
         return self.status_window
 
 
@@ -1716,6 +1925,7 @@ class IMGFactoryGUILayout:
                 font-size: 9pt;
             }}
         """)
+
 
     def _apply_status_window_theme_styling(self): #vers 1
         """Apply theme styling to the status window"""
@@ -2304,6 +2514,7 @@ class IMGFactoryGUILayout:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Move entries up error: {str(e)}")
 
+
     def move_entries_down(self):  # vers 1
         """Move selected entries down in the table"""
         try:
@@ -2361,6 +2572,7 @@ class IMGFactoryGUILayout:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Move entries down error: {str(e)}")
 
+
     def _on_open_file_selected(self, item):  # vers 1
         """Handle selection of an open file in the left panel"""
         try:
@@ -2377,6 +2589,7 @@ class IMGFactoryGUILayout:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error selecting file: {str(e)}")
 
+
     def update_open_files_list(self):  # vers 1
         """Update the left panel list with all open files"""
         try:
@@ -2390,6 +2603,8 @@ class IMGFactoryGUILayout:
                         # Get the tab name from the tab widget
                         tab_name = self.main_window.main_tab_widget.tabText(tab_index)
                         if tab_name and tab_name != "No File":
+                            # After main_tab_widget creation
+                            self.main_tab_widget.tabBarDoubleClicked.connect(self._on_tab_double_click)
                             item = QListWidgetItem(tab_name)
                             item.setData(Qt.ItemDataRole.UserRole, tab_index)  # Store tab index
                             self.open_files_list.addItem(item)
@@ -2411,6 +2626,22 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error updating open files list: {str(e)}")
+
+
+    def _on_tab_double_click(self, index): #vers 1
+        """Handle double-click on tab - Tab 0 shows directory tree"""
+        try:
+            if index == 0:  # "No File" tab
+                # Show directory tree, hide table
+                if hasattr(self, 'directory_tree'):
+                    if hasattr(self.gui_layout, 'table'):
+                        self.gui_layout.table.hide()
+                    self.directory_tree.show()
+                    self.log_message("→ Directory Tree")
+                else:
+                    self.log_message("Directory tree not loaded - use Project menu")
+        except Exception as e:
+            self.log_message(f"Error on tab double-click: {str(e)}")
 
 
     def refresh_directory_files(self):  # vers 1

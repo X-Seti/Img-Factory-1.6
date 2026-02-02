@@ -817,6 +817,52 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()
 
 
+
+    def autoload_game_root_two(self): #vers 3
+        """Autoload game root and integrate directory tree at startup"""
+        try:
+            from PyQt6.QtCore import QSettings
+            settings = QSettings("IMG-Factory", "IMG-Factory")
+            game_root = settings.value("game_root", "", type=str)
+
+            # Try project manager if not in QSettings
+            if not game_root and hasattr(self, 'project_manager') and self.project_manager:
+                if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
+                    project_settings = self.project_manager.get_project_settings(
+                        self.project_manager.current_project
+                    )
+                    game_root = project_settings.get('game_root', '')
+
+            # If found and valid, integrate directory tree
+            if game_root and os.path.exists(game_root):
+                self.game_root = game_root
+                self.log_message(f"✓ Autoloaded game root: {game_root}")
+
+                # Auto-integrate directory tree
+                if not hasattr(self, 'directory_tree'):
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                    if integrate_directory_tree_browser(self):
+                        # Place in Tab 0's file window
+                        if hasattr(self.gui_layout, 'middle_vertical_splitter'):
+                            splitter = self.gui_layout.middle_vertical_splitter
+                            if splitter and splitter.count() > 0:
+                                file_window = splitter.widget(0)
+                                layout = file_window.layout()
+                                if layout:
+                                    layout.addWidget(self.directory_tree)
+                                    self.directory_tree.hide()  # Hidden until Tab 0 clicked
+                                    self.log_message("✓ Directory tree ready")
+
+                        # Browse to game root
+                        if hasattr(self.directory_tree, 'browse_directory'):
+                            self.directory_tree.browse_directory(game_root)
+
+        except Exception as e:
+            self.log_message(f"Error autoloading game root: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
     def _apply_button_settings_at_startup(self): #vers 1
         """Apply button sizing and spacing settings at startup"""
         try:
@@ -2852,6 +2898,7 @@ class IMGFactory(QMainWindow):
 
         # Create main tab widget for file handling
         self.main_tab_widget = QTabWidget()
+        self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
@@ -2959,6 +3006,58 @@ class IMGFactory(QMainWindow):
 
         except Exception as e:
             self.log_message(f"Error logging tab state: {str(e)}")
+
+
+    def _on_tab_changed(self, index): #vers 1
+        """Handle tab switching - Tab 0 = Dir Tree, others = IMG files"""
+        try:
+            if index == 0:  # Dir Tree tab
+                # Show directory tree, hide table
+                if hasattr(self, 'directory_tree'):
+                    if hasattr(self.gui_layout, 'table'):
+                        self.gui_layout.table.hide()
+                    self.directory_tree.show()
+                    self.log_message("→ Directory Tree")
+                else:
+                    # Directory tree not loaded yet - load it now
+                    if hasattr(self, 'game_root') and self.game_root:
+                        from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                        if integrate_directory_tree_browser(self):
+                            # Place in file window
+                            if hasattr(self.gui_layout, 'middle_vertical_splitter'):
+                                splitter = self.gui_layout.middle_vertical_splitter
+                                if splitter and splitter.count() > 0:
+                                    file_window = splitter.widget(0)
+                                    layout = file_window.layout()
+                                    if layout:
+                                        layout.addWidget(self.directory_tree)
+                                        self.gui_layout.table.hide()
+                                        self.directory_tree.show()
+                                        if hasattr(self.directory_tree, 'browse_directory'):
+                                            self.directory_tree.browse_directory(self.game_root)
+                                        self.log_message("✓ Directory tree loaded")
+                    else:
+                        self.log_message("No project configured - use Project menu")
+            else:
+                # IMG file tab - show table, hide directory tree
+                if hasattr(self, 'directory_tree'):
+                    self.directory_tree.hide()
+                if hasattr(self.gui_layout, 'table'):
+                    self.gui_layout.table.show()
+
+                # Reload table content from current tab
+                current_tab = self.main_tab_widget.widget(index)
+                if current_tab and hasattr(current_tab, 'file_object'):
+                    file_object = current_tab.file_object
+                    if hasattr(self, '_populate_real_img_table'):
+                        self._populate_real_img_table(file_object)
+                        self.current_img = file_object
+                        tab_name = self.main_tab_widget.tabText(index)
+                        self.log_message(f"→ {tab_name}")
+        except Exception as e:
+            self.log_message(f"Tab switch error: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
     def ensure_current_tab_references_valid(self): #vers 1

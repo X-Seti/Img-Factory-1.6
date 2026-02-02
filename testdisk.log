@@ -1,0 +1,446 @@
+
+
+Sun Feb  1 00:27:31 2026
+Command line: TestDisk
+
+TestDisk 7.2, Data Recovery Utility, February 2024
+Christophe GRENIER <grenier@cgsecurity.org>
+https://www.cgsecurity.org
+OS: Linux, kernel 6.18.7-zen1-1-zen (#1 ZEN SMP PREEMPT_DYNAMIC Sat, 24 Jan 2026 00:47:26 +0000) x86_64
+Compiler: GCC 14.2
+ext2fs lib: 1.47.3, ntfs lib: libntfs-3g, reiserfs lib: none, ewf lib: none, curses lib: ncurses 6.5
+User is not root!
+Hard disk list
+
+
+TestDisk exited normally.
+Using locale 'LC_CTYPE=en_GB.utf8;LC_NUMERIC=en_GB.UTF-8;LC_TIME=en_GB.UTF-8;LC_COLLATE=en_GB.utf8;LC_MONETARY=en_GB.UTF-8;LC_MESSAGES=en_GB.utf8;LC_PAPER=en_GB.UTF-8;LC_NAME=en_GB.UTF-8;LC_ADDRESS=en_GB.UTF-8;LC_TELEPHONE=en_GB.UTF-8;LC_MEASUREMENT=en_GB.UTF-8;LC_IDENTIFICATION=en_GB.UTF-8'.
+
+
+Sun Feb  1 00:27:37 2026
+Command line: TestDisk /debug
+
+TestDisk 7.2, Data Recovery Utility, February 2024
+Christophe GRENIER <grenier@cgsecurity.org>
+https://www.cgsecurity.org
+OS: Linux, kernel 6.18.7-zen1-1-zen (#1 ZEN SMP PREEMPT_DYNAMIC Sat, 24 Jan 2026 00:47:26 +0000) x86_64
+Compiler: GCC 14.2
+ext2fs lib: 1.47.3, ntfs lib: libntfs-3g, reiserfs lib: none, ewf lib: none, curses lib: ncurses 6.5
+Warning: can't get size for Disk /dev/mapper/control - 0 B - 0 sectors, sector size=512
+Hard disk list
+Disk /dev/sda - 127 GB / 119 GiB - CHS 15545 255 63, sector size=512 - SD Card Reader, FW:1.00
+Disk /dev/sdb - 2000 GB / 1863 GiB - CHS 243201 255 63, sector size=512 - ZP2000GV3001, FW:5102
+Disk /dev/sdc - 240 GB / 223 GiB - CHS 29185 255 63, sector size=512 - TSD302, FW:1.02
+Disk /dev/nvme0n1 - 2000 GB / 1863 GiB - CHS 1907729 64 32, sector size=512 - CT2000P3SSD8, S/N:2242E67BA710
+Disk /dev/nvme1n1 - 1024 GB / 953 GiB - CHS 976762 64 32, sector size=512 - SAMSUNG MZVL81T0HELB-00BTW, S/N:S7HZNX0Y110706
+
+Partition table type (auto): Intel
+Disk /dev/sda - 127 GB / 119 GiB - SD Card Reader
+Partition table type: Intel
+
+Analyse Disk /dev/sda - 127 GB / 119 GiB - CHS 15545 255 63
+Geometry from i386 MBR: head=255 sector=63
+Current partition structure:
+ 1 * Linux                 7319   0 42 10974  43 13   58720256
+ 2 P Linux                10974 108 15 14629 150 49   58720256
+
+search_part()
+Disk /dev/sda - 127 GB / 119 GiB - CHS 15545 255 63
+FAT32 at 3663/148/6
+FAT1 : 32-4031
+FAT2 : 4032-8031
+start_rootdir : 8032 root cluster : 2
+Data : 8032-4095943
+sectors : 4095945
+cluster_size : 8
+no_of_cluster : 510989 (2 - 510990)
+fat_length 4000 calculated 3993
+
+FAT32 at 3663/148/6
+FAT: cluster=2(0x2), pos=58863456
+     FAT32 LBA             3663 148  6  3918 138  5    4095945 [PHATDISK]
+     FAT32, blocksize=4096, 2097 MB / 1999 MiB
+
+block_group_nr 81
+
+recover_EXT2: "e2fsck -b 2654208 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=81/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:36:57 2024
+     Linux                 3663 148  6  7318 190 40   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+recover_EXT2: s_block_group_nr=0/224, s_mnt_count=1/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+Last mount time:    Sun Feb  1 00:27:24 2026
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Recover, 30 GB / 28 GiB
+
+recover_EXT2: s_block_group_nr=0/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:38:41 2024
+     Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB, 30 GB / 28 GiB
+
+Results
+     FAT32 LBA             3663 148  6  3918 138 60    4096000 [PHATDISK]
+     FAT32, blocksize=4096, 2097 MB / 2000 MiB
+     Linux                 3663 148  6  7318 190 40   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+   * Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Recover, 30 GB / 28 GiB
+   P Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB, 30 GB / 28 GiB
+
+Hint for advanced users: dmsetup may be used if you prefer to avoid rewriting the partition table for the moment:
+echo "0 4096000 linear /dev/sda 58855424" | dmsetup create test0
+echo "0 58720256 linear /dev/sda 58855424" | dmsetup create test1
+echo "0 58720256 linear /dev/sda 117579776" | dmsetup create test2
+echo "0 58720256 linear /dev/sda 176304128" | dmsetup create test3
+
+interface_write()
+ 1 * Linux                 7319   0 42 10974  43 13   58720256
+ 2 P Linux                10974 108 15 14629 150 49   58720256
+
+search_part()
+Disk /dev/sda - 127 GB / 119 GiB - CHS 15545 255 63
+FAT32 at 3663/148/6
+FAT1 : 32-4031
+FAT2 : 4032-8031
+start_rootdir : 8032 root cluster : 2
+Data : 8032-4095943
+sectors : 4095945
+cluster_size : 8
+no_of_cluster : 510989 (2 - 510990)
+fat_length 4000 calculated 3993
+
+FAT32 at 3663/148/6
+FAT: cluster=2(0x2), pos=58863456
+     FAT32 LBA             3663 148  6  3918 138  5    4095945 [PHATDISK]
+     FAT32, blocksize=4096, 2097 MB / 1999 MiB
+FAT32 at 3663/148/12
+FAT1 : 32-4031
+FAT2 : 4032-8031
+start_rootdir : 8032 root cluster : 2
+Data : 8032-4095943
+sectors : 4095945
+cluster_size : 8
+no_of_cluster : 510989 (2 - 510990)
+fat_length 4000 calculated 3993
+set_FAT_info: name from BS used
+
+FAT32 at 3663/148/12
+FAT: cluster=2(0x2), pos=58863456
+     FAT32 LBA             3663 148  6  3918 138  5    4095945 [PHATDISK]
+     FAT32, blocksize=4096, 2097 MB / 1999 MiB
+
+block_group_nr 81
+
+recover_EXT2: "e2fsck -b 2654208 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=81/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:36:57 2024
+     Linux                 3663 148  6  7318 190 40   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 125
+
+recover_EXT2: "e2fsck -b 4096000 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=125/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:36:57 2024
+     Linux                 3663 148  6  7318 190 40   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+recover_EXT2: s_block_group_nr=0/224, s_mnt_count=1/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+Last mount time:    Sun Feb  1 00:27:24 2026
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Recover, 30 GB / 28 GiB
+
+block_group_nr 1
+
+recover_EXT2: "e2fsck -b 32768 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=1/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 3
+
+recover_EXT2: "e2fsck -b 98304 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=3/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 5
+
+recover_EXT2: "e2fsck -b 163840 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=5/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 7
+
+recover_EXT2: "e2fsck -b 229376 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=7/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 9
+
+recover_EXT2: "e2fsck -b 294912 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=9/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 25
+
+recover_EXT2: "e2fsck -b 819200 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=25/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 27
+
+recover_EXT2: "e2fsck -b 884736 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=27/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 49
+
+recover_EXT2: "e2fsck -b 1605632 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=49/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 81
+
+recover_EXT2: "e2fsck -b 2654208 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=81/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 125
+
+recover_EXT2: "e2fsck -b 4096000 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=125/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:37:54 2024
+     Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+recover_EXT2: s_block_group_nr=0/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:38:41 2024
+     Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB, 30 GB / 28 GiB
+
+block_group_nr 1
+
+recover_EXT2: "e2fsck -b 32768 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=1/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:38:41 2024
+     Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 3
+
+recover_EXT2: "e2fsck -b 98304 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=3/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:38:41 2024
+     Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 5
+
+recover_EXT2: "e2fsck -b 163840 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=5/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:38:41 2024
+     Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 7
+
+recover_EXT2: "e2fsck -b 229376 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=7/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:38:41 2024
+     Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+block_group_nr 9
+
+recover_EXT2: "e2fsck -b 294912 -B 4096 device" may be needed
+recover_EXT2: s_block_group_nr=9/224, s_mnt_count=0/4294967295, s_blocks_per_group=32768, s_inodes_per_group=8208
+recover_EXT2: s_blocksize=4096
+recover_EXT2: s_blocks_count 7340032
+recover_EXT2: part_size 58720256
+Filesystem created: Sat Feb 24 18:38:41 2024
+     Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+
+Results
+     FAT32 LBA             3663 148  6  3918 138 60    4096000 [PHATDISK]
+     FAT32, blocksize=4096, 2097 MB / 2000 MiB
+     Linux                 3663 148  6  7318 190 40   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Backup_SB, 30 GB / 28 GiB
+   * Linux                 7319   0 42 10974  43 13   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB Recover, 30 GB / 28 GiB
+   P Linux                10974 108 15 14629 150 49   58720256
+     ext4 blocksize=4096 Large_file Sparse_SB, 30 GB / 28 GiB
+
+Hint for advanced users: dmsetup may be used if you prefer to avoid rewriting the partition table for the moment:
+echo "0 4096000 linear /dev/sda 58855424" | dmsetup create test0
+echo "0 58720256 linear /dev/sda 58855424" | dmsetup create test1
+echo "0 58720256 linear /dev/sda 117579776" | dmsetup create test2
+echo "0 58720256 linear /dev/sda 176304128" | dmsetup create test3
+
+
+dir_partition inode=0
+     FAT32 LBA             3663 148  6  3918 138 60    4096000 [PHATDISK]
+     FAT32, blocksize=4096, 2097 MB / 2000 MiB
+FAT: cluster=2(0x2), pos=58863456
+Directory /
+X 182606 drwxr-xr-x     0      0         0  1-Mar-2024 12:09 adf
+X 272168 drwxr-xr-x     0      0         0  1-Mar-2024 12:12 WBHDload
+X 335398 drwxr-xr-x     0      0         0  1-Mar-2024 16:18 _X81
+  338748 drwxr-xr-x     0      0         0  1-Mar-2024 16:18 .Trash-1019
+X 261385 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Chaos Engine 
+X 261605 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Chaos Engine 2, The (1996)(Renegade)(AGA)(Disk 2 of 3)[cr LFC].adf
+X   5296 -rwxr-xr-x     0      0       551  6-Jun-2023 02:55 Xenon2Megabla
+X   5297 -rwxr-xr-x     0      0 726250560  6-Jun-2023 02:55 Xenon2Megablast.img
+  182605 drwxr-xr-x     0      0         0 21-May-2025 21:51 iso
+X 261825 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Chaos Engine 2, The (1996)(Renegade)(AGA)(Disk 3 of 3)[cr LFC].adf
+X 262045 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Colonization v1.11 (1995-05-31)(MicroProse)(OCS-AGA)(M3)(Disk 1 of 3).adf
+X 262265 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Colonization v1.11 (1995-05-31)(MicroProse)(OCS-AGA)(M3)(Disk 2 of 3).adf
+X 262485 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Colonization v1.11 (1995-05-31)(MicroProse)(OCS-AGA)(M3)(Disk 3 of 3).adf
+  335400 drwxr-xr-x     0      0         0 22-Mar-2024 15:44 System Volume Information
+
+dir_partition inode=182606
+     FAT32 LBA             3663 148  6  3918 138 60    4096000 [PHATDISK]
+     FAT32, blocksize=4096, 2097 MB / 2000 MiB
+FAT: Directory entry is marked as free.
+FAT: cluster=182606(0x2c94e), pos=60324288
+Directory /adf
+  182606 drwxr-xr-x     0      0         0  1-Mar-2024 11:49 .
+       0 drwxr-xr-x     0      0         0  1-Mar-2024 11:49 ..
+X 189845 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Lemmings CDTV (1991)(Psygnosis)(Disk 1 of 2)[cr QUBE][HD, CDTV rip].adf
+X 190065 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Lemmings CDTV (1991)(Psygnosis)(Disk 1 of 2)[cr QUBE][HD, CDTV rip].adf (2)
+X 190285 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Lemmings CDTV (1991)(Psygnosis)(Disk 2 of 2)[cr QUBE][HD, CDTV rip].adf
+X 190505 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Lemmings CDTV (1991)(Psygnosis)(Disk 2 of 2)[cr QUBE][HD, CDTV rip].adf (2)
+X 190725 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 SimCity CDTV (1991)(Infogrames)(M5)(Disk 1 of 2)[h TRD][HD, CDTV rip].adf
+X 190945 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 SimCity CDTV (1991)(Infogrames)(M5)(Disk 2 of 2)[h TRD][HD, CDTV rip].adf
+X 255224 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:52 1869 (1993)(Max Design)(AGA)(DE)(Disk 1 of 4)(A)[cr TRSI].adf
+X 255444 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:52 1869 (1993)(Max Design)(AGA)(DE)(Disk 2 of 4)(B).adf
+X 255664 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:52 1869 (1993)(Max Design)(AGA)(DE)(Disk 3 of 4)(C).adf
+X 255884 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:52 1869 (1993)(Max Design)(AGA)(DE)(Disk 4 of 4)(D).adf
+X 256104 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Alien Breed - Tower Assault & Alien Breed II - The Horror Continues CD32 (1994)(Team 17)(AGA)(Disk 1 of 6)[HD, CD32 rip][compilation].adf
+X 256324 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:52 Alien Breed - Tower Assault & Alien Breed II - The Horror Continues CD32 (1994)(Team 17)(AGA)(Disk 1 of 6, CD32].adf
+X 256544 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Alien Breed - Tower Assault & Alien Breed II - The Horror Continues CD32 (1994)(Team 17)(AGA)(Disk 2 of 6)[HD, CD32 rip][compilation].adf
+X 256764 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Alien Breed - Tower Assault & Alien Breed II - The Horror Continues CD32 (1994)(Team 17)(AGA)(Disk 3 of 6)[HD, CD32 rip][compilation].adf
+X 256984 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Alien Breed - Tower Assault & Alien Breed II - The Horror Continues CD32 (1994)(Team 17)(AGA)(Disk 4 of 6)[HD, CD32 rip][compilation].adf
+FAT: cluster=2(0x2), pos=58863456
+Directory /
+X 182606 drwxr-xr-x     0      0         0  1-Mar-2024 12:09 adf
+X 272168 drwxr-xr-x     0      0         0  1-Mar-2024 12:12 WBHDload
+X 335398 drwxr-xr-x     0      0         0  1-Mar-2024 16:18 _X81
+  338748 drwxr-xr-x     0      0         0  1-Mar-2024 16:18 .Trash-1019
+X 261385 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Chaos Engine 
+X 261605 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Chaos Engine 2, The (1996)(Renegade)(AGA)(Disk 2 of 3)[cr LFC].adf
+X   5296 -rwxr-xr-x     0      0       551  6-Jun-2023 02:55 Xenon2Megabla
+X   5297 -rwxr-xr-x     0      0 726250560  6-Jun-2023 02:55 Xenon2Megablast.img
+  182605 drwxr-xr-x     0      0         0 21-May-2025 21:51 iso
+X 261825 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Chaos Engine 2, The (1996)(Renegade)(AGA)(Disk 3 of 3)[cr LFC].adf
+X 262045 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Colonization v1.11 (1995-05-31)(MicroProse)(OCS-AGA)(M3)(Disk 1 of 3).adf
+X 262265 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Colonization v1.11 (1995-05-31)(MicroProse)(OCS-AGA)(M3)(Disk 2 of 3).adf
+X 262485 -rwxr-xr-x     0      0    901120  6-Jun-2023 02:54 Colonization v1.11 (1995-05-31)(MicroProse)(OCS-AGA)(M3)(Disk 3 of 3).adf
+  335400 drwxr-xr-x     0      0         0 22-Mar-2024 15:44 System Volume Information
+
+interface_write()
+ 1 * Linux                 7319   0 42 10974  43 13   58720256
+ 2 P Linux                10974 108 15 14629 150 49   58720256
+
+interface_write()
+ 1 * Linux                 7319   0 42 10974  43 13   58720256
+ 2 P Linux                10974 108 15 14629 150 49   58720256
+
+interface_write()
+ 1 * Linux                 7319   0 42 10974  43 13   58720256
+ 2 P Linux                10974 108 15 14629 150 49   58720256
+write!
+
+write_mbr_i386: starting...
+write_all_log_i386: starting...
+No extended partition
+You will have to reboot for the change to take effect.
+Partition table type (auto): Intel
+Disk /dev/sda - 127 GB / 119 GiB - SD Card Reader
+Partition table type: Intel
+
+TestDisk exited normally.

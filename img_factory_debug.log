@@ -1,6 +1,36 @@
 === IMG Factory Debug Log ===
-Started: 2026-01-22 01:35:40
+Started: 2026-02-02 22:41:00
 Python: 3.14.2 (main, Jan  2 2026, 14:27:39) [GCC 15.2.1 20251112]
 Platform: linux
 ==================================================
 
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for starmap_semi.txd
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap1.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap2.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap3.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap4.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap11.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap22.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap33.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap44.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap111.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap222.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap333.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap444.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap1111.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap2222.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap3333.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for starmap4444.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for starmap.txd
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for starmap_semi2.txd
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for BlueLightsSmall01.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for GreenLightsSmall01.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for OrangLightsSmall01.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for RedFlashingLights1.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for RedLightsSmall01.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for WhiFlashingLights1.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for WhiteLightSmall01.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for YellowLightBig01.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for YellowLightSmall01.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for Trafficsignals.dff
+[22:41:21] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for AquaLightsSmall01.dff
