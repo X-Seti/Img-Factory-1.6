@@ -21,6 +21,9 @@
 │   │   │   └── highlight_status_dialog.py
 │   │   ├── File_Editor
 │   │   │   ├── directory_tree_browser.py
+│   │   │   ├── directory_tree_browser.py-bak
+│   │   │   ├── file_dirtree_backend.py
+│   │   │   ├── file_dirtree_browser.py
 │   │   │   └── gta_file_editors.py
 │   │   ├── Hex_Editor
 │   │   │   ├── Hex_Editor_Panel.py
@@ -135,8 +138,6 @@
 │   │   ├── export.py
 │   │   ├── export_via.py
 │   │   ├── extract.py
-│   │   ├── file_dirtree_backend.py
-│   │   ├── file_dirtree_browser.py
 │   │   ├── file_extraction.py
 │   │   ├── file_type_filter.py
 │   │   ├── gui_search.py
@@ -192,6 +193,7 @@
 │   │   ├── gui_infobar.py
 │   │   ├── gui_layout_custom.py
 │   │   ├── gui_layout.py
+│   │   ├── gui_layout.py-bak
 │   │   ├── gui_menu_custom.py
 │   │   ├── gui_menu.py
 │   │   ├── gui_settings.py
@@ -228,6 +230,8 @@
 │   │   ├── col_parsing_helpers.py
 │   │   ├── col_preview_generator.py
 │   │   ├── col_structure_manager.py
+│   │   ├── column_settings_manager.py
+│   │   ├── column_width_manager.py
 │   │   ├── col_validation.py
 │   │   ├── col_workshop_classes.py
 │   │   ├── col_workshop_loader.py
@@ -272,7 +276,7 @@
 │   │   ├── rw_versions.py
 │   │   ├── table_handlers.py
 │   │   ├── tab_system.py
-│   │   ├── tab_system.py-old
+│   │   ├── tab_system.py-tab
 │   │   ├── txd_context_menu.py
 │   │   ├── txd_serializer.py
 │   │   ├── txd_versions.py
@@ -442,7 +446,8 @@
 ├── launch_txd_workshop.py
 ├── main-branch
 ├── package-lock.json
+├── testdisk.log
 ├── TODO.md
 └── tree.git
 
-36 directories, 410 files
+36 directories, 415 files

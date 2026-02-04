@@ -1,3 +1,5 @@
+#this belongs in core/sort.py - Version: 2
+# X-Seti - February04 2026 - Img Factory 1.6 - Sorting Functions
 """
 Sorting functionality for IMG Factory
 Handles sorting IMG entries to match IDE model order and other sorting options
@@ -108,18 +110,21 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
     selected_items = [item for item in table_widget.selectedItems()]
     selected_rows = set(item.row() for item in selected_items)
     
+    # Dynamically read actual column headers from the table
+    column_headers = []
+    for col in range(table_widget.columnCount()):
+        header_item = table_widget.horizontalHeaderItem(col)
+        header_text = header_item.text() if header_item else f"Col{col}"
+        column_headers.append(header_text)
+    
     # Get all entries from the table
     entries = []
     for row in range(table_widget.rowCount()):
         entry = {}
         for col in range(table_widget.columnCount()):
             item = table_widget.item(row, col)
-            if item:
-                header = table_widget.horizontalHeaderItem(col).text() if table_widget.horizontalHeaderItem(col) else f"Col{col}"
-                entry[header.lower()] = item.text()
-            else:
-                header = table_widget.horizontalHeaderItem(col).text() if table_widget.horizontalHeaderItem(col) else f"Col{col}"
-                entry[header.lower()] = ""
+            header = column_headers[col]
+            entry[header.lower()] = item.text() if item else ""
         entries.append(entry)
     
     # Apply sorting based on the requested method
@@ -130,18 +135,16 @@ def sort_entries_in_table(table_widget, sort_order: str = "name", ide_entries: O
     
     # Disable updates during sorting to prevent flickering and corruption
     table_widget.setUpdatesEnabled(False)
-    table_widget.setSortingEnabled(False)  # Temporarily disable sorting during operation
+    table_widget.setSortingEnabled(False)
     
     # Clear the table and repopulate with sorted entries
-    table_widget.clearSelection()  # Clear selection before repopulating
-    table_widget.setRowCount(0)  # Clear all rows
+    table_widget.clearSelection()
+    table_widget.setRowCount(0)
     
-    # Rebuild table with sorted entries
+    # Rebuild table with sorted entries using actual column headers
     for row_idx, entry in enumerate(sorted_entries):
         table_widget.insertRow(row_idx)
-        for col_idx, header in enumerate([
-            "Num", "Name", "Extension", "Size", "Hash", "Hex", "Version", "Compression", "Status"
-        ]):
+        for col_idx, header in enumerate(column_headers):
             value = entry.get(header.lower(), "")
             item = QTableWidgetItem(str(value))
             table_widget.setItem(row_idx, col_idx, item)

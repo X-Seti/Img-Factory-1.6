@@ -1,5 +1,5 @@
-#this belongs in methods/populate_img_table.py - Version: 10
-# X-Seti - November18 2025 - IMG Factory 1.5
+#this belongs in methods/populate_img_table.py - Version: 12
+# X-Seti - February04 2026 - Img Factory 1.6
 """
 IMG Table Population
 """
@@ -57,26 +57,39 @@ def reset_table_styling(main_window): #vers 2
         img_debugger.error(error_msg)
         return False
 
-def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 3
-    """Setup table structure for IMG file data"""
+def setup_table_for_img_data(table: QTableWidget, main_window=None) -> bool: #vers 4
+    """Setup table structure for IMG file data with column width persistence"""
     try:
         img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"]
         table.setColumnCount(8)
         table.setHorizontalHeaderLabels(img_headers)
-        table.setColumnWidth(0, 190)  # Name
-        table.setColumnWidth(1, 60)   # Type
-        table.setColumnWidth(2, 90)   # Size
-        table.setColumnWidth(3, 100)  # Offset
-        table.setColumnWidth(4, 100)  # RW Address
-        table.setColumnWidth(5, 100)  # RW Version
-        table.setColumnWidth(6, 110)  # Compression
-        table.setColumnWidth(7, 110)  # Status
+        
+        # Setup header properties
         header = table.horizontalHeader()
         header.setSectionsMovable(True)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for col in range(1, 8):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
         table.setSortingEnabled(True)
+        
+        # Apply saved column widths or defaults
+        try:
+            from apps.methods.column_width_manager import apply_column_widths, setup_column_width_tracking
+            apply_column_widths(table, "img")
+            if main_window:
+                setup_column_width_tracking(table, main_window, "img")
+        except Exception as e:
+            # Fallback to hardcoded defaults if column manager fails
+            table.setColumnWidth(0, 190)  # Name
+            table.setColumnWidth(1, 60)   # Type
+            table.setColumnWidth(2, 90)   # Size
+            table.setColumnWidth(3, 100)  # Offset
+            table.setColumnWidth(4, 100)  # RW Address
+            table.setColumnWidth(5, 100)  # RW Version
+            table.setColumnWidth(6, 110)  # Compression
+            table.setColumnWidth(7, 110)  # Status
+            img_debugger.warning(f"Column width manager unavailable, using defaults: {e}")
+        
         img_debugger.debug("Table structure setup for IMG data")
         return True
     except Exception as e:
@@ -88,8 +101,8 @@ class IMGTablePopulator:
     def __init__(self, main_window):
         self.main_window = main_window
 
-    def populate_table_with_img_data(self, img_file: Any) -> bool: #vers 9
-        """Populate table with IMG entry data - MINIMAL VERSION to prevent freezing"""
+    def populate_table_with_img_data(self, img_file: Any) -> bool: #vers 11
+        """Populate table with IMG entry data with column width persistence"""
         try:
             if not img_file or not hasattr(img_file, 'entries'):
                 img_debugger.error("Invalid IMG file for table population")
@@ -102,19 +115,35 @@ class IMGTablePopulator:
             table.setHorizontalHeaderLabels([
                 "Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"
             ])
-            table.setColumnWidth(0, 190)
-            table.setColumnWidth(1, 60)
-            table.setColumnWidth(2, 90)
-            table.setColumnWidth(3, 100)
-            table.setColumnWidth(4, 100)
-            table.setColumnWidth(5, 100)
-            table.setColumnWidth(6, 110)
-            table.setColumnWidth(7, 110)
+            
+            # Apply column width manager
+            try:
+                from apps.methods.column_width_manager import apply_column_widths, setup_column_width_tracking
+                apply_column_widths(table, "img")
+                if hasattr(self, 'main_window') and self.main_window:
+                    setup_column_width_tracking(table, self.main_window, "img")
+                img_debugger.debug("Column width manager applied successfully")
+            except Exception as e:
+                # Fallback to defaults
+                table.setColumnWidth(0, 190)
+                table.setColumnWidth(1, 60)
+                table.setColumnWidth(2, 90)
+                table.setColumnWidth(3, 100)
+                table.setColumnWidth(4, 100)
+                table.setColumnWidth(5, 100)
+                table.setColumnWidth(6, 110)
+                table.setColumnWidth(7, 110)
+                img_debugger.error(f"Column width manager failed: {e}")
+                import traceback
+                traceback.print_exc()
+            
             header = table.horizontalHeader()
             header.setSectionsMovable(True)
             header.setStretchLastSection(False)
-            for col in range(8):
-                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+            # Set resize modes: Name stretches, others are interactive (manually resizable)
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            for col in range(1, 8):
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             entries = img_file.entries
             if not entries:
                 img_debugger.info("No entries found in IMG file")

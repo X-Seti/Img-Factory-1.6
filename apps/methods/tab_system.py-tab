@@ -1,5 +1,5 @@
-#this belongs in methods/tab_system.py - Version: 7
-# X-Seti - January30 2025 - IMG Factory 1.6 - Complete Tab System
+#this belongs in methods/tab_system.py - Version: 6
+# X-Seti - November15 2025 - IMG Factory 1.5 - Complete Tab System
 
 """
 Complete Tab System - Consolidated from tab_functions, tab_aware_functions, tab_validation
@@ -8,8 +8,6 @@ Supports IMG, COL, and TXD files
 FIXED: Always creates new tabs, never overwrites existing tabs
 FIXED: validate_tab_before_operation now checks tab widget data directly
 FIXED: get_current_file_from_active_tab gets data from tab widget, not current_img
-FIXED: Tab 0 = Directory Tree - exempted from file validation
-FIXED: Removed duplicate lines in switch_tab function (line duplication bug)
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QMessageBox
@@ -317,17 +315,9 @@ def update_references(main_window, tab_index: int): #vers 1
         main_window.log_message(f"Error updating references: {str(e)}")
 
 
-def switch_tab(main_window, tab_index: int): #vers 3
-    """Handle tab switch event - Updated to refresh table display - FIXED: Tab 0 = Directory Tree"""
+def switch_tab(main_window, tab_index: int): #vers 2
+    """Handle tab switch event - Updated to refresh table display"""
     try:
-        if not hasattr(main_window, 'main_tab_widget'):
-            return
-
-        # TAB 0 = DIRECTORY TREE - Skip file validation
-        if tab_index == 0:
-            main_window.log_message("→ Directory Tree tab active (no file loaded)")
-            return
-
         if tab_index < 0:
             return
 
@@ -365,7 +355,6 @@ def switch_tab(main_window, tab_index: int): #vers 3
         main_window.log_message(f"Error switching tab: {str(e)}")
         import traceback
         traceback.print_exc()
-
 
 
 def get_tab_file_data(main_window, tab_index: int) -> Tuple[Optional[Any], str]: #vers 4
@@ -633,40 +622,38 @@ def refresh_current_tab_data(main_window) -> bool: #vers 3
         return False
 
 
-def validate_tab_before_operation(main_window, operation_name="operation"): #vers 6
-    """Validate that current tab has a valid file loaded - EXEMPT tab 0 (Directory Tree)"""
+def validate_tab_before_operation(main_window, operation_name: str = "operation") -> bool: #vers 3
+    """
+    Validate tab state before performing any file operation - FIXED VERSION
+    Checks tab widget data directly, NOT current_img/current_col/current_txd
+    """
     try:
         if not hasattr(main_window, 'main_tab_widget'):
+            QMessageBox.warning(main_window, "No Tabs", 
+                f"Cannot perform {operation_name}: Tab system not available.")
             return False
-
+        
         current_index = main_window.main_tab_widget.currentIndex()
-
+        
         if current_index == -1:
-            QMessageBox.warning(main_window, "No Active Tab",
+            QMessageBox.warning(main_window, "No Active Tab", 
                 f"Cannot perform {operation_name}: No tab is currently active.")
             return False
-
-        # TAB 0 = DIRECTORY TREE - No file operations allowed
-        if current_index == 0:
-            QMessageBox.warning(main_window, "Directory Tree Active",
-                f"Cannot perform {operation_name}: Please switch to a file tab first.")
-            return False
-
-        # Check if tab has a file loaded
+        
+        # FIXED: Check tab widget data directly
         file_object, file_type = get_tab_file_data(main_window, current_index)
-
+        
         if not file_object or file_type == 'NONE':
-            QMessageBox.warning(main_window, "No File Loaded",
+            QMessageBox.warning(main_window, "No File Loaded", 
                 f"Cannot perform {operation_name}: No file is loaded in the active tab.")
             return False
-
+        
         return True
-
+        
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Tab validation error for {operation_name}: {str(e)}")
         return False
-
 
 
 def get_active_tab_index(main_window) -> int: #vers 1

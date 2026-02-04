@@ -132,6 +132,8 @@ from apps.methods.img_templates import IMGTemplateManager, TemplateManagerDialog
 from apps.methods.img_import_functions import integrate_img_import_functions
 from apps.methods.img_export_functions import integrate_img_export_functions
 from apps.methods.col_export_functions import integrate_col_export_functions
+from apps.methods.column_width_manager import integrate_column_width_manager
+from apps.methods.pin_file_manager import integrate_pin_manager
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.imgfactory_svg_icons import (
     get_add_icon, get_open_icon, get_refresh_icon, get_close_icon,
@@ -139,6 +141,7 @@ from apps.methods.imgfactory_svg_icons import (
     get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
     get_rebuild_icon, get_undobar_icon, get_undo_icon, get_redo_icon
 )
+
 
 # App metadata
 App_name = "Img Factory 1.6"
@@ -571,6 +574,7 @@ class IMGFactory(QMainWindow):
         self.dump_selected = lambda: dump_selected_function(self)
         #integrate_refresh_table(self)
         integrate_reload_functions(self)
+        integrate_pin_manager(self)
 
         # TXD Editor Integration
         try:
@@ -647,6 +651,7 @@ class IMGFactory(QMainWindow):
 
         # Utility functions
         self.setup_missing_utility_functions()
+        integrate_column_width_manager(self)
 
         # Final reload alias
         self.reload_table = self.reload_current_file
@@ -710,6 +715,7 @@ class IMGFactory(QMainWindow):
         self.setGeometry(current_geometry)
         if was_visible:
             self.show()
+
 
     def apply_ui_mode(self, ui_mode, show_toolbar=True, show_status_bar=True, show_menu_bar=True): #vers 6
         """Apply UI mode settings - custom or system UI"""
@@ -3052,57 +3058,6 @@ class IMGFactory(QMainWindow):
             import traceback
             traceback.print_exc()
 
-    def _on_tab_changed_OLD(self, index): #vers 1
-        """Handle tab switching - Tab 0 = Dir Tree, others = IMG files"""
-        try:
-            if index == 0:  # Dir Tree tab
-                # Show directory tree, hide table
-                if hasattr(self, 'directory_tree'):
-                    if hasattr(self.gui_layout, 'table'):
-                        self.gui_layout.table.hide()
-                    self.directory_tree.show()
-                    self.log_message("→ Directory Tree")
-                else:
-                    # Directory tree not loaded yet - load it now
-                    if hasattr(self, 'game_root') and self.game_root:
-                        from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                        if integrate_directory_tree_browser(self):
-                            # Place in file window
-                            if hasattr(self.gui_layout, 'middle_vertical_splitter'):
-                                splitter = self.gui_layout.middle_vertical_splitter
-                                if splitter and splitter.count() > 0:
-                                    file_window = splitter.widget(0)
-                                    layout = file_window.layout()
-                                    if layout:
-                                        layout.addWidget(self.directory_tree)
-                                        self.gui_layout.table.hide()
-                                        self.directory_tree.show()
-                                        if hasattr(self.directory_tree, 'browse_directory'):
-                                            self.directory_tree.browse_directory(self.game_root)
-                                        self.log_message("✓ Directory tree loaded")
-                    else:
-                        self.log_message("No project configured - use Project menu")
-            else:
-                # IMG file tab - show table, hide directory tree
-                if hasattr(self, 'directory_tree'):
-                    self.directory_tree.hide()
-                if hasattr(self.gui_layout, 'table'):
-                    self.gui_layout.table.show()
-
-                # Reload table content from current tab
-                current_tab = self.main_tab_widget.widget(index)
-                if current_tab and hasattr(current_tab, 'file_object'):
-                    file_object = current_tab.file_object
-                    if hasattr(self, '_populate_real_img_table'):
-                        self._populate_real_img_table(file_object)
-                        self.current_img = file_object
-                        tab_name = self.main_tab_widget.tabText(index)
-                        self.log_message(f"→ {tab_name}")
-        except Exception as e:
-            self.log_message(f"Tab switch error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
 
     def ensure_current_tab_references_valid(self): #vers 1
         """Ensure current tab references are valid before export operations - PUBLIC METHOD"""
@@ -3446,9 +3401,11 @@ class IMGFactory(QMainWindow):
                     # Populate table with IMG data using proper method
 
                     populate_img_table(table, img_file)
+                    if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'load_and_apply_pins'):
+                        self.gui_layout.load_and_apply_pins(self.current_img.file_path)
 
                     # Update window title
-                    self.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
+                    self.setWindowTitle(App_name + {file_name})
 
                     # Update info panel/status
                     entry_count = len(img_file.entries) if img_file.entries else 0

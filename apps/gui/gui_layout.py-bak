@@ -1,5 +1,5 @@
-#this belongs in gui/ gui_layout.py - Version: 31
-# X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
+#this belongs in gui/ gui_layout.py - Version: 27
+# X-Seti - JULY29 2025 - Img Factory 1.5 - GUI Layout Module
 
 import os
 import re
@@ -362,7 +362,7 @@ class IMGFactoryGUILayout:
             ("Rename", "rename", "edit-rename", colors['edit_action'], "rename_selected"),
             ("Select All", "select_all", "edit-select-all", colors['select_action'], "select_all_entries"),
             ("Inverse", "sel_inverse", "edit-select", colors['select_action'], "select_inverse"),
-            
+            #TODO Add ide file from file browser and sort with that.
             ("Sort via", "sort", "view-sort", colors['select_action'], "sort_entries"),
             ("Pin selected", "pin_selected", "pin", colors['select_action'], "pin_selected_entries"),
         ]
@@ -2305,134 +2305,94 @@ class IMGFactoryGUILayout:
             traceback.print_exc()
 
 
-    def sort_entries(self, sort_order="name"):  # vers 5
+    def sort_entries(self, sort_order="name"):  # vers 3
         """Sort entries in the table with various options - shows dialog for options"""
+        #Bugged function = TODO fix function so it does not add extra spaces into the file window.
         try:
-            # Get the active tab's table instead of self.table
-            from apps.methods.tab_system import get_tab_table, get_active_tab_index
-            
-            tab_index = get_active_tab_index(self.main_window)
-            if tab_index < 0:
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("No active tab for sorting")
-                return
-            
-            tab_widget = self.main_window.main_tab_widget.widget(tab_index)
-            if not tab_widget:
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("No tab widget found")
-                return
-            
-            active_table = get_tab_table(tab_widget)
-            if not active_table:
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("Table not available for sorting")
-                return
-            
-            # Show sort options dialog
-            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox, QLabel
-            dialog = QDialog(self.main_window)
-            dialog.setWindowTitle("Sort Options")
-            dialog.setModal(True)
+            if self.table:
+                # Show sort options dialog
+                from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox, QLabel
+                dialog = QDialog(self.main_window)
+                dialog.setWindowTitle("Sort Options")
+                dialog.setModal(True)
 
-            layout = QVBoxLayout()
+                layout = QVBoxLayout()
 
-            # Sort by label and combo box
-            sort_layout = QHBoxLayout()
-            sort_layout.addWidget(QLabel("Sort by:"))
-            sort_combo = QComboBox()
+                # Sort by label and combo box
+                sort_layout = QHBoxLayout()
+                sort_layout.addWidget(QLabel("Sort by:"))
+                sort_combo = QComboBox()
 
-            sort_combo.addItems(["Name", "Type", "Size", "Order by IDE", "Pick IDE"])
-            sort_layout.addWidget(sort_combo)
-            layout.addLayout(sort_layout)
+                #Order by IDE relies on game root, and the loaded ide automatically.
+                #Pick IDE, allows you to select the ide.
+                sort_combo.addItems(["Name", "Type", "Size", "Order by IDE", "Pick IDE"])
+                sort_layout.addWidget(sort_combo)
+                layout.addLayout(sort_layout)
 
-            # OK and Cancel buttons
-            button_layout = QHBoxLayout()
-            ok_btn = QPushButton("OK")
-            cancel_btn = QPushButton("Cancel")
+                # OK and Cancel buttons
+                button_layout = QHBoxLayout()
+                ok_btn = QPushButton("OK")
+                cancel_btn = QPushButton("Cancel")
 
-            def on_ok():
-                selected_sort = sort_combo.currentText().lower().replace(" ", "_").replace("model_", "")
-                
-                # Import required modules
-                from apps.core.sort import sort_entries_in_table, get_associated_ide_file, parse_ide_file
-                from PyQt6.QtWidgets import QFileDialog
-                
-                # Get the current IMG file path if available
-                img_path = None
-                if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
-                    img_path = self.main_window.current_img.file_path
-
-                ide_entries = []
-                
-                # Handle "Pick IDE" option
-                if "pick_ide" in selected_sort:
+                def on_ok():
+                    selected_sort = sort_combo.currentText().lower().replace(" ", "_").replace("model_", "")
+                    if "ide" in sort_combo.currentText().lower():
+                        selected_sort = "ide_order"
                     dialog.accept()
-                    # Open file dialog to select IDE file
-                    ide_path, _ = QFileDialog.getOpenFileName(
-                        self.main_window,
-                        "Select IDE File for Sorting",
-                        "",
-                        "IDE Files (*.ide);;All Files (*.*)"
-                    )
-                    
-                    if ide_path:
-                        ide_entries = parse_ide_file(ide_path)
-                        if ide_entries:
-                            selected_sort = "ide_order"
-                            self.main_window.log_message(f"Using selected IDE file: {ide_path}")
-                        else:
-                            self.main_window.log_message(f"Could not parse IDE file: {ide_path}")
-                            selected_sort = "name"
-                    else:
-                        self.main_window.log_message("No IDE file selected, using name sort")
-                        selected_sort = "name"
-                
-                # Handle automatic IDE detection
-                elif "ide" in sort_combo.currentText().lower():
-                    selected_sort = "ide_order"
-                    dialog.accept()
-                    
-                    if img_path:
-                        ide_path = get_associated_ide_file(img_path)
-                        if ide_path:
-                            ide_entries = parse_ide_file(ide_path)
-                            if ide_entries:
-                                self.main_window.log_message(f"Found associated IDE file: {ide_path}")
+                    # Import the sorting functionality
+                    from apps.core.sort import sort_entries_in_table, get_associated_ide_file, parse_ide_file
+
+                    # Get the current IMG file path if available
+                    img_path = None
+                    if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
+                        img_path = self.main_window.current_img.file_path
+
+                    ide_entries = []
+
+                    # If sorting by IDE order, try to find and parse the associated IDE file
+                    if selected_sort == "ide_order":
+                        if img_path:
+                            ide_path = get_associated_ide_file(img_path)
+                            if ide_path:
+                                ide_entries = parse_ide_file(ide_path)
+                                if ide_entries:
+                                    self.main_window.log_message(f"Found associated IDE file: {ide_path}")
+                                else:
+                                    self.main_window.log_message(f"IDE file found but could not be parsed: {ide_path}")
+                                    # Fall back to name sorting if IDE parsing failed
+                                    selected_sort = "name"
                             else:
-                                self.main_window.log_message(f"IDE file found but could not be parsed: {ide_path}")
+                                self.main_window.log_message("No associated IDE file found, using name sort")
                                 selected_sort = "name"
                         else:
-                            self.main_window.log_message("No associated IDE file found, using name sort")
+                            self.main_window.log_message("No IMG file loaded, using name sort")
                             selected_sort = "name"
+
+                    # Perform the sorting
+                    sort_entries_in_table(self.table, selected_sort, ide_entries)
+
+                    if selected_sort == "ide_order":
+                        self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
                     else:
-                        self.main_window.log_message("No IMG file loaded, using name sort")
-                        selected_sort = "name"
-                else:
-                    dialog.accept()
+                        self.main_window.log_message(f"Entries sorted by {selected_sort} (TXDs at bottom)")
 
-                # Perform the sorting on the ACTIVE TAB'S TABLE
-                sort_entries_in_table(active_table, selected_sort, ide_entries)
+                def on_cancel():
+                    dialog.reject()
 
-                if selected_sort == "ide_order":
-                    self.main_window.log_message("Entries sorted by IDE model order (TXDs at bottom)")
-                else:
-                    self.main_window.log_message(f"Entries sorted by {selected_sort} (TXDs at bottom)")
+                ok_btn.clicked.connect(on_ok)
+                cancel_btn.clicked.connect(on_cancel)
 
-            def on_cancel():
-                dialog.reject()
+                button_layout.addWidget(ok_btn)
+                button_layout.addWidget(cancel_btn)
 
-            ok_btn.clicked.connect(on_ok)
-            cancel_btn.clicked.connect(on_cancel)
+                layout.addLayout(button_layout)
+                dialog.setLayout(layout)
 
-            button_layout.addWidget(ok_btn)
-            button_layout.addWidget(cancel_btn)
-
-            layout.addLayout(button_layout)
-            dialog.setLayout(layout)
-
-            # Show the dialog
-            result = dialog.exec()
+                # Show the dialog
+                result = dialog.exec()
+            else:
+                if hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message("Table not available for sorting")
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Sort entries error: {str(e)}")
@@ -2482,224 +2442,44 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
-    def pin_selected_entries(self):  # vers 3
-        """Pin selected entries - adds pin icon to Status column and saves to .pin file"""
+    def pin_selected_entries(self):  # vers 1
+        """Pin selected entries to keep them at the top of the table"""
         try:
             if self.table and self.table.selectedItems():
                 # Get selected rows
                 selected_items = self.table.selectedItems()
                 selected_rows = set(item.row() for item in selected_items)
 
-                # Find Status and Name column indices
-                status_col = None
-                name_col = None
-                for col in range(self.table.columnCount()):
-                    header_item = self.table.horizontalHeaderItem(col)
-                    if header_item:
-                        header_text = header_item.text().lower()
-                        if header_text == "status":
-                            status_col = col
-                        elif header_text == "name":
-                            name_col = col
+                # Store the selected rows data
+                pinned_data = []
+                for row in sorted(selected_rows):
+                    row_data = []
+                    for col in range(self.table.columnCount()):
+                        item = self.table.item(row, col)
+                        if item:
+                            row_data.append(item.text())
+                        else:
+                            row_data.append("")
+                    pinned_data.append(row_data)
 
-                if status_col is None:
-                    if hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message("Status column not found")
-                    return
+                # Remove selected rows from the table (in reverse order to maintain indices)
+                for row in sorted(selected_rows, reverse=True):
+                    self.table.removeRow(row)
 
-                # Get IMG file path for .pin file
-                img_path = None
-                if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
-                    img_path = self.main_window.current_img.file_path
-
-                # Add pin icon to Status column and save to .pin file
-                pin_icon = "📌"
-                pinned_count = 0
-                
-                for row in selected_rows:
-                    # Get entry name
-                    entry_name = None
-                    if name_col is not None:
-                        name_item = self.table.item(row, name_col)
-                        if name_item:
-                            entry_name = name_item.text()
-                    
-                    # Update Status column
-                    status_item = self.table.item(row, status_col)
-                    if status_item:
-                        current_text = status_item.text()
-                        if pin_icon not in current_text:
-                            if current_text:
-                                status_item.setText(f"{pin_icon} {current_text}")
-                            else:
-                                status_item.setText(pin_icon)
-                            pinned_count += 1
-                    else:
-                        new_item = QTableWidgetItem(pin_icon)
-                        self.table.setItem(row, status_col, new_item)
-                        pinned_count += 1
-                    
-                    # Save to .pin file
-                    if img_path and entry_name:
-                        from apps.methods.pin_file_manager import pin_entry
-                        pin_entry(img_path, entry_name)
+                # Insert pinned rows at the top
+                for i, row_data in enumerate(pinned_data):
+                    self.table.insertRow(i)
+                    for j, cell_data in enumerate(row_data):
+                        self.table.setItem(i, j, QTableWidgetItem(cell_data))
 
                 if hasattr(self.main_window, 'log_message'):
-                    if pinned_count == 1:
-                        self.main_window.log_message("Entry pinned")
-                    else:
-                        self.main_window.log_message(f"{pinned_count} entries pinned")
+                    self.main_window.log_message(f"{len(pinned_data)} entries pinned to top")
             else:
                 if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("No entries selected to pin")
+                    self.main_window.log_message("No selected entries to pin or table not available")
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Pin entries error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-    def unpin_selected_entries(self):  # vers 2
-        """Unpin selected entries - removes pin icon from Status column and updates .pin file"""
-        try:
-            if self.table and self.table.selectedItems():
-                # Get selected rows
-                selected_items = self.table.selectedItems()
-                selected_rows = set(item.row() for item in selected_items)
-
-                # Find Status and Name column indices
-                status_col = None
-                name_col = None
-                for col in range(self.table.columnCount()):
-                    header_item = self.table.horizontalHeaderItem(col)
-                    if header_item:
-                        header_text = header_item.text().lower()
-                        if header_text == "status":
-                            status_col = col
-                        elif header_text == "name":
-                            name_col = col
-
-                if status_col is None:
-                    if hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message("Status column not found")
-                    return
-
-                # Get IMG file path for .pin file
-                img_path = None
-                if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
-                    img_path = self.main_window.current_img.file_path
-
-                # Remove pin icon from Status column
-                pin_icon = "📌"
-                unpinned_count = 0
-                
-                for row in selected_rows:
-                    # Get entry name
-                    entry_name = None
-                    if name_col is not None:
-                        name_item = self.table.item(row, name_col)
-                        if name_item:
-                            entry_name = name_item.text()
-                    
-                    status_item = self.table.item(row, status_col)
-                    if status_item:
-                        current_text = status_item.text()
-                        if pin_icon in current_text:
-                            new_text = current_text.replace(pin_icon, "").strip()
-                            status_item.setText(new_text)
-                            unpinned_count += 1
-                    
-                    # Update .pin file
-                    if img_path and entry_name:
-                        from apps.methods.pin_file_manager import unpin_entry
-                        unpin_entry(img_path, entry_name)
-
-                if hasattr(self.main_window, 'log_message'):
-                    if unpinned_count == 1:
-                        self.main_window.log_message("Entry unpinned")
-                    elif unpinned_count > 1:
-                        self.main_window.log_message(f"{unpinned_count} entries unpinned")
-                    else:
-                        self.main_window.log_message("No pinned entries selected")
-            else:
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("No entries selected to unpin")
-        except Exception as e:
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Unpin entries error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-    def load_and_apply_pins(self, img_path: str): # vers 1
-        """Load .pin file and apply pin icons to table Status column
-        
-        Args:
-            img_path: Path to IMG file
-        """
-        try:
-            if not self.table or not img_path:
-                return
-            
-            from apps.methods.pin_file_manager import load_pin_file
-            
-            # Load pin file
-            pin_data = load_pin_file(img_path)
-            pinned_entries = pin_data.get("entries", {})
-            
-            if not pinned_entries:
-                return  # No pins to apply
-            
-            # Find Status and Name column indices
-            status_col = None
-            name_col = None
-            for col in range(self.table.columnCount()):
-                header_item = self.table.horizontalHeaderItem(col)
-                if header_item:
-                    header_text = header_item.text().lower()
-                    if header_text == "status":
-                        status_col = col
-                    elif header_text == "name":
-                        name_col = col
-            
-            if status_col is None or name_col is None:
-                return
-            
-            # Apply pins to table
-            pin_icon = "📌"
-            pins_applied = 0
-            
-            for row in range(self.table.rowCount()):
-                name_item = self.table.item(row, name_col)
-                if not name_item:
-                    continue
-                
-                entry_name = name_item.text()
-                
-                # Check if entry is pinned
-                entry_data = pinned_entries.get(entry_name, {})
-                if entry_data.get("pinned", False):
-                    # Add pin icon to Status column
-                    status_item = self.table.item(row, status_col)
-                    if status_item:
-                        current_text = status_item.text()
-                        if pin_icon not in current_text:
-                            if current_text:
-                                status_item.setText(f"{pin_icon} {current_text}")
-                            else:
-                                status_item.setText(pin_icon)
-                            pins_applied += 1
-                    else:
-                        new_item = QTableWidgetItem(pin_icon)
-                        self.table.setItem(row, status_col, new_item)
-                        pins_applied += 1
-            
-            if pins_applied > 0 and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Loaded {pins_applied} pinned entries from .pin file")
-        
-        except Exception as e:
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error loading pins: {str(e)}")
-            import traceback
-            traceback.print_exc()
+                self.main_window.log_message(f"Pin selected entries error: {str(e)}")
 
     def show_search_dialog(self):  # vers 1
         """Show the search dialog"""

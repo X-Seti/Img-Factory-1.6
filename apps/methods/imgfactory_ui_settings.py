@@ -1,5 +1,5 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 3
-# X-Seti - December31 2025 - IMG Factory 1.6 - IMG Factory Settings Dialog
+#this belongs in methods/imgfactory_ui_settings.py - Version: 4
+# X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
 IMG Factory Settings Dialog - Application-specific settings with UI mode toggle
@@ -24,6 +24,7 @@ from apps.methods.img_factory_settings import IMGFactorySettings
 # _apply_settings
 # _create_advanced_tab
 # _create_buttons
+# _create_file_window_tab
 # _create_general_tab
 # _create_interface_tab
 # _create_ui
@@ -46,17 +47,18 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
 
         self._create_ui()
 
-    def _create_ui(self): #vers 1
-        """Create the settings UI with 4 tabs"""
+    def _create_ui(self): #vers 2
+        """Create the settings UI with 5 tabs"""
         main_layout = QVBoxLayout(self)
 
         # Create tabbed interface
         tabs = QTabWidget()
 
-        # Add 4 tabs
+        # Add 5 tabs
         tabs.addTab(self._create_general_tab(), "General")
         tabs.addTab(self._create_interface_tab(), "Interface")
         tabs.addTab(self._create_ui_tab(), "UI")
+        tabs.addTab(self._create_file_window_tab(), "File Window")
         tabs.addTab(self._create_advanced_tab(), "Advanced")
 
         main_layout.addWidget(tabs)
@@ -398,6 +400,74 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         layout.addStretch()
         return widget
 
+    def _create_file_window_tab(self): #vers 1
+        """Create File Window settings tab"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Column Settings Group
+        column_group = QGroupBox("Table Column Settings")
+        column_layout = QVBoxLayout()
+
+        info_label = QLabel("Configure which columns are visible and how they resize")
+        info_label.setWordWrap(True)
+        column_layout.addWidget(info_label)
+
+        # IMG Table button
+        img_button = QPushButton("IMG Table Columns...")
+        img_button.clicked.connect(lambda: self._show_column_settings("img"))
+        column_layout.addWidget(img_button)
+
+        # COL Table button
+        col_button = QPushButton("COL Table Columns...")
+        col_button.clicked.connect(lambda: self._show_column_settings("col"))
+        column_layout.addWidget(col_button)
+
+        # TXD Table button
+        txd_button = QPushButton("TXD Table Columns...")
+        txd_button.clicked.connect(lambda: self._show_column_settings("txd"))
+        column_layout.addWidget(txd_button)
+
+        column_group.setLayout(column_layout)
+        layout.addWidget(column_group)
+
+        # Directory Tree Settings Group
+        tree_group = QGroupBox("Directory Tree")
+        tree_layout = QVBoxLayout()
+
+        self.autoload_tree_cb = QCheckBox("Auto-load directory tree on startup")
+        self.autoload_tree_cb.setChecked(self.img_settings.get("autoload_directory_tree", True))
+        tree_layout.addWidget(self.autoload_tree_cb)
+
+        tree_group.setLayout(tree_layout)
+        layout.addWidget(tree_group)
+
+        # PIN File Settings Group
+        pin_group = QGroupBox("PIN File Settings")
+        pin_layout = QVBoxLayout()
+
+        self.enable_pin_files_cb = QCheckBox("Enable .pin files for tracking pinned entries and dates")
+        self.enable_pin_files_cb.setChecked(self.img_settings.get("enable_pin_files", True))
+        pin_layout.addWidget(self.enable_pin_files_cb)
+
+        self.auto_create_pin_cb = QCheckBox("Auto-create .pin file on first import")
+        self.auto_create_pin_cb.setChecked(self.img_settings.get("auto_create_pin", True))
+        pin_layout.addWidget(self.auto_create_pin_cb)
+
+        pin_group.setLayout(pin_layout)
+        layout.addWidget(pin_group)
+
+        layout.addStretch()
+        return widget
+
+    def _show_column_settings(self, table_type: str): #vers 1
+        """Show column settings dialog for specific table type"""
+        try:
+            from apps.methods.column_settings_manager import show_column_settings_dialog
+            show_column_settings_dialog(self.main_window, table_type)
+        except Exception as e:
+            print(f"Error showing column settings: {str(e)}")
+
     def _create_advanced_tab(self): #vers 1
         """Create Advanced settings tab"""
         widget = QWidget()
@@ -491,6 +561,11 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         self.img_settings.set("show_toolbar", self.show_toolbar_check.isChecked())
         self.img_settings.set("show_status_bar", self.show_status_bar_check.isChecked())
         self.img_settings.set("show_menu_bar", self.show_menu_bar_check.isChecked())
+
+        # File Window tab
+        self.img_settings.set("autoload_directory_tree", self.autoload_tree_cb.isChecked())
+        self.img_settings.set("enable_pin_files", self.enable_pin_files_cb.isChecked())
+        self.img_settings.set("auto_create_pin", self.auto_create_pin_cb.isChecked())
 
         # Advanced tab
         self.img_settings.set("recent_files_limit", self.recent_files_spin.value())
