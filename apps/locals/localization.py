@@ -37,7 +37,7 @@ class LocalizationManager:
                 'Rebuild All': 'Rebuild All',
                 'Save Entry': 'Save Entry',
                 'Merge': 'Merge',
-                'Split via': 'Device',  # Changed to align with icon and make more sense
+                'Split via': 'Split via',
                 'Convert': 'Convert',
                 'Import': 'Import',
                 'Import via': 'Import via',

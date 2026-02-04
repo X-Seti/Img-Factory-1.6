@@ -1562,7 +1562,7 @@ class IMGFactory(QMainWindow):
             if hasattr(self, 'button_display_mode'):
                 self.button_display_mode = button_mode
 
-            self.log_message("✅ Saved settings loaded")
+            self.log_message("Saved settings loaded")
 
         except Exception as e:
             self.log_message(f"⚠️ Error loading saved settings: {str(e)}")
@@ -2582,9 +2582,9 @@ class IMGFactory(QMainWindow):
                 
                 self.log_message("Selection inverted")
             else:
-                self.log_message("❌ Table not available for selection")
+                self.log_message("Table not available for selection")
         except Exception as e:
-            self.log_message(f"❌ Select inverse error: {str(e)}")
+            self.log_message(f"Select inverse error: {str(e)}")
 
 
     def sort_entries(self): #vers 1
@@ -2607,11 +2607,11 @@ class IMGFactory(QMainWindow):
                                 if item:
                                     item.setSelected(True)
                 
-                self.log_message("✅ Entries sorted")
+                self.log_message("Entries sorted")
             else:
-                self.log_message("❌ Table not available for sorting")
+                self.log_message("Table not available for sorting")
         except Exception as e:
-            self.log_message(f"❌ Sort entries error: {str(e)}")
+            self.log_message(f"Sort entries error: {str(e)}")
 
 
     def pin_selected_entries(self): #vers 1
@@ -2626,21 +2626,21 @@ class IMGFactory(QMainWindow):
                 selected_rows = set(item.row() for item in selected_items)
                 self.log_message(f"Pinned {len(selected_rows)} entries")
             else:
-                self.log_message("❌ Table not available for pinning")
+                self.log_message("Table not available for pinning")
         except Exception as e:
-            self.log_message(f"❌ Pin selected error: {str(e)}")
+            self.log_message(f"Pin selected error: {str(e)}")
 
 
     def sort_img_by_ide(self): #vers 1
         """Sort current IMG file entries to match IDE model order"""
         try:
             if not self.current_img or not self.current_img.entries:
-                self.log_message("❌ No IMG file loaded")
+                self.log_message("No IMG file loaded")
                 return False
 
             # Look for an IDE file in the same directory as the current IMG
             if not hasattr(self.current_img, 'file_path') or not self.current_img.file_path:
-                self.log_message("❌ Current IMG has no file path")
+                self.log_message("Current IMG has no file path")
                 return False
 
             img_dir = os.path.dirname(self.current_img.file_path)
@@ -2666,13 +2666,13 @@ class IMGFactory(QMainWindow):
                     self, "Select IDE file to sort by", img_dir, "IDE Files (*.ide)"
                 )
                 if not ide_file_path:
-                    self.log_message("❌ No IDE file selected")
+                    self.log_message("No IDE file selected")
                     return False
 
             # Parse IDE file to get model order
             model_order = self._parse_ide_for_model_order(ide_file_path)
             if not model_order:
-                self.log_message("❌ No models found in IDE file")
+                self.log_message("No models found in IDE file")
                 return False
 
             # Sort IMG entries based on IDE model order, with TXDs at the bottom
@@ -2688,11 +2688,11 @@ class IMGFactory(QMainWindow):
                 from apps.methods.populate_img_table import populate_img_table
                 populate_img_table(self.gui_layout.table, self.current_img)
             
-            self.log_message(f"✅ IMG sorted by IDE order ({len(model_order)} models)")
+            self.log_message(f"IMG sorted by IDE order ({len(model_order)} models)")
             return True
 
         except Exception as e:
-            self.log_message(f"❌ Error sorting IMG by IDE: {str(e)}")
+            self.log_message(f"Error sorting IMG by IDE: {str(e)}")
             return False
 
 
@@ -2715,7 +2715,7 @@ class IMGFactory(QMainWindow):
             
             return model_order
         except Exception as e:
-            self.log_message(f"❌ Error parsing IDE file: {str(e)}")
+            self.log_message(f"Error parsing IDE file: {str(e)}")
             return []
 
 
@@ -2758,7 +2758,7 @@ class IMGFactory(QMainWindow):
             
             return sorted_entries
         except Exception as e:
-            self.log_message(f"❌ Error sorting entries by IDE order: {str(e)}")
+            self.log_message(f"Error sorting entries by IDE order: {str(e)}")
             return self.current_img.entries if self.current_img else []
 
 
@@ -5233,14 +5233,14 @@ class IMGFactory(QMainWindow):
             self.search_previous = self._search_previous
             
             if success:
-                self.log_message("✅ Search system initialized")
+                self.log_message("Search system initialized")
                 return True
             else:
                 self.log_message("⚠️ Search system initialization incomplete")
                 return False
                 
         except Exception as e:
-            self.log_message(f"❌ Search system setup error: {e}")
+            self.log_message(f"Search system setup error: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -5253,7 +5253,7 @@ class IMGFactory(QMainWindow):
             else:
                 self.log_message("⚠️ Search manager not available")
         except Exception as e:
-            self.log_message(f"❌ Show search dialog error: {e}")
+            self.log_message(f"Show search dialog error: {e}")
 
     def _search_entries(self, search_text=None, options=None): #vers 1
         """Search entries in current IMG file"""
@@ -5272,7 +5272,7 @@ class IMGFactory(QMainWindow):
                 self.log_message("⚠️ Search manager not available")
                 return []
         except Exception as e:
-            self.log_message(f"❌ Search entries error: {e}")
+            self.log_message(f"Search entries error: {e}")
             return []
 
     def _search_next(self): #vers 1
@@ -5283,7 +5283,7 @@ class IMGFactory(QMainWindow):
             else:
                 self.log_message("⚠️ Search manager not available")
         except Exception as e:
-            self.log_message(f"❌ Search next error: {e}")
+            self.log_message(f"Search next error: {e}")
 
     def _search_previous(self): #vers 1
         """Find previous search match"""
@@ -5293,7 +5293,7 @@ class IMGFactory(QMainWindow):
             else:
                 self.log_message("⚠️ Search manager not available")
         except Exception as e:
-            self.log_message(f"❌ Search previous error: {e}")
+            self.log_message(f"Search previous error: {e}")
 
 
     def paintEvent(self, event): #vers 3
@@ -5655,11 +5655,11 @@ def fix_menu_system_and_functionality(main_window):
         # Set up proper double-click rename functionality
         #setup_double_click_rename(main_window)
         
-        main_window.log_message("✅ Comprehensive menu system and functionality fix applied")
+        main_window.log_message("Comprehensive menu system and functionality fix applied")
         return True
         
     except Exception as e:
-        main_window.log_message(f"❌ Error applying comprehensive fix: {str(e)}")
+        main_window.log_message(f"Error applying comprehensive fix: {str(e)}")
         return False
 
 
@@ -5686,10 +5686,10 @@ def add_file_operations_to_main_window(main_window):
         # Add set_game_path method
         main_window.set_game_path = lambda: set_game_path(main_window)
         
-        main_window.log_message("✅ File operations added to main window")
+        main_window.log_message("File operations added to main window")
         
     except Exception as e:
-        main_window.log_message(f"❌ Error adding file operations: {str(e)}")
+        main_window.log_message(f"Error adding file operations: {str(e)}")
 
 
 def set_game_path(main_window):
@@ -5849,7 +5849,7 @@ def show_dff_texture_list_from_selection(main_window):
                         QMessageBox.information(main_window, "DFF Texture List", 
                                               "Please select a DFF file to view texture list")
     except Exception as e:
-        main_window.log_message(f"❌ Error showing DFF texture list from selection: {str(e)}")
+        main_window.log_message(f"Error showing DFF texture list from selection: {str(e)}")
 
 
 def show_dff_texture_list_from_img_dff(main_window, row, entry_info):
@@ -5908,7 +5908,7 @@ def show_dff_texture_list_from_img_dff(main_window, row, entry_info):
                 QMessageBox.warning(main_window, "DFF Texture List", 
                                   f"Could not extract data from {entry.name}")
     except Exception as e:
-        main_window.log_message(f"❌ Error showing DFF texture list from IMG: {str(e)}")
+        main_window.log_message(f"Error showing DFF texture list from IMG: {str(e)}")
 
 
 def parse_dff_textures_from_data(dff_path):
@@ -5972,7 +5972,7 @@ def show_dff_model_viewer_from_selection(main_window):
                     QMessageBox.information(main_window, "DFF Model Viewer", 
                                           "Please select a DFF file to view in model viewer")
     except Exception as e:
-        main_window.log_message(f"❌ Error showing DFF model viewer from selection: {str(e)}")
+        main_window.log_message(f"Error showing DFF model viewer from selection: {str(e)}")
 
 
 def fix_rename_functionality(main_window):
@@ -5995,10 +5995,10 @@ def fix_rename_functionality(main_window):
                 # If no connections exist, this will raise an exception, which is fine
                 pass
         
-        main_window.log_message("✅ Rename functionality fixed (double-click disabled as requested)")
+        main_window.log_message("Rename functionality fixed (double-click disabled as requested)")
         
     except Exception as e:
-        main_window.log_message(f"❌ Error fixing rename functionality: {str(e)}")
+        main_window.log_message(f"Error fixing rename functionality: {str(e)}")
 
 
 def handle_double_click_rename(main_window, row, col):
@@ -6038,7 +6038,7 @@ def handle_double_click_rename(main_window, row, col):
                                 if hasattr(main_window.current_img, 'modified'):
                                     main_window.current_img.modified = True
 
-                                main_window.log_message(f"✅ Renamed '{current_name}' to '{new_name}'")
+                                main_window.log_message(f"Renamed '{current_name}' to '{new_name}'")
                                 QMessageBox.information(main_window, "Rename Successful",
                                                       f"Successfully renamed to '{new_name}'")
                             else:
@@ -6052,7 +6052,7 @@ def handle_double_click_rename(main_window, row, col):
             main_window.log_message(f"Double-clicked on row {row}, column {col}")
 
     except Exception as e:
-        main_window.log_message(f"❌ Error handling double-click rename: {str(e)}")
+        main_window.log_message(f"Error handling double-click rename: {str(e)}")
 
 
 def validate_new_name(main_window, new_name):
@@ -6115,10 +6115,10 @@ def implement_tab_context_menu(main_window):
             # Store a reference to our enhanced functionality
             table._enhanced_context_menu = True
 
-        main_window.log_message("✅ Tab context menu enhanced with additional operations")
+        main_window.log_message("Tab context menu enhanced with additional operations")
 
     except Exception as e:
-        main_window.log_message(f"❌ Error implementing tab context menu: {str(e)}")
+        main_window.log_message(f"Error implementing tab context menu: {str(e)}")
 
 
 def move_file(main_window, row, entry_info):
@@ -6146,7 +6146,7 @@ def move_file(main_window, row, entry_info):
                                   f"You can rename the entry to reflect a new path structure if needed.")
 
     except Exception as e:
-        main_window.log_message(f"❌ Error moving file: {str(e)}")
+        main_window.log_message(f"Error moving file: {str(e)}")
 
 
 def move_selected_file(main_window):
@@ -6164,7 +6164,7 @@ def move_selected_file(main_window):
                 if entry_info:
                     move_file(main_window, row, entry_info)
     except Exception as e:
-        main_window.log_message(f"❌ Error moving selected file: {str(e)}")
+        main_window.log_message(f"Error moving selected file: {str(e)}")
 
 
 def analyze_file(main_window, row, entry_info):
@@ -6210,7 +6210,7 @@ def analyze_file(main_window, row, entry_info):
                                   f"Type: Generic IMG Entry")
 
     except Exception as e:
-        main_window.log_message(f"❌ Error analyzing file: {str(e)}")
+        main_window.log_message(f"Error analyzing file: {str(e)}")
 
 
 def analyze_selected_file(main_window):
@@ -6227,7 +6227,7 @@ def analyze_selected_file(main_window):
                 if entry_info:
                     analyze_file(main_window, row, entry_info)
     except Exception as e:
-        main_window.log_message(f"❌ Error analyzing selected file: {str(e)}")
+        main_window.log_message(f"Error analyzing selected file: {str(e)}")
 
 
 def show_hex_editor(main_window, row, entry_info):
@@ -6242,7 +6242,7 @@ def show_hex_editor(main_window, row, entry_info):
         show_hex_editor_for_entry(main_window, row, entry_info)
         
     except Exception as e:
-        main_window.log_message(f"❌ Error showing hex editor: {str(e)}")
+        main_window.log_message(f"Error showing hex editor: {str(e)}")
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.critical(main_window, "Error", f"Could not open hex editor:\n{str(e)}")
 
@@ -6265,4 +6265,4 @@ def show_hex_editor_selected(main_window):
                     # Use the new hex editor implementation
                     show_hex_editor_for_entry(main_window, row, entry_info)
     except Exception as e:
-        main_window.log_message(f"❌ Error showing hex editor for selected: {str(e)}")
+        main_window.log_message(f"Error showing hex editor for selected: {str(e)}")

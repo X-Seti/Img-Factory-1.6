@@ -1337,49 +1337,46 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
     # = TAB NAVIGATION BUTTONS
 
+        #TODO buttons and connect signals needs to be fixed.
+        #'create_new_img': lambda: create_new_img(self.main_window),
+        #'open_img_file': lambda: open_file_dialog(self.main_window),
+        #'reload_table': lambda: reload_current_file(self.main_window),
+
+
         # File Entries button - CONNECTED
-        self.f_entries_btn = QPushButton()
-        self.f_entries_btn.setFont(self.button_font)
-        self.f_entries_btn.setIcon(self.icon_factory.package_icon())
-        self.f_entries_btn.setText("File Entries")
-        self.f_entries_btn.setIconSize(QSize(20, 20))
-        self.f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
-        #self.f_entries_btn.clicked.connect(lambda: self.entries_tab)
-        self.f_entries_btn.clicked.connect(self._switch_to_file_entries) #show active img file tab
-        #layout.addWidget(self.f_entries_btn)
+        #self.file_open_btn = QPushButton()
+        #self.file_open_btn.setFont(self.button_font)
+        #self.file_open_btn.setIcon(self.icon_factory.open_icon())
+        #self.file_open_btn.setText("Open")
+        #self.file_open_btn.setIconSize(QSize(20, 20))
+        #self.file_open_btn.setToolTip("Open file (Ctrl+O)")
+        #self.file_open_btn.clicked.connect(lambda: self.open_img_file)
+        #self.file_open_btn.clicked.connect(self.open_img_file)
+        #layout.addWidget(self.file_open_btn)
 
         # Directory Tree button - CONNECTED
-        self.dirtree_btn = QPushButton()
-        self.dirtree_btn.setFont(self.button_font)
-        self.dirtree_btn.setIcon(self.icon_factory.folder_icon())
-        self.dirtree_btn.setText("Directory Tree")
-        self.dirtree_btn.setIconSize(QSize(20, 20))
-        self.dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
-        self.dirtree_btn.clicked.connect(self._switch_to_directory_tree)
-        #self.dirtree_btn.clicked.connect(lambda: self.show_project_manager_dialog)
+        #self.file_save_btn = QPushButton()
+        #self.file_save_btn.setFont(self.button_font)
+        #self.file_save_btn.setIcon(self.icon_factory.save_icon())
+        #self.file_save_btn.setText("Save")
+        #self.file_save_btn.setIconSize(QSize(20, 20))
+        #self.file_save_btn.setToolTip("Save File (Ctrl+S)")
+        #self.file_save_btn.clicked.connect(self.save_img_entry)
+        #self.file_save_btn.clicked.connect(lambda: self.show_project_manager_dialog)
 
-        #layout.addWidget(self.dirtree_btn)
+        #layout.addWidget(self.file_save_btn)
 
         # Search button - CONNECTED (renamed from "Search Results")
-        self.search_btn = QPushButton()
-        self.search_btn.setFont(self.button_font)
-        self.search_btn.setIcon(self.icon_factory.search_icon())
-        self.search_btn.setText("Search")
-        self.search_btn.setIconSize(QSize(20, 20))
-        self.search_btn.setToolTip("Search Files (Ctrl+3)")
-        #self.search_btn.clicked.connect(lambda: self.main_window.search_manager.show_search_dialog())
-        self.search_btn.clicked.connect(self._switch_to_search)
-        #layout.addWidget(self.search_btn)
+        #self.file_rebuild_btn = QPushButton()
+        #self.file_rebuild_btn.setFont(self.button_font)
+        #self.file_rebuild_btn.setIcon(self.icon_factory.rebuild_icon())
+        #self.file_rebuild_btn.setText("Rebuild")
+        #self.file_rebuild_btn.setIconSize(QSize(20, 20))
+        #self.file_rebuild_btn.setToolTip("Rebuild (Ctrl+R)")
+        #self.file_rebuild_btn.clicked.connect(lambda: self.main_window.search_manager.show_search_dialog())
+        #self.file_rebuild_btn.clicked.connect(self.rebuild_img)
+        #layout.addWidget(self.file_rebuild_btn)
 
-        # Log button - NEW - CONNECTED
-        self.log_btn = QPushButton()
-        self.log_btn.setFont(self.button_font)
-        self.log_btn.setIcon(self.icon_factory.view_icon())
-        self.log_btn.setText("Log")
-        self.log_btn.setIconSize(QSize(20, 20))
-        self.log_btn.setToolTip("Toggle Activity Log")
-        self.log_btn.clicked.connect(self._toggle_log_visibility)
-        #layout.addWidget(self.log_btn)
 
         layout.addStretch()
 

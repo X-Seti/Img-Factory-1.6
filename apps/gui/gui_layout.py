@@ -176,7 +176,7 @@ class IMGFactoryGUILayout:
             'create_new_img': lambda: create_new_img(self.main_window),
             'open_img_file': lambda: open_file_dialog(self.main_window),
             'reload_table': lambda: reload_current_file(self.main_window),
-            'useless_button': lambda: self._safe_log("🎯 useless_button!"),
+            'useless_button': lambda: self._safe_log("useless_button!"),
             'close_img_file': lambda: close_img_file(self.main_window),
             'close_all_img': lambda: close_all_img(self.main_window),
             'rebuild_img': lambda: rebuild_current_img_native(self.main_window),
@@ -208,7 +208,9 @@ class IMGFactoryGUILayout:
             'select_inverse': lambda: self.select_inverse(),
             'show_search_dialog': lambda: self.show_search_dialog(),
             'sort_entries': lambda: self.sort_entries(),
-            'sort_entries_to_match_ide': lambda: self.sort_entries_to_match_ide(),
+
+            # Removed, TODO need to choose the ide file, to sort with.
+            #'sort_entries_to_match_ide': lambda: self.sort_entries_to_match_ide(),
             'pin_selected_entries': lambda: self.pin_selected_entries(),
 
             # Edit methods
@@ -267,6 +269,7 @@ class IMGFactoryGUILayout:
                 'build_action': '#2D4A3A',      # Dark mint for build/rebuild
                 'save_action': '#4A2D4A',       # Dark purple for save actions
                 'merge_action': '#3A2D4A',      # Dark violet for merge/split
+                'split_action': '#3A2D4A',      # Dark violet for merge/split
                 'convert_action': '#4A4A2D',    # Dark yellow for convert
                 'import_action': '#2D4A4F',     # Dark cyan for import
                 'export_action': '#2D4A3A',     # Dark emerald for export
@@ -295,6 +298,7 @@ class IMGFactoryGUILayout:
                 'build_action': '#E8F5E8',      # Light mint for build/rebuild
                 'save_action': '#F8BBD9',       # Light pink for save actions
                 'merge_action': '#F3E5F5',      # Light violet for merge/split
+                'split_action': '#F3E5F5',      # Light violet for merge/split
                 'convert_action': '#FFF8E1',    # Light yellow for convert
                 'import_action': '#E1F5FE',     # Light cyan for import
                 'export_action': '#E8F5E8',     # Light emerald for export
@@ -311,9 +315,10 @@ class IMGFactoryGUILayout:
                 'placeholder': '#FEFEFE',       # Light gray for spacers
             }
 
-    def _get_nav_buttons_data(self): #vers 1 - only show on gui_layout.py but hidden on gui_layout_custom.py
+    def _get_nav_buttons_data(self): #vers 1
         """Get IMG buttons data with theme colors"""
         colors = self._get_button_theme_template()
+            # TODO Only show on gui_layout.py but hidden on gui_layout_custom.py
         return [
             ("File List", "filelist", "doc-filelist", colors['filelistwindow'], "switch_to_img_file"),
             ("Dir Tree", "dirtree", "doc-dirtree", colors['dirtree'], "switch_to_dirlist"),
@@ -335,7 +340,7 @@ class IMGFactoryGUILayout:
             ("Rebuild All", "rebuild_all", "document-save", colors['build_action'], "rebuild_all_img"),
             ("Save Entry", "save_entry", "document-save-entry", colors['save_action'], "save_img_entry"),
             ("Merge", "merge", "document-merge", colors['merge_action'], "merge_img"),
-            ("Split via", "split", "edit-cut", colors['merge_action'], "split_img"),
+            ("Split via", "split", "edit-cut", colors['split_action'], "split_img"),
             ("Convert", "convert", "transform", colors['convert_action'], "convert_img_format"),
         ]
 
@@ -357,8 +362,9 @@ class IMGFactoryGUILayout:
             ("Rename", "rename", "edit-rename", colors['edit_action'], "rename_selected"),
             ("Select All", "select_all", "edit-select-all", colors['select_action'], "select_all_entries"),
             ("Inverse", "sel_inverse", "edit-select", colors['select_action'], "select_inverse"),
+            #TODO Add ide file from file browser and sort with that.
             ("Sort via", "sort", "view-sort", colors['select_action'], "sort_entries"),
-            ("Sort IDE", "sort_ide", "view-sort-ide", colors['select_action'], "sort_entries_to_match_ide"),
+          # ("Sort IDE", "sort_ide", "view-sort-ide", colors['select_action'], "sort_entries_to_match_ide"), #removed
             ("Pin selected", "pin_selected", "pin", colors['select_action'], "pin_selected_entries"),
         ]
 
@@ -1158,11 +1164,21 @@ class IMGFactoryGUILayout:
         localized_label = tr_button(label)
         
         short_map = {
-            "Create": "New", "Open": "Open", "Reload": "Reload", "     ": " ",
-            "Close": "Close", "Close All": "Close A", "Rebuild": "Rebld",
-            "Rebuild All": "Rebld Al", "Save Entry": "Save", "Merge": "Merge",
-            "Device": "Dev", "Convert": "Conv", "Import": "Imp",  # Updated for localized "Device"
-            "Import via": "Imp via", "Refresh": "Refresh", "Export": "Exp",
+            "Create": "New",
+            "Open": "Open",
+            "Reload": "Reload",
+            "     ": " ",
+            "Close": "Close",
+            "Close All": "Close A",
+            "Rebuild": "Rebld",
+            "Rebuild All": "Rebld Al",
+            "Save Entry": "Save",
+            "Merge": "Merge",
+            "Split Via": "Split",
+            "Convert": "Conv",
+            "Import": "Imp",
+            "Import via": "Imp via",
+            "Refresh": "Refresh", "Export": "Exp",
             "Export via": "Exp via", "Quick Exp": "Q Exp", "Remove": "Rem",
             "Remove via": "Rem via", "Dump": "Dump", "Pin selected": "Pin",
             "Rename": "Rename", "Extract": "Extract", "Select All": "Select",
@@ -1247,6 +1263,7 @@ class IMGFactoryGUILayout:
         # Create a list widget for files in the same directory
         self.directory_files_list = QListWidget()
         self.directory_files_list.setAlternatingRowColors(True)
+
         # Connect to a function to handle file selection
         self.directory_files_list.itemClicked.connect(self._on_directory_file_selected)
         layout.addWidget(self.directory_files_list)
@@ -1338,7 +1355,6 @@ class IMGFactoryGUILayout:
         self.table.setSortingEnabled(True)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
-#
         # Apply theme styling to table
         self._apply_table_theme_styling()
 
@@ -1579,42 +1595,41 @@ class IMGFactoryGUILayout:
         header_layout.addStretch()
 
         # File Entries button - CONNECTED
-        f_entries_btn = QPushButton()
-        f_entries_btn.setIcon(self.icon_factory.package_icon())
-        f_entries_btn.setText("File Entries")
-        f_entries_btn.setIconSize(QSize(20, 20))
-        f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
-        #f_entries_btn.clicked.connect(lambda: self.entries_tab)
-        f_entries_btn.clicked.connect(self._switch_to_file_entries) #show active img file tab
+        self.f_entries_btn = QPushButton()
+        self.f_entries_btn.setIcon(self.icon_factory.package_icon())
+        self.f_entries_btn.setText("File Entries")
+        self.f_entries_btn.setIconSize(QSize(20, 20))
+        self.f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
+        self.f_entries_btn.clicked.connect(self._switch_to_file_entries) #show active img file tab
         header_layout.addWidget(self.f_entries_btn)
 
         # Directory Tree button - CONNECTED
-        dirtree_btn = QPushButton()
-        dirtree_btn.setIcon(self.icon_factory.folder_icon())
-        dirtree_btn.setText("Directory Tree")
-        dirtree_btn.setIconSize(QSize(20, 20))
-        dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
-        dirtree_btn.clicked.connect(self._switch_to_directory_tree)
-        header_layout.addWidget(dirtree_btn)
+        self.dirtree_btn = QPushButton()
+        self.dirtree_btn.setIcon(self.icon_factory.folder_icon())
+        self.dirtree_btn.setText("Directory Tree")
+        self.dirtree_btn.setIconSize(QSize(20, 20))
+        self.dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
+        self.dirtree_btn.clicked.connect(self._switch_to_directory_tree)
+        header_layout.addWidget(self.dirtree_btn)
 
         # Import SVG icons
         from apps.methods.imgfactory_svg_icons import get_search_icon, get_view_icon
 
         # Search button
-        search_btn = QPushButton("Search")
-        search_btn.setIcon(get_search_icon())
-        #search_btn.setFixedHeight(24)
-        search_btn.setToolTip("Search in files (Ctrl+F)")
-        search_btn.clicked.connect(self._show_search)
-        header_layout.addWidget(search_btn)
+        self.search_btn = QPushButton("Search")
+        self.search_btn.setIcon(get_search_icon())
+        #self.search_btn.setFixedHeight(24)
+        self.search_btn.setToolTip("Search in files (Ctrl+F)")
+        self.search_btn.clicked.connect(self._show_search)
+        header_layout.addWidget(self.search_btn)
 
         # Log toggle button
-        log_btn = QPushButton("Show Logs")
-        log_btn.setIcon(get_view_icon())
-        #log_btn.setFixedHeight(24)
-        log_btn.setToolTip("Show/Hide Activity Log")
-        log_btn.clicked.connect(self._toggle_log_visibility)
-        header_layout.addWidget(log_btn)
+        self.log_btn = QPushButton("Show Logs")
+        self.log_btn.setIcon(get_view_icon())
+        #self.log_btn.setFixedHeight(24)
+        self.log_btn.setToolTip("Show/Hide Activity Log")
+        self.log_btn.clicked.connect(self._toggle_log_visibility)
+        header_layout.addWidget(self.log_btn)
 
         status_layout.addLayout(header_layout)
 
