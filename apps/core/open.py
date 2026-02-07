@@ -17,28 +17,28 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 # _load_txd_file
 # open_file_dialog
 
-def open_file_dialog(main_window): #vers 12
-    """Unified file dialog for IMG, COL, TXD, CST, and 3DS files"""
-    file_path, _ = QFileDialog.getOpenFileName(
+def open_file_dialog(main_window): #vers 13
+    """Unified file dialog for IMG, COL, TXD, CST, and 3DS files - now supports multiple files"""
+    file_paths, _ = QFileDialog.getOpenFileNames(
         main_window,
         "Open Archive",
         "",
         "All Supported (*.img *.col *.txd *.cst *.3ds);;IMG Archives (*.img);;COL Archives (*.col);;TXD Textures (*.txd);;CST Files (*.cst);;3DS Models (*.3ds);;All Files (*)"
     )
 
-    if file_path:
-        file_ext = os.path.splitext(file_path)[1].lower()
-        options=QFileDialog.Option.DontUseNativeDialog
-        if file_ext == '.txd':
-            _load_txd_file(main_window, file_path)
-        elif file_ext == '.col':
-            _load_col_file(main_window, file_path)
-        elif file_ext == '.cst':
-            _load_cst_file(main_window, file_path)
-        elif file_ext == '.3ds':
-            _load_3ds_file(main_window, file_path)
-        else:
-            _load_img_file(main_window, file_path)
+    if file_paths:
+        for file_path in file_paths:
+            file_ext = os.path.splitext(file_path)[1].lower()
+            if file_ext == '.txd':
+                _load_txd_file(main_window, file_path)
+            elif file_ext == '.col':
+                _load_col_file(main_window, file_path)
+            elif file_ext == '.cst':
+                _load_cst_file(main_window, file_path)
+            elif file_ext == '.3ds':
+                _load_3ds_file(main_window, file_path)
+            else:
+                _load_img_file(main_window, file_path)
 
 
 def _load_cst_file(main_window, file_path): #vers 2
