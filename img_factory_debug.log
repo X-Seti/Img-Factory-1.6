@@ -1,6 +1,22 @@
 === IMG Factory Debug Log ===
-Started: 2026-02-05 19:47:25
+Started: 2026-02-07 01:03:08
 Python: 3.14.2 (main, Jan  2 2026, 14:27:39) [GCC 15.2.1 20251112]
 Platform: linux
 ==================================================
 
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for Ferry.dff
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train.dff
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train_dl.dff
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train_dr.dff
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for TRAM.dff
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for Ferry.txd
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for TRAIN.TXD
+[01:04:05] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for tram.txd
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for Ferry.dff
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train.dff
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train_dl.dff
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for train_dr.dff
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.3.0.2 GTA3/VC (PS2) (0xC02FFFF) for TRAM.dff
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for Ferry.txd
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for TRAIN.TXD
+[01:05:10] SUCCESS: debug_functions.py:483 in success() - Detected RW version 3.1.0.0 GTA VC (PC) (0x1003FFFF) for tram.txd
