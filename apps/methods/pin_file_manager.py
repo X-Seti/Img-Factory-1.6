@@ -330,6 +330,48 @@ def get_all_pinned_entries(img_path: str) -> List[str]: #vers 1
     return pinned
 
 
+def finish_pin_operations(main_window) -> bool: #vers 1
+    """Complete all pending pin operations and save the pin file
+    
+    Args:
+        main_window: Main window instance
+    
+    Returns:
+        True if operations completed successfully
+    """
+    try:
+        # Get current IMG file path
+        img_path = None
+        if hasattr(main_window, 'current_img') and main_window.current_img:
+            img_path = main_window.current_img.file_path
+        elif hasattr(main_window, 'current_file') and main_window.current_file:
+            img_path = main_window.current_file.file_path
+        
+        if not img_path:
+            if hasattr(main_window, 'log_message'):
+                main_window.log_message("No active IMG file to finish pin operations")
+            return False
+        
+        # Load current pin data
+        pin_data = load_pin_file(img_path)
+        
+        # Update the last_updated timestamp
+        pin_data["last_updated"] = datetime.now().isoformat()
+        
+        # Save the pin file
+        success = save_pin_file(img_path, pin_data)
+        
+        if success and hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Finished pin operations and saved to {get_pin_file_path(img_path)}")
+        
+        return success
+        
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Error finishing pin operations: {str(e)}")
+        return False
+
+
 def integrate_pin_manager(main_window) -> bool: #vers 1
     """Integrate PIN manager into main window
     
@@ -383,5 +425,6 @@ __all__ = [
     'update_entry_dates',
     'get_entry_metadata',
     'get_all_pinned_entries',
-    'integrate_pin_manager'
+    'integrate_pin_manager',
+    'finish_pin_operations'
 ]

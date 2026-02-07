@@ -1,1 +1,23 @@
-(empty)
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.venv-*/
+.ENV
+.env
+.env.*
+.env.local
+.coverage
+coverage/
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.tox/
+nosetests.xml
+```

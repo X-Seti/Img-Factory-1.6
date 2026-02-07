@@ -361,6 +361,41 @@ def integrate_pin_functions(main_window) -> bool: #vers 1
         return False
 
 
+def finish_pin_operations(main_window) -> bool: #vers 1
+    """Complete all pending pin operations and save the pin file
+    
+    Args:
+        main_window: Main window instance
+    
+    Returns:
+        True if operations completed successfully
+    """
+    try:
+        # Validate tab and get file object
+        if not validate_tab_before_operation(main_window, "Finish Pin Operations"):
+            return False
+        
+        file_object, file_type = get_current_file_from_active_tab(main_window)
+        
+        if file_type != 'IMG' or not file_object:
+            if hasattr(main_window, 'log_message'):
+                main_window.log_message("Current tab does not contain an IMG file")
+            return False
+        
+        # Save pin state to config file
+        success = _save_pin_config(main_window, file_object)
+        
+        if success and hasattr(main_window, 'log_message'):
+            main_window.log_message("Finished pin operations and saved pin configuration")
+        
+        return success
+        
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Error finishing pin operations: {str(e)}")
+        return False
+
+
 # Export functions
 __all__ = [
     'pin_selected_entries',
@@ -369,5 +404,6 @@ __all__ = [
     'is_entry_pinned',
     'get_pinned_entries',
     'mark_entry_as_modified',
-    'integrate_pin_functions'
+    'integrate_pin_functions',
+    'finish_pin_operations'
 ]
