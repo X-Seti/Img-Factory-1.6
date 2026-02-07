@@ -2206,7 +2206,7 @@ class IMGFactoryGUILayout:
             elif hasattr(self.main_window, 'statusBar'):
                 self.main_window.statusBar().showMessage("Ready")
 
-    def update_file_info(self, info_text): #vers 1
+    def update_file_info(self, info_text): #vers 2
         """Update file info using unified progress for completion"""
         if hasattr(self.main_window, 'update_img_status'):
             # Extract info from text if possible
@@ -2216,6 +2216,13 @@ class IMGFactoryGUILayout:
                     self.main_window.update_img_status(entry_count=count)
                 except:
                     pass
+            # Also update the operation status if it's available
+            if "loading" in info_text.lower() or "processing" in info_text.lower():
+                if hasattr(self.main_window, 'set_operation_status'):
+                    self.main_window.set_operation_status("working", info_text)
+            elif "loaded" in info_text.lower() or "completed" in info_text.lower():
+                if hasattr(self.main_window, 'set_operation_status'):
+                    self.main_window.set_operation_status("success", info_text)
 
     def create_status_bar(self): #vers 1
         """Create status bar with unified progress integration"""
