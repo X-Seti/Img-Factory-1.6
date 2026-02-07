@@ -766,7 +766,7 @@ class IMGFactory(QMainWindow):
             self.show()
 
 
-    def autoload_game_root(self): #vers 2
+    def autoload_game_root(self): #vers 3
         """Autoload game root and integrate directory tree at startup"""
         try:
             # Try QSettings first
@@ -790,16 +790,28 @@ class IMGFactory(QMainWindow):
                 # Integrate directory tree if not already done
                 if not hasattr(self, 'directory_tree'):
                     from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                    #if integrate_directory_tree_browser(self): - Creates corrupted toolbar!
-                    #    self.log_message("✓ Directory Tree browser integrated")
+                    if integrate_directory_tree_browser(self):
+                        self.log_message("✓ Directory Tree browser integrated")
 
                 # Browse to game root
                 if hasattr(self, 'directory_tree') and hasattr(self.directory_tree, 'browse_directory'):
                     self.directory_tree.browse_directory(game_root)
                     self.log_message("✓ Directory Tree populated with game root")
 
-                    # Switch to directory tree tab (tab 0) after short delay
+                    # Ensure directory tree is placed in Tab 0 and set as current tab
                     if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                        # First, ensure directory tree is in the first tab
+                        if self.main_tab_widget.count() > 0:
+                            # Insert directory tree as first tab if it doesn't exist yet
+                            if not any("Directory" in self.main_tab_widget.tabText(i) for i in range(self.main_tab_widget.count())):
+                                from PyQt6.QtWidgets import QWidget
+                                dir_widget = QWidget()
+                                from PyQt6.QtWidgets import QVBoxLayout
+                                layout = QVBoxLayout(dir_widget)
+                                layout.addWidget(self.directory_tree)
+                                self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
+                        
+                        # Switch to directory tree tab (tab 0) after short delay
                         QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
             else:
                 self.log_message("ℹ No saved game root - showing home directory")
@@ -813,8 +825,19 @@ class IMGFactory(QMainWindow):
                             self.directory_tree.browse_directory(home_dir)
                             self.log_message(f"✓ Directory Tree showing: {home_dir}")
 
-                            # Switch to directory tree tab
+                            # Ensure directory tree is placed in Tab 0
                             if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                                # Insert directory tree as first tab if it doesn't exist yet
+                                if self.main_tab_widget.count() > 0:
+                                    if not any("Directory" in self.main_tab_widget.tabText(i) for i in range(self.main_tab_widget.count())):
+                                        from PyQt6.QtWidgets import QWidget
+                                        dir_widget = QWidget()
+                                        from PyQt6.QtWidgets import QVBoxLayout
+                                        layout = QVBoxLayout(dir_widget)
+                                        layout.addWidget(self.directory_tree)
+                                        self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
+                                
+                                # Switch to directory tree tab
                                 QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
 
         except Exception as e:
