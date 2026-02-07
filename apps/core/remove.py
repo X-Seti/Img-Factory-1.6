@@ -150,7 +150,7 @@ def _remove_entries_with_tracking(file_object, entries_to_remove: List, main_win
     return removed_count > 0
 
 
-def _get_selected_entries_simple(main_window, file_object) -> list: #vers 2
+def _get_selected_entries_simple(main_window, file_object) -> list: #vers 3
     """Get selected entries using simple working method - TAB AWARE"""
     selected_entries = []
     # Method 1: Try to get selection from main window
@@ -164,6 +164,45 @@ def _get_selected_entries_simple(main_window, file_object) -> list: #vers 2
         for row in selected_rows:
             if row < len(file_object.entries):
                 selected_entries.append(file_object.entries[row])
+    
+    # Check if any selected entries are pinned and warn user
+    pinned_entries = []
+    for entry in selected_entries:
+        if hasattr(entry, 'is_pinned') and entry.is_pinned:
+            pinned_entries.append(entry)
+    
+    if pinned_entries:
+        pinned_names = [getattr(entry, 'name', f'Entry_{i}') for i, entry in enumerate(pinned_entries)]
+        reply = QMessageBox.question(
+            main_window,
+            "Pinned Entries Selected",
+            f"{len(pinned_entries)} selected entry(ies) are currently pinned: {', '.join(pinned_names[:5])}{', ...' if len(pinned_names) > 5 else ''}\n\n"
+            f"Would you like to unpin them first to allow removal?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Unpin the entries first
+            for entry in pinned_entries:
+                if hasattr(entry, 'is_pinned'):
+                    delattr(entry, 'is_pinned')
+                    
+                    # Also update the pin file to reflect the change
+                    if hasattr(main_window, 'unpin_entry'):
+                        entry_name = getattr(entry, 'name', '')
+                        if entry_name:
+                            main_window.unpin_entry(entry_name)
+            
+            # Return only non-pinned entries for removal
+            selected_entries = [entry for entry in selected_entries if not (hasattr(entry, 'is_pinned') and entry.is_pinned)]
+        else:
+            # User chose not to unpin, so remove pinned entries from the selection
+            selected_entries = [entry for entry in selected_entries if not (hasattr(entry, 'is_pinned') and entry.is_pinned)]
+            if not selected_entries:
+                QMessageBox.information(main_window, "No Entries to Remove", "All selected entries are pinned and removal was cancelled.")
+                return []
+    
     return selected_entries
 
 

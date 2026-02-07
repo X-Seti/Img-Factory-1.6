@@ -80,7 +80,7 @@ def rename_selected_entry(main_window): #vers 2
     return rename_entry(main_window)
 
 
-def rename_img_entry(main_window): #vers 2
+def rename_img_entry(main_window): #vers 3
     """Rename IMG entry with validation and IMG_Editor core support"""
     try:
         # Validate tab and get file object
@@ -101,8 +101,26 @@ def rename_img_entry(main_window): #vers 2
         
         # Check if the entry is pinned
         if hasattr(selected_entry, 'is_pinned') and selected_entry.is_pinned:
-            QMessageBox.warning(main_window, "Pinned Entry", "Cannot rename a pinned entry. Please unpin it first.")
-            return False
+            reply = QMessageBox.question(
+                main_window,
+                "Pinned Entry",
+                "This entry is currently pinned. Would you like to unpin it first to allow renaming?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                # Unpin the entry first
+                delattr(selected_entry, 'is_pinned')
+                
+                # Also update the pin file to reflect the change
+                if hasattr(main_window, 'unpin_entry'):
+                    entry_name = getattr(selected_entry, 'name', '')
+                    if entry_name:
+                        main_window.unpin_entry(entry_name)
+            else:
+                QMessageBox.information(main_window, "Rename Cancelled", "Entry renaming cancelled as it is pinned.")
+                return False
         
         # Get current name
         current_name = getattr(selected_entry, 'name', '')
