@@ -4173,6 +4173,10 @@ class IMGFactory(QMainWindow):
             if hasattr(self, '_update_ui_for_loaded_img'):
                 self._update_ui_for_loaded_img()
 
+            # Load and apply pinned entries
+            if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file and img_file.file_path:
+                self.gui_layout.load_and_apply_pins(img_file.file_path)
+
             # Log success
             entry_count = len(img_file.entries) if img_file.entries else 0
             self.log_message(f"Loaded: {file_name} ({entry_count} entries)")
