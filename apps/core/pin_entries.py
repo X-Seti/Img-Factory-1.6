@@ -69,10 +69,10 @@ def _update_status_bar_pinned_info(main_window, file_object=None):
 
 
 def pin_selected_entries(main_window): #vers 1
-    """Pin selected entries to prevent changes and add pin icon in status column"""
+    """Toggle pin status of selected entries - click to pin/unpin based on current status"""
     try:
         # Validate tab and get file object
-        if not validate_tab_before_operation(main_window, "Pin Entries"):
+        if not validate_tab_before_operation(main_window, "Toggle Pin Entries"):
             return False
         
         file_object, file_type = get_current_file_from_active_tab(main_window)
@@ -84,31 +84,37 @@ def pin_selected_entries(main_window): #vers 1
         # Get selected entries
         selected_items = main_window.gui_layout.table.selectedItems()
         if not selected_items:
-            main_window.log_message("No entries selected to pin")
+            main_window.log_message("No entries selected to pin/unpin")
             return False
         
         # Get selected rows
         selected_rows = set(item.row() for item in selected_items)
         
-        # Mark entries as pinned
+        # Toggle pin status for entries
         pinned_count = 0
+        unpinned_count = 0
         for row in selected_rows:
             if 0 <= row < len(file_object.entries):
                 entry = file_object.entries[row]
-                # Add pinned attribute to entry
-                entry.is_pinned = True
-                pinned_count += 1
+                if hasattr(entry, 'is_pinned') and entry.is_pinned:
+                    # Unpin
+                    delattr(entry, 'is_pinned')
+                    unpinned_count += 1
+                else:
+                    # Pin
+                    entry.is_pinned = True
+                    pinned_count += 1
         
         # Save pin state to a config file
         _save_pin_config(main_window, file_object)
         
-        # Refresh table to show pinned status
+        # Refresh table to show updated pin status
         if hasattr(main_window, 'refresh_img_table'):
             main_window.refresh_img_table()
         elif hasattr(main_window, 'refresh_table'):
             main_window.refresh_table()
         
-        main_window.log_message(f"Pinned {pinned_count} entries")
+        main_window.log_message(f"Toggled pin status: {pinned_count} pinned, {unpinned_count} unpinned")
         
         # Update status bar with pinned information
         _update_status_bar_pinned_info(main_window, file_object)
@@ -117,8 +123,8 @@ def pin_selected_entries(main_window): #vers 1
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Pin entries error: {str(e)}")
-        QMessageBox.critical(main_window, "Pin Error", f"Pin entries failed: {str(e)}")
+            main_window.log_message(f"Toggle pin entries error: {str(e)}")
+        QMessageBox.critical(main_window, "Toggle Pin Error", f"Toggle pin entries failed: {str(e)}")
         return False
 
 

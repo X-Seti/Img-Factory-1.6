@@ -4176,6 +4176,15 @@ class IMGFactory(QMainWindow):
             # Load and apply pinned entries
             if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file and img_file.file_path:
                 self.gui_layout.load_and_apply_pins(img_file.file_path)
+            
+            # Apply pinned status to entries in the IMG file object itself
+            if img_file and img_file.file_path:
+                from apps.core.pin_entries import load_pin_file
+                pin_data = load_pin_file(img_file.file_path)
+                for entry in img_file.entries:
+                    entry_name = getattr(entry, 'name', '')
+                    if entry_name in pin_data.get("entries", {}):
+                        entry.is_pinned = True
 
             # Log success
             entry_count = len(img_file.entries) if img_file.entries else 0
@@ -4191,8 +4200,8 @@ class IMGFactory(QMainWindow):
             if hasattr(self, '_on_img_load_error'):
                 self._on_img_load_error(str(e))
 
-    def _populate_real_img_table(self, img_file: IMGFile): #vers 2 #Restore
-        """Populate table with real IMG file entries - for SA format display"""
+    def _populate_real_img_table(self, img_file: IMGFile): #vers 3 #Restore
+        """Populate table with real IMG file entries - for SA format display with Date column"""
         if not img_file or not img_file.entries:
             self.gui_layout.table.setRowCount(0)
             return
@@ -4200,17 +4209,21 @@ class IMGFactory(QMainWindow):
         table = self.gui_layout.table
         entries = img_file.entries
 
+        # Set up 9 columns: Name, Type, Date, Size, Offset, RW Address, RW Version, Compression, Status
+        table.setColumnCount(9)
+        table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"])
+
         # Clear existing data (including sample entries)
         table.setRowCount(0)
         table.setRowCount(len(entries))
 
         for row, entry in enumerate(entries):
             try:
-                # Name - should now be clean from fixed parsing
+                # Name - column 0
                 clean_name = str(entry.name).strip() if hasattr(entry, 'name') else f"Entry_{row}"
                 table.setItem(row, 0, QTableWidgetItem(clean_name))
 
-                # Extension - Use the cleaned extension from populate_entry_details
+                # Type - column 1 (previously called Extension)
                 if hasattr(entry, 'extension') and entry.extension:
                     extension = entry.extension
                 else:
@@ -4222,7 +4235,21 @@ class IMGFactory(QMainWindow):
                         extension = "NO_EXT"
                 table.setItem(row, 1, QTableWidgetItem(extension))
 
-                # Size - Format properly
+                # Date - column 2 (new column showing pin date if available)
+                date_text = ""
+                if hasattr(entry, 'is_pinned') and entry.is_pinned and img_file.file_path:
+                    # Get pin date from pin file if available
+                    from apps.core.pin_entries import load_pin_file
+                    pin_data = load_pin_file(img_file.file_path)
+                    entry_pin_data = pin_data.get("entries", {}).get(clean_name, {})
+                    import_date = entry_pin_data.get("import_date", "")
+                    if import_date:
+                        date_text = import_date.split("T")[0]  # Just the date part
+                    else:
+                        date_text = "Pinned"
+                table.setItem(row, 2, QTableWidgetItem(date_text))
+
+                # Size - column 3 (previously column 2)
                 try:
                     if hasattr(entry, 'size') and entry.size:
                         size_bytes = int(entry.size)
@@ -4236,9 +4263,9 @@ class IMGFactory(QMainWindow):
                         size_text = "0 B"
                 except:
                     size_text = "Unknown"
-                table.setItem(row, 2, QTableWidgetItem(size_text))
+                table.setItem(row, 3, QTableWidgetItem(size_text))
 
-                # Hash/Offset - Show as hex
+                # Offset - column 4 (previously column 3)
                 try:
                     if hasattr(entry, 'offset') and entry.offset is not None:
                         offset_text = f"0x{int(entry.offset):X}"
@@ -4246,9 +4273,19 @@ class IMGFactory(QMainWindow):
                         offset_text = "0x0"
                 except:
                     offset_text = "0x0"
-                table.setItem(row, 3, QTableWidgetItem(offset_text))
+                table.setItem(row, 4, QTableWidgetItem(offset_text))
 
-                # Version - Use proper RW version parsing
+                # RW Address - column 5 (new column)
+                try:
+                    if hasattr(entry, 'rw_address') and entry.rw_address is not None:
+                        rw_addr_text = f"0x{int(entry.rw_address):X}"
+                    else:
+                        rw_addr_text = "N/A"
+                except:
+                    rw_addr_text = "N/A"
+                table.setItem(row, 5, QTableWidgetItem(rw_addr_text))
+
+                # RW Version - column 6 (previously column 4)
                 try:
                     if extension in ['DFF', 'TXD']:
                         if hasattr(entry, 'get_version_text') and callable(entry.get_version_text):
@@ -4286,9 +4323,9 @@ class IMGFactory(QMainWindow):
                         version_text = "Unknown"
                 except:
                     version_text = "Unknown"
-                table.setItem(row, 4, QTableWidgetItem(version_text))
+                table.setItem(row, 6, QTableWidgetItem(version_text))
 
-                # Compression
+                # Compression - column 7 (previously column 5)
                 try:
                     if hasattr(entry, 'compression_type') and entry.compression_type:
                         if str(entry.compression_type).upper() != 'NONE':
@@ -4299,22 +4336,24 @@ class IMGFactory(QMainWindow):
                         compression_text = "None"
                 except:
                     compression_text = "None"
-                table.setItem(row, 5, QTableWidgetItem(compression_text))
+                table.setItem(row, 7, QTableWidgetItem(compression_text))
 
-                # Status
+                # Status - column 8 (previously column 6)
                 try:
                     if hasattr(entry, 'is_new_entry') and entry.is_new_entry:
                         status_text = "New"
                     elif hasattr(entry, 'is_replaced') and entry.is_replaced:
                         status_text = "Modified"
+                    elif hasattr(entry, 'is_pinned') and entry.is_pinned:
+                        status_text = "Pinned"
                     else:
                         status_text = "Ready"
                 except:
                     status_text = "Ready"
-                table.setItem(row, 6, QTableWidgetItem(status_text))
+                table.setItem(row, 8, QTableWidgetItem(status_text))
 
                 # Make all items read-only
-                for col in range(7):
+                for col in range(9):
                     item = table.item(row, col)
                     if item:
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
