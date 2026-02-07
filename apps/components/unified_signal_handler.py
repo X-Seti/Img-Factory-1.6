@@ -116,6 +116,13 @@ class UnifiedSignalHandler(QObject):
             elif hasattr(parent, 'log_message'):
                 parent.log_message(f"Selection: {status_message}")
         
+        # Also update the main window's status bar selection widget if it exists
+        main_window = getattr(parent, 'main_window', parent if hasattr(parent, 'selection_status_widget') else None)
+        if main_window and hasattr(main_window, 'selection_status_widget'):
+            # Calculate total count for the table
+            total_count = table.rowCount() if table else 0
+            main_window.selection_status_widget.update_selection(selection_count, total_count)
+        
         # Call custom selection callback if provided
         selection_callback = table_info['selection_callback']
         if selection_callback and callable(selection_callback):

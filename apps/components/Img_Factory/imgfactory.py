@@ -1525,11 +1525,16 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Double-clicked: {filename}")
 
 
-    def _unified_selection_handler(self, selected_rows, selection_count): #vers 1
+    def _unified_selection_handler(self, selected_rows, selection_count): #vers 2
         """Handle selection changes through unified system"""
         # Update button states based on selection
         has_selection = selection_count > 0
         self._update_button_states(has_selection)
+
+        # Update selection status widget if available
+        if hasattr(self, 'selection_status_widget') and hasattr(self.gui_layout, 'table'):
+            total_count = self.gui_layout.table.rowCount()
+            self.selection_status_widget.update_selection(selection_count, total_count)
 
         # Log selection (unified approach - no spam)
         if selection_count == 0:
@@ -2515,7 +2520,7 @@ class IMGFactory(QMainWindow):
                         button.setEnabled((has_img or has_col) and has_txd)
 
 
-    def _update_status_from_signal(self, message): #vers 3
+    def _update_status_from_signal(self, message): #vers 4
         """Update status from unified signal system"""
         # Update status bar if available
         if hasattr(self, 'statusBar') and self.statusBar():
@@ -2524,6 +2529,29 @@ class IMGFactory(QMainWindow):
         # Also update GUI layout status if available
         if hasattr(self.gui_layout, 'status_label'):
             self.gui_layout.status_label.setText(message)
+            
+        # Update selection status widget if available
+        if hasattr(self, 'selection_status_widget'):
+            # Extract selection count from message if possible
+            import re
+            match = re.search(r'(\d+) entries? selected', message)
+            if match:
+                selected_count = int(match.group(1))
+                # We'll need to determine the total count separately, for now use 0
+                self.selection_status_widget.update_selection(selected_count, 0)
+            elif "Ready" in message or "ready" in message:
+                self.selection_status_widget.update_selection(0, 0)
+                
+        # Update operation status if it's an operation message
+        if hasattr(self, 'set_operation_status'):
+            if "working" in message.lower() or "processing" in message.lower() or "loading" in message.lower():
+                self.set_operation_status("working", message)
+            elif "error" in message.lower() or "failed" in message.lower():
+                self.set_operation_status("error", message)
+            elif "success" in message.lower() or "completed" in message.lower():
+                self.set_operation_status("success", message)
+            else:
+                self.set_operation_status("idle", message)
 
 
     #these need to be checked
@@ -3483,10 +3511,12 @@ class IMGFactory(QMainWindow):
             # Create new tab first
             tab_index = self.create_tab(file_path, 'IMG', None)
 
-            # Then load IMG using your existing thread loader
+            # Check if a load thread is already running - if so, wait for it to finish
             if self.load_thread and self.load_thread.isRunning():
-                return
+                self.log_message("Waiting for previous load to complete...")
+                self.load_thread.wait()  # Wait for the current thread to finish
 
+            # Create and start new thread for this file
             self.load_thread = IMGLoadThread(file_path)
             self.load_thread.progress_updated.connect(self._on_img_load_progress)
             self.load_thread.loading_finished.connect(self._on_img_loaded)
