@@ -766,9 +766,18 @@ class IMGFactory(QMainWindow):
             self.show()
 
 
-    def autoload_game_root(self): #vers 3
+    def autoload_game_root(self): #vers 4
         """Autoload game root and integrate directory tree at startup"""
         try:
+            # Check if directory tree autoload is enabled in settings
+            from apps.methods.img_factory_settings import IMGFactorySettings
+            img_settings = IMGFactorySettings()
+            autoload_enabled = img_settings.get("autoload_directory_tree", True)
+            
+            if not autoload_enabled:
+                self.log_message("ℹ Directory tree autoload is disabled in settings")
+                return
+
             # Try QSettings first
             from PyQt6.QtCore import QSettings
             settings = QSettings("IMG-Factory", "IMG-Factory")
