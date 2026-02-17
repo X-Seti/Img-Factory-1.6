@@ -117,7 +117,6 @@
 │   │   ├── Txd_Converter
 │   │   │   └── txd_converter.py
 │   │   ├── Txd_Editor
-│   │   │   ├── depends
 │   │   │   └── txd_workshop.py
 │   │   └── unified_signal_handler.py
 │   ├── core
@@ -159,6 +158,7 @@
 │   │   ├── notepad.py
 │   │   ├── open.py
 │   │   ├── pin_entries.py
+│   │   ├── pin_entries.zip
 │   │   ├── quick_export.py
 │   │   ├── rebuild_all.py
 │   │   ├── rebuild.py
@@ -217,7 +217,6 @@
 │   │   ├── localization.py
 │   │   └── local_settings.json
 │   ├── methods
-│   │   ├── broken
 │   │   ├── col_3d_viewport.py
 │   │   ├── col_core_classes.py
 │   │   ├── col_dialogs.py
@@ -268,6 +267,8 @@
 │   │   ├── indexed_color_import.py
 │   │   ├── __init__.py
 │   │   ├── mirror_tab_shared.py
+│   │   ├── pin_file_manager.py
+│   │   ├── pin_file_manager.zip
 │   │   ├── populate_col_table.py
 │   │   ├── populate_img_table.py
 │   │   ├── progressbar_functions.py
@@ -276,7 +277,6 @@
 │   │   ├── rw_versions.py
 │   │   ├── table_handlers.py
 │   │   ├── tab_system.py
-│   │   ├── tab_system.py-tab
 │   │   ├── txd_context_menu.py
 │   │   ├── txd_serializer.py
 │   │   ├── txd_versions.py
@@ -450,4 +450,4 @@
 ├── TODO.md
 └── tree.git
 
-36 directories, 415 files
+34 directories, 417 files
