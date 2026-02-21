@@ -3545,19 +3545,30 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()  # Debug info
             return False
 
-    def _load_img_file_in_new_tab(self, file_path): #vers [your_version + 1]
-        """Load IMG file in new tab"""
+    def _load_img_file_in_new_tab(self, file_path): #vers 2
+        """Load IMG file in new tab using create_tab then thread"""
         try:
-            import os
-            self.log_message(f"Loading IMG in new tab: {os.path.basename(file_path)}")
+            from apps.methods.tab_system import create_tab
 
-            # Create new tab first
-            tab_index = self.create_tab(file_path, 'IMG', None)
+            # Create tab first, store index for use when thread completes
+            self._loading_img_tab_index = create_tab(self, file_path=file_path, file_type='IMG', file_object=None)
 
-            # Check if a load thread is already running - if so, wait for it to finish
-            if self.load_thread and self.load_thread.isRunning():
-                self.log_message("Waiting for previous load to complete...")
-                self.load_thread.wait()  # Wait for the current thread to finish
+            if self._loading_img_tab_index is None:
+                self.log_message("Failed to create IMG tab")
+                return
+
+            # Wait for any running load thread
+            if hasattr(self, 'load_thread') and self.load_thread and self.load_thread.isRunning():
+                self.load_thread.wait()
+
+            self.load_thread = IMGLoadThread(file_path)
+            self.load_thread.progress_updated.connect(self._on_img_load_progress)
+            self.load_thread.loading_finished.connect(self._on_img_loaded)
+            self.load_thread.loading_error.connect(self._on_img_load_error)
+            self.load_thread.start()
+
+        except Exception as e:
+            self.log_message(f"Error loading IMG in new tab: {str(e)}")
 
             # Create and start new thread for this file
             self.load_thread = IMGLoadThread(file_path)
@@ -4262,64 +4273,76 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Progress: {progress}% - {status}")
 
 
-    def _on_img_loaded(self, img_file): #vers 4
-        """Handle IMG loading completion"""
+    def _on_img_loaded(self, img_file): #vers 5
+        """Handle IMG loading completion - populate the tab that was created for this file"""
         try:
             self.current_img = img_file
 
-            # Store on current tab widget
-            current_index = self.main_tab_widget.currentIndex()
-            tab_widget = self.main_tab_widget.widget(current_index)
+            # Use the tab index stored when loading started
+            tab_index = getattr(self, '_loading_img_tab_index', None)
+            if tab_index is None:
+                tab_index = self.main_tab_widget.currentIndex()
+
+            tab_widget = self.main_tab_widget.widget(tab_index)
             if tab_widget:
                 tab_widget.file_object = img_file
-                self.log_message(f"IMG stored on tab {current_index}")
+                tab_widget.file_type = 'IMG'
+
+            # Get this tab's table
+            from PyQt6.QtWidgets import QTableWidget
+            table = getattr(tab_widget, 'table_ref', None)
+            if table is None and tab_widget:
+                tables = tab_widget.findChildren(QTableWidget)
+                table = tables[0] if tables else None
+
+            if table:
+                self._populate_img_table_widget(table, img_file)
 
             # Update window title
             file_name = os.path.basename(img_file.file_path)
-            self.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
+            self.setWindowTitle(f"IMG Factory 1.6 - {file_name}")
 
-            # Update UI for loaded IMG
-            if hasattr(self, '_update_ui_for_loaded_img'):
-                self._update_ui_for_loaded_img()
-
-            # Load and apply pinned entries
-            if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file and img_file.file_path:
+            # Pins
+            if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file.file_path:
                 self.gui_layout.load_and_apply_pins(img_file.file_path)
-            
-            # Apply pinned status to entries in the IMG file object itself
-            if img_file and img_file.file_path:
-                from apps.core.pin_entries import load_pin_file
-                pin_data = load_pin_file(img_file.file_path)
-                for entry in img_file.entries:
-                    entry_name = getattr(entry, 'name', '')
-                    if entry_name in pin_data.get("entries", {}):
-                        entry.is_pinned = True
 
-            # Log success
+            from apps.core.pin_entries import load_pin_file
+            pin_data = load_pin_file(img_file.file_path)
+            for entry in img_file.entries:
+                if getattr(entry, 'name', '') in pin_data.get("entries", {}):
+                    entry.is_pinned = True
+
             entry_count = len(img_file.entries) if img_file.entries else 0
             self.log_message(f"Loaded: {file_name} ({entry_count} entries)")
 
-            # Update status bar with file info
             if hasattr(self, 'update_img_status'):
                 self.update_img_status(img_file=img_file)
 
-            # Hide progress
             if hasattr(self.gui_layout, 'hide_progress'):
                 self.gui_layout.hide_progress()
 
+            self._loading_img_tab_index = None
+
         except Exception as e:
             self.log_message(f"Error in _on_img_loaded: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
-            if hasattr(self, '_on_img_load_error'):
-                self._on_img_load_error(str(e))
+    def _populate_img_table_widget(self, table, img_file): #vers 1
+        """Populate a specific table widget with IMG entries"""
+        self._populate_real_img_table(img_file, table=table)
 
-    def _populate_real_img_table(self, img_file: IMGFile): #vers 3 #Restore
-        """Populate table with real IMG file entries - for SA format display with Date column"""
+    def _populate_real_img_table(self, img_file: IMGFile, table=None): #vers 4
+        """Populate table with real IMG file entries"""
         if not img_file or not img_file.entries:
-            self.gui_layout.table.setRowCount(0)
+            if table:
+                table.setRowCount(0)
+            else:
+                self.gui_layout.table.setRowCount(0)
             return
 
-        table = self.gui_layout.table
+        if table is None:
+            table = self.gui_layout.table
         entries = img_file.entries
 
         # Set up 9 columns: Name, Type, Date, Size, Offset, RW Address, RW Version, Compression, Status
