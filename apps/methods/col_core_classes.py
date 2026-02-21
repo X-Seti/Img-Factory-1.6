@@ -527,14 +527,12 @@ class COLFile:
             model.bounding_box.max = Vector3(max_x, max_y, max_z)
             offset += 12
             
-            # Parse counts (20 bytes)
-            if offset + 20 > len(data):
+            # Parse counts (16 bytes) - COL1: spheres, boxes, vertices, faces
+            if offset + 16 > len(data):
                 img_debugger.error("COL1: Data too small for counts")
                 return
             
             num_spheres = struct.unpack('<I', data[offset:offset+4])[0]
-            offset += 4
-            num_unknown = struct.unpack('<I', data[offset:offset+4])[0]
             offset += 4
             num_boxes = struct.unpack('<I', data[offset:offset+4])[0]
             offset += 4
@@ -547,7 +545,7 @@ class COLFile:
             
             # CRITICAL FIX: Check for garbage face count
             num_faces = self._calculate_face_count(
-                data, offset, num_spheres, num_unknown, num_boxes, num_vertices, num_faces, is_col1=True
+                data, offset, num_spheres, num_boxes, num_vertices, num_faces, is_col1=True
             )
             
             if model.calculated_face_count:
@@ -562,9 +560,6 @@ class COLFile:
                 
                 # Parse spheres
                 offset = safe_parse_spheres(model, data, offset, num_spheres, "COL1")
-                
-                # Skip unknown data
-                offset += num_unknown * 4
                 
                 # Parse boxes
                 offset = safe_parse_boxes(model, data, offset, num_boxes, "COL1")
@@ -679,8 +674,8 @@ class COLFile:
             img_debugger.error(traceback.format_exc())
     
     def _calculate_face_count(self, data: bytes, offset: int, num_spheres: int, 
-                             num_unknown: int, num_boxes: int, num_vertices: int, 
-                             num_faces: int, is_col1: bool = True) -> int: #vers 1
+                             num_boxes: int, num_vertices: int, 
+                             num_faces: int, is_col1: bool = True) -> int: #vers 2
         """
         Calculate actual face count from file size
         Fixes garbage face count issues (e.g. 3,226,344,957 instead of 46)
@@ -707,7 +702,7 @@ class COLFile:
             FACE_SIZE_COL23 = 12 # indices(6) + mat(2) + light(2) + padding(2)
             
             data_used = (num_spheres * SPHERE_SIZE) + \
-                       (num_unknown * 4 if is_col1 else 0) + \
+                       0 + \
                        (num_boxes * BOX_SIZE) + \
                        (num_vertices * VERTEX_SIZE)
             
