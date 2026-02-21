@@ -426,10 +426,35 @@ class IMGFactoryGUILayout:
             return False
 
 
-    def set_theme_mode(self, theme_name): #vers 2
+    def refresh_icons(self, color: str): #vers 1
+        """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            if hasattr(self, 'f_entries_btn'):
+                self.f_entries_btn.setIcon(SVGIconFactory.package_icon(20, color))
+            if hasattr(self, 'dirtree_btn'):
+                self.dirtree_btn.setIcon(SVGIconFactory.folder_icon(20, color))
+            if hasattr(self, 'search_btn'):
+                self.search_btn.setIcon(SVGIconFactory.search_icon(20, color))
+            if hasattr(self, 'log_btn'):
+                self.log_btn.setIcon(SVGIconFactory.view_icon(20, color))
+            print(f"Toolbar icons refreshed with color: {color}")
+        except Exception as e:
+            print(f"refresh_icons failed: {e}")
+
+    def set_theme_mode(self, theme_name): #vers 3
         """Set the current theme mode and refresh all styling"""
         self.theme_mode = 'dark' if 'dark' in theme_name.lower() else 'light'
         print(f"Theme mode set to: {self.theme_mode}")
+
+        # Get text_primary from theme and refresh icons
+        if hasattr(self, 'main_window') and hasattr(self.main_window, 'app_settings'):
+            theme_colors = self.main_window.app_settings.get_theme_colors(theme_name)
+            if theme_colors:
+                icon_color = theme_colors.get('text_primary', '#000000')
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                SVGIconFactory.set_theme_color(icon_color)
+                self.refresh_icons(icon_color)
 
         # Force refresh all buttons with new theme colors
         self._refresh_all_buttons()

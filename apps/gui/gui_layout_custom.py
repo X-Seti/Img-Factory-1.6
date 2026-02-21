@@ -269,8 +269,13 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # Get icon color from theme
-        icon_color = "#ffffff"
+        # Get icon color from theme text_primary
+        icon_color = "#000000"
+        if hasattr(self, 'main_window') and hasattr(self.main_window, 'app_settings'):
+            current_theme = self.main_window.app_settings.get_current_theme()
+            theme_colors = self.main_window.app_settings.get_theme_colors(current_theme)
+            if theme_colors:
+                icon_color = theme_colors.get('text_primary', '#000000')
 
         # M Menu button - BEFORE settings
         self.menu_btn = QPushButton()
@@ -1653,6 +1658,30 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         else:
             self.main_window.showMaximized()
 
+
+    def refresh_icons(self, color: str): #vers 1
+        """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            if hasattr(self, 'menu_btn'):
+                self.menu_btn.setIcon(SVGIconFactory.menu_m_icon(20, color))
+            if hasattr(self, 'settings_btn'):
+                self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, color))
+            if hasattr(self, 'undo_btn'):
+                self.undo_btn.setIcon(SVGIconFactory.undo_icon(20, color))
+            if hasattr(self, 'info_btn'):
+                self.info_btn.setIcon(SVGIconFactory.info_icon(20, color))
+            if hasattr(self, 'properties_btn'):
+                self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, color))
+            if hasattr(self, 'minimize_btn'):
+                self.minimize_btn.setIcon(SVGIconFactory.minimize_icon(20, color))
+            if hasattr(self, 'maximize_btn'):
+                self.maximize_btn.setIcon(SVGIconFactory.maximize_icon(20, color))
+            if hasattr(self, 'close_btn'):
+                self.close_btn.setIcon(SVGIconFactory.close_icon(20, color))
+            print(f"Custom toolbar icons refreshed with color: {color}")
+        except Exception as e:
+            print(f"refresh_icons failed: {e}")
 
     def closeEvent(self, event): #vers 1
         """Handle close event"""

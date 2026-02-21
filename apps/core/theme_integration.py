@@ -1,5 +1,5 @@
-#this belongs in core/theme_integration.py - Version: 2
-# X-Seti - August06 2025 - IMG Factory 1.5 - Theme Integration Fix
+#this belongs in core/theme_integration.py - Version: 3
+# X-Seti - February21 2026 - IMG Factory 1.6 - Theme Integration
 
 """
 Theme Integration Fix - Connect app_settings_system.py theme switching to GUI updates
@@ -35,19 +35,24 @@ def connect_theme_system(main_window): #vers 1
         return False
 
 
-def on_theme_changed(main_window, theme_name: str): #vers 2
+def on_theme_changed(main_window, theme_name: str): #vers 3
     """Handle theme change signal from settings system"""
     try:
         print(f"Theme changed to: {theme_name}")
 
-        # ✅ UPDATE SVG ICON THEME COLOR FIRST
+        # Update SVG icon color from text_primary
+        icon_color = '#000000'
         if hasattr(main_window, 'app_settings'):
             theme_colors = main_window.app_settings.get_theme_colors(theme_name)
             if theme_colors and 'text_primary' in theme_colors:
                 from apps.methods.imgfactory_svg_icons import SVGIconFactory
                 icon_color = theme_colors.get('text_primary', '#000000')
-                SVGIconFactory.set_theme_color(icon_color)  # ← UPDATE CACHE HERE
+                SVGIconFactory.set_theme_color(icon_color)
                 print(f"SVG icon color updated to: {icon_color}")
+
+        # Refresh icons on whichever layout is active
+        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'refresh_icons'):
+            main_window.gui_layout.refresh_icons(icon_color)
 
         # Update GUI layout buttons and colors
         update_gui_layout_theme(main_window, theme_name)
