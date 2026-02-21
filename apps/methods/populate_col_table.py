@@ -403,6 +403,117 @@ def setup_col_tab_integration(main_window): #vers 1
         img_debugger.error(f"COL tab integration failed: {str(e)}")
         return False
 
+def load_col_file_safely(main_window, file_path): #vers 2
+    """Load COL file safely with proper tab creation and table population"""
+    try:
+        if not validate_col_file(main_window, file_path):
+            return False
+
+        # Load COL file object first
+        col_file = load_col_file_object(main_window, file_path)
+        if col_file is None:
+            return False
+
+        # Create a proper new tab using the tab system
+        from apps.methods.tab_system import create_tab
+        from PyQt6.QtWidgets import QTableWidget
+        tab_index = create_tab(main_window, file_path=file_path, file_type='COL', file_object=col_file)
+
+        # Get the table widget from the new tab
+        tab_widget = main_window.main_tab_widget.widget(tab_index)
+        table = getattr(tab_widget, 'table_ref', None)
+        if table is None:
+            tables = tab_widget.findChildren(QTableWidget)
+            table = tables[-1] if tables else None
+
+        if table is None:
+            img_debugger.error("No table found in new COL tab")
+            return False
+
+        # Setup COL columns on this tab's table
+        col_headers = ["Model Name", "Type", "Version", "Size", "Spheres", "Boxes", "Vertices", "Faces"]
+        table.setColumnCount(len(col_headers))
+        table.setHorizontalHeaderLabels(col_headers)
+        table.setColumnWidth(0, 200)
+        table.setColumnWidth(1, 80)
+        table.setColumnWidth(2, 80)
+        table.setColumnWidth(3, 100)
+        table.setColumnWidth(4, 80)
+        table.setColumnWidth(5, 80)
+        table.setColumnWidth(6, 80)
+        table.setColumnWidth(7, 80)
+        table.setSortingEnabled(True)
+        img_debugger.debug("COL table structure setup complete")
+
+        # Populate table
+        models = col_file.models
+        table.setRowCount(len(models))
+        img_debugger.debug(f"Populating table with {len(models)} COL models")
+
+        for row, model in enumerate(models):
+            try:
+                model_name = getattr(model, 'name', f'Model_{row+1}')
+                table.setItem(row, 0, QTableWidgetItem(str(model_name)))
+                table.setItem(row, 1, QTableWidgetItem("COL"))
+
+                version = getattr(model, 'version', 'Unknown')
+                version_text = f"COL{version.value}" if hasattr(version, 'value') else str(version)
+                table.setItem(row, 2, QTableWidgetItem(version_text))
+
+                if hasattr(model, 'model_size') and model.model_size > 0:
+                    sz = model.model_size
+                    size_text = f"{sz//1024}KB" if sz > 1024 else f"{sz}B"
+                else:
+                    size_text = "64B"
+                table.setItem(row, 3, QTableWidgetItem(size_text))
+
+                table.setItem(row, 4, QTableWidgetItem(str(len(getattr(model, 'spheres', [])))))
+                table.setItem(row, 5, QTableWidgetItem(str(len(getattr(model, 'boxes', [])))))
+                table.setItem(row, 6, QTableWidgetItem(str(len(getattr(model, 'vertices', [])))))
+                table.setItem(row, 7, QTableWidgetItem(str(len(getattr(model, 'faces', [])))))
+
+            except Exception as e:
+                img_debugger.error(f"Error populating row {row}: {e}")
+                table.setItem(row, 0, QTableWidgetItem(f"Model_{row+1}"))
+                for col in range(1, 8):
+                    table.setItem(row, col, QTableWidgetItem("0"))
+
+        img_debugger.success(f"COL table populated with {len(models)} models")
+
+        # Update main window state
+        main_window.current_col = col_file
+
+        # Update info bar
+        try:
+            update_col_info_bar_enhanced(main_window, col_file, file_path)
+        except Exception as e:
+            img_debugger.warning(f"Info bar update failed: {e}")
+
+        img_debugger.success(f"COL file loaded: {os.path.basename(file_path)}")
+        return True
+
+    except Exception as e:
+        img_debugger.error(f"Error loading COL file: {str(e)}")
+        import traceback
+        img_debugger.error(traceback.format_exc())
+        return False
+
+def setup_col_tab_integration(main_window): #vers 1
+    """Setup COL tab integration with main window"""
+    try:
+        # Add COL loading method to main window
+        main_window.load_col_file_safely = lambda file_path: load_col_file_safely(main_window, file_path)
+
+        # Add styling reset method
+        main_window._reset_table_styling = lambda: reset_table_styling(main_window)
+
+        img_debugger.success("COL tab integration ready")
+        return True
+
+    except Exception as e:
+        img_debugger.error(f"COL tab integration failed: {str(e)}")
+        return False
+
 def load_col_file_safely(main_window, file_path): #vers 1
     """Load COL file safely with proper tab management"""
     try:
