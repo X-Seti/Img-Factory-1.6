@@ -1,6 +1,65 @@
-#this belongs in root /ChangeLog.md - Version: 5
+#this belongs in root /ChangeLog.md - Version: 6
 
-## February 21, 2026 - Status Bar & Tab Settings Fixes
+## February 21, 2026 - COL Loading, Tab System & UI Fixes
+
+**Fixed**: col_core_classes.py
+- COL1 parser: removed incorrect num_unknown field from counts struct (4 fields not 5)
+- Garbage billion-sized counts no longer produced on COL1 parse
+
+**Fixed**: col_parsing_functions.py
+- col_file.load() replaced with load_from_file(file_path) - correct API call
+- COLFile(file_path) replaced with COLFile() - correct constructor
+
+**Fixed**: col_loader.py
+- Same load()/COLFile(file_path) fixes as above
+- Broken load_col_file_object repaired (mismatched try/except/if)
+
+**Fixed**: populate_col_table.py
+- Removed duplicate load_col_file_safely (vers 1) that shadowed the fixed vers 2
+- load_col_file_safely now uses create_tab() and populates tab's own table
+- setup_col_tab no longer requires close_manager to create a new tab
+- Broken load_col_file_object repaired
+
+**Fixed**: tab_system.py
+- create_tab() no longer calls create_main_ui_with_splitters - prevented DIR Tree overwrite
+- Each tab now gets its own standalone QTableWidget instead of shared GUI components
+
+**Fixed**: gui_layout.py
+- _create_file_window now contains content_splitter for merge view toggle
+- _on_directory_file_selected for .col now calls load_file_unified instead of col_workshop
+- Added right-click context menu to directory file list (Open in COL Workshop for .col files)
+- Added _toggle_merge_view_layout: toggles content_splitter between horizontal/vertical
+- All log bar buttons now icon-only (File Entries, Merge View, Search, Show Logs)
+- Show Logs: opens log file dialog when file logging enabled, toggles widget otherwise
+- Added _show_log_file method with Clear Log File option
+
+**Fixed**: gui_menu.py
+- Added Open Selected in COL Workshop to COL menu (enabled only when .col highlighted)
+- Added _open_selected_in_workshop static method to COLMenuBuilder
+
+**Fixed**: imgfactory.py
+- _on_tab_changed v3→v4: uses _dir_tree_tab_widget reference not index==0
+- DIR Tree tab insertion stores self._dir_tree_tab_widget for reliable identification
+- Removed QTimer.singleShot(200, setCurrentIndex(0)) that hijacked first file load
+- create_main_ui_with_splitters called once in _create_ui, right panel/log outside tabs
+- content_splitter.replaceWidget(0) correctly swaps table for main_tab_widget
+- _load_img_file_in_new_tab v2: uses create_tab first, stores _loading_img_tab_index
+- _on_img_loaded v5: uses stored tab index, populates tab's own table_ref
+- _populate_real_img_table v4: accepts optional table parameter
+- _populate_img_table_widget added as wrapper for tab-specific population
+- log_message v3: writes to file when log_to_file setting enabled
+- Window title updated to IMG Factory 1.6
+
+**Fixed**: img_factory_settings.py
+- Added log_to_file (default False) and log_file_path defaults
+
+**Added**: imgfactory_svg_icons.py
+- get_split_horizontal_icon: two panels side by side
+- get_split_vertical_icon: two panels stacked
+
+**Renamed**: Dir Tree / Directory Tree button → Merge View (button/tooltip only, tab keeps Dir Tree label)
+
+
 
 **Fixed**: status_bar.py
 - File size now reads from os.path.getsize() - IMGFile has no file_size attribute
