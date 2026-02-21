@@ -39,7 +39,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
     def __init__(self, main_window, parent=None): #vers 1
         super().__init__(parent)
         self.main_window = main_window
-        self.img_settings = IMGFactorySettings()
+        self.img_settings = getattr(main_window, 'img_settings', None) or IMGFactorySettings()
 
         self.setWindowTitle("IMG Factory Settings")
         self.setMinimumWidth(500)

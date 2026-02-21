@@ -427,11 +427,15 @@ class IMGStatusWidget(QWidget):
     def update_img_status(self, img_file=None, filename="", entry_count=0, file_size=0, version="Unknown"):
         """Update IMG file status display"""
         if img_file:
-            # Extract info from IMG file object
-            filename = filename or (img_file.file_path if hasattr(img_file, 'file_path') else "Unknown")
+            import os
+            filename = filename or (img_file.file_path if hasattr(img_file, 'file_path') else "")
             entry_count = len(img_file.entries) if hasattr(img_file, 'entries') and img_file.entries else 0
-            file_size = img_file.file_size if hasattr(img_file, 'file_size') else 0
-            version = str(img_file.version) if hasattr(img_file, 'version') else "Unknown"
+            # Read actual file size from disk
+            if filename and os.path.isfile(filename):
+                file_size = os.path.getsize(filename)
+            else:
+                file_size = getattr(img_file, 'file_size', 0)
+            version = str(img_file.version.name if hasattr(img_file.version, 'name') else img_file.version) if hasattr(img_file, 'version') else "Unknown"
         
         # Update display
         if filename:
