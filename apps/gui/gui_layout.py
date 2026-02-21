@@ -1623,16 +1623,16 @@ class IMGFactoryGUILayout:
         header_layout.addWidget(header)
         header_layout.addStretch()
 
-        # File Entries button - CONNECTED
+        # File Entries button - icon only
         self.f_entries_btn = QPushButton()
         self.f_entries_btn.setIcon(self.icon_factory.package_icon(20, icon_color))
-        self.f_entries_btn.setText("File Entries")
+        self.f_entries_btn.setFixedSize(24, 24)
         self.f_entries_btn.setIconSize(QSize(20, 20))
-        self.f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
-        self.f_entries_btn.clicked.connect(self._switch_to_file_entries) #show active img file tab
+        self.f_entries_btn.setToolTip("File Entries (Ctrl+1)")
+        self.f_entries_btn.clicked.connect(self._switch_to_file_entries)
         header_layout.addWidget(self.f_entries_btn)
 
-        # Merge View toggle (split layout icon only)
+        # Merge View toggle - icon only
         self._merge_view_horizontal = False
         self.split_toggle_btn = QPushButton()
         self.split_toggle_btn.setFixedSize(24, 24)
@@ -1648,20 +1648,22 @@ class IMGFactoryGUILayout:
         # Import SVG icons
         from apps.methods.imgfactory_svg_icons import get_search_icon, get_view_icon
 
-        # Search button
-        self.search_btn = QPushButton("Search")
+        # Search button - icon only
+        self.search_btn = QPushButton()
+        self.search_btn.setFixedSize(24, 24)
         self.search_btn.setIcon(get_search_icon())
-        #self.search_btn.setFixedHeight(24)
+        self.search_btn.setIconSize(QSize(20, 20))
         self.search_btn.setToolTip("Search in files (Ctrl+F)")
         self.search_btn.clicked.connect(self._show_search)
         header_layout.addWidget(self.search_btn)
 
-        # Log toggle button
-        self.log_btn = QPushButton("Show Logs")
+        # Show Logs button - icon only, shows log file content
+        self.log_btn = QPushButton()
+        self.log_btn.setFixedSize(24, 24)
         self.log_btn.setIcon(get_view_icon())
-        #self.log_btn.setFixedHeight(24)
-        self.log_btn.setToolTip("Show/Hide Activity Log")
-        self.log_btn.clicked.connect(self._toggle_log_visibility)
+        self.log_btn.setIconSize(QSize(20, 20))
+        self.log_btn.setToolTip("Show activity log file")
+        self.log_btn.clicked.connect(self._show_log_file)
         header_layout.addWidget(self.log_btn)
 
         status_layout.addLayout(header_layout)
@@ -1814,6 +1816,58 @@ class IMGFactoryGUILayout:
         """Toggle activity log visibility"""
         if hasattr(self, 'log'):
             self.log.setVisible(not self.log.isVisible())
+
+    def _show_log_file(self): #vers 1
+        """Show log file content in a dialog, or show in-app log if file logging disabled"""
+        try:
+            mw = self.main_window
+            settings = getattr(mw, 'img_settings', None)
+            log_to_file = settings.get("log_to_file", False) if settings else False
+
+            if not log_to_file:
+                # Just toggle the in-app log widget
+                if hasattr(self, 'log'):
+                    self.log.setVisible(not self.log.isVisible())
+                return
+
+            log_path = settings.get("log_file_path", "imgfactory_activity.log")
+
+            import os
+            if not os.path.exists(log_path):
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(mw, "Log File", f"No log file found at:\n{log_path}\n\nEnable 'Log to File' in Settings to start logging.")
+                return
+
+            with open(log_path, 'r') as f:
+                content = f.read()
+
+            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
+            dlg = QDialog(mw)
+            dlg.setWindowTitle("Activity Log")
+            dlg.resize(800, 500)
+            layout = QVBoxLayout(dlg)
+
+            text = QTextEdit()
+            text.setReadOnly(True)
+            text.setPlainText(content)
+            text.verticalScrollBar().setValue(text.verticalScrollBar().maximum())
+            layout.addWidget(text)
+
+            btn_layout = QHBoxLayout()
+            clear_btn = QPushButton("Clear Log File")
+            clear_btn.clicked.connect(lambda: (open(log_path, 'w').close(), text.clear()))
+            close_btn = QPushButton("Close")
+            close_btn.clicked.connect(dlg.accept)
+            btn_layout.addWidget(clear_btn)
+            btn_layout.addStretch()
+            btn_layout.addWidget(close_btn)
+            layout.addLayout(btn_layout)
+
+            dlg.exec()
+
+        except Exception as e:
+            if hasattr(self, 'main_window'):
+                self.main_window.log_message(f"Log file error: {str(e)}")
 
     def _toggle_merge_view_layout(self): #vers 2
         """Toggle content_splitter between horizontal (side by side) and vertical (top/bottom)"""

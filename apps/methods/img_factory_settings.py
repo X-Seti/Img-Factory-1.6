@@ -20,6 +20,10 @@ class IMGFactorySettings:
             "auto_save_on_import": True,
             "auto_reload_on_import": False,
 
+            # Logging
+            "log_to_file": False,
+            "log_file_path": "imgfactory_activity.log",
+
             # IDE Integration
             "load_ide_with_img": False,
             "preferred_ide_name": "TXD Workshop",

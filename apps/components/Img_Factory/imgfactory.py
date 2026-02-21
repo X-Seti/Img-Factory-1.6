@@ -679,15 +679,22 @@ class IMGFactory(QMainWindow):
         self.show()
 
 
-    def log_message(self, message: str): #vers 2
-        """Optimized logging that works before GUI is ready"""
+    def log_message(self, message: str): #vers 3
+        """Optimized logging that works before GUI is ready, optionally writes to file"""
         try:
-            # Check if GUI is ready
+            # Write to file if enabled
+            if hasattr(self, 'img_settings') and self.img_settings.get("log_to_file", False):
+                try:
+                    import time
+                    log_path = self.img_settings.get("log_file_path", "imgfactory_activity.log")
+                    with open(log_path, 'a') as f:
+                        f.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
+                except Exception:
+                    pass
+
             if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'log') and self.gui_layout.log:
-                # Use QTimer to defer log updates to prevent blocking
                 QTimer.singleShot(0, lambda: self._append_log_message(message))
             else:
-                # Fallback to console if GUI not ready
                 print(f"LOG: {message}")
         except Exception:
             print(f"LOG: {message}")
