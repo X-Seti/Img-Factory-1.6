@@ -90,7 +90,7 @@ class SVGIconFactory: #vers 7
             if hasattr(SVGIconFactory, "_cached_color"):
                 color = SVGIconFactory._cached_color
             else:
-                color = "#ffffff"  # Fallback
+                color = "#000000"  # Fallback - safe default
         
         svg_data = svg_data.replace("currentColor", color)
         

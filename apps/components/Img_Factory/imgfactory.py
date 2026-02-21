@@ -404,6 +404,16 @@ class IMGFactory(QMainWindow):
         self.settings = settings
         self.app_settings = settings if hasattr(settings, 'themes') else AppSettings()
 
+        # Set SVG icon color from theme before any UI is built
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            _theme_name = self.app_settings.current_settings.get('theme', 'default')
+            _colors = self.app_settings.get_theme_colors(_theme_name)
+            if _colors:
+                SVGIconFactory.set_theme_color(_colors.get('text_primary', '#000000'))
+        except Exception:
+            pass
+
         # CRITICAL: Initialize IMG Factory settings BEFORE using them
         from apps.methods.img_factory_settings import IMGFactorySettings
         self.img_settings = IMGFactorySettings()
