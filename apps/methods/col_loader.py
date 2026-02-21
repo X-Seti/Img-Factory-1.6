@@ -51,28 +51,26 @@ def load_col_file_safely(main_window, file_path: str) -> bool: #vers 8
         img_debugger.error(f"Error in COL loading: {str(e)}")
         return False
 
-def load_col_file_object(main_window, file_path: str) -> Optional[COLFile]: #vers 8
+def load_col_file_object(main_window, file_path: str) -> Optional[COLFile]: #vers 9
     """Load COL file and return COL object directly"""
     try:
         if not validate_col_file(main_window, file_path):
             return None
 
-        col_file = COLFile(file_path)
+        col_file = COLFile()
 
         if col_file.load_from_file(file_path):
-            if col_file.load_error:
-                error_details = col_file.load_error
-                img_debugger.error(f"COL file load error: {error_details}")
-                main_window.log_message(f"❌ Failed to load COL file: {error_details}")
-                return None
-
             model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
             img_debugger.success(f"COL file loaded: {model_count} models")
             return col_file
-
-        except Exception as e:
-            img_debugger.error(f"Error loading COL file: {str(e)}")
+        else:
+            error_details = col_file.load_error if hasattr(col_file, 'load_error') else "Unknown error"
+            img_debugger.error(f"COL file load error: {error_details}")
             return None
+
+    except Exception as e:
+        img_debugger.error(f"Error loading COL file: {str(e)}")
+        return None
 
 def validate_col_file(main_window, file_path: str) -> bool: #vers 8
     """Validate COL file before loading"""
@@ -316,7 +314,7 @@ class COLBackgroundLoader(QThread):
             def progress_load():
                 self.progress_update.emit(50, "Parsing COL structure...")
                 
-                result = self.col_file.load()
+                result = self.col_file.load_from_file(self.file_path)
                 
                 if result and self.col_file.models:
                     self.progress_update.emit(75, f"Processing {len(self.col_file.models)} models...")
@@ -341,7 +339,7 @@ class COLBackgroundLoader(QThread):
             self.col_file.load = progress_load
             
             try:
-                return self.col_file.load()
+                return self.col_file.load_from_file(self.file_path)
             finally:
                 # Restore original load method
                 self.col_file.load = original_load

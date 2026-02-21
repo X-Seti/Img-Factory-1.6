@@ -154,22 +154,25 @@ def setup_table_for_col_data(table: QTableWidget) -> bool: #vers 1
         img_debugger.error(f"Error setting up COL table structure: {e}")
         return False
 
-def setup_col_tab(main_window, file_path): #vers 1
+def setup_col_tab(main_window, file_path): #vers 2
     """Setup or reuse tab for COL file"""
     try:
         current_index = main_window.main_tab_widget.currentIndex()
-        
-        # Check if current tab is empty
-        if not hasattr(main_window, 'open_files') or current_index not in main_window.open_files:
-            img_debugger.debug("Using current tab for COL file")
-        else:
+
+        # Check if current tab already has a file - open a new tab
+        if hasattr(main_window, 'open_files') and current_index in main_window.open_files:
             img_debugger.debug("Creating new tab for COL file")
-            if hasattr(main_window, 'close_manager'):
+            if hasattr(main_window, 'create_tab') and callable(main_window.create_tab):
                 main_window.create_tab()
                 current_index = main_window.main_tab_widget.currentIndex()
-            else:
-                img_debugger.warning("Close manager not available")
-                return None
+            elif hasattr(main_window, 'main_tab_widget'):
+                from PyQt6.QtWidgets import QWidget
+                new_tab = QWidget()
+                main_window.main_tab_widget.addTab(new_tab, "COL")
+                current_index = main_window.main_tab_widget.count() - 1
+                main_window.main_tab_widget.setCurrentIndex(current_index)
+        else:
+            img_debugger.debug("Using current tab for COL file")
         
         # Setup tab info
         file_name = os.path.basename(file_path)
@@ -196,31 +199,26 @@ def setup_col_tab(main_window, file_path): #vers 1
         img_debugger.error(f"Error setting up COL tab: {str(e)}")
         return None
 
-def load_col_file_object(main_window, file_path): #vers 1
+def load_col_file_object(main_window, file_path): #vers 2
     """Load COL file object"""
     try:
         from apps.methods.col_core_classes import COLFile
-        
+
         img_debugger.debug(f"Loading COL file: {os.path.basename(file_path)}")
-        
-        # Create COL file object
+
         col_file = COLFile()
-        if not col_file.load_from_file(file_path):
-            img_debugger.error(f"Failed to load COL file: {col_file.load_error if hasattr(col_file, "load_error") else "Unknown error"}")
-            return None
-        
-        # Load the file
+        if col_file.load_from_file(file_path):
+            model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
             img_debugger.success(f"COL file loaded: {model_count} models")
             return col_file
         else:
             error_details = col_file.load_error if hasattr(col_file, 'load_error') else "Unknown error"
             img_debugger.error(f"Failed to load COL file: {error_details}")
             return None
-        
+
     except Exception as e:
         img_debugger.error(f"Error loading COL file: {str(e)}")
         return None
-
 def setup_col_table_structure(main_window): #vers 1
     """Setup table structure for COL data"""
     try:

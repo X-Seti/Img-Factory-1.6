@@ -120,11 +120,11 @@ def load_col_file_safely(main_window, file_path): #vers 6
 
         # Create COL file object
         img_debugger.debug("Creating COL file object...")
-        col_file = COLFile(file_path)
+        col_file = COLFile()
 
         # Load the COL file
         img_debugger.debug("Starting COL file parsing...")
-        success = col_file.load()
+        success = col_file.load_from_file(file_path)
 
         if not success:
             # Get specific error from COL file
@@ -269,10 +269,10 @@ def _load_col_file(main_window, file_path): #vers 1
         img_debugger.debug(f"Loading COL file: {os.path.basename(file_path)}")
 
         # Create COL file object
-        col_file = COLFile(file_path)
+        col_file = COLFile()
 
         # Load the file
-        if col_file.load():
+        if col_file.load_from_file(file_path):
             model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
             img_debugger.success(f"COL file loaded: {model_count} models")
             return col_file
