@@ -1,4 +1,33 @@
-#this belongs in root /ChangeLog.md - Version: 3
+#this belongs in root /ChangeLog.md - Version: 4
+
+## February 21, 2026 - Theme & SVG Icon Fixes
+
+**Fixed**: theme_integration.py
+- SVG icon color now reads text_primary from theme on every theme change
+- refresh_icons() called on active layout after theme switch
+- Menu bar re-applies styling on theme change via _apply_menu_bar_styling()
+- Fixed missing except block in on_theme_changed()
+
+**Fixed**: gui_layout.py
+- Added refresh_icons(color) method - updates all toolbar button icons on theme change
+- set_theme_mode() now reads text_primary and calls refresh_icons()
+- Toolbar buttons pass icon_color at creation time
+
+**Fixed**: gui_layout_custom.py
+- Removed hardcoded #ffffff icon color - now reads text_primary from theme
+- Added refresh_icons(color) method for custom toolbar buttons
+- All icon_factory calls pass icon_color at creation time
+
+**Fixed**: gui_menu_custom.py
+- _get_themed_stylesheet() was using wrong color keys (background, text)
+- Corrected to use bg_secondary, text_primary, text_secondary
+
+**Fixed**: imgfactory_svg_icons.py
+- Default fallback color changed from #ffffff to #000000
+
+**Fixed**: imgfactory.py
+- SVGIconFactory.set_theme_color() now called at startup before any UI builds
+
 ## December 24, 2025 - SVG Icon System Consolidation
 
 ### Fixed
