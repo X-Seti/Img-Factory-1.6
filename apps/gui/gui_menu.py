@@ -133,8 +133,20 @@ class COLMenuBuilder:
 
         col_menu.addSeparator()
 
-        # File operations
-        open_col_action = QAction("&Open COL File", parent_window)
+        # Open selected COL from directory browser (enabled only when .col highlighted)
+        workshop_action = QAction("Open Selected in COL Workshop", parent_window)
+        workshop_action.setStatusTip("Open the highlighted COL file from the directory browser in COL Workshop")
+        workshop_action.setEnabled(False)
+        try:
+            from apps.methods.imgfactory_svg_icons import get_edit_icon
+            workshop_action.setIcon(get_edit_icon())
+        except Exception:
+            pass
+        workshop_action.triggered.connect(lambda: COLMenuBuilder._open_selected_in_workshop(parent_window))
+        col_menu.addAction(workshop_action)
+        parent_window._col_workshop_menu_action = workshop_action
+
+        col_menu.addSeparator()
         open_col_action.setShortcut("Ctrl+Shift+O")
         open_col_action.setStatusTip("Open COL file directly")
         # Set SVG icon
@@ -265,6 +277,27 @@ class COLMenuBuilder:
             QMessageBox.warning(parent_window, "COL Editor", "COL Editor components not found")
         except Exception as e:
             QMessageBox.critical(parent_window, "Error", f"Failed to open COL Editor: {str(e)}")
+
+    @staticmethod
+    def _open_selected_in_workshop(parent_window): #vers 1
+        """Open the currently highlighted COL file from directory browser in COL Workshop"""
+        try:
+            gui_layout = getattr(parent_window, 'gui_layout', None)
+            if not gui_layout:
+                return
+            dir_list = getattr(gui_layout, 'directory_files_list', None)
+            if not dir_list:
+                return
+            item = dir_list.currentItem()
+            if not item:
+                return
+            from PyQt6.QtCore import Qt
+            file_path = item.data(Qt.ItemDataRole.UserRole)
+            if file_path and file_path.lower().endswith('.col'):
+                from apps.components.Col_Editor.col_workshop import open_col_workshop
+                open_col_workshop(parent_window, file_path)
+        except Exception as e:
+            QMessageBox.critical(parent_window, "Error", f"Failed to open COL Workshop: {str(e)}")
 
     @staticmethod
     def _open_col_file(parent_window):

@@ -1290,6 +1290,8 @@ class IMGFactoryGUILayout:
 
         # Connect to a function to handle file selection
         self.directory_files_list.itemClicked.connect(self._on_directory_file_selected)
+        self.directory_files_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.directory_files_list.customContextMenuRequested.connect(self._on_directory_list_context_menu)
         layout.addWidget(self.directory_files_list)
         
         # Initially populate the list (will be empty until an IMG file is loaded)
@@ -2996,6 +2998,9 @@ class IMGFactoryGUILayout:
                 # Log the selected file
                 if hasattr(self.main_window, 'log_message'):
                     self.main_window.log_message(f"Selected file: {os.path.basename(file_path)} ({file_ext})")
+
+                # Update COL menu action visibility
+                self.update_col_menu_for_selection(file_path)
                 
                 # For now, we'll just open the file with the appropriate handler
                 # based on its extension, but in a real implementation you might want
@@ -3024,6 +3029,65 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error selecting directory file: {str(e)}")
+
+
+    def _on_directory_list_context_menu(self, pos): #vers 1
+        """Show context menu for directory file list"""
+        try:
+            from PyQt6.QtWidgets import QMenu
+            item = self.directory_files_list.itemAt(pos)
+            if not item:
+                return
+
+            file_path = item.data(Qt.ItemDataRole.UserRole)
+            if not file_path:
+                return
+
+            menu = QMenu(self.directory_files_list)
+            file_ext = os.path.splitext(file_path)[1].lower()
+
+            if file_ext == '.col':
+                open_action = menu.addAction("Open in COL Workshop")
+                try:
+                    from apps.methods.imgfactory_svg_icons import get_edit_icon
+                    open_action.setIcon(get_edit_icon())
+                except Exception:
+                    pass
+                open_action.triggered.connect(lambda: self._open_file_in_col_workshop(file_path))
+                menu.addSeparator()
+
+            load_action = menu.addAction("Load File")
+            load_action.triggered.connect(lambda: self._on_directory_file_selected(item))
+            menu.exec(self.directory_files_list.mapToGlobal(pos))
+
+        except Exception as e:
+            if hasattr(self, 'log_message'):
+                self.log_message(f"Context menu error: {str(e)}")
+
+    def _open_file_in_col_workshop(self, file_path): #vers 1
+        """Open a COL file in COL Workshop"""
+        try:
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            workshop = open_col_workshop(self.main_window, file_path)
+            if workshop:
+                self.main_window.log_message(f"COL Workshop opened: {os.path.basename(file_path)}")
+            else:
+                self.main_window.log_message("Failed to open COL Workshop")
+        except Exception as e:
+            self.main_window.log_message(f"COL Workshop error: {str(e)}")
+
+    def update_col_menu_for_selection(self, file_path=None): #vers 1
+        """Enable/disable COL menu workshop action based on selected file"""
+        try:
+            if not hasattr(self.main_window, '_col_workshop_menu_action'):
+                return
+            is_col = file_path and os.path.splitext(file_path)[1].lower() == '.col'
+            self.main_window._col_workshop_menu_action.setEnabled(bool(is_col))
+            if is_col:
+                self.main_window._col_workshop_menu_action.setStatusTip(
+                    f"Open {os.path.basename(file_path)} in COL Workshop")
+        except Exception:
+            pass
 
 
 # LEGACY COMPATIBILITY FUNCTIONS
