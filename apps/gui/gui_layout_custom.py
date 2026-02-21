@@ -280,7 +280,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # M Menu button - BEFORE settings
         self.menu_btn = QPushButton()
         self.menu_btn.setFont(self.button_font)
-        self.menu_btn.setIcon(self.icon_factory.menu_m_icon())
+        self.menu_btn.setIcon(self.icon_factory.menu_m_icon(20, icon_color))
         self.menu_btn.setText("Menu")
         self.menu_btn.setIconSize(QSize(20, 20))
         self.menu_btn.clicked.connect(self._show_popup_menu)
@@ -290,7 +290,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Settings button - PREVENT DUPLICATE CONNECTIONS
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.settings_btn.setIcon(self.icon_factory.settings_icon(20, icon_color))
         self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(20, 20))
 
@@ -363,7 +363,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Undo button - CONNECTED
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon())
+        self.undo_btn.setIcon(self.icon_factory.undo_icon(20, icon_color))
         self.undo_btn.setText("")
         self.undo_btn.setIconSize(QSize(20, 20))
         self.undo_btn.setMinimumWidth(40)
@@ -380,7 +380,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         # Info button - CONNECTED
         self.info_btn = QPushButton()
-        self.info_btn.setIcon(self.icon_factory.info_icon())
+        self.info_btn.setIcon(self.icon_factory.info_icon(20, icon_color))
         self.info_btn.setIconSize(QSize(20, 20))
         self.info_btn.setMinimumWidth(40)
         self.info_btn.setMaximumWidth(40)
@@ -417,7 +417,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         if ui_mode == 'custom':
             self.minimize_btn = QPushButton()
-            self.minimize_btn.setIcon(self.icon_factory.minimize_icon())
+            self.minimize_btn.setIcon(self.icon_factory.minimize_icon(20, icon_color))
             self.minimize_btn.setIconSize(QSize(20, 20))
             self.minimize_btn.setMinimumWidth(40)
             self.minimize_btn.setMaximumWidth(40)
@@ -427,7 +427,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             layout.addWidget(self.minimize_btn)
 
             self.maximize_btn = QPushButton()
-            self.maximize_btn.setIcon(self.icon_factory.maximize_icon())
+            self.maximize_btn.setIcon(self.icon_factory.maximize_icon(20, icon_color))
             self.maximize_btn.setIconSize(QSize(20, 20))
             self.maximize_btn.setMinimumWidth(40)
             self.maximize_btn.setMaximumWidth(40)
@@ -437,7 +437,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             layout.addWidget(self.maximize_btn)
 
             self.close_btn = QPushButton()
-            self.close_btn.setIcon(self.icon_factory.close_icon())
+            self.close_btn.setIcon(self.icon_factory.close_icon(20, icon_color))
             self.close_btn.setIconSize(QSize(20, 20))
             self.close_btn.setMinimumWidth(40)
             self.close_btn.setMaximumWidth(40)

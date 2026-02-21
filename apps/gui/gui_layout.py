@@ -1605,7 +1605,13 @@ class IMGFactoryGUILayout:
         if not hasattr(globals(), 'App_name'):
             from apps.components.Img_Factory.imgfactory import App_name
 
-        """Create status window with activity log"""
+        # Get icon color from theme text_primary
+        icon_color = '#000000'
+        if hasattr(self, 'main_window') and hasattr(self.main_window, 'app_settings'):
+            current_theme = self.main_window.app_settings.get_current_theme()
+            theme_colors = self.main_window.app_settings.get_theme_colors(current_theme)
+            if theme_colors:
+                icon_color = theme_colors.get('text_primary', '#000000')
         status_container = QWidget()
         status_layout = QVBoxLayout(status_container)
         status_layout.setContentsMargins(5, 5, 5, 5)
@@ -1620,7 +1626,7 @@ class IMGFactoryGUILayout:
 
         # File Entries button - CONNECTED
         self.f_entries_btn = QPushButton()
-        self.f_entries_btn.setIcon(self.icon_factory.package_icon())
+        self.f_entries_btn.setIcon(self.icon_factory.package_icon(20, icon_color))
         self.f_entries_btn.setText("File Entries")
         self.f_entries_btn.setIconSize(QSize(20, 20))
         self.f_entries_btn.setToolTip("File Entries Tab (Ctrl+1)")
@@ -1629,7 +1635,7 @@ class IMGFactoryGUILayout:
 
         # Directory Tree button - CONNECTED
         self.dirtree_btn = QPushButton()
-        self.dirtree_btn.setIcon(self.icon_factory.folder_icon())
+        self.dirtree_btn.setIcon(self.icon_factory.folder_icon(20, icon_color))
         self.dirtree_btn.setText("Directory Tree")
         self.dirtree_btn.setIconSize(QSize(20, 20))
         self.dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
