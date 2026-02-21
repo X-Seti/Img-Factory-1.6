@@ -1,4 +1,20 @@
-#this belongs in root /ChangeLog.md - Version: 4
+#this belongs in root /ChangeLog.md - Version: 5
+
+## February 21, 2026 - Status Bar & Tab Settings Fixes
+
+**Fixed**: status_bar.py
+- File size now reads from os.path.getsize() - IMGFile has no file_size attribute
+- Version display uses enum .name correctly
+- update_img_status() called in _on_img_loaded() - status now updates on file load
+- set_ready_status() called in _update_ui_for_no_img() - resets on file close
+- All emojis replaced with SVG icons (file, info, reset, checkmark, close)
+
+**Fixed**: imgfactory_ui_settings.py
+- Dialog now uses main_window.img_settings instance instead of creating a new one
+- Tab settings (height, min width, style, position) now save correctly to JSON
+
+**Fixed**: imgfactory.py
+- apply_tab_settings() called at startup after GUI build - settings now load on start
 
 ## February 21, 2026 - Theme & SVG Icon Fixes
 
