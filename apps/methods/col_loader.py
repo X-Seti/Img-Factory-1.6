@@ -35,16 +35,11 @@ from apps.methods.col_core_classes import COLFile
 # COLBackgroundLoader
 
 
-def load_col_file_safely(main_window, file_path: str) -> bool: #vers 8
+def load_col_file_safely(main_window, file_path: str) -> bool: #vers 9
     """Load COL file safely with proper validation and tab management"""
     try:
         img_debugger.debug(f"Loading COL: {os.path.basename(file_path)}")
-
-        # Use threaded loader for better UX
-        #from apps.components.col_loader import load_col_file_threaded
-        loader = load_col_file_threaded(main_window, file_path)
-
-        # Return True if loader started successfully
+        loader = load_col_file_async(main_window, file_path)
         return loader is not None
 
     except Exception as e:

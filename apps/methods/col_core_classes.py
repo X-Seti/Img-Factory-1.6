@@ -698,7 +698,7 @@ class COLFile:
             SPHERE_SIZE = 24  # center(12) + radius(4) + material(4) + flags(4)
             BOX_SIZE = 32     # min(12) + max(12) + material(4) + flags(4)
             VERTEX_SIZE = 12  # position(12)
-            FACE_SIZE_COL1 = 16  # indices(6) + mat(2) + light(2) + flags(4) + padding(2)
+            FACE_SIZE_COL1 = 14  # indices(6) + mat(2) + light(2) + flags(4)
             FACE_SIZE_COL23 = 12 # indices(6) + mat(2) + light(2) + padding(2)
             
             data_used = (num_spheres * SPHERE_SIZE) + \
