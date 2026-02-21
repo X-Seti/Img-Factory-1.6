@@ -1644,6 +1644,19 @@ class IMGFactoryGUILayout:
         self.dirtree_btn.clicked.connect(self._switch_to_directory_tree)
         header_layout.addWidget(self.dirtree_btn)
 
+        # Split layout toggle button
+        self._merge_view_horizontal = False  # default: vertical (top/bottom)
+        self.split_toggle_btn = QPushButton()
+        self.split_toggle_btn.setFixedSize(24, 24)
+        self.split_toggle_btn.setToolTip("Toggle Merge View layout: side by side / top-bottom")
+        self.split_toggle_btn.clicked.connect(self._toggle_merge_view_layout)
+        try:
+            from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon
+            self.split_toggle_btn.setIcon(get_split_horizontal_icon(16))
+        except Exception:
+            self.split_toggle_btn.setText("⇔")
+        header_layout.addWidget(self.split_toggle_btn)
+
         # Import SVG icons
         from apps.methods.imgfactory_svg_icons import get_search_icon, get_view_icon
 
@@ -1817,6 +1830,28 @@ class IMGFactoryGUILayout:
         """Toggle activity log visibility"""
         if hasattr(self, 'log'):
             self.log.setVisible(not self.log.isVisible())
+
+    def _toggle_merge_view_layout(self): #vers 1
+        """Toggle middle splitter between vertical (top/bottom) and horizontal (side by side)"""
+        try:
+            from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon, get_split_vertical_icon
+            if not hasattr(self, 'middle_vertical_splitter'):
+                return
+            splitter = self.middle_vertical_splitter
+            self._merge_view_horizontal = not getattr(self, '_merge_view_horizontal', False)
+            if self._merge_view_horizontal:
+                splitter.setOrientation(Qt.Orientation.Horizontal)
+                splitter.setSizes([600, 400])
+                self.split_toggle_btn.setIcon(get_split_vertical_icon(16))
+                self.split_toggle_btn.setToolTip("Toggle Merge View layout: top-bottom / side by side")
+            else:
+                splitter.setOrientation(Qt.Orientation.Vertical)
+                splitter.setSizes([760, 200])
+                self.split_toggle_btn.setIcon(get_split_horizontal_icon(16))
+                self.split_toggle_btn.setToolTip("Toggle Merge View layout: side by side / top-bottom")
+        except Exception as e:
+            if hasattr(self, 'main_window'):
+                self.main_window.log_message(f"Layout toggle error: {str(e)}")
 
 
     def create_status_window_OLD(self): #vers 5 -kept old method

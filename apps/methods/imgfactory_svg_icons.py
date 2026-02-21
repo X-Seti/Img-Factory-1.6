@@ -2542,3 +2542,40 @@ def get_settings_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
 def get_rebuild_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     """Wrapper for SVGIconFactory.get_rebuild_icon"""
     return SVGIconFactory.get_rebuild_icon(size)
+
+def get_split_horizontal_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Two panels side by side - indicates horizontal split layout"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    import xml.etree.ElementTree as ET
+    c = color or "#aaaaaa"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="2" y="3" width="9" height="18" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <rect x="13" y="3" width="9" height="18" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+def get_split_vertical_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Two panels stacked - indicates vertical split layout"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#aaaaaa"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="3" y="2" width="18" height="9" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <rect x="3" y="13" width="18" height="9" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
