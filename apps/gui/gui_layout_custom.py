@@ -272,7 +272,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Get icon color from theme text_primary
         icon_color = "#000000"
         if hasattr(self, 'main_window') and hasattr(self.main_window, 'app_settings'):
-            current_theme = self.main_window.app_settings.get_current_theme()
+            current_theme = self.main_window.app_settings.current_settings.get("theme", "default")
             theme_colors = self.main_window.app_settings.get_theme_colors(current_theme)
             if theme_colors:
                 icon_color = theme_colors.get('text_primary', '#000000')
