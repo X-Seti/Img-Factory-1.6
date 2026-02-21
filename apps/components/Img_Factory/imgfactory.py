@@ -829,9 +829,10 @@ class IMGFactory(QMainWindow):
                                 layout = QVBoxLayout(dir_widget)
                                 layout.addWidget(self.directory_tree)
                                 self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
+                                self._dir_tree_tab_widget = dir_widget
                         
                         # Switch to directory tree tab (tab 0) after short delay
-                        QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
+                        pass  # DIR Tree inserted at index 0
             else:
                 self.log_message("ℹ No saved game root - showing home directory")
 
@@ -855,9 +856,10 @@ class IMGFactory(QMainWindow):
                                         layout = QVBoxLayout(dir_widget)
                                         layout.addWidget(self.directory_tree)
                                         self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
+                                self._dir_tree_tab_widget = dir_widget
                                 
                                 # Switch to directory tree tab
-                                QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
+                                pass  # DIR Tree inserted at index 0
 
         except Exception as e:
             self.log_message(f"Error autoloading game root: {str(e)}")
@@ -3091,44 +3093,42 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 2
-        """Handle tab switching - Tab 0 = Dir Tree, others = IMG files"""
+    def _on_tab_changed(self, index): #vers 3
+        """Handle tab switching - identify DIR Tree by widget reference, not index"""
         try:
-            if index == 0:  # Dir Tree tab
-                # Hide table, show directory tree
-                if hasattr(self.gui_layout, 'table'):
-                    self.gui_layout.table.hide()
+            current_tab = self.main_tab_widget.widget(index)
+            tab_name = self.main_tab_widget.tabText(index)
 
-                if hasattr(self, 'directory_tree'):
-                    self.directory_tree.show()
-                    self.log_message("→ Directory Tree")
-                else:
-                    self.log_message("Directory tree not loaded - use Directory Tree button")
+            # Check if this is the DIR Tree tab by widget reference
+            is_dir_tree = (hasattr(self, '_dir_tree_tab_widget') and
+                           current_tab is self._dir_tree_tab_widget)
 
-            else:  # IMG file tabs (index > 0)
-                # Hide directory tree, show table
-                if hasattr(self, 'directory_tree'):
-                    self.directory_tree.hide()
+            if is_dir_tree:
+                self.log_message("→ Directory Tree")
+                return
 
-                if hasattr(self.gui_layout, 'table'):
-                    self.gui_layout.table.show()
+            # File tab - hide directory tree
+            if hasattr(self, 'directory_tree'):
+                self.directory_tree.hide()
 
-                # Get current tab's file object and repopulate table
-                current_tab = self.main_tab_widget.widget(index)
-                if current_tab and hasattr(current_tab, 'file_object'):
-                    file_object = current_tab.file_object
-                    self.current_img = file_object
+            if not current_tab:
+                return
 
-                    # Repopulate table
-                    if hasattr(self, '_populate_real_img_table'):
-                        self._populate_real_img_table(file_object)
-                        tab_name = self.main_tab_widget.tabText(index)
-                        self.log_message(f"→ {tab_name}")
-                    else:
-                        self.log_message("⚠ Table population method not available")
-                else:
-                    tab_name = self.main_tab_widget.tabText(index)
-                    self.log_message(f"→ {tab_name} (no file data)")
+            file_type = getattr(current_tab, 'file_type', None)
+            file_object = getattr(current_tab, 'file_object', None)
+
+            if file_type == 'COL':
+                self.current_col = file_object
+                self.log_message(f"→ {tab_name} (COL)")
+
+            elif file_type in ('IMG', None) and file_object is not None:
+                self.current_img = file_object
+                if hasattr(self, '_populate_real_img_table'):
+                    self._populate_real_img_table(file_object)
+                self.log_message(f"→ {tab_name}")
+
+            else:
+                self.log_message(f"→ {tab_name}")
 
         except Exception as e:
             self.log_message(f"Tab switch error: {str(e)}")
