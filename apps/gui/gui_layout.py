@@ -1632,20 +1632,11 @@ class IMGFactoryGUILayout:
         self.f_entries_btn.clicked.connect(self._switch_to_file_entries) #show active img file tab
         header_layout.addWidget(self.f_entries_btn)
 
-        # Directory Tree button - CONNECTED
-        self.dirtree_btn = QPushButton()
-        self.dirtree_btn.setIcon(self.icon_factory.folder_icon(20, icon_color))
-        self.dirtree_btn.setText("Merge View")
-        self.dirtree_btn.setIconSize(QSize(20, 20))
-        self.dirtree_btn.setToolTip("Merge View (Ctrl+2)")
-        self.dirtree_btn.clicked.connect(self._switch_to_directory_tree)
-        header_layout.addWidget(self.dirtree_btn)
-
-        # Split layout toggle button
-        self._merge_view_horizontal = False  # default: vertical (top/bottom)
+        # Merge View toggle (split layout icon only)
+        self._merge_view_horizontal = False
         self.split_toggle_btn = QPushButton()
         self.split_toggle_btn.setFixedSize(24, 24)
-        self.split_toggle_btn.setToolTip("Toggle Merge View layout: side by side / top-bottom")
+        self.split_toggle_btn.setToolTip("Merge View: side by side / top-bottom (Ctrl+2)")
         self.split_toggle_btn.clicked.connect(self._toggle_merge_view_layout)
         try:
             from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon
