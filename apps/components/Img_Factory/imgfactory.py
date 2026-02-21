@@ -2974,17 +2974,35 @@ class IMGFactory(QMainWindow):
             except Exception as e:
                 print(f"Toolbar creation failed: {e}")
 
-        # Create main tab widget for file handling
+        # Build the persistent shell: right panel + log live OUTSIDE the tab widget
+        # so they are always visible regardless of which tab is active.
+        # main_tab_widget only contains the table/content area per tab.
+
+        # Create the shared GUI shell (table, right panel, log) once
+        self.gui_layout.create_main_ui_with_splitters(main_layout)
+
+        # Replace gui_layout.table with a tab widget so tabs swap table content
         self.main_tab_widget = QTabWidget()
         self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Initialize open files tracking (for migration)
+        # Swap the table widget inside the file window for the tab widget
+        # Find the parent layout of gui_layout.table and replace it
+        table_parent = self.gui_layout.table.parentWidget()
+        if table_parent and table_parent.layout():
+            tbl_layout = table_parent.layout()
+            tbl_layout.replaceWidget(self.gui_layout.table, self.main_tab_widget)
+            self.gui_layout.table.hide()
+        else:
+            # Fallback: add tab widget to main layout
+            main_layout.addWidget(self.main_tab_widget)
+
+        # Initialize open files tracking
         if not hasattr(self, 'open_files'):
             self.open_files = {}
 
-        # Create initial empty tab
+        # Create initial empty tab with just a table
         self._create_initial_tab()
 
         # Setup close manager BEFORE tab system
@@ -2996,9 +3014,6 @@ class IMGFactory(QMainWindow):
         # Migrate existing tabs if any
         if self.open_files:
             migrate_tabs(self)
-
-        # Add tab widget to main layout
-        main_layout.addWidget(self.main_tab_widget)
 
         # Create GUI layout system (single instance)
         self.gui_layout.create_status_bar()
@@ -3015,18 +3030,24 @@ class IMGFactory(QMainWindow):
         self.setup_unified_signals()
 
 
-    def _create_initial_tab(self): #vers 4
+    def _create_initial_tab(self): #vers 5
         #./components/img_close_functions.py: - def _create_initial_tab[self]
-        """Create initial empty tab"""
-        # Create tab widget
+        """Create initial empty tab with a standalone table"""
+        from PyQt6.QtWidgets import QTableWidget
         tab_widget = QWidget()
         tab_layout = QVBoxLayout(tab_widget)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Create GUI layout for this tab
-        self.gui_layout.create_main_ui_with_splitters(tab_layout)
+        table = QTableWidget()
+        table.setAlternatingRowColors(True)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        tab_layout.addWidget(table)
+        tab_widget.table_ref = table
+        tab_widget.file_type = 'NONE'
+        tab_widget.file_object = None
 
-        # Add tab with "No file" label
         self.main_tab_widget.addTab(tab_widget, "No File")
 
 
@@ -3093,8 +3114,8 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 3
-        """Handle tab switching - identify DIR Tree by widget reference, not index"""
+    def _on_tab_changed(self, index): #vers 4
+        """Handle tab switching - DIR Tree by widget ref, file tabs swap table content"""
         try:
             current_tab = self.main_tab_widget.widget(index)
             tab_name = self.main_tab_widget.tabText(index)
@@ -3104,6 +3125,8 @@ class IMGFactory(QMainWindow):
                            current_tab is self._dir_tree_tab_widget)
 
             if is_dir_tree:
+                if hasattr(self, 'directory_tree'):
+                    self.directory_tree.show()
                 self.log_message("→ Directory Tree")
                 return
 
@@ -3121,7 +3144,7 @@ class IMGFactory(QMainWindow):
                 self.current_col = file_object
                 self.log_message(f"→ {tab_name} (COL)")
 
-            elif file_type in ('IMG', None) and file_object is not None:
+            elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
                 if hasattr(self, '_populate_real_img_table'):
                     self._populate_real_img_table(file_object)
