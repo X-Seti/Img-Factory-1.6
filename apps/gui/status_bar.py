@@ -1,4 +1,4 @@
-#this belongs in gui/ status_bar.py - Version: 14
+#this belongs in gui/status_bar.py - Version: 15
 # X-Seti - Aug06 2025 - IMG Factory 1.5 - Universal Theme Status Bar
 # UPDATED: Removed StatusBarTheme class, now uses AppSettings universal theme system
 # PRESERVES: 100% of existing functionality - all widgets, methods, and features
@@ -268,7 +268,7 @@ class ProgressWidget(QWidget):
         layout.addWidget(self.progress_bar)
         
         # Cancel button
-        self.cancel_btn = QPushButton("✕")
+        self.cancel_btn = QPushButton("X")
         self.cancel_btn.setMaximumWidth(20)
         self.cancel_btn.setMaximumHeight(16)
         self.cancel_btn.setToolTip("Cancel operation")
@@ -310,7 +310,7 @@ class SelectionStatusWidget(QWidget):
         layout.setSpacing(5)
         
         # Selection icon
-        layout.addWidget(QLabel("📋"))
+        
         
         # Selection text
         self.selection_label = QLabel("0 of 0 selected")
@@ -334,39 +334,45 @@ class OperationStatusWidget(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 2, 5, 2)
         layout.setSpacing(5)
-        
-        # Status icon
-        self.status_icon = QLabel("⚪")
+
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self._svg = SVGIconFactory
+
+        # Status icon button (flat, non-interactive)
+        self.status_icon = QPushButton()
+        self.status_icon.setFlat(True)
+        self.status_icon.setFixedSize(16, 16)
+        self.status_icon.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addWidget(self.status_icon)
-        
+
         # Status text
         self.status_label = QLabel("Idle")
         layout.addWidget(self.status_label)
-    
+
     def set_idle(self):
         """Set idle status"""
-        self.status_icon.setText("⚪")
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self.status_icon.setIcon(SVGIconFactory.info_icon(14))
         self.status_label.setText("Idle")
-    
+
     def set_working(self, message="Working"):
         """Set working status"""
-        self.status_icon.setText("🔄")
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self.status_icon.setIcon(SVGIconFactory.reset_icon(14))
         self.status_label.setText(message)
-    
+
     def set_success(self, message="Success"):
         """Set success status"""
-        self.status_icon.setText("✅")
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self.status_icon.setIcon(SVGIconFactory.get_checkmark_icon(14))
         self.status_label.setText(message)
-        
-        # Auto-clear after 3 seconds
         QTimer.singleShot(3000, self.set_idle)
-    
+
     def set_error(self, message="Error"):
         """Set error status"""
-        self.status_icon.setText("❌")
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self.status_icon.setIcon(SVGIconFactory.close_icon(14))
         self.status_label.setText(message)
-        
-        # Auto-clear after 5 seconds
         QTimer.singleShot(5000, self.set_idle)
 
 
@@ -383,9 +389,18 @@ class IMGStatusWidget(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 2, 5, 2)
         layout.setSpacing(8)
-        
-        # File icon and name
-        self.file_label = QLabel("📁 No File")
+
+        # File icon (SVG)
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        self.file_icon = QPushButton()
+        self.file_icon.setFlat(True)
+        self.file_icon.setFixedSize(16, 16)
+        self.file_icon.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.file_icon.setIcon(SVGIconFactory.file_icon(14))
+        layout.addWidget(self.file_icon)
+
+        # File name
+        self.file_label = QLabel("No File")
         layout.addWidget(self.file_label)
         
         # Separator
@@ -422,9 +437,9 @@ class IMGStatusWidget(QWidget):
         if filename:
             import os
             short_name = os.path.basename(filename) if filename else "No File"
-            self.file_label.setText(f"📁 {short_name}")
+            self.file_label.setText(short_name)
         else:
-            self.file_label.setText("📁 No File")
+            self.file_label.setText("No File")
         
         self.entries_label.setText(f"Entries: {entry_count}")
         self.size_label.setText(f"Size: {self._format_file_size(file_size)}")
@@ -432,7 +447,7 @@ class IMGStatusWidget(QWidget):
     
     def _reset_status(self):
         """Reset to default status"""
-        self.file_label.setText("📁 No File")
+        self.file_label.setText("No File")
         self.entries_label.setText("Entries: 0")
         self.size_label.setText("Size: 0 B")
         self.version_label.setText("Version: Unknown")
