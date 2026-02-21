@@ -1,10 +1,10 @@
---- simplified -- help me fix bugs -- created 21November 2025
-Important rules to remember: Project name is Img Factory 1.5
+--- simplified
+Important rules to remember: Project name is Img Factory 1.6
 
 1. To avoid confusion, the file must include #this belongs in [dir]/ [filename] or goes in root /[filename] - Version: [number] of updates to file, Keep the existing file header comments. "X-Seti - $MONTH$DATE 2025 -" rest of the header information.
 
 Example: 
-# X-Seti - August14 2025 - IMG Factory 1.5 - COL Table Population Methods
+# X-Seti - August 14 2025 - IMG Factory 1.6 - COL Table Population Methods
 """
 COL Table Population Methods - Handles populating the main table widget with COL file data.
 """
@@ -48,7 +48,7 @@ Themes .json files go in themes/
 Core important /single-use functions go in core/ 
 Editors go in components/ 
 and GUI-related functions go in gui/
-No Emoji's, only SVG generated icons. 
+No emojis, only SVG-generated icons. 
  
 4. "CRITICAL: When fixing bugs, you must preserve 100% of the original functionality. Do not simplify. Also, check for the original file first before creating a fix or update.
 
@@ -68,4 +68,12 @@ No Emoji's, only SVG generated icons.
 
 11. Read the Changelog file. List of TODO and functions fixed.
 
-12. Finally, use the sed command to make changes to files, instead of recreating the file, being mindful of bandwidth and session limits, The FIX_SUMMARY.md, update any file changes in the ChangeLog file (Keeping the same style and format)
+12. Finally, use the sed command to make changes to files (small fixes only), instead of recreating the file, being mindful of bandwidth and session limits. 
+
+13. For large fixes, show the full fixed method; just tell me the file to swap the method.
+
+14. The FIX_SUMMARY.md, update any file changes in the ChangeLog file (Keeping the same style and format), No lists, No summary files, show anything in the artefact.
+
+15. I have limited bandwidth, so keep replies short and to the point.
+
+16. No guessing, check you have access to GitHub repos or ask for the files first, before anything else is done. And confirm this with me.
