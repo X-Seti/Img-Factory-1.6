@@ -54,6 +54,10 @@ def on_theme_changed(main_window, theme_name: str): #vers 3
         if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'refresh_icons'):
             main_window.gui_layout.refresh_icons(icon_color)
 
+        # Re-apply menu bar styling
+        if hasattr(main_window, 'menu_bar_system') and hasattr(main_window.menu_bar_system, '_apply_menu_bar_styling'):
+            main_window.menu_bar_system._apply_menu_bar_styling()
+
         # Update GUI layout buttons and colors
         update_gui_layout_theme(main_window, theme_name)
 

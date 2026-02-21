@@ -38,15 +38,15 @@ class CustomMenuManager:
         self.recent_files = self._load_recent_files()
     
     
-    def _get_themed_stylesheet(self): #vers 1
+    def _get_themed_stylesheet(self): #vers 2
         """Get menu stylesheet based on global theme"""
         if hasattr(self.main_window, 'app_settings') and self.main_window.app_settings:
             theme_colors = self.main_window.app_settings.get_theme_colors()
-            bg_color = theme_colors.get('background', '#2b2b2b')
-            text_color = theme_colors.get('text', '#ffffff')
+            bg_color = theme_colors.get('bg_secondary', '#2b2b2b')
+            text_color = theme_colors.get('text_primary', '#ffffff')
             accent_color = theme_colors.get('accent_primary', '#0078d4')
             border_color = theme_colors.get('border', '#3d3d3d')
-            disabled_color = theme_colors.get('disabled_text', '#808080')
+            disabled_color = theme_colors.get('text_secondary', '#808080')
         else:
             bg_color = '#2b2b2b'
             text_color = '#ffffff'
