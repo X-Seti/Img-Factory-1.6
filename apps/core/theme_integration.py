@@ -34,24 +34,30 @@ def connect_theme_system(main_window): #vers 1
         print(f"Theme system connection failed: {str(e)}")
         return False
 
-def on_theme_changed(main_window, theme_name: str): #vers 1
+
+def on_theme_changed(main_window, theme_name: str): #vers 2
     """Handle theme change signal from settings system"""
     try:
         print(f"Theme changed to: {theme_name}")
-        
+
+        # ✅ UPDATE SVG ICON THEME COLOR FIRST
+        if hasattr(main_window, 'app_settings'):
+            theme_colors = main_window.app_settings.get_theme_colors(theme_name)
+            if theme_colors and 'text_primary' in theme_colors:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                icon_color = theme_colors.get('text_primary', '#000000')
+                SVGIconFactory.set_theme_color(icon_color)  # ← UPDATE CACHE HERE
+                print(f"SVG icon color updated to: {icon_color}")
+
         # Update GUI layout buttons and colors
         update_gui_layout_theme(main_window, theme_name)
-        
+
         # Update status bar theme
         update_status_bar_theme(main_window, theme_name)
-        
+
         # Update all other UI elements
         update_all_ui_elements(main_window, theme_name)
-        
-        print("All UI elements updated for new theme")
-        
-    except Exception as e:
-        print(f"Theme update failed: {str(e)}")
+
 
 def update_gui_layout_theme(main_window, theme_name: str): #vers 1
     """Update GUI layout with new theme"""
