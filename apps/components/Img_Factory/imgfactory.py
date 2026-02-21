@@ -2987,15 +2987,11 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Swap the table widget inside the file window for the tab widget
-        # Find the parent layout of gui_layout.table and replace it
-        table_parent = self.gui_layout.table.parentWidget()
-        if table_parent and table_parent.layout():
-            tbl_layout = table_parent.layout()
-            tbl_layout.replaceWidget(self.gui_layout.table, self.main_tab_widget)
-            self.gui_layout.table.hide()
+        # Replace table in content_splitter with main_tab_widget
+        if hasattr(self.gui_layout, 'content_splitter'):
+            self.gui_layout.content_splitter.replaceWidget(0, self.main_tab_widget)
+            self.gui_layout.table.setParent(None)
         else:
-            # Fallback: add tab widget to main layout
             main_layout.addWidget(self.main_tab_widget)
 
         # Initialize open files tracking
