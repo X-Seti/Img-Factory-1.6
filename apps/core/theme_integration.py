@@ -63,6 +63,9 @@ def on_theme_changed(main_window, theme_name: str): #vers 3
         # Update all other UI elements
         update_all_ui_elements(main_window, theme_name)
 
+    except Exception as e:
+        print(f"Theme change failed: {str(e)}")
+
 
 def update_gui_layout_theme(main_window, theme_name: str): #vers 1
     """Update GUI layout with new theme"""
