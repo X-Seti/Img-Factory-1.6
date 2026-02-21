@@ -3013,11 +3013,10 @@ class IMGFactoryGUILayout:
                     if workshop:
                         self.main_window.log_message(f"TXD Workshop opened for: {file_path}")
                 elif file_ext == '.col':
-                    # Open COL file with COL Workshop
-                    from apps.components.Col_Editor.col_workshop import open_col_workshop
-                    workshop = open_col_workshop(self.main_window, file_path)
-                    if workshop:
-                        self.main_window.log_message(f"COL Workshop opened for: {file_path}")
+                    if hasattr(self.main_window, 'load_file_unified'):
+                        self.main_window.load_file_unified(file_path)
+                    elif hasattr(self.main_window, 'load_col_file_safely'):
+                        self.main_window.load_col_file_safely(file_path)
                 else:
                     # For other file types, you might want to open them in a text editor or handle differently
                     self.main_window.log_message(f"Selected file: {file_path}")
