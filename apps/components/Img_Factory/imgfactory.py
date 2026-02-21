@@ -828,7 +828,7 @@ class IMGFactory(QMainWindow):
                                 from PyQt6.QtWidgets import QVBoxLayout
                                 layout = QVBoxLayout(dir_widget)
                                 layout.addWidget(self.directory_tree)
-                                self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
+                                self.main_tab_widget.insertTab(0, dir_widget, "Merge View")
                                 self._dir_tree_tab_widget = dir_widget
                         
                         # Switch to directory tree tab (tab 0) after short delay
@@ -855,7 +855,7 @@ class IMGFactory(QMainWindow):
                                         from PyQt6.QtWidgets import QVBoxLayout
                                         layout = QVBoxLayout(dir_widget)
                                         layout.addWidget(self.directory_tree)
-                                        self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
+                                        self.main_tab_widget.insertTab(0, dir_widget, "Merge View")
                                 self._dir_tree_tab_widget = dir_widget
                                 
                                 # Switch to directory tree tab
@@ -3127,7 +3127,7 @@ class IMGFactory(QMainWindow):
             if is_dir_tree:
                 if hasattr(self, 'directory_tree'):
                     self.directory_tree.show()
-                self.log_message("→ Directory Tree")
+                self.log_message("→ Merge View")
                 return
 
             # File tab - hide directory tree
@@ -5878,7 +5878,7 @@ def set_game_path(main_window):
             QMessageBox.information(
                 main_window,
                 "Game Path Set",
-                f"Game path configured:\\n{folder}\\n\\nDirectory tree will now show game files.\\nSwitch to the 'Directory Tree' tab to browse."
+                f"Game path configured:\\n{folder}\\n\\nDirectory tree will now show game files.\\nSwitch to the 'Merge View' tab to browse."
             )
         else:
             main_window.log_message("Game path selection cancelled")

@@ -138,7 +138,7 @@ def handle_browse_game_directory(main_window): #vers 1
         directory_tab_index = -1
         for i in range(tab_widget.count()):
             tab_text = tab_widget.tabText(i)
-            if "Directory Tree" in tab_text or "+" in tab_text:
+            if "Merge View" in tab_text or "+" in tab_text:
                 directory_tab_index = i
                 break
 
@@ -148,7 +148,7 @@ def handle_browse_game_directory(main_window): #vers 1
             QMessageBox.warning(
                 main_window,
                 "Directory Tree Not Available",
-                "Directory Tree tab is not available.\n\nThe directory tree system may not be integrated."
+                "Merge View tab is not available.\n\nThe directory tree system may not be integrated."
             )
             return False
 
@@ -215,7 +215,7 @@ def handle_browse_game_directory(main_window): #vers 1
             success_message = f"File Browser activated!\n\nBrowsing: {main_window.game_root}\n\nYou can now:\n• Browse files with full menu system\n• Edit, View, and Settings menus\n• Cut, Copy, Paste operations\n• Create new files and folders\n• Search files and calculate sizes\n• Load IMG files by double-clicking"
         else:
             # Simple directory tree
-            success_message = f"Directory Tree tab activated!\n\nBrowsing: {main_window.game_root}\n\nYou can now:\n• Browse game files\n• Load IMG files by double-clicking\n• Use context menus for file operations"
+            success_message = f"Merge View activated!\n\nBrowsing: {main_window.game_root}\n\nYou can now:\n• Browse game files\n• Load IMG files by double-clicking\n• Use context menus for file operations"
 
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.information(
@@ -453,7 +453,7 @@ def handle_auto_detect_game(main_window): #vers 3
             QMessageBox.information(
                 main_window,
                 "Auto-Detection Success",
-                f"GTA installation detected and configured:\n{game_path}\n\nDetected: {game_info['game_name']}\nEXE: {game_info['exe_file']}\nDAT: {game_info['dat_file']}\nIDE: {game_info['ide_file']}\n\nSwitch to 'Directory Tree' tab to browse game files."
+                f"GTA installation detected and configured:\n{game_path}\n\nDetected: {game_info['game_name']}\nEXE: {game_info['exe_file']}\nDAT: {game_info['dat_file']}\nIDE: {game_info['ide_file']}\n\nSwitch to 'Merge View' tab to browse game files."
             )
             main_window.log_message(f"Auto-detected {game_info['game_name']}: {game_path}")
             main_window.log_message(f"   EXE: {game_info['exe_file']}")

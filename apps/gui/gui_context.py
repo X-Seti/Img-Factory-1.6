@@ -172,7 +172,7 @@ def set_game_path(main_window):
             QMessageBox.information(
                 main_window,
                 "Game Path Set",
-                f"Game path configured:\n{folder}\n\nDirectory tree will now show game files.\nSwitch to the 'Directory Tree' tab to browse."
+                f"Game path configured:\n{folder}\n\nDirectory tree will now show game files.\nSwitch to the 'Merge View' tab to browse."
             )
         else:
             main_window.log_message("Game path selection cancelled")

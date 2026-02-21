@@ -321,7 +321,7 @@ class IMGFactoryGUILayout:
             # TODO Only show on gui_layout.py but hidden on gui_layout_custom.py
         return [
             ("File List", "filelist", "doc-filelist", colors['filelistwindow'], "switch_to_img_file"),
-            ("Dir Tree", "dirtree", "doc-dirtree", colors['dirtree'], "switch_to_dirlist"),
+            ("Merge View", "dirtree", "doc-dirtree", colors['dirtree'], "switch_to_dirlist"),
             ("Search", "search", "file-search", colors['filesearch'], "switch_to_search"),
         ]
 
@@ -1638,9 +1638,9 @@ class IMGFactoryGUILayout:
         # Directory Tree button - CONNECTED
         self.dirtree_btn = QPushButton()
         self.dirtree_btn.setIcon(self.icon_factory.folder_icon(20, icon_color))
-        self.dirtree_btn.setText("Directory Tree")
+        self.dirtree_btn.setText("Merge View")
         self.dirtree_btn.setIconSize(QSize(20, 20))
-        self.dirtree_btn.setToolTip("Directory Tree Tab (Ctrl+2)")
+        self.dirtree_btn.setToolTip("Merge View (Ctrl+2)")
         self.dirtree_btn.clicked.connect(self._switch_to_directory_tree)
         header_layout.addWidget(self.dirtree_btn)
 
@@ -1694,7 +1694,7 @@ class IMGFactoryGUILayout:
         try:
             # If already setup, block second press
             if hasattr(self.main_window, '_dirtree_setup_complete'):
-                self.main_window.log_message("Directory Tree already loaded - use 'Dir Tree' tab")
+                self.main_window.log_message("Directory Tree already loaded - use 'Merge View' tab")
                 return
 
             # Check game root
@@ -1732,9 +1732,9 @@ class IMGFactoryGUILayout:
             if hasattr(self.main_window.directory_tree, 'browse_directory'):
                 self.main_window.directory_tree.browse_directory(self.main_window.game_root)
 
-            # Update Tab 0 label to "Dir Tree"
+            # Update Tab 0 label to "Merge View"
             if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
+                self.main_window.main_tab_widget.setTabText(0, "Merge View")
 
             # Mark setup as complete BEFORE showing
             self.main_window._dirtree_setup_complete = True
@@ -1747,7 +1747,7 @@ class IMGFactoryGUILayout:
             # Switch to Tab 0
             if hasattr(self.main_window, 'main_tab_widget'):
                 self.main_window.main_tab_widget.setCurrentIndex(0)
-                self.main_window.log_message("→ Directory Tree")
+                self.main_window.log_message("→ Merge View")
 
         except Exception as e:
             self.main_window.log_message(f"Error: {str(e)}")
@@ -1775,7 +1775,7 @@ class IMGFactoryGUILayout:
                 if hasattr(self.main_window, 'directory_tree'):
                     tab_0_layout.addWidget(self.main_window.directory_tree)
 
-                tab_widget.insertTab(0, tab_0, "Dir Tree")
+                tab_widget.insertTab(0, tab_0, "Merge View")
                 self.main_window.log_message("Created Tab 0 for Directory Tree")
                 return True
             else:
@@ -1792,7 +1792,7 @@ class IMGFactoryGUILayout:
                         layout.addWidget(self.main_window.directory_tree)
 
                     # Update tab label
-                    tab_widget.setTabText(0, "Dir Tree")
+                    tab_widget.setTabText(0, "Merge View")
                     return True
             return False
         except Exception as e:
@@ -2933,7 +2933,7 @@ class IMGFactoryGUILayout:
                     if hasattr(self.gui_layout, 'table'):
                         self.gui_layout.table.hide()
                     self.directory_tree.show()
-                    self.log_message("→ Directory Tree")
+                    self.log_message("→ Merge View")
                 else:
                     self.log_message("Directory tree not loaded - use Project menu")
         except Exception as e:

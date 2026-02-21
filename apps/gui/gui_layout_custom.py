@@ -662,7 +662,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
             # Update Tab 0 label to "Dir Tree"
             if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
+                self.main_window.main_tab_widget.setTabText(0, "Merge View")
 
             # Mark setup as complete BEFORE showing
             self.main_window._dirtree_setup_complete = True
@@ -703,7 +703,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 if hasattr(self.main_window, 'directory_tree'):
                     tab_0_layout.addWidget(self.main_window.directory_tree)
 
-                tab_widget.insertTab(0, tab_0, "Dir Tree")
+                tab_widget.insertTab(0, tab_0, "Merge View")
                 self.main_window.log_message("Created Tab 0 for Directory Tree")
                 return True
             else:
@@ -720,7 +720,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                         layout.addWidget(self.main_window.directory_tree)
 
                     # Update tab label
-                    tab_widget.setTabText(0, "Dir Tree")
+                    tab_widget.setTabText(0, "Merge View")
                     return True
             return False
         except Exception as e:
