@@ -3497,7 +3497,7 @@ class IMGFactory(QMainWindow):
 
             elif file_ext == 'col':
                 # COL file loading (unchanged - working correctly)
-                if hasattr_open_txd_workshop(self, 'load_col_file_safely'):
+                if hasattr(self, 'load_col_file_safely'):
                     self.log_message(f"Loading COL file: {file_name}")
                     success = self.load_col_file_safely(file_path)
                     if success:
