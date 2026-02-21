@@ -77,3 +77,13 @@ No emojis, only SVG-generated icons.
 15. I have limited bandwidth, so keep replies short and to the point.
 
 16. No guessing, check you have access to GitHub repos or ask for the files first, before anything else is done. And confirm this with me.
+
+## Workflow
+- Clone the repo first, confirm access before any work
+- Use the Claudia token to push directly to GitHub
+- Syntax-check Python files before pushing: python3 -c "import ast; ast.parse(open('file.py').read()); print('OK')"
+- sed for small fixes, full method shown for large fixes
+- Always pull before push to avoid conflicts
+- Confirm the plan with the user before making changes
+- Keep replies short, no walls of text
+- No artifacts, no summary files - changes go straight to GitHub
