@@ -828,7 +828,7 @@ class IMGFactory(QMainWindow):
                                 from PyQt6.QtWidgets import QVBoxLayout
                                 layout = QVBoxLayout(dir_widget)
                                 layout.addWidget(self.directory_tree)
-                                self.main_tab_widget.insertTab(0, dir_widget, "Merge View")
+                                self.main_tab_widget.insertTab(0, dir_widget, "Dir Tree")
                                 self._dir_tree_tab_widget = dir_widget
                         
                         # Switch to directory tree tab (tab 0) after short delay
@@ -855,7 +855,7 @@ class IMGFactory(QMainWindow):
                                         from PyQt6.QtWidgets import QVBoxLayout
                                         layout = QVBoxLayout(dir_widget)
                                         layout.addWidget(self.directory_tree)
-                                        self.main_tab_widget.insertTab(0, dir_widget, "Merge View")
+                                        self.main_tab_widget.insertTab(0, dir_widget, "Dir Tree")
                                 self._dir_tree_tab_widget = dir_widget
                                 
                                 # Switch to directory tree tab

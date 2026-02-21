@@ -1734,7 +1734,7 @@ class IMGFactoryGUILayout:
 
             # Update Tab 0 label to "Merge View"
             if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setTabText(0, "Merge View")
+                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
 
             # Mark setup as complete BEFORE showing
             self.main_window._dirtree_setup_complete = True
@@ -1792,7 +1792,7 @@ class IMGFactoryGUILayout:
                         layout.addWidget(self.main_window.directory_tree)
 
                     # Update tab label
-                    tab_widget.setTabText(0, "Merge View")
+                    tab_widget.setTabText(0, "Dir Tree")
                     return True
             return False
         except Exception as e:
