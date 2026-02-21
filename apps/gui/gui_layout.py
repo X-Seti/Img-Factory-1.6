@@ -1363,32 +1363,29 @@ class IMGFactoryGUILayout:
         return left_container
 
 
-    def _create_file_window(self): #vers 4
+    def _create_file_window(self): #vers 5
         """Create file window with table as main content (tabs moved to toolbar)"""
         file_window = QWidget()
         file_layout = QVBoxLayout(file_window)
         file_layout.setContentsMargins(5, 5, 5, 5)
         file_layout.setSpacing(3)
 
-        # Create main table (no tabs - these are now in the toolbar)
+        # Splitter holds main_tab_widget + directory_tree (merge view)
+        self.content_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Create main table placeholder (replaced by main_tab_widget in _create_ui)
         self.table = QTableWidget()
-
-
-        # Table configuration
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setSortingEnabled(True)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-
-        # Apply theme styling to table
         self._apply_table_theme_styling()
 
-        file_layout.addWidget(self.table)
+        self.content_splitter.addWidget(self.table)
+        file_layout.addWidget(self.content_splitter)
 
-        # Apply theme styling to file window
         self._apply_file_list_window_theme_styling()
-
         self._setup_tearoff_button_for_tabs()
 
         return file_window
@@ -1731,15 +1728,11 @@ class IMGFactoryGUILayout:
                     self.main_window.log_message("Failed to load Directory Tree")
                     return
 
-            # Place in file window
-            if hasattr(self.main_window.gui_layout, 'middle_vertical_splitter'):
-                splitter = self.main_window.gui_layout.middle_vertical_splitter
-                if splitter and splitter.count() > 0:
-                    file_window = splitter.widget(0)
-                    layout = file_window.layout()
-                    if layout:
-                        layout.addWidget(self.main_window.directory_tree)
-                        self.main_window.log_message("✓ Directory tree setup complete")
+            # Place in content_splitter alongside main_tab_widget
+            if hasattr(self.main_window.gui_layout, 'content_splitter'):
+                splitter = self.main_window.gui_layout.content_splitter
+                splitter.addWidget(self.main_window.directory_tree)
+                self.main_window.log_message("✓ Directory tree setup complete")
 
             # Browse to game root
             if hasattr(self.main_window.directory_tree, 'browse_directory'):
@@ -1831,24 +1824,34 @@ class IMGFactoryGUILayout:
         if hasattr(self, 'log'):
             self.log.setVisible(not self.log.isVisible())
 
-    def _toggle_merge_view_layout(self): #vers 1
-        """Toggle middle splitter between vertical (top/bottom) and horizontal (side by side)"""
+    def _toggle_merge_view_layout(self): #vers 2
+        """Toggle content_splitter between horizontal (side by side) and vertical (top/bottom)"""
         try:
             from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon, get_split_vertical_icon
-            if not hasattr(self, 'middle_vertical_splitter'):
+            if not hasattr(self, 'content_splitter'):
                 return
-            splitter = self.middle_vertical_splitter
+            splitter = self.content_splitter
             self._merge_view_horizontal = not getattr(self, '_merge_view_horizontal', False)
+
+            # Add directory_tree to splitter if not already there
+            mw = self.main_window
+            if hasattr(mw, 'directory_tree') and mw.directory_tree.parent() != splitter:
+                splitter.addWidget(mw.directory_tree)
+
             if self._merge_view_horizontal:
                 splitter.setOrientation(Qt.Orientation.Horizontal)
                 splitter.setSizes([600, 400])
                 self.split_toggle_btn.setIcon(get_split_vertical_icon(16))
-                self.split_toggle_btn.setToolTip("Toggle Merge View layout: top-bottom / side by side")
+                self.split_toggle_btn.setToolTip("Switch to top-bottom layout")
             else:
                 splitter.setOrientation(Qt.Orientation.Vertical)
-                splitter.setSizes([760, 200])
+                splitter.setSizes([600, 300])
                 self.split_toggle_btn.setIcon(get_split_horizontal_icon(16))
-                self.split_toggle_btn.setToolTip("Toggle Merge View layout: side by side / top-bottom")
+                self.split_toggle_btn.setToolTip("Switch to side-by-side layout")
+
+            if hasattr(mw, 'directory_tree'):
+                mw.directory_tree.show()
+
         except Exception as e:
             if hasattr(self, 'main_window'):
                 self.main_window.log_message(f"Layout toggle error: {str(e)}")
