@@ -3002,6 +3002,13 @@ class IMGFactory(QMainWindow):
         self.gui_layout.create_status_bar()
         self.gui_layout.apply_table_theme()
 
+        # Apply saved tab settings
+        try:
+            from apps.methods.tab_settings_apply import apply_tab_settings
+            apply_tab_settings(self, self.img_settings)
+        except Exception as e:
+            print(f"Tab settings startup apply failed: {e}")
+
         # Setup unified signal system
         self.setup_unified_signals()
 
