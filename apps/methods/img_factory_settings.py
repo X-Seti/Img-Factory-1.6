@@ -49,6 +49,12 @@ class IMGFactorySettings:
             "show_status_bar": True,
             "show_menu_bar": True,
 
+            # Tab Settings
+            "tab_height": 24,
+            "tab_min_width": 100,
+            "tab_style": "default",
+            "tab_position": "top",
+
             # File handling
             "recent_files_limit": 10,
             "auto_backup": False,

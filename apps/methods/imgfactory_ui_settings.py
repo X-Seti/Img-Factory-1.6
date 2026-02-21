@@ -207,6 +207,51 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         font_group.setLayout(font_layout)
         layout.addWidget(font_group)
 
+        # Tab Settings Group
+        tab_group = QGroupBox("Tab Settings")
+        tab_layout = QVBoxLayout()
+
+        tab_height_layout = QHBoxLayout()
+        tab_height_layout.addWidget(QLabel("Tab height:"))
+        self.tab_height_spin = QSpinBox()
+        self.tab_height_spin.setRange(16, 60)
+        self.tab_height_spin.setValue(self.img_settings.get("tab_height", 24))
+        self.tab_height_spin.setSuffix(" px")
+        tab_height_layout.addWidget(self.tab_height_spin)
+        tab_height_layout.addStretch()
+        tab_layout.addLayout(tab_height_layout)
+
+        tab_width_layout = QHBoxLayout()
+        tab_width_layout.addWidget(QLabel("Min tab width:"))
+        self.tab_min_width_spin = QSpinBox()
+        self.tab_min_width_spin.setRange(40, 300)
+        self.tab_min_width_spin.setValue(self.img_settings.get("tab_min_width", 100))
+        self.tab_min_width_spin.setSuffix(" px")
+        tab_width_layout.addWidget(self.tab_min_width_spin)
+        tab_width_layout.addStretch()
+        tab_layout.addLayout(tab_width_layout)
+
+        tab_style_layout = QHBoxLayout()
+        tab_style_layout.addWidget(QLabel("Tab style:"))
+        self.tab_style_combo = QComboBox()
+        self.tab_style_combo.addItems(["default", "rounded", "square"])
+        self.tab_style_combo.setCurrentText(self.img_settings.get("tab_style", "default"))
+        tab_style_layout.addWidget(self.tab_style_combo)
+        tab_style_layout.addStretch()
+        tab_layout.addLayout(tab_style_layout)
+
+        tab_pos_layout = QHBoxLayout()
+        tab_pos_layout.addWidget(QLabel("Tab position:"))
+        self.tab_position_combo = QComboBox()
+        self.tab_position_combo.addItems(["top", "bottom"])
+        self.tab_position_combo.setCurrentText(self.img_settings.get("tab_position", "top"))
+        tab_pos_layout.addWidget(self.tab_position_combo)
+        tab_pos_layout.addStretch()
+        tab_layout.addLayout(tab_pos_layout)
+
+        tab_group.setLayout(tab_layout)
+        layout.addWidget(tab_group)
+
         layout.addStretch()
         return widget
 
@@ -567,6 +612,12 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         self.img_settings.set("enable_pin_files", self.enable_pin_files_cb.isChecked())
         self.img_settings.set("auto_create_pin", self.auto_create_pin_cb.isChecked())
 
+        # Tab settings
+        self.img_settings.set("tab_height", self.tab_height_spin.value())
+        self.img_settings.set("tab_min_width", self.tab_min_width_spin.value())
+        self.img_settings.set("tab_style", self.tab_style_combo.currentText())
+        self.img_settings.set("tab_position", self.tab_position_combo.currentText())
+
         # Advanced tab
         self.img_settings.set("recent_files_limit", self.recent_files_spin.value())
         self.img_settings.set("auto_backup", self.auto_backup_cb.isChecked())
@@ -597,6 +648,13 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
 
         if hasattr(self.main_window, 'log_message'):
             self.main_window.log_message("IMG Factory settings applied")
+
+        # Apply tab settings
+        try:
+            from apps.methods.tab_settings_apply import apply_tab_settings
+            apply_tab_settings(self.main_window, self.img_settings)
+        except Exception as e:
+            print(f"Tab settings apply failed: {e}")
 
         QMessageBox.information(self, "Settings Applied", "Settings have been applied successfully.")
 
