@@ -57,7 +57,7 @@ def _show_tab_context_menu(main_window, position, tab_widget): #vers 1
             main_window.log_message(f"Context menu error: {str(e)}")
 
 
-def create_tab(main_window, file_path=None, file_type=None, file_object=None): #vers 5
+def create_tab(main_window, file_path=None, file_type=None, file_object=None): #vers 6
     """
     Create NEW tab - ALWAYS creates a new tab, never overwrites existing tabs
     Stores ALL data on tab widget itself
@@ -72,44 +72,36 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         int: Index of newly created tab
     """
     try:
-        # ALWAYS create new tab widget
+        # Create new tab widget with its own independent table
         tab_widget = QWidget()
         tab_layout = QVBoxLayout(tab_widget)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Create NEW GUI components for this tab
-        main_window.gui_layout.create_main_ui_with_splitters(tab_layout)
+        # Create a standalone table for this tab - do NOT call create_main_ui_with_splitters
+        # as that overwrites gui_layout shared references (breaks DIR Tree tab)
+        table = QTableWidget()
+        table.setAlternatingRowColors(True)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setMouseTracking(True)
+        table.viewport().setMouseTracking(True)
+        table.setStyleSheet("""
+            QTableWidget::item:hover {
+                background-color: rgba(100, 150, 255, 0.25);
+            }
+            QTableWidget::item:selected:hover {
+                background-color: rgba(90, 150, 250, 0.5);
+            }
+        """)
+        tab_layout.addWidget(table)
+        tab_widget.table_ref = table
 
-        # Get the NEW table widget created for THIS tab
-        tables = tab_widget.findChildren(QTableWidget)
-        if tables:
-            tab_widget.table_ref = tables[-1]
-            # Enable mouse tracking for hover effects
-            tab_widget.table_ref.setMouseTracking(True)
-            tab_widget.table_ref.viewport().setMouseTracking(True)
-            
-            # Apply hover stylesheet
-            existing_style = tab_widget.table_ref.styleSheet()
-            hover_style = """
-                QTableWidget::item:hover {
-                    background-color: rgba(100, 150, 255, 0.25);
-                }
-                QTableWidget::item:selected:hover {
-                    background-color: rgba(90, 150, 250, 0.5);
-                }
-            """
-            tab_widget.table_ref.setStyleSheet(existing_style + hover_style)
-        else:
-            main_window.log_message("No table found in new tab")
-            tab_widget.table_ref = None
-
-        # Setup context menu for THIS tabs table
-        if tab_widget.table_ref:
-            tab_widget.table_ref.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            tab_widget.table_ref.customContextMenuRequested.connect(
-                lambda pos, tw=tab_widget: _show_tab_context_menu(main_window, pos, tw)
-            )
-            main_window.log_message(f"Context menu enabled for tab table")
+        # Setup context menu
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(
+            lambda pos, tw=tab_widget: _show_tab_context_menu(main_window, pos, tw)
+        )
 
         # Store file data directly on tab widget
         tab_widget.file_path = file_path
