@@ -2300,11 +2300,28 @@ class IMGFactoryGUILayout:
                 right_panel_width = sizes[1]
                 self.adapt_buttons_to_width(right_panel_width)
 
-    def _on_main_splitter_moved(self, pos, index): #vers 1
-        """Called when main splitter moves - adapt right panel button display"""
+    def _on_main_splitter_moved(self, pos, index): #vers 2
+        """Snap right panel: 100%=text+icon, 50%=icon-only sticky, 0%=collapsed"""
         sizes = self.main_splitter.sizes()
-        if len(sizes) >= 2:
-            right_width = sizes[-1]
+        if len(sizes) < 2:
+            return
+
+        right_width = sizes[-1]
+        full_width = 280
+        half_width = 64   # icon-only snap point
+        collapse_threshold = 20  # below this → collapse to 0
+
+        if right_width <= collapse_threshold:
+            # Snap to fully closed
+            total = sum(sizes)
+            self.main_splitter.setSizes([total, 0])
+            self.adapt_buttons_to_width(0)
+        elif right_width < half_width:
+            # Snap to icon-only width (sticky at 50%)
+            total = sum(sizes)
+            self.main_splitter.setSizes([total - half_width, half_width])
+            self.adapt_buttons_to_width(half_width)
+        else:
             self.adapt_buttons_to_width(right_width)
 
     def adapt_buttons_to_width(self, width): #vers 2
