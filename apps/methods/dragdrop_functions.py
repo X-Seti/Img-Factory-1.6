@@ -504,19 +504,66 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
         drag.setMimeData(mime)
         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
 
+    def _clear_hover(item):
+        if item:
+            item.setBackground(0, item._orig_bg if hasattr(item, '_orig_bg') else item.background(0))
+
     def drag_enter(event):
         if event.mimeData().hasUrls() or event.mimeData().hasText():
             event.acceptProposedAction()
         else:
             event.ignore()
 
+    _hovered = [None]  # mutable ref for nested functions
+
     def drag_move(event):
-        if event.mimeData().hasUrls() or event.mimeData().hasText():
-            event.acceptProposedAction()
-        else:
+        mime = event.mimeData()
+        if not (mime.hasUrls() or mime.hasText()):
             event.ignore()
+            return
+
+        item = tree_widget.itemAt(event.position().toPoint())
+
+        # Clear previous hover
+        if _hovered[0] and _hovered[0] is not item:
+            prev = _hovered[0]
+            if hasattr(prev, '_orig_bg'):
+                prev.setBackground(0, prev._orig_bg)
+            _hovered[0] = None
+
+        # Highlight folder under cursor only
+        if item:
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            if path and os.path.isdir(path):
+                if not hasattr(item, '_orig_bg'):
+                    item._orig_bg = item.background(0)
+                from PyQt6.QtGui import QColor
+                from PyQt6.QtWidgets import QApplication
+                palette = QApplication.palette()
+                highlight = palette.color(palette.ColorRole.Highlight)
+                highlight.setAlpha(120)
+                item.setBackground(0, highlight)
+                _hovered[0] = item
+                event.acceptProposedAction()
+                return
+
+        event.acceptProposedAction()
+
+    def drag_leave(event):
+        if _hovered[0]:
+            prev = _hovered[0]
+            if hasattr(prev, '_orig_bg'):
+                prev.setBackground(0, prev._orig_bg)
+            _hovered[0] = None
 
     def drop_event(event):
+        # Clear hover on drop
+        if _hovered[0]:
+            prev = _hovered[0]
+            if hasattr(prev, '_orig_bg'):
+                prev.setBackground(0, prev._orig_bg)
+            _hovered[0] = None
+
         mime = event.mimeData()
         dst_item = tree_widget.itemAt(event.position().toPoint())
         if dst_item:
@@ -562,6 +609,7 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
     tree_widget.startDrag = start_drag
     tree_widget.dragEnterEvent = drag_enter
     tree_widget.dragMoveEvent = drag_move
+    tree_widget.dragLeaveEvent = drag_leave
     tree_widget.dropEvent = drop_event
 
 
@@ -662,11 +710,54 @@ def setup_table_entry_drag(table_widget, main_window): #vers 1
     table_widget.dropEvent = drop_event
 
 
-def setup_tree_as_extract_target(tree_widget, main_window): #vers 1
+def setup_tree_as_extract_target(tree_widget, main_window): #vers 2
     """Allow IMG/COL table entries to be dropped onto dir tree to extract them"""
     original_drop = getattr(tree_widget, 'dropEvent', None)
+    _hovered = [None]
+
+    def _apply_hover(item):
+        if item and not hasattr(item, '_orig_bg'):
+            item._orig_bg = item.background(0)
+        if item:
+            from PyQt6.QtGui import QColor
+            from PyQt6.QtWidgets import QApplication
+            highlight = QApplication.palette().color(QApplication.palette().ColorRole.Highlight)
+            highlight.setAlpha(120)
+            item.setBackground(0, highlight)
+
+    def _clear_hover():
+        if _hovered[0]:
+            prev = _hovered[0]
+            if hasattr(prev, '_orig_bg'):
+                prev.setBackground(0, prev._orig_bg)
+            _hovered[0] = None
+
+    def drag_enter(event):
+        if event.mimeData().hasUrls() or event.mimeData().hasFormat('application/x-imgfactory-entries'):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def drag_move(event):
+        mime = event.mimeData()
+        if not (mime.hasUrls() or mime.hasFormat('application/x-imgfactory-entries')):
+            event.ignore()
+            return
+        item = tree_widget.itemAt(event.position().toPoint())
+        if _hovered[0] and _hovered[0] is not item:
+            _clear_hover()
+        if item:
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            if path and os.path.isdir(path):
+                _apply_hover(item)
+                _hovered[0] = item
+        event.acceptProposedAction()
+
+    def drag_leave(event):
+        _clear_hover()
 
     def drop_event(event):
+        _clear_hover()
         mime = event.mimeData()
 
         # Handle entry extraction drop from table
@@ -713,4 +804,7 @@ def setup_tree_as_extract_target(tree_widget, main_window): #vers 1
             original_drop(event)
 
     tree_widget.setAcceptDrops(True)
+    tree_widget.dragEnterEvent = drag_enter
+    tree_widget.dragMoveEvent = drag_move
+    tree_widget.dragLeaveEvent = drag_leave
     tree_widget.dropEvent = drop_event
