@@ -429,15 +429,18 @@ class IMGFactoryGUILayout:
     def refresh_icons(self, color: str): #vers 1
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
         try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from apps.methods.imgfactory_svg_icons import (
+                get_twin_panel_icon, get_split_horizontal_icon,
+                get_single_panel_icon, get_view_icon
+            )
             if hasattr(self, 'f_entries_btn'):
-                self.f_entries_btn.setIcon(SVGIconFactory.package_icon(20, color))
-            if hasattr(self, 'dirtree_btn'):
-                self.dirtree_btn.setIcon(SVGIconFactory.folder_icon(20, color))
+                self.f_entries_btn.setIcon(get_twin_panel_icon(20, color))
+            if hasattr(self, 'split_toggle_btn'):
+                self.split_toggle_btn.setIcon(get_split_horizontal_icon(20, color))
             if hasattr(self, 'search_btn'):
-                self.search_btn.setIcon(SVGIconFactory.search_icon(20, color))
+                self.search_btn.setIcon(get_single_panel_icon(20, color))
             if hasattr(self, 'log_btn'):
-                self.log_btn.setIcon(SVGIconFactory.view_icon(20, color))
+                self.log_btn.setIcon(get_view_icon(20, color))
             print(f"Toolbar icons refreshed with color: {color}")
         except Exception as e:
             print(f"refresh_icons failed: {e}")
@@ -1624,34 +1627,34 @@ class IMGFactoryGUILayout:
         header_layout.addStretch()
 
         # File Entries button - icon only
+        # Import icons
+        from apps.methods.imgfactory_svg_icons import (
+            get_twin_panel_icon, get_split_horizontal_icon,
+            get_single_panel_icon, get_search_icon, get_view_icon
+        )
+
         self.f_entries_btn = QPushButton()
-        self.f_entries_btn.setIcon(self.icon_factory.package_icon(20, icon_color))
+        self.f_entries_btn.setIcon(get_twin_panel_icon(20))
         self.f_entries_btn.setFixedSize(24, 24)
         self.f_entries_btn.setIconSize(QSize(20, 20))
         self.f_entries_btn.setToolTip("File Entries (Ctrl+1)")
         self.f_entries_btn.clicked.connect(self._switch_to_file_entries)
         header_layout.addWidget(self.f_entries_btn)
 
-        # Merge View toggle - icon only
+        # Merge View toggle
         self._merge_view_horizontal = False
         self.split_toggle_btn = QPushButton()
         self.split_toggle_btn.setFixedSize(24, 24)
+        self.split_toggle_btn.setIcon(get_split_horizontal_icon(20))
+        self.split_toggle_btn.setIconSize(QSize(20, 20))
         self.split_toggle_btn.setToolTip("Merge View: side by side / top-bottom (Ctrl+2)")
         self.split_toggle_btn.clicked.connect(self._toggle_merge_view_layout)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon
-            self.split_toggle_btn.setIcon(get_split_horizontal_icon(16))
-        except Exception:
-            self.split_toggle_btn.setText("⇔")
         header_layout.addWidget(self.split_toggle_btn)
 
-        # Import SVG icons
-        from apps.methods.imgfactory_svg_icons import get_search_icon, get_view_icon
-
-        # Search button - icon only
+        # Search button
         self.search_btn = QPushButton()
         self.search_btn.setFixedSize(24, 24)
-        self.search_btn.setIcon(get_search_icon())
+        self.search_btn.setIcon(get_single_panel_icon(20))
         self.search_btn.setIconSize(QSize(20, 20))
         self.search_btn.setToolTip("Search in files (Ctrl+F)")
         self.search_btn.clicked.connect(self._show_search)

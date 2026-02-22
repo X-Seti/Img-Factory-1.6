@@ -2579,3 +2579,41 @@ def get_split_vertical_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     renderer.render(painter)
     painter.end()
     return QIcon(pixmap)
+
+def get_twin_panel_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Two equal side-by-side panels [Tc] style"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#aaaaaa"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="1" y="3" width="10" height="18" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <rect x="13" y="3" width="10" height="18" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <line x1="1" y1="7" x2="11" y2="7" stroke="{c}" stroke-width="1"/>
+      <line x1="13" y1="7" x2="23" y2="7" stroke="{c}" stroke-width="1"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+def get_single_panel_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Single full-width panel"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#aaaaaa"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="2" y="3" width="20" height="18" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <line x1="2" y1="7" x2="22" y2="7" stroke="{c}" stroke-width="1"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)

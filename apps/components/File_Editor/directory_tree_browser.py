@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
     QMenuBar, QMenu, QToolBar, QPushButton, QLineEdit, QLabel, QMessageBox,
-    QInputDialog, QDialog, QFormLayout, QCheckBox, QListWidget
+    QInputDialog, QDialog, QFormLayout, QCheckBox, QListWidget, QSplitter
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSettings
 from PyQt6.QtGui import QAction
@@ -27,7 +27,8 @@ try:
         get_copy_icon, get_paste_icon, get_cut_icon, get_rename_icon,
         get_back_icon, get_forward_icon, get_up_icon, get_home_icon,
         get_search_icon, get_properties_icon, get_new_folder_icon,
-        get_trash_icon, get_undo_icon, get_redo_icon
+        get_trash_icon, get_undo_icon, get_redo_icon,
+        get_twin_panel_icon, get_single_panel_icon
     )
 except ImportError:
     # Fallback implementations if the icons module is not available
@@ -459,8 +460,98 @@ class DirectoryTreeBrowser(QWidget):
         refresh_btn.clicked.connect(self.refresh_browser)
         layout.addWidget(refresh_btn)
 
+        layout.addSpacing(6)
+
+        self.twin_btn = QPushButton()
+        self.twin_btn.setIcon(get_twin_panel_icon())
+        self.twin_btn.setToolTip("Twin panel view")
+        self.twin_btn.setMaximumSize(32, 32)
+        self.twin_btn.clicked.connect(self._enable_twin_panel)
+        layout.addWidget(self.twin_btn)
+
+        self.single_btn = QPushButton()
+        self.single_btn.setIcon(get_single_panel_icon())
+        self.single_btn.setToolTip("Single panel view")
+        self.single_btn.setMaximumSize(32, 32)
+        self.single_btn.setEnabled(False)
+        self.single_btn.clicked.connect(self._enable_single_panel)
+        layout.addWidget(self.single_btn)
+
         return toolbar
 
+
+    def _enable_twin_panel(self): #vers 1
+        """Split view into two independent side-by-side panels"""
+        try:
+            if hasattr(self, '_twin_splitter') and self._twin_splitter:
+                return  # Already in twin mode
+
+            # Find tree's parent layout and replace tree with splitter
+            layout = self.layout()
+
+            # Create second tree (clone of first)
+            self._second_tree = QTreeWidget()
+            self._second_tree.setHeaderLabel("Directory Structure")
+            self._second_tree.setAlternatingRowColors(True)
+            self._second_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self._second_tree.customContextMenuRequested.connect(self.show_context_menu)
+
+            # Wrap both trees in a horizontal splitter
+            self._twin_splitter = QSplitter(Qt.Orientation.Horizontal)
+            layout.removeWidget(self.tree)
+            self._twin_splitter.addWidget(self.tree)
+            self._twin_splitter.addWidget(self._second_tree)
+            self._twin_splitter.setSizes([500, 500])
+            layout.addWidget(self._twin_splitter)
+
+            # Sync second panel to same path
+            if self.current_path:
+                self._populate_second_tree(self.current_path)
+
+            self.twin_btn.setEnabled(False)
+            self.single_btn.setEnabled(True)
+
+        except Exception as e:
+            print(f"Twin panel error: {e}")
+
+    def _enable_single_panel(self): #vers 1
+        """Restore single panel view"""
+        try:
+            if not hasattr(self, '_twin_splitter') or not self._twin_splitter:
+                return
+
+            layout = self.layout()
+            layout.removeWidget(self._twin_splitter)
+
+            # Reparent primary tree back
+            self._twin_splitter.widget(0)  # tree still owned by splitter
+            self.tree.setParent(self)
+            layout.addWidget(self.tree)
+
+            self._twin_splitter.deleteLater()
+            self._twin_splitter = None
+            self._second_tree = None
+
+            self.twin_btn.setEnabled(True)
+            self.single_btn.setEnabled(False)
+
+        except Exception as e:
+            print(f"Single panel error: {e}")
+
+    def _populate_second_tree(self, path: str): #vers 1
+        """Populate the second panel tree with the given path"""
+        try:
+            if not hasattr(self, '_second_tree') or not self._second_tree:
+                return
+            self._second_tree.clear()
+            self._second_tree.setHeaderLabel(f"  {os.path.basename(path)}")
+            # Reuse populate_tree logic on second tree by temporarily swapping
+            original_tree = self.tree
+            self.tree = self._second_tree
+            self.populate_tree(path)
+            self.tree = original_tree
+        except Exception as e:
+            print(f"Second tree populate error: {e}")
 
     def browse_directory(self, path: str): #vers 1
         """Browse to specific directory"""
