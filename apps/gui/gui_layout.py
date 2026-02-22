@@ -1313,8 +1313,8 @@ class IMGFactoryGUILayout:
         self.middle_vertical_splitter = QSplitter(Qt.Orientation.Vertical)
 
         # 1. TOP: File Window (table with sub-tabs)
-        file_window = self._create_file_window()
-        self.middle_vertical_splitter.addWidget(file_window)
+        self.file_window = self._create_file_window()
+        self.middle_vertical_splitter.addWidget(self.file_window)
 
         # 2. BOTTOM: Status Window (log and status)
         status_window = self.create_status_window()
@@ -1739,11 +1739,10 @@ class IMGFactoryGUILayout:
 
             self.main_window._dirtree_setup_complete = True
 
-            # Hide tab widget, give dir tree full space
+            # Hide file_window entirely so dir tree fills full middle space
             gl = self.main_window.gui_layout
-            if hasattr(gl, 'content_splitter'):
-                self.main_window.main_tab_widget.hide()
-                gl.content_splitter.setSizes([0, 10000])
+            if hasattr(gl, 'file_window'):
+                gl.file_window.hide()
 
             self.main_window.directory_tree.show()
 

@@ -3129,19 +3129,14 @@ class IMGFactory(QMainWindow):
             if is_dir_tree:
                 if hasattr(self, 'directory_tree'):
                     self.directory_tree.show()
-                # Hide tab widget, give dir tree full space
-                gl = self.gui_layout
-                if hasattr(gl, 'content_splitter'):
-                    self.main_tab_widget.hide()
-                    gl.content_splitter.setSizes([0, 10000])
+                if hasattr(self.gui_layout, 'file_window'):
+                    self.gui_layout.file_window.hide()
                 self.log_message("→ Dir Tree")
                 return
 
-            # File tab - restore tab widget, hide dir tree
-            gl = self.gui_layout
-            if hasattr(gl, 'content_splitter'):
-                self.main_tab_widget.show()
-                gl.content_splitter.setSizes([10000, 0])
+            # File tab - restore file_window, hide dir tree
+            if hasattr(self.gui_layout, 'file_window'):
+                self.gui_layout.file_window.show()
             if hasattr(self, 'directory_tree'):
                 self.directory_tree.hide()
 
