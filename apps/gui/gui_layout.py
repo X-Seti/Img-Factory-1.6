@@ -430,13 +430,13 @@ class IMGFactoryGUILayout:
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
         try:
             from apps.methods.imgfactory_svg_icons import (
-                get_twin_panel_icon, get_split_horizontal_icon,
+                get_twin_panel_icon, get_layout_w1left_icon,
                 get_single_panel_icon, get_view_icon
             )
             if hasattr(self, 'f_entries_btn'):
                 self.f_entries_btn.setIcon(get_twin_panel_icon(20, color))
             if hasattr(self, 'split_toggle_btn'):
-                self.split_toggle_btn.setIcon(get_split_horizontal_icon(20, color))
+                self.split_toggle_btn.setIcon(get_layout_w1left_icon(20, color))
             if hasattr(self, 'search_btn'):
                 self.search_btn.setIcon(get_single_panel_icon(20, color))
             if hasattr(self, 'log_btn'):
@@ -1630,7 +1630,8 @@ class IMGFactoryGUILayout:
         # Import icons
         from apps.methods.imgfactory_svg_icons import (
             get_twin_panel_icon, get_split_horizontal_icon,
-            get_single_panel_icon, get_search_icon, get_view_icon
+            get_single_panel_icon, get_search_icon, get_view_icon,
+            get_layout_w1left_icon
         )
 
         self.f_entries_btn = QPushButton()
@@ -1645,9 +1646,9 @@ class IMGFactoryGUILayout:
         self._merge_view_horizontal = False
         self.split_toggle_btn = QPushButton()
         self.split_toggle_btn.setFixedSize(24, 24)
-        self.split_toggle_btn.setIcon(get_split_horizontal_icon(20))
+        self.split_toggle_btn.setIcon(get_layout_w1left_icon(20))
         self.split_toggle_btn.setIconSize(QSize(20, 20))
-        self.split_toggle_btn.setToolTip("Merge View: side by side / top-bottom (Ctrl+2)")
+        self.split_toggle_btn.setToolTip("Files left | Tree right → click: Files top / Tree bottom")
         self.split_toggle_btn.clicked.connect(self._toggle_merge_view_layout)
         header_layout.addWidget(self.split_toggle_btn)
 
@@ -1873,33 +1874,59 @@ class IMGFactoryGUILayout:
             if hasattr(self, 'main_window'):
                 self.main_window.log_message(f"Log file error: {str(e)}")
 
-    def _toggle_merge_view_layout(self): #vers 2
-        """Toggle content_splitter between horizontal (side by side) and vertical (top/bottom)"""
+    def _toggle_merge_view_layout(self): #vers 3
+        """4-state cycle: W1L|W2R, W1T/W2B, W2L|W1R, W2T/W1B"""
         try:
-            from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon, get_split_vertical_icon
+            from apps.methods.imgfactory_svg_icons import (
+                get_layout_w1left_icon, get_layout_w1top_icon,
+                get_layout_w2left_icon, get_layout_w2top_icon
+            )
             if not hasattr(self, 'content_splitter'):
                 return
+
             splitter = self.content_splitter
-            self._merge_view_horizontal = not getattr(self, '_merge_view_horizontal', False)
+            mw = self.main_window
 
             # Add directory_tree to splitter if not already there
-            mw = self.main_window
             if hasattr(mw, 'directory_tree') and mw.directory_tree.parent() != splitter:
                 splitter.addWidget(mw.directory_tree)
-
-            if self._merge_view_horizontal:
-                splitter.setOrientation(Qt.Orientation.Horizontal)
-                splitter.setSizes([600, 400])
-                self.split_toggle_btn.setIcon(get_split_vertical_icon(16))
-                self.split_toggle_btn.setToolTip("Switch to top-bottom layout")
-            else:
-                splitter.setOrientation(Qt.Orientation.Vertical)
-                splitter.setSizes([600, 300])
-                self.split_toggle_btn.setIcon(get_split_horizontal_icon(16))
-                self.split_toggle_btn.setToolTip("Switch to side-by-side layout")
-
             if hasattr(mw, 'directory_tree'):
                 mw.directory_tree.show()
+
+            self._merge_view_state = (getattr(self, '_merge_view_state', 0) + 1) % 4
+            state = self._merge_view_state
+
+            tab_widget = self.main_window.main_tab_widget
+            dir_tree = mw.directory_tree if hasattr(mw, 'directory_tree') else None
+
+            if state == 0:  # W1 left | W2 right
+                splitter.setOrientation(Qt.Orientation.Horizontal)
+                if tab_widget: splitter.insertWidget(0, tab_widget)
+                if dir_tree:   splitter.insertWidget(1, dir_tree)
+                splitter.setSizes([600, 400])
+                self.split_toggle_btn.setIcon(get_layout_w1left_icon(20))
+                self.split_toggle_btn.setToolTip("Files left | Tree right → click: Files top / Tree bottom")
+            elif state == 1:  # W1 top / W2 bottom
+                splitter.setOrientation(Qt.Orientation.Vertical)
+                if tab_widget: splitter.insertWidget(0, tab_widget)
+                if dir_tree:   splitter.insertWidget(1, dir_tree)
+                splitter.setSizes([500, 500])
+                self.split_toggle_btn.setIcon(get_layout_w1top_icon(20))
+                self.split_toggle_btn.setToolTip("Files top / Tree bottom → click: Tree left | Files right")
+            elif state == 2:  # W2 left | W1 right
+                splitter.setOrientation(Qt.Orientation.Horizontal)
+                if dir_tree:   splitter.insertWidget(0, dir_tree)
+                if tab_widget: splitter.insertWidget(1, tab_widget)
+                splitter.setSizes([400, 600])
+                self.split_toggle_btn.setIcon(get_layout_w2left_icon(20))
+                self.split_toggle_btn.setToolTip("Tree left | Files right → click: Tree top / Files bottom")
+            elif state == 3:  # W2 top / W1 bottom
+                splitter.setOrientation(Qt.Orientation.Vertical)
+                if dir_tree:   splitter.insertWidget(0, dir_tree)
+                if tab_widget: splitter.insertWidget(1, tab_widget)
+                splitter.setSizes([500, 500])
+                self.split_toggle_btn.setIcon(get_layout_w2top_icon(20))
+                self.split_toggle_btn.setToolTip("Tree top / Files bottom → click: Files left | Tree right")
 
         except Exception as e:
             if hasattr(self, 'main_window'):
