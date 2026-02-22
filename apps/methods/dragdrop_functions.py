@@ -637,7 +637,7 @@ def setup_table_entry_drag(table_widget, main_window): #vers 1
         paths = []
         if mime.hasUrls():
             paths = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
-        elif mime.hasText() and not mime.hasData('application/x-imgfactory-entries'):
+        elif mime.hasText() and not mime.hasFormat('application/x-imgfactory-entries'):
             paths = [p for p in mime.text().split('\n') if os.path.exists(p)]
 
         if paths and hasattr(main_window, 'import_multiple_files'):
@@ -670,7 +670,7 @@ def setup_tree_as_extract_target(tree_widget, main_window): #vers 1
         mime = event.mimeData()
 
         # Handle entry extraction drop from table
-        if mime.hasData('application/x-imgfactory-entries'):
+        if mime.hasFormat('application/x-imgfactory-entries'):
             dst_item = tree_widget.itemAt(event.position().toPoint())
             dst_path = None
             if dst_item:
