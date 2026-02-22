@@ -1140,7 +1140,7 @@ class DirectoryTreeBrowser(QWidget):
                 for path in paths:
                     if path and os.path.exists(path):
                         send2trash(path)
-                self.refresh_browser()
+                self._refresh_all_panels()
                 self.log_message(f"Moved {len(paths)} item(s) to trash")
                 self.undo_stack.append({'action': 'trash', 'paths': paths})
                 self.redo_stack.clear()
@@ -1361,6 +1361,15 @@ class DirectoryTreeBrowser(QWidget):
         if self.current_path:
             self.populate_tree(self.current_path)
             self.log_message("Refreshed")
+
+    def _refresh_all_panels(self): #vers 1
+        """Refresh left panel and right panel if in twin view"""
+        if self.current_path:
+            self.populate_tree(self.current_path)
+        if hasattr(self, '_second_tree') and self._second_tree:
+            right_path = self._right_addr.text() if hasattr(self, '_right_addr') else self.current_path
+            if right_path:
+                self._populate_second_tree(right_path)
 
 
     def load_browser_settings(self) -> dict: #vers 1
