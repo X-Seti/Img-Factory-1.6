@@ -478,6 +478,16 @@ class DirectoryTreeBrowser(QWidget):
         self.panel_toggle_btn.clicked.connect(self._toggle_panel_mode)
         layout.addWidget(self.panel_toggle_btn)
 
+        from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
+        self.layout_cycle_btn = QPushButton()
+        self.layout_cycle_btn.setIcon(get_layout_w1left_icon())
+        self.layout_cycle_btn.setToolTip("W1 left | W2 right")
+        self.layout_cycle_btn.setMaximumSize(32, 32)
+        self.layout_cycle_btn.clicked.connect(self._cycle_layout)
+        self.layout_cycle_btn.hide()  # only visible in twin mode
+        self._layout_state = 0
+        layout.addWidget(self.layout_cycle_btn)
+
         return toolbar
 
 
@@ -487,6 +497,45 @@ class DirectoryTreeBrowser(QWidget):
             self._enable_single_panel()
         else:
             self._enable_twin_panel()
+
+    def _cycle_layout(self): #vers 1
+        """Cycle through 4 twin panel layout states"""
+        from apps.methods.imgfactory_svg_icons import (
+            get_layout_w1left_icon, get_layout_w1top_icon,
+            get_layout_w2left_icon, get_layout_w2top_icon
+        )
+        if not hasattr(self, '_twin_splitter') or not self._twin_splitter:
+            return
+
+        self._layout_state = (self._layout_state + 1) % 4
+        state = self._layout_state
+
+        if state == 0:  # W1 left | W2 right
+            self._twin_splitter.setOrientation(Qt.Orientation.Horizontal)
+            self._twin_splitter.insertWidget(0, self._left_panel)
+            self._twin_splitter.insertWidget(1, self._right_panel)
+            self.layout_cycle_btn.setIcon(get_layout_w1left_icon())
+            self.layout_cycle_btn.setToolTip("W1 left | W2 right → click: W1 top / W2 bottom")
+        elif state == 1:  # W1 top / W2 bottom
+            self._twin_splitter.setOrientation(Qt.Orientation.Vertical)
+            self._twin_splitter.insertWidget(0, self._left_panel)
+            self._twin_splitter.insertWidget(1, self._right_panel)
+            self.layout_cycle_btn.setIcon(get_layout_w1top_icon())
+            self.layout_cycle_btn.setToolTip("W1 top / W2 bottom → click: W2 left | W1 right")
+        elif state == 2:  # W2 left | W1 right
+            self._twin_splitter.setOrientation(Qt.Orientation.Horizontal)
+            self._twin_splitter.insertWidget(0, self._right_panel)
+            self._twin_splitter.insertWidget(1, self._left_panel)
+            self.layout_cycle_btn.setIcon(get_layout_w2left_icon())
+            self.layout_cycle_btn.setToolTip("W2 left | W1 right → click: W2 top / W1 bottom")
+        elif state == 3:  # W2 top / W1 bottom
+            self._twin_splitter.setOrientation(Qt.Orientation.Vertical)
+            self._twin_splitter.insertWidget(0, self._right_panel)
+            self._twin_splitter.insertWidget(1, self._left_panel)
+            self.layout_cycle_btn.setIcon(get_layout_w2top_icon())
+            self.layout_cycle_btn.setToolTip("W2 top / W1 bottom → click: W1 left | W2 right")
+
+        self._twin_splitter.setSizes([500, 500])
 
     def _enable_twin_panel(self): #vers 3
         """Split into two independent panels - each with own address bar and tree"""
@@ -573,6 +622,9 @@ class DirectoryTreeBrowser(QWidget):
             self._twin_container = QWidget()
             twin_layout = QVBoxLayout(self._twin_container)
             twin_layout.setContentsMargins(0, 0, 0, 0)
+            self._left_panel = left_panel
+            self._right_panel = right_panel
+            self._layout_state = 0
             self._twin_splitter = QSplitter(Qt.Orientation.Horizontal)
             self._twin_splitter.addWidget(left_panel)
             self._twin_splitter.addWidget(right_panel)
@@ -587,8 +639,12 @@ class DirectoryTreeBrowser(QWidget):
                 self._populate_second_tree(self.current_path)
                 self._right_addr.setText(self.current_path)
 
+            from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
             self.panel_toggle_btn.setIcon(get_single_panel_icon())
             self.panel_toggle_btn.setToolTip("Switch to single panel view")
+            self.layout_cycle_btn.setIcon(get_layout_w1left_icon())
+            self.layout_cycle_btn.setToolTip("W1 left | W2 right → click: W1 top / W2 bottom")
+            self.layout_cycle_btn.show()
 
         except Exception as e:
             import traceback
@@ -687,6 +743,9 @@ class DirectoryTreeBrowser(QWidget):
 
             self.panel_toggle_btn.setIcon(get_twin_panel_icon())
             self.panel_toggle_btn.setToolTip("Switch to twin panel view")
+            self.layout_cycle_btn.hide()
+            self._left_panel = None
+            self._right_panel = None
 
         except Exception as e:
             import traceback

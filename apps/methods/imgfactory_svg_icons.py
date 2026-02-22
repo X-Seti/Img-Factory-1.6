@@ -2669,3 +2669,79 @@ def get_go_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     renderer.render(painter)
     painter.end()
     return QIcon(pixmap)
+
+def get_layout_w1left_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """W1 left | W2 right"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#cccccc"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="1" y="2" width="10" height="20" rx="1" fill="{c}" opacity="0.9"/>
+      <rect x="13" y="2" width="10" height="20" rx="1" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <line x1="12" y1="2" x2="12" y2="22" stroke="{c}" stroke-width="1"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+def get_layout_w1top_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """W1 top / W2 bottom"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#cccccc"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="1" y="2" width="22" height="9" rx="1" fill="{c}" opacity="0.9"/>
+      <rect x="1" y="13" width="22" height="9" rx="1" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <line x1="1" y1="12" x2="23" y2="12" stroke="{c}" stroke-width="1"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+def get_layout_w2left_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """W2 left | W1 right"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#cccccc"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="1" y="2" width="10" height="20" rx="1" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <rect x="13" y="2" width="10" height="20" rx="1" fill="{c}" opacity="0.9"/>
+      <line x1="12" y1="2" x2="12" y2="22" stroke="{c}" stroke-width="1"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+def get_layout_w2top_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """W2 top / W1 bottom"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#cccccc"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <rect x="1" y="2" width="22" height="9" rx="1" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <rect x="1" y="13" width="22" height="9" rx="1" fill="{c}" opacity="0.9"/>
+      <line x1="1" y1="12" x2="23" y2="12" stroke="{c}" stroke-width="1"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
