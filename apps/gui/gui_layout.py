@@ -2306,10 +2306,12 @@ class IMGFactoryGUILayout:
         if len(sizes) < 2:
             return
         right_width = sizes[-1]
-        full_width = 280
-        threshold = full_width // 2  # ~140px
+        total = sum(sizes)
+        threshold = total // 3  # switch at ~1/3 of total width
 
-        if right_width < threshold and not getattr(self, '_right_panel_icon_only', False):
+        print(f"DEBUG splitter moved: right_width={right_width} total={total} threshold={threshold} icon_only={getattr(self, '_right_panel_icon_only', False)}")
+
+        if right_width > 0 and right_width < threshold and not getattr(self, '_right_panel_icon_only', False):
             self._set_right_panel_icon_only(True)
         elif right_width >= threshold and getattr(self, '_right_panel_icon_only', False):
             self._set_right_panel_icon_only(False)
