@@ -195,34 +195,21 @@ class DirectoryTreeBrowser(QWidget):
         self.setup_connections()
 
 
-    def setup_ui(self): #vers 2
-        """Setup complete browser UI – full-width tree, no info panel"""
+    def setup_ui(self): #vers 3
+        """Setup complete browser UI - toolbar with embedded address bar, full-height tree"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Only show menubar in standalone mode
         if self.standalone:
             self.menubar = self.create_menubar()
             layout.addWidget(self.menubar)
 
-        # Toolbar - ICONS ONLY, no text
+        # Toolbar with address bar embedded at the end
         self.toolbar = self.create_toolbar()
         layout.addWidget(self.toolbar)
 
-        # Address bar
-        address_layout = QHBoxLayout()
-        address_layout.addWidget(QLabel("Location:"))
-        self.address_bar = QLineEdit()
-        self.address_bar.setPlaceholderText("Enter path...")
-        self.address_bar.returnPressed.connect(self.navigate_to_address)
-        address_layout.addWidget(self.address_bar)
-        go_btn = QPushButton("Go")
-        go_btn.clicked.connect(self.navigate_to_address)
-        go_btn.setMaximumHeight(30)
-        address_layout.addWidget(go_btn)
-        layout.addLayout(address_layout)
-
-        # Main browser area – FULL WIDTH TREE
+        # Tree fills remaining space
         self.tree = QTreeWidget()
         self.tree.setHeaderLabel("Directory Structure")
         self.setup_tree_view()
@@ -460,7 +447,18 @@ class DirectoryTreeBrowser(QWidget):
         refresh_btn.clicked.connect(self.refresh_browser)
         layout.addWidget(refresh_btn)
 
+        # Address bar embedded in toolbar
         layout.addSpacing(6)
+        self.address_bar = QLineEdit()
+        self.address_bar.setPlaceholderText("Path...")
+        self.address_bar.setMinimumWidth(120)
+        self.address_bar.returnPressed.connect(self.navigate_to_address)
+        layout.addWidget(self.address_bar)
+        go_btn = QPushButton("Go")
+        go_btn.setFixedHeight(24)
+        go_btn.setFixedWidth(28)
+        go_btn.clicked.connect(self.navigate_to_address)
+        layout.addWidget(go_btn)
 
         self.twin_btn = QPushButton()
         self.twin_btn.setIcon(get_twin_panel_icon())
@@ -556,13 +554,9 @@ class DirectoryTreeBrowser(QWidget):
             self._second_tree.customContextMenuRequested.connect(self.show_context_menu)
             right_layout.addWidget(self._second_tree)
 
-            # --- Remove original address bar + tree from layout ---
-            while layout.count() > 2:  # keep menubar(optional) + toolbar
-                item = layout.takeAt(layout.count() - 1)
-                if item.widget():
-                    item.widget().setParent(None)
-
-            self.address_bar.hide()
+            # Remove tree from layout (address bar stays in toolbar)
+            layout.removeWidget(self.tree)
+            self.tree.setParent(None)
 
             # --- Twin splitter container ---
             twin_container = QWidget()
@@ -658,33 +652,22 @@ class DirectoryTreeBrowser(QWidget):
             self._populate_second_tree(path)
             self._right_addr.setText(path)
 
-    def _enable_single_panel(self): #vers 2
+    def _enable_single_panel(self): #vers 3
         """Restore single panel view"""
         try:
             if not hasattr(self, '_twin_container') or not self._twin_container:
                 return
 
             layout = self.layout()
-
-            # Remove twin container
             layout.removeWidget(self._twin_container)
             self._twin_container.deleteLater()
             self._twin_container = None
             self._twin_splitter = None
             self._second_tree = None
 
-            # Restore single address bar + tree
+            # Restore primary tree (address bar stays in toolbar)
             self.address_bar.show()
-            addr_layout = QHBoxLayout()
-            addr_layout.addWidget(QLabel("Location:"))
-            addr_layout.addWidget(self.address_bar)
-            go_btn = QPushButton("Go")
-            go_btn.setMaximumHeight(30)
-            go_btn.clicked.connect(self.navigate_to_address)
-            addr_layout.addWidget(go_btn)
-            layout.addLayout(addr_layout)
             layout.addWidget(self.tree)
-
             self.tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
 
             self.twin_btn.setEnabled(True)
