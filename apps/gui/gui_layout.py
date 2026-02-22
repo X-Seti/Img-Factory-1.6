@@ -1724,32 +1724,21 @@ class IMGFactoryGUILayout:
                     self.main_window.log_message("Failed to load Directory Tree")
                     return
 
-            # Place in content_splitter alongside main_tab_widget
-            if hasattr(self.main_window.gui_layout, 'content_splitter'):
-                splitter = self.main_window.gui_layout.content_splitter
-                splitter.addWidget(self.main_window.directory_tree)
+            # Place dir tree directly in middle_vertical_splitter (replaces file_window slot)
+            gl = self.main_window.gui_layout
+            if hasattr(gl, 'middle_vertical_splitter') and not getattr(self.main_window, '_dirtree_setup_complete', False):
+                splitter = gl.middle_vertical_splitter
+                splitter.insertWidget(0, self.main_window.directory_tree)
                 self.main_window.log_message("✓ Directory tree setup complete")
 
             # Browse to game root
             if hasattr(self.main_window.directory_tree, 'browse_directory'):
                 self.main_window.directory_tree.browse_directory(self.main_window.game_root)
 
-            # Update Tab 0 label to "Merge View"
             if hasattr(self.main_window, 'main_tab_widget'):
                 self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
 
-            # Mark setup as complete BEFORE showing
             self.main_window._dirtree_setup_complete = True
-
-            # Show directory tree, hide table
-            if hasattr(self.main_window.gui_layout, 'table'):
-                self.main_window.gui_layout.table.hide()
-            self.main_window.directory_tree.show()
-
-            # Switch to Tab 0
-            if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setCurrentIndex(0)
-                self.main_window.log_message("→ Merge View")
 
         except Exception as e:
             self.main_window.log_message(f"Error: {str(e)}")
