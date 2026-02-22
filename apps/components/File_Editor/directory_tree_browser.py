@@ -1196,29 +1196,34 @@ class DirectoryTreeBrowser(QWidget):
             self.log_message(f"Undo failed: {str(e)}")
 
 
-    def redo_selected(self): #vers 1
+    def redo_selected(self): #vers 2
         if not self.redo_stack:
             self.log_message("Nothing to redo")
             return
         action = self.redo_stack.pop()
         self.undo_stack.append(action)
         try:
-            if action['action'] == 'paste':
-                # Re-paste
-                op = action['operation']
-                parent = action['parent']
-                for src in action['sources']:
-                    dest = os.path.join(parent, os.path.basename(src))
-                    if op == 'copy':
-                        if os.path.isdir(src):
-                            shutil.copytree(src, dest)
+            if action['action'] in ('paste', 'copy'):
+                op = action.get('operation', 'copy')
+                sources = action.get('sources', [])
+                parent = action.get('parent', '')
+                # If sources/parent available re-copy, else inform
+                if sources and parent:
+                    for src in sources:
+                        dest = os.path.join(parent, os.path.basename(src))
+                        if op == 'cut':
+                            shutil.move(src, dest)
                         else:
-                            shutil.copy2(src, dest)
-                    elif op == 'cut':
-                        shutil.move(src, dest)
-                self.log_message("Redid paste")
-            elif action['action'] == 'delete':
-                QMessageBox.warning(self, "Redo Limitation", "Deleted files cannot be restored.")
+                            if os.path.isdir(src):
+                                shutil.copytree(src, dest)
+                            else:
+                                shutil.copy2(src, dest)
+                    self.log_message(f"Redid {action['action']}")
+                else:
+                    self.log_message(f"Cannot redo {action['action']} - source info unavailable")
+            elif action['action'] == 'trash':
+                QMessageBox.information(self, "Redo Trash",
+                    "Cannot redo trash - items are in system trash.")
             elif action['action'] == 'rename':
                 os.rename(action['old'], action['new'])
                 self.log_message(f"Redid rename: {os.path.basename(action['old'])} → {os.path.basename(action['new'])}")
