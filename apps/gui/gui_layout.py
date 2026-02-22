@@ -1248,18 +1248,15 @@ class IMGFactoryGUILayout:
         #left_panel.setMaximumWidth(400)  # Max 400px
         #left_panel.setMinimumWidth(150)  # Min 150px
         right_panel.setMaximumWidth(350)  # Max 350px
-        right_panel.setMinimumWidth(0)    # Allow full collapse
+        right_panel.setMinimumWidth(200)  # Min 200px
         
         # Style the main horizontal splitter handle with theme colors
         self._apply_main_splitter_theme()
         
         # Allow all panels to be collapsible so user can adjust
-        self.main_splitter.setCollapsible(0, True)
-        self.main_splitter.setCollapsible(1, True)
-        self.main_splitter.setCollapsible(2, True)
-
-        # Adapt right panel buttons when splitter moves
-        self.main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
+        self.main_splitter.setCollapsible(0, True)  # Left panel
+        self.main_splitter.setCollapsible(1, True)  # Middle panel
+        self.main_splitter.setCollapsible(2, True)  # Right panel
         
         # Add splitter to main layout
         main_layout.addWidget(self.main_splitter)
@@ -2300,37 +2297,29 @@ class IMGFactoryGUILayout:
                 right_panel_width = sizes[1]
                 self.adapt_buttons_to_width(right_panel_width)
 
-    def _on_main_splitter_moved(self, pos, index): #vers 2
-        """Snap right panel: 100%=text+icon, 50%=icon-only sticky, 0%=collapsed"""
-        sizes = self.main_splitter.sizes()
-        if len(sizes) < 2:
-            return
-
-        right_width = sizes[-1]
-        full_width = 280
-        half_width = 64   # icon-only snap point
-        collapse_threshold = 20  # below this → collapse to 0
-
-        if right_width <= collapse_threshold:
-            # Snap to fully closed
-            total = sum(sizes)
-            self.main_splitter.setSizes([total, 0])
-            self.adapt_buttons_to_width(0)
-        elif right_width < half_width:
-            # Snap to icon-only width (sticky at 50%)
-            total = sum(sizes)
-            self.main_splitter.setSizes([total - half_width, half_width])
-            self.adapt_buttons_to_width(half_width)
-        else:
-            self.adapt_buttons_to_width(right_width)
-
-    def adapt_buttons_to_width(self, width): #vers 2
-        """Switch right panel buttons between icon+text and icon-only based on width"""
-        if width >= 200:
-            self.set_button_display_mode('icons_with_text')
-        elif width >= 60:
-            self.set_button_display_mode('icons_only')
-        # below 60 panel is effectively collapsed - do nothing
+    def adapt_buttons_to_width(self, width): #vers 1
+        """Adapt button text based on available width"""
+        all_buttons = []
+        if hasattr(self, 'img_buttons'):
+            all_buttons.extend(self.img_buttons)
+        if hasattr(self, 'entry_buttons'):
+            all_buttons.extend(self.entry_buttons)
+        if hasattr(self, 'options_buttons'):
+            all_buttons.extend(self.options_buttons)
+        
+        for button in all_buttons:
+            if hasattr(button, 'full_text'):
+                if width > 280:
+                    button.setText(button.full_text)
+                elif width > 200:
+                    # Medium text - remove some words
+                    text = button.full_text.replace(' via', '>').replace(' lst', '')
+                    button.setText(text)
+                elif width > 150:
+                    button.setText(button.short_text)
+                else:
+                    # Icon only mode
+                    button.setText("")
 
     # PROGRESS & STATUS MANAGEMENT
 
