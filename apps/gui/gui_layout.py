@@ -812,27 +812,9 @@ class IMGFactoryGUILayout:
             self.main_window.log_message(f"Failed to launch TXD Workshop: {e}")
 
 
-    def set_button_display_mode(self, mode: str):
-        """
-        Set button display mode: 'text_only', 'icons_only', or 'icons_with_text'
-        """
-        try:
-            # Store the current mode
-            self.button_display_mode = mode
-            
-            # Update all buttons to reflect the new mode
-            self._update_all_buttons_display_mode()
-            
-            print(f"Button display mode set to: {mode}")
-            
-        except Exception as e:
-            print(f"Error setting button display mode: {e}")
-
-
     def _update_all_buttons_display_mode(self):
         """Update all buttons to reflect the current display mode"""
         try:
-            # Get all button collections
             all_buttons = []
             if hasattr(self, 'img_buttons'):
                 all_buttons.extend(self.img_buttons)
@@ -840,10 +822,18 @@ class IMGFactoryGUILayout:
                 all_buttons.extend(self.entry_buttons)
             if hasattr(self, 'options_buttons'):
                 all_buttons.extend(self.options_buttons)
-            
-            # Update each button
+
+            parents = set()
             for btn in all_buttons:
                 self._update_button_display_mode(btn)
+                if btn.parentWidget():
+                    parents.add(btn.parentWidget())
+
+            # Force parent layouts to reflow
+            for parent in parents:
+                if parent.layout():
+                    parent.layout().activate()
+                parent.update()
                 
         except Exception as e:
             print(f"Error updating all buttons display mode: {e}")
@@ -1513,15 +1503,11 @@ class IMGFactoryGUILayout:
         Set button display mode: 'text_only', 'icons_only', or 'icons_with_text'
         """
         try:
-            # Store the current mode
             self.button_display_mode = mode
-            
-            # Update all buttons to reflect the new mode
             self._update_all_buttons_display_mode()
-            
+
             # Also update via backend if available
             if hasattr(self, 'backend'):
-                # Convert string mode to enum
                 if mode == "text_only":
                     display_mode = ButtonDisplayMode.TEXT_ONLY
                 elif mode == "icons_only":
@@ -1529,12 +1515,18 @@ class IMGFactoryGUILayout:
                 elif mode == "icons_with_text":
                     display_mode = ButtonDisplayMode.ICONS_WITH_TEXT
                 else:
-                    display_mode = ButtonDisplayMode.ICONS_WITH_TEXT  # Default
-                
+                    display_mode = ButtonDisplayMode.ICONS_WITH_TEXT
                 self.backend.set_button_display_mode(display_mode)
-            
+
+            # Force Qt to reflow and repaint
+            if hasattr(self, 'main_window') and self.main_window:
+                self.main_window.update()
+                self.main_window.repaint()
+                from PyQt6.QtWidgets import QApplication
+                QApplication.processEvents()
+
             print(f"Button display mode set to: {mode}")
-            
+
         except Exception as e:
             print(f"Error setting button display mode: {e}")
 
