@@ -593,15 +593,15 @@ class DirectoryTreeBrowser(QWidget):
 
     def _toggle_copy_direction(self): #vers 2
         """Toggle copy direction arrow between → and ←"""
-        from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon, get_split_vertical_icon
+        from apps.methods.imgfactory_svg_icons import get_arrow_right_icon, get_arrow_left_icon
         btn = self._copy_dir_btn
         if btn._direction == 'LR':
             btn._direction = 'RL'
-            btn.setIcon(get_split_vertical_icon(16))
+            btn.setIcon(get_arrow_left_icon(16))
             btn.setToolTip("Copy direction: Right → Left (click to reverse)")
         else:
             btn._direction = 'LR'
-            btn.setIcon(get_split_horizontal_icon(16))
+            btn.setIcon(get_arrow_right_icon(16))
             btn.setToolTip("Copy direction: Left → Right (click to reverse)")
 
     def _copy_selected_files(self): #vers 1
