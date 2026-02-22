@@ -209,17 +209,12 @@ class DirectoryTreeBrowser(QWidget):
         self.toolbar = self.create_toolbar()
         layout.addWidget(self.toolbar)
 
-        # Address bar
+        # Address bar (no Location label, compact)
         address_layout = QHBoxLayout()
-        address_layout.addWidget(QLabel("Location:"))
         self.address_bar = QLineEdit()
-        self.address_bar.setPlaceholderText("Enter path...")
+        self.address_bar.setPlaceholderText("Path...")
         self.address_bar.returnPressed.connect(self.navigate_to_address)
         address_layout.addWidget(self.address_bar)
-        go_btn = QPushButton("Go")
-        go_btn.clicked.connect(self.navigate_to_address)
-        go_btn.setMaximumHeight(30)
-        address_layout.addWidget(go_btn)
         layout.addLayout(address_layout)
 
         # Main browser area – FULL WIDTH TREE
@@ -462,23 +457,22 @@ class DirectoryTreeBrowser(QWidget):
 
         layout.addSpacing(6)
 
-        self.twin_btn = QPushButton()
-        self.twin_btn.setIcon(get_twin_panel_icon())
-        self.twin_btn.setToolTip("Twin panel view")
-        self.twin_btn.setMaximumSize(32, 32)
-        self.twin_btn.clicked.connect(self._enable_twin_panel)
-        layout.addWidget(self.twin_btn)
-
-        self.single_btn = QPushButton()
-        self.single_btn.setIcon(get_single_panel_icon())
-        self.single_btn.setToolTip("Single panel view")
-        self.single_btn.setMaximumSize(32, 32)
-        self.single_btn.setEnabled(False)
-        self.single_btn.clicked.connect(self._enable_single_panel)
-        layout.addWidget(self.single_btn)
+        self.panel_toggle_btn = QPushButton()
+        self.panel_toggle_btn.setIcon(get_twin_panel_icon())
+        self.panel_toggle_btn.setToolTip("Switch to twin panel view")
+        self.panel_toggle_btn.setMaximumSize(32, 32)
+        self.panel_toggle_btn.clicked.connect(self._toggle_panel_mode)
+        layout.addWidget(self.panel_toggle_btn)
 
         return toolbar
 
+
+    def _toggle_panel_mode(self): #vers 1
+        """Toggle between single and twin panel view"""
+        if hasattr(self, '_twin_container') and self._twin_container:
+            self._enable_single_panel()
+        else:
+            self._enable_twin_panel()
 
     def _enable_twin_panel(self): #vers 2
         """Split into two independent panels with address bars, copy direction toggle, multi-select"""
@@ -584,8 +578,9 @@ class DirectoryTreeBrowser(QWidget):
                 self._populate_second_tree(self.current_path)
                 self._right_addr.setText(self.current_path)
 
-            self.twin_btn.setEnabled(False)
-            self.single_btn.setEnabled(True)
+            from apps.methods.imgfactory_svg_icons import get_single_panel_icon
+            self.panel_toggle_btn.setIcon(get_single_panel_icon())
+            self.panel_toggle_btn.setToolTip("Switch to single panel view")
 
         except Exception as e:
             import traceback
@@ -673,22 +668,13 @@ class DirectoryTreeBrowser(QWidget):
             self._twin_splitter = None
             self._second_tree = None
 
-            # Restore single address bar + tree
-            self.address_bar.show()
-            addr_layout = QHBoxLayout()
-            addr_layout.addWidget(QLabel("Location:"))
-            addr_layout.addWidget(self.address_bar)
-            go_btn = QPushButton("Go")
-            go_btn.setMaximumHeight(30)
-            go_btn.clicked.connect(self.navigate_to_address)
-            addr_layout.addWidget(go_btn)
-            layout.addLayout(addr_layout)
             layout.addWidget(self.tree)
 
             self.tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
 
-            self.twin_btn.setEnabled(True)
-            self.single_btn.setEnabled(False)
+            from apps.methods.imgfactory_svg_icons import get_twin_panel_icon
+            self.panel_toggle_btn.setIcon(get_twin_panel_icon())
+            self.panel_toggle_btn.setToolTip("Switch to twin panel view")
 
         except Exception as e:
             print(f"Single panel error: {e}")
