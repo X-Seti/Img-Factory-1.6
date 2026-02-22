@@ -209,12 +209,18 @@ class DirectoryTreeBrowser(QWidget):
         self.toolbar = self.create_toolbar()
         layout.addWidget(self.toolbar)
 
-        # Address bar (no Location label, compact)
+        # Address bar
         address_layout = QHBoxLayout()
+        address_layout.setContentsMargins(2, 2, 2, 2)
         self.address_bar = QLineEdit()
         self.address_bar.setPlaceholderText("Path...")
         self.address_bar.returnPressed.connect(self.navigate_to_address)
         address_layout.addWidget(self.address_bar)
+        go_btn = QPushButton("Go")
+        go_btn.setFixedWidth(32)
+        go_btn.setFixedHeight(24)
+        go_btn.clicked.connect(self.navigate_to_address)
+        address_layout.addWidget(go_btn)
         layout.addLayout(address_layout)
 
         # Main browser area – FULL WIDTH TREE

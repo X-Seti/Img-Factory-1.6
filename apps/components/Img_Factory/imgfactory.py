@@ -3117,23 +3117,31 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 4
-        """Handle tab switching - DIR Tree by widget ref, file tabs swap table content"""
+    def _on_tab_changed(self, index): #vers 5
+        """Handle tab switching - DIR Tree or file tabs"""
         try:
             current_tab = self.main_tab_widget.widget(index)
             tab_name = self.main_tab_widget.tabText(index)
 
-            # Check if this is the DIR Tree tab by widget reference
             is_dir_tree = (hasattr(self, '_dir_tree_tab_widget') and
                            current_tab is self._dir_tree_tab_widget)
 
             if is_dir_tree:
                 if hasattr(self, 'directory_tree'):
                     self.directory_tree.show()
-                self.log_message("→ Merge View")
+                # Hide tab widget, give dir tree full space
+                gl = self.gui_layout
+                if hasattr(gl, 'content_splitter'):
+                    self.main_tab_widget.hide()
+                    gl.content_splitter.setSizes([0, 10000])
+                self.log_message("→ Dir Tree")
                 return
 
-            # File tab - hide directory tree
+            # File tab - restore tab widget, hide dir tree
+            gl = self.gui_layout
+            if hasattr(gl, 'content_splitter'):
+                self.main_tab_widget.show()
+                gl.content_splitter.setSizes([10000, 0])
             if hasattr(self, 'directory_tree'):
                 self.directory_tree.hide()
 
@@ -3146,13 +3154,11 @@ class IMGFactory(QMainWindow):
             if file_type == 'COL':
                 self.current_col = file_object
                 self.log_message(f"→ {tab_name} (COL)")
-
             elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
                 if hasattr(self, '_populate_real_img_table'):
                     self._populate_real_img_table(file_object)
                 self.log_message(f"→ {tab_name}")
-
             else:
                 self.log_message(f"→ {tab_name}")
 

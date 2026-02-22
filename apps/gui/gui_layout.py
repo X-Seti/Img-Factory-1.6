@@ -1734,22 +1734,22 @@ class IMGFactoryGUILayout:
             if hasattr(self.main_window.directory_tree, 'browse_directory'):
                 self.main_window.directory_tree.browse_directory(self.main_window.game_root)
 
-            # Update Tab 0 label to "Merge View"
             if hasattr(self.main_window, 'main_tab_widget'):
                 self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
 
-            # Mark setup as complete BEFORE showing
             self.main_window._dirtree_setup_complete = True
 
-            # Show directory tree, hide table
-            if hasattr(self.main_window.gui_layout, 'table'):
-                self.main_window.gui_layout.table.hide()
+            # Hide tab widget, give dir tree full space
+            gl = self.main_window.gui_layout
+            if hasattr(gl, 'content_splitter'):
+                self.main_window.main_tab_widget.hide()
+                gl.content_splitter.setSizes([0, 10000])
+
             self.main_window.directory_tree.show()
 
-            # Switch to Tab 0
             if hasattr(self.main_window, 'main_tab_widget'):
                 self.main_window.main_tab_widget.setCurrentIndex(0)
-                self.main_window.log_message("→ Merge View")
+                self.main_window.log_message("→ Dir Tree")
 
         except Exception as e:
             self.main_window.log_message(f"Error: {str(e)}")
