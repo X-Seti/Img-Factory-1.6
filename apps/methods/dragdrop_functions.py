@@ -284,7 +284,12 @@ class DragDropHandler:
             
             # Try to import files if we have an active IMG
             if hasattr(self.main_window, 'import_multiple_files'):
-                return self.main_window.import_multiple_files(file_paths)
+                img_archive = None
+                if hasattr(self.main_window, 'main_tab_widget'):
+                    tab = self.main_window.main_tab_widget.currentWidget()
+                    img_archive = getattr(tab, 'file_object', None)
+                if img_archive:
+                    return self.main_window.import_multiple_files(img_archive, file_paths)
             
             return False
             
@@ -579,9 +584,37 @@ def setup_table_entry_drag(table_widget, main_window): #vers 1
                 names.append(name_item.text())
         if not names:
             return
+
+        # Try to extract entries to temp dir for desktop drag
+        urls = []
+        img_archive = None
+        if hasattr(main_window, 'main_tab_widget'):
+            tab = main_window.main_tab_widget.currentWidget()
+            img_archive = getattr(tab, 'file_object', None)
+
+        if img_archive and hasattr(img_archive, 'entries'):
+            import tempfile
+            tmp_dir = tempfile.mkdtemp(prefix='imgfactory_drag_')
+            for entry in img_archive.entries:
+                name = getattr(entry, 'name', '') or getattr(entry, 'filename', '')
+                if name in names:
+                    try:
+                        out_path = os.path.join(tmp_dir, name)
+                        if hasattr(img_archive, 'extract_entry'):
+                            img_archive.extract_entry(entry, out_path)
+                        elif hasattr(entry, 'data') and entry.data:
+                            with open(out_path, 'wb') as f:
+                                f.write(entry.data)
+                        if os.path.exists(out_path):
+                            urls.append(QUrl.fromLocalFile(out_path))
+                    except Exception as e:
+                        print(f"Drag extract error: {e}")
+
         mime = QMimeData()
-        mime.setText('\n'.join(names))
         mime.setData('application/x-imgfactory-entries', '\n'.join(names).encode())
+        mime.setText('\n'.join(names))
+        if urls:
+            mime.setUrls(urls)
         drag = QDrag(table_widget)
         drag.setMimeData(mime)
         drag.exec(Qt.DropAction.CopyAction)
@@ -608,7 +641,17 @@ def setup_table_entry_drag(table_widget, main_window): #vers 1
             paths = [p for p in mime.text().split('\n') if os.path.exists(p)]
 
         if paths and hasattr(main_window, 'import_multiple_files'):
-            main_window.import_multiple_files(paths)
+            # Get img_archive from current tab
+            img_archive = None
+            if hasattr(main_window, 'main_tab_widget'):
+                tab = main_window.main_tab_widget.currentWidget()
+                img_archive = getattr(tab, 'file_object', None)
+            if img_archive is None:
+                if hasattr(main_window, 'log_message'):
+                    main_window.log_message("No open archive to import into")
+                event.ignore()
+                return
+            main_window.import_multiple_files(img_archive, paths)
             event.acceptProposedAction()
         else:
             event.ignore()
