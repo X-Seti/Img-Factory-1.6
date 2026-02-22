@@ -368,7 +368,7 @@ class DirectoryTreeBrowser(QWidget):
         """Setup Settings menu"""
         refresh_action = QAction("Refresh", self)
         refresh_action.setIcon(get_refresh_icon())
-        refresh_action.triggered.connect(self.refresh_browser)
+        refresh_action.triggered.connect(self._refresh_all_panels)
         menu.addAction(refresh_action)
 
 
