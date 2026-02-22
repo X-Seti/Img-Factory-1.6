@@ -600,9 +600,19 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
 
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Copied {copied} item(s) → {dst_path}")
+
+        # Push to undo stack on the browser
+        if copied and hasattr(tree_widget, '_browser'):
+            browser = tree_widget._browser
+            dests = [os.path.join(dst_path, os.path.basename(p)) for p in paths]
+            if hasattr(browser, 'undo_stack'):
+                browser.undo_stack.append({'action': 'copy', 'paths': dests})
+                if hasattr(browser, 'redo_stack'):
+                    browser.redo_stack.clear()
+
         event.acceptProposedAction()
 
-        # Refresh tree if it has browse_directory
+        # Refresh tree
         if hasattr(tree_widget, '_browser') and hasattr(tree_widget._browser, 'browse_directory'):
             tree_widget._browser.browse_directory(dst_path)
 

@@ -677,7 +677,7 @@ class DirectoryTreeBrowser(QWidget):
             btn.setIcon(get_arrow_right_icon(16))
             btn.setToolTip("Copy direction: Left → Right (click to reverse)")
 
-    def _copy_selected_files(self): #vers 1
+    def _copy_selected_files(self): #vers 2
         """Copy selected files in the active direction"""
         try:
             direction = getattr(self._copy_dir_btn, '_direction', 'LR')
@@ -696,7 +696,7 @@ class DirectoryTreeBrowser(QWidget):
                 QMessageBox.warning(self, "Copy", f"Destination not valid:\n{dst_path}")
                 return
 
-            copied = 0
+            copied_dests = []
             for item in selected:
                 src = item.data(0, Qt.ItemDataRole.UserRole)
                 if src and os.path.exists(src):
@@ -705,10 +705,12 @@ class DirectoryTreeBrowser(QWidget):
                         shutil.copytree(src, dst)
                     else:
                         shutil.copy2(src, dst)
-                    copied += 1
+                    copied_dests.append(dst)
 
-            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Copied {copied} item(s) → {dst_path}")
+            if copied_dests:
+                self.undo_stack.append({'action': 'copy', 'paths': copied_dests})
+                self.redo_stack.clear()
+                self.log_message(f"Copied {len(copied_dests)} item(s) → {dst_path}")
 
             # Refresh destination panel
             if direction == 'LR':
@@ -1122,30 +1124,30 @@ class DirectoryTreeBrowser(QWidget):
             QMessageBox.critical(self, "Paste Error", f"Error: {str(e)}")
 
 
-    def delete_selected(self): #vers 2
+    def delete_selected(self): #vers 3
         selected_items = self.tree.selectedItems()
         if not selected_items:
             return
         reply = QMessageBox.question(
-            self, "Delete",
-            f"Delete {len(selected_items)} item(s)?",
+            self, "Move to Trash",
+            f"Move {len(selected_items)} item(s) to trash?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
             try:
+                from send2trash import send2trash
                 paths = [item.data(0, Qt.ItemDataRole.UserRole) for item in selected_items]
-                undo_entry = {'action': 'delete', 'paths': paths}
                 for path in paths:
-                    if os.path.isdir(path):
-                        shutil.rmtree(path)
-                    else:
-                        os.remove(path)
+                    if path and os.path.exists(path):
+                        send2trash(path)
                 self.refresh_browser()
-                self.log_message(f"Deleted {len(paths)} item(s)")
-                self.undo_stack.append(undo_entry)
+                self.log_message(f"Moved {len(paths)} item(s) to trash")
+                self.undo_stack.append({'action': 'trash', 'paths': paths})
                 self.redo_stack.clear()
+            except ImportError:
+                QMessageBox.critical(self, "Missing Dependency", "send2trash not installed.\nRun: pip install send2trash")
             except Exception as e:
-                QMessageBox.critical(self, "Delete Error", f"Error: {str(e)}")
+                QMessageBox.critical(self, "Trash Error", f"Error: {str(e)}")
 
 
     def rename_selected(self): #vers 2
@@ -1168,25 +1170,24 @@ class DirectoryTreeBrowser(QWidget):
                 QMessageBox.critical(self, "Rename Error", f"Error: {str(e)}")
 
 
-    def undo_selected(self): #vers 1
+    def undo_selected(self): #vers 2
         if not self.undo_stack:
             self.log_message("Nothing to undo")
             return
         action = self.undo_stack.pop()
         self.redo_stack.append(action)
         try:
-            if action['action'] == 'paste':
-                # Delete pasted items
-                for dest in action['destinations']:
+            if action['action'] in ('paste', 'copy'):
+                # Remove copied/pasted items
+                for dest in action.get('destinations', action.get('paths', [])):
                     if os.path.isdir(dest):
                         shutil.rmtree(dest)
                     elif os.path.isfile(dest):
                         os.remove(dest)
-                self.log_message("Undid paste")
-            elif action['action'] == 'delete':
-                # Cannot truly restore deleted files without backup → warn
-                QMessageBox.warning(self, "Undo Limitation", "File recovery not implemented. Deletion is permanent.")
-                # Still keep in redo so user can "redo" the knowledge of loss
+                self.log_message(f"Undid {action['action']}")
+            elif action['action'] == 'trash':
+                QMessageBox.information(self, "Undo Trash",
+                    "Items were moved to trash.\nRestore them manually from your system trash.")
             elif action['action'] == 'rename':
                 os.rename(action['new'], action['old'])
                 self.log_message(f"Undid rename: {os.path.basename(action['new'])} → {os.path.basename(action['old'])}")
