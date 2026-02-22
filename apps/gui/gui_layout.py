@@ -1743,6 +1743,8 @@ class IMGFactoryGUILayout:
             gl = self.main_window.gui_layout
             if hasattr(gl, 'file_window'):
                 gl.file_window.hide()
+                if hasattr(gl, 'content_splitter'):
+                    gl.content_splitter.setSizes([0, 10000])
 
             self.main_window.directory_tree.show()
 
