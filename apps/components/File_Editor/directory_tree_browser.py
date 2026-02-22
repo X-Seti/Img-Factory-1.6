@@ -961,9 +961,14 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 1
-        """Show context menu"""
-        item = self.tree.itemAt(position)
+    def show_context_menu(self, position): #vers 2
+        """Show context menu - tracks which tree triggered it"""
+        # Identify which tree sent the signal
+        sender = self.sender()
+        active_tree = sender if sender in (self.tree, getattr(self, '_second_tree', None)) else self.tree
+        self._active_tree = active_tree
+
+        item = active_tree.itemAt(position)
         if not item:
             return
         menu = QMenu(self)
@@ -1125,8 +1130,9 @@ class DirectoryTreeBrowser(QWidget):
             QMessageBox.critical(self, "Paste Error", f"Error: {str(e)}")
 
 
-    def delete_selected(self): #vers 3
-        selected_items = self.tree.selectedItems()
+    def delete_selected(self): #vers 4
+        active_tree = getattr(self, '_active_tree', self.tree)
+        selected_items = active_tree.selectedItems()
         if not selected_items:
             return
         reply = QMessageBox.question(
