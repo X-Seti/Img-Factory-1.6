@@ -1180,9 +1180,34 @@ class IMGFactoryGUILayout:
             
             # Placeholder (no icon)
             "placeholder": None,
+
+            # Editor icons - use edit_icon as generic fallback
+            "col-edit": get_edit_icon(),
+            "txd-edit": get_edit_icon(),
+            "dff-edit": get_edit_icon(),
+            "ipf-edit": get_edit_icon(),
+            "ide-edit": get_edit_icon(),
+            "ipl-edit": get_edit_icon(),
+            "dat-edit": get_edit_icon(),
+            "zones-cull": get_edit_icon(),
+            "weap-edit": get_edit_icon(),
+            "vehi-edit": get_edit_icon(),
+            "peds-edit": get_edit_icon(),
+            "radar-map": get_view_icon(),
+            "paths-map": get_view_icon(),
+            "timecyc": get_edit_icon(),
+            "handling": get_edit_icon(),
+            "ojs-breakble": get_edit_icon(),
+            "scm-code": get_edit_icon(),
+            "gxt-font": get_edit_icon(),
+            "menu-font": get_edit_icon(),
+            "merge": get_view_icon(),
+            "split": get_view_icon(),
+            "convert": get_view_icon(),
+            "dump": get_view_icon(),
         }
-        
-        return icon_map.get(icon_name, None)
+
+        return icon_map.get(icon_name, get_edit_icon())
 
 
     def _get_short_text(self, label): #vers 1
@@ -1257,7 +1282,11 @@ class IMGFactoryGUILayout:
         self.main_splitter.setCollapsible(0, True)  # Left panel
         self.main_splitter.setCollapsible(1, True)  # Middle panel
         self.main_splitter.setCollapsible(2, True)  # Right panel
-        
+
+        # Adapt right panel on resize
+        self.main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
+        self._right_panel_icon_only = False
+
         # Add splitter to main layout
         main_layout.addWidget(self.main_splitter)
 
@@ -2289,6 +2318,43 @@ class IMGFactoryGUILayout:
             pass
 
     # RESPONSIVE DESIGN & ADAPTIVE LAYOUT
+    def _on_main_splitter_moved(self, pos, index): #vers 1
+        """Switch right panel between icon+text and icon-only at ~50% width"""
+        sizes = self.main_splitter.sizes()
+        if len(sizes) < 2:
+            return
+        right_width = sizes[-1]
+        full_width = 280
+        threshold = full_width // 2  # ~140px
+
+        if right_width < threshold and not getattr(self, '_right_panel_icon_only', False):
+            self._set_right_panel_icon_only(True)
+        elif right_width >= threshold and getattr(self, '_right_panel_icon_only', False):
+            self._set_right_panel_icon_only(False)
+
+    def _set_right_panel_icon_only(self, icon_only: bool): #vers 1
+        """Toggle right panel buttons between icon+text and 32x32 icon-only"""
+        self._right_panel_icon_only = icon_only
+        all_buttons = []
+        for attr in ('img_buttons', 'entry_buttons', 'options_buttons'):
+            if hasattr(self, attr):
+                all_buttons.extend(getattr(self, attr))
+        for btn in all_buttons:
+            if icon_only:
+                btn.setText("")
+                btn.setFixedSize(32, 32)
+                btn.setIconSize(QSize(22, 22))
+                btn.setToolTip(getattr(btn, 'full_text', btn.toolTip()))
+            else:
+                btn.setText(getattr(btn, 'full_text', ''))
+                btn.setFixedWidth(16777215)  # reset
+                btn.setMinimumHeight(22)
+                btn.setMaximumHeight(32)
+                icon_size = 16
+                if hasattr(self.main_window, 'app_settings'):
+                    icon_size = self.main_window.app_settings.current_settings.get('icon_size', 16)
+                btn.setIconSize(QSize(icon_size, icon_size))
+
     def handle_resize_event(self, event): #vers 1
         """Handle window resize to adapt button text"""
         if self.main_splitter:
