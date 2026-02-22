@@ -235,6 +235,7 @@ class DirectoryTreeBrowser(QWidget):
         sc_layout.addWidget(self.tree)
 
         layout.addWidget(self._single_container)
+        layout.setStretchFactor(self._single_container, 1)
 
 
     def setup_tree_view(self): #vers 1
@@ -579,6 +580,8 @@ class DirectoryTreeBrowser(QWidget):
             twin_layout.addWidget(self._twin_splitter)
 
             layout.addWidget(self._twin_container)
+            layout.setStretchFactor(self._twin_container, 1)
+            layout.setStretchFactor(self._single_container, 0)
 
             if self.current_path:
                 self._populate_second_tree(self.current_path)
@@ -679,6 +682,8 @@ class DirectoryTreeBrowser(QWidget):
 
             self.tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
             self._single_container.show()
+            layout = self.layout()
+            layout.setStretchFactor(self._single_container, 1)
 
             self.panel_toggle_btn.setIcon(get_twin_panel_icon())
             self.panel_toggle_btn.setToolTip("Switch to twin panel view")
