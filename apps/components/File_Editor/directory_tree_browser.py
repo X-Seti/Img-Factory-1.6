@@ -478,7 +478,7 @@ class DirectoryTreeBrowser(QWidget):
         refresh_btn.setIcon(get_refresh_icon())
         refresh_btn.setToolTip("Refresh")
         refresh_btn.setMaximumSize(32, 32)
-        refresh_btn.clicked.connect(self.refresh_browser)
+        refresh_btn.clicked.connect(self._refresh_all_panels)
         layout.addWidget(refresh_btn)
 
         layout.addSpacing(6)
