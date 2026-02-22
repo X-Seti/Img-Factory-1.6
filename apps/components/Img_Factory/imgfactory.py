@@ -3117,39 +3117,25 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 5
-        """Handle tab switching - DIR Tree takes full height, file tabs restore file window"""
+    def _on_tab_changed(self, index): #vers 4
+        """Handle tab switching - DIR Tree by widget ref, file tabs swap table content"""
         try:
             current_tab = self.main_tab_widget.widget(index)
             tab_name = self.main_tab_widget.tabText(index)
-            gl = self.gui_layout
-            splitter = getattr(gl, 'middle_vertical_splitter', None)
 
+            # Check if this is the DIR Tree tab by widget reference
             is_dir_tree = (hasattr(self, '_dir_tree_tab_widget') and
                            current_tab is self._dir_tree_tab_widget)
 
             if is_dir_tree:
-                # Show dir tree, hide file window (tab widget), fill full space
                 if hasattr(self, 'directory_tree'):
                     self.directory_tree.show()
-                if splitter:
-                    # file_window is widget(0) originally, dir_tree is now inserted at 0
-                    # hide the tab widget container (file_window = widget(1))
-                    file_win = splitter.widget(1)
-                    if file_win:
-                        file_win.hide()
-                    splitter.setSizes([10000, 200])
-                self.log_message("→ Dir Tree")
+                self.log_message("→ Merge View")
                 return
 
-            # File tab - hide dir tree, show file window
+            # File tab - hide directory tree
             if hasattr(self, 'directory_tree'):
                 self.directory_tree.hide()
-            if splitter:
-                file_win = splitter.widget(1)
-                if file_win:
-                    file_win.show()
-                splitter.setSizes([760, 200])
 
             if not current_tab:
                 return
@@ -3160,11 +3146,13 @@ class IMGFactory(QMainWindow):
             if file_type == 'COL':
                 self.current_col = file_object
                 self.log_message(f"→ {tab_name} (COL)")
+
             elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
                 if hasattr(self, '_populate_real_img_table'):
                     self._populate_real_img_table(file_object)
                 self.log_message(f"→ {tab_name}")
+
             else:
                 self.log_message(f"→ {tab_name}")
 
