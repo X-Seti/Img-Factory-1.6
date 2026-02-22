@@ -480,57 +480,219 @@ class DirectoryTreeBrowser(QWidget):
         return toolbar
 
 
-    def _enable_twin_panel(self): #vers 1
-        """Split view into two independent side-by-side panels"""
+    def _enable_twin_panel(self): #vers 2
+        """Split into two independent panels with address bars, copy direction toggle, multi-select"""
         try:
             if hasattr(self, '_twin_splitter') and self._twin_splitter:
-                return  # Already in twin mode
+                return
 
-            # Find tree's parent layout and replace tree with splitter
             layout = self.layout()
 
-            # Create second tree (clone of first)
+            # Enable multi-select on primary tree
+            self.tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
+
+            # --- Left panel: wrap existing address_bar + tree ---
+            left_panel = QWidget()
+            left_layout = QVBoxLayout(left_panel)
+            left_layout.setContentsMargins(0, 0, 0, 0)
+            left_layout.setSpacing(2)
+
+            left_addr_layout = QHBoxLayout()
+            left_addr_layout.addWidget(QLabel("Left:"))
+            self._left_addr = QLineEdit()
+            self._left_addr.setText(self.current_path or "")
+            self._left_addr.returnPressed.connect(lambda: self._twin_navigate(self._left_addr.text(), 'left'))
+            left_addr_layout.addWidget(self._left_addr)
+            left_go = QPushButton("Go")
+            left_go.setMaximumHeight(26)
+            left_go.clicked.connect(lambda: self._twin_navigate(self._left_addr.text(), 'left'))
+            left_addr_layout.addWidget(left_go)
+            left_layout.addLayout(left_addr_layout)
+            left_layout.addWidget(self.tree)
+
+            # --- Middle: copy direction toggle ---
+            mid_panel = QWidget()
+            mid_layout = QVBoxLayout(mid_panel)
+            mid_layout.setContentsMargins(2, 2, 2, 2)
+            mid_panel.setFixedWidth(32)
+            mid_layout.addStretch()
+            self._copy_dir_btn = QPushButton("→")
+            self._copy_dir_btn.setFixedSize(28, 28)
+            self._copy_dir_btn.setToolTip("Copy direction: Left → Right\nClick to reverse")
+            self._copy_dir_btn._direction = 'LR'
+            self._copy_dir_btn.clicked.connect(self._toggle_copy_direction)
+            mid_layout.addWidget(self._copy_dir_btn)
+            copy_btn = QPushButton("⇒")
+            copy_btn.setFixedSize(28, 28)
+            copy_btn.setToolTip("Copy selected files in indicated direction")
+            copy_btn.clicked.connect(self._copy_selected_files)
+            mid_layout.addWidget(copy_btn)
+            mid_layout.addStretch()
+
+            # --- Right panel: new address bar + tree ---
+            right_panel = QWidget()
+            right_layout = QVBoxLayout(right_panel)
+            right_layout.setContentsMargins(0, 0, 0, 0)
+            right_layout.setSpacing(2)
+
+            right_addr_layout = QHBoxLayout()
+            right_addr_layout.addWidget(QLabel("Right:"))
+            self._right_addr = QLineEdit()
+            self._right_addr.setText(self.current_path or "")
+            self._right_addr.returnPressed.connect(lambda: self._twin_navigate(self._right_addr.text(), 'right'))
+            right_addr_layout.addWidget(self._right_addr)
+            right_go = QPushButton("Go")
+            right_go.setMaximumHeight(26)
+            right_go.clicked.connect(lambda: self._twin_navigate(self._right_addr.text(), 'right'))
+            right_addr_layout.addWidget(right_go)
+            right_layout.addLayout(right_addr_layout)
+
             self._second_tree = QTreeWidget()
             self._second_tree.setHeaderLabel("Directory Structure")
             self._second_tree.setAlternatingRowColors(True)
+            self._second_tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
             self._second_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self._second_tree.customContextMenuRequested.connect(self.show_context_menu)
+            right_layout.addWidget(self._second_tree)
 
-            # Wrap both trees in a horizontal splitter
+            # --- Assemble: remove existing address bar row + tree, add twin container ---
+            # Remove original address bar layout and tree from main layout
+            # We stored tree directly; address_bar is in a layout row - remove both
+            # Find and remove items after toolbar
+            while layout.count() > 2:  # keep menubar(optional) + toolbar
+                item = layout.takeAt(layout.count() - 1)
+                if item.widget():
+                    item.widget().setParent(None)
+                elif item.layout():
+                    # clear layout items without deleting address_bar widget itself
+                    pass
+
+            # Re-add original address_bar hidden (keep reference alive)
+            self.address_bar.hide()
+
+            # Twin container with splitter + middle
+            twin_container = QWidget()
+            twin_h = QHBoxLayout(twin_container)
+            twin_h.setContentsMargins(0, 0, 0, 0)
+            twin_h.setSpacing(0)
+
             self._twin_splitter = QSplitter(Qt.Orientation.Horizontal)
-            layout.removeWidget(self.tree)
-            self._twin_splitter.addWidget(self.tree)
-            self._twin_splitter.addWidget(self._second_tree)
+            self._twin_splitter.addWidget(left_panel)
+            self._twin_splitter.addWidget(right_panel)
             self._twin_splitter.setSizes([500, 500])
-            layout.addWidget(self._twin_splitter)
 
-            # Sync second panel to same path
+            twin_h.addWidget(self._twin_splitter)
+            twin_h.addWidget(mid_panel)
+
+            layout.addWidget(twin_container)
+            self._twin_container = twin_container
+
+            # Populate right panel with same path
             if self.current_path:
                 self._populate_second_tree(self.current_path)
+                self._right_addr.setText(self.current_path)
 
             self.twin_btn.setEnabled(False)
             self.single_btn.setEnabled(True)
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Twin panel error: {e}")
 
-    def _enable_single_panel(self): #vers 1
+    def _toggle_copy_direction(self): #vers 1
+        """Toggle copy direction arrow between → and ←"""
+        btn = self._copy_dir_btn
+        if btn._direction == 'LR':
+            btn._direction = 'RL'
+            btn.setText("←")
+            btn.setToolTip("Copy direction: Right → Left\nClick to reverse")
+        else:
+            btn._direction = 'LR'
+            btn.setText("→")
+            btn.setToolTip("Copy direction: Left → Right\nClick to reverse")
+
+    def _copy_selected_files(self): #vers 1
+        """Copy selected files in the active direction"""
+        try:
+            direction = getattr(self._copy_dir_btn, '_direction', 'LR')
+            if direction == 'LR':
+                src_tree = self.tree
+                dst_path = self._right_addr.text()
+            else:
+                src_tree = self._second_tree
+                dst_path = self._left_addr.text()
+
+            selected = src_tree.selectedItems()
+            if not selected:
+                return
+            if not os.path.isdir(dst_path):
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Copy", f"Destination not valid:\n{dst_path}")
+                return
+
+            copied = 0
+            for item in selected:
+                src = item.data(0, Qt.ItemDataRole.UserRole)
+                if src and os.path.exists(src):
+                    dst = os.path.join(dst_path, os.path.basename(src))
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.copy2(src, dst)
+                    copied += 1
+
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Copied {copied} item(s) → {dst_path}")
+
+            # Refresh destination panel
+            if direction == 'LR':
+                self._populate_second_tree(dst_path)
+            else:
+                self.browse_directory(dst_path)
+
+        except Exception as e:
+            print(f"Copy error: {e}")
+
+    def _twin_navigate(self, path: str, side: str): #vers 1
+        """Navigate a specific twin panel side to a path"""
+        if not os.path.isdir(path):
+            return
+        if side == 'left':
+            self.browse_directory(path)
+            self._left_addr.setText(path)
+        else:
+            self._populate_second_tree(path)
+            self._right_addr.setText(path)
+
+    def _enable_single_panel(self): #vers 2
         """Restore single panel view"""
         try:
-            if not hasattr(self, '_twin_splitter') or not self._twin_splitter:
+            if not hasattr(self, '_twin_container') or not self._twin_container:
                 return
 
             layout = self.layout()
-            layout.removeWidget(self._twin_splitter)
 
-            # Reparent primary tree back
-            self._twin_splitter.widget(0)  # tree still owned by splitter
-            self.tree.setParent(self)
-            layout.addWidget(self.tree)
-
-            self._twin_splitter.deleteLater()
+            # Remove twin container
+            layout.removeWidget(self._twin_container)
+            self._twin_container.deleteLater()
+            self._twin_container = None
             self._twin_splitter = None
             self._second_tree = None
+
+            # Restore single address bar + tree
+            self.address_bar.show()
+            addr_layout = QHBoxLayout()
+            addr_layout.addWidget(QLabel("Location:"))
+            addr_layout.addWidget(self.address_bar)
+            go_btn = QPushButton("Go")
+            go_btn.setMaximumHeight(30)
+            go_btn.clicked.connect(self.navigate_to_address)
+            addr_layout.addWidget(go_btn)
+            layout.addLayout(addr_layout)
+            layout.addWidget(self.tree)
+
+            self.tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
 
             self.twin_btn.setEnabled(True)
             self.single_btn.setEnabled(False)
