@@ -238,13 +238,25 @@ class DirectoryTreeBrowser(QWidget):
         layout.setStretchFactor(self._single_container, 1)
 
 
-    def setup_tree_view(self): #vers 1
+    def setup_tree_view(self): #vers 2
         """Setup tree widget"""
         self.tree.setAlternatingRowColors(True)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.show_context_menu)
         self.tree.itemClicked.connect(self.on_item_clicked)
         self.tree.itemDoubleClicked.connect(self.on_item_double_clicked)
+        self.tree._browser = self
+        self._setup_tree_dragdrop(self.tree, 'left')
+
+    def _setup_tree_dragdrop(self, tree, side='left'): #vers 1
+        """Wire drag/drop onto a tree widget"""
+        try:
+            from apps.methods.dragdrop_functions import setup_tree_drag_drop, setup_tree_as_extract_target
+            mw = getattr(self, 'main_window', None)
+            setup_tree_drag_drop(tree, mw, side)
+            setup_tree_as_extract_target(tree, mw)
+        except Exception as e:
+            print(f"Tree drag/drop setup error: {e}")
 
 
     def apply_browser_styling(self): #vers 1
@@ -616,6 +628,8 @@ class DirectoryTreeBrowser(QWidget):
             self._second_tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
             self._second_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self._second_tree.customContextMenuRequested.connect(self.show_context_menu)
+            self._second_tree._browser = self
+            self._setup_tree_dragdrop(self._second_tree, 'right')
             right_layout.addWidget(self._second_tree)
 
             # --- Twin container ---

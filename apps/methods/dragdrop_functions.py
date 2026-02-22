@@ -456,3 +456,218 @@ __all__ = [
     'setup_table_drag_drop',
     'integrate_drag_drop_system'
 ]
+
+
+# --- Tree <-> Tree and Tree <-> Table drag/drop ---
+# setup_tree_drag_drop
+# setup_table_entry_drag
+# _tree_drag_start
+# _tree_drop_event
+# _table_drag_start
+# _table_drop_from_tree
+
+from PyQt6.QtWidgets import QTreeWidget, QTableWidget, QAbstractItemView
+from PyQt6.QtCore import QPoint
+import shutil
+
+
+def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
+    """Enable drag FROM and drop TO a dir tree panel"""
+    tree_widget.setDragEnabled(True)
+    tree_widget.setAcceptDrops(True)
+    tree_widget.setDropIndicatorShown(True)
+    tree_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+    tree_widget.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+
+    def start_drag(supported_actions):
+        selected = tree_widget.selectedItems()
+        if not selected:
+            return
+        paths = []
+        for item in selected:
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            if path and os.path.exists(path):
+                paths.append(path)
+        if not paths:
+            return
+        mime = QMimeData()
+        urls = [QUrl.fromLocalFile(p) for p in paths]
+        mime.setUrls(urls)
+        mime.setText('\n'.join(paths))
+        mime.setData('application/x-imgfactory-tree', side.encode())
+        drag = QDrag(tree_widget)
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
+
+    def drag_enter(event):
+        if event.mimeData().hasUrls() or event.mimeData().hasText():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def drag_move(event):
+        if event.mimeData().hasUrls() or event.mimeData().hasText():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def drop_event(event):
+        mime = event.mimeData()
+        dst_item = tree_widget.itemAt(event.position().toPoint())
+        if dst_item:
+            dst_path = dst_item.data(0, Qt.ItemDataRole.UserRole)
+        else:
+            dst_path = None
+
+        if not dst_path or not os.path.isdir(dst_path):
+            event.ignore()
+            return
+
+        paths = []
+        if mime.hasUrls():
+            paths = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+        elif mime.hasText():
+            paths = [p for p in mime.text().split('\n') if os.path.exists(p)]
+
+        if not paths:
+            event.ignore()
+            return
+
+        copied = 0
+        for src in paths:
+            try:
+                dst = os.path.join(dst_path, os.path.basename(src))
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+                copied += 1
+            except Exception as e:
+                if hasattr(main_window, 'log_message'):
+                    main_window.log_message(f"Copy error: {e}")
+
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Copied {copied} item(s) → {dst_path}")
+        event.acceptProposedAction()
+
+        # Refresh tree if it has browse_directory
+        if hasattr(tree_widget, '_browser') and hasattr(tree_widget._browser, 'browse_directory'):
+            tree_widget._browser.browse_directory(dst_path)
+
+    tree_widget.startDrag = start_drag
+    tree_widget.dragEnterEvent = drag_enter
+    tree_widget.dragMoveEvent = drag_move
+    tree_widget.dropEvent = drop_event
+
+
+def setup_table_entry_drag(table_widget, main_window): #vers 1
+    """Enable drag FROM table (IMG/COL entries) and drop TO table (import files)"""
+    table_widget.setDragEnabled(True)
+    table_widget.setAcceptDrops(True)
+    table_widget.setDropIndicatorShown(True)
+    table_widget.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+
+    def start_drag(supported_actions):
+        selected = table_widget.selectedItems()
+        if not selected:
+            return
+        rows = list({item.row() for item in selected})
+        names = []
+        for row in rows:
+            name_item = table_widget.item(row, 0)
+            if name_item:
+                names.append(name_item.text())
+        if not names:
+            return
+        mime = QMimeData()
+        mime.setText('\n'.join(names))
+        mime.setData('application/x-imgfactory-entries', '\n'.join(names).encode())
+        drag = QDrag(table_widget)
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.CopyAction)
+
+    def drag_enter(event):
+        mime = event.mimeData()
+        if mime.hasUrls() or mime.hasText():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def drag_move(event):
+        if event.mimeData().hasUrls() or event.mimeData().hasText():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def drop_event(event):
+        mime = event.mimeData()
+        paths = []
+        if mime.hasUrls():
+            paths = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+        elif mime.hasText() and not mime.hasData('application/x-imgfactory-entries'):
+            paths = [p for p in mime.text().split('\n') if os.path.exists(p)]
+
+        if paths and hasattr(main_window, 'import_multiple_files'):
+            main_window.import_multiple_files(paths)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    table_widget.startDrag = start_drag
+    table_widget.dragEnterEvent = drag_enter
+    table_widget.dragMoveEvent = drag_move
+    table_widget.dropEvent = drop_event
+
+
+def setup_tree_as_extract_target(tree_widget, main_window): #vers 1
+    """Allow IMG/COL table entries to be dropped onto dir tree to extract them"""
+    original_drop = getattr(tree_widget, 'dropEvent', None)
+
+    def drop_event(event):
+        mime = event.mimeData()
+
+        # Handle entry extraction drop from table
+        if mime.hasData('application/x-imgfactory-entries'):
+            dst_item = tree_widget.itemAt(event.position().toPoint())
+            dst_path = None
+            if dst_item:
+                dst_path = dst_item.data(0, Qt.ItemDataRole.UserRole)
+            if not dst_path or not os.path.isdir(dst_path):
+                event.ignore()
+                return
+
+            entry_names = mime.data('application/x-imgfactory-entries').data().decode().split('\n')
+            entry_names = [n for n in entry_names if n]
+
+            # Find active tab and extract
+            extracted = 0
+            if hasattr(main_window, 'main_tab_widget'):
+                tab = main_window.main_tab_widget.currentWidget()
+                file_object = getattr(tab, 'file_object', None)
+                if file_object and hasattr(file_object, 'entries'):
+                    for entry in file_object.entries:
+                        name = getattr(entry, 'name', '') or getattr(entry, 'filename', '')
+                        if name in entry_names:
+                            try:
+                                out_path = os.path.join(dst_path, name)
+                                if hasattr(file_object, 'extract_entry'):
+                                    file_object.extract_entry(entry, out_path)
+                                elif hasattr(entry, 'data') and entry.data:
+                                    with open(out_path, 'wb') as f:
+                                        f.write(entry.data)
+                                extracted += 1
+                            except Exception as e:
+                                if hasattr(main_window, 'log_message'):
+                                    main_window.log_message(f"Extract error: {e}")
+
+            if hasattr(main_window, 'log_message'):
+                main_window.log_message(f"Extracted {extracted} entry(s) → {dst_path}")
+            event.acceptProposedAction()
+            return
+
+        # Fall through to normal file drop
+        if original_drop:
+            original_drop(event)
+
+    tree_widget.setAcceptDrops(True)
+    tree_widget.dropEvent = drop_event

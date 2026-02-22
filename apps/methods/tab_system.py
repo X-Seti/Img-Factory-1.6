@@ -97,6 +97,13 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         tab_layout.addWidget(table)
         tab_widget.table_ref = table
 
+        # Setup drag/drop on table
+        try:
+            from apps.methods.dragdrop_functions import setup_table_entry_drag
+            setup_table_entry_drag(table, main_window)
+        except Exception as e:
+            print(f"Table drag/drop setup error: {e}")
+
         # Setup context menu
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(
