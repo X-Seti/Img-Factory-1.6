@@ -1,4 +1,57 @@
-#this belongs in root /ChangeLog.md - Version: 6
+#this belongs in root /ChangeLog.md - Version: 7
+
+## February 22, 2026 - Dir Tree Twin Panel, Drag/Drop, Undo/Trash
+
+**Added**: directory_tree_browser.py
+- _single_container wraps address bar + tree as one unit for reliable hide/show
+- Twin panel (_enable_twin_panel v3): two independent panels each with address bar, Go button, tree
+- 4-state layout cycle button (hidden in single mode, visible in twin): W1L|W2R, W1T/W2B, W2L|W1R, W2T/W1B
+- _cycle_layout v1: cycles _twin_splitter orientation and panel order, updates SVG icon each state
+- _enable_single_panel v3: restores tree to _single_container, layout stretch correct
+- _refresh_all_panels v2: refreshes left and right panels independently using _right_current_path
+- _populate_second_tree v2: uses finally block to safely restore self.tree after swap, tracks _right_current_path
+- _active_tree tracking in show_context_menu v2: uses self.sender() to know which panel triggered
+- delete_selected v4: uses _active_tree so right panel deletions get correct selected items
+- _copy_selected_files v2: pushes undo entry after copy
+- delete_selected v3→v4: uses send2trash for system trash instead of permanent delete
+- Drag/drop wired on both trees via _setup_tree_dragdrop
+- Refresh button and context menu refresh both call _refresh_all_panels
+
+**Added**: dragdrop_functions.py
+- setup_tree_drag_drop v1: drag from tree, drop onto folder with shutil copy, pushes undo entry
+- setup_table_entry_drag v1: drag IMG/COL entries from table, drop files onto table to import
+- setup_tree_as_extract_target v2: drop table entries onto dir tree folder to extract them
+- Hover highlight on drag_move using theme palette highlight colour at 50% opacity
+- drag_leave clears hover, drop clears hover
+- Fixed: hasData → hasFormat for QMimeData
+- Fixed: import_multiple_files now gets img_archive from current tab before calling
+- Desktop drag: entries extracted to temp dir first so OS gets real files not sticky note
+
+**Added**: imgfactory_svg_icons.py
+- get_arrow_right_icon v3: filled polygon arrowhead + double shaft lines
+- get_arrow_left_icon v3: filled polygon arrowhead + double shaft lines
+- get_go_icon v1: arrow-in-circle for Go buttons
+- get_layout_w1left_icon v1: filled left panel, outline right
+- get_layout_w1top_icon v1: filled top panel, outline bottom
+- get_layout_w2left_icon v1: outline left, filled right panel
+- get_layout_w2top_icon v1: outline top, filled bottom panel
+
+**Fixed**: gui_layout.py
+- _toggle_merge_view_layout v3: 4-state cycle matching dir tree layout cycle
+- Split toggle button uses layout SVG icons instead of split_horizontal/vertical
+- self.file_window stored as instance variable (was local) for hide/show from imgfactory.py
+- file_window.hide() on dir tree active, show() on file tab active (was hiding main_tab_widget only)
+
+**Fixed**: imgfactory.py
+- _on_tab_changed v5: hides file_window entirely when dir tree active, content_splitter 50/50 when file tab open
+
+**Fixed**: tab_system.py
+- setup_table_entry_drag wired on every new table widget
+
+**Added**: requirements.txt
+- send2trash, PyQt6
+
+
 
 ## February 21, 2026 - COL Loading, Tab System & UI Fixes
 
