@@ -2618,14 +2618,16 @@ def get_single_panel_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     painter.end()
     return QIcon(pixmap)
 
-def get_arrow_right_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
-    """Bold right arrow for copy direction - wide with long shaft"""
+def get_arrow_right_icon(size: int = 24, color: str = None) -> QIcon: #vers 3
+    """Wide right arrow - filled head, double shaft lines"""
     from PyQt6.QtGui import QIcon, QPixmap, QPainter
     from PyQt6.QtCore import Qt
     from PyQt6.QtSvg import QSvgRenderer
     c = color or "#cccccc"
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
-      <path d="M2 12 L18 12 M13 6 L21 12 L13 18" stroke="{c}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="1" y1="10" x2="15" y2="10" stroke="{c}" stroke-width="2" stroke-linecap="round"/>
+      <line x1="1" y1="14" x2="15" y2="14" stroke="{c}" stroke-width="2" stroke-linecap="round"/>
+      <polygon points="14,5 23,12 14,19" fill="{c}"/>
     </svg>'''
     renderer = QSvgRenderer(svg.encode())
     pixmap = QPixmap(size, size)
@@ -2635,14 +2637,16 @@ def get_arrow_right_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
     painter.end()
     return QIcon(pixmap)
 
-def get_arrow_left_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
-    """Bold left arrow for copy direction - wide with long shaft"""
+def get_arrow_left_icon(size: int = 24, color: str = None) -> QIcon: #vers 3
+    """Wide left arrow - filled head, double shaft lines"""
     from PyQt6.QtGui import QIcon, QPixmap, QPainter
     from PyQt6.QtCore import Qt
     from PyQt6.QtSvg import QSvgRenderer
     c = color or "#cccccc"
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
-      <path d="M22 12 L6 12 M11 6 L3 12 L11 18" stroke="{c}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="23" y1="10" x2="9" y2="10" stroke="{c}" stroke-width="2" stroke-linecap="round"/>
+      <line x1="23" y1="14" x2="9" y2="14" stroke="{c}" stroke-width="2" stroke-linecap="round"/>
+      <polygon points="10,5 1,12 10,19" fill="{c}"/>
     </svg>'''
     renderer = QSvgRenderer(svg.encode())
     pixmap = QPixmap(size, size)

@@ -767,20 +767,21 @@ class DirectoryTreeBrowser(QWidget):
             import traceback
             traceback.print_exc()
 
-    def _populate_second_tree(self, path: str): #vers 1
+    def _populate_second_tree(self, path: str): #vers 2
         """Populate the second panel tree with the given path"""
+        original_tree = self.tree
         try:
             if not hasattr(self, '_second_tree') or not self._second_tree:
                 return
+            self._right_current_path = path
             self._second_tree.clear()
             self._second_tree.setHeaderLabel(f"  {os.path.basename(path)}")
-            # Reuse populate_tree logic on second tree by temporarily swapping
-            original_tree = self.tree
             self.tree = self._second_tree
             self.populate_tree(path)
-            self.tree = original_tree
         except Exception as e:
             print(f"Second tree populate error: {e}")
+        finally:
+            self.tree = original_tree
 
     def browse_directory(self, path: str): #vers 1
         """Browse to specific directory"""
@@ -1362,13 +1363,13 @@ class DirectoryTreeBrowser(QWidget):
             self.populate_tree(self.current_path)
             self.log_message("Refreshed")
 
-    def _refresh_all_panels(self): #vers 1
+    def _refresh_all_panels(self): #vers 2
         """Refresh left panel and right panel if in twin view"""
         if self.current_path:
             self.populate_tree(self.current_path)
         if hasattr(self, '_second_tree') and self._second_tree:
-            right_path = self._right_addr.text() if hasattr(self, '_right_addr') else self.current_path
-            if right_path:
+            right_path = getattr(self, '_right_current_path', None) or (self._right_addr.text() if hasattr(self, '_right_addr') else None)
+            if right_path and os.path.isdir(right_path):
                 self._populate_second_tree(right_path)
 
 
