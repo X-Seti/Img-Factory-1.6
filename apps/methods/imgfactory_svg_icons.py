@@ -2617,3 +2617,55 @@ def get_single_panel_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     renderer.render(painter)
     painter.end()
     return QIcon(pixmap)
+
+def get_arrow_right_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Bold right arrow for copy direction"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#cccccc"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <path d="M5 12 L17 12 M13 7 L19 12 L13 17" stroke="{c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+def get_arrow_left_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Bold left arrow for copy direction"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#cccccc"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <path d="M19 12 L7 12 M11 7 L5 12 L11 17" stroke="{c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+def get_go_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+    """Go / navigate icon - filled arrow in circle"""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or "#cccccc"
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{size}" height="{size}">
+      <circle cx="12" cy="12" r="10" stroke="{c}" stroke-width="1.5" fill="none"/>
+      <path d="M9 8 L16 12 L9 16 Z" fill="{c}"/>
+    </svg>'''
+    renderer = QSvgRenderer(svg.encode())
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
