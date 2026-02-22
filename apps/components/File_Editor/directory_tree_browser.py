@@ -491,7 +491,9 @@ class DirectoryTreeBrowser(QWidget):
             # Enable multi-select on primary tree
             self.tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
 
-            # --- Left panel: wrap existing address_bar + tree ---
+            from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon, get_split_vertical_icon
+
+            # --- Left panel ---
             left_panel = QWidget()
             left_layout = QVBoxLayout(left_panel)
             left_layout.setContentsMargins(0, 0, 0, 0)
@@ -504,32 +506,30 @@ class DirectoryTreeBrowser(QWidget):
             self._left_addr.returnPressed.connect(lambda: self._twin_navigate(self._left_addr.text(), 'left'))
             left_addr_layout.addWidget(self._left_addr)
             left_go = QPushButton("Go")
-            left_go.setMaximumHeight(26)
+            left_go.setFixedHeight(24)
+            left_go.setFixedWidth(32)
             left_go.clicked.connect(lambda: self._twin_navigate(self._left_addr.text(), 'left'))
             left_addr_layout.addWidget(left_go)
+
+            # Direction toggle + copy inline after left Go
+            self._copy_dir_btn = QPushButton()
+            self._copy_dir_btn.setIcon(get_split_horizontal_icon(16))
+            self._copy_dir_btn.setFixedSize(24, 24)
+            self._copy_dir_btn.setToolTip("Copy direction: Left → Right (click to reverse)")
+            self._copy_dir_btn._direction = 'LR'
+            self._copy_dir_btn.clicked.connect(self._toggle_copy_direction)
+            left_addr_layout.addWidget(self._copy_dir_btn)
+
+            copy_btn = QPushButton("⇒")
+            copy_btn.setFixedSize(24, 24)
+            copy_btn.setToolTip("Copy selected files")
+            copy_btn.clicked.connect(self._copy_selected_files)
+            left_addr_layout.addWidget(copy_btn)
+
             left_layout.addLayout(left_addr_layout)
             left_layout.addWidget(self.tree)
 
-            # --- Middle: copy direction toggle ---
-            mid_panel = QWidget()
-            mid_layout = QVBoxLayout(mid_panel)
-            mid_layout.setContentsMargins(2, 2, 2, 2)
-            mid_panel.setFixedWidth(32)
-            mid_layout.addStretch()
-            self._copy_dir_btn = QPushButton("→")
-            self._copy_dir_btn.setFixedSize(28, 28)
-            self._copy_dir_btn.setToolTip("Copy direction: Left → Right\nClick to reverse")
-            self._copy_dir_btn._direction = 'LR'
-            self._copy_dir_btn.clicked.connect(self._toggle_copy_direction)
-            mid_layout.addWidget(self._copy_dir_btn)
-            copy_btn = QPushButton("⇒")
-            copy_btn.setFixedSize(28, 28)
-            copy_btn.setToolTip("Copy selected files in indicated direction")
-            copy_btn.clicked.connect(self._copy_selected_files)
-            mid_layout.addWidget(copy_btn)
-            mid_layout.addStretch()
-
-            # --- Right panel: new address bar + tree ---
+            # --- Right panel ---
             right_panel = QWidget()
             right_layout = QVBoxLayout(right_panel)
             right_layout.setContentsMargins(0, 0, 0, 0)
@@ -542,7 +542,8 @@ class DirectoryTreeBrowser(QWidget):
             self._right_addr.returnPressed.connect(lambda: self._twin_navigate(self._right_addr.text(), 'right'))
             right_addr_layout.addWidget(self._right_addr)
             right_go = QPushButton("Go")
-            right_go.setMaximumHeight(26)
+            right_go.setFixedHeight(24)
+            right_go.setFixedWidth(32)
             right_go.clicked.connect(lambda: self._twin_navigate(self._right_addr.text(), 'right'))
             right_addr_layout.addWidget(right_go)
             right_layout.addLayout(right_addr_layout)
@@ -555,22 +556,15 @@ class DirectoryTreeBrowser(QWidget):
             self._second_tree.customContextMenuRequested.connect(self.show_context_menu)
             right_layout.addWidget(self._second_tree)
 
-            # --- Assemble: remove existing address bar row + tree, add twin container ---
-            # Remove original address bar layout and tree from main layout
-            # We stored tree directly; address_bar is in a layout row - remove both
-            # Find and remove items after toolbar
+            # --- Remove original address bar + tree from layout ---
             while layout.count() > 2:  # keep menubar(optional) + toolbar
                 item = layout.takeAt(layout.count() - 1)
                 if item.widget():
                     item.widget().setParent(None)
-                elif item.layout():
-                    # clear layout items without deleting address_bar widget itself
-                    pass
 
-            # Re-add original address_bar hidden (keep reference alive)
             self.address_bar.hide()
 
-            # Twin container with splitter + middle
+            # --- Twin splitter container ---
             twin_container = QWidget()
             twin_h = QHBoxLayout(twin_container)
             twin_h.setContentsMargins(0, 0, 0, 0)
@@ -580,9 +574,7 @@ class DirectoryTreeBrowser(QWidget):
             self._twin_splitter.addWidget(left_panel)
             self._twin_splitter.addWidget(right_panel)
             self._twin_splitter.setSizes([500, 500])
-
             twin_h.addWidget(self._twin_splitter)
-            twin_h.addWidget(mid_panel)
 
             layout.addWidget(twin_container)
             self._twin_container = twin_container
@@ -600,17 +592,18 @@ class DirectoryTreeBrowser(QWidget):
             traceback.print_exc()
             print(f"Twin panel error: {e}")
 
-    def _toggle_copy_direction(self): #vers 1
+    def _toggle_copy_direction(self): #vers 2
         """Toggle copy direction arrow between → and ←"""
+        from apps.methods.imgfactory_svg_icons import get_split_horizontal_icon, get_split_vertical_icon
         btn = self._copy_dir_btn
         if btn._direction == 'LR':
             btn._direction = 'RL'
-            btn.setText("←")
-            btn.setToolTip("Copy direction: Right → Left\nClick to reverse")
+            btn.setIcon(get_split_vertical_icon(16))
+            btn.setToolTip("Copy direction: Right → Left (click to reverse)")
         else:
             btn._direction = 'LR'
-            btn.setText("→")
-            btn.setToolTip("Copy direction: Left → Right\nClick to reverse")
+            btn.setIcon(get_split_horizontal_icon(16))
+            btn.setToolTip("Copy direction: Left → Right (click to reverse)")
 
     def _copy_selected_files(self): #vers 1
         """Copy selected files in the active direction"""
