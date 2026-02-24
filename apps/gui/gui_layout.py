@@ -17,10 +17,13 @@ from apps.core.gui_search import ASearchDialog, SearchManager
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 from apps.methods.imgfactory_svg_icons import (
-    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon, 
+    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon,
     get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
     get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
-    get_rebuild_icon
+    get_rebuild_icon, get_merge_icon, get_split_icon, get_convert_icon,
+    get_import_via_icon, get_export_via_icon, get_dump_icon,
+    get_remove_via_icon, get_select_all_icon, get_select_inverse_icon,
+    get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon
 )
 from apps.locals.localization import tr_button
 from typing import Optional, Dict, Any, List, Callable
@@ -339,9 +342,9 @@ class IMGFactoryGUILayout:
             ("Rebuild", "rebuild", "view-rebuild", colors['build_action'], "rebuild_img"),
             ("Rebuild All", "rebuild_all", "document-save", colors['build_action'], "rebuild_all_img"),
             ("Save Entry", "save_entry", "document-save-entry", colors['save_action'], "save_img_entry"),
-            ("Merge", "merge", "document-merge", colors['merge_action'], "merge_img"),
-            ("Split via", "split", "edit-cut", colors['split_action'], "split_img"),
-            ("Convert", "convert", "transform", colors['convert_action'], "convert_img_format"),
+            ("Merge", "merge", "merge", colors['merge_action'], "merge_img"),
+            ("Split via", "split", "split", colors['split_action'], "split_img"),
+            ("Convert", "convert", "convert", colors['convert_action'], "convert_img_format"),
         ]
 
 
@@ -350,10 +353,10 @@ class IMGFactoryGUILayout:
         colors = self._get_button_theme_template()
         return [
             ("Import", "import", "document-import", colors['import_action'], "import_files"),
-            ("Import via", "import_via", "document-import", colors['import_action'], "import_files_via"),
+            ("Import via", "import_via", "import_via", colors['import_action'], "import_files_via"),
             ("Refresh", "update", "view-refresh", colors['reload_action'], "refresh_table"),
             ("Export", "export", "document-export", colors['export_action'], "export_selected"),
-            ("Export via", "export_via", "document-export", colors['export_action'], "export_selected_via"),
+            ("Export via", "export_via", "export_via", colors['export_action'], "export_selected_via"),
             ("Dump", "dump", "document-dump", colors['merge_action'], "dump_entries"),
             #("Quick Exp", "quick_export", "document-send", colors['export_action'], "quick_export_selected"),
             ("Remove", "remove", "edit-delete", colors['remove_action'], "remove_selected"),
@@ -1161,9 +1164,36 @@ class IMGFactoryGUILayout:
             # Placeholder (no icon)
             "placeholder": None,
 
-            # Editor icons - use edit_icon as generic fallback
-            "col-edit": get_edit_icon(),
-            "txd-edit": get_edit_icon(),
+            # IMG action icons
+            "merge": get_merge_icon(),
+            "document-merge": get_merge_icon(),
+            "split": get_split_icon(),
+            "convert": get_convert_icon(),
+            "transform": get_convert_icon(),
+
+            # Entry action icons
+            "import_via": get_import_via_icon(),
+            "document-import-via": get_import_via_icon(),
+            "export_via": get_export_via_icon(),
+            "document-export-via": get_export_via_icon(),
+            "dump": get_dump_icon(),
+            "document-dump": get_dump_icon(),
+            "remove_via": get_remove_via_icon(),
+            "document-remvia": get_remove_via_icon(),
+            "select_all": get_select_all_icon(),
+            "edit-select-all": get_select_all_icon(),
+            "sel_inverse": get_select_inverse_icon(),
+            "edit-select": get_select_inverse_icon(),
+            "sort": get_sort_icon(),
+            "view-sort": get_sort_icon(),
+            "pin_selected": get_pin_icon(),
+            "pin": get_pin_icon(),
+
+            # Workshop icons
+            "col-edit": get_col_workshop_icon(),
+            "txd-edit": get_txd_workshop_icon(),
+
+            # Remaining editor icons - generic fallback
             "dff-edit": get_edit_icon(),
             "ipf-edit": get_edit_icon(),
             "ide-edit": get_edit_icon(),
@@ -1181,10 +1211,6 @@ class IMGFactoryGUILayout:
             "scm-code": get_edit_icon(),
             "gxt-font": get_edit_icon(),
             "menu-font": get_edit_icon(),
-            "merge": get_view_icon(),
-            "split": get_view_icon(),
-            "convert": get_view_icon(),
-            "dump": get_view_icon(),
         }
 
         return icon_map.get(icon_name, get_edit_icon())
