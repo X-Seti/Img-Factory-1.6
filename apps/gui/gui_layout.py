@@ -994,17 +994,13 @@ class IMGFactoryGUILayout:
                 hover_border = "#909090"  # Darker border on hover
                 pressed_bg = "#d0d0d0"    # Medium gray when pressed
 
-        # Set icon based on the icon identifier
-        # Detect if we're using a dark theme to potentially adjust icon colors
+        # Store icon on button for icon-only mode, but default to text-only
         is_dark_theme = self._is_dark_theme()
         icon_obj = self._get_svg_icon(icon, is_dark_theme, bg_color=button_bg)
         if icon_obj:
-            btn.setIcon(icon_obj)
-            # Get icon size from settings if available
-            icon_size = 24
-            if hasattr(self.main_window, 'app_settings'):
-                icon_size = self.main_window.app_settings.current_settings.get('icon_size', 24)
-            btn.setIconSize(QSize(icon_size, icon_size))
+            btn.setProperty("stored_icon", icon_obj)
+            btn.setProperty("stored_bg", button_bg)
+        # No icon shown at full width - text only
 
         # Apply theme-aware styling
         btn.setStyleSheet(f"""
@@ -1028,6 +1024,7 @@ class IMGFactoryGUILayout:
 
         # Set action type property
         btn.setProperty("action-type", action_type)
+        btn.setProperty("full_label", localized_label)
 
         # Store original and localized labels for later use
         btn.original_text = label
@@ -2275,13 +2272,36 @@ class IMGFactoryGUILayout:
         elif right_width >= threshold and getattr(self, '_right_panel_icon_only', False):
             self._set_right_panel_icon_only(False)
 
-    def _set_right_panel_icon_only(self, icon_only: bool): #vers 2
-        """Toggle right panel buttons between icon+text and 32x32 icon-only"""
+    def _set_right_panel_icon_only(self, icon_only: bool): #vers 3
+        """Toggle right panel buttons between text-only and 32x32 icon-only"""
         self._right_panel_icon_only = icon_only
-        if icon_only:
-            self.set_button_display_mode('icons_only')
-        else:
-            self.set_button_display_mode('icons_with_text')
+
+        all_buttons = []
+        for attr in ('img_buttons', 'entry_buttons', 'options_buttons'):
+            if hasattr(self, attr):
+                all_buttons.extend(getattr(self, attr))
+
+        for btn in all_buttons:
+            if not hasattr(btn, 'setIcon'):
+                continue
+            if icon_only:
+                stored = btn.property("stored_icon")
+                if stored:
+                    btn.setIcon(stored)
+                    btn.setIconSize(QSize(28, 28))
+                btn.setText("")
+                btn.setFixedSize(36, 36)
+                btn.setToolTip(btn.property("full_label") or "")
+            else:
+                btn.setIcon(QIcon())
+                label = btn.property("full_label") or btn.text() or ""
+                btn.setText(label)
+                btn.setMinimumSize(0, 0)
+                btn.setMaximumSize(16777215, 16777215)
+                btn.setFixedHeight(btn.sizeHint().height() if btn.sizeHint().height() > 0 else 28)
+
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
 
     def handle_resize_event(self, event): #vers 1
         """Handle window resize to adapt button text"""
