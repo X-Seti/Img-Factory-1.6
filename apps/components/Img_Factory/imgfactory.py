@@ -2455,7 +2455,7 @@ class IMGFactory(QMainWindow):
             # Update window title
             if hasattr(self.current_col, 'file_path'):
                 file_name = os.path.basename(self.current_col.file_path)
-                self.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
+                self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
 
             # Use proper COL table population from apps.methods.
             if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
@@ -3515,7 +3515,7 @@ class IMGFactory(QMainWindow):
                         self.gui_layout.load_and_apply_pins(self.current_img.file_path)
 
                     # Update window title
-                    self.setWindowTitle(App_name + {file_name})
+                    self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
 
                     # Update info panel/status
                     entry_count = len(img_file.entries) if img_file.entries else 0
@@ -3791,7 +3791,7 @@ class IMGFactory(QMainWindow):
         self.current_txd = None
 
         # Update window title
-        self.setWindowTitle("IMG Factory 1.5")
+        self.setWindowTitle(App_name + " - " + App_auth + " - " + App_build)
 
         # Clear table if it exists
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
@@ -4243,7 +4243,7 @@ class IMGFactory(QMainWindow):
 
             # Update window title to show current file
             file_name = os.path.basename(col_file.file_path) if hasattr(col_file, 'file_path') else "Unknown COL"
-            self.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
+            self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
 
             model_count = len(col_file.models) if hasattr(col_file, 'models') and col_file.models else 0
             self.log_message(f"Loaded: {file_name} ({model_count} models)")
@@ -4307,7 +4307,7 @@ class IMGFactory(QMainWindow):
 
             # Update window title
             file_name = os.path.basename(img_file.file_path)
-            self.setWindowTitle(f"IMG Factory 1.6 - {file_name}")
+            self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
 
             # Pins
             if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file.file_path:

@@ -842,38 +842,23 @@ class IMGFactoryGUILayout:
             print(f"Error updating all buttons display mode: {e}")
 
 
-    def _update_button_display_mode(self, btn):
-        """Update a single button to reflect the current display mode"""
+    def _update_button_display_mode(self, btn): #vers 2
+        """Update a single button display mode - text only at full width, icons via splitter"""
         try:
-            mode = getattr(self, 'button_display_mode', 'icons_with_text')
+            mode = getattr(self, 'button_display_mode', 'text_only')
 
-            if mode == 'text_only':
-                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
-                btn.setMinimumWidth(0)
-                btn.setMaximumWidth(16777215)
-
-            elif mode == 'icons_only':
-                btn.setText("")
-                if hasattr(btn, 'full_text'):
-                    btn.setToolTip(btn.full_text)
-                btn.setFixedSize(32, 32)
-                btn.setIconSize(QSize(22, 22))
-
-            elif mode == 'icons_with_text':
-                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
-                btn.setMinimumWidth(0)
-                btn.setMaximumWidth(16777215)
-                btn.setMinimumHeight(22)
-                btn.setMaximumHeight(32)
-                icon_size = 24
-                if hasattr(self, 'main_window') and hasattr(self.main_window, 'app_settings'):
-                    icon_size = self.main_window.app_settings.current_settings.get('icon_size', 24)
-                btn.setIconSize(QSize(icon_size, icon_size))
-
+            if mode == 'icons_only':
+                # Handled by _set_right_panel_icon_only
+                pass
             else:
-                btn.setText(btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
-                btn.setMinimumWidth(0)
-                btn.setMaximumWidth(16777215)
+                # text_only or icons_with_text both show text at full width
+                label = btn.property("full_label") or (btn.localized_text if hasattr(btn, 'localized_text') else btn.text())
+                if label:
+                    btn.setText(label)
+                btn.setIcon(QIcon())
+                btn.setMinimumSize(0, 0)
+                btn.setMaximumSize(16777215, 16777215)
+                btn.setMinimumHeight(22)
 
         except Exception as e:
             print(f"Error updating button display mode: {e}")
