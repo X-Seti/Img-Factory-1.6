@@ -24,7 +24,6 @@ from typing import Dict, Optional, Tuple
 
 class RWVersion(Enum):
     RW_VERSION_3_0_0_0 = 0x30000
-    RW_VERSION_3_1_0_0 = 0x31000
     RW_VERSION_3_1_0_1 = 0x31001
     RW_VERSION_3_2_0_0 = 0x32000
     RW_VERSION_3_3_0_2 = 0x33002
@@ -77,7 +76,6 @@ class MDLVersion(Enum):
 def get_rw_version_name(version_value: int) -> str: #vers 3
     rw_versions = {
         0x30000: "3.0.0.0",
-        0x31000: "3.1.0.0",
         0x31001: "3.1.0.1",
         0x32000: "3.2.0.0",
         0x33002: "3.3.0.2",
