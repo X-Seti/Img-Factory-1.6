@@ -40,7 +40,7 @@
   "use_pastel_buttons": true,
   "high_contrast_buttons": false,
   "button_size": 24,
-  "icon_size": 16,
+  "icon_size": 24,
   "button_format": "both",
   "default_font_family": "Noto Sans",
   "default_font_size": 9,
