@@ -1,4 +1,38 @@
-#this belongs in root /ChangeLog.md - Version: 7
+#this belongs in root /ChangeLog.md - Version: 8
+
+## February 24, 2026 - Icons, Buttons, Startup Fixes
+
+**Added**: imgfactory_svg_icons.py
+- All 217 icons updated: stroke-width 2.5, stroke-linecap round, stroke-linejoin round (handdrawn style)
+- _create_icon: injects coloured square background rect (rx=4) behind icon paths
+- All 67 wrapper functions accept bg_color parameter, composite via QPainter
+- get_close_all_icon v1: two X marks side by side, distinct from single close
+- get_rebuild_all_icon v1: circular arrows with stacked lines, distinct from rebuild and save
+- undo_icon v8: clear curved-arrow with filled arrowhead, replaces circular blob
+- get_undobar_icon v2: same curved-arrow style, consistent with undo_icon
+- get_extract_icon v2: dotted-border box with downward arrow, distinct from export
+
+**Fixed**: gui_layout.py
+- create_pastel_button: stores icon as Qt property stored_icon/stored_bg/full_label
+- _get_svg_icon: passes size=24, theme colour, bg_color per button
+- icon_map: extract key now maps to get_extract_icon (was get_export_icon)
+- icon_map: rebuild-all maps to get_rebuild_all_icon (was document-save)
+- icon_map: window-close-all maps to get_close_all_icon
+- Button tuples: Close All uses window-close-all, Rebuild All uses rebuild-all
+- _set_right_panel_icon_only: buttons 36x36 icon-only when panel narrow (<250px)
+- _update_button_display_mode: text-only default, splitter resize triggers icon-only
+- create_status_window: f_entries_btn uses safe hasattr lambda (method only in subclass)
+
+**Added**: apps/app_info.py
+- App_name, App_build, App_auth constants, avoids circular imports across 15 files
+
+**Fixed**: imgfactory.py
+- _apply_button_display_mode_from_settings v2: text_only at startup, no icon+text flash
+- All hardcoded "IMG Factory 1.5" runtime strings replaced with App_name/App_build
+
+**Restored**: apps/gui/directory_tree_system.py
+- File was missing from working tree, restored from 43fcb09
+
 
 ## February 22, 2026 - Dir Tree Twin Panel, Drag/Drop, Undo/Trash
 
