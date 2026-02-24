@@ -2728,7 +2728,7 @@ def get_close_icon(size: int = 24, color: str = None, bg_color: str = None) -> Q
     icon = SVGIconFactory.get_close_icon(size, color)
     if bg_color:
         from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
+        from PyQt6.QtCore import Qt, QRect
         pm = QPixmap(size, size)
         pm.fill(Qt.GlobalColor.transparent)
         p = QPainter(pm)
@@ -2736,11 +2736,65 @@ def get_close_icon(size: int = 24, color: str = None, bg_color: str = None) -> Q
         p.setBrush(QColor(bg_color))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(0, 0, size, size, 4, 4)
-        from PyQt6.QtCore import QRect
         icon.paint(p, QRect(2, 2, size-4, size-4))
         p.end()
         return QIcon(pm)
     return icon
+
+
+def get_close_all_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Close All - two overlapping X marks"""
+    stroke = color or "#333333"
+    svg_data = f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4" y1="4" x2="11" y2="11" stroke="{stroke}" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="11" y1="4" x2="4" y2="11" stroke="{stroke}" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="13" y1="9" x2="20" y2="20" stroke="{stroke}" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="20" y1="9" x2="13" y2="20" stroke="{stroke}" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>'''
+    icon = SVGIconFactory._create_icon(svg_data, size, stroke)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt, QRect
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
+
+
+def get_rebuild_all_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Rebuild All - circular arrows with stacked lines beneath"""
+    stroke = color or "#333333"
+    svg_data = f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 8a8 8 0 0 1 14-2.5" stroke="{stroke}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M20 16a8 8 0 0 1-14 2.5" stroke="{stroke}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <polyline points="18,3 18,8 13,8" stroke="{stroke}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="6,21 6,16 11,16" stroke="{stroke}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="8" y1="12" x2="16" y2="12" stroke="{stroke}" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="15" x2="14" y2="15" stroke="{stroke}" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>'''
+    icon = SVGIconFactory._create_icon(svg_data, size, stroke)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt, QRect
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
+
 
 def get_save_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_save_icon"""
