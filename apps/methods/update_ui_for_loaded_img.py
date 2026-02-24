@@ -1,4 +1,5 @@
 #this belongs in methods/update_ui_for_loaded_img.py - Version: 6
+from apps.components.Img_Factory.imgfactory import App_name, App_build
 # X-Seti - August13 2025 - IMG Factory 1.5 - UI Update for Loaded IMG - VISIBILITY FIXED
 
 """
@@ -23,7 +24,7 @@ def update_ui_for_loaded_img(main_window): #vers 6
 
         # Update window title
         file_name = os.path.basename(main_window.current_img.file_path)
-        main_window.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
+        main_window.setWindowTitle(f"{App_name} - {file_name}")
 
         # Populate table with IMG entries using STANDALONE method
         if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):

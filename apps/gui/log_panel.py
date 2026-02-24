@@ -1,4 +1,5 @@
 #this belongs in gui/ log_panel.py - Version: 3
+from apps.components.Img_Factory.imgfactory import App_name, App_build
 # X-Seti - JULY04 2025 - IMG Factory 1.5 - Enhanced Log Panel with Copy Button
 
 #!/usr/bin/env python3
@@ -339,7 +340,7 @@ def create_log_panel(main_window):
     main_window.log_debug = lambda msg: main_window.log_widget.add_message(msg, LogLevel.DEBUG)
     
     # Add initial welcome message
-    main_window.log_message("IMG Factory 1.5 initialized")
+    main_window.log_message(App_name + " initialized")
     main_window.log_message("Ready to work with IMG archives")
     
     return group

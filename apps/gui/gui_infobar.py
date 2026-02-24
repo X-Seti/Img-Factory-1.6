@@ -105,7 +105,7 @@ def update_col_info_bar(main_window, col_file, file_path: str) -> bool: #vers 1
         stats = get_col_file_statistics(col_file, file_path)
         
         # Update window title
-        main_window.setWindowTitle(f"IMG Factory 1.6 - {stats['file_name']} (COL)")
+        main_window.setWindowTitle(f"{App_name} - {stats['file_name']} (COL)")
         
         # Update basic info labels if they exist
         if hasattr(main_window, 'file_path_label'):
@@ -178,7 +178,7 @@ def old_update_col_info_bar_enhanced(main_window, col_file, file_path: str) -> b
             gui_layout.show_progress(-1, enhanced_status)
         
         # Update window title with enhanced info
-        title = f"IMG Factory 1.5 - {stats['file_name']} (COL)"
+        title = f"{App_name} - {stats['file_name']} (COL)"
         if stats['model_count'] > 1:
             title += f" - {stats['model_count']} Models"
         main_window.setWindowTitle(title)
@@ -217,7 +217,7 @@ def update_img_info_bar(main_window, img_file, file_path: str) -> bool: #vers 1
             from apps.components.Img_Factory.imgfactory import App_name, App_build
             main_window.setWindowTitle(f"{App_name} - {App_build}{file_name}")
         except ImportError:
-            main_window.setWindowTitle(f"IMG Factory 1.6 - {file_name}")
+            main_window.setWindowTitle(f"{App_name} - {App_build}{file_name}")
         
         # Update additional labels if available
         if hasattr(main_window, 'file_path_label'):

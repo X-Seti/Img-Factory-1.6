@@ -6776,7 +6776,7 @@ class TXDWorkshop(QWidget): #vers 3
         layout.setSpacing(15)
 
         # Header
-        header = QLabel("TXD Workshop for IMG Factory 1.5")
+        header = QLabel(f"TXD Workshop - {App_name}")
         header.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)

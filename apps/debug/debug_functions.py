@@ -1,4 +1,5 @@
 # this belongs in apps/debug/debug_functions.py - version 5
+from apps.components.Img_Factory.imgfactory import App_name, App_build
 #!/usr/bin/env python3
 """
 X-Seti - June26 2025 - IMG Debug - Debugging utilities for IMG Factory
@@ -356,7 +357,7 @@ def integrate_all_improvements(main_window): #vers 1
         add_status_indicators(main_window)
 
         if core_success:
-            main_window.log_message("🎉 IMG Factory 1.5 - All improvements integrated successfully!")
+            main_window.log_message(f"🎉 {App_name} - All improvements integrated successfully!")
             main_window.log_message("📖 Check Debug menu for all options")
 
         return core_success
