@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from apps.app_info import App_name, App_build, App_auth
 #this belongs in components.Col_Editor.col_workshop.py - Version: 12
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 

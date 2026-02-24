@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from apps.app_info import App_name, App_build, App_auth
 #this belongs in components/Txd_Editor/ txd_workshop.py - Version: 12
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
