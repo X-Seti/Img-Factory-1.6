@@ -1,5 +1,5 @@
-#this belongs in methods/populate_img_table.py - Version: 12
-# X-Seti - February04 2026 - Img Factory 1.6
+#this belongs in methods/populate_img_table.py - Version: 10
+# X-Seti - November18 2025 - IMG Factory 1.5
 """
 IMG Table Population
 """
@@ -57,39 +57,26 @@ def reset_table_styling(main_window): #vers 2
         img_debugger.error(error_msg)
         return False
 
-def setup_table_for_img_data(table: QTableWidget, main_window=None) -> bool: #vers 4
-    """Setup table structure for IMG file data with column width persistence"""
+def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 3
+    """Setup table structure for IMG file data"""
     try:
         img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"]
         table.setColumnCount(8)
         table.setHorizontalHeaderLabels(img_headers)
-        
-        # Setup header properties
+        table.setColumnWidth(0, 190)  # Name
+        table.setColumnWidth(1, 60)   # Type
+        table.setColumnWidth(2, 90)   # Size
+        table.setColumnWidth(3, 100)  # Offset
+        table.setColumnWidth(4, 100)  # RW Address
+        table.setColumnWidth(5, 100)  # RW Version
+        table.setColumnWidth(6, 110)  # Compression
+        table.setColumnWidth(7, 110)  # Status
         header = table.horizontalHeader()
         header.setSectionsMovable(True)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for col in range(1, 8):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
         table.setSortingEnabled(True)
-        
-        # Apply saved column widths or defaults
-        try:
-            from apps.methods.column_width_manager import apply_column_widths, setup_column_width_tracking
-            apply_column_widths(table, "img")
-            if main_window:
-                setup_column_width_tracking(table, main_window, "img")
-        except Exception as e:
-            # Fallback to hardcoded defaults if column manager fails
-            table.setColumnWidth(0, 190)  # Name
-            table.setColumnWidth(1, 60)   # Type
-            table.setColumnWidth(2, 90)   # Size
-            table.setColumnWidth(3, 100)  # Offset
-            table.setColumnWidth(4, 100)  # RW Address
-            table.setColumnWidth(5, 100)  # RW Version
-            table.setColumnWidth(6, 110)  # Compression
-            table.setColumnWidth(7, 110)  # Status
-            img_debugger.warning(f"Column width manager unavailable, using defaults: {e}")
-        
         img_debugger.debug("Table structure setup for IMG data")
         return True
     except Exception as e:
@@ -101,8 +88,8 @@ class IMGTablePopulator:
     def __init__(self, main_window):
         self.main_window = main_window
 
-    def populate_table_with_img_data(self, img_file: Any) -> bool: #vers 11
-        """Populate table with IMG entry data with column width persistence"""
+    def populate_table_with_img_data(self, img_file: Any) -> bool: #vers 9
+        """Populate table with IMG entry data - MINIMAL VERSION to prevent freezing"""
         try:
             if not img_file or not hasattr(img_file, 'entries'):
                 img_debugger.error("Invalid IMG file for table population")
@@ -115,35 +102,19 @@ class IMGTablePopulator:
             table.setHorizontalHeaderLabels([
                 "Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"
             ])
-            
-            # Apply column width manager
-            try:
-                from apps.methods.column_width_manager import apply_column_widths, setup_column_width_tracking
-                apply_column_widths(table, "img")
-                if hasattr(self, 'main_window') and self.main_window:
-                    setup_column_width_tracking(table, self.main_window, "img")
-                img_debugger.debug("Column width manager applied successfully")
-            except Exception as e:
-                # Fallback to defaults
-                table.setColumnWidth(0, 190)
-                table.setColumnWidth(1, 60)
-                table.setColumnWidth(2, 90)
-                table.setColumnWidth(3, 100)
-                table.setColumnWidth(4, 100)
-                table.setColumnWidth(5, 100)
-                table.setColumnWidth(6, 110)
-                table.setColumnWidth(7, 110)
-                img_debugger.error(f"Column width manager failed: {e}")
-                import traceback
-                traceback.print_exc()
-            
+            table.setColumnWidth(0, 190)
+            table.setColumnWidth(1, 60)
+            table.setColumnWidth(2, 90)
+            table.setColumnWidth(3, 100)
+            table.setColumnWidth(4, 100)
+            table.setColumnWidth(5, 100)
+            table.setColumnWidth(6, 110)
+            table.setColumnWidth(7, 110)
             header = table.horizontalHeader()
             header.setSectionsMovable(True)
             header.setStretchLastSection(False)
-            # Set resize modes: Name stretches, others are interactive (manually resizable)
-            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-            for col in range(1, 8):
-                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+            for col in range(8):
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
             entries = img_file.entries
             if not entries:
                 img_debugger.info("No entries found in IMG file")
@@ -158,7 +129,7 @@ class IMGTablePopulator:
             img_debugger.error(f"Error populating IMG table: {str(e)}")
             return False
 
-    def populate_table_row_minimal(self, table: Any, row: int, entry: Any): #vers 5
+    def populate_table_row_minimal(self, table: Any, row: int, entry: Any): #vers 4
         """Populate single table row with MINIMAL processing - keep all 8 columns"""
         try:
             # Check if this entry should be highlighted - OPTIMIZED
@@ -171,40 +142,37 @@ class IMGTablePopulator:
                 else:
                     highlight_type = "imported"
             
-            # Check if entry is pinned
-            is_pinned = hasattr(entry, 'is_pinned') and entry.is_pinned
-            
             # Create items with minimal processing
             name_text = str(entry.name) if hasattr(entry, 'name') else f"Entry_{row}"
-            name_item = self.create_img_table_item(name_text, is_highlighted, highlight_type, is_pinned)
+            name_item = self.create_img_table_item(name_text, is_highlighted, highlight_type)
             table.setItem(row, 0, name_item)
             
             entry_type = self.get_img_entry_type_simple(entry)
-            type_item = self.create_img_table_item(entry_type, is_highlighted, highlight_type, is_pinned)
+            type_item = self.create_img_table_item(entry_type, is_highlighted, highlight_type)
             table.setItem(row, 1, type_item)
             
             size_text = self.format_img_entry_size_simple(entry)
-            size_item = self.create_img_table_item(size_text, is_highlighted, highlight_type, is_pinned)
+            size_item = self.create_img_table_item(size_text, is_highlighted, highlight_type)
             table.setItem(row, 2, size_item)
             
             offset_text = f"0x{entry.offset:08X}" if hasattr(entry, 'offset') else "N/A"
-            offset_item = self.create_img_table_item(offset_text, is_highlighted, highlight_type, is_pinned)
+            offset_item = self.create_img_table_item(offset_text, is_highlighted, highlight_type)
             table.setItem(row, 3, offset_item)
             
             rw_address_text = self.get_rw_address_light(entry)
-            rw_address_item = self.create_img_table_item(rw_address_text, is_highlighted, highlight_type, is_pinned)
+            rw_address_item = self.create_img_table_item(rw_address_text, is_highlighted, highlight_type)
             table.setItem(row, 4, rw_address_item)
             
             version_text = self.get_rw_version_light(entry)
-            version_item = self.create_img_table_item(version_text, is_highlighted, highlight_type, is_pinned)
+            version_item = self.create_img_table_item(version_text, is_highlighted, highlight_type)
             table.setItem(row, 5, version_item)
             
             info_text = self.get_compression_info(entry)
-            info_item = self.create_img_table_item(info_text, is_highlighted, highlight_type, is_pinned)
+            info_item = self.create_img_table_item(info_text, is_highlighted, highlight_type)
             table.setItem(row, 6, info_item)
             
             status_text = self.get_info_light(entry)
-            status_item = self.create_img_table_item(status_text, is_highlighted, highlight_type, is_pinned)
+            status_item = self.create_img_table_item(status_text, is_highlighted, highlight_type)
             table.setItem(row, 7, status_item)
         except Exception as e:
             img_debugger.error(f"Error populating table row {row}: {str(e)}")
@@ -329,22 +297,14 @@ class IMGTablePopulator:
         except Exception:
             return "Original"
 
-    def create_img_table_item(self, text: str, is_highlighted: bool = False, highlight_type: str = None, is_pinned: bool = False) -> QTableWidgetItem: #vers 6
+    def create_img_table_item(self, text: str, is_highlighted: bool = False, highlight_type: str = None) -> QTableWidgetItem: #vers 5
         """Create table item with optional highlighting and pin icon - OPTIMIZED"""
         try:
             from PyQt6.QtWidgets import QTableWidgetItem
-            from PyQt6.QtGui import QColor, QBrush, QFont, QIcon
+            from PyQt6.QtGui import QColor, QBrush, QFont
             from PyQt6.QtCore import Qt
             
             item = QTableWidgetItem(str(text))
-            
-            # Apply pinned icon if needed
-            if is_pinned:
-                # Import the SVG icon factory and add lock icon
-                from apps.methods.imgfactory_svg_icons import SVGIconFactory
-                lock_icon = SVGIconFactory.lock_icon(size=16, color=None)
-                item.setIcon(lock_icon)
-                item.setToolTip(item.toolTip() + " | Pinned" if item.toolTip() else "Pinned")
             
             # Apply highlighting if needed - OPTIMIZED
             if is_highlighted and highlight_type:
@@ -356,7 +316,7 @@ class IMGTablePopulator:
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                    item.setToolTip(item.toolTip() + " | Recently imported file" if item.toolTip() else "Recently imported file")
+                    item.setToolTip("Recently imported file")
                     
                 elif highlight_type == "replaced":
                     # Light yellow background for replaced files
@@ -366,26 +326,22 @@ class IMGTablePopulator:
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                    item.setToolTip(item.toolTip() + " | Recently replaced file" if item.toolTip() else "Recently replaced file")
+                    item.setToolTip("Recently replaced file")
                     
             return item
         except Exception:
             return QTableWidgetItem("Error")
 
-    def get_table_reference(self): #vers 3
-        """Get table reference - current tab's table first, fallback to gui_layout.table"""
+    def get_table_reference(self): #vers 2
+        """Get table reference from main window"""
         try:
-            mw = self.main_window
-            if hasattr(mw, 'main_tab_widget'):
-                tab_widget = mw.main_tab_widget.currentWidget()
-                if tab_widget and hasattr(tab_widget, 'table_ref'):
-                    return tab_widget.table_ref
-            if hasattr(mw, 'gui_layout') and hasattr(mw.gui_layout, 'table'):
-                return mw.gui_layout.table
-            if hasattr(mw, 'table'):
-                return mw.table
-            img_debugger.error("No table found in main window")
-            return None
+            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'table'):
+                return self.main_window.gui_layout.table
+            elif hasattr(self.main_window, 'table'):
+                return self.main_window.table
+            else:
+                img_debugger.error("No table found in main window")
+                return None
         except Exception as e:
             img_debugger.error(f"Error getting table reference: {str(e)}")
             return None
