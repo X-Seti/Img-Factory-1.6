@@ -214,7 +214,7 @@ def update_img_info_bar(main_window, img_file, file_path: str) -> bool: #vers 1
         # Update window title
         file_name = os.path.basename(file_path)
         try:
-            from apps.components.Img_Factory.imgfactory import App_name, App_build
+            from apps.app_info import App_name, App_build
             main_window.setWindowTitle(f"{App_name} - {App_build}{file_name}")
         except ImportError:
             main_window.setWindowTitle(f"{App_name} - {App_build}{file_name}")

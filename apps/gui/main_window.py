@@ -1,4 +1,5 @@
 #this belongs in gui/ main_window.py - Version: 58
+from apps.app_info import App_name, App_build, App_auth
 # X-Seti - July12 2025 - Img Factory 1.5
 # Credit MexUK 2007 Img Factory 1.2
 

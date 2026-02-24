@@ -1,5 +1,5 @@
 #this belongs in methods/colour_ui_for_loaded_img.py - Version: 3
-from apps.components.Img_Factory.imgfactory import App_name, App_build
+from apps.app_info import App_name, App_build
 # X-Seti - August05 2025 - IMG Factory 1.5 - UI Update for Loaded IMG
 
 """

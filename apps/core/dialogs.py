@@ -1,5 +1,5 @@
 #this belongs in core/dialogs.py - Version: 14
-from apps.components.Img_Factory.imgfactory import App_name, App_build
+from apps.app_info import App_name, App_build
 # X-Seti - Aug15 2025 - Img Factory 1.5 - Complete Dialog Classes with Assists Integration
 
 """

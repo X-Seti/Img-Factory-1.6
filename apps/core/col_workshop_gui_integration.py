@@ -1,5 +1,5 @@
 #this belongs in gui/col_gui_integration.py - Version: 2
-from apps.components.Img_Factory.imgfactory import App_name, App_build
+from apps.app_info import App_name, App_build
 # X-Seti - July17 2025 - IMG Factory 1.5 - COL GUI Integration
 # Uses IMG debug system and integrates COL tabs into main tab system
 

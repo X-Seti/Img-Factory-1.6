@@ -1,4 +1,5 @@
 #this belongs in components/IDE_Editor.py - Version: 1
+from apps.app_info import App_name, App_build, App_auth
 # X-Seti - August14 2025 - IMG Factory 1.5 - IDE Editor
 
 """

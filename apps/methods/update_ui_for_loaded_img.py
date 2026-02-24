@@ -1,5 +1,5 @@
 #this belongs in methods/update_ui_for_loaded_img.py - Version: 6
-from apps.components.Img_Factory.imgfactory import App_name, App_build
+from apps.app_info import App_name, App_build
 # X-Seti - August13 2025 - IMG Factory 1.5 - UI Update for Loaded IMG - VISIBILITY FIXED
 
 """

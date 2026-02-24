@@ -1,5 +1,5 @@
 #this belongs in gui/ log_panel.py - Version: 3
-from apps.components.Img_Factory.imgfactory import App_name, App_build
+from apps.app_info import App_name, App_build
 # X-Seti - JULY04 2025 - IMG Factory 1.5 - Enhanced Log Panel with Copy Button
 
 #!/usr/bin/env python3

@@ -1,4 +1,5 @@
 #this belongs in components.Col_Creator.col_creator.py - Version: 2
+from apps.app_info import App_name, App_build, App_auth
 # X-Seti - July17 2025 - IMG Factory 1.5 - COL Creator
 # IMG Creator Treatment: Same structure, COL functions, IMG debug system
 
