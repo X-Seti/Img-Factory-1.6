@@ -2338,16 +2338,15 @@ class SVGIconFactory: #vers 7
 
 
     @staticmethod
-    def get_extract_icon(size: int = 24, color: str = None) -> QIcon:
-        """Extract/unpack icon - archive with upward arrow"""
+    def get_extract_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
+        """Extract icon - dotted border box with arrow pulling content out"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <path d="M14 2v6h6"
-                stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <line x1="12" y1="17" x2="12" y2="10"
+            <rect x="3" y="3" width="18" height="18" rx="2"
+                stroke="currentColor" stroke-width="2" fill="none"
+                stroke-dasharray="3 2"/>
+            <line x1="12" y1="8" x2="12" y2="16"
                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            <polyline points="9,13 12,10 15,13"
+            <polyline points="8,12 12,16 16,12"
                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                 stroke-linejoin="round" fill="none"/>
         </svg>'''
@@ -2355,9 +2354,23 @@ class SVGIconFactory: #vers 7
 
 #Shortform
 
-def get_extract_icon(size: int = 24, color: str = None) -> QIcon:
-    """Wrapper for SVGIconFactory.get_extract_icon"""
-    return SVGIconFactory.get_extract_icon(size, color)
+def get_extract_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Extract icon - dotted border box with downward arrow"""
+    icon = SVGIconFactory.get_extract_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt, QRect
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
 def get_checkmark_icon(size: int = 24, color: str = None) -> QIcon:
     """Wrapper for SVGIconFactory.get_checkmark_icon"""
