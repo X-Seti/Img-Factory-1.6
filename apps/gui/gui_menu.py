@@ -1,4 +1,5 @@
 #this belongs in gui/gui_menu.py - Version: 22
+from apps.app_info import App_name, App_build, App_auth
 # X-Seti - August14 2025 - IMG Factory 1.5
 
 #!/usr/bin/env python3

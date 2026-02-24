@@ -143,10 +143,8 @@ from apps.methods.imgfactory_svg_icons import (
 )
 
 
-# App metadata
-App_name = "Img Factory 1.6"
-App_build = "Feb 24 2026 - "
-App_auth = "X-Seti"
+# App metadata - imported from app_info.py to avoid circular imports
+from apps.app_info import App_name, App_build, App_auth
 
 ##Methods list -
 
