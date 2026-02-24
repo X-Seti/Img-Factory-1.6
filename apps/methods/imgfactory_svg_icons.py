@@ -567,12 +567,14 @@ class SVGIconFactory: #vers 7
 
 
     @staticmethod
-    def undo_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
-        """Undo icon"""
+    def undo_icon(size: int = 20, color: str = None) -> QIcon: #vers 8
+        """Undo icon - curved arrow pointing left with arrowhead"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M3 7v6h6M3 13a9 9 0 1018 0 9 9 0 00-18 0z"
-                stroke="currentColor" stroke-width="2.5" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 10 L9 6 L2 10 L9 14 L9 10 Z"
+                fill="currentColor"/>
+            <path d="M9 10 H16 C18.2 10 20 11.8 20 14 C20 16.2 18.2 18 16 18 H12"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                stroke-linejoin="round" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -2195,14 +2197,14 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
-    def get_undobar_icon(size: int = 24, color: str = None) -> QIcon:
-        """Undo with bar (reset/refresh) icon"""
+    def get_undobar_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
+        """Undo bar icon - curved arrow with arrowhead"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <path d="M12 4 L12 2 L8 5 L12 8 L12 6 C15.3 6 18 8.7 18 12 C18 15.3 15.3 18 12 18 C8.7 18 6 15.3 6 12"
+            <path d="M9 10 L9 6 L2 10 L9 14 L9 10 Z"
+                fill="currentColor"/>
+            <path d="M9 10 H16 C18.2 10 20 11.8 20 14 C20 16.2 18.2 18 16 18 H12"
                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                 stroke-linejoin="round" fill="none"/>
-            <line x1="4" y1="12" x2="6" y2="12"
-                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
