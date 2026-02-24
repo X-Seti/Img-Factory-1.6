@@ -135,7 +135,7 @@ def edit_col_file(main_window): #vers 1
 
 
 class IMGFactoryGUILayout:
-    """Handles the complete GUI layout for IMG Factory 1.5 with theme system"""
+    """Handles the complete GUI layout for IMG Factory 1.6 with theme system"""
     
     def __init__(self, main_window): #vers 2
         """Initialize GUI layout with theme-controlled components"""

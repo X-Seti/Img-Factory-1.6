@@ -4418,7 +4418,7 @@ class COLWorkshop(QWidget): #vers 3
         layout.setSpacing(15)
 
         # Header
-        header = QLabel("COL Workshop for IMG Factory 1.5")
+        header = QLabel(f"COL Workshop - {App_name}")
         header.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
@@ -4773,7 +4773,7 @@ class COLEditorDialog(QDialog): #vers 3
     def __init__(self, parent=None):
         self.icon_factory = SVGIconFactory()
         super().__init__(parent)
-        self.setWindowTitle(App_name + " - IMG Factory 1.5")
+        self.setWindowTitle(App_name)
         self.setModal(False)  # Allow non-modal operation
         self.resize(1000, 700)
 
@@ -5525,7 +5525,7 @@ def open_col_workshop(main_window, img_path=None): #vers 1
                     workshop.open_col_file(img_path)
                 elif hasattr(workshop, "load_col_file"):
                     workshop.load_col_file(img_path)
-        workshop.setWindowTitle("COL Workshop - IMG Factory 1.5")
+        workshop.setWindowTitle(f"COL Workshop - {App_name}")
         workshop.show()
         return workshop
     except Exception as e:

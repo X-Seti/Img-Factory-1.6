@@ -231,7 +231,7 @@ class IMGFactoryMainWindow(QMainWindow):
 
     def setup_window(self):
         """Setup basic window properties"""
-        self.setWindowTitle("IMG Factory 1.6")
+        self.setWindowTitle(App_name)
         self.setMinimumSize(1000, 700)
         self.resize(1400, 900)
         
@@ -601,7 +601,7 @@ class IMGFactoryMainWindow(QMainWindow):
         """Show info dialog"""
         try:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Info", "IMG Factory 1.5\nCustom UI Mode Active")
+            QMessageBox.information(self, "Info", App_name + "\nCustom UI Mode Active")
         except Exception as e:
             self.log_message(f"Error showing info dialog: {str(e)}")
 

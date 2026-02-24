@@ -1,4 +1,5 @@
 #this belongs in core/dialogs.py - Version: 14
+from apps.components.Img_Factory.imgfactory import App_name, App_build
 # X-Seti - Aug15 2025 - Img Factory 1.5 - Complete Dialog Classes with Assists Integration
 
 """
@@ -575,7 +576,7 @@ def show_progress_dialog(parent, title, text): #vers 2
 
 def show_about_dialog(parent): #vers 2
     """Show about dialog"""
-    QMessageBox.about(parent, "About IMG Factory 1.5", "IMG Factory 1.5\n\nA comprehensive IMG file manager for GTA games.")
+    QMessageBox.about(parent, "About " + App_name, App_name + "\n\nA comprehensive IMG file manager for GTA games.")
 
 # File dialog functions
 def get_img_file_filter(): #vers 2

@@ -113,7 +113,7 @@ class NewCOLDialog(QDialog):
         self.creation_thread = None
         
         # Initialize UI
-        self.setWindowTitle("Create New COL File - IMG Factory 1.5")
+        self.setWindowTitle(f"Create New COL File - {App_name}")
         self.setMinimumSize(500, 600)
         self.resize(600, 700)
         

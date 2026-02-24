@@ -1038,7 +1038,7 @@ class IMGFactoryMenuBar:
                     self.main_window.log_message(f"IMG file saved as: {file_path}")
                     # Update window title if possible
                     if hasattr(self.main_window, 'setWindowTitle'):
-                        self.main_window.setWindowTitle(f"IMG Factory 1.6 - {os.path.basename(file_path)}")
+                        self.main_window.setWindowTitle(f"{App_name} - {App_build}{os.path.basename(file_path)}")
             else:
                 QMessageBox.warning(self.main_window, "Warning", "No IMG file loaded to save")
         except Exception as e:
@@ -2524,7 +2524,7 @@ class IMGFactoryMenuBar:
     def _show_about(self): #vers 6
         """Show about dialog"""
         about_text = """
-        <h2>IMG Factory 1.5</h2>
+        <h2>{App_name}</h2>
         <p><b>Version:</b> 1.5.0</p>
         <p><b>Build Date:</b> August 14, 2025</p>
         <p><b>Author:</b> X-Seti</p>

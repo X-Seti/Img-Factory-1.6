@@ -667,7 +667,7 @@ class IMGFactory(QMainWindow):
         self.reload_table = self.reload_current_file
 
         # === STARTUP COMPLETE ===
-        self.log_message("IMG Factory 1.6 initialized - Ready!")
+        self.log_message(f"{App_name} initialized - Ready!")
 
         # Apply comprehensive fixes for menu system and functionality
         fix_menu_system_and_functionality(self)
@@ -2898,7 +2898,7 @@ class IMGFactory(QMainWindow):
 
     def show_about(self):
         """Show about dialog"""
-        QMessageBox.about(self, "About IMG Factory 1.5", "IMG Factory 1.5\nAdvanced IMG Archive Management\nX-Seti 2025")
+        QMessageBox.about(self, f"About {App_name}", f"{App_name}\nAdvanced IMG Archive Management\nX-Seti 2026")
 
 
     def enable_col_debug(self): #vers 2 #restore
@@ -5143,7 +5143,7 @@ class IMGFactory(QMainWindow):
     def show_about(self): #vers 2
         """Show about dialog"""
         about_text = """
-        <h2>IMG Factory 1.5</h2>
+        <h2>{App_name} {App_build}</h2>
         <p><b>Professional IMG Archive Manager</b></p>
         <p>Version: 1.5.0 Python Edition</p>
         <p>Author: X-Seti</p>
