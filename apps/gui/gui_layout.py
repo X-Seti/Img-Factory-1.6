@@ -865,9 +865,9 @@ class IMGFactoryGUILayout:
                 btn.setMaximumWidth(16777215)
                 btn.setMinimumHeight(22)
                 btn.setMaximumHeight(32)
-                icon_size = 16
+                icon_size = 24
                 if hasattr(self, 'main_window') and hasattr(self.main_window, 'app_settings'):
-                    icon_size = self.main_window.app_settings.current_settings.get('icon_size', 16)
+                    icon_size = self.main_window.app_settings.current_settings.get('icon_size', 24)
                 btn.setIconSize(QSize(icon_size, icon_size))
 
             else:
@@ -1001,9 +1001,9 @@ class IMGFactoryGUILayout:
         if icon_obj:
             btn.setIcon(icon_obj)
             # Get icon size from settings if available
-            icon_size = 16
+            icon_size = 24
             if hasattr(self.main_window, 'app_settings'):
-                icon_size = self.main_window.app_settings.current_settings.get('icon_size', 16)
+                icon_size = self.main_window.app_settings.current_settings.get('icon_size', 24)
             btn.setIconSize(QSize(icon_size, icon_size))
 
         # Apply theme-aware styling
@@ -1216,7 +1216,8 @@ class IMGFactoryGUILayout:
         fn = icon_map.get(icon_name, get_edit_icon)
         if fn is None:
             return QIcon()
-        return fn(bg_color=bg_color) if bg_color else fn()
+        stroke_color = "#222222" if not is_dark_theme else "#dddddd"
+        return fn(size=24, color=stroke_color, bg_color=bg_color) if bg_color else fn(size=24, color=stroke_color)
 
 
     def _get_short_text(self, label): #vers 1
@@ -1572,7 +1573,7 @@ class IMGFactoryGUILayout:
             self.set_button_size(button_size)
         
         # Update icon size if available
-        icon_size = settings.get('icon_size', 16)
+        icon_size = settings.get('icon_size', 24)
         self.set_icon_size(icon_size)
         
         # Update pastel effect setting
