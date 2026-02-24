@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 76
-# X-Seti - December11 2025 - IMG Factory 1.5 - Fixed Imports
+#this belongs in components/Img_Factory/imgfactory.py - Version: 77
+# X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
-IMG Factory 1.5 - Grand Theft Auto Archive Manager
+IMG Factory 1.6 - Grand Theft Auto Archive Manager
 Main application file - always runs in "main app" mode
 """
 
