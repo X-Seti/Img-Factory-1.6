@@ -1595,7 +1595,7 @@ class IMGFactoryGUILayout:
         self.f_entries_btn.setFixedSize(24, 24)
         self.f_entries_btn.setIconSize(QSize(20, 20))
         self.f_entries_btn.setToolTip("File Entries (Ctrl+1)")
-        self.f_entries_btn.clicked.connect(self._switch_to_file_entries)
+        self.f_entries_btn.clicked.connect(lambda: self._switch_to_file_entries() if hasattr(self, '_switch_to_file_entries') else None)
         header_layout.addWidget(self.f_entries_btn)
 
         # Merge View toggle
