@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QIcon
-from apps.methods.tab_system import get_current_file_from_active_tab, validate_tab_before_operation
+from apps.methods.tab_system import get_current_file_from_active_tab, validate_tab_before_operation, get_current_active_tab_info
 
 ##Methods list -
 # pin_selected_entries
@@ -82,7 +82,9 @@ def pin_selected_entries(main_window): #vers 1
             return False
         
         # Get selected entries
-        selected_items = main_window.gui_layout.table.selectedItems()
+        tab_info = get_current_active_tab_info(main_window)
+        table = tab_info.get("table_widget") or main_window.gui_layout.table
+        selected_items = table.selectedItems() if table else []
         if not selected_items:
             main_window.log_message("No entries selected to pin/unpin")
             return False
@@ -142,7 +144,9 @@ def unpin_selected_entries(main_window): #vers 1
             return False
         
         # Get selected entries
-        selected_items = main_window.gui_layout.table.selectedItems()
+        tab_info = get_current_active_tab_info(main_window)
+        table = tab_info.get("table_widget") or main_window.gui_layout.table
+        selected_items = table.selectedItems() if table else []
         if not selected_items:
             main_window.log_message("No entries selected to unpin")
             return False
@@ -197,7 +201,9 @@ def toggle_pinned_entries(main_window): #vers 1
             return False
         
         # Get selected entries
-        selected_items = main_window.gui_layout.table.selectedItems()
+        tab_info = get_current_active_tab_info(main_window)
+        table = tab_info.get("table_widget") or main_window.gui_layout.table
+        selected_items = table.selectedItems() if table else []
         if not selected_items:
             main_window.log_message("No entries selected to toggle pin")
             return False
