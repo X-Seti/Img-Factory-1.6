@@ -997,7 +997,7 @@ class IMGFactoryGUILayout:
         # Set icon based on the icon identifier
         # Detect if we're using a dark theme to potentially adjust icon colors
         is_dark_theme = self._is_dark_theme()
-        icon_obj = self._get_svg_icon(icon, is_dark_theme)
+        icon_obj = self._get_svg_icon(icon, is_dark_theme, bg_color=button_bg)
         if icon_obj:
             btn.setIcon(icon_obj)
             # Get icon size from settings if available
@@ -1092,128 +1092,131 @@ class IMGFactoryGUILayout:
             return color
 
 
-    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False) -> QIcon:
+    def _get_svg_icon(self, icon_name: str, is_dark_theme: bool = False, bg_color: str = None) -> QIcon: #vers 2
         """Get SVG icon based on icon name identifier"""
         icon_map = {
             # Create/new icons
-            "new": get_add_icon(),
-            "document-new": get_add_icon(),
+            "new": get_add_icon,
+            "document-new": get_add_icon,
             
             # Open icons
-            "open": get_open_icon(),
-            "document-open": get_open_icon(),
+            "open": get_open_icon,
+            "document-open": get_open_icon,
             
             # Reload/refresh icons
-            "reload": get_refresh_icon(),
-            "document-reload": get_refresh_icon(),
-            "view-refresh": get_refresh_icon(),
-            "update": get_refresh_icon(),
-            "rebuild": get_rebuild_icon(),
-            "view-rebuild": get_rebuild_icon(),
+            "reload": get_refresh_icon,
+            "document-reload": get_refresh_icon,
+            "view-refresh": get_refresh_icon,
+            "update": get_refresh_icon,
+            "rebuild": get_rebuild_icon,
+            "view-rebuild": get_rebuild_icon,
             
             # Close icons
-            "close": get_close_icon(),
-            "window-close": get_close_icon(),
-            "edit-clear": get_close_icon(),
+            "close": get_close_icon,
+            "window-close": get_close_icon,
+            "edit-clear": get_close_icon,
             
             # Save icons
-            "save_entry": get_save_icon(),
-            "document-save": get_save_icon(),
-            "document-save-entry": get_save_icon(),
+            "save_entry": get_save_icon,
+            "document-save": get_save_icon,
+            "document-save-entry": get_save_icon,
             
             # Import icons
-            "import": get_import_icon(),
-            "document-import": get_import_icon(),
-            "import_via": get_import_icon(),
+            "import": get_import_icon,
+            "document-import": get_import_icon,
+            "import_via": get_import_icon,
             
             # Export icons
-            "export": get_export_icon(),
-            "document-export": get_export_icon(),
-            "export_via": get_export_icon(),
-            "document-send": get_export_icon(),
+            "export": get_export_icon,
+            "document-export": get_export_icon,
+            "export_via": get_export_icon,
+            "document-send": get_export_icon,
             
             # Remove/delete icons
-            "remove": get_remove_icon(),
-            "edit-delete": get_remove_icon(),
-            "remove_via": get_remove_icon(),
-            "document-remvia": get_remove_icon(),
+            "remove": get_remove_icon,
+            "edit-delete": get_remove_icon,
+            "remove_via": get_remove_icon,
+            "document-remvia": get_remove_icon,
             
             # Edit icons
-            "rename": get_edit_icon(),
-            "edit-rename": get_edit_icon(),
-            "edit_select": get_edit_icon(),
-            "edit-select": get_edit_icon(),
-            "select_all": get_edit_icon(),
-            "edit-select-all": get_edit_icon(),
-            "sel_inverse": get_edit_icon(),
-            "sort": get_edit_icon(),
-            "view-sort": get_edit_icon(),
-            "pin_selected": get_edit_icon(),
-            "pin": get_edit_icon(),
-            "extract": get_export_icon(),
+            "rename": get_edit_icon,
+            "edit-rename": get_edit_icon,
+            "edit_select": get_edit_icon,
+            "edit-select": get_edit_icon,
+            "select_all": get_edit_icon,
+            "edit-select-all": get_edit_icon,
+            "sel_inverse": get_edit_icon,
+            "sort": get_edit_icon,
+            "view-sort": get_edit_icon,
+            "pin_selected": get_edit_icon,
+            "pin": get_edit_icon,
+            "extract": get_export_icon,
             
             # Other icons
-            "document-merge": get_view_icon(),
-            "edit-cut": get_view_icon(),
-            "transform": get_view_icon(),
-            "document-dump": get_view_icon(),
+            "document-merge": get_view_icon,
+            "edit-cut": get_view_icon,
+            "transform": get_view_icon,
+            "document-dump": get_view_icon,
             
             # Search icons
-            "search": get_search_icon(),
+            "search": get_search_icon,
             
             # Placeholder (no icon)
             "placeholder": None,
 
             # IMG action icons
-            "merge": get_merge_icon(),
-            "document-merge": get_merge_icon(),
-            "split": get_split_icon(),
-            "convert": get_convert_icon(),
-            "transform": get_convert_icon(),
+            "merge": get_merge_icon,
+            "document-merge": get_merge_icon,
+            "split": get_split_icon,
+            "convert": get_convert_icon,
+            "transform": get_convert_icon,
 
             # Entry action icons
-            "import_via": get_import_via_icon(),
-            "document-import-via": get_import_via_icon(),
-            "export_via": get_export_via_icon(),
-            "document-export-via": get_export_via_icon(),
-            "dump": get_dump_icon(),
-            "document-dump": get_dump_icon(),
-            "remove_via": get_remove_via_icon(),
-            "document-remvia": get_remove_via_icon(),
-            "select_all": get_select_all_icon(),
-            "edit-select-all": get_select_all_icon(),
-            "sel_inverse": get_select_inverse_icon(),
-            "edit-select": get_select_inverse_icon(),
-            "sort": get_sort_icon(),
-            "view-sort": get_sort_icon(),
-            "pin_selected": get_pin_icon(),
-            "pin": get_pin_icon(),
+            "import_via": get_import_via_icon,
+            "document-import-via": get_import_via_icon,
+            "export_via": get_export_via_icon,
+            "document-export-via": get_export_via_icon,
+            "dump": get_dump_icon,
+            "document-dump": get_dump_icon,
+            "remove_via": get_remove_via_icon,
+            "document-remvia": get_remove_via_icon,
+            "select_all": get_select_all_icon,
+            "edit-select-all": get_select_all_icon,
+            "sel_inverse": get_select_inverse_icon,
+            "edit-select": get_select_inverse_icon,
+            "sort": get_sort_icon,
+            "view-sort": get_sort_icon,
+            "pin_selected": get_pin_icon,
+            "pin": get_pin_icon,
 
             # Workshop icons
-            "col-edit": get_col_workshop_icon(),
-            "txd-edit": get_txd_workshop_icon(),
+            "col-edit": get_col_workshop_icon,
+            "txd-edit": get_txd_workshop_icon,
 
             # Remaining editor icons - generic fallback
-            "dff-edit": get_edit_icon(),
-            "ipf-edit": get_edit_icon(),
-            "ide-edit": get_edit_icon(),
-            "ipl-edit": get_edit_icon(),
-            "dat-edit": get_edit_icon(),
-            "zones-cull": get_edit_icon(),
-            "weap-edit": get_edit_icon(),
-            "vehi-edit": get_edit_icon(),
-            "peds-edit": get_edit_icon(),
-            "radar-map": get_view_icon(),
-            "paths-map": get_view_icon(),
-            "timecyc": get_edit_icon(),
-            "handling": get_edit_icon(),
-            "ojs-breakble": get_edit_icon(),
-            "scm-code": get_edit_icon(),
-            "gxt-font": get_edit_icon(),
-            "menu-font": get_edit_icon(),
+            "dff-edit": get_edit_icon,
+            "ipf-edit": get_edit_icon,
+            "ide-edit": get_edit_icon,
+            "ipl-edit": get_edit_icon,
+            "dat-edit": get_edit_icon,
+            "zones-cull": get_edit_icon,
+            "weap-edit": get_edit_icon,
+            "vehi-edit": get_edit_icon,
+            "peds-edit": get_edit_icon,
+            "radar-map": get_view_icon,
+            "paths-map": get_view_icon,
+            "timecyc": get_edit_icon,
+            "handling": get_edit_icon,
+            "ojs-breakble": get_edit_icon,
+            "scm-code": get_edit_icon,
+            "gxt-font": get_edit_icon,
+            "menu-font": get_edit_icon,
         }
 
-        return icon_map.get(icon_name, get_edit_icon())
+        fn = icon_map.get(icon_name, get_edit_icon)
+        if fn is None:
+            return QIcon()
+        return fn(bg_color=bg_color) if bg_color else fn()
 
 
     def _get_short_text(self, label): #vers 1

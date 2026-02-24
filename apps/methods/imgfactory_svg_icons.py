@@ -83,22 +83,31 @@ class SVGIconFactory: #vers 7
 
 
     @staticmethod
-    def _create_icon(svg_data: str, size: int = 20, color: str = None) -> QIcon:
-        """Create QIcon from SVG data with theme color support"""
+    def _create_icon(svg_data: str, size: int = 20, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+        """Create QIcon from SVG data with optional coloured background square"""
         if color is None:
-            # Use cached theme color or fallback - avoid circular import
             if hasattr(SVGIconFactory, "_cached_color"):
                 color = SVGIconFactory._cached_color
             else:
-                color = "#000000"  # Fallback - safe default
-        
+                color = "#000000"
+
         svg_data = svg_data.replace("currentColor", color)
-        
+
+        # Inject bg rect + rounded corners before icon paths if bg_color given
+        if bg_color:
+            # Extract inner content from <svg ...> tag
+            import re
+            inner = re.sub(r'<svg[^>]*>', '', svg_data, count=1).replace('</svg>', '').strip()
+            svg_data = f'''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0.5" y="0.5" width="23" height="23" rx="4" ry="4" fill="{bg_color}" stroke="none"/>
+  {inner}
+</svg>'''
+
         try:
             renderer = QSvgRenderer(svg_data.encode())
             if not renderer.isValid():
                 return QIcon()
-            
+
             pixmap = QPixmap(size, size)
             pixmap.fill(Qt.GlobalColor.transparent)
             painter = QPainter(pixmap)
@@ -232,13 +241,13 @@ class SVGIconFactory: #vers 7
         """Save As icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="17 21 17 13 7 13 7 21"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="7 3 7 8 15 8"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -259,9 +268,9 @@ class SVGIconFactory: #vers 7
         """Open file icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M14 2v6h6M12 11v6M9 14l3 3 3-3"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -325,8 +334,8 @@ class SVGIconFactory: #vers 7
     def info_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Info icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -335,7 +344,7 @@ class SVGIconFactory: #vers 7
     def minimize_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Minimize icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -344,7 +353,7 @@ class SVGIconFactory: #vers 7
     def maximize_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Maximize icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <rect x="5" y="5" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" rx="2"/>
+            <rect x="5" y="5" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" rx="2"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -353,8 +362,8 @@ class SVGIconFactory: #vers 7
     def close_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Close icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
-            <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -448,8 +457,8 @@ class SVGIconFactory: #vers 7
     def editer_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Create edit SVG icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2"/>
-            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2"/>
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -459,7 +468,7 @@ class SVGIconFactory: #vers 7
         """Edit/pencil icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -469,9 +478,9 @@ class SVGIconFactory: #vers 7
         """Copy icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="9" y="9" width="13" height="13" rx="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -481,9 +490,9 @@ class SVGIconFactory: #vers 7
         """Paste icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <rect x="8" y="2" width="8" height="4" rx="1"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -502,10 +511,10 @@ class SVGIconFactory: #vers 7
         """Add - Plus icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <line x1="12" y1="5" x2="12" y2="19"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 stroke-linecap="round"/>
             <line x1="5" y1="12" x2="19" y2="12"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -516,10 +525,10 @@ class SVGIconFactory: #vers 7
         """Delete - Trash icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <polyline points="3 6 5 6 21 6"
-                    stroke="currentColor" stroke-width="2"
+                    stroke="currentColor" stroke-width="2.5"
                     fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -529,7 +538,7 @@ class SVGIconFactory: #vers 7
     def delete_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Delete/minus icon"""
         svg_data =  '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M3 5h14M8 5V3h4v2M6 5v11a1 1 0 001 1h6a1 1 0 001-1V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M3 5h14M8 5V3h4v2M6 5v11a1 1 0 001 1h6a1 1 0 001-1V5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -539,10 +548,10 @@ class SVGIconFactory: #vers 7
         """Trash/delete icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <polyline points="3 6 5 6 21 6"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -552,7 +561,7 @@ class SVGIconFactory: #vers 7
     def _bin_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Delete - Trash icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -562,7 +571,7 @@ class SVGIconFactory: #vers 7
         """Undo icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M3 7v6h6M3 13a9 9 0 1018 0 9 9 0 00-18 0z"
-                stroke="currentColor" stroke-width="2" fill="none"
+                stroke="currentColor" stroke-width="2.5" fill="none"
                 stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -575,7 +584,7 @@ class SVGIconFactory: #vers 7
         """Rotate clockwise icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 12a9 9 0 11-9-9v6M21 3l-3 6-6-3"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -585,7 +594,7 @@ class SVGIconFactory: #vers 7
         """Rotate counter-clockwise icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M3 12a9 9 0 109-9v6M3 3l3 6 6-3"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -595,7 +604,7 @@ class SVGIconFactory: #vers 7
         """Flip horizontal icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 3v18M7 8l5-4 5 4M7 16l5 4 5-4"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -605,7 +614,7 @@ class SVGIconFactory: #vers 7
         """Flip vertical icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M3 12h18M8 7l-4 5 4 5M16 7l4 5-4 5"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -617,7 +626,7 @@ class SVGIconFactory: #vers 7
         """Import/download icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -628,7 +637,7 @@ class SVGIconFactory: #vers 7
         """Export/upload icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -648,8 +657,8 @@ class SVGIconFactory: #vers 7
     def _convertor_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Create convert SVG icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M3 12h18M3 12l4-4M3 12l4 4M21 12l-4-4M21 12l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+            <path d="M3 12h18M3 12l4-4M3 12l4 4M21 12l-4-4M21 12l-4 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -685,11 +694,11 @@ class SVGIconFactory: #vers 7
         """Zoom in icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M11 8v6M8 11h6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <path d="M21 21l-4.35-4.35"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -699,11 +708,11 @@ class SVGIconFactory: #vers 7
         """Zoom out icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M8 11h6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <path d="M21 21l-4.35-4.35"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -713,7 +722,7 @@ class SVGIconFactory: #vers 7
         """Reset/refresh icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M16 10A6 6 0 1 1 4 10M4 10l3-3m-3 3l3 3"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -723,9 +732,9 @@ class SVGIconFactory: #vers 7
         """Fit to window icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="3" y="3" width="18" height="18"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M7 7l10 10M17 7L7 17"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -737,10 +746,10 @@ class SVGIconFactory: #vers 7
         """Sphere collision icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none"/>
             <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -751,13 +760,13 @@ class SVGIconFactory: #vers 7
         """Box collision icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="12" y1="22.08" x2="12" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -767,16 +776,16 @@ class SVGIconFactory: #vers 7
         """Mesh/wireframe icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="3" y="3" width="18" height="18"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="3" y1="9" x2="21" y2="9"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
             <line x1="3" y1="15" x2="21" y2="15"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
             <line x1="9" y1="3" x2="9" y2="21"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
             <line x1="15" y1="3" x2="15" y2="21"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -806,10 +815,10 @@ class SVGIconFactory: #vers 7
         """Globe/world icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none"/>
             <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -832,7 +841,7 @@ class SVGIconFactory: #vers 7
         """Arrow up"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 5v14M6 11l6-6 6 6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -841,7 +850,7 @@ class SVGIconFactory: #vers 7
         """Arrow down"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 19V5M18 13l-6 6-6-6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -850,7 +859,7 @@ class SVGIconFactory: #vers 7
         """Arrow left"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M5 12h14M11 6l-6 6 6 6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -859,7 +868,7 @@ class SVGIconFactory: #vers 7
         """Arrow right"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M19 12H5M13 18l6-6-6-6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
@@ -871,11 +880,11 @@ class SVGIconFactory: #vers 7
         """Analyze/chart icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <line x1="18" y1="20" x2="18" y2="10"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="12" y1="20" x2="12" y2="4"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="6" y1="20" x2="6" y2="14"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -885,9 +894,9 @@ class SVGIconFactory: #vers 7
         """Color picker icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M12 4v6M12 14v6M4 12h6M14 12h6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -896,8 +905,8 @@ class SVGIconFactory: #vers 7
     def _colour_picker_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Color picker icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none"/>
-            <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-            <path d="M10 3v4M10 13v4M3 10h4M13 10h4" stroke="currentColor" stroke-width="2"/>
+            <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M10 3v4M10 13v4M3 10h4M13 10h4" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -990,7 +999,7 @@ class SVGIconFactory: #vers 7
             <path d="M8 20 L8 12 Q8 8, 12 8" stroke="currentColor" stroke-width="1.5" fill="none"/>
             <path d="M12 20 L12 10 Q12 6, 16 6" stroke="currentColor" stroke-width="1.5" fill="none"/>
             <path d="M16 20 L16 14 Q16 10, 20 10" stroke="currentColor" stroke-width="1.5" fill="none"/>
-            <line x1="2" y1="20" x2="22" y2="20" stroke="currentColor" stroke-width="2"/>
+            <line x1="2" y1="20" x2="22" y2="20" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1180,10 +1189,10 @@ class SVGIconFactory: #vers 7
     def surface_stripe_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
         """Stripe pattern"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <line x1="2" y1="6" x2="22" y2="6" stroke="currentColor" stroke-width="2"/>
-            <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/>
-            <line x1="2" y1="14" x2="22" y2="14" stroke="currentColor" stroke-width="2"/>
-            <line x1="2" y1="18" x2="22" y2="18" stroke="currentColor" stroke-width="2"/>
+            <line x1="2" y1="6" x2="22" y2="6" stroke="currentColor" stroke-width="2.5"/>
+            <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2.5"/>
+            <line x1="2" y1="14" x2="22" y2="14" stroke="currentColor" stroke-width="2.5"/>
+            <line x1="2" y1="18" x2="22" y2="18" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1206,7 +1215,7 @@ class SVGIconFactory: #vers 7
     def _place_icon(size: int = 24, color: str = None) -> QIcon: #vers 7
         """Create/new icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1215,7 +1224,7 @@ class SVGIconFactory: #vers 7
     def duplicate_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Duplicate/copy icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <rect x="6" y="6" width="10" height="10" stroke="currentColor" stroke-width="2" fill="none"/>
+            <rect x="6" y="6" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M4 4h8v2H6v8H4V4z" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1226,11 +1235,11 @@ class SVGIconFactory: #vers 7
         """Create check/verify icon - document with checkmark"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                fill="none" stroke="currentColor" stroke-width="2"/>
+                fill="none" stroke="currentColor" stroke-width="2.5"/>
             <path d="M14 2v6h6"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M9 13l2 2 4-4"
-                stroke="currentColor" stroke-width="2" fill="none"
+                stroke="currentColor" stroke-width="2.5" fill="none"
                 stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1274,7 +1283,7 @@ class SVGIconFactory: #vers 7
     def _resize_icon2(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Resize grip icon - diagonal arrows"""
         svg_data = '''<svg viewBox="0 0 20 20" fill="none">
-            <path d="M14 6l-8 8M10 6h4v4M6 14v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M14 6l-8 8M10 6h4v4M6 14v-4h4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1293,7 +1302,7 @@ class SVGIconFactory: #vers 7
 
             <!-- Upward indicator -->
             <path d="M19 8 L19 4 M17 6 L19 4 L21 6"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1313,7 +1322,7 @@ class SVGIconFactory: #vers 7
 
             <!-- Upward arrow -->
             <path d="M16 20 L20 20 M18 18 L18 22"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1335,7 +1344,7 @@ class SVGIconFactory: #vers 7
 
             <!-- Upward arrow overlay -->
             <path d="M12 3 L12 9 M9 6 L12 3 L15 6"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1373,10 +1382,10 @@ class SVGIconFactory: #vers 7
         """Sphere - Circle icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none"/>
             <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1387,13 +1396,13 @@ class SVGIconFactory: #vers 7
         """Box - Cube icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="12" y1="22.08" x2="12" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1403,16 +1412,16 @@ class SVGIconFactory: #vers 7
         """Mesh - Grid/wireframe icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="3" y="3" width="18" height="18"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="3" y1="9" x2="21" y2="9"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
             <line x1="3" y1="15" x2="21" y2="15"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
             <line x1="9" y1="3" x2="9" y2="21"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
             <line x1="15" y1="3" x2="15" y2="21"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1421,7 +1430,7 @@ class SVGIconFactory: #vers 7
     def _wireframe_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Wireframe mode icon"""
         svg_data = '''<svg viewBox="0 0 20 20" fill="none">
-            <path d="M5 5 L15 5 L15 15 L5 15 Z" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M5 5 L15 5 L15 15 L5 15 Z" stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M5 10 L15 10 M10 5 L10 15" stroke="currentColor" stroke-width="1.5"/>
             <circle cx="5" cy="5" r="1.5" fill="currentColor"/>
             <circle cx="15" cy="5" r="1.5" fill="currentColor"/>
@@ -1435,7 +1444,7 @@ class SVGIconFactory: #vers 7
     def _bounds_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Bounding box icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="3,2"/>
+            <rect x="3" y="3" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="3,2"/>
             <path d="M3 3 L7 3 M17 3 L13 3 M3 17 L7 17 M17 17 L13 17 M3 3 L3 7 M3 17 L3 13 M17 3 L17 7 M17 17 L17 13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1445,7 +1454,7 @@ class SVGIconFactory: #vers 7
     def _reset_view_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Reset camera view icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M16 10A6 6 0 1 1 4 10M4 10l3-3m-3 3l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M16 10A6 6 0 1 1 4 10M4 10l3-3m-3 3l3 3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1456,8 +1465,8 @@ class SVGIconFactory: #vers 7
     def _create_plus_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Create New Entry - Plus icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-            <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1466,8 +1475,8 @@ class SVGIconFactory: #vers 7
     def _document_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Create New col - Document icon"""
         svg_data ='''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="2"/>
-            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2"/>
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1490,7 +1499,7 @@ class SVGIconFactory: #vers 7
     def _pencil_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Edit - Pencil icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke="currentColor" stroke-width="2"/>
+            <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1499,8 +1508,8 @@ class SVGIconFactory: #vers 7
     def _create_eye_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """View - Eye icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2.5"/>
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1509,7 +1518,7 @@ class SVGIconFactory: #vers 7
     def _list_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
         """Properties List - List icon"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
-            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1519,13 +1528,13 @@ class SVGIconFactory: #vers 7
         """Import - Download arrow icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="7 10 12 15 17 10"
-                    stroke="currentColor" stroke-width="2"
+                    stroke="currentColor" stroke-width="2.5"
                     fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="12" y1="15" x2="12" y2="3"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1536,13 +1545,13 @@ class SVGIconFactory: #vers 7
         """Export - Upload arrow icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="17 8 12 3 7 8"
-                    stroke="currentColor" stroke-width="2"
+                    stroke="currentColor" stroke-width="2.5"
                     fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="12" y1="3" x2="12" y2="15"
-                stroke="currentColor" stroke-width="2"
+                stroke="currentColor" stroke-width="2.5"
                 stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1555,9 +1564,9 @@ class SVGIconFactory: #vers 7
         """IMG archive icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             <text x="12" y="15" font-size="6" fill="currentColor" text-anchor="middle" font-weight="bold">IMG</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1568,9 +1577,9 @@ class SVGIconFactory: #vers 7
         """COL collision icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M8 12l2 2 6-6"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1580,10 +1589,10 @@ class SVGIconFactory: #vers 7
         """TXD texture icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="3" y="3" width="18" height="18" rx="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
             <path d="M21 15l-5-5L5 21"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <text x="12" y="20" font-size="5" fill="currentColor" text-anchor="middle" font-weight="bold">TXD</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -1594,7 +1603,7 @@ class SVGIconFactory: #vers 7
         """Folder icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-7l-2-2H5a2 2 0 00-2 2z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1604,9 +1613,9 @@ class SVGIconFactory: #vers 7
         """Generic file icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M14 2v6h6"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1618,9 +1627,9 @@ class SVGIconFactory: #vers 7
         """Delete/trash icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <polyline points="3 6 5 6 21 6"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1630,7 +1639,7 @@ class SVGIconFactory: #vers 7
         """Refresh icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0117-7l2.5 2.5M22 12.5a10 10 0 01-17 7l-2.5-2.5"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1640,7 +1649,7 @@ class SVGIconFactory: #vers 7
         """Tearoff/detach icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1650,7 +1659,7 @@ class SVGIconFactory: #vers 7
         """Checkmark icon - Replaces ✓ emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <polyline points="20 6 9 17 4 12"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1660,7 +1669,7 @@ class SVGIconFactory: #vers 7
         """Theme/palette icon - Replaces emoji"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 2a10 10 0 00-9.95 11.1C2.5 17.7 6.3 21 10.9 21h1.2a2 2 0 002-2v-.3c0-.5.2-1 .6-1.3.4-.4.6-.9.6-1.4 0-1.1-.9-2-2-2h-1.4a8 8 0 110-10.3"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="7.5" cy="10.5" r="1.5" fill="currentColor"/>
             <circle cx="12" cy="7.5" r="1.5" fill="currentColor"/>
             <circle cx="16.5" cy="10.5" r="1.5" fill="currentColor"/>
@@ -1673,7 +1682,7 @@ class SVGIconFactory: #vers 7
         """Import/download icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1683,7 +1692,7 @@ class SVGIconFactory: #vers 7
         """Export/upload icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1693,9 +1702,9 @@ class SVGIconFactory: #vers 7
         """Save icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M17 21v-8H7v8M7 3v5h8"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1705,9 +1714,9 @@ class SVGIconFactory: #vers 7
         """Open file icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M14 2v6h6M12 11v6M9 14l3 3 3-3"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1717,9 +1726,9 @@ class SVGIconFactory: #vers 7
         """Close/X icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <line x1="18" y1="6" x2="6" y2="18"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="6" y1="6" x2="18" y2="18"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1729,9 +1738,9 @@ class SVGIconFactory: #vers 7
         """Add/plus icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <line x1="12" y1="5" x2="12" y2="19"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="5" y1="12" x2="19" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1741,7 +1750,7 @@ class SVGIconFactory: #vers 7
         """Remove/minus icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <line x1="5" y1="12" x2="19" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1751,7 +1760,7 @@ class SVGIconFactory: #vers 7
         """Edit/pencil icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1761,9 +1770,9 @@ class SVGIconFactory: #vers 7
         """View/eye icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <circle cx="12" cy="12" r="3"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1773,9 +1782,9 @@ class SVGIconFactory: #vers 7
         """Search/magnifying glass icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1785,9 +1794,9 @@ class SVGIconFactory: #vers 7
         """Settings/gear icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="3"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m4.4 4.4l4.2 4.2M1 12h6m6 0h6M5.6 18.4l4.2-4.2m4.4-4.4l4.2-4.2"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1797,11 +1806,11 @@ class SVGIconFactory: #vers 7
         """Info/information icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="12" y1="16" x2="12" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="12" y1="8" x2="12.01" y2="8"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1811,11 +1820,11 @@ class SVGIconFactory: #vers 7
         """Warning/alert triangle icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="12" y1="9" x2="12" y2="13"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="12" y1="17" x2="12.01" y2="17"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1825,11 +1834,11 @@ class SVGIconFactory: #vers 7
         """Error/X circle icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="15" y1="9" x2="9" y2="15"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="9" y1="9" x2="15" y2="15"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1839,9 +1848,9 @@ class SVGIconFactory: #vers 7
         """Success/checkmark circle icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <polyline points="9 12 11 14 15 10"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1851,11 +1860,11 @@ class SVGIconFactory: #vers 7
         """Package/box icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="12" y1="22.08" x2="12" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1865,7 +1874,7 @@ class SVGIconFactory: #vers 7
         """Shield/protection icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1875,10 +1884,10 @@ class SVGIconFactory: #vers 7
         """Image/picture icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
             <polyline points="21 15 16 10 5 21"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1888,13 +1897,13 @@ class SVGIconFactory: #vers 7
         """Rebuild/refresh icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M17 10V7a5 5 0 00-10 0v3"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <line x1="12" y1="17" x2="12" y2="21"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="8" y1="21" x2="16" y2="21"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <path d="M8 14v-4a4 4 0 018 0v4"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -1931,7 +1940,7 @@ class SVGIconFactory: #vers 7
             <path d="M32 12 L50 20 L46 36 L28 36 L14 20 Z"
                 fill="#4a7ab0" opacity="0.8"/>
             <path d="M14 20 L32 12 L50 20 L46 36 L28 36 Z"
-                stroke="#ffffff" stroke-width="2" fill="none"/>
+                stroke="#ffffff" stroke-width="2.5" fill="none"/>
             <line x1="32" y1="12" x2="28" y2="36"
                 stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
             <line x1="32" y1="12" x2="46" y2="36"
@@ -1980,7 +1989,7 @@ class SVGIconFactory: #vers 7
         """Menu icon with letter M"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <text x="12" y="17"
                 font-size="14"
                 fill="currentColor"
@@ -2073,7 +2082,7 @@ class SVGIconFactory: #vers 7
         """Back/left arrow navigation icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M19 12H5M12 19l-7-7 7-7"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2082,7 +2091,7 @@ class SVGIconFactory: #vers 7
         """Forward/right arrow navigation icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M5 12h14M12 5l7 7-7 7"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2091,7 +2100,7 @@ class SVGIconFactory: #vers 7
         """Up/parent directory icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 19V5M5 12l7-7 7 7"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2100,9 +2109,9 @@ class SVGIconFactory: #vers 7
         """Home directory icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M9 22V12h6v10"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2111,9 +2120,9 @@ class SVGIconFactory: #vers 7
         """Copy/clipboard icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2122,9 +2131,9 @@ class SVGIconFactory: #vers 7
         """Paste icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2133,13 +2142,13 @@ class SVGIconFactory: #vers 7
         """Cut/scissors icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="6" cy="6" r="3"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <circle cx="6" cy="18" r="3"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="20" y1="4" x2="8.12" y2="15.88"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
             <line x1="14.47" y1="14.48" x2="20" y2="20"
-                stroke="currentColor" stroke-width="2"/>
+                stroke="currentColor" stroke-width="2.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2148,7 +2157,7 @@ class SVGIconFactory: #vers 7
         """Rename/edit text icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2159,7 +2168,7 @@ class SVGIconFactory: #vers 7
             <path d="M9 10 L9 6 L2 10 L9 14 L9 10 Z"
                 fill="currentColor"/>
             <path d="M9 10 H16 C18.2 10 20 11.8 20 14 C20 16.2 18.2 18 16 18 H12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                 stroke-linejoin="round" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -2180,7 +2189,7 @@ class SVGIconFactory: #vers 7
             <path d="M15 10 L15 6 L22 10 L15 14 L15 10 Z"
                 fill="currentColor"/>
             <path d="M15 10 H8 C5.8 10 4 11.8 4 14 C4 16.2 5.8 18 8 18 H12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                 stroke-linejoin="round" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -2190,10 +2199,10 @@ class SVGIconFactory: #vers 7
         """Undo with bar (reset/refresh) icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M12 4 L12 2 L8 5 L12 8 L12 6 C15.3 6 18 8.7 18 12 C18 15.3 15.3 18 12 18 C8.7 18 6 15.3 6 12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                 stroke-linejoin="round" fill="none"/>
             <line x1="4" y1="12" x2="6" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2212,9 +2221,9 @@ class SVGIconFactory: #vers 7
         """Terminal/console icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="2" y="3" width="20" height="18" rx="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M7 8l4 4-4 4M13 16h4"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2223,7 +2232,7 @@ class SVGIconFactory: #vers 7
         """Tools/wrench icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2232,9 +2241,9 @@ class SVGIconFactory: #vers 7
         """Link/chain icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2243,25 +2252,25 @@ class SVGIconFactory: #vers 7
         """Calculator/compute icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <rect x="4" y="2" width="16" height="20" rx="2"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="8" y1="6" x2="16" y2="6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="16" y1="10" x2="16" y2="14"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="8" y1="10" x2="8" y2="10.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="12" y1="10" x2="12" y2="10.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="8" y1="14" x2="8" y2="14.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="12" y1="14" x2="12" y2="14.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="8" y1="18" x2="8" y2="18.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="12" y1="18" x2="12" y2="18.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="16" y1="18" x2="16" y2="18.01"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2270,17 +2279,17 @@ class SVGIconFactory: #vers 7
         """Tree/hierarchy icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <line x1="8" y1="6" x2="21" y2="6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="8" y1="12" x2="21" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="8" y1="18" x2="21" y2="18"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="3" y1="6" x2="3.01" y2="6"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="3" y1="12" x2="3.01" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="3" y1="18" x2="3.01" y2="18"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2289,11 +2298,11 @@ class SVGIconFactory: #vers 7
         """Properties/details icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="12" y1="16" x2="12" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="12" y1="8" x2="12.01" y2="8"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2302,11 +2311,11 @@ class SVGIconFactory: #vers 7
         """New folder icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-7l-2-2H5a2 2 0 00-2 2z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="12" y1="11" x2="12" y2="17"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="9" y1="14" x2="15" y2="14"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2315,13 +2324,13 @@ class SVGIconFactory: #vers 7
         """New file icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M14 2v6h6"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="12" y1="11" x2="12" y2="17"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <line x1="9" y1="14" x2="15" y2="14"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
@@ -2331,13 +2340,13 @@ class SVGIconFactory: #vers 7
         """Extract/unpack icon - archive with upward arrow"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <path d="M14 2v6h6"
-                stroke="currentColor" stroke-width="2" fill="none"/>
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
             <line x1="12" y1="17" x2="12" y2="10"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             <polyline points="9,13 12,10 15,13"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                 stroke-linejoin="round" fill="none"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
@@ -2467,81 +2476,366 @@ def get_app_icon(size: int = 64) -> QIcon: #vers 1
     """Wrapper for SVGIconFactory.get_app_icon"""
     return SVGIconFactory.get_app_icon(size)
 
-def get_add_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_add_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_add_icon"""
-    return SVGIconFactory.get_add_icon(size)
+    icon = SVGIconFactory.get_add_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_edit_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_edit_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_edit_icon"""
-    return SVGIconFactory.get_edit_icon(size)
+    icon = SVGIconFactory.get_edit_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_open_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_open_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_open_icon"""
-    return SVGIconFactory.get_open_icon(size)
+    icon = SVGIconFactory.get_open_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_refresh_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_refresh_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_refresh_icon"""
-    return SVGIconFactory.get_refresh_icon(size)
+    icon = SVGIconFactory.get_refresh_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_search_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_search_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_search_icon"""
-    return SVGIconFactory.get_search_icon(size)
+    icon = SVGIconFactory.get_search_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_export_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_export_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_export_icon"""
-    return SVGIconFactory.get_export_icon(size)
+    icon = SVGIconFactory.get_export_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_import_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_import_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_import_icon"""
-    return SVGIconFactory.get_import_icon(size)
+    icon = SVGIconFactory.get_import_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_warning_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_warning_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_warning_icon"""
-    return SVGIconFactory.get_warning_icon(size)
+    icon = SVGIconFactory.get_warning_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_success_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_success_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_success_icon"""
-    return SVGIconFactory.get_success_icon(size)
+    icon = SVGIconFactory.get_success_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_error_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_error_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_error_icon"""
-    return SVGIconFactory.get_error_icon(size)
+    icon = SVGIconFactory.get_error_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_img_file_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_img_file_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_img_file_icon"""
-    return SVGIconFactory.get_img_file_icon(size)
+    icon = SVGIconFactory.get_img_file_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_col_file_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_col_file_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_col_file_icon"""
-    return SVGIconFactory.get_col_file_icon(size)
+    icon = SVGIconFactory.get_col_file_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_txd_file_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_txd_file_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_txd_file_icon"""
-    return SVGIconFactory.get_txd_file_icon(size)
+    icon = SVGIconFactory.get_txd_file_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_close_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_close_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_close_icon"""
-    return SVGIconFactory.get_close_icon(size)
+    icon = SVGIconFactory.get_close_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_save_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_save_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_save_icon"""
-    return SVGIconFactory.get_save_icon(size)
+    icon = SVGIconFactory.get_save_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_remove_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_remove_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_remove_icon"""
-    return SVGIconFactory.get_remove_icon(size)
+    icon = SVGIconFactory.get_remove_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_view_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_view_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_view_icon"""
-    return SVGIconFactory.get_view_icon(size)
+    icon = SVGIconFactory.get_view_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_settings_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_settings_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_settings_icon"""
-    return SVGIconFactory.get_settings_icon(size)
+    icon = SVGIconFactory.get_settings_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
-def get_rebuild_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_rebuild_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Wrapper for SVGIconFactory.get_rebuild_icon"""
-    return SVGIconFactory.get_rebuild_icon(size)
+    icon = SVGIconFactory.get_rebuild_icon(size, color)
+    if bg_color:
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(bg_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, size, size, 4, 4)
+        from PyQt6.QtCore import QRect
+        icon.paint(p, QRect(2, 2, size-4, size-4))
+        p.end()
+        return QIcon(pm)
+    return icon
 
 def get_split_horizontal_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     """Two panels side by side - indicates horizontal split layout"""
@@ -2753,102 +3047,104 @@ def get_layout_w2top_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
 
 # ── NEW BUTTON ICONS ──────────────────────────────────────────────────────────
 
-def get_merge_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """Two files merging into one"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M4 4h6v4H4zM14 4h6v4h-6z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        <path d="M7 8v3h10V8M12 11v5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <rect x="9" y="16" width="6" height="4" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-    </svg>''', size, color)
+def get_merge_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Two files merging - handdrawn outline"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="8" height="7" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="14" y="2" width="8" height="7" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M6 9v3h12V9M12 12v6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="8.5" y="18" width="7" height="4" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
 
-def get_split_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """One file splitting into two"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <rect x="9" y="4" width="6" height="4" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        <path d="M12 8v3M7 11H4v5h6v-5H7zM17 11h3v5h-6v-5h3z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>''', size, color)
+def get_split_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """One file splitting into two - handdrawn outline"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8.5" y="2" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 7v4M6 11H4v8h7v-8H6z" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18 11h2v8h-7v-8h5z" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
 
-def get_convert_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """Format conversion - two curved arrows"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M17 3l4 4-4 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M3 7h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <path d="M7 21l-4-4 4-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M21 17H3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-    </svg>''', size, color)
+def get_convert_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Format conversion arrows - handdrawn outline"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17 4l4 4-4 4" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 8h18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M7 20l-4-4 4-4" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M21 16H3" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
 
-def get_import_via_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_import_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Import with options - down arrow + small gear"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
         <path d="M16 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l4 4 4-4M11 14V3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="19" cy="6" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
         <circle cx="19" cy="6" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
-    </svg>''', size, color)
+    </svg>''', size, color, bg_color)
 
-def get_export_via_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_export_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Export with options - up arrow + small gear"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
         <path d="M16 9v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4M7 14l4-4 4 4M11 10v11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="19" cy="18" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
         <circle cx="19" cy="18" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
-    </svg>''', size, color)
+    </svg>''', size, color, bg_color)
 
-def get_dump_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_dump_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Dump all entries - document with downward burst"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
         <path d="M14 2v6h6M12 11v6M9 14l3 3 3-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>''', size, color)
+    </svg>''', size, color, bg_color)
 
-def get_remove_via_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_remove_via_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Remove with options - minus + gear"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
         <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="19" cy="18" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
         <circle cx="19" cy="18" r="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
-    </svg>''', size, color)
+    </svg>''', size, color, bg_color)
 
-def get_select_all_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """Select all - dashed border with checkmark"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="4 2" stroke-linejoin="round"/>
-        <path d="M7 12l4 4 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>''', size, color)
+def get_select_all_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Select all - dashed border with tick - handdrawn"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="5 2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7 12l4 4 6-6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
 
-def get_select_inverse_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+def get_select_inverse_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Inverse selection - two overlapping boxes"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
         <rect x="3" y="3" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
         <rect x="9" y="9" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="3 2" stroke-linejoin="round"/>
         <path d="M9 9h6v6H9z" stroke="none" fill="currentColor" fill-opacity="0.3"/>
-    </svg>''', size, color)
+    </svg>''', size, color, bg_color)
 
-def get_sort_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """Sort entries - three lines with down arrow"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M3 6h18M3 12h12M3 18h6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <path d="M18 10v9M15 16l3 3 3-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>''', size, color)
+def get_sort_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Sort - three lines + down arrow - handdrawn"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 6h18M3 12h12M3 18h7" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M19 10v9M16 16l3 3 3-3" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
 
-def get_pin_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """Pin selected - thumbtack"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M12 2l2 6h4l-3 4 1 6-4-3-4 3 1-6-3-4h4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    </svg>''', size, color)
+def get_pin_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """Pin/thumbtack - handdrawn outline"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 3h6v5l2 3H7l2-3V3z" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 11v10M9 11h6" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
 
-def get_col_workshop_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """COL Workshop - collision geometry cube"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <path d="M12 3L22 8v8L12 21 2 16V8z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        <path d="M12 3v18M2 8l10 5 10-5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-        <text x="8" y="14" font-size="6" font-weight="bold" fill="currentColor" font-family="monospace">COL</text>
-    </svg>''', size, color)
+def get_col_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """COL Workshop - collision box - handdrawn outline"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 3L22 8v8L12 21 2 16V8z" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 3v18M2 8l10 5 10-5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-opacity="0.7"/>
+    </svg>''', size, color, bg_color)
 
-def get_txd_workshop_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-    """TXD Workshop - texture/image grid"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24">
-        <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-        <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="currentColor" stroke-width="1" fill="none" stroke-opacity="0.6"/>
-        <text x="6.5" y="13.5" font-size="5.5" font-weight="bold" fill="currentColor" font-family="monospace">TXD</text>
-    </svg>''', size, color)
+def get_txd_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """TXD Workshop - texture grid - handdrawn outline"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="currentColor" stroke-width="1.5" fill="none" stroke-opacity="0.6"/>
+        <path d="M6 6h2v2H6z" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.4"/>
+        <path d="M16 16h2v2h-2z" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.4"/>
+    </svg>''', size, color, bg_color)
