@@ -205,10 +205,10 @@ class IMGEntry:
                     data = self.get_data()
                     if len(data) >= 12:  # Minimum RW header size
                         # Use existing RW version detection function
-                        version_value, version_name = parse_rw_version(data[8:12])
-                        if version_value:
-                            self.rw_version = version_value
-                            self.rw_version_name = version_name
+                        version_info = parse_rw_version(data)
+                        if version_info and 'version' in version_info:
+                            self.rw_version = version_info['version']
+                            self.rw_version_name = get_rw_version_name(self.rw_version)
                             self._version_detected = True
 
                             if hasattr(img_debugger, 'debug'):
@@ -222,6 +222,42 @@ class IMGEntry:
             if hasattr(img_debugger, 'error'):
                 img_debugger.error(f"Error detecting file type/version for {self.name}: {e}")
 
+
+    def detect_file_type_and_version(self): #vers 1
+        """ADDED: Detect file type and RW version from file data"""
+        try:
+            # Extract extension from name
+            if '.' in self.name:
+                self.extension = self.name.split('.')[-1].upper()
+                self.extension = ''.join(c for c in self.extension if c.isalpha())
+            else:
+                self.extension = "NO_EXT"
+            
+            # Set file type based on extension
+            ext_lower = self.extension.lower()
+            if ext_lower == 'dff':
+                self.file_type = FileType.DFF
+            elif ext_lower == 'txd':
+                self.file_type = FileType.TXD
+            elif ext_lower == 'col':
+                self.file_type = FileType.COL
+            elif ext_lower == 'ifp':
+                self.file_type = FileType.IFP
+            elif ext_lower == 'ipl':
+                self.file_type = FileType.IPL
+            elif ext_lower == 'dat':
+                self.file_type = FileType.DAT
+            elif ext_lower == 'wav':
+                self.file_type = FileType.WAV
+            else:
+                self.file_type = FileType.UNKNOWN
+
+            # Detect RW version for RenderWare files
+            if self.extension in ['DFF', 'TXD'] and not self._version_detected:
+                self._detect_rw_version()
+                
+        except Exception as e:
+            img_debugger.error(f"Error detecting file type for {self.name}: {e}")
 
     def _detect_rw_version(self): #vers 1
         """ADDED: Detect RenderWare version from file header"""
@@ -339,7 +375,7 @@ class IMGEntry:
     def get_version_text(self) -> str: #vers 2
         """FIXED: Get human-readable version text"""
         try:
-            if self.extension in ['dff', 'txd']:
+            if self.extension in ['DFF', 'TXD']:
                 if self.rw_version > 0 and self.rw_version_name:
                     return f"RW {self.rw_version_name}"
                 elif self.rw_version > 0:
@@ -352,7 +388,7 @@ class IMGEntry:
                 return "IFP"
             elif self.extension == 'IPL':
                 return "IPL"
-            elif self.extension in ['wav', 'mp3']:
+            elif self.extension in ['WAV', 'MP3']:
                 return "Audio"
             else:
                 return "Unknown"
