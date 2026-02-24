@@ -372,16 +372,20 @@ class IMGTablePopulator:
         except Exception:
             return QTableWidgetItem("Error")
 
-    def get_table_reference(self): #vers 2
-        """Get table reference from main window"""
+    def get_table_reference(self): #vers 3
+        """Get table reference - current tab's table first, fallback to gui_layout.table"""
         try:
-            if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'table'):
-                return self.main_window.gui_layout.table
-            elif hasattr(self.main_window, 'table'):
-                return self.main_window.table
-            else:
-                img_debugger.error("No table found in main window")
-                return None
+            mw = self.main_window
+            if hasattr(mw, 'main_tab_widget'):
+                tab_widget = mw.main_tab_widget.currentWidget()
+                if tab_widget and hasattr(tab_widget, 'table_ref'):
+                    return tab_widget.table_ref
+            if hasattr(mw, 'gui_layout') and hasattr(mw.gui_layout, 'table'):
+                return mw.gui_layout.table
+            if hasattr(mw, 'table'):
+                return mw.table
+            img_debugger.error("No table found in main window")
+            return None
         except Exception as e:
             img_debugger.error(f"Error getting table reference: {str(e)}")
             return None

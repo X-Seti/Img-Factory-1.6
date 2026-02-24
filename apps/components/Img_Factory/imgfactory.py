@@ -951,31 +951,13 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error applying button settings: {str(e)}")
 
 
-    def _apply_button_display_mode_from_settings(self):
-        """Apply button display mode from app settings"""
+    def _apply_button_display_mode_from_settings(self): #vers 2
+        """Apply button display mode at startup - always text_only, icons handled by splitter"""
         try:
-            # Get the button display mode from settings
-            if hasattr(self, 'app_settings') and hasattr(self.app_settings, 'current_settings'):
-                button_mode = self.app_settings.current_settings.get('button_display_mode', 'both')
-                
-                # Map the settings mode to the GUI mode
-                mode_mapping = {
-                    'both': 'icons_with_text',    # Icons + Text
-                    'icons': 'icons_only',        # Icons Only  
-                    'text': 'text_only'           # Text Only
-                }
-                
-                gui_mode = mode_mapping.get(button_mode, 'icons_with_text')
-                
-                # Apply to GUI layout if available
-                if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'set_button_display_mode'):
-                    self.gui_layout.set_button_display_mode(gui_mode)
-                    self.log_message(f"Applied button display mode: {button_mode} -> {gui_mode}")
-                else:
-                    self.log_message("GUI layout not ready for button display mode")
-            else:
-                self.log_message("App settings not available for button display mode")
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'set_button_display_mode'):
+                self.gui_layout.set_button_display_mode('text_only')
         except Exception as e:
+            self.log_message(f"Error applying button display mode: {str(e)}")
             self.log_message(f"Error applying button display mode: {str(e)}")
 
 

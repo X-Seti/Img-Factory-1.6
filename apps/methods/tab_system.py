@@ -82,6 +82,7 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         table = QTableWidget()
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setStretchLastSection(True)
         table.setMouseTracking(True)
