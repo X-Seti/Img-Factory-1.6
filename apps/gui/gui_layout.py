@@ -1099,7 +1099,7 @@ class IMGFactoryGUILayout:
             "dump": get_dump_icon,          "document-dump": get_dump_icon,
             "remove": get_remove_icon,      "edit-delete": get_remove_icon,
             "remove_via": get_remove_via_icon, "document-remvia": get_remove_via_icon,
-            "extract": get_export_icon,
+            "extract": get_extract_icon,
             "rename": get_edit_icon,        "edit-rename": get_edit_icon,
             "select_all": get_select_all_icon, "edit-select-all": get_select_all_icon,
             "sel_inverse": get_select_inverse_icon, "edit-select": get_select_inverse_icon,
