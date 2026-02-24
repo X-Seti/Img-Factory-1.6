@@ -205,10 +205,10 @@ class IMGEntry:
                     data = self.get_data()
                     if len(data) >= 12:  # Minimum RW header size
                         # Use existing RW version detection function
-                        version_info = parse_rw_version(data)
-                        if version_info and 'version' in version_info:
-                            self.rw_version = version_info['version']
-                            self.rw_version_name = get_rw_version_name(self.rw_version)
+                        version_value, version_name = parse_rw_version(data[8:12])
+                        if version_value:
+                            self.rw_version = version_value
+                            self.rw_version_name = version_name
                             self._version_detected = True
 
                             if hasattr(img_debugger, 'debug'):

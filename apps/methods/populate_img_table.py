@@ -240,15 +240,14 @@ class IMGTablePopulator:
         except Exception:
             return "0 B"
 
-    def get_rw_address_light(self, entry: Any) -> str: #vers 3
-        """Get RW address - hex RW version for RW files, sector offset for others"""
+    def get_rw_address_light(self, entry: Any) -> str: #vers 4
+        """Get RW address - raw header value for RW files, sector offset for others"""
         try:
             if hasattr(entry, 'rw_version') and entry.rw_version > 0:
                 return f"0x{entry.rw_version:08X}"
             entry_type = self.get_img_entry_type_simple(entry)
             if entry_type in ('DFF', 'TXD'):
                 return "RW File"
-            # For non-RW files show sector offset if available
             if hasattr(entry, 'offset') and entry.offset > 0:
                 return f"0x{entry.offset:08X}"
             return "-"
