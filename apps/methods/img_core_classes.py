@@ -253,7 +253,7 @@ class IMGEntry:
                 self.file_type = FileType.UNKNOWN
 
             # Detect RW version for RenderWare files
-            if self.extension in ['DFF', 'TXD'] and not self._version_detected:
+            if self.extension in ['dff', 'txd'] and not self._version_detected:
                 self._detect_rw_version()
                 
         except Exception as e:
@@ -375,7 +375,7 @@ class IMGEntry:
     def get_version_text(self) -> str: #vers 2
         """FIXED: Get human-readable version text"""
         try:
-            if self.extension in ['DFF', 'TXD']:
+            if self.extension in ['dff', 'txd']:
                 if self.rw_version > 0 and self.rw_version_name:
                     return f"RW {self.rw_version_name}"
                 elif self.rw_version > 0:
@@ -388,7 +388,7 @@ class IMGEntry:
                 return "IFP"
             elif self.extension == 'IPL':
                 return "IPL"
-            elif self.extension in ['WAV', 'MP3']:
+            elif self.extension in ['wav', 'mp3']:
                 return "Audio"
             else:
                 return "Unknown"
