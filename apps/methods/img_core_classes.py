@@ -223,42 +223,6 @@ class IMGEntry:
                 img_debugger.error(f"Error detecting file type/version for {self.name}: {e}")
 
 
-    def detect_file_type_and_version(self): #vers 1
-        """ADDED: Detect file type and RW version from file data"""
-        try:
-            # Extract extension from name
-            if '.' in self.name:
-                self.extension = self.name.split('.')[-1].upper()
-                self.extension = ''.join(c for c in self.extension if c.isalpha())
-            else:
-                self.extension = "NO_EXT"
-            
-            # Set file type based on extension
-            ext_lower = self.extension.lower()
-            if ext_lower == 'dff':
-                self.file_type = FileType.DFF
-            elif ext_lower == 'txd':
-                self.file_type = FileType.TXD
-            elif ext_lower == 'col':
-                self.file_type = FileType.COL
-            elif ext_lower == 'ifp':
-                self.file_type = FileType.IFP
-            elif ext_lower == 'ipl':
-                self.file_type = FileType.IPL
-            elif ext_lower == 'dat':
-                self.file_type = FileType.DAT
-            elif ext_lower == 'wav':
-                self.file_type = FileType.WAV
-            else:
-                self.file_type = FileType.UNKNOWN
-
-            # Detect RW version for RenderWare files
-            if self.extension in ['dff', 'txd'] and not self._version_detected:
-                self._detect_rw_version()
-                
-        except Exception as e:
-            img_debugger.error(f"Error detecting file type for {self.name}: {e}")
-
     def _detect_rw_version(self): #vers 1
         """ADDED: Detect RenderWare version from file header"""
         try:
