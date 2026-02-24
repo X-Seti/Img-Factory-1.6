@@ -17,10 +17,10 @@ from apps.core.gui_search import ASearchDialog, SearchManager
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 from apps.methods.imgfactory_svg_icons import (
-    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon,
+    get_add_icon, get_open_icon, get_refresh_icon, get_close_icon, get_close_all_icon,
     get_save_icon, get_export_icon, get_import_icon, get_remove_icon,
     get_edit_icon, get_view_icon, get_search_icon, get_settings_icon,
-    get_rebuild_icon, get_merge_icon, get_split_icon, get_convert_icon,
+    get_rebuild_icon, get_rebuild_all_icon, get_merge_icon, get_split_icon, get_convert_icon,
     get_import_via_icon, get_export_via_icon, get_dump_icon,
     get_remove_via_icon, get_select_all_icon, get_select_inverse_icon,
     get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon
@@ -338,9 +338,9 @@ class IMGFactoryGUILayout:
             ("Reload", "reload", "document-reload", colors['reload_action'], "reload_table"),
             ("     ", "space", "placeholder", colors['placeholder'], "useless_button"),
             ("Close", "close", "window-close", colors['close_action'], "close_img_file"),
-            ("Close All", "close_all", "edit-clear", colors['close_action'], "close_all_img"),
+            ("Close All", "close_all", "window-close-all", colors['close_action'], "close_all_img"),
             ("Rebuild", "rebuild", "view-rebuild", colors['build_action'], "rebuild_img"),
-            ("Rebuild All", "rebuild_all", "document-save", colors['build_action'], "rebuild_all_img"),
+            ("Rebuild All", "rebuild_all", "rebuild-all", colors['build_action'], "rebuild_all_img"),
             ("Save Entry", "save_entry", "document-save-entry", colors['save_action'], "save_img_entry"),
             ("Merge", "merge", "merge", colors['merge_action'], "merge_img"),
             ("Split via", "split", "split", colors['split_action'], "split_img"),
@@ -1082,8 +1082,9 @@ class IMGFactoryGUILayout:
             "open": get_open_icon,          "document-open": get_open_icon,
             "reload": get_refresh_icon,     "document-reload": get_refresh_icon,
             "rebuild": get_rebuild_icon,    "view-rebuild": get_rebuild_icon,
+            "rebuild-all": get_rebuild_all_icon,
             "close": get_close_icon,        "window-close": get_close_icon,
-            "edit-clear": get_close_icon,
+            "window-close-all": get_close_all_icon,
             "save_entry": get_save_icon,    "document-save": get_save_icon,
             "document-save-entry": get_save_icon,
             "merge": get_merge_icon,        "document-merge": get_merge_icon,
