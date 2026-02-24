@@ -145,7 +145,7 @@ from apps.methods.imgfactory_svg_icons import (
 
 # App metadata
 App_name = "Img Factory 1.6"
-App_build = "January 11 - "
+App_build = "Feb 24 2026 - "
 App_auth = "X-Seti"
 
 ##Methods list -
