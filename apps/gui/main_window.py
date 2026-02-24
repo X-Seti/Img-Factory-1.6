@@ -231,7 +231,7 @@ class IMGFactoryMainWindow(QMainWindow):
 
     def setup_window(self):
         """Setup basic window properties"""
-        self.setWindowTitle("IMG Factory 1.5")
+        self.setWindowTitle("IMG Factory 1.6")
         self.setMinimumSize(1000, 700)
         self.resize(1400, 900)
         

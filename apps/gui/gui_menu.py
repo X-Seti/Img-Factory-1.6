@@ -1038,7 +1038,7 @@ class IMGFactoryMenuBar:
                     self.main_window.log_message(f"IMG file saved as: {file_path}")
                     # Update window title if possible
                     if hasattr(self.main_window, 'setWindowTitle'):
-                        self.main_window.setWindowTitle(f"IMG Factory - {file_path}")
+                        self.main_window.setWindowTitle(f"IMG Factory 1.6 - {os.path.basename(file_path)}")
             else:
                 QMessageBox.warning(self.main_window, "Warning", "No IMG file loaded to save")
         except Exception as e:

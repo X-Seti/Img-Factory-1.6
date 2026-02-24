@@ -293,7 +293,7 @@ def update_col_tab_info(main_window, file_path: str, stats: Dict[str, Any] = Non
         main_window.main_tab_widget.setTabText(current_index, tab_name)
         
         # Update window title
-        main_window.setWindowTitle(f"IMG Factory 1.5 - {file_name} (COL)")
+        main_window.setWindowTitle(f"IMG Factory 1.6 - {file_name} (COL)")
         
         # Update status indicator if available
         if hasattr(main_window, 'col_status_indicator') and main_window.col_status_indicator:

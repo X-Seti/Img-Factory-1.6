@@ -632,7 +632,7 @@ def open_col_editor_dialog(main_window): #vers 3
         
         main_window.log_message("Opening COL editor...")
         editor = COLEditorDialog(main_window)
-        editor.setWindowTitle("COL Editor - IMG Factory 1.5")
+        editor.setWindowTitle("COL Editor - IMG Factory 1.6")
         
         # Show the editor
         editor.show()  # Use show() for non-modal
@@ -658,7 +658,7 @@ def open_col_batch_proc_dialog(main_window): #vers 3
         
         main_window.log_message("Opening COL batch processor...")
         processor = COLBatchProcessor(main_window)
-        processor.setWindowTitle("COL Batch Processor - IMG Factory 1.5")
+        processor.setWindowTitle("COL Batch Processor - IMG Factory 1.6")
         
         # Show the processor
         result = processor.exec()
