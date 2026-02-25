@@ -466,12 +466,11 @@ def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> 
             entry.original_name = entry_name
         entry.name = new_name
         entry.is_modified = True
-        from apps.core.undo_system import set_entry_date
-        set_entry_date(entry, getattr(file_object, 'file_path', None))
-
+        # Rename pin key FIRST so set_entry_date saves under the new name
         _ip = getattr(file_object, 'file_path', None)
-        from apps.core.undo_system import pin_file_sync_rename
+        from apps.core.undo_system import pin_file_sync_rename, set_entry_date
         pin_file_sync_rename(_ip, entry_name, new_name)
+        set_entry_date(entry, _ip)
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Renamed entry using IMG_Editor core")
 
@@ -505,9 +504,10 @@ def _rename_with_fallback_method(main_window, entry, new_name: str) -> bool: #ve
         # Directly rename the entry's name attribute
         entry.name = new_name
 
-        # Stamp date of change
-        from apps.core.undo_system import set_entry_date
+        # Rename pin key FIRST, then stamp date under new name
         _img_path = getattr(getattr(main_window, 'current_img', None), 'file_path', None)
+        from apps.core.undo_system import pin_file_sync_rename, set_entry_date
+        pin_file_sync_rename(_img_path, entry_name, new_name)
         set_entry_date(entry, _img_path)
 
         # Mark entry as modified if there's a modified flag
