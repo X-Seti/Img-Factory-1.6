@@ -5706,7 +5706,7 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 3
+    def closeEvent(self, event): #vers 4
         """Handle application close"""
         try:
             self._save_settings()
@@ -5714,15 +5714,16 @@ class IMGFactory(QMainWindow):
             pass
 
         try:
-            # Stop load thread with timeout - don't hang waiting forever
             if hasattr(self, 'load_thread') and self.load_thread and self.load_thread.isRunning():
                 self.load_thread.quit()
-                if not self.load_thread.wait(2000):  # 2 second timeout
+                if not self.load_thread.wait(2000):
                     self.load_thread.terminate()
+                    self.load_thread.wait(500)
         except Exception:
             pass
 
         event.accept()
+        QApplication.quit()
 
 
 def main():

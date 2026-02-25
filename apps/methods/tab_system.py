@@ -94,6 +94,8 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         table.setSortingEnabled(True)
         table.horizontalHeader().setSortIndicatorShown(True)
         table.setStyleSheet("""
+            QTableWidget { outline: 0; }
+            QTableWidget::item { outline: 0; border: none; }
             QTableWidget::item:hover {
                 background-color: rgba(100, 150, 255, 0.15);
             }
@@ -106,7 +108,6 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
                 color: white;
             }
         """)
-        # Ensure full row selection - reapply after stylesheet
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         tab_layout.addWidget(table)
         tab_widget.table_ref = table

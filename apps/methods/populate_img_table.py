@@ -42,7 +42,10 @@ def reset_table_styling(main_window): #vers 2
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         table.setStyleSheet("""
+            QTableWidget { outline: 0; }
+            QTableWidget::item { outline: 0; border: none; }
             QTableWidget::item:hover {
                 background-color: rgba(100, 150, 255, 0.15);
             }
