@@ -58,7 +58,10 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str) -> bo
             QMessageBox.warning(main_window, "IMG Only", "Import Via IDE only works with IMG files")
             return False
 
-        # Parse IDE file
+        # Parse IDE file - all sections that reference model/texture names
+        # Sections: objs, tobj, anim, weap, cars, peds, hier, path, txdp
+        # All sections: col 0 = ID, col 1 = model name, col 2 = txd name (most sections)
+        MODEL_SECTIONS = {'objs', 'tobj', 'anim', 'weap', 'cars', 'peds', 'hier', 'path', '2dfx', 'txdp'}
         models = set()
         textures = set()
         try:
@@ -66,26 +69,25 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str) -> bo
                 current_section = None
                 for line in f:
                     line = line.strip()
-                    if not line or line.startswith('#'):
+                    if not line or line.startswith('#') or line.startswith('//'):
                         continue
-                    if line.lower() == 'objs':
-                        current_section = 'objs'
+                    low = line.lower()
+                    if low in MODEL_SECTIONS:
+                        current_section = low
                         continue
-                    elif line.lower() == 'tobj':
-                        current_section = 'tobj'
-                        continue
-                    elif line.lower() == 'end':
+                    elif low == 'end':
                         current_section = None
                         continue
-                    if current_section in ['objs', 'tobj']:
+                    if current_section in MODEL_SECTIONS:
                         try:
-                            parts = [part.strip() for part in line.split(',')]
-                            if len(parts) >= 3:
+                            parts = [p.strip() for p in line.split(',')]
+                            if len(parts) >= 2:
                                 model_name = parts[1].strip()
-                                texture_name = parts[2].strip()
-                                if model_name and not model_name.isdigit() and model_name != '-1':
+                                if model_name and not model_name.isdigit() and model_name not in ('-1', ''):
                                     models.add(sanitize_filename(model_name))
-                                if texture_name and not texture_name.isdigit() and texture_name != '-1':
+                            if len(parts) >= 3:
+                                texture_name = parts[2].strip()
+                                if texture_name and not texture_name.isdigit() and texture_name not in ('-1', ''):
                                     textures.add(sanitize_filename(texture_name))
                         except Exception:
                             continue
