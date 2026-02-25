@@ -79,6 +79,40 @@ def get_import_row_colours(main_window, replaced=False): #vers 1
         return QColor(30, 60, 120), QColor(160, 200, 255)
 
 
+def pin_file_sync_rename(img_path: str, old_name: str, new_name: str): #vers 1
+    """Rename entry key in pin file when entry is renamed."""
+    if not img_path:
+        return
+    try:
+        from apps.core.pin_entries import load_pin_file, save_pin_file
+        pin_data = load_pin_file(img_path)
+        entries = pin_data.get("entries", {})
+        if old_name in entries:
+            entries[new_name] = entries.pop(old_name)
+            save_pin_file(img_path, pin_data)
+            print(f"[PINFILE] renamed key: {old_name} -> {new_name}")
+    except Exception as e:
+        print(f"[PINFILE] sync_rename error: {e}")
+
+
+def pin_file_sync_remove(img_path: str, entry_names: list): #vers 1
+    """Remove entry keys from pin file when entries are deleted."""
+    if not img_path:
+        return
+    try:
+        from apps.core.pin_entries import load_pin_file, save_pin_file
+        pin_data = load_pin_file(img_path)
+        entries = pin_data.get("entries", {})
+        removed = [n for n in entry_names if n in entries]
+        for name in removed:
+            del entries[name]
+        if removed:
+            save_pin_file(img_path, pin_data)
+            print(f"[PINFILE] removed keys: {removed}")
+    except Exception as e:
+        print(f"[PINFILE] sync_remove error: {e}")
+
+
 def get_pin_row_colours(main_window): #vers 1
     """Return (QColor bg, QColor fg) for pinned rows based on current theme.
     Dark theme: text_primary darkened 10%.  Light theme: text_primary lightened 10%."""

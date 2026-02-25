@@ -46,9 +46,28 @@ from apps.debug.debug_functions import img_debugger
 # TabFilterWidget
 # ValidationResult
 
+def _detect_v1_or_v1_5(dir_path: str, img_path: str) -> str:
+    """Return 'V1_5' if extended (>2GB or long names), else 'V1'."""
+    try:
+        import os as _os
+        if _os.path.getsize(img_path) > 2 * 1024 * 1024 * 1024:
+            return 'V1_5'
+        with open(dir_path, 'rb') as f:
+            while True:
+                entry = f.read(32)
+                if len(entry) < 32:
+                    break
+                if b'\x00' not in entry[8:32]:
+                    return 'V1_5'
+        return 'V1'
+    except Exception:
+        return 'V1'
+
+
 class IMGVersion(Enum):
     """IMG Archive Version Types"""
-    VERSION_1 = 1    # DIR/IMG pair (GTA3, VC)
+    VERSION_1 = 1    # DIR/IMG pair (GTA3, VC) - 2GB limit, short filenames
+    VERSION_1_5 = 15 # DIR/IMG pair extended - up to 4GB, long filenames
     VERSION_SOL = 25 # DIR/IMG pair (SOL)
     VERSION_2 = 2    # Single IMG file (SA)
     UNKNOWN = 0
@@ -1079,14 +1098,16 @@ class IMGFile:
             print(f"[DEBUG] Detected platform: {detected_platform.value}")
             print(f"[DEBUG] Platform specs: {self.platform_specs}")
 
-            # Check if it's a .dir file (Version 1)
+            # Check if it's a .dir file (Version 1 or 1.5)
             if self.file_path.lower().endswith('.dir'):
                 img_path = self.file_path[:-4] + '.img'
                 if os.path.exists(img_path):
-                    self.version = IMGVersion.VERSION_1
-                    return IMGVersion.VERSION_1
+                    v = _detect_v1_or_v1_5(self.file_path, img_path)
+                    ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
+                    self.version = ver
+                    return ver
 
-            # Check if it's a single .img file (Version 2)
+            # Check if it's a single .img file (Version 2 or 1/1.5)
             if self.file_path.lower().endswith('.img'):
                 try:
                     with open(self.file_path, 'rb') as f:
@@ -1094,9 +1115,14 @@ class IMGFile:
                         if header == b'VER2':
                             self.version = IMGVersion.VERSION_2
                             return IMGVersion.VERSION_2
-                        # Could be Version 1 IMG file without DIR
-                        self.version = IMGVersion.VERSION_1
-                        return IMGVersion.VERSION_1
+                        dir_path = self.file_path[:-4] + '.dir'
+                        if os.path.exists(dir_path):
+                            v = _detect_v1_or_v1_5(dir_path, self.file_path)
+                            ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
+                        else:
+                            ver = IMGVersion.VERSION_1
+                        self.version = ver
+                        return ver
                 except:
                     pass
 

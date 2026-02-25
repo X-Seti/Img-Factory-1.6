@@ -469,6 +469,9 @@ def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> 
         from apps.core.undo_system import set_entry_date
         set_entry_date(entry, getattr(file_object, 'file_path', None))
 
+        _ip = getattr(file_object, 'file_path', None)
+        from apps.core.undo_system import pin_file_sync_rename
+        pin_file_sync_rename(_ip, entry_name, new_name)
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Renamed entry using IMG_Editor core")
 

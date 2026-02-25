@@ -192,6 +192,11 @@ def _remove_entries_with_tracking(file_object, entries_to_remove: List, main_win
     # Mark file as modified
     if removed_count > 0:
         file_object.modified = True
+        _ip = getattr(file_object, 'file_path', None)
+        if _ip:
+            _names = [getattr(e,'name','') for e in entries_to_remove if not getattr(e,'is_pinned',False)]
+            from apps.core.undo_system import pin_file_sync_remove
+            pin_file_sync_remove(_ip, _names)
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Successfully removed {removed_count}/{len(entries_to_remove)} entries")
     return removed_count > 0

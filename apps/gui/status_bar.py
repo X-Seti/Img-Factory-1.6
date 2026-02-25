@@ -435,7 +435,17 @@ class IMGStatusWidget(QWidget):
                 file_size = os.path.getsize(filename)
             else:
                 file_size = getattr(img_file, 'file_size', 0)
-            version = str(img_file.version.name if hasattr(img_file.version, 'name') else img_file.version) if hasattr(img_file, 'version') else "Unknown"
+            if hasattr(img_file, 'version'):
+                from apps.methods.img_core_classes import IMGVersion
+                _vmap = {
+                    IMGVersion.VERSION_1:   "Version 1",
+                    IMGVersion.VERSION_1_5: "Version 1.5",
+                    IMGVersion.VERSION_2:   "Version 2",
+                    IMGVersion.VERSION_SOL: "Version SOL",
+                }
+                version = _vmap.get(img_file.version, str(getattr(img_file.version, 'name', img_file.version)))
+            else:
+                version = "Unknown"
         
         # Update display
         if filename:
