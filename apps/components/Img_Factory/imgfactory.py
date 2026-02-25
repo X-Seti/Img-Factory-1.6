@@ -3088,8 +3088,12 @@ class IMGFactory(QMainWindow):
                 self.current_img = file_object
                 if hasattr(self, '_populate_real_img_table'):
                     self._populate_real_img_table(file_object)
+                if hasattr(self, 'update_img_status'):
+                    self.update_img_status(img_file=file_object)
                 self.log_message(f"→ {tab_name}")
             else:
+                if hasattr(self, 'update_img_status'):
+                    self.update_img_status()
                 self.log_message(f"→ {tab_name}")
 
         except Exception as e:
