@@ -2981,6 +2981,7 @@ class IMGFactory(QMainWindow):
         if hasattr(self.gui_layout, 'content_splitter'):
             self.gui_layout.content_splitter.replaceWidget(0, self.main_tab_widget)
             self.gui_layout.table.setParent(None)
+            self.gui_layout.table.hide()  # Prevent orphaned table showing as popup window
         else:
             main_layout.addWidget(self.main_tab_widget)
 
