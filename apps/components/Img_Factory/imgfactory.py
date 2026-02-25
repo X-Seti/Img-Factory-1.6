@@ -4525,13 +4525,20 @@ class IMGFactory(QMainWindow):
                             continue
 
                     if hasattr(self.current_img, 'import_file'):
+                        entries_before = len(self.current_img.entries)
                         if self.current_img.import_file(file_path):
                             imported_count += 1
                             imported_names.append(name)
+                            img_path = getattr(self.current_img, "file_path", None)
+                            # Stamp the newly added/replaced entry
                             for e in self.current_img.entries:
-                                if getattr(e, 'name', '') == name:
-                                    set_entry_date(e, getattr(self.current_img, "file_path", None))
+                                if getattr(e, 'name', '').lower() == name.lower():
+                                    set_entry_date(e, img_path)
                                     break
+                            else:
+                                # Fallback: stamp last entry if new one was appended
+                                if len(self.current_img.entries) > entries_before:
+                                    set_entry_date(self.current_img.entries[-1], img_path)
                             self.log_message(f"Imported: {name}")
                     else:
                         self.log_message(f"IMG import_file method not available")
