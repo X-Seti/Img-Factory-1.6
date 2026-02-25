@@ -32,9 +32,9 @@ def import_via_function(main_window): #vers 6
         dialog_result = _create_import_via_dialog(main_window)
         if not dialog_result:
             return False
-        import_type, file_path, files_location = dialog_result
+        import_type, file_path, files_location, show_stats = dialog_result
         if import_type == 'ide':
-            return _import_files_via_ide(main_window, file_path, files_location)
+            return _import_files_via_ide(main_window, file_path, files_location, show_stats)
         elif import_type == 'text':
             return _import_files_via_text(main_window, file_path, files_location)
         return False
@@ -44,8 +44,45 @@ def import_via_function(main_window): #vers 6
         return False
 
 
-def _import_files_via_ide(main_window, ide_path: str, files_location: str) -> bool: #vers 4
-    """Import files from IDE with file searching - NEW SYSTEM"""
+def _parse_ide_sections(ide_path: str) -> dict: #vers 1
+    """Parse IDE file and return per-section model/texture sets.
+    Returns dict: { section_name: {'models': set, 'textures': set} }
+    """
+    MODEL_SECTIONS = {'objs', 'tobj', 'anim', 'weap', 'cars', 'peds', 'hier', 'path', '2dfx', 'txdp'}
+    sections = {}
+    current_section = None
+    with open(ide_path, 'r', encoding='utf-8', errors='ignore') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('//'):
+                continue
+            low = line.lower()
+            if low in MODEL_SECTIONS:
+                current_section = low
+                if current_section not in sections:
+                    sections[current_section] = {'models': set(), 'textures': set()}
+                continue
+            elif low == 'end':
+                current_section = None
+                continue
+            if current_section in MODEL_SECTIONS:
+                try:
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) >= 2:
+                        m = parts[1].strip()
+                        if m and not m.isdigit() and m not in ('-1', ''):
+                            sections[current_section]['models'].add(sanitize_filename(m))
+                    if len(parts) >= 3:
+                        t = parts[2].strip()
+                        if t and not t.isdigit() and t not in ('-1', ''):
+                            sections[current_section]['textures'].add(sanitize_filename(t))
+                except Exception:
+                    continue
+    return sections
+
+
+def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_stats: bool = False) -> bool: #vers 5 Fixed
+    """Import files from IDE with file searching and optional post-import stats."""
     try:
         if not os.path.exists(ide_path):
             QMessageBox.warning(main_window, "IDE Not Found", f"IDE file not found: {ide_path}")
@@ -58,84 +95,181 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str) -> bo
             QMessageBox.warning(main_window, "IMG Only", "Import Via IDE only works with IMG files")
             return False
 
-        # Parse IDE file - all sections that reference model/texture names
-        # Sections: objs, tobj, anim, weap, cars, peds, hier, path, txdp
-        # All sections: col 0 = ID, col 1 = model name, col 2 = txd name (most sections)
-        MODEL_SECTIONS = {'objs', 'tobj', 'anim', 'weap', 'cars', 'peds', 'hier', 'path', '2dfx', 'txdp'}
-        models = set()
-        textures = set()
+        # Parse IDE into sections
         try:
-            with open(ide_path, 'r', encoding='utf-8', errors='ignore') as f:
-                current_section = None
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith('#') or line.startswith('//'):
-                        continue
-                    low = line.lower()
-                    if low in MODEL_SECTIONS:
-                        current_section = low
-                        continue
-                    elif low == 'end':
-                        current_section = None
-                        continue
-                    if current_section in MODEL_SECTIONS:
-                        try:
-                            parts = [p.strip() for p in line.split(',')]
-                            if len(parts) >= 2:
-                                model_name = parts[1].strip()
-                                if model_name and not model_name.isdigit() and model_name not in ('-1', ''):
-                                    models.add(sanitize_filename(model_name))
-                            if len(parts) >= 3:
-                                texture_name = parts[2].strip()
-                                if texture_name and not texture_name.isdigit() and texture_name not in ('-1', ''):
-                                    textures.add(sanitize_filename(texture_name))
-                        except Exception:
-                            continue
+            sections = _parse_ide_sections(ide_path)
         except Exception as e:
             QMessageBox.critical(main_window, "IDE Parse Error", f"Failed to parse IDE file: {str(e)}")
             return False
 
-        if not models and not textures:
+        if not sections:
             QMessageBox.information(main_window, "No Models", "No model definitions found in IDE file")
             return False
 
-        # Find files to import
+        # Collect all models/textures across sections for file search
+        all_models = set()
+        all_textures = set()
+        for sec_data in sections.values():
+            all_models.update(sec_data['models'])
+            all_textures.update(sec_data['textures'])
+
+        # Find files - track found/missing per type
         files_to_import = []
-        # Find DFF files
-        for model_name in models:
-            dff_path = _find_files_in_directory(files_location, f"{model_name}.dff")
-            if dff_path:
-                files_to_import.append(dff_path)
-                if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"Found: {model_name}.dff")
-        # Find TXD files
-        for texture_name in textures:
-            txd_path = _find_files_in_directory(files_location, f"{texture_name}.txd")
-            if txd_path:
-                files_to_import.append(txd_path)
-                if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"Found: {texture_name}.txd")
+        found_dff, missing_dff = [], []
+        found_txd, missing_txd = [], []
+
+        for name in sorted(all_models):
+            path = _find_files_in_directory(files_location, f"{name}.dff")
+            if path:
+                files_to_import.append(path)
+                found_dff.append(name)
+            else:
+                missing_dff.append(name)
+
+        for name in sorted(all_textures):
+            path = _find_files_in_directory(files_location, f"{name}.txd")
+            if path:
+                files_to_import.append(path)
+                found_txd.append(name)
+            else:
+                missing_txd.append(name)
 
         if not files_to_import:
-            QMessageBox.information(main_window, "No Files Found", f"No files found matching IDE definitions in: {files_location}")
+            QMessageBox.information(main_window, "No Files Found",
+                f"No files found matching IDE definitions in: {files_location}\n"
+                f"Missing DFF: {len(missing_dff)}  Missing TXD: {len(missing_txd)}")
             return False
 
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Found {len(files_to_import)} files from IDE definitions")
+            main_window.log_message(f"Found {len(files_to_import)} files from IDE definitions "
+                f"(DFF: {len(found_dff)}, TXD: {len(found_txd)}, "
+                f"missing DFF: {len(missing_dff)}, missing TXD: {len(missing_txd)})")
 
-        # Use the NEW import system
+        # Import
+        success = False
         if hasattr(main_window, 'import_files_with_list'):
             success = main_window.import_files_with_list(files_to_import)
-            # Force a refresh to ensure metadata is populated
             if success and hasattr(main_window, 'refresh_current_tab_data'):
                 main_window.refresh_current_tab_data()
-            return success
-        else:
-            return False
+
+        # Show stats dialog if requested
+        if show_stats:
+            _show_import_stats_dialog(main_window, sections, found_dff, found_txd,
+                                      missing_dff, missing_txd, success)
+        return success
+
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"IDE import error: {str(e)}")
         return False
+
+
+def _show_import_stats_dialog(main_window, sections: dict, found_dff: list, found_txd: list,
+                               missing_dff: list, missing_txd: list, import_success: bool): #vers 1
+    """Show post-import statistics dialog."""
+    from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                  QPushButton, QTextEdit, QTabWidget, QWidget, QFrame)
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtGui import QFont
+
+    dialog = QDialog(main_window)
+    dialog.setWindowTitle("Import Stats")
+    dialog.setModal(True)
+    dialog.resize(600, 500)
+    layout = QVBoxLayout(dialog)
+
+    # Status header
+    status = "Import completed" if import_success else "Import failed"
+    hdr = QLabel(f"<b>{status}</b>")
+    hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(hdr)
+
+    # Summary bar
+    total_ide = sum(len(s['models']) for s in sections.values())
+    total_txd_ide = sum(len(s['textures']) for s in sections.values())
+    summary = QLabel(
+        f"IDE entries:  DFF {total_ide}  |  TXD {total_txd_ide}    "
+        f"Found:  DFF {len(found_dff)}  TXD {len(found_txd)}    "
+        f"Missing:  DFF {len(missing_dff)}  TXD {len(missing_txd)}"
+    )
+    summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(summary)
+
+    sep = QFrame()
+    sep.setFrameShape(QFrame.Shape.HLine)
+    layout.addWidget(sep)
+
+    # Tabs
+    tabs = QTabWidget()
+    layout.addWidget(tabs)
+
+    # Tab 1 - Per-section counts
+    sec_widget = QWidget()
+    sec_layout = QVBoxLayout(sec_widget)
+    sec_text = QTextEdit()
+    sec_text.setReadOnly(True)
+    sec_text.setFont(QFont("Monospace", 9))
+    lines = [f"{'Section':<12} {'DFF in IDE':>10} {'TXD in IDE':>10}"]
+    lines.append("-" * 36)
+    for sec_name, sec_data in sorted(sections.items()):
+        lines.append(f"{sec_name:<12} {len(sec_data['models']):>10} {len(sec_data['textures']):>10}")
+    lines.append("-" * 36)
+    lines.append(f"{'TOTAL':<12} {total_ide:>10} {total_txd_ide:>10}")
+    sec_text.setPlainText("\n".join(lines))
+    sec_layout.addWidget(sec_text)
+    tabs.addTab(sec_widget, f"Sections ({len(sections)})")
+
+    # Tab 2 - Missing files
+    miss_widget = QWidget()
+    miss_layout = QVBoxLayout(miss_widget)
+    miss_text = QTextEdit()
+    miss_text.setReadOnly(True)
+    miss_text.setFont(QFont("Monospace", 9))
+    miss_lines = []
+    if missing_dff:
+        miss_lines.append(f"--- Missing DFF ({len(missing_dff)}) ---")
+        miss_lines.extend(f"  {n}.dff" for n in sorted(missing_dff))
+    if missing_txd:
+        if miss_lines:
+            miss_lines.append("")
+        miss_lines.append(f"--- Missing TXD ({len(missing_txd)}) ---")
+        miss_lines.extend(f"  {n}.txd" for n in sorted(missing_txd))
+    if not miss_lines:
+        miss_lines = ["All files found - nothing missing."]
+    miss_text.setPlainText("\n".join(miss_lines))
+    miss_layout.addWidget(miss_text)
+    total_missing = len(missing_dff) + len(missing_txd)
+    tabs.addTab(miss_widget, f"Missing ({total_missing})")
+
+    # Tab 3 - Imported files
+    imp_widget = QWidget()
+    imp_layout = QVBoxLayout(imp_widget)
+    imp_text = QTextEdit()
+    imp_text.setReadOnly(True)
+    imp_text.setFont(QFont("Monospace", 9))
+    imp_lines = []
+    if found_dff:
+        imp_lines.append(f"--- Imported DFF ({len(found_dff)}) ---")
+        imp_lines.extend(f"  {n}.dff" for n in sorted(found_dff))
+    if found_txd:
+        if imp_lines:
+            imp_lines.append("")
+        imp_lines.append(f"--- Imported TXD ({len(found_txd)}) ---")
+        imp_lines.extend(f"  {n}.txd" for n in sorted(found_txd))
+    imp_text.setPlainText("\n".join(imp_lines))
+    imp_layout.addWidget(imp_text)
+    total_imported = len(found_dff) + len(found_txd)
+    tabs.addTab(imp_widget, f"Imported ({total_imported})")
+
+    # Close button
+    btn_layout = QHBoxLayout()
+    close_btn = QPushButton("Close")
+    close_btn.clicked.connect(dialog.accept)
+    btn_layout.addStretch()
+    btn_layout.addWidget(close_btn)
+    layout.addLayout(btn_layout)
+
+    dialog.exec()
 
 
 def import_via_ide_function(main_window) -> bool: #vers 4
@@ -258,13 +392,14 @@ def _find_files_in_directory(directory: str, filename: str) -> Optional[str]: #v
                 return os.path.join(root, file)
     return None
 
-def _create_import_via_dialog(main_window): #vers 4
-    """Create import via dialog - NEW SYSTEM"""
+def _create_import_via_dialog(main_window): #vers 5 Fixed
+    """Create import via dialog with Show Import Stats checkbox."""
+    from PyQt6.QtWidgets import QCheckBox
     try:
         dialog = QDialog(main_window)
-        dialog.setWindowTitle("Import Via - NEW SYSTEM")
+        dialog.setWindowTitle("Import Via")
         dialog.setModal(True)
-        dialog.resize(500, 300)
+        dialog.resize(520, 220)
         layout = QVBoxLayout()
         dialog.setLayout(layout)
 
@@ -278,9 +413,9 @@ def _create_import_via_dialog(main_window): #vers 4
         type_group.addButton(dialog.text_radio)
         layout.addWidget(dialog.text_radio)
 
-        # File path
+        # IDE / text file path
         file_layout = QHBoxLayout()
-        file_layout.addWidget(QLabel("File:"))
+        file_layout.addWidget(QLabel("IDE File:"))
         dialog.ide_path_input = QLineEdit()
         file_layout.addWidget(dialog.ide_path_input)
         dialog.browse_file_btn = QPushButton("Browse")
@@ -290,13 +425,22 @@ def _create_import_via_dialog(main_window): #vers 4
 
         # Files location
         location_layout = QHBoxLayout()
-        location_layout.addWidget(QLabel("Files Location:"))
+        location_layout.addWidget(QLabel("Folder:"))
         dialog.files_location_input = QLineEdit()
         location_layout.addWidget(dialog.files_location_input)
         dialog.browse_location_btn = QPushButton("Browse")
         dialog.browse_location_btn.clicked.connect(lambda: _browse_location(dialog))
         location_layout.addWidget(dialog.browse_location_btn)
         layout.addLayout(location_layout)
+
+        # Show import stats checkbox - only visible for IDE import
+        dialog.stats_checkbox = QCheckBox("Show import stats")
+        dialog.stats_checkbox.setChecked(True)
+        layout.addWidget(dialog.stats_checkbox)
+
+        def _toggle_stats_visibility():
+            dialog.stats_checkbox.setVisible(dialog.ide_radio.isChecked())
+        dialog.ide_radio.toggled.connect(_toggle_stats_visibility)
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -313,12 +457,12 @@ def _create_import_via_dialog(main_window): #vers 4
         dialog.ide_path_input.textChanged.connect(lambda: _update_button_state(dialog))
         dialog.files_location_input.textChanged.connect(lambda: _update_button_state(dialog))
 
-        # Show dialog
         if dialog.exec() == QDialog.DialogCode.Accepted:
             import_type = 'ide' if dialog.ide_radio.isChecked() else 'text'
             ide_path = dialog.ide_path_input.text().strip()
             files_location = dialog.files_location_input.text().strip()
-            return (import_type, ide_path, files_location)
+            show_stats = dialog.stats_checkbox.isChecked() and import_type == 'ide'
+            return (import_type, ide_path, files_location, show_stats)
         return None
     except Exception as e:
         QMessageBox.critical(main_window, "Dialog Error", f"Failed to create import dialog: {str(e)}")
