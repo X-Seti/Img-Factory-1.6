@@ -1,4 +1,4 @@
-#this belongs in methods/export_shared.py - Version: 1
+#this belongs in methods/export_shared.py - Version: 2
 # X-Seti - Aug15 2025 - IMG Factory 1.5 - Shared Export Functions
 
 """
@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QMessageBox, QFileDialog, QProgressDialog
 from PyQt6.QtCore import pyqtSignal, Qt, QThread
 
 ##Methods list -
+# get_active_table
 # get_export_folder
 # get_selected_entries
 # organize_by_type
@@ -162,20 +163,28 @@ class ExportThread(QThread): #vers 2
         except Exception:
             return None
 
-def get_selected_entries(main_window) -> List: #vers 1
+def get_active_table(main_window): #vers 1
+    """Return the active tab's table widget. Always use this instead of gui_layout.table directly."""
+    try:
+        from apps.methods.tab_system import get_current_active_tab_info
+        tab_info = get_current_active_tab_info(main_window)
+        table = tab_info.get('table_widget')
+        if table:
+            # Keep gui_layout.table in sync
+            if hasattr(main_window, 'gui_layout'):
+                main_window.gui_layout.table = table
+            return table
+    except Exception:
+        pass
+    return getattr(getattr(main_window, 'gui_layout', None), 'table', None)
+
+
+def get_selected_entries(main_window) -> List: #vers 2
     """Get currently selected entries from table"""
     selected_entries = []
     
     try:
-        # Try different table access methods
-        table = None
-        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
-            table = main_window.gui_layout.table
-        elif hasattr(main_window, 'entries_table'):
-            table = main_window.entries_table
-        elif hasattr(main_window, 'table'):
-            table = main_window.table
-        
+        table = get_active_table(main_window)
         if not table:
             return selected_entries
         

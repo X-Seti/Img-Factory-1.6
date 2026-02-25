@@ -197,35 +197,15 @@ def _get_selected_entries_simple(main_window, file_object) -> list: #vers 2
         return []
 
 
-def _get_selected_rows_from_table(main_window) -> list: #vers 2
+def _get_selected_rows_from_table(main_window) -> list: #vers 3
     """Get selected row numbers from entries table"""
     try:
-        selected_rows = []
-        
-        # Try different table attributes
-        table_attrs = ['entries_table', 'table', 'gui_layout.table']
-        
-        for attr in table_attrs:
-            try:
-                if '.' in attr:
-                    parts = attr.split('.')
-                    table = getattr(main_window, parts[0])
-                    for part in parts[1:]:
-                        table = getattr(table, part)
-                else:
-                    table = getattr(main_window, attr)
-                
-                if table and hasattr(table, 'selectedItems'):
-                    selected_rows = set()
-                    for item in table.selectedItems():
-                        selected_rows.add(item.row())
-                    return list(selected_rows)
-                
-            except (AttributeError, TypeError):
-                continue
-        
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+        if table and hasattr(table, 'selectedItems'):
+            rows = set(item.row() for item in table.selectedItems())
+            return list(rows)
         return []
-        
     except Exception:
         return []
 

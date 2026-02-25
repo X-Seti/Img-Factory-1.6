@@ -125,13 +125,13 @@ def _dump_entries(file_object, entries_to_dump, dump_folder, main_window) -> boo
         return False
 
 
-def _get_selected_entries(main_window, file_object) -> List: #vers 12
+def _get_selected_entries(main_window, file_object) -> List: #vers 13
     """Get selected entries from table"""
     try:
-        # Get the table from GUI
-        if not hasattr(main_window, 'gui_layout') or not hasattr(main_window.gui_layout, 'table'):
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+        if not table:
             return []
-        table = main_window.gui_layout.table
         selected_rows = table.selectionModel().selectedRows()
         if not selected_rows:
             return []

@@ -11,6 +11,7 @@ Full menu system with all original entries restored + IDE/COL Editor integration
 import os
 from datetime import datetime
 from typing import Dict, List, Optional, Callable
+from apps.methods.export_shared import get_active_table
 from PyQt6.QtWidgets import (
     QMenuBar, QMenu, QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
     QPushButton, QCheckBox, QGroupBox, QLabel, QLineEdit, QComboBox,
@@ -1075,7 +1076,7 @@ class IMGFactoryMenuBar:
             # Try to use a generic undo mechanism
             if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'table'):
                 # Check if table has a way to handle undo
-                table = self.main_window.gui_layout.table
+                table = get_active_table(self.main_window)
                 # For now, fallback to showing an info message
                 QMessageBox.information(self.main_window, "Undo", "No undo operations available")
             else:
@@ -1099,7 +1100,7 @@ class IMGFactoryMenuBar:
             # Try to use a generic redo mechanism
             if hasattr(self.main_window, 'gui_layout') and hasattr(self.main_window.gui_layout, 'table'):
                 # Check if table has a way to handle redo
-                table = self.main_window.gui_layout.table
+                table = get_active_table(self.main_window)
                 # For now, fallback to showing an info message
                 QMessageBox.information(self.main_window, "Redo", "No redo operations available")
             else:
@@ -1111,7 +1112,7 @@ class IMGFactoryMenuBar:
         """Select all entries in table"""
         if (hasattr(self.main_window, 'gui_layout') and
             hasattr(self.main_window.gui_layout, 'table')):
-            table = self.main_window.gui_layout.table
+            table = get_active_table(self.main_window)
             table.selectAll()
 
     def _select_inverse_entries(self):
@@ -1123,7 +1124,7 @@ class IMGFactoryMenuBar:
         """Clear all selections in table"""
         if (hasattr(self.main_window, 'gui_layout') and
             hasattr(self.main_window.gui_layout, 'table')):
-            table = self.main_window.gui_layout.table
+            table = get_active_table(self.main_window)
             table.clearSelection()
 
     def _find_entries(self):
@@ -1172,10 +1173,10 @@ class IMGFactoryMenuBar:
 
                 # Get the current table
                 gui_layout = getattr(self.main_window, 'gui_layout', None)
-                if not gui_layout or not hasattr(gui_layout, 'table') or not self.main_window.gui_layout.table:
+                if not gui_layout:
                     QMessageBox.warning(self.main_window, "Error", "No IMG table found")
                     return
-                table = self.main_window.gui_layout.table
+                table = get_active_table(self.main_window)
 
                 # Clear current selection
                 table.clearSelection()
@@ -1223,10 +1224,10 @@ class IMGFactoryMenuBar:
         try:
             # Get the current table
             gui_layout = getattr(self.main_window, 'gui_layout', None)
-            if not gui_layout or not hasattr(gui_layout, 'table') or not self.main_window.gui_layout.table:
+            if not gui_layout:
                 QMessageBox.warning(self.main_window, "Error", "No IMG table found")
                 return
-            table = self.main_window.gui_layout.table
+            table = get_active_table(self.main_window)
 
             # Check if we have stored matches from previous find
             if hasattr(self.main_window, 'current_find_matches') and self.main_window.current_find_matches:
@@ -1311,10 +1312,10 @@ class IMGFactoryMenuBar:
 
                 # Get the current table
                 gui_layout = getattr(self.main_window, 'gui_layout', None)
-                if not gui_layout or not hasattr(gui_layout, 'table') or not self.main_window.gui_layout.table:
+                if not gui_layout:
                     QMessageBox.warning(self.main_window, "Error", "No IMG table found")
                     return
-                table = self.main_window.gui_layout.table
+                table = get_active_table(self.main_window)
 
                 # Get the current IMG file
                 if not hasattr(self.main_window, 'current_img') or not self.main_window.current_img:
@@ -1432,10 +1433,10 @@ class IMGFactoryMenuBar:
         try:
             # Get the current table
             gui_layout = getattr(self.main_window, 'gui_layout', None)
-            if not gui_layout or not hasattr(gui_layout, 'table') or not self.main_window.gui_layout.table:
+            if not gui_layout:
                 QMessageBox.warning(self.main_window, "Error", "No IMG table found")
                 return
-            table = self.main_window.gui_layout.table
+            table = get_active_table(self.main_window)
 
             # Get selected rows
             selected_rows = [index.row() for index in table.selectionModel().selectedRows()]

@@ -206,32 +206,16 @@ def _get_selected_entries_simple(main_window, file_object) -> list: #vers 3
     return selected_entries
 
 
-def _get_selected_rows_from_table(main_window) -> list: #vers 2
+def _get_selected_rows_from_table(main_window) -> list: #vers 3
     """Get selected row numbers from entries table"""
-    selected_rows = []
-    # Try different table attributes
-    table_attrs = ['entries_table', 'table', 'gui_layout.table']
-    for attr in table_attrs:
-        try:
-            if '.' in attr:
-                parts = attr.split('.')
-                table = getattr(main_window, parts[0])
-                for part in parts[1:]:
-                    table = getattr(table, part)
-            else:
-                table = getattr(main_window, attr)
-            if table and hasattr(table, 'selectedItems'):
-                selected_items = table.selectedItems()
-                if selected_items:
-                    # Get unique row numbers
-                    rows = set()
-                    for item in selected_items:
-                        rows.add(item.row())
-                    selected_rows = sorted(list(rows))
-                    break
-        except AttributeError:
-            continue
-    return selected_rows
+    try:
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+        if table and hasattr(table, 'selectedItems'):
+            return sorted(set(item.row() for item in table.selectedItems()))
+        return []
+    except Exception:
+        return []
 
 
 def _refresh_after_removal(main_window): #vers 2

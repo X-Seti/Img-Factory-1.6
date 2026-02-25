@@ -67,10 +67,11 @@ from apps.methods.imgfactory_svg_icons import (
     get_minimize_icon, get_maximize_icon, get_close_icon
 )
 
-def edit_txd_file(main_window): #vers 3
+def edit_txd_file(main_window): #vers 4
     """Edit selected TXD file with TXD Workshop"""
     try:
-        entries_table = main_window.gui_layout.table
+        from apps.methods.export_shared import get_active_table
+        entries_table = get_active_table(main_window)
         selected_items = entries_table.selectedItems()
         if not selected_items:
             main_window.log_message("No TXD file selected")
@@ -103,10 +104,11 @@ def edit_txd_file(main_window): #vers 3
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
 
-def edit_col_file(main_window): #vers 1
+def edit_col_file(main_window): #vers 2
     """Edit selected COL file with COL Workshop - matches TXD pattern"""
     try:
-        entries_table = main_window.gui_layout.table
+        from apps.methods.export_shared import get_active_table
+        entries_table = get_active_table(main_window)
         selected_items = entries_table.selectedItems()
 
         if not selected_items:
@@ -2637,16 +2639,19 @@ class IMGFactoryGUILayout:
     def pin_selected_entries(self):  # vers 3
         """Pin selected entries - adds pin icon to Status column and saves to .pin file"""
         try:
-            if self.table and self.table.selectedItems():
+            from apps.methods.export_shared import get_active_table
+            active_table = get_active_table(self.main_window)
+            if active_table and active_table.selectedItems():
+                self.table = active_table  # keep in sync
                 # Get selected rows
-                selected_items = self.table.selectedItems()
+                selected_items = active_table.selectedItems()
                 selected_rows = set(item.row() for item in selected_items)
 
                 # Find Status and Name column indices
                 status_col = None
                 name_col = None
-                for col in range(self.table.columnCount()):
-                    header_item = self.table.horizontalHeaderItem(col)
+                for col in range(active_table.columnCount()):
+                    header_item = active_table.horizontalHeaderItem(col)
                     if header_item:
                         header_text = header_item.text().lower()
                         if header_text == "status":
@@ -2672,12 +2677,12 @@ class IMGFactoryGUILayout:
                     # Get entry name
                     entry_name = None
                     if name_col is not None:
-                        name_item = self.table.item(row, name_col)
+                        name_item = active_table.item(row, name_col)
                         if name_item:
                             entry_name = name_item.text()
                     
                     # Update Status column
-                    status_item = self.table.item(row, status_col)
+                    status_item = active_table.item(row, status_col)
                     if status_item:
                         current_text = status_item.text()
                         if pin_icon not in current_text:
@@ -2688,7 +2693,7 @@ class IMGFactoryGUILayout:
                             pinned_count += 1
                     else:
                         new_item = QTableWidgetItem(pin_icon)
-                        self.table.setItem(row, status_col, new_item)
+                        active_table.setItem(row, status_col, new_item)
                         pinned_count += 1
                     
                     # Save to .pin file
@@ -2710,19 +2715,22 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
-    def unpin_selected_entries(self):  # vers 2
+    def unpin_selected_entries(self):  # vers 3
         """Unpin selected entries - removes pin icon from Status column and updates .pin file"""
         try:
-            if self.table and self.table.selectedItems():
+            from apps.methods.export_shared import get_active_table
+            active_table = get_active_table(self.main_window)
+            if active_table and active_table.selectedItems():
+                self.table = active_table  # keep in sync
                 # Get selected rows
-                selected_items = self.table.selectedItems()
+                selected_items = active_table.selectedItems()
                 selected_rows = set(item.row() for item in selected_items)
 
                 # Find Status and Name column indices
                 status_col = None
                 name_col = None
-                for col in range(self.table.columnCount()):
-                    header_item = self.table.horizontalHeaderItem(col)
+                for col in range(active_table.columnCount()):
+                    header_item = active_table.horizontalHeaderItem(col)
                     if header_item:
                         header_text = header_item.text().lower()
                         if header_text == "status":
@@ -2748,11 +2756,11 @@ class IMGFactoryGUILayout:
                     # Get entry name
                     entry_name = None
                     if name_col is not None:
-                        name_item = self.table.item(row, name_col)
+                        name_item = active_table.item(row, name_col)
                         if name_item:
                             entry_name = name_item.text()
                     
-                    status_item = self.table.item(row, status_col)
+                    status_item = active_table.item(row, status_col)
                     if status_item:
                         current_text = status_item.text()
                         if pin_icon in current_text:
@@ -2830,7 +2838,7 @@ class IMGFactoryGUILayout:
                 entry_data = pinned_entries.get(entry_name, {})
                 if entry_data.get("pinned", False):
                     # Add pin icon to Status column
-                    status_item = self.table.item(row, status_col)
+                    status_item = active_table.item(row, status_col)
                     if status_item:
                         current_text = status_item.text()
                         if pin_icon not in current_text:
@@ -2841,7 +2849,7 @@ class IMGFactoryGUILayout:
                             pins_applied += 1
                     else:
                         new_item = QTableWidgetItem(pin_icon)
-                        self.table.setItem(row, status_col, new_item)
+                        active_table.setItem(row, status_col, new_item)
                         pins_applied += 1
             
             if pins_applied > 0 and hasattr(self.main_window, 'log_message'):

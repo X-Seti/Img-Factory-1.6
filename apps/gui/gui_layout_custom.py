@@ -1095,9 +1095,11 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 self.main_window.log_message(f"Clear Search error: {str(e)}")
 
 
-    def move_entries_up(self):  # vers 1
+    def move_entries_up(self):  # vers 2
         """Move selected entries up in the table"""
         try:
+            from apps.methods.export_shared import get_active_table
+            self.table = get_active_table(self.main_window) or self.table
             if self.table and self.table.selectedItems():
                 # Get selected rows
                 selected_items = self.table.selectedItems()
@@ -1155,9 +1157,11 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 self.main_window.log_message(f"Move entries up error: {str(e)}")
 
 
-    def move_entries_down(self):  # vers 1
+    def move_entries_down(self):  # vers 2
         """Move selected entries down in the table"""
         try:
+            from apps.methods.export_shared import get_active_table
+            self.table = get_active_table(self.main_window) or self.table
             if self.table and self.table.selectedItems():
                 # Get selected rows
                 selected_items = self.table.selectedItems()

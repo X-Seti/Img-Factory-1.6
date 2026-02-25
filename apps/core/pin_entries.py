@@ -83,7 +83,7 @@ def pin_selected_entries(main_window): #vers 1
         
         # Get selected entries
         tab_info = get_current_active_tab_info(main_window)
-        table = tab_info.get("table_widget") or main_window.gui_layout.table
+        table = tab_info.get("table_widget") or get_active_table(main_window)
         selected_items = table.selectedItems() if table else []
         if not selected_items:
             main_window.log_message("No entries selected to pin/unpin")
@@ -145,7 +145,7 @@ def unpin_selected_entries(main_window): #vers 1
         
         # Get selected entries
         tab_info = get_current_active_tab_info(main_window)
-        table = tab_info.get("table_widget") or main_window.gui_layout.table
+        table = tab_info.get("table_widget") or get_active_table(main_window)
         selected_items = table.selectedItems() if table else []
         if not selected_items:
             main_window.log_message("No entries selected to unpin")
@@ -202,7 +202,7 @@ def toggle_pinned_entries(main_window): #vers 1
         
         # Get selected entries
         tab_info = get_current_active_tab_info(main_window)
-        table = tab_info.get("table_widget") or main_window.gui_layout.table
+        table = tab_info.get("table_widget") or get_active_table(main_window)
         selected_items = table.selectedItems() if table else []
         if not selected_items:
             main_window.log_message("No entries selected to toggle pin")
