@@ -424,7 +424,7 @@ class IMGStatusWidget(QWidget):
         self.version_label = QLabel("Version: Unknown")
         layout.addWidget(self.version_label)
     
-    def update_img_status(self, img_file=None, filename="", entry_count=0, file_size=0, version="Unknown"):
+    def update_img_status(self, img_file=None, filename="", entry_count=0, file_size=0, version="Unknown"): #vers 2 Fixed
         """Update IMG file status display"""
         if img_file:
             import os

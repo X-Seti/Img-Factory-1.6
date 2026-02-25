@@ -20,7 +20,7 @@ from apps.methods.imgcol_exists import set_context
 # remove_multiple_entries
 # remove_selected_function
 
-def remove_selected_function(main_window): #vers 5
+def remove_selected_function(main_window): #vers 6 Fixed
     """Remove selected entries with proper modification tracking - TAB AWARE"""
     try:
         set_context(main_window)
@@ -109,7 +109,7 @@ def remove_selected_function(main_window): #vers 5
         return False
 
 
-def remove_entries_by_name(main_window, entry_names: List[str]) -> bool: #vers 3
+def remove_entries_by_name(main_window, entry_names: List[str]) -> bool: #vers 4 Fixed
     """Remove entries by name with proper modification tracking - TAB AWARE"""
     file_object, file_type = get_current_file_from_active_tab(main_window)
     if file_type != 'IMG' or not file_object:
@@ -160,7 +160,7 @@ def remove_multiple_entries(main_window, entries_to_remove: List) -> bool: #vers
     return success
 
 
-def _remove_entries_with_tracking(file_object, entries_to_remove: List, main_window) -> bool: #vers 2
+def _remove_entries_with_tracking(file_object, entries_to_remove: List, main_window) -> bool: #vers 3 Fixed
     """Remove entries with proper modification tracking - FIXES SAVE ENTRY DETECTION"""
     if not hasattr(file_object, 'entries'):
         if hasattr(main_window, 'log_message'):

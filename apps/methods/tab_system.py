@@ -575,7 +575,7 @@ def ensure_tab_references_valid(main_window) -> bool: #vers 1
         return False
 
 
-def refresh_current_tab_data(main_window) -> bool: #vers 3
+def refresh_current_tab_data(main_window) -> bool: #vers 4 Fixed
     """Force refresh of current tab's data and references - Updated to refresh table display"""
     try:
         current_index = main_window.main_tab_widget.currentIndex()

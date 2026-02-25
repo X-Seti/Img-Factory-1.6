@@ -2830,7 +2830,7 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
-    def load_and_apply_pins(self, img_path: str): # vers 3
+    def load_and_apply_pins(self, img_path: str): # vers 3 Fixed
         """Load .pin file, apply pin icons to Status column, colour rows, set entry.is_pinned, restore date_modified."""
         try:
             from apps.methods.export_shared import get_active_table

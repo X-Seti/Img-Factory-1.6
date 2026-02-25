@@ -3900,7 +3900,7 @@ class IMGFactory(QMainWindow):
 
 
 
-    def get_entry_rw_version(self, entry, extension): #vers 3
+    def get_entry_rw_version(self, entry, extension): #vers 4 Fixed
         """Detect RW version from entry file data"""
         try:
             # Skip non-RW files
@@ -4260,7 +4260,7 @@ class IMGFactory(QMainWindow):
         self._populate_real_img_table(img_file, table=table)
 
 
-    def _populate_real_img_table(self, img_file: IMGFile, table=None): #vers 4
+    def _populate_real_img_table(self, img_file: IMGFile, table=None): #vers 5 Fixed
         """Populate table with real IMG file entries - for SA format display with Date column"""
 
         if not img_file or not img_file.entries:

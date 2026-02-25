@@ -262,7 +262,7 @@ def get_pinned_entries(file_object) -> List: #vers 1
     return [entry for entry in file_object.entries if is_entry_pinned_attribute(entry)]
 
 
-def _save_pin_config(main_window, file_object):
+def _save_pin_config(main_window, file_object): #vers 2 Fixed
     """Save pin state to pin file preserving all existing entry data (dates etc)"""
     try:
         if not hasattr(file_object, 'file_path') or not file_object.file_path:
@@ -445,7 +445,7 @@ def load_pin_file(img_path: str) -> Dict[str, Any]: #vers 1
         }
 
 
-def _migrate_from_v1(old_data: Any, img_path: str) -> Dict[str, Any]: #vers 1
+def _migrate_from_v1(old_data: Any, img_path: str) -> Dict[str, Any]: #vers 2 Fixed
     """Migrate old v1.0 pin file format to v2.0
     
     Old format: Simple list of filenames or dict with simple structure

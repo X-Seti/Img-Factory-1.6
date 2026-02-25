@@ -75,7 +75,7 @@ def rename_entry(main_window): #vers 3
         return False
 
 
-def rename_img_entry(main_window): #vers 4
+def rename_img_entry(main_window): #vers 5 Fixed
     """Rename IMG entry with validation and IMG_Editor core support"""
     def dbg(msg):
         print(f"[RENAME] {msg}")
@@ -188,7 +188,7 @@ def rename_img_entry(main_window): #vers 4
         return False
 
 
-def rename_col_model(main_window): #vers 2
+def rename_col_model(main_window): #vers 3 Fixed
     """Rename COL model with validation"""
     try:
         # Validate tab and get file object
@@ -445,7 +445,7 @@ def _rename_with_img_core(main_window, file_object, entry, new_name: str) -> boo
         return False
 
 
-def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> bool: #vers 3
+def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> bool: #vers 4 Fixed
     """Rename using IMG_Editor archive - also updates original entry object"""
     try:
         if hasattr(main_window, 'log_message'):
@@ -649,7 +649,7 @@ def _convert_to_img_archive(file_object, main_window):
         return None
 
 
-def integrate_rename_functions(main_window) -> bool: #vers 2
+def integrate_rename_functions(main_window) -> bool: #vers 3 Fixed
     """Integrate rename functions into main window"""
     try:
         # Add main rename functions

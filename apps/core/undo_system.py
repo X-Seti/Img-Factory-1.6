@@ -29,7 +29,7 @@ from datetime import datetime
 DATE_FMT = "%b %d %Y"  # e.g. "Feb 25 2026"
 
 
-def set_entry_date(entry, img_path=None): #vers 3
+def set_entry_date(entry, img_path=None): #vers 4 Fixed
     """Stamp entry.date_modified with today's date string and persist to pin file."""
     entry.date_modified = datetime.now().strftime(DATE_FMT)
     print(f"[DATE] set_entry_date: entry={getattr(entry, 'name', '?')} date={entry.date_modified} img_path={img_path}")
@@ -49,7 +49,7 @@ def set_entry_date(entry, img_path=None): #vers 3
         print(f"[DATE] NOT persisted - img_path={img_path}")
 
 
-def get_import_row_colours(main_window, replaced=False): #vers 1
+def get_import_row_colours(main_window, replaced=False): #vers 1 Fixed
     """Return (QColor bg, QColor fg) for imported/replaced rows based on current theme.
     New import: dark theme=light blue, light theme=dark blue.
     Replaced: dark theme=red, light theme=dark red."""
@@ -79,7 +79,7 @@ def get_import_row_colours(main_window, replaced=False): #vers 1
         return QColor(30, 60, 120), QColor(160, 200, 255)
 
 
-def pin_file_sync_rename(img_path: str, old_name: str, new_name: str): #vers 1
+def pin_file_sync_rename(img_path: str, old_name: str, new_name: str): #vers 1 Fixed
     """Rename entry key in pin file when entry is renamed."""
     if not img_path:
         return
@@ -95,7 +95,7 @@ def pin_file_sync_rename(img_path: str, old_name: str, new_name: str): #vers 1
         print(f"[PINFILE] sync_rename error: {e}")
 
 
-def pin_file_sync_remove(img_path: str, entry_names: list): #vers 1
+def pin_file_sync_remove(img_path: str, entry_names: list): #vers 1 Fixed
     """Remove entry keys from pin file when entries are deleted."""
     if not img_path:
         return
@@ -113,7 +113,7 @@ def pin_file_sync_remove(img_path: str, entry_names: list): #vers 1
         print(f"[PINFILE] sync_remove error: {e}")
 
 
-def get_pin_row_colours(main_window): #vers 1
+def get_pin_row_colours(main_window): #vers 2 Fixed
     """Return (QColor bg, QColor fg) for pinned rows based on current theme.
     Dark theme: text_primary darkened 10%.  Light theme: text_primary lightened 10%."""
     from PyQt6.QtGui import QColor
@@ -148,7 +148,7 @@ def get_pin_row_colours(main_window): #vers 1
         return QColor(80, 60, 20), QColor(255, 200, 80)
 
 
-def check_pinned_lock(main_window, entries, operation: str) -> bool: #vers 2
+def check_pinned_lock(main_window, entries, operation: str) -> bool: #vers 3 Fixed
     """Return True (blocked) if any entry is pinned.
     Shows popup and/or logs based on pin_warn_popup / pin_warn_log settings."""
     locked = [getattr(e, 'name', '?') for e in entries
@@ -287,7 +287,7 @@ class UndoManager: #vers 1
         self.current_index = -1
 
 
-def refresh_after_undo(main_window): #vers 2
+def refresh_after_undo(main_window): #vers 3 Fixed
     """Repopulate active tab table after undo/redo, then reapply pins."""
     try:
         file_object = getattr(main_window, 'current_img', None) or getattr(main_window, 'current_col', None)

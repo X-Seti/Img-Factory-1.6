@@ -1,4 +1,58 @@
-#this belongs in root /ChangeLog.md - Version: 8
+#this belongs in root /ChangeLog.md - Version: 9
+
+## February 25, 2026 - Date Tracking, Pin File Integrity, Row Colours, Version Detection
+
+**Fixed**: apps/core/rename.py
+- rename_img_entry v5: debug logging at each step; active table passed to _populate_real_img_table; rename notify uses settings popup/log flags
+- _rename_with_img_archive v4: calls pin_file_sync_rename to update pin file key after rename
+- rename_col_model v3: rename notify uses settings popup/log flags
+- integrate_rename_functions v3: all 4 rename routes (right-click, toolbar, menu, custom) point to single rename_entry
+
+**Fixed**: apps/core/remove.py
+- remove_selected_function v6: pin filter runs before confirm dialog; skipped pins logged/popup per settings
+- _remove_entries_with_tracking v3: calls pin_file_sync_remove to delete removed entry keys from pin file
+- remove_entries_by_name v4: filters pinned entries during name lookup
+
+**Fixed**: apps/core/undo_system.py
+- set_entry_date v4: persists date_modified to pin file via load/update/save round-trip
+- get_pin_row_colours v2: theme-aware QColor for pinned rows (dark: amber, light: pale amber)
+- get_import_row_colours v1 Fixed: new=blue, replaced=red; theme-aware dark/light variants
+- pin_file_sync_rename v1 Fixed: renames entry key in pin file on entry rename
+- pin_file_sync_remove v1 Fixed: removes entry keys from pin file on entry delete
+- check_pinned_lock v3: reads pin_warn_popup/pin_warn_log from app_settings
+- refresh_after_undo v3: passes active table to _populate_real_img_table
+
+**Fixed**: apps/core/pin_entries.py
+- _save_pin_config v2: was writing plain JSON list overwriting v2.0 structure; now loads existing pin data, updates only pinned state, preserves date_modified and all other fields
+- _migrate_from_v1 v2: preserves date_modified, source_file, notes when migrating old format entries
+
+**Fixed**: apps/core/right_click_actions.py
+- show_context_menu v4: uses get_active_table() instead of hardcoded gui_layout.table; duplicate Remove action removed
+
+**Fixed**: apps/gui/gui_layout.py
+- load_and_apply_pins v3: restores date_modified from pin file to all entries on load; date cell updated in table
+
+**Fixed**: apps/gui/status_bar.py
+- update_img_status v2: shows "Version 1", "Version 1.5", "Version 2", "Version SOL" instead of raw enum names
+
+**Fixed**: apps/methods/tab_system.py
+- refresh_current_tab_data v4: uses get_active_table() + _populate_real_img_table instead of shared gui_layout.table + populate_img_table; ensures rebuild refreshes correct tab
+
+**Fixed**: apps/components/Img_Factory/imgfactory.py
+- _populate_real_img_table v5: row colours applied for new (blue), replaced (red), pinned (amber); import refresh passes active table
+- get_entry_rw_version v4: V1 files read from .img not .dir (was seeking directory index instead of file data)
+- is_pinned second pass: only sets is_pinned=True when pin_data pinned=True (was pinning any entry present in pin file)
+- import loop: case-insensitive name match + fallback to last entry for date stamp
+
+**Fixed**: apps/methods/img_core_classes.py
+- IMGVersion enum: VERSION_1_5 = 15 added for extended DIR/IMG (up to 4GB, long filenames)
+- _detect_v1_or_v1_5: detects V1.5 by IMG size >2GB or entry name field with no null terminator
+- detect_img_version: .dir path now calls _detect_v1_or_v1_5 to distinguish V1 from V1.5
+
+**Added**: apps/utils/app_settings_system.py
+- Settings > Interface > Rename Notifications group: popup and log toggles (rename_notify_popup, rename_notify_log)
+- Settings > Interface > Pinned Entry Warnings group: popup and log toggles (pin_warn_popup, pin_warn_log)
+
 
 ## February 24, 2026 - Icons, Buttons, Startup Fixes
 

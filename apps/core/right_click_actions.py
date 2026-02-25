@@ -65,7 +65,7 @@ def setup_table_context_menu(main_window): #vers 3
         main_window.log_message(f"Error setting up context menu: {str(e)}")
         return False
 
-def show_context_menu(main_window, position): #vers 4
+def show_context_menu(main_window, position): #vers 4 Fixed
     """Show comprehensive context menu with file-type specific actions"""
     try:
         from apps.methods.export_shared import get_active_table
