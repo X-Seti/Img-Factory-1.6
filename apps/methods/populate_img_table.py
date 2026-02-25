@@ -38,17 +38,28 @@ def reset_table_styling(main_window): #vers 2
             return False
         table = main_window.gui_layout.table
         header = table.horizontalHeader()
-        table.setStyleSheet("")
-        header.setStyleSheet("")
         table.setObjectName("")
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        table.setStyleSheet("""
+            QTableWidget::item:hover {
+                background-color: rgba(100, 150, 255, 0.15);
+            }
+            QTableWidget::item:selected {
+                background-color: rgba(70, 130, 230, 0.7);
+                color: white;
+            }
+            QTableWidget::item:selected:hover {
+                background-color: rgba(90, 150, 250, 0.8);
+                color: white;
+            }
+        """)
         header.setStretchLastSection(True)
         header.setSectionsClickable(True)
         header.setSortIndicatorShown(True)
         header.setSectionsMovable(False)
-        main_window.log_message("Table styling completely reset")
+        main_window.log_message("Table styling reset")
         img_debugger.debug("Table styling reset to default")
         return True
     except Exception as e:

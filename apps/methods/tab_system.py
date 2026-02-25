@@ -95,12 +95,19 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         table.horizontalHeader().setSortIndicatorShown(True)
         table.setStyleSheet("""
             QTableWidget::item:hover {
-                background-color: rgba(100, 150, 255, 0.25);
+                background-color: rgba(100, 150, 255, 0.15);
+            }
+            QTableWidget::item:selected {
+                background-color: rgba(70, 130, 230, 0.7);
+                color: white;
             }
             QTableWidget::item:selected:hover {
-                background-color: rgba(90, 150, 250, 0.5);
+                background-color: rgba(90, 150, 250, 0.8);
+                color: white;
             }
         """)
+        # Ensure full row selection - reapply after stylesheet
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         tab_layout.addWidget(table)
         tab_widget.table_ref = table
 
