@@ -507,7 +507,7 @@ def _rename_with_fallback_method(main_window, entry, new_name: str) -> bool: #ve
         # Rename pin key FIRST, then stamp date under new name
         _img_path = getattr(getattr(main_window, 'current_img', None), 'file_path', None)
         from apps.core.undo_system import pin_file_sync_rename, set_entry_date
-        pin_file_sync_rename(_img_path, entry_name, new_name)
+        pin_file_sync_rename(_img_path, old_name, new_name)
         set_entry_date(entry, _img_path)
 
         # Mark entry as modified if there's a modified flag
