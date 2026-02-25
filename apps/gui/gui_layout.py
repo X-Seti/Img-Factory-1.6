@@ -2670,10 +2670,10 @@ class IMGFactoryGUILayout:
                     img_path = self.main_window.current_img.file_path
 
                 # Add pin icon, colour row, set is_pinned, save to .pin file
-                from PyQt6.QtGui import QColor, QBrush
+                from PyQt6.QtGui import QBrush
+                from apps.core.undo_system import get_pin_row_colours, set_entry_date
                 pin_icon = "📌"
-                pin_colour = QColor(80, 60, 20)
-                pin_fg = QColor(255, 200, 80)
+                pin_colour, pin_fg = get_pin_row_colours(self.main_window)
                 pinned_count = 0
 
                 # Get entry objects for is_pinned flag
@@ -2712,9 +2712,11 @@ class IMGFactoryGUILayout:
                         cell.setBackground(QBrush(pin_colour))
                         cell.setForeground(QBrush(pin_fg))
 
-                    # Set is_pinned on entry object
+                    # Set is_pinned and stamp date on entry object
                     if entry_name and entry_name in entry_map:
-                        entry_map[entry_name].is_pinned = True
+                        e = entry_map[entry_name]
+                        e.is_pinned = True
+                        set_entry_date(e)
 
                     # Save to .pin file
                     if img_path and entry_name:
@@ -2832,7 +2834,7 @@ class IMGFactoryGUILayout:
         try:
             from apps.methods.export_shared import get_active_table
             from apps.methods.pin_file_manager import load_pin_file
-            from PyQt6.QtGui import QColor, QBrush
+            from PyQt6.QtGui import QBrush
 
             table = get_active_table(self.main_window) or self.table
             if not table or not img_path:
@@ -2864,9 +2866,9 @@ class IMGFactoryGUILayout:
                 for entry in file_object.entries:
                     entry_map[getattr(entry, 'name', '')] = entry
 
+            from apps.core.undo_system import get_pin_row_colours
             pin_icon = "📌"
-            pin_colour = QColor(80, 60, 20)   # dark amber tint for dark themes
-            pin_fg = QColor(255, 200, 80)      # amber text
+            pin_colour, pin_fg = get_pin_row_colours(self.main_window)
             pins_applied = 0
 
             for row in range(table.rowCount()):

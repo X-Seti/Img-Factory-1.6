@@ -489,6 +489,12 @@ def move_entries_in_file(main_window, file_object, rows: list, direction: int) -
         file_object.entries[:] = new_entries
         file_object.modified = True
 
+        # Stamp date on moved entries
+        from apps.core.undo_system import set_entry_date, MoveCommand
+        for row in selected:
+            if row < len(new_entries):
+                set_entry_date(new_entries[row])
+
         # Push undo
         if hasattr(main_window, 'undo_manager'):
             main_window.undo_manager.push(MoveCommand(file_object, old_order, list(new_entries)))

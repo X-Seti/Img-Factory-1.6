@@ -24,6 +24,51 @@ from PyQt6.QtWidgets import QMessageBox
 # UndoManager
 
 
+from datetime import datetime
+
+DATE_FMT = "%b %d %Y"  # e.g. "Feb 25 2026"
+
+
+def set_entry_date(entry): #vers 1
+    """Stamp entry.date_modified with today's date string."""
+    entry.date_modified = datetime.now().strftime(DATE_FMT)
+
+
+def get_pin_row_colours(main_window): #vers 1
+    """Return (QColor bg, QColor fg) for pinned rows based on current theme.
+    Dark theme: text_primary darkened 10%.  Light theme: text_primary lightened 10%."""
+    from PyQt6.QtGui import QColor
+    try:
+        settings = getattr(main_window, 'app_settings', None)
+        if settings and hasattr(settings, 'get_theme_colors'):
+            theme = getattr(settings, 'current_settings', {}).get('theme', 'default')
+            colors = settings.get_theme_colors(theme)
+        else:
+            colors = {}
+        bg_primary = colors.get('bg_primary', '#1e1e1e')
+        text_primary = colors.get('text_primary', '#ffffff')
+
+        # Detect dark theme by bg brightness
+        bg = QColor(bg_primary)
+        is_dark = bg.lightness() < 128
+
+        tp = QColor(text_primary)
+        if is_dark:
+            # darken text_primary by 10% for bg, keep text amber
+            factor = max(0, tp.lightness() - 25)
+            bg_col = QColor.fromHsl(30, 180, factor)        # warm amber shade
+            fg_col = QColor.fromHsl(40, 220, min(255, tp.lightness() + 60))
+        else:
+            # lighten text_primary by 10% for bg
+            factor = min(255, tp.lightness() + 40)
+            bg_col = QColor.fromHsl(40, 160, factor)        # pale amber
+            fg_col = QColor.fromHsl(30, 200, max(0, tp.lightness() - 80))
+        return bg_col, fg_col
+    except Exception:
+        from PyQt6.QtGui import QColor
+        return QColor(80, 60, 20), QColor(255, 200, 80)
+
+
 def check_pinned_lock(main_window, entries, operation: str) -> bool: #vers 1
     """Return True (blocked) if any entry is pinned. Shows warning."""
     locked = [getattr(e, 'name', '?') for e in entries
@@ -209,5 +254,7 @@ __all__ = [
     'UndoCommand', 'RenameCommand', 'RemoveCommand',
     'MoveCommand', 'ImportCommand', 'ReplaceCommand',
     'UndoManager', 'check_pinned_lock',
+    'set_entry_date',
+    'get_pin_row_colours',
     'integrate_undo_system', 'refresh_after_undo',
 ]

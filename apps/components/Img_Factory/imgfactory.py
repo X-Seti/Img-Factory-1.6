@@ -4365,18 +4365,8 @@ class IMGFactory(QMainWindow):
                         extension = "NO_EXT"
                 table.setItem(row, 1, QTableWidgetItem(extension))
 
-                # Date - column 2 (new column showing pin date if available)
-                date_text = ""
-                if hasattr(entry, 'is_pinned') and entry.is_pinned and img_file.file_path:
-                    # Get pin date from pin file if available
-                    from apps.core.pin_entries import load_pin_file
-                    pin_data = load_pin_file(img_file.file_path)
-                    entry_pin_data = pin_data.get("entries", {}).get(clean_name, {})
-                    import_date = entry_pin_data.get("import_date", "")
-                    if import_date:
-                        date_text = import_date.split("T")[0]  # Just the date part
-                    else:
-                        date_text = "Pinned"
+                # Date - column 2 - shows last modification date
+                date_text = getattr(entry, 'date_modified', "")
                 table.setItem(row, 2, QTableWidgetItem(date_text))
 
                 # Size - column 3 (previously column 2)
@@ -4594,8 +4584,15 @@ class IMGFactory(QMainWindow):
                     if hasattr(self.current_img, 'import_file'):
                         if self.current_img.import_file(file_path):
                             imported_count += 1
-                            imported_names.append(os.path.basename(file_path))
-                            self.log_message(f"Imported: {os.path.basename(file_path)}")
+                            name = os.path.basename(file_path)
+                            imported_names.append(name)
+                            # Stamp date on the newly imported entry
+                            from apps.core.undo_system import set_entry_date
+                            for e in self.current_img.entries:
+                                if getattr(e, 'name', '') == name:
+                                    set_entry_date(e)
+                                    break
+                            self.log_message(f"Imported: {name}")
                     else:
                         self.log_message(f"IMG import_file method not available")
                         break

@@ -50,9 +50,11 @@ def remove_selected_function(main_window): #vers 5
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Removing {len(selected_entries)} selected entries")
 
-        # Capture indices before removal for undo
+        # Stamp date and capture indices before removal for undo
+        from apps.core.undo_system import set_entry_date
         entries_with_indices = []
         for entry in selected_entries:
+            set_entry_date(entry)
             try:
                 idx = file_object.entries.index(entry)
                 entries_with_indices.append((idx, entry))

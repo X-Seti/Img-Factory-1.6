@@ -134,9 +134,10 @@ def replace_img_entry(main_window): #vers 1
         success = _replace_with_img_core(main_window, file_object, selected_entry, replacement_file, keep_name)
 
         if success:
-            # Push undo
+            # Push undo and stamp date
+            from apps.core.undo_system import ReplaceCommand, set_entry_date
+            set_entry_date(selected_entry)
             if hasattr(main_window, 'undo_manager'):
-                from apps.core.undo_system import ReplaceCommand
                 new_data = getattr(selected_entry, 'data', b'')
                 new_size = getattr(selected_entry, 'size', 0)
                 main_window.undo_manager.push(
