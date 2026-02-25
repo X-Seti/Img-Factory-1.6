@@ -75,92 +75,102 @@ def rename_entry(main_window): #vers 3
         return False
 
 
-def rename_img_entry(main_window): #vers 3
+def rename_img_entry(main_window): #vers 4
     """Rename IMG entry with validation and IMG_Editor core support"""
+    def dbg(msg):
+        print(f"[RENAME] {msg}")
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"[Rename] {msg}")
+
     try:
+        dbg("rename_img_entry called")
+
         # Validate tab and get file object
         if not validate_tab_before_operation(main_window, "Rename IMG Entry"):
+            dbg("tab validation failed")
             return False
-        
+
         file_object, file_type = get_current_file_from_active_tab(main_window)
-        
+        dbg(f"file_type={file_type} file_object={file_object is not None}")
+
         if file_type != 'IMG' or not file_object:
             QMessageBox.warning(main_window, "No IMG File", "Current tab does not contain an IMG file")
             return False
-        
+
         # Get selected entry
         selected_entry = _get_selected_entry_safe(main_window, file_object)
+        dbg(f"selected_entry={getattr(selected_entry, 'name', None)}")
         if not selected_entry:
             QMessageBox.information(main_window, "No Selection", "Please select an IMG entry to rename")
             return False
-        
+
         # Block rename if pinned
         from apps.core.undo_system import check_pinned_lock
         if check_pinned_lock(main_window, [selected_entry], "rename"):
+            dbg("blocked - entry is pinned")
             return False
-        
+
         # Get current name
         current_name = getattr(selected_entry, 'name', '')
         if not current_name:
             QMessageBox.warning(main_window, "Invalid Entry", "Selected entry has no valid name")
             return False
-        
+
         # Show rename dialog
         new_name = _show_rename_dialog(main_window, current_name, "IMG Entry")
+        dbg(f"dialog result: '{current_name}' → '{new_name}'")
         if not new_name or new_name == current_name:
-            if hasattr(main_window, 'log_message'):
-                main_window.log_message("Rename cancelled or no change")
+            dbg("rename cancelled or no change")
             return False
-        
+
         # Validate new name
         if not _validate_new_name(new_name, "IMG"):
+            dbg(f"name validation failed: '{new_name}'")
             return False
-        
+
         # Check for duplicates
         if _check_duplicate_name(file_object, new_name, selected_entry):
-            QMessageBox.critical(main_window, "Duplicate Name", 
+            QMessageBox.critical(main_window, "Duplicate Name",
                 f"An entry named '{new_name}' already exists in the IMG file")
             return False
-        
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Renaming IMG entry: '{current_name}' → '{new_name}'")
-        
-        # Rename using IMG_Editor core if available
+
+        dbg(f"calling _rename_with_img_core: '{current_name}' → '{new_name}'")
         success = _rename_with_img_core(main_window, file_object, selected_entry, new_name)
-        
+        dbg(f"_rename_with_img_core returned: {success}")
+
         if success:
-            # Add undo command to the undo manager
+            # Undo command
             if hasattr(main_window, 'undo_manager'):
                 from apps.core.undo_system import RenameCommand
-                undo_cmd = RenameCommand(selected_entry, current_name, new_name)
-                main_window.undo_manager.push_command(undo_cmd)
-        
-            # Mark the file object as modified
-            if hasattr(file_object, 'modified'):
-                file_object.modified = True
-            else:
-                setattr(file_object, 'modified', True)
-        
-            # Refresh current tab to show name and date changes
-            if hasattr(main_window, '_populate_real_img_table') and file_object:
+                main_window.undo_manager.push_command(RenameCommand(selected_entry, current_name, new_name))
+                dbg("undo command pushed")
+
+            # Mark modified
+            file_object.modified = True
+
+            # Full repopulate so Date column updates
+            if hasattr(main_window, '_populate_real_img_table'):
                 main_window._populate_real_img_table(file_object)
-                if hasattr(file_object, 'file_path') and file_object.file_path:
+                if getattr(file_object, 'file_path', None):
                     if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'load_and_apply_pins'):
                         main_window.gui_layout.load_and_apply_pins(file_object.file_path)
             elif hasattr(main_window, 'refresh_current_tab_data'):
                 main_window.refresh_current_tab_data()
             elif hasattr(main_window, 'refresh_table'):
                 main_window.refresh_table()
-            
-            QMessageBox.information(main_window, "Rename Complete", 
+
+            dbg(f"date_modified on entry: {getattr(selected_entry, 'date_modified', 'NOT SET')}")
+            QMessageBox.information(main_window, "Rename Complete",
                 f"Successfully renamed entry to '{new_name}'")
         else:
-            QMessageBox.critical(main_window, "Rename Failed", 
+            dbg("_rename_with_img_core failed")
+            QMessageBox.critical(main_window, "Rename Failed",
                 "Failed to rename IMG entry. Check debug log for details.")
-        
+
         return success
-        
+
     except Exception as e:
+        print(f"[RENAME] exception: {e}")
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Rename IMG entry error: {str(e)}")
         QMessageBox.critical(main_window, "Rename IMG Entry Error", f"Rename IMG entry failed: {str(e)}")
