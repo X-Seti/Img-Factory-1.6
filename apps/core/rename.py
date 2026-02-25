@@ -146,8 +146,13 @@ def rename_img_entry(main_window): #vers 3
             else:
                 setattr(file_object, 'modified', True)
         
-            # Refresh current tab to show changes
-            if hasattr(main_window, 'refresh_current_tab_data'):
+            # Refresh current tab to show name and date changes
+            if hasattr(main_window, '_populate_real_img_table') and file_object:
+                main_window._populate_real_img_table(file_object)
+                if hasattr(file_object, 'file_path') and file_object.file_path:
+                    if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'load_and_apply_pins'):
+                        main_window.gui_layout.load_and_apply_pins(file_object.file_path)
+            elif hasattr(main_window, 'refresh_current_tab_data'):
                 main_window.refresh_current_tab_data()
             elif hasattr(main_window, 'refresh_table'):
                 main_window.refresh_table()
