@@ -2716,7 +2716,8 @@ class IMGFactoryGUILayout:
                     if entry_name and entry_name in entry_map:
                         e = entry_map[entry_name]
                         e.is_pinned = True
-                        set_entry_date(e)
+                        _ip = getattr(getattr(self.main_window, "current_img", None), "file_path", None)
+                        set_entry_date(e, _ip)
 
                     # Save to .pin file
                     if img_path and entry_name:
@@ -2871,12 +2872,34 @@ class IMGFactoryGUILayout:
             pin_colour, pin_fg = get_pin_row_colours(self.main_window)
             pins_applied = 0
 
+            # Find Date column index for restoring date_modified
+            date_col = None
+            for col in range(table.columnCount()):
+                header_item = table.horizontalHeaderItem(col)
+                if header_item and header_item.text().lower() == "date":
+                    date_col = col
+                    break
+
             for row in range(table.rowCount()):
                 name_item = table.item(row, name_col)
                 if not name_item:
                     continue
                 entry_name = name_item.text()
                 entry_data = pinned_entries.get(entry_name, {})
+
+                # Restore date_modified for ALL entries that have it saved
+                saved_date = entry_data.get("date_modified", "")
+                if saved_date:
+                    if entry_name in entry_map:
+                        entry_map[entry_name].date_modified = saved_date
+                    if date_col is not None:
+                        date_item = table.item(row, date_col)
+                        if date_item:
+                            date_item.setText(saved_date)
+                        else:
+                            from PyQt6.QtWidgets import QTableWidgetItem
+                            table.setItem(row, date_col, QTableWidgetItem(saved_date))
+
                 if not entry_data.get("pinned", False):
                     continue
 

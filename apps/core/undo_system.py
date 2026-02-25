@@ -29,9 +29,20 @@ from datetime import datetime
 DATE_FMT = "%b %d %Y"  # e.g. "Feb 25 2026"
 
 
-def set_entry_date(entry): #vers 1
-    """Stamp entry.date_modified with today's date string."""
+def set_entry_date(entry, img_path=None): #vers 2
+    """Stamp entry.date_modified with today's date string and persist to pin file."""
     entry.date_modified = datetime.now().strftime(DATE_FMT)
+    if img_path and hasattr(entry, 'name'):
+        try:
+            from apps.core.pin_entries import load_pin_file, save_pin_file
+            pin_data = load_pin_file(img_path)
+            name = entry.name
+            if name not in pin_data["entries"]:
+                pin_data["entries"][name] = {"pinned": False, "creation_date": None, "import_date": None}
+            pin_data["entries"][name]["date_modified"] = entry.date_modified
+            save_pin_file(img_path, pin_data)
+        except Exception as e:
+            print(f"[RENAME] set_entry_date persist error: {e}")
 
 
 def get_pin_row_colours(main_window): #vers 1

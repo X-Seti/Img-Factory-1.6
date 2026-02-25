@@ -4529,7 +4529,7 @@ class IMGFactory(QMainWindow):
                             imported_names.append(name)
                             for e in self.current_img.entries:
                                 if getattr(e, 'name', '') == name:
-                                    set_entry_date(e)
+                                    set_entry_date(e, getattr(self.current_img, "file_path", None))
                                     break
                             self.log_message(f"Imported: {name}")
                     else:

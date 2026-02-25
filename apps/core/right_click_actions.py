@@ -65,10 +65,11 @@ def setup_table_context_menu(main_window): #vers 3
         main_window.log_message(f"Error setting up context menu: {str(e)}")
         return False
 
-def show_context_menu(main_window, position): #vers 3
+def show_context_menu(main_window, position): #vers 4
     """Show comprehensive context menu with file-type specific actions"""
     try:
-        table = main_window.gui_layout.table
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window) or main_window.gui_layout.table
         item = table.itemAt(position)
 
         if not item:

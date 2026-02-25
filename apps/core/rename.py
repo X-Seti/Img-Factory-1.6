@@ -467,7 +467,7 @@ def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> 
         entry.name = new_name
         entry.is_modified = True
         from apps.core.undo_system import set_entry_date
-        set_entry_date(entry)
+        set_entry_date(entry, getattr(file_object, 'file_path', None))
 
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Renamed entry using IMG_Editor core")
@@ -504,7 +504,8 @@ def _rename_with_fallback_method(main_window, entry, new_name: str) -> bool: #ve
 
         # Stamp date of change
         from apps.core.undo_system import set_entry_date
-        set_entry_date(entry)
+        _img_path = getattr(getattr(main_window, 'current_img', None), 'file_path', None)
+        set_entry_date(entry, _img_path)
 
         # Mark entry as modified if there's a modified flag
         if hasattr(entry, 'modified'):

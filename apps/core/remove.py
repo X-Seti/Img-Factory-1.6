@@ -75,7 +75,7 @@ def remove_selected_function(main_window): #vers 5
         from apps.core.undo_system import set_entry_date
         entries_with_indices = []
         for entry in selected_entries:
-            set_entry_date(entry)
+            set_entry_date(entry, getattr(file_object, "file_path", None))
             try:
                 idx = file_object.entries.index(entry)
                 entries_with_indices.append((idx, entry))
