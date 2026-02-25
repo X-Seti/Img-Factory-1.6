@@ -69,18 +69,31 @@ def get_pin_row_colours(main_window): #vers 1
         return QColor(80, 60, 20), QColor(255, 200, 80)
 
 
-def check_pinned_lock(main_window, entries, operation: str) -> bool: #vers 1
-    """Return True (blocked) if any entry is pinned. Shows warning."""
+def check_pinned_lock(main_window, entries, operation: str) -> bool: #vers 2
+    """Return True (blocked) if any entry is pinned.
+    Shows popup and/or logs based on pin_warn_popup / pin_warn_log settings."""
     locked = [getattr(e, 'name', '?') for e in entries
               if getattr(e, 'is_pinned', False)]
     if not locked:
         return False
     names = ', '.join(locked[:5]) + (', ...' if len(locked) > 5 else '')
-    QMessageBox.warning(
-        main_window, "Pinned - Locked",
-        f"Cannot {operation}: the following entries are pinned and locked:\n\n{names}"
-        f"\n\nUnpin them first."
-    )
+    msg = f"Entry protected - cannot {operation}: {names}"
+
+    settings = {}
+    try:
+        s = getattr(main_window, 'app_settings', None)
+        if s:
+            settings = getattr(s, 'current_settings', {})
+    except Exception:
+        pass
+
+    warn_popup = settings.get('pin_warn_popup', True)
+    warn_log   = settings.get('pin_warn_log', True)
+
+    if warn_log and hasattr(main_window, 'log_message'):
+        main_window.log_message(msg)
+    if warn_popup:
+        QMessageBox.warning(main_window, "Pinned - Protected", msg + "\n\nUnpin them first.")
     return True
 
 

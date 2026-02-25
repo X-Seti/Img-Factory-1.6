@@ -2102,7 +2102,10 @@ class AppSettings:
             "remember_dialog_positions": True,
             "show_creation_tips": True,
             "validate_before_creation": True,
-             # Debug settings
+             # Pin warning settings
+            "pin_warn_popup": True,
+            "pin_warn_log": True,
+            # Debug settings
             "debug_mode": False,
             "debug_level": "INFO",
             "debug_categories": ["IMG_LOADING", "TABLE_POPULATION", "BUTTON_ACTIONS"]
@@ -5747,6 +5750,26 @@ Ready for operations..."""
         interface_layout.addWidget(self.use_svg_icons_check)
 
         layout.addWidget(interface_group)
+
+        # Pin Warnings
+        pin_warn_group = QGroupBox("Pinned Entry Warnings")
+        pin_warn_layout = QVBoxLayout(pin_warn_group)
+
+        self.pin_warn_popup_check = QCheckBox("Show popup when a pinned entry is protected")
+        self.pin_warn_popup_check.setChecked(
+            self.app_settings.current_settings.get("pin_warn_popup", True))
+        pin_warn_layout.addWidget(self.pin_warn_popup_check)
+
+        self.pin_warn_log_check = QCheckBox("Log pin protection messages to activity log")
+        self.pin_warn_log_check.setChecked(
+            self.app_settings.current_settings.get("pin_warn_log", True))
+        pin_warn_layout.addWidget(self.pin_warn_log_check)
+
+        pin_hint = QLabel("Applies to: remove, rename, replace, move, import.")
+        pin_hint.setStyleSheet("color: #888; font-style: italic;")
+        pin_warn_layout.addWidget(pin_hint)
+
+        layout.addWidget(pin_warn_group)
         layout.addStretch()
 
         return widget
@@ -7183,6 +7206,10 @@ Ready for operations..."""
             settings["use_svg_icons"] = self.use_svg_icons_check.isChecked()
 
         # Debug settings
+        if hasattr(self, 'pin_warn_popup_check'):
+            settings["pin_warn_popup"] = self.pin_warn_popup_check.isChecked()
+        if hasattr(self, 'pin_warn_log_check'):
+            settings["pin_warn_log"] = self.pin_warn_log_check.isChecked()
         if hasattr(self, 'debug_enabled_check'):
             settings["debug_mode"] = self.debug_enabled_check.isChecked()
         if hasattr(self, 'debug_level_combo'):

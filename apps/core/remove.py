@@ -191,17 +191,23 @@ def _get_selected_entries_simple(main_window, file_object) -> list: #vers 3
             if row < len(file_object.entries):
                 selected_entries.append(file_object.entries[row])
     
-    # Filter out pinned entries silently, warn if all were pinned
+    # Filter out pinned entries, notify per settings
     pinned = [e for e in selected_entries if getattr(e, 'is_pinned', False)]
     if pinned:
         skipped_names = [getattr(e, 'name', '?') for e in pinned]
         selected_entries = [e for e in selected_entries if not getattr(e, 'is_pinned', False)]
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Skipped {len(pinned)} pinned entry(s): {', '.join(skipped_names[:5])}")
+        msg = f"Entry protected - cannot remove: {', '.join(skipped_names[:5])}"
+        try:
+            s = getattr(getattr(main_window, 'app_settings', None), 'current_settings', {})
+        except Exception:
+            s = {}
+        if s.get('pin_warn_log', True) and hasattr(main_window, 'log_message'):
+            main_window.log_message(msg)
         if not selected_entries:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(main_window, "All Pinned",
-                "All selected entries are pinned and were skipped. Unpin them first to remove.")
+            if s.get('pin_warn_popup', True):
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(main_window, "All Pinned",
+                    msg + ". Unpin them first to remove.")
             return []
 
     return selected_entries
