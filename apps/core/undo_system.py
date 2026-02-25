@@ -49,6 +49,36 @@ def set_entry_date(entry, img_path=None): #vers 3
         print(f"[DATE] NOT persisted - img_path={img_path}")
 
 
+def get_import_row_colours(main_window, replaced=False): #vers 1
+    """Return (QColor bg, QColor fg) for imported/replaced rows based on current theme.
+    New import: dark theme=light blue, light theme=dark blue.
+    Replaced: dark theme=red, light theme=dark red."""
+    from PyQt6.QtGui import QColor
+    try:
+        settings = getattr(main_window, 'app_settings', None)
+        colors = {}
+        if settings and hasattr(settings, 'get_theme_colors'):
+            theme = getattr(settings, 'current_settings', {}).get('theme', 'default')
+            colors = settings.get_theme_colors(theme)
+        bg = QColor(colors.get('bg_primary', '#1e1e1e'))
+        is_dark = bg.lightness() < 128
+        if replaced:
+            if is_dark:
+                return QColor(140, 30, 30), QColor(255, 160, 160)   # dark red bg, light red text
+            else:
+                return QColor(180, 50, 50), QColor(255, 220, 220)   # darker red bg, pale text
+        else:
+            if is_dark:
+                return QColor(30, 60, 120), QColor(160, 200, 255)   # dark blue bg, light blue text
+            else:
+                return QColor(50, 90, 160), QColor(220, 235, 255)   # dark blue bg, pale text
+    except Exception:
+        from PyQt6.QtGui import QColor
+        if replaced:
+            return QColor(140, 30, 30), QColor(255, 160, 160)
+        return QColor(30, 60, 120), QColor(160, 200, 255)
+
+
 def get_pin_row_colours(main_window): #vers 1
     """Return (QColor bg, QColor fg) for pinned rows based on current theme.
     Dark theme: text_primary darkened 10%.  Light theme: text_primary lightened 10%."""

@@ -4420,6 +4420,32 @@ class IMGFactory(QMainWindow):
                     status_text = "Ready"
                 table.setItem(row, 8, QTableWidgetItem(status_text))
 
+                # Apply row colour for new/replaced/pinned entries
+                is_new = hasattr(entry, 'is_new_entry') and entry.is_new_entry
+                is_replaced = hasattr(entry, 'is_replaced') and entry.is_replaced
+                is_pinned = hasattr(entry, 'is_pinned') and entry.is_pinned
+                if is_new or is_replaced:
+                    from apps.core.undo_system import get_import_row_colours
+                    from PyQt6.QtGui import QBrush
+                    row_bg, row_fg = get_import_row_colours(self, replaced=is_replaced)
+                    for col in range(9):
+                        cell = table.item(row, col)
+                        if not cell:
+                            cell = QTableWidgetItem("")
+                            table.setItem(row, col, cell)
+                        cell.setBackground(QBrush(row_bg))
+                        cell.setForeground(QBrush(row_fg))
+                elif is_pinned:
+                    from apps.core.undo_system import get_pin_row_colours
+                    from PyQt6.QtGui import QBrush
+                    pin_bg, pin_fg = get_pin_row_colours(self)
+                    for col in range(9):
+                        cell = table.item(row, col)
+                        if not cell:
+                            cell = QTableWidgetItem("")
+                            table.setItem(row, col, cell)
+                        cell.setBackground(QBrush(pin_bg))
+                        cell.setForeground(QBrush(pin_fg))
                 # Make all items read-only
                 for col in range(9):
                     item = table.item(row, col)
@@ -4549,11 +4575,16 @@ class IMGFactory(QMainWindow):
                     from apps.core.undo_system import ImportCommand
                     self.undo_manager.push(ImportCommand(self.current_img, imported_names))
 
-                # Refresh table
+                # Refresh active table
+                from apps.methods.export_shared import get_active_table
+                _active_table = get_active_table(self)
                 if hasattr(self, '_populate_real_img_table'):
-                    self._populate_real_img_table(self.current_img)
+                    self._populate_real_img_table(self.current_img, table=_active_table)
+                    if getattr(self.current_img, 'file_path', None):
+                        if hasattr(self.gui_layout, 'load_and_apply_pins'):
+                            self.gui_layout.load_and_apply_pins(self.current_img.file_path)
                 else:
-                    populate_img_table(self.gui_layout.table, self.current_img)
+                    populate_img_table(_active_table or self.gui_layout.table, self.current_img)
 
                 self.log_message(f"Import complete: {imported_count}/{len(file_paths)} files imported")
                 if skipped_pinned:
