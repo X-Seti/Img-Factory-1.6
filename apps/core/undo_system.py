@@ -49,6 +49,40 @@ def set_entry_date(entry, img_path=None): #vers 3
         print(f"[DATE] NOT persisted - img_path={img_path}")
 
 
+def pin_file_sync_rename(img_path: str, old_name: str, new_name: str): #vers 1
+    """Rename an entry key in the pin file when an entry is renamed."""
+    if not img_path:
+        return
+    try:
+        from apps.core.pin_entries import load_pin_file, save_pin_file
+        pin_data = load_pin_file(img_path)
+        entries = pin_data.get("entries", {})
+        if old_name in entries:
+            entries[new_name] = entries.pop(old_name)
+            save_pin_file(img_path, pin_data)
+            print(f"[PINFILE] renamed entry key: {old_name} -> {new_name}")
+    except Exception as e:
+        print(f"[PINFILE] sync_rename error: {e}")
+
+
+def pin_file_sync_remove(img_path: str, entry_names: list): #vers 1
+    """Remove entries from the pin file when entries are deleted from the IMG."""
+    if not img_path:
+        return
+    try:
+        from apps.core.pin_entries import load_pin_file, save_pin_file
+        pin_data = load_pin_file(img_path)
+        entries = pin_data.get("entries", {})
+        removed = [n for n in entry_names if n in entries]
+        for name in removed:
+            del entries[name]
+        if removed:
+            save_pin_file(img_path, pin_data)
+            print(f"[PINFILE] removed entries: {removed}")
+    except Exception as e:
+        print(f"[PINFILE] sync_remove error: {e}")
+
+
 def get_import_row_colours(main_window, replaced=False): #vers 1
     """Return (QColor bg, QColor fg) for imported/replaced rows based on current theme.
     New import: dark theme=light blue, light theme=dark blue.
