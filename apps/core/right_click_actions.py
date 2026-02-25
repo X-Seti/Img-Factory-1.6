@@ -66,14 +66,6 @@ def setup_table_context_menu(main_window): #vers 3
         return False
 
 def show_context_menu(main_window, position): #vers 3
-    print("\n" + "="*60)
-    print("DEBUG: RIGHT-CLICK DETECTED - show_context_menu CALLED")
-    print(f"DEBUG: position = {position}")
-    print("="*60)
-    print("\n" + "="*60)
-    print("DEBUG: show_context_menu CALLED")
-    print(f"DEBUG: position: {position}")
-    print("="*60)
     """Show comprehensive context menu with file-type specific actions"""
     try:
         table = main_window.gui_layout.table

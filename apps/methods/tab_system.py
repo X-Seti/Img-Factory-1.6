@@ -38,20 +38,16 @@ from typing import Optional, Tuple, Any, Dict, List
 # validate_tab_before_operation
 
 
-def _show_tab_context_menu(main_window, position, tab_widget): #vers 1
+def _show_tab_context_menu(main_window, position, tab_widget): #vers 2
     """Show context menu for tab-specific table"""
     try:
         from apps.core.right_click_actions import show_context_menu
-        # Temporarily set gui_layout.table to this tab's table
-        original_table = main_window.gui_layout.table if hasattr(main_window, "gui_layout") else None
+        # Sync gui_layout.table to this tab before menu - do NOT restore after
+        # as triggered actions fire after exec() returns
         tab_table = getattr(tab_widget, "table_ref", None)
-        
         if tab_table and hasattr(main_window, "gui_layout"):
             main_window.gui_layout.table = tab_table
-            show_context_menu(main_window, position)
-            # Restore
-            if original_table:
-                main_window.gui_layout.table = original_table
+        show_context_menu(main_window, position)
     except Exception as e:
         if hasattr(main_window, "log_message"):
             main_window.log_message(f"Context menu error: {str(e)}")
