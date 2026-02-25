@@ -1,11 +1,56 @@
 
-#this belongs in methods.rw_versions.py - Version: 4
+#this belongs in methods.rw_versions.py - Version: 7
 # X-Seti - November18 2025 - IMG Factory 1.5 - RenderWare Version Constants
 """
 RenderWare Version Constants - Expanded
 Standalone module for all RenderWare version definitions and utilities
 Used by IMG, TXD, DFF, MDL, and validation systems
 Includes support for DFF models, MDL files, and other 3D formats
+"""
+
+"""
+RenderWare Version Encoding Notes
+
+RenderWare versions are encoded internally as:
+
+    RW_VERSION_M_m_0_p = 0xMm0p
+
+Where:
+    M = major (always 3 for GTA-era RenderWare)
+    m = minor (0..7)
+    p = patch/build
+
+Examples:
+    3.4.0.3  -> 0x34003
+    3.6.0.3  -> 0x36003
+    3.7.0.2  -> 0x37002
+
+Observed platform-specific variants (PS2 / PC / PSP) sometimes use
+alternative packed forms such as:
+
+    0x1403FFFF -> 3.4.0.3 (PS2 / late VC)
+    0x1803FFFF -> 3.6.0.3 (SA PC)
+    0x1C020037 -> 3.7.0.2 (SA Mobile/PSP)
+
+These extended forms preserve the minor/patch information but encode
+additional platform/build flags in the high and low words.
+
+Canonical known versions:
+
+    3.0.0.0 -> 0x30000
+    3.1.0.0 -> 0x31000
+    3.1.0.1 -> 0x31001
+    3.2.0.0 -> 0x32000
+    3.3.0.2 -> 0x33002
+    3.4.0.1 -> 0x34001
+    3.4.0.3 -> 0x34003
+    3.5.0.0 -> 0x35000  (internal / early Stories)
+    3.5.0.1 -> 0x35001  (Liberty City Stories)
+    3.5.0.2 -> 0x35002  (Vice City Stories)
+    3.6.0.3 -> 0x36003  (San Andreas, Bully)
+    3.7.0.2 -> 0x37002  (San Andreas Mobile / PSP)
+
+3.5.x.x exists in SDKs but is rarely seen in PC-era DFF files.
 """
 
 import struct
@@ -24,12 +69,14 @@ from typing import Dict, Optional, Tuple
 
 class RWVersion(Enum):
     RW_VERSION_3_0_0_0 = 0x30000
+    RW_VERSION_3_1_0_0 = 0x31000
     RW_VERSION_3_1_0_1 = 0x31001
     RW_VERSION_3_2_0_0 = 0x32000
     RW_VERSION_3_3_0_2 = 0x33002
     RW_VERSION_3_4_0_1 = 0x34001
     RW_VERSION_3_4_0_3 = 0x34003
     RW_VERSION_3_5_0_0 = 0x35000
+    RW_VERSION_3_5_0_1 = 0x35001
     RW_VERSION_3_5_0_2 = 0x35002
     RW_VERSION_3_6_0_3 = 0x36003
     RW_VERSION_3_7_0_2 = 0x37002
@@ -73,31 +120,38 @@ class MDLVersion(Enum):
     MDL_VCS = 0x35002
     MDL_PSP_BASE = 0x35000
 
-def get_rw_version_name(version_value: int) -> str: #vers 3
+def get_rw_version_name(version_value: int) -> str:  # vers 10
     rw_versions = {
+        # ---- Canonical SDK versions ----
         0x30000: "3.0.0.0",
+        0x31000: "3.1.0.0",
         0x31001: "3.1.0.1",
         0x32000: "3.2.0.0",
         0x33002: "3.3.0.2",
-        0x34001: "3.4.0.1",
+        0x34001: "3.4.0.1 (Manhunt / SOL)",
         0x34003: "3.4.0.3",
-        0x35000: "3.5.0.0",
-        0x35002: "3.5.0.2",
-        0x36003: "3.6.0.3",
-        0x37002: "3.7.0.2",
-        0x0800FFFF: "3.0.0.0 GTA3 (PS2)",
-        0x0C02FFFF: "3.3.0.2 GTA3/VC (PS2)",
-        0x1003FFFF: "3.1.0.0 GTA VC (PC)",
-        0x1005FFFF: "3.2.0.0 GTA VC (PC)",
-        0x1401FFFF: "3.4.0.1 Manhunt/SOL",
-        0x1400FFFF: "3.4.0.3 GTAVC (PC)",
-        0x1803FFFF: "3.6.0.3 GTA SA (PC)",
-        0x1C020037: "3.7.0.2 San Andreas-P",
-        0x34003: "3.4.0.3 (SA)",
-        0x35000: "3.5.0.0 (LCS)",
+        0x35000: "3.5.0.0 (Internal / Dev)",
+        0x35001: "3.5.0.1 (LCS / MDL)",
         0x35002: "3.5.0.2 (VCS)",
-        0x36003: "3.6.0.3 (SA/Bully)"
+        0x36003: "3.6.0.3 (SA / Bully)",
+        0x37002: "3.7.0.2",
+
+        # ---- Extended / platform-packed forms ----
+        0x0800FFFF: "3.0.0.0 GTA3 (PS2)",
+        0x0C00FFFF: "3.1.0.0 GTA3/VC (PC)",
+        0x0C01FFFF: "3.1.0.1 GTA VC (PC)",
+        0x1005FFFF: "3.2.0.0 GTA VC (PC)",
+        0x1402FFFF: "3.3.0.2 GTA3/VC (PS2)",
+        0x1401FFFF: "3.4.0.1 Manhunt / SOL",
+        0x1403FFFF: "3.4.0.3 GTA VC (late)",
+        0x1800FFFF: "3.5.0.0 Internal Dev (SA Alpha)",
+        0x1801FFFF: "3.5.0.1 Internal Dev (LCS)",
+        0x1802FFFF: "3.5.0.2 Internal Dev (VCS)",
+        0x1803FFFF: "3.6.0.3 GTA SA (PC)",
+        0x1C020037: "3.7.0.2 San Andreas Mobile / PSP",
     }
+
+
     return rw_versions.get(version_value, f"Unknown (0x{version_value:X})")
 
 def is_valid_rw_version(version_value: int) -> bool: #vers 2

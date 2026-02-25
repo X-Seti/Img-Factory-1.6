@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 77
-# X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
+#this belongs in components/Img_Factory/imgfactory.py - Version: 76
+# X-Seti - December11 2025 - IMG Factory 1.5 - Fixed Imports
 
 """
-IMG Factory 1.6 - Grand Theft Auto Archive Manager
+IMG Factory 1.5 - Grand Theft Auto Archive Manager
 Main application file - always runs in "main app" mode
 """
 
@@ -143,8 +143,10 @@ from apps.methods.imgfactory_svg_icons import (
 )
 
 
-# App metadata - imported from app_info.py to avoid circular imports
-from apps.app_info import App_name, App_build, App_auth
+# App metadata
+App_name = "Img Factory 1.6"
+App_build = "January 11 - "
+App_auth = "X-Seti"
 
 ##Methods list -
 
@@ -402,16 +404,6 @@ class IMGFactory(QMainWindow):
         self.settings = settings
         self.app_settings = settings if hasattr(settings, 'themes') else AppSettings()
 
-        # Set SVG icon color from theme before any UI is built
-        try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory
-            _theme_name = self.app_settings.current_settings.get('theme', 'default')
-            _colors = self.app_settings.get_theme_colors(_theme_name)
-            if _colors:
-                SVGIconFactory.set_theme_color(_colors.get('text_primary', '#000000'))
-        except Exception:
-            pass
-
         # CRITICAL: Initialize IMG Factory settings BEFORE using them
         from apps.methods.img_factory_settings import IMGFactorySettings
         self.img_settings = IMGFactorySettings()
@@ -665,7 +657,7 @@ class IMGFactory(QMainWindow):
         self.reload_table = self.reload_current_file
 
         # === STARTUP COMPLETE ===
-        self.log_message(f"{App_name} initialized - Ready!")
+        self.log_message("IMG Factory 1.6 initialized - Ready!")
 
         # Apply comprehensive fixes for menu system and functionality
         fix_menu_system_and_functionality(self)
@@ -677,22 +669,15 @@ class IMGFactory(QMainWindow):
         self.show()
 
 
-    def log_message(self, message: str): #vers 3
-        """Optimized logging that works before GUI is ready, optionally writes to file"""
+    def log_message(self, message: str): #vers 2
+        """Optimized logging that works before GUI is ready"""
         try:
-            # Write to file if enabled
-            if hasattr(self, 'img_settings') and self.img_settings.get("log_to_file", False):
-                try:
-                    import time
-                    log_path = self.img_settings.get("log_file_path", "imgfactory_activity.log")
-                    with open(log_path, 'a') as f:
-                        f.write(f"[{time.strftime('%H:%M:%S')}] {message}\n")
-                except Exception:
-                    pass
-
+            # Check if GUI is ready
             if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'log') and self.gui_layout.log:
+                # Use QTimer to defer log updates to prevent blocking
                 QTimer.singleShot(0, lambda: self._append_log_message(message))
             else:
+                # Fallback to console if GUI not ready
                 print(f"LOG: {message}")
         except Exception:
             print(f"LOG: {message}")
@@ -833,11 +818,10 @@ class IMGFactory(QMainWindow):
                                 from PyQt6.QtWidgets import QVBoxLayout
                                 layout = QVBoxLayout(dir_widget)
                                 layout.addWidget(self.directory_tree)
-                                self.main_tab_widget.insertTab(0, dir_widget, "Dir Tree")
-                                self._dir_tree_tab_widget = dir_widget
+                                self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
                         
                         # Switch to directory tree tab (tab 0) after short delay
-                        pass  # DIR Tree inserted at index 0
+                        QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
             else:
                 self.log_message("ℹ No saved game root - showing home directory")
 
@@ -860,11 +844,10 @@ class IMGFactory(QMainWindow):
                                         from PyQt6.QtWidgets import QVBoxLayout
                                         layout = QVBoxLayout(dir_widget)
                                         layout.addWidget(self.directory_tree)
-                                        self.main_tab_widget.insertTab(0, dir_widget, "Dir Tree")
-                                self._dir_tree_tab_widget = dir_widget
+                                        self.main_tab_widget.insertTab(0, dir_widget, "DIR Tree")
                                 
                                 # Switch to directory tree tab
-                                pass  # DIR Tree inserted at index 0
+                                QTimer.singleShot(200, lambda: self.main_tab_widget.setCurrentIndex(0))
 
         except Exception as e:
             self.log_message(f"Error autoloading game root: {str(e)}")
@@ -951,11 +934,30 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error applying button settings: {str(e)}")
 
 
-    def _apply_button_display_mode_from_settings(self): #vers 2
-        """Apply button display mode at startup - always text_only, icons handled by splitter"""
+    def _apply_button_display_mode_from_settings(self):
+        """Apply button display mode from app settings"""
         try:
-            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'set_button_display_mode'):
-                self.gui_layout.set_button_display_mode('text_only')
+            # Get the button display mode from settings
+            if hasattr(self, 'app_settings') and hasattr(self.app_settings, 'current_settings'):
+                button_mode = self.app_settings.current_settings.get('button_display_mode', 'both')
+                
+                # Map the settings mode to the GUI mode
+                mode_mapping = {
+                    'both': 'icons_with_text',    # Icons + Text
+                    'icons': 'icons_only',        # Icons Only  
+                    'text': 'text_only'           # Text Only
+                }
+                
+                gui_mode = mode_mapping.get(button_mode, 'icons_with_text')
+                
+                # Apply to GUI layout if available
+                if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'set_button_display_mode'):
+                    self.gui_layout.set_button_display_mode(gui_mode)
+                    self.log_message(f"Applied button display mode: {button_mode} -> {gui_mode}")
+                else:
+                    self.log_message("GUI layout not ready for button display mode")
+            else:
+                self.log_message("App settings not available for button display mode")
         except Exception as e:
             self.log_message(f"Error applying button display mode: {str(e)}")
 
@@ -1177,7 +1179,7 @@ class IMGFactory(QMainWindow):
                 # Export detailed report
                 with open(filename, 'w', encoding='utf-8') as f:
                     f.write(f"IMG Corruption Analysis Report\n")
-                    # f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write(f"File: {self.current_img.file_path}\n")
                     f.write("=" * 60 + "\n\n")
 
@@ -2434,7 +2436,7 @@ class IMGFactory(QMainWindow):
             # Update window title
             if hasattr(self.current_col, 'file_path'):
                 file_name = os.path.basename(self.current_col.file_path)
-                self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+                self.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
 
             # Use proper COL table population from apps.methods.
             if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
@@ -2877,7 +2879,7 @@ class IMGFactory(QMainWindow):
 
     def show_about(self):
         """Show about dialog"""
-        QMessageBox.about(self, f"About {App_name}", f"{App_name}\nAdvanced IMG Archive Management\nX-Seti 2026")
+        QMessageBox.about(self, "About IMG Factory 1.5", "IMG Factory 1.5\nAdvanced IMG Archive Management\nX-Seti 2025")
 
 
     def enable_col_debug(self): #vers 2 #restore
@@ -2960,31 +2962,17 @@ class IMGFactory(QMainWindow):
             except Exception as e:
                 print(f"Toolbar creation failed: {e}")
 
-        # Build the persistent shell: right panel + log live OUTSIDE the tab widget
-        # so they are always visible regardless of which tab is active.
-        # main_tab_widget only contains the table/content area per tab.
-
-        # Create the shared GUI shell (table, right panel, log) once
-        self.gui_layout.create_main_ui_with_splitters(main_layout)
-
-        # Replace gui_layout.table with a tab widget so tabs swap table content
+        # Create main tab widget for file handling
         self.main_tab_widget = QTabWidget()
         self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Replace table in content_splitter with main_tab_widget
-        if hasattr(self.gui_layout, 'content_splitter'):
-            self.gui_layout.content_splitter.replaceWidget(0, self.main_tab_widget)
-            self.gui_layout.table.setParent(None)
-        else:
-            main_layout.addWidget(self.main_tab_widget)
-
-        # Initialize open files tracking
+        # Initialize open files tracking (for migration)
         if not hasattr(self, 'open_files'):
             self.open_files = {}
 
-        # Create initial empty tab with just a table
+        # Create initial empty tab
         self._create_initial_tab()
 
         # Setup close manager BEFORE tab system
@@ -2997,39 +2985,29 @@ class IMGFactory(QMainWindow):
         if self.open_files:
             migrate_tabs(self)
 
+        # Add tab widget to main layout
+        main_layout.addWidget(self.main_tab_widget)
+
         # Create GUI layout system (single instance)
         self.gui_layout.create_status_bar()
         self.gui_layout.apply_table_theme()
-
-        # Apply saved tab settings
-        try:
-            from apps.methods.tab_settings_apply import apply_tab_settings
-            apply_tab_settings(self, self.img_settings)
-        except Exception as e:
-            print(f"Tab settings startup apply failed: {e}")
 
         # Setup unified signal system
         self.setup_unified_signals()
 
 
-    def _create_initial_tab(self): #vers 5
+    def _create_initial_tab(self): #vers 4
         #./components/img_close_functions.py: - def _create_initial_tab[self]
-        """Create initial empty tab with a standalone table"""
-        from PyQt6.QtWidgets import QTableWidget
+        """Create initial empty tab"""
+        # Create tab widget
         tab_widget = QWidget()
         tab_layout = QVBoxLayout(tab_widget)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        table = QTableWidget()
-        table.setAlternatingRowColors(True)
-        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.horizontalHeader().setStretchLastSection(True)
-        tab_layout.addWidget(table)
-        tab_widget.table_ref = table
-        tab_widget.file_type = 'NONE'
-        tab_widget.file_object = None
+        # Create GUI layout for this tab
+        self.gui_layout.create_main_ui_with_splitters(tab_layout)
 
+        # Add tab with "No file" label
         self.main_tab_widget.addTab(tab_widget, "No File")
 
 
@@ -3096,51 +3074,44 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 5
-        """Handle tab switching - DIR Tree or file tabs"""
+    def _on_tab_changed(self, index): #vers 2
+        """Handle tab switching - Tab 0 = Dir Tree, others = IMG files"""
         try:
-            current_tab = self.main_tab_widget.widget(index)
-            tab_name = self.main_tab_widget.tabText(index)
+            if index == 0:  # Dir Tree tab
+                # Hide table, show directory tree
+                if hasattr(self.gui_layout, 'table'):
+                    self.gui_layout.table.hide()
 
-            is_dir_tree = (hasattr(self, '_dir_tree_tab_widget') and
-                           current_tab is self._dir_tree_tab_widget)
-
-            if is_dir_tree:
                 if hasattr(self, 'directory_tree'):
                     self.directory_tree.show()
-                if hasattr(self.gui_layout, 'file_window'):
-                    self.gui_layout.file_window.hide()
-                # Dir tree fills full available space - log unchanged
-                if hasattr(self.gui_layout, 'content_splitter'):
-                    self.gui_layout.content_splitter.setSizes([0, 10000])
-                self.log_message("→ Dir Tree")
-                return
+                    self.log_message("→ Directory Tree")
+                else:
+                    self.log_message("Directory tree not loaded - use Directory Tree button")
 
-            # File tab - show file_window, hide dir tree
-            if hasattr(self.gui_layout, 'file_window'):
-                self.gui_layout.file_window.show()
-            if hasattr(self, 'directory_tree'):
-                self.directory_tree.hide()
-            # 50/50 between dir tree and file content - log unchanged
-            if hasattr(self.gui_layout, 'content_splitter'):
-                self.gui_layout.content_splitter.setSizes([1, 1])
+            else:  # IMG file tabs (index > 0)
+                # Hide directory tree, show table
+                if hasattr(self, 'directory_tree'):
+                    self.directory_tree.hide()
 
-            if not current_tab:
-                return
+                if hasattr(self.gui_layout, 'table'):
+                    self.gui_layout.table.show()
 
-            file_type = getattr(current_tab, 'file_type', None)
-            file_object = getattr(current_tab, 'file_object', None)
+                # Get current tab's file object and repopulate table
+                current_tab = self.main_tab_widget.widget(index)
+                if current_tab and hasattr(current_tab, 'file_object'):
+                    file_object = current_tab.file_object
+                    self.current_img = file_object
 
-            if file_type == 'COL':
-                self.current_col = file_object
-                self.log_message(f"→ {tab_name} (COL)")
-            elif file_type == 'IMG' and file_object is not None:
-                self.current_img = file_object
-                if hasattr(self, '_populate_real_img_table'):
-                    self._populate_real_img_table(file_object)
-                self.log_message(f"→ {tab_name}")
-            else:
-                self.log_message(f"→ {tab_name}")
+                    # Repopulate table
+                    if hasattr(self, '_populate_real_img_table'):
+                        self._populate_real_img_table(file_object)
+                        tab_name = self.main_tab_widget.tabText(index)
+                        self.log_message(f"→ {tab_name}")
+                    else:
+                        self.log_message("⚠ Table population method not available")
+                else:
+                    tab_name = self.main_tab_widget.tabText(index)
+                    self.log_message(f"→ {tab_name} (no file data)")
 
         except Exception as e:
             self.log_message(f"Tab switch error: {str(e)}")
@@ -3494,7 +3465,7 @@ class IMGFactory(QMainWindow):
                         self.gui_layout.load_and_apply_pins(self.current_img.file_path)
 
                     # Update window title
-                    self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+                    self.setWindowTitle(App_name + {file_name})
 
                     # Update info panel/status
                     entry_count = len(img_file.entries) if img_file.entries else 0
@@ -3509,7 +3480,7 @@ class IMGFactory(QMainWindow):
 
             elif file_ext == 'col':
                 # COL file loading (unchanged - working correctly)
-                if hasattr(self, 'load_col_file_safely'):
+                if hasattr_open_txd_workshop(self, 'load_col_file_safely'):
                     self.log_message(f"Loading COL file: {file_name}")
                     success = self.load_col_file_safely(file_path)
                     if success:
@@ -3531,30 +3502,19 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()  # Debug info
             return False
 
-    def _load_img_file_in_new_tab(self, file_path): #vers 2
-        """Load IMG file in new tab using create_tab then thread"""
+    def _load_img_file_in_new_tab(self, file_path): #vers [your_version + 1]
+        """Load IMG file in new tab"""
         try:
-            from apps.methods.tab_system import create_tab
+            import os
+            self.log_message(f"Loading IMG in new tab: {os.path.basename(file_path)}")
 
-            # Create tab first, store index for use when thread completes
-            self._loading_img_tab_index = create_tab(self, file_path=file_path, file_type='IMG', file_object=None)
+            # Create new tab first
+            tab_index = self.create_tab(file_path, 'IMG', None)
 
-            if self._loading_img_tab_index is None:
-                self.log_message("Failed to create IMG tab")
-                return
-
-            # Wait for any running load thread
-            if hasattr(self, 'load_thread') and self.load_thread and self.load_thread.isRunning():
-                self.load_thread.wait()
-
-            self.load_thread = IMGLoadThread(file_path)
-            self.load_thread.progress_updated.connect(self._on_img_load_progress)
-            self.load_thread.loading_finished.connect(self._on_img_loaded)
-            self.load_thread.loading_error.connect(self._on_img_load_error)
-            self.load_thread.start()
-
-        except Exception as e:
-            self.log_message(f"Error loading IMG in new tab: {str(e)}")
+            # Check if a load thread is already running - if so, wait for it to finish
+            if self.load_thread and self.load_thread.isRunning():
+                self.log_message("Waiting for previous load to complete...")
+                self.load_thread.wait()  # Wait for the current thread to finish
 
             # Create and start new thread for this file
             self.load_thread = IMGLoadThread(file_path)
@@ -3770,7 +3730,7 @@ class IMGFactory(QMainWindow):
         self.current_txd = None
 
         # Update window title
-        self.setWindowTitle(App_name + " - " + App_auth + " - " + App_build)
+        self.setWindowTitle("IMG Factory 1.5")
 
         # Clear table if it exists
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
@@ -3788,10 +3748,6 @@ class IMGFactory(QMainWindow):
         # Update file info
         if hasattr(self.gui_layout, 'update_img_info'):
             self.gui_layout.update_img_info("No IMG loaded")
-
-        # Reset status bar
-        if hasattr(self, 'set_ready_status'):
-            self.set_ready_status()
 
         # Reset any status labels
         if hasattr(self, 'file_path_label'):
@@ -4183,7 +4139,6 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Error handling COL table double-click: {str(e)}")
 
-
     def _on_col_loaded(self, col_file): #vers 1 #Restore
         """Handle COL file loaded - UPDATED with styling"""
         try:
@@ -4223,7 +4178,7 @@ class IMGFactory(QMainWindow):
 
             # Update window title to show current file
             file_name = os.path.basename(col_file.file_path) if hasattr(col_file, 'file_path') else "Unknown COL"
-            self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+            self.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
 
             model_count = len(col_file.models) if hasattr(col_file, 'models') and col_file.models else 0
             self.log_message(f"Loaded: {file_name} ({model_count} models)")
@@ -4252,7 +4207,6 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"COL integration error: {str(e)}")
 
-
     def _on_load_progress(self, progress: int, status: str): #vers 2 #Restore
         """Handle loading progress updates"""
         if hasattr(self.gui_layout, 'show_progress'):
@@ -4267,36 +4221,15 @@ class IMGFactory(QMainWindow):
             self.current_img = img_file
 
             # Store on current tab widget
-            tab_index = getattr(self, '_loading_img_tab_index', None)
             current_index = self.main_tab_widget.currentIndex()
             tab_widget = self.main_tab_widget.widget(current_index)
-
-            if tab_index is None:
-                tab_index = self.main_tab_widget.currentIndex()
-
-            tab_widget = self.main_tab_widget.widget(tab_index)
-
             if tab_widget:
                 tab_widget.file_object = img_file
-                tab_widget.file_type = 'IMG'
                 self.log_message(f"IMG stored on tab {current_index}")
-
-            # Get this tab's table
-            from PyQt6.QtWidgets import QTableWidget
-
-            table = getattr(tab_widget, 'table_ref', None) # create an error
-            # IMGFactory._populate_real_img_table() got an unexpected keyword argument 'table'
-
-            if table is None and tab_widget:
-                tables = tab_widget.findChildren(QTableWidget)
-                table = tables[0] if tables else None
-
-            if table:
-                self._populate_img_table_widget(table, img_file)
 
             # Update window title
             file_name = os.path.basename(img_file.file_path)
-            self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+            self.setWindowTitle(f"IMG Factory 1.5 - {file_name}")
 
             # Update UI for loaded IMG
             if hasattr(self, '_update_ui_for_loaded_img'):
@@ -4305,7 +4238,7 @@ class IMGFactory(QMainWindow):
             # Load and apply pinned entries
             if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file and img_file.file_path:
                 self.gui_layout.load_and_apply_pins(img_file.file_path)
-
+            
             # Apply pinned status to entries in the IMG file object itself
             if img_file and img_file.file_path:
                 from apps.core.pin_entries import load_pin_file
@@ -4323,30 +4256,88 @@ class IMGFactory(QMainWindow):
             if hasattr(self.gui_layout, 'hide_progress'):
                 self.gui_layout.hide_progress()
 
-            self._loading_img_tab_index = None
-
         except Exception as e:
             self.log_message(f"Error in _on_img_loaded: {str(e)}")
 
             if hasattr(self, '_on_img_load_error'):
                 self._on_img_load_error(str(e))
-                #import traceback
-                #traceback.print_exc()
 
 
-    def _populate_img_table_widget(self, table, img_file): #vers 1
-        """Populate a specific table widget with IMG entries"""
-        self._populate_real_img_table(img_file, table=table)
+    def _on_img_loaded_bak(self, img_file): #vers 5
+        """Handle IMG loading completion - populate the tab that was created for this file"""
+        try:
+            self.current_img = img_file
+
+            # Use the tab index stored when loading started
+            tab_index = getattr(self, '_loading_img_tab_index', None)
+            current_index = self.main_tab_widget.currentIndex()
+            tab_widget = self.main_tab_widget.widget(current_index)
+
+            if tab_index is None:
+                tab_index = self.main_tab_widget.currentIndex()
+
+            tab_widget = self.main_tab_widget.widget(tab_index)
+
+            if tab_widget:
+                tab_widget.file_object = img_file
+                tab_widget.file_type = 'IMG'
+                self.log_message(f"IMG stored on tab {current_index}")
+
+            # Get this tab's table
+            from PyQt6.QtWidgets import QTableWidget
+            table = getattr(tab_widget, 'table_ref', None)
+
+            if table is None and tab_widget:
+                tables = tab_widget.findChildren(QTableWidget)
+                table = tables[0] if tables else None
+
+            if table:
+                self._populate_img_table_widget(table, img_file)
+
+            # Update window title
+            file_name = os.path.basename(img_file.file_path)
+            self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+
+            # Update UI for loaded IMG
+            if hasattr(self, '_update_ui_for_loaded_img'):
+                self._update_ui_for_loaded_img()
+
+            # Load and apply pinned entries
+            if hasattr(self.gui_layout, 'load_and_apply_pins') and img_file.file_path:
+                self.gui_layout.load_and_apply_pins(img_file.file_path)
+
+            # Apply pinned status to entries in the IMG file object itself
+            if img_file and img_file.file_path:
+                from apps.core.pin_entries import load_pin_file
+                pin_data = load_pin_file(img_file.file_path)
+                for entry in img_file.entries:
+                    entry_name = getattr(entry, 'name', '')
+                    if entry_name in pin_data.get("entries", {}):
+                        entry.is_pinned = True
+
+            # Log success
+            entry_count = len(img_file.entries) if img_file.entries else 0
+            self.log_message(f"Loaded: {file_name} ({entry_count} entries)")
+
+            if hasattr(self, 'update_img_status'):
+                self.update_img_status(img_file=img_file)
+
+            # Hide progress
+            if hasattr(self.gui_layout, 'hide_progress'):
+                self.gui_layout.hide_progress()
+
+            self._loading_img_tab_index = None
+
+        except Exception as e:
+            self.log_message(f"Error in _on_img_loaded: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
     def _populate_real_img_table(self, img_file: IMGFile): #vers 3 #Restore
         """Populate table with real IMG file entries - for SA format display with Date column"""
-
         if not img_file or not img_file.entries:
-            if table:
-                table.setRowCount(0)
-            else:
-                self.gui_layout.table.setRowCount(0)
+            self.gui_layout.table.setRowCount(0)
             return
 
         table = self.gui_layout.table
@@ -5157,7 +5148,7 @@ class IMGFactory(QMainWindow):
     def show_about(self): #vers 2
         """Show about dialog"""
         about_text = """
-        <h2>{App_name} {App_build}</h2>
+        <h2>IMG Factory 1.5</h2>
         <p><b>Professional IMG Archive Manager</b></p>
         <p>Version: 1.5.0 Python Edition</p>
         <p>Author: X-Seti</p>
@@ -5925,7 +5916,7 @@ def set_game_path(main_window):
             QMessageBox.information(
                 main_window,
                 "Game Path Set",
-                f"Game path configured:\\n{folder}\\n\\nDirectory tree will now show game files.\\nSwitch to the 'Merge View' tab to browse."
+                f"Game path configured:\\n{folder}\\n\\nDirectory tree will now show game files.\\nSwitch to the 'Directory Tree' tab to browse."
             )
         else:
             main_window.log_message("Game path selection cancelled")
