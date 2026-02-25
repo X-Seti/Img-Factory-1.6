@@ -1653,65 +1653,95 @@ class IMGFactoryGUILayout:
         return status_container
 
 
-    def _switch_to_directory_tree(self): #vers 12
-        """Switch to Directory Tree - setup once, then block button"""
+    def _switch_to_directory_tree(self): #vers 13
+        """Toggle directory tree panel in content_splitter"""
         try:
-            # If already setup, block second press
-            if hasattr(self.main_window, '_dirtree_setup_complete'):
-                self.main_window.log_message("Directory Tree already loaded - use 'Merge View' tab")
-                return
+            mw = self.main_window
+            gl = mw.gui_layout
 
-            # Check game root
-            if not hasattr(self.main_window, 'game_root') or not self.main_window.game_root:
+            # If panel exists and visible - hide it
+            if hasattr(mw, '_dirtree_panel') and mw._dirtree_panel:
+                if mw._dirtree_panel.isVisible():
+                    mw._dirtree_panel.hide()
+                    if hasattr(gl, 'content_splitter'):
+                        gl.content_splitter.setSizes([10000, 0])
+                    return
+                else:
+                    mw._dirtree_panel.show()
+                    if hasattr(gl, 'content_splitter'):
+                        gl.content_splitter.setSizes([5000, 5000])
+                    return
+
+            # First time setup - check game root
+            if not hasattr(mw, 'game_root') or not mw.game_root:
                 from PyQt6.QtWidgets import QMessageBox
                 reply = QMessageBox.question(
-                    self.main_window,
-                    "No Project Configured",
-                    "No project is currently configured.\n\nWould you like to open the Project Manager now?",
+                    mw, "No Project Configured",
+                    "No project configured.\n\nOpen Project Manager?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     from apps.components.Project_Manager.project_manager import show_project_manager_dialog
-                    show_project_manager_dialog(self.main_window)
+                    show_project_manager_dialog(mw)
                 return
 
-            # ONE-TIME SETUP: Create directory tree
-            if not hasattr(self.main_window, 'directory_tree'):
+            # Create directory tree if needed
+            if not hasattr(mw, 'directory_tree'):
                 from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                if not integrate_directory_tree_browser(self.main_window):
-                    self.main_window.log_message("Failed to load Directory Tree")
+                if not integrate_directory_tree_browser(mw):
+                    mw.log_message("Failed to load Directory Tree")
                     return
 
-            # Place in content_splitter alongside main_tab_widget
-            if hasattr(self.main_window.gui_layout, 'content_splitter'):
-                splitter = self.main_window.gui_layout.content_splitter
-                splitter.addWidget(self.main_window.directory_tree)
-                self.main_window.log_message("✓ Directory tree setup complete")
+            # Wrap tree in panel with close button
+            from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+            panel = QWidget()
+            panel_layout = QVBoxLayout(panel)
+            panel_layout.setContentsMargins(0, 0, 0, 0)
+            panel_layout.setSpacing(0)
+
+            # Title bar with close button
+            title_bar = QWidget()
+            title_bar.setFixedHeight(24)
+            tb_layout = QHBoxLayout(title_bar)
+            tb_layout.setContentsMargins(6, 0, 2, 0)
+            tb_layout.setSpacing(0)
+            title_lbl = QLabel("Directory Tree")
+            title_lbl.setStyleSheet("font-weight: bold; font-size: 10px;")
+            close_btn = QPushButton("✕")
+            close_btn.setFixedSize(18, 18)
+            close_btn.setFlat(True)
+            close_btn.setStyleSheet("font-size: 10px; padding: 0;")
+            close_btn.setToolTip("Close Directory Tree")
+            close_btn.clicked.connect(lambda: self._switch_to_directory_tree())
+            tb_layout.addWidget(title_lbl)
+            tb_layout.addStretch()
+            tb_layout.addWidget(close_btn)
+            panel_layout.addWidget(title_bar)
+            panel_layout.addWidget(mw.directory_tree)
+
+            mw._dirtree_panel = panel
+
+            # Remove Tab 0 "Dir Tree" from main_tab_widget if it exists
+            if hasattr(mw, 'main_tab_widget'):
+                for i in range(mw.main_tab_widget.count()):
+                    if mw.main_tab_widget.tabText(i) in ("Dir Tree", "Directory"):
+                        mw.main_tab_widget.removeTab(i)
+                        break
+
+            # Add to content_splitter
+            if hasattr(gl, 'content_splitter'):
+                gl.content_splitter.insertWidget(0, panel)
+                gl.content_splitter.setSizes([5000, 5000])
 
             # Browse to game root
-            if hasattr(self.main_window.directory_tree, 'browse_directory'):
-                self.main_window.directory_tree.browse_directory(self.main_window.game_root)
+            if hasattr(mw.directory_tree, 'browse_directory'):
+                mw.directory_tree.browse_directory(mw.game_root)
 
-            if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
-
-            self.main_window._dirtree_setup_complete = True
-
-            # Hide file_window entirely so dir tree fills full middle space
-            gl = self.main_window.gui_layout
-            if hasattr(gl, 'file_window'):
-                gl.file_window.hide()
-                if hasattr(gl, 'content_splitter'):
-                    gl.content_splitter.setSizes([0, 10000])
-
-            self.main_window.directory_tree.show()
-
-            if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setCurrentIndex(0)
-                self.main_window.log_message("→ Dir Tree")
+            mw._dirtree_setup_complete = True
+            mw.log_message("✓ Directory Tree open")
 
         except Exception as e:
-            self.main_window.log_message(f"Error: {str(e)}")
+            self.main_window.log_message(f"Dir tree error: {str(e)}")
             import traceback
             traceback.print_exc()
 
