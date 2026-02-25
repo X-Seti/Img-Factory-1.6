@@ -4461,7 +4461,10 @@ class IMGFactory(QMainWindow):
                                 0x0800FFFF: "3.0.0.0", #GTA3 (PS2)
                                 0x0C00FFFF: "3.1.0.0", #GTA3/VC (PC)
                                 0x0C01FFFF: "3.1.0.1", #GTA VC (PC)
-                                0x1005FFFF: "3.2.0.0", #GTA VC (PC)
+                                0x0C02FFFF: "3.1.0.2", #GTA VC (PC +)
+                                0x1000FFFF: "3.2.0.0", #GTA3 (PC)
+                                0x1003FFFF: "3.2.0.3", #GTA3 (PC TXD)
+                                0x1005FFFF: "3.2.0.5", #GTA VC (PC)
                                 0x1402FFFF: "3.3.0.2", #GTA3/VC (PS2)
                                 0x1401FFFF: "3.4.0.1", #Manhunt / SOL
                                 0x1403FFFF: "3.4.0.3", #GTA VC (late)
