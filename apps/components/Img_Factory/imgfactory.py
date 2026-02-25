@@ -4425,10 +4425,10 @@ class IMGFactory(QMainWindow):
                     offset_text = "0x0"
                 table.setItem(row, 4, QTableWidgetItem(offset_text))
 
-                # RW Address - column 5 (new column)
+                # RW Address - column 5 (raw RW version hex from header)
                 try:
-                    if hasattr(entry, 'rw_address') and entry.rw_address is not None:
-                        rw_addr_text = f"0x{int(entry.rw_address):X}"
+                    if hasattr(entry, 'rw_version') and entry.rw_version and entry.rw_version > 0:
+                        rw_addr_text = f"0x{int(entry.rw_version):08X}"
                     else:
                         rw_addr_text = "N/A"
                 except:
@@ -4461,7 +4461,7 @@ class IMGFactory(QMainWindow):
                                 0x0800FFFF: "3.0.0.0", #GTA3 (PS2)
                                 0x0C00FFFF: "3.1.0.0", #GTA3/VC (PC)
                                 0x0C01FFFF: "3.1.0.1", #GTA VC (PC)
-                                0x0C02FFFF: "3.1.0.2", #GTA VC (PC +)
+                                0x0C02FFFF: "3.1.0.2", #GTA III PC / GTA VC (PS2)
                                 0x1000FFFF: "3.2.0.0", #GTA3 (PC)
                                 0x1003FFFF: "3.2.0.3", #GTA3 (PC TXD)
                                 0x1005FFFF: "3.2.0.5", #GTA VC (PC)
