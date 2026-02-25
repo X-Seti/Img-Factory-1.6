@@ -157,6 +157,10 @@ def save_pin_file(img_path: str, pin_data: Dict[str, Any]) -> bool: #vers 1
         return False
     
     try:
+        # Debug: log any entries losing date_modified
+        for _en, _ed in pin_data.get("entries", {}).items():
+            if isinstance(_ed, dict) and _ed.get("date_modified"):
+                print(f"[PINFILE] saving {_en} date_modified={_ed['date_modified']}")
         # Update last_updated timestamp
         pin_data["last_updated"] = datetime.now().isoformat()
         

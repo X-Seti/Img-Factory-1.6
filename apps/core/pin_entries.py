@@ -263,34 +263,35 @@ def get_pinned_entries(file_object) -> List: #vers 1
 
 
 def _save_pin_config(main_window, file_object):
-    """Save pin state to a config file for persistence"""
+    """Save pin state to pin file preserving all existing entry data (dates etc)"""
     try:
         if not hasattr(file_object, 'file_path') or not file_object.file_path:
             return False
-        
-        import json
-        import os
-        
-        # Get the IMG file path without extension
+
         img_path = file_object.file_path
-        base_path = os.path.splitext(img_path)[0]
-        pin_config_path = f"{base_path}.pin"
-        
-        # Create a list of pinned entry names
-        pinned_entries = []
+
+        # Load existing pin data to preserve dates and other fields
+        pin_data = load_pin_file(img_path)
+
+        # Update pinned state from entry objects - do not touch other fields
         if hasattr(file_object, 'entries') and file_object.entries:
             for entry in file_object.entries:
-                if is_entry_pinned_attribute(entry):
-                    pinned_entries.append(entry.name if hasattr(entry, 'name') else "")
-        
-        # Save the pinned entries to the config file
-        with open(pin_config_path, 'w', encoding='utf-8') as f:
-            json.dump(pinned_entries, f)
-        
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Saved pin configuration to {pin_config_path}")
-        
-        return True
+                name = getattr(entry, 'name', '')
+                if not name:
+                    continue
+                pinned = is_entry_pinned_attribute(entry)
+                if name not in pin_data["entries"]:
+                    if pinned:
+                        pin_data["entries"][name] = {
+                            "pinned": True,
+                            "creation_date": None,
+                            "import_date": None
+                        }
+                else:
+                    pin_data["entries"][name]["pinned"] = pinned
+
+        return save_pin_file(img_path, pin_data)
+
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Error saving pin config: {str(e)}")
@@ -489,17 +490,17 @@ def _migrate_from_v1(old_data: Any, img_path: str) -> Dict[str, Any]: #vers 1
                 }
             # If entry already has structure
             elif isinstance(entry_data, dict):
-                # Keep existing data, add missing fields
+                # Keep ALL existing data, add missing fields
                 new_entry = {
                     "pinned": entry_data.get("pinned", True),
                     "creation_date": entry_data.get("creation_date"),
                     "import_date": entry_data.get("import_date", "unknown")
                 }
-                if "source_file" in entry_data:
-                    new_entry["source_file"] = entry_data["source_file"]
-                if "notes" in entry_data:
-                    new_entry["notes"] = entry_data["notes"]
-                
+                # Preserve extra fields including date_modified
+                for key in ("source_file", "notes", "date_modified"):
+                    if key in entry_data:
+                        new_entry[key] = entry_data[key]
+
                 new_data["entries"][filename] = new_entry
     
     return new_data
@@ -521,6 +522,10 @@ def save_pin_file(img_path: str, pin_data: Dict[str, Any]) -> bool: #vers 1
         return False
     
     try:
+        # Debug: log any entries losing date_modified
+        for _en, _ed in pin_data.get("entries", {}).items():
+            if isinstance(_ed, dict) and _ed.get("date_modified"):
+                print(f"[PINFILE] saving {_en} date_modified={_ed['date_modified']}")
         # Update last_updated timestamp
         pin_data["last_updated"] = datetime.now().isoformat()
         
