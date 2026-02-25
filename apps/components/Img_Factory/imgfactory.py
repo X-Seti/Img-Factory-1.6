@@ -1716,11 +1716,18 @@ class IMGFactory(QMainWindow):
                 QMessageBox.warning(self, "Save", "No IMG file loaded to save.")
                 return False
 
-            # Check if the IMG file has been modified
+            # Check active tab file object first, fall back to current_img
+            try:
+                from apps.methods.tab_system import get_current_file_from_active_tab
+                tab_file, tab_type = get_current_file_from_active_tab(self)
+                if tab_file and tab_type == 'IMG':
+                    self.current_img = tab_file
+            except Exception:
+                pass
+
             is_modified = getattr(self.current_img, 'modified', False)
-            
+
             if not is_modified:
-                # Show message that file is unchanged
                 self.log_message("IMG file unchanged, nothing to save")
                 QMessageBox.information(self, "Save", "IMG file unchanged, nothing to save")
                 return False
@@ -2187,8 +2194,7 @@ class IMGFactory(QMainWindow):
                             name_item.setText(new_name)
 
                         # Mark as modified
-                        if hasattr(self.current_img, 'modified'):
-                            self.current_img.modified = True
+                        self.current_img.modified = True
 
                         self.log_message(f"Renamed '{current_name}' to '{new_name}'")
                         QMessageBox.information(self, "Rename Successful", 

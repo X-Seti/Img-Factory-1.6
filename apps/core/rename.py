@@ -528,36 +528,42 @@ def _rename_with_fallback_method(main_window, entry, new_name: str) -> bool: #ve
         return False
 
 
-def _get_selected_entry_safe(main_window, file_object): #vers 2
-    """Safely get selected IMG entry"""
+def _get_selected_entry_safe(main_window, file_object): #vers 3
+    """Safely get selected IMG entry from active tab table"""
     try:
-        # Try different methods to get selected entry
-        selected_entry = None
-        
-        # Method 1: Use main window's get_selected_entries
-        if hasattr(main_window, 'get_selected_entries'):
-            try:
-                selected_entries = main_window.get_selected_entries()
-                if selected_entries:
-                    return selected_entries[0]  # Return first selected
-            except Exception:
-                pass
-        
-        # Method 2: Check table widget
-        if hasattr(main_window, 'entries_table'):
-            try:
-                table = main_window.entries_table
-                current_row = table.currentRow()
-                
-                if current_row >= 0 and hasattr(file_object, 'entries'):
-                    entries = file_object.entries
-                    if current_row < len(entries):
-                        return entries[current_row]
-            except Exception:
-                pass
-        
+        # Get active tab table
+        table = None
+        try:
+            from apps.methods.tab_system import get_current_active_tab_info
+            tab_info = get_current_active_tab_info(main_window)
+            table = tab_info.get('table_widget')
+        except Exception:
+            pass
+
+        if not table:
+            table = getattr(getattr(main_window, 'gui_layout', None), 'table', None)
+
+        if not table or not file_object:
+            return None
+
+        # Get selected row from active table
+        selected_rows = list({item.row() for item in table.selectedItems()})
+        if not selected_rows:
+            # Try current row
+            row = table.currentRow()
+            if row >= 0:
+                selected_rows = [row]
+
+        if not selected_rows:
+            return None
+
+        row = selected_rows[0]
+        entries = getattr(file_object, 'entries', [])
+        if 0 <= row < len(entries):
+            return entries[row]
+
         return None
-        
+
     except Exception:
         return None
 
