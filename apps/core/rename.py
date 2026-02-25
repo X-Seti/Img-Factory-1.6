@@ -281,7 +281,7 @@ def _show_rename_dialog(main_window, current_name: str, file_type: str) -> Optio
         current_layout = QVBoxLayout(current_group)
         
         current_label = QLabel(current_name)
-        current_label.setStyleSheet("padding: 5px; border: 1px solid #ccc;")
+        current_label.setStyleSheet("padding: 5px; border: 1px solid palette(mid);")
         current_label.setFont(QFont("Courier", 10))  # Monospace for better readability
         current_layout.addWidget(current_label)
         
@@ -302,7 +302,7 @@ def _show_rename_dialog(main_window, current_name: str, file_type: str) -> Optio
         else:
             hint = QLabel("COL models: Any descriptive name")
         
-        hint.setStyleSheet("color: #666; font-size: 9px; margin-top: 5px;")
+        hint.setStyleSheet("color: palette(mid); font-size: 9px; margin-top: 5px;")
         
         new_layout.addWidget(name_input)
         new_layout.addWidget(hint)

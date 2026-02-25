@@ -472,7 +472,7 @@ class ASearchDialog(QDialog):
         results_layout = QVBoxLayout(results_group)
 
         self.results_label = QLabel("Enter search criteria and click Find")
-        self.results_label.setStyleSheet("color: #666666; font-style: italic;")
+        self.results_label.setStyleSheet("color: palette(mid); font-style: italic;")
         results_layout.addWidget(self.results_label)
 
         layout.addWidget(results_group)

@@ -323,7 +323,7 @@ def _show_rename_dialog(main_window, current_name: str, item_type: str) -> Optio
             """
         
         validation_label = QLabel(validation_text)
-        validation_label.setStyleSheet("color: #666666; font-size: 9pt;")
+        validation_label.setStyleSheet("color: palette(mid); font-size: 9pt;")
         layout.addWidget(validation_label)
         
         # Buttons

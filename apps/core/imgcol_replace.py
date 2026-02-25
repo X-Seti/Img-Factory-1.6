@@ -249,7 +249,7 @@ def _show_replace_dialog(main_window, item_name: str, item_info: str, item_type:
         info_layout.addWidget(current_label)
         
         info_label = QLabel(f"Info: {item_info}")
-        info_label.setStyleSheet("color: #666666;")
+        info_label.setStyleSheet("color: palette(mid);")
         info_layout.addWidget(info_label)
         
         layout.addWidget(info_group)
@@ -296,7 +296,7 @@ def _show_replace_dialog(main_window, item_name: str, item_info: str, item_type:
         preview_layout = QVBoxLayout(preview_group)
         
         preview_label = QLabel("Select a file to see information...")
-        preview_label.setStyleSheet("color: #666666; font-style: italic;")
+        preview_label.setStyleSheet("color: palette(mid); font-style: italic;")
         preview_layout.addWidget(preview_label)
         
         layout.addWidget(preview_group)

@@ -41,7 +41,7 @@ class FileTypeFilter(QWidget):
         
         # Stats label
         self.stats_label = QLabel("0 files")
-        self.stats_label.setStyleSheet("color: #666; font-size: 10px;")
+        self.stats_label.setStyleSheet("color: palette(mid); font-size: 10px;")
         main_filter_layout.addWidget(self.stats_label)
         
         layout.addLayout(main_filter_layout)
@@ -326,7 +326,7 @@ class ExtractionDialog(QWidget):
         type_counts = self.get_type_counts()
         summary_text = self.format_type_summary(type_counts)
         type_label = QLabel(summary_text)
-        type_label.setStyleSheet("color: #666;")
+        type_label.setStyleSheet("color: palette(mid);")
         layout.addWidget(type_label)
         
         # Output directory

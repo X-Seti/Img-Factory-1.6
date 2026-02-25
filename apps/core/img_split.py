@@ -292,7 +292,7 @@ class SplitDialog(QDialog):
         self.analyze_btn.clicked.connect(self.analyze_ide)
         self.analyze_btn.setVisible(not self.basic_mode)
         self.analyze_btn.setEnabled(False)  # Disabled until IDE editor ready
-        self.analyze_btn.setStyleSheet("color: #888888;")  # Gray text
+        self.analyze_btn.setStyleSheet("color: palette(mid);")  # Gray text
         
         self.split_btn = QPushButton("🔄 Start Split")
         self.split_btn.clicked.connect(self.start_split)
@@ -315,7 +315,7 @@ class SplitDialog(QDialog):
         # IDE file selection - DISABLED until IDE editor ready
         ide_group = QGroupBox("IDE File Selection - Coming Soon")
         ide_group.setEnabled(False)  # Gray out entire section
-        ide_group.setStyleSheet("QGroupBox { color: #888888; }")
+        ide_group.setStyleSheet("QGroupBox { color: palette(mid); }")
         ide_layout = QFormLayout(ide_group)
         
         self.ide_path_input = QLineEdit()
@@ -332,7 +332,7 @@ class SplitDialog(QDialog):
         # Analysis results - DISABLED
         analysis_group = QGroupBox("Analysis Results - Coming Soon")
         analysis_group.setEnabled(False)
-        analysis_group.setStyleSheet("QGroupBox { color: #888888; }")
+        analysis_group.setStyleSheet("QGroupBox { color: palette(mid); }")
         analysis_layout = QVBoxLayout(analysis_group)
         
         self.analysis_text = QTextEdit()
@@ -346,7 +346,7 @@ class SplitDialog(QDialog):
         # Model relationships - DISABLED
         relationships_group = QGroupBox("Model → Texture Relationships - Coming Soon")
         relationships_group.setEnabled(False)
-        relationships_group.setStyleSheet("QGroupBox { color: #888888; }")
+        relationships_group.setStyleSheet("QGroupBox { color: palette(mid); }")
         relationships_layout = QVBoxLayout(relationships_group)
         
         self.relationships_list = QListWidget()
@@ -398,7 +398,7 @@ class SplitDialog(QDialog):
         self.group_by_model = QCheckBox("Group by model (using IDE data) - Coming Soon")
         self.group_by_model.setChecked(False)
         self.group_by_model.setEnabled(False)  # Grayed out until IDE editor is added
-        self.group_by_model.setStyleSheet("color: #888888;")  # Gray text
+        self.group_by_model.setStyleSheet("color: palette(mid);")  # Gray text
         split_layout.addWidget(self.group_by_model)
         
         self.create_index = QCheckBox("Create index file for each group")
@@ -413,7 +413,7 @@ class SplitDialog(QDialog):
         
         # IDE Status - Shows at bottom when IDE is loaded
         self.ide_status_label = QLabel("")
-        self.ide_status_label.setStyleSheet("color: #666; font-size: 9pt; font-style: italic;")
+        self.ide_status_label.setStyleSheet("color: palette(mid); font-size: 9pt; font-style: italic;")
         self.ide_status_label.setVisible(False)  # Hidden until IDE loaded
         layout.addWidget(self.ide_status_label)
         
@@ -464,7 +464,7 @@ class SplitDialog(QDialog):
                 # We found a project folder
                 folder_name = os.path.dirname(default_path)
                 self.project_info_label = QLabel(f"📁 Using project folder: {folder_name}")
-                self.project_info_label.setStyleSheet("color: #666; font-size: 9pt;")
+                self.project_info_label.setStyleSheet("color: palette(mid); font-size: 9pt;")
             else:
                 # Using Desktop fallback
                 self.project_info_label = QLabel("⚠️ No project folder set - using Desktop")

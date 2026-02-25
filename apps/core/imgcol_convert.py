@@ -374,7 +374,7 @@ def _show_convert_dialog(main_window, file_type: str, file_info: Dict) -> Option
             details_text = """<b>COL Format Conversion:</b><br>• Requires COL parser integration<br>• Maintains collision data accuracy<br>• Updates format version headers"""
         
         details_label = QLabel(details_text)
-        details_label.setStyleSheet("color: #666666; font-size: 9pt;")
+        details_label.setStyleSheet("color: palette(mid); font-size: 9pt;")
         details_layout.addWidget(details_label)
         layout.addWidget(details_group)
         
