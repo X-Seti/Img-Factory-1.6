@@ -3120,10 +3120,10 @@ class IMGFactory(QMainWindow):
             elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
                 self.current_col = None
-                if hasattr(self, '_populate_real_img_table'):
-                    self._populate_real_img_table(file_object)
                 if hasattr(self, 'update_img_status'):
                     self.update_img_status(img_file=file_object)
+                if hasattr(self, '_populate_real_img_table'):
+                    self._populate_real_img_table(file_object)
                 self.log_message(f"→ {tab_name}")
             else:
                 self.current_img = None

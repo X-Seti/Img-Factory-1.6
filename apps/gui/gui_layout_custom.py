@@ -622,7 +622,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         try:
             # If already setup, block second press
             if hasattr(self.main_window, '_dirtree_setup_complete'):
-                self.main_window.log_message("Directory Tree already loaded - use 'Dir Tree' tab")
+                self.main_window.log_message("Directory Tree already loaded")
                 return
 
             # Check game root
