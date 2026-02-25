@@ -57,16 +57,22 @@ def add_entry_safe(img_archive, entry_name: str, file_data: bytes, auto_save: bo
                     break
         
         if existing_entry:
+            # Skip if pinned - cannot replace a pinned entry via import
+            if getattr(existing_entry, 'is_pinned', False):
+                if img_debugger:
+                    img_debugger.debug(f"Skipped pinned entry: {entry_name}")
+                return False
+
             # Replace existing entry data
             existing_entry.data = file_data
             existing_entry.size = len(file_data)
             if hasattr(existing_entry, 'streaming_size'):
                 existing_entry.streaming_size = existing_entry.size
-            
+
             # Detect file type and RW version from data
             if hasattr(existing_entry, 'detect_rw_version'):
                 existing_entry.detect_rw_version(file_data)
-            
+
             # Mark entry as replaced for highlighting
             existing_entry.is_new_entry = True
             existing_entry.is_replaced = True

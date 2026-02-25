@@ -4574,20 +4574,29 @@ class IMGFactory(QMainWindow):
                     self.gui_layout.show_progress(0, "Importing files...")
 
                 imported_count = 0
+                skipped_pinned = []
                 imported_names = []
+                from apps.core.undo_system import set_entry_date
                 for i, file_path in enumerate(file_paths):
+                    name = os.path.basename(file_path)
                     progress = int((i + 1) * 100 / len(file_paths))
                     if hasattr(self.gui_layout, 'show_progress'):
-                        self.gui_layout.show_progress(progress, f"Importing {os.path.basename(file_path)}")
+                        self.gui_layout.show_progress(progress, f"Importing {name}")
 
-                    # Check if IMG has import_file method
+                    # Check if existing entry is pinned before importing
+                    if hasattr(self.current_img, 'entries'):
+                        existing = next(
+                            (e for e in self.current_img.entries
+                             if getattr(e, 'name', '').lower() == name.lower()), None)
+                        if existing and getattr(existing, 'is_pinned', False):
+                            skipped_pinned.append(name)
+                            self.log_message(f"Skipped pinned: {name}")
+                            continue
+
                     if hasattr(self.current_img, 'import_file'):
                         if self.current_img.import_file(file_path):
                             imported_count += 1
-                            name = os.path.basename(file_path)
                             imported_names.append(name)
-                            # Stamp date on the newly imported entry
-                            from apps.core.undo_system import set_entry_date
                             for e in self.current_img.entries:
                                 if getattr(e, 'name', '') == name:
                                     set_entry_date(e)
@@ -4609,14 +4618,17 @@ class IMGFactory(QMainWindow):
                     populate_img_table(self.gui_layout.table, self.current_img)
 
                 self.log_message(f"Import complete: {imported_count}/{len(file_paths)} files imported")
+                if skipped_pinned:
+                    self.log_message(f"Skipped {len(skipped_pinned)} pinned: {', '.join(skipped_pinned[:5])}")
 
                 if hasattr(self.gui_layout, 'show_progress'):
                     self.gui_layout.show_progress(-1, "Import complete")
                 if hasattr(self.gui_layout, 'update_img_info'):
                     self.gui_layout.update_img_info(f"{len(self.current_img.entries)} entries")
 
+                skip_msg = f"\n{len(skipped_pinned)} pinned skipped: {', '.join(skipped_pinned[:5])}" if skipped_pinned else ""
                 QMessageBox.information(self, "Import Complete",
-                                      f"Imported {imported_count} of {len(file_paths)} files")
+                                      f"Imported {imported_count} of {len(file_paths)} files{skip_msg}")
 
         except Exception as e:
             error_msg = f"Error importing files: {str(e)}"

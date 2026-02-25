@@ -867,6 +867,11 @@ class IMGFile:
                     print(f"[DEBUG] Replacing existing entry at index {i}: {filename}")
                     break
 
+            # Skip if existing entry is pinned
+            if existing_entry and getattr(existing_entry, 'is_pinned', False):
+                print(f"[DEBUG] Skipped pinned entry: {filename}")
+                return False
+
             # Calculate proper offset for new entry
             if self.entries and not existing_entry:
                 # Find the end of the last entry
