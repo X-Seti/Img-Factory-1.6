@@ -87,6 +87,12 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         table.horizontalHeader().setStretchLastSection(True)
         table.setMouseTracking(True)
         table.viewport().setMouseTracking(True)
+        # Click-drag row selection
+        table.setDragEnabled(False)
+        table.setDragDropMode(QTableWidget.DragDropMode.NoDragDrop)
+        # Click-to-sort on column headers
+        table.setSortingEnabled(True)
+        table.horizontalHeader().setSortIndicatorShown(True)
         table.setStyleSheet("""
             QTableWidget::item:hover {
                 background-color: rgba(100, 150, 255, 0.25);
@@ -97,6 +103,20 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         """)
         tab_layout.addWidget(table)
         tab_widget.table_ref = table
+
+        # Column width save/restore
+        try:
+            from apps.methods.column_width_manager import setup_column_width_tracking
+            setup_column_width_tracking(table, main_window, "img")
+        except Exception as e:
+            print(f"Column width tracking setup error: {e}")
+
+        # Column show/hide right-click header menu
+        try:
+            from apps.methods.column_settings_manager import setup_column_header_menu
+            setup_column_header_menu(table, main_window)
+        except Exception as e:
+            print(f"Column header menu setup error: {e}")
 
         # Setup drag/drop on table
         try:

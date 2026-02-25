@@ -3029,8 +3029,13 @@ class IMGFactory(QMainWindow):
         table = QTableWidget()
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setStretchLastSection(True)
+        table.setDragEnabled(False)
+        table.setDragDropMode(QTableWidget.DragDropMode.NoDragDrop)
+        table.setSortingEnabled(True)
+        table.horizontalHeader().setSortIndicatorShown(True)
         tab_layout.addWidget(table)
         tab_widget.table_ref = table
         tab_widget.file_type = 'NONE'

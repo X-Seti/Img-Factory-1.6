@@ -1,4 +1,4 @@
-#this belongs in methods/column_settings_manager.py - Version: 1
+#this belongs in methods/column_settings_manager.py - Version: 2
 # X-Seti - February04 2026 - Img Factory 1.6 - Column Settings Manager
 """
 Column Settings Manager - Handles column visibility, resize modes, and preferences
@@ -318,6 +318,59 @@ class ColumnSettingsDialog(QDialog): #vers 1
             checkbox.setChecked(visible_columns.get(column_name, True))
 
 
+def setup_column_header_menu(table, main_window): #vers 1
+    """Right-click header menu to show/hide columns"""
+    from PyQt6.QtWidgets import QMenu
+    from PyQt6.QtCore import Qt
+
+    header = table.horizontalHeader()
+    header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+
+    def show_header_menu(pos):
+        menu = QMenu()
+        for col in range(table.columnCount()):
+            item = table.horizontalHeaderItem(col)
+            if not item:
+                continue
+            name = item.text()
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(not table.isColumnHidden(col))
+            action.setData(col)
+
+        chosen = menu.exec(header.mapToGlobal(pos))
+        if chosen:
+            col = chosen.data()
+            hidden = table.isColumnHidden(col)
+            table.setColumnHidden(col, not hidden)
+            # Save hidden state
+            try:
+                from apps.methods.img_factory_settings import IMGFactorySettings
+                settings = IMGFactorySettings()
+                key = "column_hidden_img"
+                hidden_cols = settings.get(key, {})
+                col_name = table.horizontalHeaderItem(col).text()
+                hidden_cols[col_name] = not hidden
+                settings.set(key, hidden_cols)
+                settings.save_settings()
+            except Exception:
+                pass
+
+    header.customContextMenuRequested.connect(show_header_menu)
+
+    # Restore previously hidden columns
+    try:
+        from apps.methods.img_factory_settings import IMGFactorySettings
+        settings = IMGFactorySettings()
+        hidden_cols = settings.get("column_hidden_img", {})
+        for col in range(table.columnCount()):
+            item = table.horizontalHeaderItem(col)
+            if item and item.text() in hidden_cols:
+                table.setColumnHidden(col, hidden_cols[item.text()])
+    except Exception:
+        pass
+
+
 def show_column_settings_dialog(main_window, table_type: str = "img"): #vers 1
     """Show column settings dialog
     
@@ -357,6 +410,7 @@ def integrate_column_settings_manager(main_window) -> bool: #vers 1
 # Export functions
 __all__ = [
     'get_default_column_settings',
+    'setup_column_header_menu',
     'save_column_settings',
     'apply_column_settings',
     'show_column_settings_dialog',
