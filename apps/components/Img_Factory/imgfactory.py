@@ -4404,6 +4404,7 @@ class IMGFactory(QMainWindow):
                     _cts = str(_ct).split('.')[-1] if _ct is not None else 'NONE'
                     compression_text = 'None' if _cts.upper() in ('NONE', 'NOCOMPRESSION', '') else _cts
                 except:
+                    compression_text = 'None'
                 table.setItem(row, 7, QTableWidgetItem(compression_text))
 
                 # Status - column 8 (previously column 6)
