@@ -26,30 +26,18 @@ def update_ui_for_loaded_img(main_window): #vers 6
         file_name = os.path.basename(main_window.current_img.file_path)
         main_window.setWindowTitle(f"{App_name} - {file_name}")
 
-        # Populate table with IMG entries using STANDALONE method
-        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
-            # Import and use the standalone function from apps.methods.
-            from apps.methods.populate_img_table import populate_img_table
-
-            # Setup IMG table structure first
-            table = main_window.gui_layout.table
-            table.setColumnCount(6)
-            table.setHorizontalHeaderLabels([
-                "Name", "Type", "Size", "Offset", "RW Version", "Info"
-            ])
-            # Set IMG column widths
-            table.setColumnWidth(0, 200)  # Name
-            table.setColumnWidth(1, 80)   # Type
-            table.setColumnWidth(2, 100)  # Size
-            table.setColumnWidth(3, 100)  # Offset
-            table.setColumnWidth(4, 120)  # RW Version
-            table.setColumnWidth(5, 150)  # Info
-
-            # Clear table before populating (preserve headers)
-            table.setRowCount(0)
-
-            # Populate table
-            populate_img_table(main_window.gui_layout.table, main_window.current_img)
+        # Populate table - use current tab's table, not shared gui_layout.table
+        if hasattr(main_window, 'gui_layout'):
+            # Get current tab table first, fallback to gui_layout.table
+            table = None
+            if hasattr(main_window, 'main_tab_widget'):
+                tab_widget = main_window.main_tab_widget.currentWidget()
+                if tab_widget:
+                    table = getattr(tab_widget, 'table_ref', None)
+            if table is None and hasattr(main_window.gui_layout, 'table'):
+                table = main_window.gui_layout.table
+            if table:
+                pass  # Table already populated by _on_img_loaded via tab system
             
             if hasattr(main_window, 'log_message'):
                 main_window.log_message(f"Table populated with {len(main_window.current_img.entries)} entries")

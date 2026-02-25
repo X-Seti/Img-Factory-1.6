@@ -523,6 +523,10 @@ class IMGFactory(QMainWindow):
         # Create main UI (includes tab system setup)
         self._create_ui()
 
+        # Stub for selection callbacks before full button system loads
+        if not hasattr(self, '_update_button_states'):
+            self._update_button_states = lambda has_selection: None
+
         add_project_menu_items(self)
 
         # Additional UI integrations
@@ -2525,7 +2529,7 @@ class IMGFactory(QMainWindow):
             self.statusBar().showMessage(message)
 
         # Also update GUI layout status if available
-        if hasattr(self.gui_layout, 'status_label'):
+        if hasattr(self.gui_layout, 'status_label') and self.gui_layout.status_label:
             self.gui_layout.status_label.setText(message)
             
         # Update selection status widget if available
