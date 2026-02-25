@@ -4353,7 +4353,7 @@ class IMGFactory(QMainWindow):
         entries = img_file.entries
 
         # Set up 9 columns: Name, Type, Date, Size, Offset, RW Address, RW Version, Compression, Status
-        table.setColumnCount(9)
+        table.setColumnCount(9) #Date seems to mess up the table
         table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"])
 
         # Clear existing data (including sample entries)
