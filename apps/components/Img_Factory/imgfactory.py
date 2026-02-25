@@ -4469,6 +4469,13 @@ class IMGFactory(QMainWindow):
 
         self.log_message(f"Table populated with {len(entries)} entries (SA format parser fixed)")
 
+        # Restore saved column widths
+        try:
+            from apps.methods.column_width_manager import apply_column_widths
+            apply_column_widths(table, "img", self)
+        except Exception:
+            pass
+
 
     def _on_load_error(self, error_message): #vers 2
         """Handle loading error from background thread"""

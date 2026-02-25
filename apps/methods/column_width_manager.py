@@ -1,12 +1,12 @@
-#this belongs in methods/column_width_manager.py - Version: 1
-# X-Seti - February04 2026 - Img Factory 1.6 - Column Width Manager
+#this belongs in methods/column_width_manager.py - Version: 2
+# X-Seti - February 25 2026 - Img Factory 1.6 - Column Width Manager
 """
-Column Width Manager - Handles saving and restoring table column widths
+Column Width Manager - Handles saving and restoring table column widths.
+Uses main_window.app_settings.current_settings so widths persist with the app config.
 """
 
-from PyQt6.QtWidgets import QTableWidget, QHeaderView
-from apps.methods.img_factory_settings import IMGFactorySettings
-from typing import Dict, List, Optional
+from PyQt6.QtWidgets import QTableWidget
+from typing import Dict
 
 ##Methods list -
 # apply_column_widths
@@ -15,193 +15,116 @@ from typing import Dict, List, Optional
 # save_column_widths
 # setup_column_width_tracking
 
+
 def get_default_column_widths(table_type: str = "img") -> Dict[str, int]: #vers 1
-    """Get default column widths for different table types
-    
-    Args:
-        table_type: Type of table ('img', 'col', 'txd')
-    
-    Returns:
-        Dictionary mapping column names to default widths
-    """
+    """Default column widths per table type."""
     defaults = {
         "img": {
-            "Name": 190,
-            "Type": 60,
-            "Size": 90,
-            "Offset": 100,
-            "RW Address": 100,
-            "RW Version": 100,
-            "Compression": 110,
-            "Status": 110
+            "Name": 190, "Type": 60, "Date": 90, "Size": 90,
+            "Offset": 100, "RW Address": 110, "RW Version": 100,
+            "Compression": 110, "Status": 110
         },
         "col": {
-            "Name": 200,
-            "Type": 80,
-            "Size": 100,
-            "Bounds": 150,
-            "Spheres": 100,
-            "Boxes": 100,
-            "Vertices": 100,
-            "Faces": 100
+            "Name": 200, "Type": 80, "Size": 100, "Bounds": 150,
+            "Spheres": 100, "Boxes": 100, "Vertices": 100, "Faces": 100
         },
         "txd": {
-            "Name": 200,
-            "Format": 100,
-            "Width": 80,
-            "Height": 80,
-            "Mipmaps": 80,
-            "Size": 100
+            "Name": 200, "Format": 100, "Width": 80, "Height": 80,
+            "Mipmaps": 80, "Size": 100
         }
     }
-    
     return defaults.get(table_type, defaults["img"])
 
 
-def save_column_widths(table: QTableWidget, table_type: str = "img") -> bool: #vers 1
-    """Save current column widths to settings
-    
-    Args:
-        table: QTableWidget instance
-        table_type: Type of table ('img', 'col', 'txd')
-    
-    Returns:
-        True if saved successfully
-    """
+def _get_settings_dict(main_window) -> dict:
+    """Return the live settings dict from main_window.app_settings."""
+    try:
+        return main_window.app_settings.current_settings
+    except Exception:
+        return {}
+
+
+def save_column_widths(table: QTableWidget, table_type: str, main_window) -> bool: #vers 2 Fixed
+    """Save current column widths into main_window.app_settings and persist to disk."""
     try:
         if not table:
             return False
-        
-        settings = IMGFactorySettings()
         widths = {}
-        
-        # Read current column widths
         for col in range(table.columnCount()):
-            header_item = table.horizontalHeaderItem(col)
-            if header_item:
-                column_name = header_item.text()
-                width = table.columnWidth(col)
-                widths[column_name] = width
-        
-        # Save to settings with table type prefix
-        settings_key = f"column_widths_{table_type}"
-        settings.set(settings_key, widths)
-        settings.save_settings()  # FIXED: Changed from settings.save()
-        
+            h = table.horizontalHeaderItem(col)
+            if h:
+                widths[h.text()] = table.columnWidth(col)
+        settings = _get_settings_dict(main_window)
+        settings[f"column_widths_{table_type}"] = widths
+        # Persist
+        if hasattr(main_window, 'app_settings') and hasattr(main_window.app_settings, 'save_settings'):
+            main_window.app_settings.save_settings()
         return True
-        
     except Exception as e:
-        print(f"Error saving column widths: {str(e)}")
+        print(f"[COLWIDTH] save error: {e}")
         return False
 
 
-def apply_column_widths(table: QTableWidget, table_type: str = "img") -> bool: #vers 1
-    """Apply saved column widths to table
-    
-    Args:
-        table: QTableWidget instance
-        table_type: Type of table ('img', 'col', 'txd')
-    
-    Returns:
-        True if applied successfully
-    """
+def apply_column_widths(table: QTableWidget, table_type: str, main_window) -> bool: #vers 2 Fixed
+    """Apply saved (or default) column widths to table."""
     try:
         if not table:
             return False
-        
-        settings = IMGFactorySettings()
-        settings_key = f"column_widths_{table_type}"
-        
-        # Load saved widths or use defaults
-        saved_widths = settings.get(settings_key, None)
-        if not saved_widths:
-            saved_widths = get_default_column_widths(table_type)
-        
-        # Apply widths to columns
+        settings = _get_settings_dict(main_window)
+        widths = settings.get(f"column_widths_{table_type}") or get_default_column_widths(table_type)
         for col in range(table.columnCount()):
-            header_item = table.horizontalHeaderItem(col)
-            if header_item:
-                column_name = header_item.text()
-                if column_name in saved_widths:
-                    table.setColumnWidth(col, saved_widths[column_name])
-        
+            h = table.horizontalHeaderItem(col)
+            if h and h.text() in widths:
+                table.setColumnWidth(col, widths[h.text()])
         return True
-        
     except Exception as e:
-        print(f"Error applying column widths: {str(e)}")
+        print(f"[COLWIDTH] apply error: {e}")
         return False
 
 
-def setup_column_width_tracking(table: QTableWidget, main_window, table_type: str = "img") -> bool: #vers 1
-    """Setup automatic column width tracking and saving
-    
-    Args:
-        table: QTableWidget instance
-        main_window: Main window instance (for logging)
-        table_type: Type of table ('img', 'col', 'txd')
-    
-    Returns:
-        True if setup successfully
-    """
+def setup_column_width_tracking(table: QTableWidget, main_window, table_type: str = "img") -> bool: #vers 2 Fixed
+    """Connect sectionResized to save widths; apply saved widths immediately."""
     try:
         if not table:
             return False
-        
         header = table.horizontalHeader()
         if not header:
             return False
-        
-        # Connect to column resize signal
-        def on_column_resized(logical_index, old_size, new_size):
-            """Save column widths when user resizes columns"""
-            save_column_widths(table, table_type)
-            if hasattr(main_window, 'log_message'):
-                column_name = table.horizontalHeaderItem(logical_index).text() if table.horizontalHeaderItem(logical_index) else f"Col{logical_index}"
-                main_window.log_message(f"Column '{column_name}' resized to {new_size}px")
-        
-        header.sectionResized.connect(on_column_resized)
-        
-        # Apply saved widths immediately
-        apply_column_widths(table, table_type)
-        
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Column width tracking enabled for {table_type.upper()} table")
-        
+
+        def on_resized(logical_index, old_size, new_size):
+            save_column_widths(table, table_type, main_window)
+
+        # Disconnect any previous connection to avoid duplicates
+        try:
+            header.sectionResized.disconnect()
+        except Exception:
+            pass
+        header.sectionResized.connect(on_resized)
+
+        apply_column_widths(table, table_type, main_window)
         return True
-        
     except Exception as e:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error setting up column width tracking: {str(e)}")
+        print(f"[COLWIDTH] setup error: {e}")
         return False
 
 
-def integrate_column_width_manager(main_window) -> bool: #vers 1
-    """Integrate column width manager into main window
-    
-    Args:
-        main_window: Main window instance
-    
-    Returns:
-        True if integrated successfully
-    """
+def integrate_column_width_manager(main_window) -> bool: #vers 2 Fixed
+    """Attach helpers to main_window and set up tracking on current table."""
     try:
-        # Add methods to main window
-        main_window.save_column_widths = lambda table, table_type="img": save_column_widths(table, table_type)
-        main_window.apply_column_widths = lambda table, table_type="img": apply_column_widths(table, table_type)
-        main_window.setup_column_width_tracking = lambda table, table_type="img": setup_column_width_tracking(table, main_window, table_type)
-        
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message("Column width manager integrated")
-        
+        main_window.save_column_widths = lambda t, tt="img": save_column_widths(t, tt, main_window)
+        main_window.apply_column_widths = lambda t, tt="img": apply_column_widths(t, tt, main_window)
+        main_window.setup_column_width_tracking = lambda t, tt="img": setup_column_width_tracking(t, main_window, tt)
+
+        # Set up on the current table if available
+        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
+            setup_column_width_tracking(main_window.gui_layout.table, main_window, "img")
+
         return True
-        
     except Exception as e:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Failed to integrate column width manager: {str(e)}")
+        print(f"[COLWIDTH] integrate error: {e}")
         return False
 
 
-# Export functions
 __all__ = [
     'get_default_column_widths',
     'save_column_widths',
