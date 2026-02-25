@@ -88,19 +88,23 @@ def remove_selected_function(main_window): #vers 5
         return False
 
 
-def remove_entries_by_name(main_window, entry_names: List[str]) -> bool: #vers 2
+def remove_entries_by_name(main_window, entry_names: List[str]) -> bool: #vers 3
     """Remove entries by name with proper modification tracking - TAB AWARE"""
     file_object, file_type = get_current_file_from_active_tab(main_window)
     if file_type != 'IMG' or not file_object:
         return False
     if not entry_names:
         return False
-    # Find entries by name
+    # Find entries by name, skip pinned
     entries_to_remove = []
     for entry_name in entry_names:
         for entry in file_object.entries:
             if hasattr(entry, 'name') and entry.name.lower() == entry_name.lower():
-                entries_to_remove.append(entry)
+                if getattr(entry, 'is_pinned', False):
+                    if hasattr(main_window, 'log_message'):
+                        main_window.log_message(f"Skipped pinned entry: {entry.name}")
+                else:
+                    entries_to_remove.append(entry)
                 break
     if not entries_to_remove:
         if hasattr(main_window, 'log_message'):
@@ -146,6 +150,12 @@ def _remove_entries_with_tracking(file_object, entries_to_remove: List, main_win
         file_object.deleted_entries = []
     removed_count = 0
     for entry in entries_to_remove:
+        # Skip pinned entries silently
+        if getattr(entry, 'is_pinned', False):
+            entry_name = getattr(entry, 'name', str(entry))
+            if hasattr(main_window, 'log_message'):
+                main_window.log_message(f"Skipped pinned entry: {entry_name}")
+            continue
         entry_name = getattr(entry, 'name', str(entry))
         if entry in file_object.entries:
             # Remove from current entries list
@@ -181,10 +191,18 @@ def _get_selected_entries_simple(main_window, file_object) -> list: #vers 3
             if row < len(file_object.entries):
                 selected_entries.append(file_object.entries[row])
     
-    # Block pinned entries - hard lock
-    from apps.core.undo_system import check_pinned_lock
-    if check_pinned_lock(main_window, selected_entries, "remove"):
-        return []
+    # Filter out pinned entries silently, warn if all were pinned
+    pinned = [e for e in selected_entries if getattr(e, 'is_pinned', False)]
+    if pinned:
+        skipped_names = [getattr(e, 'name', '?') for e in pinned]
+        selected_entries = [e for e in selected_entries if not getattr(e, 'is_pinned', False)]
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Skipped {len(pinned)} pinned entry(s): {', '.join(skipped_names[:5])}")
+        if not selected_entries:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(main_window, "All Pinned",
+                "All selected entries are pinned and were skipped. Unpin them first to remove.")
+            return []
 
     return selected_entries
 
