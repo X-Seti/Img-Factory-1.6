@@ -1443,9 +1443,11 @@ def integrate_directory_tree_browser(main_window): #vers 4
             main_window.log_message("Directory tree already exists")
             return True
 
-        # First, create the directory browser
-        directory_browser = DirectoryTreeBrowser(main_window)
-        
+        # Create hidden - parent set later when inserted into splitter
+        directory_browser = DirectoryTreeBrowser(None)
+        directory_browser.hide()
+        directory_browser.main_window = main_window
+
         # Store it in main window for later access
         main_window.directory_tree = directory_browser
         
@@ -1488,7 +1490,6 @@ def integrate_directory_tree_browser(main_window): #vers 4
                         middle_vertical_splitter.insertWidget(0, directory_browser)
                         main_window.log_message("✓ Directory tree in file window area")
 
-                        tab_widget.setTabText(0, "Dir Tree")
                         tab_widget.setTabIcon(0, get_folder_icon())
                     else:
                         main_window.log_message("⚠ Could not find middle_vertical_splitter")
