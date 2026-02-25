@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from datetime import datetime
 
-DATE_FMT = "%b %d %Y"  # e.g. "Feb 25 2026"
+DATE_FMT = "%b %d %Y %H:%M:%S"  # e.g. "Feb 25 2026 14:30:00"
 
 
 def set_entry_date(entry, img_path=None): #vers 4 Fixed

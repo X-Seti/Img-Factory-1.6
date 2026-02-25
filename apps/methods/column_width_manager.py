@@ -20,7 +20,7 @@ def get_default_column_widths(table_type: str = "img") -> Dict[str, int]: #vers 
     """Default column widths per table type."""
     defaults = {
         "img": {
-            "Name": 190, "Type": 60, "Date": 90, "Size": 90,
+            "Name": 190, "Type": 60, "Date": 140, "Size": 90,
             "Offset": 100, "RW Address": 110, "RW Version": 100,
             "Compression": 110, "Status": 110
         },
