@@ -1653,92 +1653,126 @@ class IMGFactoryGUILayout:
         return status_container
 
 
-    def _switch_to_directory_tree(self): #vers 13
-        """Toggle directory tree panel in content_splitter"""
+    # View states: 0=files_only  1=split  2=tree_only
+    def _set_view_state(self, state): #vers 1
+        """Apply a view state: 0=files only, 1=split, 2=tree only"""
+        try:
+            mw = self.main_window
+            splitter = getattr(self, 'content_splitter', None)
+            if not splitter:
+                return
+            panel = getattr(mw, '_dirtree_panel', None)
+            tab_w = getattr(mw, 'main_tab_widget', None)
+            self._view_state = state
+            if state == 0:  # files only
+                if panel: panel.hide()
+                if tab_w: tab_w.show()
+                splitter.setSizes([0, 10000])
+            elif state == 1:  # split
+                if panel: panel.show()
+                if tab_w: tab_w.show()
+                splitter.setSizes([5000, 5000])
+            elif state == 2:  # tree only
+                if panel: panel.show()
+                if tab_w: tab_w.hide()
+                splitter.setSizes([10000, 0])
+            self._update_tree_btn_icon()
+        except Exception as e:
+            self.main_window.log_message(f"View state error: {str(e)}")
+
+    def _update_tree_btn_icon(self): #vers 1
+        """Update tree button tooltip to reflect next action"""
+        state = getattr(self, '_view_state', 0)
+        tips = {0: "Show Dir Tree (split view)", 1: "Expand Dir Tree (full)", 2: "Show File Tabs"}
+        if hasattr(self, 'f_entries_btn'):
+            self.f_entries_btn.setToolTip(tips.get(state, "Directory Tree"))
+
+    def _switch_to_directory_tree(self): #vers 14
+        """Cycle view state: files_only→split→tree_only→files_only"""
         try:
             mw = self.main_window
             gl = mw.gui_layout
 
-            # If panel exists and visible - hide it
-            if hasattr(mw, '_dirtree_panel') and mw._dirtree_panel:
-                if mw._dirtree_panel.isVisible():
-                    mw._dirtree_panel.hide()
-                    if hasattr(gl, 'content_splitter'):
-                        gl.content_splitter.setSizes([10000, 0])
-                    return
-                else:
-                    mw._dirtree_panel.show()
-                    if hasattr(gl, 'content_splitter'):
-                        gl.content_splitter.setSizes([5000, 5000])
-                    return
-
-            # First time setup - check game root
-            if not hasattr(mw, 'game_root') or not mw.game_root:
-                from PyQt6.QtWidgets import QMessageBox
-                reply = QMessageBox.question(
-                    mw, "No Project Configured",
-                    "No project configured.\n\nOpen Project Manager?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    from apps.components.Project_Manager.project_manager import show_project_manager_dialog
-                    show_project_manager_dialog(mw)
-                return
-
-            # Create directory tree if needed
-            if not hasattr(mw, 'directory_tree'):
-                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                if not integrate_directory_tree_browser(mw):
-                    mw.log_message("Failed to load Directory Tree")
+            # First time: create tree and panel
+            if not hasattr(mw, '_dirtree_panel') or not mw._dirtree_panel:
+                if not hasattr(mw, 'game_root') or not mw.game_root:
+                    from PyQt6.QtWidgets import QMessageBox
+                    reply = QMessageBox.question(
+                        mw, "No Project Configured",
+                        "No project configured.\n\nOpen Project Manager?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    if reply == QMessageBox.StandardButton.Yes:
+                        from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                        show_project_manager_dialog(mw)
                     return
 
-            # Wrap tree in panel with close button
-            from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
-            panel = QWidget()
-            panel_layout = QVBoxLayout(panel)
-            panel_layout.setContentsMargins(0, 0, 0, 0)
-            panel_layout.setSpacing(0)
+                if not hasattr(mw, 'directory_tree'):
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                    if not integrate_directory_tree_browser(mw):
+                        mw.log_message("Failed to load Directory Tree")
+                        return
 
-            # Title bar with close button
-            title_bar = QWidget()
-            title_bar.setFixedHeight(24)
-            tb_layout = QHBoxLayout(title_bar)
-            tb_layout.setContentsMargins(6, 0, 2, 0)
-            tb_layout.setSpacing(0)
-            title_lbl = QLabel("Directory Tree")
-            title_lbl.setStyleSheet("font-weight: bold; font-size: 10px;")
-            close_btn = QPushButton("✕")
-            close_btn.setFixedSize(18, 18)
-            close_btn.setFlat(True)
-            close_btn.setStyleSheet("font-size: 10px; padding: 0;")
-            close_btn.setToolTip("Close Directory Tree")
-            close_btn.clicked.connect(lambda: self._switch_to_directory_tree())
-            tb_layout.addWidget(title_lbl)
-            tb_layout.addStretch()
-            tb_layout.addWidget(close_btn)
-            panel_layout.addWidget(title_bar)
-            panel_layout.addWidget(mw.directory_tree)
+                # Build panel with title bar
+                from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+                panel = QWidget()
+                panel_layout = QVBoxLayout(panel)
+                panel_layout.setContentsMargins(0, 0, 0, 0)
+                panel_layout.setSpacing(0)
 
-            mw._dirtree_panel = panel
+                title_bar = QWidget()
+                title_bar.setFixedHeight(24)
+                tb_layout = QHBoxLayout(title_bar)
+                tb_layout.setContentsMargins(6, 0, 2, 0)
+                tb_layout.setSpacing(2)
 
-            # Remove Tab 0 "Dir Tree" from main_tab_widget if it exists
-            if hasattr(mw, 'main_tab_widget'):
-                for i in range(mw.main_tab_widget.count()):
-                    if mw.main_tab_widget.tabText(i) in ("Dir Tree", "Directory"):
-                        mw.main_tab_widget.removeTab(i)
-                        break
+                title_lbl = QLabel("Directory Tree")
+                title_lbl.setStyleSheet("font-weight: bold; font-size: 10px;")
 
-            # Add to content_splitter
-            if hasattr(gl, 'content_splitter'):
-                gl.content_splitter.insertWidget(0, panel)
-                gl.content_splitter.setSizes([5000, 5000])
+                # Collapse to split button
+                collapse_btn = QPushButton("◀")
+                collapse_btn.setFixedSize(18, 18)
+                collapse_btn.setFlat(True)
+                collapse_btn.setStyleSheet("font-size: 9px; padding: 0;")
+                collapse_btn.setToolTip("Collapse to split view")
+                collapse_btn.clicked.connect(lambda: self._set_view_state(1))
 
-            # Browse to game root
-            if hasattr(mw.directory_tree, 'browse_directory'):
-                mw.directory_tree.browse_directory(mw.game_root)
+                # Close (files only) button
+                close_btn = QPushButton("✕")
+                close_btn.setFixedSize(18, 18)
+                close_btn.setFlat(True)
+                close_btn.setStyleSheet("font-size: 10px; padding: 0;")
+                close_btn.setToolTip("Close tree, show file tabs only")
+                close_btn.clicked.connect(lambda: self._set_view_state(0))
 
-            mw._dirtree_setup_complete = True
-            mw.log_message("✓ Directory Tree open")
+                tb_layout.addWidget(title_lbl)
+                tb_layout.addStretch()
+                tb_layout.addWidget(collapse_btn)
+                tb_layout.addWidget(close_btn)
+                panel_layout.addWidget(title_bar)
+                panel_layout.addWidget(mw.directory_tree)
+
+                mw._dirtree_panel = panel
+
+                # Remove any stale Dir Tree tab
+                if hasattr(mw, 'main_tab_widget'):
+                    for i in range(mw.main_tab_widget.count()):
+                        if mw.main_tab_widget.tabText(i) in ("Dir Tree", "Directory"):
+                            mw.main_tab_widget.removeTab(i)
+                            break
+
+                if hasattr(gl, 'content_splitter'):
+                    gl.content_splitter.insertWidget(0, panel)
+
+                if hasattr(mw.directory_tree, 'browse_directory') and mw.game_root:
+                    mw.directory_tree.browse_directory(mw.game_root)
+
+                mw._dirtree_setup_complete = True
+                self._view_state = 0  # will advance to 1 below
+
+            # Cycle: 0→1→2→0
+            current = getattr(self, '_view_state', 0)
+            self._set_view_state((current + 1) % 3)
 
         except Exception as e:
             self.main_window.log_message(f"Dir tree error: {str(e)}")
@@ -1861,59 +1895,29 @@ class IMGFactoryGUILayout:
             if hasattr(self, 'main_window'):
                 self.main_window.log_message(f"Log file error: {str(e)}")
 
-    def _toggle_merge_view_layout(self): #vers 3
-        """4-state cycle: W1L|W2R, W1T/W2B, W2L|W1R, W2T/W1B"""
+    def _toggle_merge_view_layout(self): #vers 4
+        """Cycle split ratio when in split view; enter split if not already"""
         try:
             from apps.methods.imgfactory_svg_icons import (
-                get_layout_w1left_icon, get_layout_w1top_icon,
-                get_layout_w2left_icon, get_layout_w2top_icon
+                get_layout_w1left_icon, get_layout_w2left_icon
             )
             if not hasattr(self, 'content_splitter'):
                 return
 
-            splitter = self.content_splitter
-            mw = self.main_window
+            # Enter split state if not already
+            if getattr(self, '_view_state', 0) != 1:
+                self._set_view_state(1)
+                return
 
-            # Add directory_tree to splitter if not already there
-            if hasattr(mw, 'directory_tree') and mw.directory_tree.parent() != splitter:
-                splitter.addWidget(mw.directory_tree)
-            if hasattr(mw, 'directory_tree'):
-                mw.directory_tree.show()
+            # Cycle split ratio: 60/40 → 50/50 → 40/60
+            self._split_ratio_state = (getattr(self, '_split_ratio_state', 0) + 1) % 3
+            ratios = [(6000, 4000), (5000, 5000), (4000, 6000)]
+            self.content_splitter.setSizes(list(ratios[self._split_ratio_state]))
 
-            self._merge_view_state = (getattr(self, '_merge_view_state', 0) + 1) % 4
-            state = self._merge_view_state
-
-            tab_widget = self.main_window.main_tab_widget
-            dir_tree = mw.directory_tree if hasattr(mw, 'directory_tree') else None
-
-            if state == 0:  # W1 left | W2 right
-                splitter.setOrientation(Qt.Orientation.Horizontal)
-                if tab_widget: splitter.insertWidget(0, tab_widget)
-                if dir_tree:   splitter.insertWidget(1, dir_tree)
-                splitter.setSizes([600, 400])
-                self.split_toggle_btn.setIcon(get_layout_w1left_icon(20))
-                self.split_toggle_btn.setToolTip("Files left | Tree right → click: Files top / Tree bottom")
-            elif state == 1:  # W1 top / W2 bottom
-                splitter.setOrientation(Qt.Orientation.Vertical)
-                if tab_widget: splitter.insertWidget(0, tab_widget)
-                if dir_tree:   splitter.insertWidget(1, dir_tree)
-                splitter.setSizes([500, 500])
-                self.split_toggle_btn.setIcon(get_layout_w1top_icon(20))
-                self.split_toggle_btn.setToolTip("Files top / Tree bottom → click: Tree left | Files right")
-            elif state == 2:  # W2 left | W1 right
-                splitter.setOrientation(Qt.Orientation.Horizontal)
-                if dir_tree:   splitter.insertWidget(0, dir_tree)
-                if tab_widget: splitter.insertWidget(1, tab_widget)
-                splitter.setSizes([400, 600])
-                self.split_toggle_btn.setIcon(get_layout_w2left_icon(20))
-                self.split_toggle_btn.setToolTip("Tree left | Files right → click: Tree top / Files bottom")
-            elif state == 3:  # W2 top / W1 bottom
-                splitter.setOrientation(Qt.Orientation.Vertical)
-                if dir_tree:   splitter.insertWidget(0, dir_tree)
-                if tab_widget: splitter.insertWidget(1, tab_widget)
-                splitter.setSizes([500, 500])
-                self.split_toggle_btn.setIcon(get_layout_w2top_icon(20))
-                self.split_toggle_btn.setToolTip("Tree top / Files bottom → click: Files left | Tree right")
+            icons = [get_layout_w1left_icon, get_layout_w2left_icon, get_layout_w2left_icon]
+            tips = ["Tree 60% | Files 40%", "Tree 50% | Files 50%", "Tree 40% | Files 60%"]
+            self.split_toggle_btn.setIcon(icons[self._split_ratio_state](20))
+            self.split_toggle_btn.setToolTip(tips[self._split_ratio_state])
 
         except Exception as e:
             if hasattr(self, 'main_window'):
