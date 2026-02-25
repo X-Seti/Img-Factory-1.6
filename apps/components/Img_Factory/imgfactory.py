@@ -5706,24 +5706,23 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def closeEvent(self, event): #vers 2
+    def closeEvent(self, event): #vers 3
         """Handle application close"""
         try:
             self._save_settings()
+        except Exception:
+            pass
 
-            # Clean up threads
+        try:
+            # Stop load thread with timeout - don't hang waiting forever
             if hasattr(self, 'load_thread') and self.load_thread and self.load_thread.isRunning():
                 self.load_thread.quit()
-                self.load_thread.wait()
+                if not self.load_thread.wait(2000):  # 2 second timeout
+                    self.load_thread.terminate()
+        except Exception:
+            pass
 
-            # Close all files
-            if hasattr(self, 'close_manager'):
-                self.close_manager.close_all_tabs()
-
-            event.accept()
-        except Exception as e:
-            self.log_message(f"Error during close: {str(e)}")
-            event.accept()  # Accept anyway to prevent hanging
+        event.accept()
 
 
 def main():
