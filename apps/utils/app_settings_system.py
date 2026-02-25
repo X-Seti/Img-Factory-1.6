@@ -1876,34 +1876,67 @@ class AppSettings:
 
         QScrollBar:vertical {{
             background-color: {bg_secondary};
-            width: 14px;
-            border: 1px solid {border};
+            width: 12px;
+            border: none;
+            margin: 0px;
         }}
-
         QScrollBar::handle:vertical {{
-            background-color: {button_normal};
-            min-height: 20px;
-            border-radius: 4px;
+            background-color: {border};
+            min-height: 30px;
+            border-radius: 6px;
+            margin: 2px;
         }}
-
         QScrollBar::handle:vertical:hover {{
             background-color: {button_hover};
+        }}
+        QScrollBar::handle:vertical:pressed {{
+            background-color: {accent_primary};
+        }}
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+            height: 0px;
+        }}
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+            background: none;
         }}
 
         QScrollBar:horizontal {{
             background-color: {bg_secondary};
-            height: 14px;
-            border: 1px solid {border};
+            height: 12px;
+            border: none;
+            margin: 0px;
         }}
-
         QScrollBar::handle:horizontal {{
-            background-color: {button_normal};
-            min-width: 20px;
-            border-radius: 4px;
+            background-color: {border};
+            min-width: 30px;
+            border-radius: 6px;
+            margin: 2px;
         }}
-
         QScrollBar::handle:horizontal:hover {{
             background-color: {button_hover};
+        }}
+        QScrollBar::handle:horizontal:pressed {{
+            background-color: {accent_primary};
+        }}
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+            width: 0px;
+        }}
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+            background: none;
+        }}
+
+        QSplitter::handle:horizontal {{
+            background-color: {border};
+            width: 4px;
+        }}
+        QSplitter::handle:horizontal:hover {{
+            background-color: {accent_primary};
+        }}
+        QSplitter::handle:vertical {{
+            background-color: {border};
+            height: 4px;
+        }}
+        QSplitter::handle:vertical:hover {{
+            background-color: {accent_primary};
         }}
         """
 
