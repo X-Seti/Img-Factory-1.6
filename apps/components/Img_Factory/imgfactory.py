@@ -2139,11 +2139,11 @@ class IMGFactory(QMainWindow):
     def _rename_selected(self):
         """Rename selected entry"""
         try:
-            if not hasattr(self, 'gui_layout') or not hasattr(self.gui_layout, 'table'):
+            table = self._get_active_table()
+            if not table:
                 QMessageBox.warning(self, "Rename", "Table not available.")
                 return
 
-            table = self.gui_layout.table
             selected_items = table.selectedItems()
             
             if not selected_items:
@@ -2624,77 +2624,53 @@ class IMGFactory(QMainWindow):
         """Show new IMG creation dialog - FIXED: No signal connections"""
 
 
-    def select_all_entries(self): #vers 3
+    def select_all_entries(self): #vers 4
         """Select all entries in current table"""
-        if hasattr(self.gui_layout, 'table') and self.gui_layout.table:
-            self.gui_layout.table.selectAll()
+        table = self._get_active_table()
+        if table:
+            table.selectAll()
             self.log_message("Selected all entries")
 
 
-    def select_inverse(self): #vers 2
+    def select_inverse(self): #vers 3
         """Select inverse of current selection"""
         try:
-            if hasattr(self.gui_layout, 'table') and self.gui_layout.table:
-                table = self.gui_layout.table
-                # Get currently selected items
-                selected_items = table.selectedItems()
-                selected_rows = set(item.row() for item in selected_items) if selected_items else set()
-                
-                # Clear current selection
+            table = self._get_active_table()
+            if table:
+                selected_rows = set(item.row() for item in table.selectedItems())
                 table.clearSelection()
-                
-                # Select all rows except the currently selected ones
                 for row in range(table.rowCount()):
                     if row not in selected_rows:
                         table.selectRow(row)
-                
                 self.log_message("Selection inverted")
-            else:
-                self.log_message("Table not available for selection")
         except Exception as e:
             self.log_message(f"Select inverse error: {str(e)}")
 
 
-    def sort_entries(self): #vers 1
+    def sort_entries(self): #vers 2
         """Sort entries in the table"""
         try:
-            if hasattr(self.gui_layout, 'table') and self.gui_layout.table:
-                # Get currently selected items to restore selection after sorting
-                selected_items = self.gui_layout.table.selectedItems()
-                selected_rows = set(item.row() for item in selected_items) if selected_items else set()
-                
-                # Sort by the first column (filename) by default
-                self.gui_layout.table.sortItems(0, Qt.SortOrder.AscendingOrder)
-                
-                # Restore selection if there were selected items
+            table = self._get_active_table()
+            if table:
+                selected_rows = set(item.row() for item in table.selectedItems())
+                table.sortItems(0, Qt.SortOrder.AscendingOrder)
                 if selected_rows:
                     for row in selected_rows:
-                        if row < self.gui_layout.table.rowCount():
-                            for col in range(self.gui_layout.table.columnCount()):
-                                item = self.gui_layout.table.item(row, col)
+                        if row < table.rowCount():
+                            for col in range(table.columnCount()):
+                                item = table.item(row, col)
                                 if item:
                                     item.setSelected(True)
-                
                 self.log_message("Entries sorted")
-            else:
-                self.log_message("Table not available for sorting")
         except Exception as e:
             self.log_message(f"Sort entries error: {str(e)}")
 
 
-    def pin_selected_entries(self): #vers 1
+    def pin_selected_entries(self): #vers 2
         """Pin selected entries to keep them at the top of the table"""
         try:
-            if hasattr(self.gui_layout, 'table') and self.gui_layout.table:
-                selected_items = self.gui_layout.table.selectedItems()
-                if not selected_items:
-                    self.log_message("No entries selected to pin")
-                    return
-                
-                selected_rows = set(item.row() for item in selected_items)
-                self.log_message(f"Pinned {len(selected_rows)} entries")
-            else:
-                self.log_message("Table not available for pinning")
+            from apps.core.pin_entries import pin_selected
+            pin_selected(self)
         except Exception as e:
             self.log_message(f"Pin selected error: {str(e)}")
 
@@ -3141,6 +3117,11 @@ class IMGFactory(QMainWindow):
 
             file_type = getattr(current_tab, 'file_type', None)
             file_object = getattr(current_tab, 'file_object', None)
+
+            # Sync gui_layout.table to active tab's table so all core/ files work
+            tab_table = getattr(current_tab, 'table_ref', None)
+            if tab_table and hasattr(self, 'gui_layout'):
+                self.gui_layout.table = tab_table
 
             if file_type == 'COL':
                 self.current_col = file_object
@@ -4304,6 +4285,9 @@ class IMGFactory(QMainWindow):
 
             if table:
                 self._populate_img_table_widget(table, img_file)
+                # Sync gui_layout.table so all core/ files see the active table
+                if hasattr(self, 'gui_layout'):
+                    self.gui_layout.table = table
 
             # Update window title
             file_name = os.path.basename(img_file.file_path)
@@ -4646,6 +4630,32 @@ class IMGFactory(QMainWindow):
                 self.gui_layout.show_progress(-1, "Import error")
             QMessageBox.critical(self, "Import Error", error_msg)
 
+    def _get_active_table(self): #vers 1
+        """Return the active tab's table widget, falling back to gui_layout.table"""
+        try:
+            from apps.methods.tab_system import get_current_active_tab_info
+            tab_info = get_current_active_tab_info(self)
+            table = tab_info.get('table_widget')
+            if table:
+                return table
+        except Exception:
+            pass
+        return getattr(self.gui_layout, 'table', None)
+
+    def _get_active_selected_rows(self): #vers 1
+        """Return deduplicated list of selected row indices from active tab's table"""
+        table = self._get_active_table()
+        if not table:
+            return []
+        seen = set()
+        rows = []
+        for item in table.selectedItems():
+            r = item.row()
+            if r not in seen:
+                seen.add(r)
+                rows.append(r)
+        return rows
+
     def export_selected(self):
         """Export selected entries"""
         if not self.current_img:
@@ -4653,11 +4663,8 @@ class IMGFactory(QMainWindow):
             return
 
         try:
-            selected_rows = []
-            if hasattr(self.gui_layout, 'table') and hasattr(self.gui_layout.table, 'selectedItems'):
-                for item in self.gui_layout.table.selectedItems():
-                    if item.column() == 0:  # Only filename column
-                        selected_rows.append(item.row())
+            selected_rows = self._get_active_selected_rows()
+            table = self._get_active_table()
 
             if not selected_rows:
                 QMessageBox.warning(self, "No Selection", "Please select entries to export.")
@@ -4673,7 +4680,7 @@ class IMGFactory(QMainWindow):
                 exported_count = 0
                 for i, row in enumerate(selected_rows):
                     progress = int((i + 1) * 100 / len(selected_rows))
-                    entry_name = self.gui_layout.table.item(row, 0).text() if self.gui_layout.table.item(row, 0) else f"Entry_{row}"
+                    entry_name = table.item(row, 0).text() if table and table.item(row, 0) else f"Entry_{row}"
 
                     if hasattr(self.gui_layout, 'show_progress'):
                         self.gui_layout.show_progress(progress, f"Exporting {entry_name}")
@@ -4762,11 +4769,8 @@ class IMGFactory(QMainWindow):
             return
 
         try:
-            selected_rows = []
-            if hasattr(self.gui_layout, 'table') and hasattr(self.gui_layout.table, 'selectedItems'):
-                for item in self.gui_layout.table.selectedItems():
-                    if item.column() == 0:  # Only filename column
-                        selected_rows.append(item.row())
+            selected_rows = self._get_active_selected_rows()
+            table = self._get_active_table()
 
             if not selected_rows:
                 QMessageBox.warning(self, "No Selection", "Please select entries to remove.")
@@ -4775,7 +4779,7 @@ class IMGFactory(QMainWindow):
             # Confirm removal
             entry_names = []
             for row in selected_rows:
-                item = self.gui_layout.table.item(row, 0)
+                item = table.item(row, 0) if table else None
                 entry_names.append(item.text() if item else f"Entry_{row}")
 
             reply = QMessageBox.question(
@@ -4790,7 +4794,7 @@ class IMGFactory(QMainWindow):
 
                 removed_count = 0
                 for row in selected_rows:
-                    item = self.gui_layout.table.item(row, 0)
+                    item = table.item(row, 0) if table else None
                     entry_name = item.text() if item else f"Entry_{row}"
 
                     # Check if IMG has remove_entry method
