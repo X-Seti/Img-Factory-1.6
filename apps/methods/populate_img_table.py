@@ -51,11 +51,9 @@ def reset_table_styling(main_window): #vers 2
             }
             QTableWidget::item:selected {
                 background-color: rgba(70, 130, 230, 0.7);
-                color: white;
             }
             QTableWidget::item:selected:hover {
                 background-color: rgba(90, 150, 250, 0.8);
-                color: white;
             }
         """)
         header.setStretchLastSection(True)
@@ -126,9 +124,9 @@ class IMGTablePopulator:
             table.setColumnWidth(7, 110)
             header = table.horizontalHeader()
             header.setSectionsMovable(True)
-            header.setStretchLastSection(False)
-            for col in range(8):
-                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+            header.setStretchLastSection(True)
+            for col in range(7):
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             entries = img_file.entries
             if not entries:
                 img_debugger.info("No entries found in IMG file")

@@ -101,11 +101,9 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
             }
             QTableWidget::item:selected {
                 background-color: rgba(70, 130, 230, 0.7);
-                color: white;
             }
             QTableWidget::item:selected:hover {
                 background-color: rgba(90, 150, 250, 0.8);
-                color: white;
             }
         """)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
