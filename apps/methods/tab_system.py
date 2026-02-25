@@ -614,10 +614,18 @@ def refresh_current_tab_data(main_window) -> bool: #vers 3
             file_type = getattr(tab_widget, 'file_type', 'NONE')
             
             if file_type == 'IMG' and file_object:
-                # Get the shared table and populate it with the current tab's IMG data
-                shared_table = main_window.gui_layout.table
-                from apps.methods.populate_img_table import populate_img_table
-                populate_img_table(shared_table, file_object)
+                # Populate the ACTIVE tab's table (not gui_layout.table which is always tab 0)
+                from apps.methods.export_shared import get_active_table
+                active_table = get_active_table(main_window)
+                if active_table and hasattr(main_window, '_populate_real_img_table'):
+                    main_window._populate_real_img_table(file_object, table=active_table)
+                    if getattr(file_object, 'file_path', None):
+                        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'load_and_apply_pins'):
+                            main_window.gui_layout.load_and_apply_pins(file_object.file_path)
+                else:
+                    from apps.methods.populate_img_table import populate_img_table
+                    shared_table = active_table or main_window.gui_layout.table
+                    populate_img_table(shared_table, file_object)
             elif file_type == 'COL' and file_object:
                 # Refresh COL display if needed
                 from apps.components.Col_Editor.col_workshop import COLWorkshop
