@@ -3937,7 +3937,12 @@ class IMGFactory(QMainWindow):
                         self.current_img and
                         self.current_img.file_path):
 
-                        with open(self.current_img.file_path, 'rb') as f:
+                        # V1 stores file_path as .dir - data is in .img
+                        img_data_path = self.current_img.file_path
+                        if img_data_path.lower().endswith('.dir'):
+                            img_data_path = img_data_path[:-4] + '.img'
+
+                        with open(img_data_path, 'rb') as f:
                             f.seek(entry.offset)
                             # Only read the header (12 bytes) for efficiency
                             file_data = f.read(min(entry.size, 12))
