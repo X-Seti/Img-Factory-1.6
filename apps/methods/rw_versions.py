@@ -137,21 +137,21 @@ def get_rw_version_name(version_value: int) -> str:  # vers 10
         0x37002: "3.7.0.2",
 
         # ---- Extended / platform-packed forms ----
-        0x0003FFFF: "3.0.0.3",
-        0x0800FFFF: "3.0.0.0 GTA3/4 era",
-        0x0C02FFFF: "3.3.0.2 GTA III PC / GTA VC (PS2)",
-        0x1003FFFF: "3.4.0.3 GTA VC (PC)",
-        0x0C00FFFF: "3.1.0.0 GTA3/VC (PC)",
-        0x0C01FFFF: "3.1.0.1 GTA VC (PC)",
-        0x1005FFFF: "3.2.0.0 GTA VC (PC)",
-        0x1402FFFF: "3.3.0.2 GTA3/VC (PS2)",
-        0x1401FFFF: "3.4.0.1 Manhunt / SOL",
-        0x1403FFFF: "3.4.0.3 GTA VC (late)",
-        0x1800FFFF: "3.5.0.0 Internal Dev (SA Alpha)",
-        0x1801FFFF: "3.5.0.1 Internal Dev (LCS)",
-        0x1802FFFF: "3.5.0.2 Internal Dev (VCS)",
-        0x1803FFFF: "3.6.0.3 GTA SA (PC)",
-        0x1C020037: "3.7.0.2 San Andreas Mobile / PSP",
+        0x0800FFFF: "3.0.0.0", #GTA3 (PS2)
+        0x0C00FFFF: "3.1.0.0", #GTA3/VC (PC)
+        0x0C01FFFF: "3.1.0.1", #GTA VC (PC)
+        0x0C02FFFF: "3.1.0.2", #GTA III PC / GTA VC (PS2)
+        0x1000FFFF: "3.2.0.0", #GTA3 (PC)
+        0x1003FFFF: "3.2.0.3", #GTA3 (PC TXD)
+        0x1005FFFF: "3.2.0.5", #GTA VC (PC)
+        0x1402FFFF: "3.3.0.2", #GTA3/VC (PS2)
+        0x1401FFFF: "3.4.0.1", #Manhunt / SOL
+        0x1403FFFF: "3.4.0.3", #GTA VC (late)
+        0x1800FFFF: "3.5.0.0", #Internal Dev (SA Alpha)
+        0x1801FFFF: "3.5.0.1", #Internal Dev (LCS)
+        0x1802FFFF: "3.5.0.2", #Internal Dev (VCS)
+        0x1803FFFF: "3.6.0.3", #GTA SA (PC)
+        0x1C020037: "3.7.0.2", #San Andreas Mobile / PSP
     }
 
 
@@ -160,7 +160,7 @@ def get_rw_version_name(version_value: int) -> str:  # vers 10
 def is_valid_rw_version(version_value: int) -> bool: #vers 2
     if 0x30000 <= version_value <= 0x3FFFF:
         return True
-    extended_versions = {0x0003FFFF, 0x0800FFFF, 0x0C02FFFF, 0x1003FFFF, 0x1005FFFF, 0x1401FFFF, 0x1400FFFF, 0x1803FFFF, 0x1C020037}
+    extended_versions = {0x0800FFFF, 0x0C00FFFF, 0x0C01FFFF, 0x0C02FFFF, 0x1000FFFF, 0x1003FFFF, 0x1005FFFF, 0x1402FFFF, 0x1401FFFF, 0x1403FFFF, 0x1800FFFF, 0x1801FFFF, 0x1802FFFF, 0x1803FFFF, 0x1C020037}
     return version_value in extended_versions
 
 def get_default_version_for_game(game: str) -> int: #vers 2
