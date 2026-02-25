@@ -148,9 +148,12 @@ def rename_img_entry(main_window): #vers 4
             # Mark modified
             file_object.modified = True
 
-            # Full repopulate so Date column updates
+            # Full repopulate into the ACTIVE tab's table so Date column updates
             if hasattr(main_window, '_populate_real_img_table'):
-                main_window._populate_real_img_table(file_object)
+                from apps.methods.export_shared import get_active_table
+                active_table = get_active_table(main_window)
+                dbg(f"repopulating active_table={active_table is not None}")
+                main_window._populate_real_img_table(file_object, table=active_table)
                 if getattr(file_object, 'file_path', None):
                     if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'load_and_apply_pins'):
                         main_window.gui_layout.load_and_apply_pins(file_object.file_path)

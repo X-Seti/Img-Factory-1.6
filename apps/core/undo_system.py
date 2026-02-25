@@ -213,7 +213,9 @@ def refresh_after_undo(main_window): #vers 2
     try:
         file_object = getattr(main_window, 'current_img', None) or getattr(main_window, 'current_col', None)
         if file_object and hasattr(main_window, '_populate_real_img_table'):
-            main_window._populate_real_img_table(file_object)
+            from apps.methods.export_shared import get_active_table
+            active_table = get_active_table(main_window)
+            main_window._populate_real_img_table(file_object, table=active_table)
         elif hasattr(main_window, 'refresh_table'):
             main_window.refresh_table()
         if file_object:
