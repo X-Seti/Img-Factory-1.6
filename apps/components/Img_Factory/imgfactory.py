@@ -827,21 +827,7 @@ class IMGFactory(QMainWindow):
                     self.log_message("✓ Directory Tree populated with game root")
 
                     # Ensure directory tree is placed in Tab 0 and set as current tab
-                    if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
-                        # First, ensure directory tree is in the first tab
-                        if self.main_tab_widget.count() > 0:
-                            # Insert directory tree as first tab if it doesn't exist yet
-                            if not any("Directory" in self.main_tab_widget.tabText(i) for i in range(self.main_tab_widget.count())):
-                                from PyQt6.QtWidgets import QWidget
-                                dir_widget = QWidget()
-                                from PyQt6.QtWidgets import QVBoxLayout
-                                layout = QVBoxLayout(dir_widget)
-                                layout.addWidget(self.directory_tree)
-                                self.main_tab_widget.insertTab(0, dir_widget, "Dir Tree")
-                                self._dir_tree_tab_widget = dir_widget
-                        
-                        # Switch to directory tree tab (tab 0) after short delay
-                        pass  # DIR Tree inserted at index 0
+                    # Dir tree lives in content_splitter - no tab needed
             else:
                 self.log_message("ℹ No saved game root - showing home directory")
 
@@ -855,20 +841,7 @@ class IMGFactory(QMainWindow):
                             self.log_message(f"✓ Directory Tree showing: {home_dir}")
 
                             # Ensure directory tree is placed in Tab 0
-                            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
-                                # Insert directory tree as first tab if it doesn't exist yet
-                                if self.main_tab_widget.count() > 0:
-                                    if not any("Directory" in self.main_tab_widget.tabText(i) for i in range(self.main_tab_widget.count())):
-                                        from PyQt6.QtWidgets import QWidget
-                                        dir_widget = QWidget()
-                                        from PyQt6.QtWidgets import QVBoxLayout
-                                        layout = QVBoxLayout(dir_widget)
-                                        layout.addWidget(self.directory_tree)
-                                        self.main_tab_widget.insertTab(0, dir_widget, "Dir Tree")
-                                self._dir_tree_tab_widget = dir_widget
-                                
-                                # Switch to directory tree tab
-                                pass  # DIR Tree inserted at index 0
+                            # Dir tree lives in content_splitter - no tab needed
 
         except Exception as e:
             self.log_message(f"Error autoloading game root: {str(e)}")
@@ -3095,28 +3068,7 @@ class IMGFactory(QMainWindow):
             current_tab = self.main_tab_widget.widget(index)
             tab_name = self.main_tab_widget.tabText(index)
 
-            is_dir_tree = (hasattr(self, '_dir_tree_tab_widget') and
-                           current_tab is self._dir_tree_tab_widget)
-
-            if is_dir_tree:
-                if hasattr(self, 'directory_tree'):
-                    self.directory_tree.show()
-                if hasattr(self.gui_layout, 'file_window'):
-                    self.gui_layout.file_window.hide()
-                # Dir tree fills full available space - log unchanged
-                if hasattr(self.gui_layout, 'content_splitter'):
-                    self.gui_layout.content_splitter.setSizes([0, 10000])
-                self.log_message("→ Dir Tree")
-                return
-
-            # File tab - show file_window, hide dir tree
-            if hasattr(self.gui_layout, 'file_window'):
-                self.gui_layout.file_window.show()
-            if hasattr(self, 'directory_tree'):
-                self.directory_tree.hide()
-            # 50/50 between dir tree and file content - log unchanged
-            if hasattr(self.gui_layout, 'content_splitter'):
-                self.gui_layout.content_splitter.setSizes([1, 1])
+            # File tab selected - ensure directory tree stays in its splitter position
 
             if not current_tab:
                 return

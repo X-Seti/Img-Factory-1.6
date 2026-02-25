@@ -1653,65 +1653,66 @@ class IMGFactoryGUILayout:
         return status_container
 
 
-    def _switch_to_directory_tree(self): #vers 12
-        """Switch to Directory Tree - setup once, then block button"""
+    def _switch_to_directory_tree(self): #vers 13
+        """Toggle directory tree in content_splitter. First call sets it up."""
         try:
-            # If already setup, block second press
-            if hasattr(self.main_window, '_dirtree_setup_complete'):
-                self.main_window.log_message("Directory Tree already loaded - use 'Merge View' tab")
+            mw = self.main_window
+            splitter = getattr(self, 'content_splitter', None)
+
+            # If already set up - toggle visibility
+            if hasattr(mw, '_dirtree_setup_complete') and mw._dirtree_setup_complete:
+                if not splitter:
+                    return
+                tree = getattr(mw, 'directory_tree', None)
+                if not tree:
+                    return
+                sizes = splitter.sizes()
+                total = sum(sizes)
+                if not total:
+                    return
+                # Tree is index 1 in splitter (file tabs = 0, tree = 1)
+                if sizes[1] <= total * 0.05:
+                    # Tree hidden - restore split
+                    splitter.setSizes([total // 2, total // 2])
+                    mw.log_message("→ Split view")
+                else:
+                    # Tree visible - hide it
+                    splitter.setSizes([total, 0])
+                    mw.log_message("→ Files only")
                 return
 
-            # Check game root
-            if not hasattr(self.main_window, 'game_root') or not self.main_window.game_root:
+            # First time setup
+            if not hasattr(mw, 'game_root') or not mw.game_root:
                 from PyQt6.QtWidgets import QMessageBox
                 reply = QMessageBox.question(
-                    self.main_window,
-                    "No Project Configured",
+                    mw, "No Project Configured",
                     "No project is currently configured.\n\nWould you like to open the Project Manager now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     from apps.components.Project_Manager.project_manager import show_project_manager_dialog
-                    show_project_manager_dialog(self.main_window)
+                    show_project_manager_dialog(mw)
                 return
 
-            # ONE-TIME SETUP: Create directory tree
-            if not hasattr(self.main_window, 'directory_tree'):
+            if not hasattr(mw, 'directory_tree'):
                 from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                if not integrate_directory_tree_browser(self.main_window):
-                    self.main_window.log_message("Failed to load Directory Tree")
+                if not integrate_directory_tree_browser(mw):
+                    mw.log_message("Failed to load Directory Tree")
                     return
 
-            # Place in content_splitter alongside main_tab_widget
-            if hasattr(self.main_window.gui_layout, 'content_splitter'):
-                splitter = self.main_window.gui_layout.content_splitter
-                splitter.addWidget(self.main_window.directory_tree)
-                self.main_window.log_message("✓ Directory tree setup complete")
+            # Add tree to splitter (index 1, files at 0)
+            if splitter:
+                splitter.addWidget(mw.directory_tree)
+                splitter.setSizes([5000, 5000])
 
-            # Browse to game root
-            if hasattr(self.main_window.directory_tree, 'browse_directory'):
-                self.main_window.directory_tree.browse_directory(self.main_window.game_root)
+            if hasattr(mw.directory_tree, 'browse_directory'):
+                mw.directory_tree.browse_directory(mw.game_root)
 
-            if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setTabText(0, "Dir Tree")
-
-            self.main_window._dirtree_setup_complete = True
-
-            # Hide file_window entirely so dir tree fills full middle space
-            gl = self.main_window.gui_layout
-            if hasattr(gl, 'file_window'):
-                gl.file_window.hide()
-                if hasattr(gl, 'content_splitter'):
-                    gl.content_splitter.setSizes([0, 10000])
-
-            self.main_window.directory_tree.show()
-
-            if hasattr(self.main_window, 'main_tab_widget'):
-                self.main_window.main_tab_widget.setCurrentIndex(0)
-                self.main_window.log_message("→ Dir Tree")
+            mw._dirtree_setup_complete = True
+            mw.log_message("✓ Directory Tree open — double-click tab to maximise")
 
         except Exception as e:
-            self.main_window.log_message(f"Error: {str(e)}")
+            self.main_window.log_message(f"Dir tree error: {str(e)}")
             import traceback
             traceback.print_exc()
 
@@ -3039,20 +3040,26 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"Error updating open files list: {str(e)}")
 
 
-    def _on_tab_double_click(self, index): #vers 1
-        """Handle double-click on tab - Tab 0 shows directory tree"""
+    def _on_tab_double_click(self, index): #vers 2
+        """Double-click file tab: toggle between full file tabs and split view"""
         try:
-            if index == 0:  # "No File" tab
-                # Show directory tree, hide table
-                if hasattr(self, 'directory_tree'):
-                    if hasattr(self.gui_layout, 'table'):
-                        self.gui_layout.table.hide()
-                    self.directory_tree.show()
-                    self.log_message("→ Merge View")
-                else:
-                    self.log_message("Directory tree not loaded - use Project menu")
+            splitter = getattr(self, 'content_splitter', None)
+            if not splitter or splitter.count() < 2:
+                return
+            sizes = splitter.sizes()
+            total = sum(sizes)
+            if not total:
+                return
+            # If files are already maximised (tree <= 5% of total), restore split
+            if sizes[0] <= total * 0.05:
+                splitter.setSizes([total // 2, total // 2])
+                self.main_window.log_message("→ Split view")
+            else:
+                # Maximise file tabs - collapse tree
+                splitter.setSizes([0, total])
+                self.main_window.log_message("→ Files maximised (double-click tab to restore split)")
         except Exception as e:
-            self.log_message(f"Error on tab double-click: {str(e)}")
+            self.main_window.log_message(f"Tab double-click error: {str(e)}")
 
 
     def refresh_directory_files(self):  # vers 1
