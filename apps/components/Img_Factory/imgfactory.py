@@ -4320,6 +4320,10 @@ class IMGFactory(QMainWindow):
             entry_count = len(img_file.entries) if img_file.entries else 0
             self.log_message(f"Loaded: {file_name} ({entry_count} entries)")
 
+            # Update status bar
+            if hasattr(self, 'update_img_status'):
+                self.update_img_status(img_file=img_file)
+
             # Hide progress
             if hasattr(self.gui_layout, 'hide_progress'):
                 self.gui_layout.hide_progress()

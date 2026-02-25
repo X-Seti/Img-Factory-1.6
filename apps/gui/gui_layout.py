@@ -1591,11 +1591,12 @@ class IMGFactoryGUILayout:
         )
 
         self.f_entries_btn = QPushButton()
-        self.f_entries_btn.setIcon(get_twin_panel_icon(20))
+        from apps.methods.imgfactory_svg_icons import get_tree_icon
+        self.f_entries_btn.setIcon(get_tree_icon(20))
         self.f_entries_btn.setFixedSize(24, 24)
         self.f_entries_btn.setIconSize(QSize(20, 20))
-        self.f_entries_btn.setToolTip("File Entries (Ctrl+1)")
-        self.f_entries_btn.clicked.connect(lambda: self._switch_to_file_entries() if hasattr(self, '_switch_to_file_entries') else None)
+        self.f_entries_btn.setToolTip("Directory Tree")
+        self.f_entries_btn.clicked.connect(lambda: self._switch_to_directory_tree() if hasattr(self, '_switch_to_directory_tree') else None)
         header_layout.addWidget(self.f_entries_btn)
 
         # Merge View toggle
