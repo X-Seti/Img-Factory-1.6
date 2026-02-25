@@ -75,11 +75,6 @@ def rename_entry(main_window): #vers 3
         return False
 
 
-def rename_selected_entry(main_window): #vers 2
-    """Alias for main rename function for GUI compatibility"""
-    return rename_entry(main_window)
-
-
 def rename_img_entry(main_window): #vers 3
     """Rename IMG entry with validation and IMG_Editor core support"""
     try:
@@ -626,7 +621,6 @@ def integrate_rename_functions(main_window) -> bool: #vers 2
     try:
         # Add main rename functions
         main_window.rename_entry = lambda: rename_entry(main_window)
-        main_window.rename_selected_entry = lambda: rename_selected_entry(main_window)
         main_window.rename_img_entry = lambda: rename_img_entry(main_window)
         main_window.rename_col_model = lambda: rename_col_model(main_window)
         
@@ -652,7 +646,6 @@ def integrate_rename_functions(main_window) -> bool: #vers 2
 # Export functions
 __all__ = [
     'rename_entry',
-    'rename_selected_entry',
     'rename_img_entry',
     'rename_col_model',
     'integrate_rename_functions'

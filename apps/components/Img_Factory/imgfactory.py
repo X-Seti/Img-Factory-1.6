@@ -547,6 +547,8 @@ class IMGFactory(QMainWindow):
         self._apply_button_settings_at_startup()
 
         integrate_remove_functions(self)
+        from apps.core.rename import integrate_rename_functions
+        integrate_rename_functions(self)
         integrate_save_entry_function(self)
         integrate_batch_rebuild_functions(self)
         integrate_rebuild_functions(self)
@@ -1601,8 +1603,7 @@ class IMGFactory(QMainWindow):
         self.find_entries = self._find_entries
         self.find_next_entries = self._find_next_entries
         self.duplicate_selected = self._duplicate_selected
-        self.rename_entry = self._rename_entry
-        self.rename_selected = self._rename_selected
+        # rename wired via integrate_rename_functions
         #self.remove_selected = self._remove_selected_entries
         self.select_inverse_entries = self._select_inverse_entries
         self.extract_textures = lambda: extract_textures_function(self)
@@ -2111,16 +2112,6 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Error in duplicate_selected: {str(e)}")
             QMessageBox.critical(self, "Duplicate Error", f"Failed to duplicate entries:\n{str(e)}")
-
-    def _rename_entry(self): #vers 2
-        """Rename entry - delegates to rename_img_entry (pin-protected, date-stamped, undo)"""
-        from apps.core.rename import rename_img_entry
-        rename_img_entry(self)
-
-    def _rename_selected(self): #vers 2
-        """Rename selected - delegates to rename_img_entry"""
-        from apps.core.rename import rename_img_entry
-        rename_img_entry(self)
 
     def _validate_entry_name(self, name):
         """Validate entry name for IMG file"""
