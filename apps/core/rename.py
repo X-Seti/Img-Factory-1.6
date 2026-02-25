@@ -163,8 +163,16 @@ def rename_img_entry(main_window): #vers 4
                 main_window.refresh_table()
 
             dbg(f"date_modified on entry: {getattr(selected_entry, 'date_modified', 'NOT SET')}")
-            QMessageBox.information(main_window, "Rename Complete",
-                f"Successfully renamed entry to '{new_name}'")
+            try:
+                s = getattr(getattr(main_window, 'app_settings', None), 'current_settings', {})
+            except Exception:
+                s = {}
+            msg = f"Renamed '{current_name}' to '{new_name}'"
+            if s.get('rename_notify_log', True):
+                main_window.log_message(msg) if hasattr(main_window, 'log_message') else None
+            if s.get('rename_notify_popup', True):
+                QMessageBox.information(main_window, "Rename Complete",
+                    f"Successfully renamed entry to '{new_name}'")
         else:
             dbg("_rename_with_img_core failed")
             QMessageBox.critical(main_window, "Rename Failed",
@@ -238,8 +246,16 @@ def rename_col_model(main_window): #vers 2
                 main_window.log_message("COL model renamed successfully")
                 main_window.log_message("Remember to save COL file to preserve changes")
             
-            QMessageBox.information(main_window, "Rename Complete", 
-                f"Successfully renamed COL model to '{new_name}'")
+            try:
+                s = getattr(getattr(main_window, 'app_settings', None), 'current_settings', {})
+            except Exception:
+                s = {}
+            msg2 = f"Renamed COL model '{current_name}' to '{new_name}'"
+            if s.get('rename_notify_log', True) and hasattr(main_window, 'log_message'):
+                main_window.log_message(msg2)
+            if s.get('rename_notify_popup', True):
+                QMessageBox.information(main_window, "Rename Complete",
+                    f"Successfully renamed COL model to '{new_name}'")
             
             return True
             

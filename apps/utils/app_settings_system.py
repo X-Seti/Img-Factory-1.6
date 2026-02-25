@@ -2105,6 +2105,9 @@ class AppSettings:
              # Pin warning settings
             "pin_warn_popup": True,
             "pin_warn_log": True,
+            # Rename notification settings
+            "rename_notify_popup": True,
+            "rename_notify_log": True,
             # Debug settings
             "debug_mode": False,
             "debug_level": "INFO",
@@ -5770,6 +5773,22 @@ Ready for operations..."""
         pin_warn_layout.addWidget(pin_hint)
 
         layout.addWidget(pin_warn_group)
+
+        # Rename Notifications
+        rename_notify_group = QGroupBox("Rename Notifications")
+        rename_notify_layout = QVBoxLayout(rename_notify_group)
+
+        self.rename_notify_popup_check = QCheckBox("Show popup on successful rename")
+        self.rename_notify_popup_check.setChecked(
+            self.app_settings.current_settings.get("rename_notify_popup", True))
+        rename_notify_layout.addWidget(self.rename_notify_popup_check)
+
+        self.rename_notify_log_check = QCheckBox("Log rename to activity log")
+        self.rename_notify_log_check.setChecked(
+            self.app_settings.current_settings.get("rename_notify_log", True))
+        rename_notify_layout.addWidget(self.rename_notify_log_check)
+
+        layout.addWidget(rename_notify_group)
         layout.addStretch()
 
         return widget
@@ -7210,6 +7229,10 @@ Ready for operations..."""
             settings["pin_warn_popup"] = self.pin_warn_popup_check.isChecked()
         if hasattr(self, 'pin_warn_log_check'):
             settings["pin_warn_log"] = self.pin_warn_log_check.isChecked()
+        if hasattr(self, 'rename_notify_popup_check'):
+            settings["rename_notify_popup"] = self.rename_notify_popup_check.isChecked()
+        if hasattr(self, 'rename_notify_log_check'):
+            settings["rename_notify_log"] = self.rename_notify_log_check.isChecked()
         if hasattr(self, 'debug_enabled_check'):
             settings["debug_mode"] = self.debug_enabled_check.isChecked()
         if hasattr(self, 'debug_level_combo'):
