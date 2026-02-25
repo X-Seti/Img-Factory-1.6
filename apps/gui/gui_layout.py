@@ -1653,63 +1653,59 @@ class IMGFactoryGUILayout:
         return status_container
 
 
-    def _switch_to_directory_tree(self): #vers 13
-        """Toggle directory tree in content_splitter. First call sets it up."""
+    def _switch_to_directory_tree(self): #vers 14
+        """Cycle tree visibility: hidden → split → tree-full → hidden"""
         try:
             mw = self.main_window
             splitter = getattr(self, 'content_splitter', None)
 
-            # If already set up - toggle visibility
-            if hasattr(mw, '_dirtree_setup_complete') and mw._dirtree_setup_complete:
-                if not splitter:
-                    return
-                tree = getattr(mw, 'directory_tree', None)
-                if not tree:
-                    return
-                sizes = splitter.sizes()
-                total = sum(sizes)
-                if not total:
-                    return
-                # Tree is index 1 in splitter (file tabs = 0, tree = 1)
-                if sizes[1] <= total * 0.05:
-                    # Tree hidden - restore split
-                    splitter.setSizes([total // 2, total // 2])
-                    mw.log_message("→ Split view")
-                else:
-                    # Tree visible - hide it
-                    splitter.setSizes([total, 0])
-                    mw.log_message("→ Files only")
-                return
-
             # First time setup
-            if not hasattr(mw, 'game_root') or not mw.game_root:
-                from PyQt6.QtWidgets import QMessageBox
-                reply = QMessageBox.question(
-                    mw, "No Project Configured",
-                    "No project is currently configured.\n\nWould you like to open the Project Manager now?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    from apps.components.Project_Manager.project_manager import show_project_manager_dialog
-                    show_project_manager_dialog(mw)
+            if not hasattr(mw, '_dirtree_setup_complete') or not mw._dirtree_setup_complete:
+                if not hasattr(mw, 'game_root') or not mw.game_root:
+                    from PyQt6.QtWidgets import QMessageBox
+                    reply = QMessageBox.question(
+                        mw, "No Project Configured",
+                        "No project is currently configured.\n\nOpen Project Manager?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    if reply == QMessageBox.StandardButton.Yes:
+                        from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                        show_project_manager_dialog(mw)
+                    return
+                if not hasattr(mw, 'directory_tree'):
+                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                    if not integrate_directory_tree_browser(mw):
+                        mw.log_message("Failed to load Directory Tree")
+                        return
+                if splitter:
+                    splitter.addWidget(mw.directory_tree)
+                if hasattr(mw.directory_tree, 'browse_directory'):
+                    mw.directory_tree.browse_directory(mw.game_root)
+                mw._dirtree_setup_complete = True
+                mw._dirtree_state = 0  # will advance below
+
+            if not splitter or splitter.count() < 2:
                 return
 
-            if not hasattr(mw, 'directory_tree'):
-                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                if not integrate_directory_tree_browser(mw):
-                    mw.log_message("Failed to load Directory Tree")
-                    return
+            total = sum(splitter.sizes()) or 10000
+            # Cycle: 0=hidden → 1=split → 2=tree-full → 0=hidden
+            state = (getattr(mw, '_dirtree_state', 0) + 1) % 3
+            mw._dirtree_state = state
 
-            # Add tree to splitter (index 1, files at 0)
-            if splitter:
-                splitter.addWidget(mw.directory_tree)
-                splitter.setSizes([5000, 5000])
+            tab_widget = getattr(mw, 'main_tab_widget', None)
 
-            if hasattr(mw.directory_tree, 'browse_directory'):
-                mw.directory_tree.browse_directory(mw.game_root)
-
-            mw._dirtree_setup_complete = True
-            mw.log_message("✓ Directory Tree open — double-click tab to maximise")
+            if state == 0:  # hidden - files full
+                if tab_widget: tab_widget.show()
+                splitter.setSizes([total, 0])
+                mw.log_message("→ Files only")
+            elif state == 1:  # split
+                if tab_widget: tab_widget.show()
+                splitter.setSizes([total // 2, total // 2])
+                mw.log_message("→ Split view")
+            elif state == 2:  # tree full
+                if tab_widget: tab_widget.show()  # keep tabs visible
+                splitter.setSizes([0, total])
+                mw.log_message("→ Tree full")
 
         except Exception as e:
             self.main_window.log_message(f"Dir tree error: {str(e)}")

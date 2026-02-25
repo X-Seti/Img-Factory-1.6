@@ -103,46 +103,6 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
             }
         """)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        # Tab toolbar with maximise button
-        from PyQt6.QtWidgets import QHBoxLayout, QPushButton
-        from PyQt6.QtCore import QSize
-        tab_toolbar = QWidget()
-        tab_toolbar.setFixedHeight(26)
-        tb_layout = QHBoxLayout(tab_toolbar)
-        tb_layout.setContentsMargins(2, 2, 2, 2)
-        tb_layout.setSpacing(2)
-        tb_layout.addStretch()
-        try:
-            from apps.methods.imgfactory_svg_icons import get_tree_icon
-            max_btn = QPushButton()
-            max_btn.setIcon(get_tree_icon(16))
-            max_btn.setFixedSize(22, 22)
-            max_btn.setIconSize(QSize(16, 16))
-            max_btn.setFlat(True)
-            max_btn.setToolTip("Maximise file tabs / Restore split")
-            def _make_maximise(mw):
-                def _do():
-                    try:
-                        splitter = getattr(getattr(mw, 'gui_layout', None), 'content_splitter', None)
-                        if not splitter or splitter.count() < 2:
-                            return
-                        sizes = splitter.sizes()
-                        total = sum(sizes)
-                        if not total:
-                            return
-                        # files at index 0; if already maximised restore, else maximise
-                        if sizes[0] >= total * 0.95:
-                            splitter.setSizes([total // 2, total // 2])
-                        else:
-                            splitter.setSizes([total, 0])
-                    except Exception:
-                        pass
-                return _do
-            max_btn.clicked.connect(_make_maximise(main_window))
-            tb_layout.addWidget(max_btn)
-        except Exception:
-            pass
-        tab_layout.addWidget(tab_toolbar)
         tab_layout.addWidget(table)
         tab_widget.table_ref = table
 

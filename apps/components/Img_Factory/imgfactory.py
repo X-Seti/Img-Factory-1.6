@@ -2932,6 +2932,34 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
+        # Maximise button in tab bar corner
+        try:
+            from PyQt6.QtWidgets import QPushButton
+            from PyQt6.QtCore import QSize
+            from apps.methods.imgfactory_svg_icons import get_tree_icon
+            _max_btn = QPushButton()
+            _max_btn.setIcon(get_tree_icon(16))
+            _max_btn.setFixedSize(22, 22)
+            _max_btn.setIconSize(QSize(16, 16))
+            _max_btn.setFlat(True)
+            _max_btn.setToolTip("Maximise file tabs / Restore split")
+            def _on_max_btn():
+                splitter = getattr(getattr(self, 'gui_layout', None), 'content_splitter', None)
+                if not splitter or splitter.count() < 2:
+                    return
+                sizes = splitter.sizes()
+                total = sum(sizes)
+                if not total:
+                    return
+                if sizes[0] >= total * 0.95:
+                    splitter.setSizes([total // 2, total // 2])
+                else:
+                    splitter.setSizes([total, 0])
+            _max_btn.clicked.connect(_on_max_btn)
+            self.main_tab_widget.setCornerWidget(_max_btn)
+        except Exception as e:
+            print(f"Tab corner widget error: {e}")
+
         # Replace table in content_splitter with main_tab_widget
         if hasattr(self.gui_layout, 'content_splitter'):
             self.gui_layout.content_splitter.replaceWidget(0, self.main_tab_widget)
@@ -3083,15 +3111,23 @@ class IMGFactory(QMainWindow):
 
             if file_type == 'COL':
                 self.current_col = file_object
+                self.current_img = None
+                if hasattr(self, 'update_img_status'):
+                    col_count = len(file_object.models) if hasattr(file_object, 'models') and file_object.models else 0
+                    fp = getattr(file_object, 'file_path', '')
+                    self.update_img_status(filename=fp, entry_count=col_count, version='COL')
                 self.log_message(f"→ {tab_name} (COL)")
             elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
+                self.current_col = None
                 if hasattr(self, '_populate_real_img_table'):
                     self._populate_real_img_table(file_object)
                 if hasattr(self, 'update_img_status'):
                     self.update_img_status(img_file=file_object)
                 self.log_message(f"→ {tab_name}")
             else:
+                self.current_img = None
+                self.current_col = None
                 if hasattr(self, 'update_img_status'):
                     self.update_img_status()
                 self.log_message(f"→ {tab_name}")
