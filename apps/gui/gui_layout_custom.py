@@ -1095,127 +1095,62 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 self.main_window.log_message(f"Clear Search error: {str(e)}")
 
 
-    def move_entries_up(self):  # vers 2
-        """Move selected entries up in the table"""
+    def move_entries_up(self):  # vers 3
+        """Move selected entries up - updates file_object.entries and pushes undo."""
         try:
             from apps.methods.export_shared import get_active_table
+            from apps.methods.tab_system import get_current_file_from_active_tab
+            from apps.methods.img_entry_operations import move_entries_in_file
             self.table = get_active_table(self.main_window) or self.table
-            if self.table and self.table.selectedItems():
-                # Get selected rows
-                selected_items = self.table.selectedItems()
-                selected_rows = sorted(set(item.row() for item in selected_items))
-
-                # Check if any selected rows are already at the top
-                if 0 in selected_rows:
-                    if hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message("Cannot move entries up: some are already at top")
-                    return
-
-                # Store data for selected rows
-                selected_data = []
-                for row in selected_rows:
-                    row_data = []
-                    for col in range(self.table.columnCount()):
-                        item = self.table.item(row, col)
-                        if item:
-                            row_data.append(item.text())
-                        else:
-                            row_data.append("")
-                    selected_data.append(row_data)
-
-                # Remove selected rows from the table (in reverse order to maintain indices)
-                for row in sorted(selected_rows, reverse=True):
-                    self.table.removeRow(row)
-
-                # Calculate new positions (move up by 1)
-                new_start_pos = min(selected_rows) - 1
-                if new_start_pos < 0:
-                    new_start_pos = 0
-
-                # Insert rows at new positions
-                for i, row_data in enumerate(selected_data):
-                    insert_row = new_start_pos + i
-                    self.table.insertRow(insert_row)
-                    for j, cell_data in enumerate(row_data):
-                        self.table.setItem(insert_row, j, QTableWidgetItem(cell_data))
-
-                # Re-select the moved rows
+            if not self.table or not self.table.selectedItems():
+                self.main_window.log_message("No entries selected to move")
+                return
+            rows = sorted(set(i.row() for i in self.table.selectedItems()))
+            file_object, _ = get_current_file_from_active_tab(self.main_window)
+            if not file_object:
+                return
+            if move_entries_in_file(self.main_window, file_object, rows, -1):
+                from apps.core.undo_system import refresh_after_undo
+                refresh_after_undo(self.main_window)
+                # Re-select moved rows
+                new_start = min(rows) - 1
                 self.table.clearSelection()
-                for i in range(len(selected_data)):
+                for i in range(len(rows)):
                     for col in range(self.table.columnCount()):
-                        item = self.table.item(new_start_pos + i, col)
+                        item = self.table.item(new_start + i, col)
                         if item:
                             item.setSelected(True)
-
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{len(selected_data)} entries moved up")
-            else:
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("No selected entries to move or table not available")
+                self.main_window.log_message(f"{len(rows)} entries moved up")
         except Exception as e:
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Move entries up error: {str(e)}")
+            self.main_window.log_message(f"Move up error: {str(e)}")
 
-
-    def move_entries_down(self):  # vers 2
-        """Move selected entries down in the table"""
+    def move_entries_down(self):  # vers 3
+        """Move selected entries down - updates file_object.entries and pushes undo."""
         try:
             from apps.methods.export_shared import get_active_table
+            from apps.methods.tab_system import get_current_file_from_active_tab
+            from apps.methods.img_entry_operations import move_entries_in_file
             self.table = get_active_table(self.main_window) or self.table
-            if self.table and self.table.selectedItems():
-                # Get selected rows
-                selected_items = self.table.selectedItems()
-                selected_rows = sorted(set(item.row() for item in selected_items))
-
-                # Check if any selected rows are already at the bottom
-                if max(selected_rows) >= self.table.rowCount() - 1:
-                    if hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message("Cannot move entries down: some are already at bottom")
-                    return
-
-                # Store data for selected rows
-                selected_data = []
-                for row in reversed(selected_rows):  # Process in reverse to maintain indices when removing
-                    row_data = []
-                    for col in range(self.table.columnCount()):
-                        item = self.table.item(row, col)
-                        if item:
-                            row_data.append(item.text())
-                        else:
-                            row_data.append("")
-                    selected_data.insert(0, row_data)  # Insert at beginning to maintain order
-
-                # Remove selected rows from the table (in reverse order to maintain indices)
-                for row in sorted(selected_rows, reverse=True):
-                    self.table.removeRow(row)
-
-                # Calculate new positions (move down by 1)
-                new_start_pos = min(selected_rows) + 1
-
-                # Insert rows at new positions
-                for i, row_data in enumerate(selected_data):
-                    insert_row = new_start_pos + i
-                    self.table.insertRow(insert_row)
-                    for j, cell_data in enumerate(row_data):
-                        self.table.setItem(insert_row, j, QTableWidgetItem(cell_data))
-
-                # Re-select the moved rows
+            if not self.table or not self.table.selectedItems():
+                self.main_window.log_message("No entries selected to move")
+                return
+            rows = sorted(set(i.row() for i in self.table.selectedItems()))
+            file_object, _ = get_current_file_from_active_tab(self.main_window)
+            if not file_object:
+                return
+            if move_entries_in_file(self.main_window, file_object, rows, 1):
+                from apps.core.undo_system import refresh_after_undo
+                refresh_after_undo(self.main_window)
+                new_start = min(rows) + 1
                 self.table.clearSelection()
-                for i in range(len(selected_data)):
+                for i in range(len(rows)):
                     for col in range(self.table.columnCount()):
-                        item = self.table.item(new_start_pos + i, col)
+                        item = self.table.item(new_start + i, col)
                         if item:
                             item.setSelected(True)
-
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"{len(selected_data)} entries moved down")
-            else:
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("No selected entries to move or table not available")
+                self.main_window.log_message(f"{len(rows)} entries moved down")
         except Exception as e:
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Move entries down error: {str(e)}")
-
+            self.main_window.log_message(f"Move down error: {str(e)}")
 
     def _debug_tabs(self): #vers 1
         """Debug tab structure - TEMPORARY"""

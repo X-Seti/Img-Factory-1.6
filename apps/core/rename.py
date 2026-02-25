@@ -99,28 +99,10 @@ def rename_img_entry(main_window): #vers 3
             QMessageBox.information(main_window, "No Selection", "Please select an IMG entry to rename")
             return False
         
-        # Check if the entry is pinned
-        if hasattr(selected_entry, 'is_pinned') and selected_entry.is_pinned:
-            reply = QMessageBox.question(
-                main_window,
-                "Pinned Entry",
-                "This entry is currently pinned. Would you like to unpin it first to allow renaming?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
-            )
-            
-            if reply == QMessageBox.StandardButton.Yes:
-                # Unpin the entry first
-                delattr(selected_entry, 'is_pinned')
-                
-                # Also update the pin file to reflect the change
-                if hasattr(main_window, 'unpin_entry'):
-                    entry_name = getattr(selected_entry, 'name', '')
-                    if entry_name:
-                        main_window.unpin_entry(entry_name)
-            else:
-                QMessageBox.information(main_window, "Rename Cancelled", "Entry renaming cancelled as it is pinned.")
-                return False
+        # Block rename if pinned
+        from apps.core.undo_system import check_pinned_lock
+        if check_pinned_lock(main_window, [selected_entry], "rename"):
+            return False
         
         # Get current name
         current_name = getattr(selected_entry, 'name', '')

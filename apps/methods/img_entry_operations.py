@@ -1,4 +1,4 @@
-#this belongs in methods/img_entry_operations.py - Version: 3
+#this belongs in methods/img_entry_operations.py - Version: 4
 # X-Seti - September11 2025 - IMG Factory 1.5 - IMG Entry Operations - Ported from Modern System
 
 """
@@ -19,6 +19,7 @@ from typing import List, Optional
 # remove_multiple_entries
 # rename_entry_safe
 # integrate_entry_operations
+# move_entries_in_file
 
 # Constants
 SECTOR_SIZE = 2048
@@ -446,6 +447,59 @@ def integrate_entry_operations(main_window) -> bool: #vers 3
             main_window.log_message(f"Entry operations integration failed: {str(e)}")
         return False
 
+
+def move_entries_in_file(main_window, file_object, rows: list, direction: int) -> bool: #vers 1
+    """Move selected rows up (-1) or down (+1) in file_object.entries and push MoveCommand.
+    Returns True on success. Blocks pinned entries."""
+    try:
+        from apps.core.undo_system import check_pinned_lock, MoveCommand
+        entries = file_object.entries
+        if not entries:
+            return False
+
+        selected = sorted(set(rows))
+        if not selected:
+            return False
+
+        # Pin lock
+        sel_entries = [entries[r] for r in selected if r < len(entries)]
+        if check_pinned_lock(main_window, sel_entries, "move"):
+            return False
+
+        # Boundary check
+        if direction == -1 and selected[0] == 0:
+            main_window.log_message("Cannot move up: already at top")
+            return False
+        if direction == 1 and selected[-1] == len(entries) - 1:
+            main_window.log_message("Cannot move down: already at bottom")
+            return False
+
+        # Snapshot for undo
+        old_order = list(entries)
+
+        # Perform move on entries list
+        new_entries = list(entries)
+        if direction == -1:
+            for row in selected:
+                new_entries[row - 1], new_entries[row] = new_entries[row], new_entries[row - 1]
+        else:
+            for row in reversed(selected):
+                new_entries[row + 1], new_entries[row] = new_entries[row], new_entries[row + 1]
+
+        file_object.entries[:] = new_entries
+        file_object.modified = True
+
+        # Push undo
+        if hasattr(main_window, 'undo_manager'):
+            main_window.undo_manager.push(MoveCommand(file_object, old_order, list(new_entries)))
+
+        return True
+
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Move error: {str(e)}")
+        return False
+
 # Export functions
 __all__ = [
     'add_entry_safe',
@@ -455,5 +509,6 @@ __all__ = [
     'remove_entry_safe',
     'remove_multiple_entries',
     'rename_entry_safe',
-    'integrate_entry_operations'
+    'integrate_entry_operations',
+    'move_entries_in_file'
 ]

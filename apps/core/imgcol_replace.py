@@ -84,12 +84,17 @@ def replace_img_entry(main_window): #vers 1
             QMessageBox.information(main_window, "No Selection", "Please select an IMG entry to replace")
             return False
         
+        # Block replace if pinned
+        from apps.core.undo_system import check_pinned_lock
+        if check_pinned_lock(main_window, [selected_entry], "replace"):
+            return False
+
         # Get current entry info
         entry_name = getattr(selected_entry, 'name', '')
         if not entry_name:
             QMessageBox.warning(main_window, "Invalid Entry", "Selected entry has no valid name")
             return False
-        
+
         entry_size = getattr(selected_entry, 'size', 0)
         
         # Show replace dialog
@@ -121,10 +126,21 @@ def replace_img_entry(main_window): #vers 1
                 if reply != QMessageBox.StandardButton.Yes:
                     return False
         
+        # Snapshot for undo
+        old_data = getattr(selected_entry, 'data', b'')
+        old_size = getattr(selected_entry, 'size', 0)
+
         # Replace using IMG_Editor core if available
         success = _replace_with_img_core(main_window, file_object, selected_entry, replacement_file, keep_name)
-        
+
         if success:
+            # Push undo
+            if hasattr(main_window, 'undo_manager'):
+                from apps.core.undo_system import ReplaceCommand
+                new_data = getattr(selected_entry, 'data', b'')
+                new_size = getattr(selected_entry, 'size', 0)
+                main_window.undo_manager.push(
+                    ReplaceCommand(selected_entry, old_data, new_data, old_size, new_size))
             # Refresh current tab to show changes
             if hasattr(main_window, 'refresh_current_tab_data'):
                 main_window.refresh_current_tab_data()

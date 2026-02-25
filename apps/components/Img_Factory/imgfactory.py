@@ -2297,33 +2297,19 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Error in select_inverse_entries: {str(e)}")
 
-    def _undo_action(self):
+    def _undo_action(self): #vers 2
         """Undo last action"""
-        # Try to use undo system if available
-        if hasattr(self, 'undo_manager') and hasattr(self.undo_manager, 'undo'):
-            try:
-                self.undo_manager.undo()
-                self.log_message("Undo operation performed")
-            except Exception as e:
-                self.log_message(f"Undo failed: {str(e)}")
-                QMessageBox.information(self, "Undo", f"Undo operation failed:\n{str(e)}")
+        if hasattr(self, 'undo') and callable(self.undo):
+            self.undo()
         else:
-            self.log_message("No undo operations available")
-            QMessageBox.information(self, "Undo", "No undo operations available")
+            self.log_message("Nothing to undo")
 
-    def _redo_action(self):
+    def _redo_action(self): #vers 2
         """Redo last action"""
-        # Try to use undo system if available
-        if hasattr(self, 'undo_manager') and hasattr(self.undo_manager, 'redo'):
-            try:
-                self.undo_manager.redo()
-                self.log_message("Redo operation performed")
-            except Exception as e:
-                self.log_message(f"Redo failed: {str(e)}")
-                QMessageBox.information(self, "Redo", f"Redo operation failed:\n{str(e)}")
+        if hasattr(self, 'redo') and callable(self.redo):
+            self.redo()
         else:
-            self.log_message("No redo operations available")
-            QMessageBox.information(self, "Redo", "No redo operations available")
+            self.log_message("Nothing to redo")
 
 
     # INTEGRATION FIX for imgfactory.py:
@@ -4598,6 +4584,7 @@ class IMGFactory(QMainWindow):
                     self.gui_layout.show_progress(0, "Importing files...")
 
                 imported_count = 0
+                imported_names = []
                 for i, file_path in enumerate(file_paths):
                     progress = int((i + 1) * 100 / len(file_paths))
                     if hasattr(self.gui_layout, 'show_progress'):
@@ -4607,10 +4594,16 @@ class IMGFactory(QMainWindow):
                     if hasattr(self.current_img, 'import_file'):
                         if self.current_img.import_file(file_path):
                             imported_count += 1
+                            imported_names.append(os.path.basename(file_path))
                             self.log_message(f"Imported: {os.path.basename(file_path)}")
                     else:
                         self.log_message(f"IMG import_file method not available")
                         break
+
+                # Push undo for import
+                if imported_names and hasattr(self, 'undo_manager'):
+                    from apps.core.undo_system import ImportCommand
+                    self.undo_manager.push(ImportCommand(self.current_img, imported_names))
 
                 # Refresh table
                 if hasattr(self, '_populate_real_img_table'):
