@@ -164,6 +164,10 @@ def import_files_dialog(main_window) -> bool:
         if imported_count > 0:
             main_window.log_message(f"Imported {imported_count} file(s) - use Save Entry, then Reload to see changes")
             return True
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Import dialog error: {str(e)}")
+        return False
 
 
 def import_files_list(main_window, file_paths: List[str]) -> bool:
