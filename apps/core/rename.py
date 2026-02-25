@@ -281,7 +281,7 @@ def _show_rename_dialog(main_window, current_name: str, file_type: str) -> Optio
         current_layout = QVBoxLayout(current_group)
         
         current_label = QLabel(current_name)
-        current_label.setStyleSheet("padding: 5px; background: #f0f0f0; border: 1px solid #ccc;")
+        current_label.setStyleSheet("padding: 5px; border: 1px solid #ccc;")
         current_label.setFont(QFont("Courier", 10))  # Monospace for better readability
         current_layout.addWidget(current_label)
         
