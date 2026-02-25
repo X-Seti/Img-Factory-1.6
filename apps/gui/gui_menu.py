@@ -688,56 +688,56 @@ class IMGFactoryMenuBar:
             QMessageBox.information(self.main_window, "Find Corruption", "Corruption analysis functionality not available")
 
 
-    def _create_recent_files_submenu(self, file_menu):
+    def _create_recent_files_submenu(self, file_menu): #vers 2 Fixed
         """Create and add recent files submenu to the File menu"""
-        # Create submenu for recent files
         recent_menu = file_menu.addMenu("&Recent Files")
+        self.recent_files_menu = recent_menu
+        self._recent_file_actions = []  # track dynamic actions for clean removal
 
-        # Add placeholder initially
-        no_files_action = recent_menu.addAction("No recent files")
-        no_files_action.setEnabled(False)
-
-        # Add separator
+        # Static footer: separator + clear
         recent_menu.addSeparator()
-
-        # Add clear action
         clear_action = recent_menu.addAction("Clear Recent Files")
         clear_action.triggered.connect(self._clear_recent_files)
 
-        # Store reference to recent menu for dynamic updates
-        self.recent_files_menu = recent_menu
-        self.recent_files_no_files_action = no_files_action
-
-        # Now populate the actual recent files
         self._update_recent_files_submenu()
 
 
-    def _update_recent_files_submenu(self):
-        """Update the recent files submenu with actual recent files"""
+    def _update_recent_files_submenu(self): #vers 2 Fixed
+        """Rebuild the dynamic portion of the recent files submenu."""
         try:
             from PyQt6.QtCore import QSettings
 
-            # Clear existing items except the clear action
-            for action in self.recent_files_menu.actions()[1:-1]:  # Skip first (no files) and last (clear)
+            # Remove previously added dynamic actions
+            for action in self._recent_file_actions:
                 self.recent_files_menu.removeAction(action)
+            self._recent_file_actions = []
 
-            # Get settings for recent files
             settings = QSettings("IMG-Factory", "IMG-Factory")
             recent_files = settings.value("recentFiles", [])
+            if not isinstance(recent_files, list):
+                recent_files = []
 
             if not recent_files:
-                # No recent files - keep the "No recent files" message
-                self.recent_files_no_files_action.setEnabled(False)
-                self.recent_files_no_files_action.setVisible(True)
+                a = self.recent_files_menu.insertAction(
+                    self.recent_files_menu.actions()[0], # insert before separator
+                    self.recent_files_menu.addAction("No recent files"))
+                # insertAction above adds at end too - just prepend cleanly
+                self.recent_files_menu.removeAction(a)
+                from PyQt6.QtWidgets import QAction
+                no_action = QAction("No recent files", self.recent_files_menu)
+                no_action.setEnabled(False)
+                self.recent_files_menu.insertAction(self.recent_files_menu.actions()[0], no_action)
+                self._recent_file_actions.append(no_action)
             else:
-                # Remove the "No recent files" placeholder
-                self.recent_files_no_files_action.setVisible(False)
-                self.recent_files_no_files_action.setEnabled(False)
-
-                # Add recent files to submenu (up to 10)
-                for file_path in recent_files[:10]:
-                    action = self.recent_files_menu.addAction(file_path)
+                sep = self.recent_files_menu.actions()[0]  # the static separator
+                for file_path in reversed(recent_files[:10]):
+                    import os
+                    label = f"{os.path.basename(file_path)}  [{os.path.dirname(file_path)}]"
+                    from PyQt6.QtWidgets import QAction
+                    action = QAction(label, self.recent_files_menu)
                     action.triggered.connect(lambda checked=False, fp=file_path: self._open_recent_file(fp))
+                    self.recent_files_menu.insertAction(sep, action)
+                    self._recent_file_actions.insert(0, action)
 
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
@@ -999,6 +999,7 @@ class IMGFactoryMenuBar:
             settings = QSettings("IMG-Factory", "IMG-Factory")
             settings.setValue("recentFiles", [])
 
+            self._update_recent_files_submenu()
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message("Recent files list cleared")
         except Exception as e:

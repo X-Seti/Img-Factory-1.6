@@ -4402,9 +4402,8 @@ class IMGFactory(QMainWindow):
                     _ct = getattr(entry, 'compression_type', None)
                     # Strip enum class prefix e.g. "CompressionType.LZA" -> "LZA"
                     _cts = str(_ct).split('.')[-1] if _ct is not None else 'NONE'
-                    compression_text = '' if _cts.upper() in ('NONE', 'NOCOMPRESSION', '') else _cts
+                    compression_text = 'None' if _cts.upper() in ('NONE', 'NOCOMPRESSION', '') else _cts
                 except:
-                    compression_text = ''
                 table.setItem(row, 7, QTableWidgetItem(compression_text))
 
                 # Status - column 8 (previously column 6)
