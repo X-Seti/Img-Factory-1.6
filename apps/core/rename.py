@@ -416,39 +416,33 @@ def _rename_with_img_core(main_window, file_object, entry, new_name: str) -> boo
         return False
 
 
-def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> bool: #vers 2
-    """Rename using IMG_Editor archive"""
+def _rename_with_img_archive(main_window, img_archive, entry, new_name: str) -> bool: #vers 3
+    """Rename using IMG_Editor archive - also updates original entry object"""
     try:
         if hasattr(main_window, 'log_message'):
             main_window.log_message("Using IMG_Editor core for reliable rename")
-        
-        # Find entry in IMG archive
+
         entry_name = getattr(entry, 'name', '')
-        img_editor_entry = None
-        
+
+        # Update the archive copy if it exists
         for archive_entry in img_archive.entries:
             if getattr(archive_entry, 'name', '') == entry_name:
-                img_editor_entry = archive_entry
+                archive_entry.name = new_name
+                if hasattr(img_archive, 'modified'):
+                    img_archive.modified = True
                 break
-        
-        if not img_editor_entry:
-            if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"Entry not found in archive: {entry_name}")
-            return False
-        
-        # Rename entry
-        img_editor_entry.name = new_name
-        
-        # Mark as modified
-        if hasattr(img_archive, 'modified'):
-            img_archive.modified = True
-        
+
+        # Always update the original entry object (the one in file_object.entries)
+        if not hasattr(entry, 'original_name'):
+            entry.original_name = entry_name
+        entry.name = new_name
+        entry.is_modified = True
+
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Renamed entry using IMG_Editor core")
-            main_window.log_message("Remember to rebuild IMG to save changes")
-        
+
         return True
-        
+
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"IMG archive rename error: {str(e)}")
