@@ -4224,7 +4224,8 @@ class IMGFactory(QMainWindow):
                 pin_data = load_pin_file(img_file.file_path)
                 for entry in img_file.entries:
                     entry_name = getattr(entry, 'name', '')
-                    if entry_name in pin_data.get("entries", {}):
+                    entry_data = pin_data.get("entries", {}).get(entry_name, {})
+                    if entry_data.get("pinned", False):
                         entry.is_pinned = True
 
             # Log success
