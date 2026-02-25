@@ -4339,7 +4339,7 @@ class IMGFactory(QMainWindow):
         self._populate_real_img_table(img_file, table=table)
 
 
-    def _populate_real_img_table(self, img_file: IMGFile): #vers 3 #Restore
+    def _populate_real_img_table(self, img_file: IMGFile, table=None): #vers 4
         """Populate table with real IMG file entries - for SA format display with Date column"""
 
         if not img_file or not img_file.entries:
@@ -4349,7 +4349,8 @@ class IMGFactory(QMainWindow):
                 self.gui_layout.table.setRowCount(0)
             return
 
-        table = self.gui_layout.table
+        if table is None:
+            table = self.gui_layout.table
         entries = img_file.entries
 
         # Set up 9 columns: Name, Type, Date, Size, Offset, RW Address, RW Version, Compression, Status
