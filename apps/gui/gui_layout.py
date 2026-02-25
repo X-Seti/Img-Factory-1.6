@@ -2669,10 +2669,20 @@ class IMGFactoryGUILayout:
                 if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
                     img_path = self.main_window.current_img.file_path
 
-                # Add pin icon to Status column and save to .pin file
+                # Add pin icon, colour row, set is_pinned, save to .pin file
+                from PyQt6.QtGui import QColor, QBrush
                 pin_icon = "📌"
+                pin_colour = QColor(80, 60, 20)
+                pin_fg = QColor(255, 200, 80)
                 pinned_count = 0
-                
+
+                # Get entry objects for is_pinned flag
+                file_object = getattr(self.main_window, 'current_img', None)
+                entry_map = {}
+                if file_object and hasattr(file_object, 'entries'):
+                    for e in file_object.entries:
+                        entry_map[getattr(e, 'name', '')] = e
+
                 for row in selected_rows:
                     # Get entry name
                     entry_name = None
@@ -2680,22 +2690,32 @@ class IMGFactoryGUILayout:
                         name_item = active_table.item(row, name_col)
                         if name_item:
                             entry_name = name_item.text()
-                    
+
                     # Update Status column
                     status_item = active_table.item(row, status_col)
                     if status_item:
                         current_text = status_item.text()
                         if pin_icon not in current_text:
-                            if current_text:
-                                status_item.setText(f"{pin_icon} {current_text}")
-                            else:
-                                status_item.setText(pin_icon)
+                            active_table.item(row, status_col).setText(
+                                f"{pin_icon} {current_text}" if current_text else pin_icon)
                             pinned_count += 1
                     else:
-                        new_item = QTableWidgetItem(pin_icon)
-                        active_table.setItem(row, status_col, new_item)
+                        active_table.setItem(row, status_col, QTableWidgetItem(pin_icon))
                         pinned_count += 1
-                    
+
+                    # Colour entire row
+                    for col in range(active_table.columnCount()):
+                        cell = active_table.item(row, col)
+                        if not cell:
+                            cell = QTableWidgetItem("")
+                            active_table.setItem(row, col, cell)
+                        cell.setBackground(QBrush(pin_colour))
+                        cell.setForeground(QBrush(pin_fg))
+
+                    # Set is_pinned on entry object
+                    if entry_name and entry_name in entry_map:
+                        entry_map[entry_name].is_pinned = True
+
                     # Save to .pin file
                     if img_path and entry_name:
                         from apps.methods.pin_file_manager import pin_entry
@@ -2748,26 +2768,44 @@ class IMGFactoryGUILayout:
                 if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
                     img_path = self.main_window.current_img.file_path
 
-                # Remove pin icon from Status column
+                # Remove pin icon, restore normal colours, clear is_pinned, update .pin file
+                from PyQt6.QtGui import QBrush
                 pin_icon = "📌"
                 unpinned_count = 0
-                
+
+                file_object = getattr(self.main_window, 'current_img', None)
+                entry_map = {}
+                if file_object and hasattr(file_object, 'entries'):
+                    for e in file_object.entries:
+                        entry_map[getattr(e, 'name', '')] = e
+
                 for row in selected_rows:
-                    # Get entry name
                     entry_name = None
                     if name_col is not None:
                         name_item = active_table.item(row, name_col)
                         if name_item:
                             entry_name = name_item.text()
-                    
+
                     status_item = active_table.item(row, status_col)
                     if status_item:
                         current_text = status_item.text()
                         if pin_icon in current_text:
-                            new_text = current_text.replace(pin_icon, "").strip()
-                            status_item.setText(new_text)
+                            status_item.setText(current_text.replace(pin_icon, "").strip())
                             unpinned_count += 1
-                    
+
+                    # Restore default row colours
+                    for col in range(active_table.columnCount()):
+                        cell = active_table.item(row, col)
+                        if cell:
+                            cell.setBackground(QBrush())
+                            cell.setForeground(QBrush())
+
+                    # Clear is_pinned
+                    if entry_name and entry_name in entry_map:
+                        entry = entry_map[entry_name]
+                        if hasattr(entry, 'is_pinned'):
+                            del entry.is_pinned
+
                     # Update .pin file
                     if img_path and entry_name:
                         from apps.methods.pin_file_manager import unpin_entry
@@ -2789,72 +2827,85 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
-    def load_and_apply_pins(self, img_path: str): # vers 1
-        """Load .pin file and apply pin icons to table Status column
-        
-        Args:
-            img_path: Path to IMG file
-        """
+    def load_and_apply_pins(self, img_path: str): # vers 2
+        """Load .pin file, apply pin icons to Status column, colour rows, set entry.is_pinned."""
         try:
-            if not self.table or not img_path:
-                return
-            
+            from apps.methods.export_shared import get_active_table
             from apps.methods.pin_file_manager import load_pin_file
-            
-            # Load pin file
+            from PyQt6.QtGui import QColor, QBrush
+
+            table = get_active_table(self.main_window) or self.table
+            if not table or not img_path:
+                return
+
             pin_data = load_pin_file(img_path)
             pinned_entries = pin_data.get("entries", {})
-            
             if not pinned_entries:
-                return  # No pins to apply
-            
-            # Find Status and Name column indices
-            status_col = None
-            name_col = None
-            for col in range(self.table.columnCount()):
-                header_item = self.table.horizontalHeaderItem(col)
-                if header_item:
-                    header_text = header_item.text().lower()
-                    if header_text == "status":
-                        status_col = col
-                    elif header_text == "name":
-                        name_col = col
-            
-            if status_col is None or name_col is None:
                 return
-            
-            # Apply pins to table
+
+            # Find Status and Name column indices
+            status_col = name_col = None
+            for col in range(table.columnCount()):
+                header_item = table.horizontalHeaderItem(col)
+                if header_item:
+                    ht = header_item.text().lower()
+                    if ht == "status":
+                        status_col = col
+                    elif ht == "name":
+                        name_col = col
+
+            if name_col is None:
+                return
+
+            # Get entry objects for setting is_pinned
+            file_object = getattr(self.main_window, 'current_img', None)
+            entry_map = {}
+            if file_object and hasattr(file_object, 'entries'):
+                for entry in file_object.entries:
+                    entry_map[getattr(entry, 'name', '')] = entry
+
             pin_icon = "📌"
+            pin_colour = QColor(80, 60, 20)   # dark amber tint for dark themes
+            pin_fg = QColor(255, 200, 80)      # amber text
             pins_applied = 0
-            
-            for row in range(self.table.rowCount()):
-                name_item = self.table.item(row, name_col)
+
+            for row in range(table.rowCount()):
+                name_item = table.item(row, name_col)
                 if not name_item:
                     continue
-                
                 entry_name = name_item.text()
-                
-                # Check if entry is pinned
                 entry_data = pinned_entries.get(entry_name, {})
-                if entry_data.get("pinned", False):
-                    # Add pin icon to Status column
-                    status_item = active_table.item(row, status_col)
+                if not entry_data.get("pinned", False):
+                    continue
+
+                # Set is_pinned on entry object
+                if entry_name in entry_map:
+                    entry_map[entry_name].is_pinned = True
+
+                # Pin icon in Status column
+                if status_col is not None:
+                    status_item = table.item(row, status_col)
                     if status_item:
-                        current_text = status_item.text()
-                        if pin_icon not in current_text:
-                            if current_text:
-                                status_item.setText(f"{pin_icon} {current_text}")
-                            else:
-                                status_item.setText(pin_icon)
-                            pins_applied += 1
+                        if pin_icon not in status_item.text():
+                            t = status_item.text()
+                            status_item.setText(f"{pin_icon} {t}" if t else pin_icon)
                     else:
-                        new_item = QTableWidgetItem(pin_icon)
-                        active_table.setItem(row, status_col, new_item)
-                        pins_applied += 1
-            
+                        table.setItem(row, status_col, QTableWidgetItem(pin_icon))
+
+                # Colour entire row
+                for col in range(table.columnCount()):
+                    cell = table.item(row, col)
+                    if not cell:
+                        cell = QTableWidgetItem("")
+                        table.setItem(row, col, cell)
+                    cell.setBackground(QBrush(pin_colour))
+                    cell.setForeground(QBrush(pin_fg))
+
+                pins_applied += 1
+
             if pins_applied > 0 and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Loaded {pins_applied} pinned entries from .pin file")
-        
+                self.main_window.log_message(f"Restored {pins_applied} pinned entries")
+
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error loading pins: {str(e)}")

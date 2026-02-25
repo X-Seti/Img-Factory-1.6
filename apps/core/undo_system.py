@@ -150,8 +150,8 @@ class UndoManager: #vers 1
         self.current_index = -1
 
 
-def refresh_after_undo(main_window): #vers 1
-    """Repopulate active tab table after undo/redo."""
+def refresh_after_undo(main_window): #vers 2
+    """Repopulate active tab table after undo/redo, then reapply pins."""
     try:
         file_object = getattr(main_window, 'current_img', None) or getattr(main_window, 'current_col', None)
         if file_object and hasattr(main_window, '_populate_real_img_table'):
@@ -160,6 +160,10 @@ def refresh_after_undo(main_window): #vers 1
             main_window.refresh_table()
         if file_object:
             file_object.modified = True
+        # Reapply pin colours after table repopulation
+        if file_object and hasattr(file_object, 'file_path') and file_object.file_path:
+            if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'load_and_apply_pins'):
+                main_window.gui_layout.load_and_apply_pins(file_object.file_path)
         if hasattr(main_window, 'update_img_status'):
             main_window.update_img_status(img_file=file_object)
     except Exception as e:
