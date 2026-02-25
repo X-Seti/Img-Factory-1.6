@@ -2112,76 +2112,15 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error in duplicate_selected: {str(e)}")
             QMessageBox.critical(self, "Duplicate Error", f"Failed to duplicate entries:\n{str(e)}")
 
-    def _rename_entry(self):
-        """Rename entry (for menu system)"""
-        self._rename_selected()
+    def _rename_entry(self): #vers 2
+        """Rename entry - delegates to rename_img_entry (pin-protected, date-stamped, undo)"""
+        from apps.core.rename import rename_img_entry
+        rename_img_entry(self)
 
-    def _rename_selected(self):
-        """Rename selected entry"""
-        try:
-            table = self._get_active_table()
-            if not table:
-                QMessageBox.warning(self, "Rename", "Table not available.")
-                return
-
-            selected_items = table.selectedItems()
-            
-            if not selected_items:
-                QMessageBox.information(self, "Rename", "Please select an entry to rename.")
-                return
-
-            # Get the first selected row (use the row of the first selected item)
-            row = selected_items[0].row()
-            
-            if not hasattr(self, 'current_img') or not self.current_img:
-                QMessageBox.warning(self, "Rename", "No IMG file loaded.")
-                return
-
-            if row >= len(self.current_img.entries):
-                QMessageBox.warning(self, "Rename", "Selected row is out of range.")
-                return
-
-            # Get current entry name
-            current_entry = self.current_img.entries[row]
-            current_name = current_entry.name
-
-            # Show input dialog for new name
-            new_name, ok = QInputDialog.getText(
-                self,
-                "Rename Entry",
-                f"Enter new name for '{current_name}':",
-                text=current_name
-            )
-
-            if ok and new_name and new_name != current_name:
-                # Validate the new name
-                if self._validate_entry_name(new_name):
-                    # Check for duplicates
-                    if not self._check_duplicate_name(new_name, current_entry):
-                        # Perform the rename
-                        current_entry.name = new_name
-                        
-                        # Update the table display
-                        name_item = table.item(row, 0)  # Assuming name is in column 0
-                        if name_item:
-                            name_item.setText(new_name)
-
-                        # Mark as modified
-                        self.current_img.modified = True
-
-                        self.log_message(f"Renamed '{current_name}' to '{new_name}'")
-                        QMessageBox.information(self, "Rename Successful", 
-                                              f"Successfully renamed to '{new_name}'")
-                    else:
-                        QMessageBox.warning(self, "Duplicate Name", 
-                                          f"An entry named '{new_name}' already exists")
-                else:
-                    QMessageBox.warning(self, "Invalid Name", 
-                                      "The name provided is invalid")
-                    
-        except Exception as e:
-            self.log_message(f"Error in rename_selected: {str(e)}")
-            QMessageBox.critical(self, "Rename Error", f"Failed to rename entry:\n{str(e)}")
+    def _rename_selected(self): #vers 2
+        """Rename selected - delegates to rename_img_entry"""
+        from apps.core.rename import rename_img_entry
+        rename_img_entry(self)
 
     def _validate_entry_name(self, name):
         """Validate entry name for IMG file"""
