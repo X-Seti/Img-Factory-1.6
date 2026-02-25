@@ -4425,10 +4425,10 @@ class IMGFactory(QMainWindow):
                     offset_text = "0x0"
                 table.setItem(row, 4, QTableWidgetItem(offset_text))
 
-                # RW Address - column 5 (new column)
+                # RW Address - column 5 (raw RW version hex from header)
                 try:
-                    if hasattr(entry, 'rw_address') and entry.rw_address is not None:
-                        rw_addr_text = f"0x{int(entry.rw_address):X}"
+                    if hasattr(entry, 'rw_version') and entry.rw_version and entry.rw_version > 0:
+                        rw_addr_text = f"0x{int(entry.rw_version):08X}"
                     else:
                         rw_addr_text = "N/A"
                 except:
