@@ -472,7 +472,11 @@ def _rename_with_fallback_method(main_window, entry, new_name: str) -> bool: #ve
         
         # Directly rename the entry's name attribute
         entry.name = new_name
-        
+
+        # Stamp date of change
+        from apps.core.undo_system import set_entry_date
+        set_entry_date(entry)
+
         # Mark entry as modified if there's a modified flag
         if hasattr(entry, 'modified'):
             entry.modified = True

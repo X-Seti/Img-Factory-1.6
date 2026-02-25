@@ -180,16 +180,13 @@ def show_context_menu(main_window, position): #vers 3
             export_action.triggered.connect(main_window.export_selected)
             menu.addAction(export_action)
 
-        # Remove action
-        if hasattr(main_window, 'remove_selected'):
-            remove_action = QAction("Remove", menu_parent)
-            remove_action.triggered.connect(main_window.remove_selected)
-            menu.addAction(remove_action)
-
-
-        if hasattr(main_window, 'remove_selected'):
-            selected_items = table.selectedItems()
-            if selected_items:
+        # Remove action - use remove_selected_function (pin-protected)
+        if table.selectedItems():
+            if hasattr(main_window, 'remove_selected_function'):
+                remove_action = QAction("Remove", menu_parent)
+                remove_action.triggered.connect(main_window.remove_selected_function)
+                menu.addAction(remove_action)
+            elif hasattr(main_window, 'remove_selected'):
                 remove_action = QAction("Remove", menu_parent)
                 remove_action.triggered.connect(main_window.remove_selected)
                 menu.addAction(remove_action)

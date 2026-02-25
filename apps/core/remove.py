@@ -34,6 +34,27 @@ def remove_selected_function(main_window): #vers 5
         if not selected_entries:
             QMessageBox.information(main_window, "No Selection", "No entries selected for removal")
             return False
+
+        # Filter pinned entries BEFORE confirm dialog
+        pinned = [e for e in selected_entries if getattr(e, 'is_pinned', False)]
+        if pinned:
+            selected_entries = [e for e in selected_entries if not getattr(e, 'is_pinned', False)]
+            pinned_names = ', '.join(getattr(e, 'name', '?') for e in pinned[:5])
+            msg = f"Entry protected - cannot remove: {pinned_names}"
+            try:
+                s = getattr(getattr(main_window, 'app_settings', None), 'current_settings', {})
+            except Exception:
+                s = {}
+            if s.get('pin_warn_log', True) and hasattr(main_window, 'log_message'):
+                main_window.log_message(msg)
+            if not selected_entries:
+                if s.get('pin_warn_popup', True):
+                    QMessageBox.information(main_window, "All Pinned",
+                        msg + ". Unpin them first to remove.")
+                return False
+            if s.get('pin_warn_popup', True):
+                QMessageBox.information(main_window, "Pinned Skipped", msg + ". Continuing with unpinned entries.")
+
         # Confirm removal
         reply = QMessageBox.question(
             main_window,
@@ -191,25 +212,6 @@ def _get_selected_entries_simple(main_window, file_object) -> list: #vers 3
             if row < len(file_object.entries):
                 selected_entries.append(file_object.entries[row])
     
-    # Filter out pinned entries, notify per settings
-    pinned = [e for e in selected_entries if getattr(e, 'is_pinned', False)]
-    if pinned:
-        skipped_names = [getattr(e, 'name', '?') for e in pinned]
-        selected_entries = [e for e in selected_entries if not getattr(e, 'is_pinned', False)]
-        msg = f"Entry protected - cannot remove: {', '.join(skipped_names[:5])}"
-        try:
-            s = getattr(getattr(main_window, 'app_settings', None), 'current_settings', {})
-        except Exception:
-            s = {}
-        if s.get('pin_warn_log', True) and hasattr(main_window, 'log_message'):
-            main_window.log_message(msg)
-        if not selected_entries:
-            if s.get('pin_warn_popup', True):
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.information(main_window, "All Pinned",
-                    msg + ". Unpin them first to remove.")
-            return []
-
     return selected_entries
 
 
