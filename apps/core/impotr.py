@@ -147,6 +147,13 @@ def import_files_with_list(main_window, file_paths: List[str]) -> bool:
                         entry.is_new_entry = True
                         entry.is_replaced = False
                         imported_filenames.append(entry.name)
+                    # Stamp date and persist to pin file
+                    try:
+                        from apps.core.undo_system import set_entry_date
+                        _img_path = getattr(file_object, 'file_path', None)
+                        set_entry_date(entry, _img_path)
+                    except Exception:
+                        pass
                     
                     if not hasattr(entry, 'data') or not entry.data:
                         for fp in success_list:

@@ -81,42 +81,81 @@ def _parse_ide_sections(ide_path: str) -> dict: #vers 1
     return sections
 
 
-def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_stats: bool = False) -> bool: #vers 5 Fixed
-    """Import files from IDE with file searching and optional post-import stats."""
+def _make_progress_dialog(parent, title: str, message: str):
+    """Create a simple non-cancellable progress dialog for IDE operations."""
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar
+    from PyQt6.QtCore import Qt
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(title)
+    dlg.setModal(True)
+    dlg.setWindowFlags(dlg.windowFlags() & ~Qt.WindowType.WindowCloseButtonHint)
+    dlg.resize(360, 90)
+    layout = QVBoxLayout(dlg)
+    dlg.label = QLabel(message)
+    dlg.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(dlg.label)
+    dlg.bar = QProgressBar()
+    dlg.bar.setRange(0, 0)  # indeterminate
+    layout.addWidget(dlg.bar)
+    return dlg
+
+
+def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_stats: bool = False) -> bool: #vers 6 Fixed
+    """Import files from IDE with progress dialog and optional post-import stats."""
+    from PyQt6.QtWidgets import QApplication
+
+    progress = _make_progress_dialog(main_window, "Import Via IDE", "Parsing IDE file...")
+    progress.show()
+    QApplication.processEvents()
+
     try:
         if not os.path.exists(ide_path):
+            progress.close()
             QMessageBox.warning(main_window, "IDE Not Found", f"IDE file not found: {ide_path}")
             return False
         if not os.path.exists(files_location):
+            progress.close()
             QMessageBox.warning(main_window, "Folder Not Found", f"Files location not found: {files_location}")
             return False
         file_object, file_type = get_current_file_from_active_tab(main_window)
         if file_type != 'IMG':
+            progress.close()
             QMessageBox.warning(main_window, "IMG Only", "Import Via IDE only works with IMG files")
             return False
 
-        # Parse IDE into sections
+        # Stage 1: Parse IDE
+        progress.label.setText("Parsing IDE file...")
+        QApplication.processEvents()
         try:
             sections = _parse_ide_sections(ide_path)
         except Exception as e:
+            progress.close()
             QMessageBox.critical(main_window, "IDE Parse Error", f"Failed to parse IDE file: {str(e)}")
             return False
 
         if not sections:
+            progress.close()
             QMessageBox.information(main_window, "No Models", "No model definitions found in IDE file")
             return False
 
-        # Collect all models/textures across sections for file search
         all_models = set()
         all_textures = set()
         for sec_data in sections.values():
             all_models.update(sec_data['models'])
             all_textures.update(sec_data['textures'])
 
-        # Find files - track found/missing per type
+        total = len(all_models) + len(all_textures)
+
+        # Stage 2: Search files
+        progress.label.setText(f"Searching folder for {total} files...")
+        progress.bar.setRange(0, total)
+        progress.bar.setValue(0)
+        QApplication.processEvents()
+
         files_to_import = []
         found_dff, missing_dff = [], []
         found_txd, missing_txd = [], []
+        done = 0
 
         for name in sorted(all_models):
             path = _find_files_in_directory(files_location, f"{name}.dff")
@@ -125,6 +164,10 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_
                 found_dff.append(name)
             else:
                 missing_dff.append(name)
+            done += 1
+            progress.bar.setValue(done)
+            if done % 10 == 0:
+                QApplication.processEvents()
 
         for name in sorted(all_textures):
             path = _find_files_in_directory(files_location, f"{name}.txd")
@@ -133,32 +176,43 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_
                 found_txd.append(name)
             else:
                 missing_txd.append(name)
+            done += 1
+            progress.bar.setValue(done)
+            if done % 10 == 0:
+                QApplication.processEvents()
 
         if not files_to_import:
+            progress.close()
             QMessageBox.information(main_window, "No Files Found",
                 f"No files found matching IDE definitions in: {files_location}\n"
                 f"Missing DFF: {len(missing_dff)}  Missing TXD: {len(missing_txd)}")
             return False
 
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Found {len(files_to_import)} files from IDE definitions "
+            main_window.log_message(f"Found {len(files_to_import)} files "
                 f"(DFF: {len(found_dff)}, TXD: {len(found_txd)}, "
                 f"missing DFF: {len(missing_dff)}, missing TXD: {len(missing_txd)})")
 
-        # Import
+        # Stage 3: Import
+        progress.label.setText(f"Importing {len(files_to_import)} files...")
+        progress.bar.setRange(0, 0)
+        QApplication.processEvents()
+
         success = False
         if hasattr(main_window, 'import_files_with_list'):
             success = main_window.import_files_with_list(files_to_import)
             if success and hasattr(main_window, 'refresh_current_tab_data'):
                 main_window.refresh_current_tab_data()
 
-        # Show stats dialog if requested
+        progress.close()
+
         if show_stats:
             _show_import_stats_dialog(main_window, sections, found_dff, found_txd,
                                       missing_dff, missing_txd, success)
         return success
 
     except Exception as e:
+        progress.close()
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"IDE import error: {str(e)}")
         return False
