@@ -13,6 +13,19 @@ from apps.methods.imgcol_exists import set_context
 from apps.methods.tab_system import get_current_file_from_active_tab
 from apps.methods.common_functions import sanitize_filename, detect_file_type, detect_rw_version
 
+def _import_log(main_window, msg: str, debug_only: bool = False):
+    """Log to activity window. If debug_only, only logs when import_via debug is enabled."""
+    if debug_only:
+        try:
+            if hasattr(main_window, 'debug') and main_window.debug.is_debug_log_enabled('import_via'):
+                main_window.log_message(f"[Import] {msg}")
+        except Exception:
+            pass
+    else:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"[Import] {msg}")
+
+
 ##Methods list -
 # import_via_function
 # import_via_ide_function
@@ -162,8 +175,10 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_
             if path:
                 files_to_import.append(path)
                 found_dff.append(name)
+                _import_log(main_window, f"Found: {name}.dff", debug_only=True)
             else:
                 missing_dff.append(name)
+                _import_log(main_window, f"Missing: {name}.dff", debug_only=True)
             done += 1
             progress.bar.setValue(done)
             if done % 10 == 0:
@@ -174,8 +189,10 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_
             if path:
                 files_to_import.append(path)
                 found_txd.append(name)
+                _import_log(main_window, f"Found: {name}.txd", debug_only=True)
             else:
                 missing_txd.append(name)
+                _import_log(main_window, f"Missing: {name}.txd", debug_only=True)
             done += 1
             progress.bar.setValue(done)
             if done % 10 == 0:
@@ -188,21 +205,25 @@ def _import_files_via_ide(main_window, ide_path: str, files_location: str, show_
                 f"Missing DFF: {len(missing_dff)}  Missing TXD: {len(missing_txd)}")
             return False
 
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Found {len(files_to_import)} files "
-                f"(DFF: {len(found_dff)}, TXD: {len(found_txd)}, "
-                f"missing DFF: {len(missing_dff)}, missing TXD: {len(missing_txd)})")
+        _import_log(main_window,
+            f"Search complete: {len(found_dff)} DFF + {len(found_txd)} TXD found, "
+            f"{len(missing_dff)} DFF + {len(missing_txd)} TXD missing")
 
         # Stage 3: Import
         progress.label.setText(f"Importing {len(files_to_import)} files...")
         progress.bar.setRange(0, 0)
         QApplication.processEvents()
+        _import_log(main_window, f"Starting import of {len(files_to_import)} files...")
 
         success = False
         if hasattr(main_window, 'import_files_with_list'):
             success = main_window.import_files_with_list(files_to_import)
-            if success and hasattr(main_window, 'refresh_current_tab_data'):
-                main_window.refresh_current_tab_data()
+            if success:
+                _import_log(main_window, f"Import complete: {len(files_to_import)} files added")
+                if hasattr(main_window, 'refresh_current_tab_data'):
+                    main_window.refresh_current_tab_data()
+            else:
+                _import_log(main_window, "Import failed")
 
         progress.close()
 
