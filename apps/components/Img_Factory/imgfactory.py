@@ -2866,29 +2866,30 @@ class IMGFactory(QMainWindow):
             try:
                 from PyQt6.QtWidgets import QPushButton
                 from PyQt6.QtCore import QSize
-                from apps.methods.imgfactory_svg_icons import get_tree_icon
-                _max_btn = QPushButton()
-                _max_btn.setIcon(get_tree_icon(16))
-                _max_btn.setFixedSize(22, 22)
-                _max_btn.setIconSize(QSize(16, 16))
-                _max_btn.setFlat(True)
-                _max_btn.setToolTip("Maximise file tabs / Restore split")
-                def _on_max_btn():
+                from apps.methods.imgfactory_svg_icons import get_panel_toggle_icon
+                _tog_btn = QPushButton()
+                _tog_btn.setIcon(get_panel_toggle_icon(16))
+                _tog_btn.setFixedSize(22, 22)
+                _tog_btn.setIconSize(QSize(16, 16))
+                _tog_btn.setFlat(True)
+                _tog_btn.setToolTip("Toggle: split / tabs full / tree full")
+                def _on_toggle():
                     splitter = getattr(getattr(self, 'gui_layout', None), 'content_splitter', None)
                     if not splitter or splitter.count() < 2:
                         return
-                    sizes = splitter.sizes()
-                    total = sum(sizes)
-                    if not total:
-                        return
-                    if sizes[0] >= total * 0.95:
-                        splitter.setSizes([total // 2, total // 2])
-                    else:
+                    total = sum(splitter.sizes()) or 10000
+                    state = (getattr(self, '_dirtree_state', 0) + 1) % 3
+                    self._dirtree_state = state
+                    if state == 0:   # tabs full
                         splitter.setSizes([total, 0])
-                _max_btn.clicked.connect(_on_max_btn)
-                self.main_tab_widget.setCornerWidget(_max_btn)
+                    elif state == 1: # split
+                        splitter.setSizes([total // 2, total // 2])
+                    elif state == 2: # tree full
+                        splitter.setSizes([0, total])
+                _tog_btn.clicked.connect(_on_toggle)
+                self.main_tab_widget.setCornerWidget(_tog_btn)
             except Exception as e:
-                print(f"Tab corner widget error: {e}")
+                self.log_message(f"Tab corner widget error: {e}")
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(100, _setup_corner_widget)
 

@@ -2906,6 +2906,16 @@ def get_rebuild_icon(size: int = 24, color: str = None, bg_color: str = None) ->
         return QIcon(pm)
     return icon
 
+def get_panel_toggle_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Sidebar panel toggle - left panel + right content area"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="3" width="20" height="18" rx="2" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="8" y1="3" x2="8" y2="21" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="11" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="11" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="11" y1="16" x2="19" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
 def get_split_horizontal_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     """Two panels side by side - indicates horizontal split layout"""
     from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
