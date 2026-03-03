@@ -727,7 +727,7 @@ class IMGFactoryMenuBar:
                     self.recent_files_menu.addAction("No recent files"))
                 # insertAction above adds at end too - just prepend cleanly
                 self.recent_files_menu.removeAction(a)
-                from PyQt6.QtWidgets import QAction
+                from PyQt6.QtGui import QAction
                 no_action = QAction("No recent files", self.recent_files_menu)
                 no_action.setEnabled(False)
                 self.recent_files_menu.insertAction(self.recent_files_menu.actions()[0], no_action)
@@ -737,7 +737,7 @@ class IMGFactoryMenuBar:
                 for file_path in reversed(recent_files[:10]):
                     import os
                     label = f"{os.path.basename(file_path)}  [{os.path.dirname(file_path)}]"
-                    from PyQt6.QtWidgets import QAction
+                    from PyQt6.QtGui import QAction
                     action = QAction(label, self.recent_files_menu)
                     action.triggered.connect(lambda checked=False, fp=file_path: self._open_recent_file(fp))
                     self.recent_files_menu.insertAction(sep, action)

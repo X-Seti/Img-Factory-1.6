@@ -86,12 +86,10 @@ def update_ui_for_loaded_img(main_window): #vers 6
                     current_tab.show()
             
             # Force table visibility and all its parents
-            if hasattr(main_window.gui_layout, 'table'):
+            if hasattr(main_window.gui_layout, 'table') and main_window.gui_layout.table is not None:
                 table = main_window.gui_layout.table
                 table.setVisible(True)
                 table.show()
-                
-                # Force all table parents to be visible
                 parent = table.parent()
                 level = 0
                 while parent and level < 5:

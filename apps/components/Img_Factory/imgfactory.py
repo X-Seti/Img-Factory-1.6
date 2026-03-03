@@ -3368,70 +3368,10 @@ class IMGFactory(QMainWindow):
             if file_ext == 'img':
                 self._load_img_file_in_new_tab(file_path)  # â† Starts threading
                 return True  # â† Return immediately, let threading finish
-                try:
-                    # Import IMG loading components directly
-                    from apps.methods.img_core_classes import IMGFile
-                    from apps.methods.populate_img_table import populate_img_table
-
-                    # Create IMG file object
-                    img_file = IMGFile(file_path)
-
-                    if not img_file.open():
-                        self.log_message(f"Failed to open IMG file: {img_file.get_error()}")
-                        return False
-
-                    # Set as current IMG file #hangs after second img added?
-                    #self.current_img = img_file
-
-                    # CRITICAL: Setup IMG table structure (6 columns)
-                    if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
-                        table = self.gui_layout.table
-                        # Reset to IMG structure
-                        table.setColumnCount(6)
-                        table.setHorizontalHeaderLabels([
-                            "Name", "Type", "Size", "Offset", "RW Version", "Info"
-                        ])
-                        # Set IMG column widths
-                        table.setColumnWidth(0, 200)  # Name
-                        table.setColumnWidth(1, 80)   # Type
-                        table.setColumnWidth(2, 100)  # Size
-                        table.setColumnWidth(3, 100)  # Offset
-                        table.setColumnWidth(4, 120)  # RW Version
-                        table.setColumnWidth(5, 150)  # Info
-
-                    # Populate table with IMG data using proper method
-
-                    populate_img_table(table, img_file)
-                    if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'load_and_apply_pins'):
-                        self.gui_layout.load_and_apply_pins(self.current_img.file_path)
-
-                    # Update window title
-                    self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
-
-                    # Update info panel/status
-                    entry_count = len(img_file.entries) if img_file.entries else 0
-                    file_size = os.path.getsize(file_path)
-
-                    self.log_message(f"IMG file loaded: {entry_count} entries")
-                    return True
-
-                except Exception as img_error:
-                    self.log_message(f"Error loading IMG file: {str(img_error)}")
-                    return False
 
             elif file_ext == 'col':
-                # COL file loading (unchanged - working correctly)
-                if hasattr(self, 'load_col_file_safely'):
-                    self.log_message(f"Loading COL file: {file_name}")
-                    success = self.load_col_file_safely(file_path)
-                    if success:
-                        self.log_message("COL file loaded successfully")
-                    else:
-                        self.log_message("Failed to load COL file")
-                    return success
-                else:
-                    self.log_message("COL integration not available")
-                    return False
+                self._load_col_file_in_new_tab(file_path)
+                return True
 
             else:
                 self.log_message(f"Unsupported file type: {file_ext}")
