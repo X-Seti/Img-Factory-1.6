@@ -500,11 +500,11 @@ class DirectoryTreeBrowser(QWidget):
         self._layout_state = 0
         layout.addWidget(self.layout_cycle_btn)
 
-        # Maximise/restore button
-        from apps.methods.imgfactory_svg_icons import get_tree_icon
+        # Panel toggle button - cycles tabs-full / split / tree-full
+        from apps.methods.imgfactory_svg_icons import get_panel_toggle_icon
         self.maximise_btn = QPushButton()
-        self.maximise_btn.setIcon(get_tree_icon(20))
-        self.maximise_btn.setToolTip("Maximise tree / Restore split")
+        self.maximise_btn.setIcon(get_panel_toggle_icon(20))
+        self.maximise_btn.setToolTip("Toggle: tabs full / split / tree full")
         self.maximise_btn.setMaximumSize(32, 32)
         self.maximise_btn.clicked.connect(self._toggle_tree_maximise)
         layout.addWidget(self.maximise_btn)
@@ -512,8 +512,8 @@ class DirectoryTreeBrowser(QWidget):
         return toolbar
 
 
-    def _toggle_tree_maximise(self): #vers 1
-        """Maximise tree to full width, or restore split"""
+    def _toggle_tree_maximise(self): #vers 2
+        """Cycle: tabs-full -> split -> tree-full -> tabs-full"""
         try:
             mw = self.main_window
             if not mw:
@@ -521,18 +521,18 @@ class DirectoryTreeBrowser(QWidget):
             splitter = getattr(getattr(mw, 'gui_layout', None), 'content_splitter', None)
             if not splitter or splitter.count() < 2:
                 return
-            sizes = splitter.sizes()
-            total = sum(sizes)
-            if not total:
-                return
-            # Tree is index 1; if already maximised restore split, else maximise
-            if sizes[1] >= total * 0.95:
+            total = sum(splitter.sizes()) or 10000
+            state = (getattr(mw, '_dirtree_state', 0) + 1) % 3
+            mw._dirtree_state = state
+            if state == 0:
+                splitter.setSizes([total, 0])
+            elif state == 1:
                 splitter.setSizes([total // 2, total // 2])
-            else:
+            elif state == 2:
                 splitter.setSizes([0, total])
         except Exception as e:
             if self.main_window:
-                self.main_window.log_message(f"Maximise error: {str(e)}")
+                self.main_window.log_message(f"Panel toggle error: {str(e)}")
 
     def _toggle_panel_mode(self): #vers 1
         """Toggle between single and twin panel view"""
