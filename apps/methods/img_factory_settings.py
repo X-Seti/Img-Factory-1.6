@@ -20,9 +20,14 @@ class IMGFactorySettings:
             "auto_save_on_import": True,
             "auto_reload_on_import": False,
 
-            # Logging
+            # Debug / Logging
+            "debug_mode": False,
+            "debug_output_terminal": True,
+            "debug_output_file": False,
+            "debug_output_activity": True,
             "log_to_file": False,
             "log_file_path": "imgfactory_activity.log",
+            "debug_log_functions": [],
 
             # IDE Integration
             "load_ide_with_img": False,

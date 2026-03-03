@@ -48,7 +48,7 @@ from apps.components.File_Editor.directory_tree_browser import integrate_directo
 from apps.components.Project_Manager.project_manager import add_project_menu_items
 
 # Debug
-from apps.debug.debug_functions import set_col_debug_enabled
+from apps.debug.debug_functions import set_col_debug_enabled, set_debug_main_window
 from apps.debug.debug_functions import integrate_all_improvements, install_debug_control_system
 
 # Core functions
@@ -662,6 +662,9 @@ class IMGFactory(QMainWindow):
         # Restore settings
         self._restore_settings()
         self.autoload_game_root()
+
+        # Attach unified debug system
+        set_debug_main_window(self)
 
         # Utility functions
         self.setup_missing_utility_functions()

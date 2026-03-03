@@ -579,19 +579,36 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
 
         return button_layout
 
-    def _create_debug_log_tab(self): #vers 1
-        """Create Debug Log Functions tab - per-feature terminal/log toggle."""
-        from PyQt6.QtWidgets import QGridLayout, QScrollArea
+    def _create_debug_log_tab(self): #vers 2
+        """Create Debug Log tab - output destinations + per-feature toggles."""
+        from PyQt6.QtWidgets import QGridLayout, QScrollArea, QGroupBox
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        layout.addWidget(QLabel("Enable logging to the activity window for each feature. Disabled = no output."))
+        # --- Master switch ---
+        master_group = QGroupBox("Debug Mode")
+        master_layout = QVBoxLayout(master_group)
+        self._debug_mode_cb = QCheckBox("Enable debug logging")
+        self._debug_mode_cb.setChecked(self.img_settings.get('debug_mode', False))
+        master_layout.addWidget(self._debug_mode_cb)
+        layout.addWidget(master_group)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        inner = QWidget()
-        grid = QGridLayout(inner)
+        # --- Output destinations ---
+        dest_group = QGroupBox("Output Destinations")
+        dest_layout = QVBoxLayout(dest_group)
+        self._debug_out_terminal = QCheckBox("Terminal (stdout)")
+        self._debug_out_file     = QCheckBox("Log file  (" + self.img_settings.get('log_file_path', 'imgfactory_activity.log') + ")")
+        self._debug_out_activity = QCheckBox("Activity window")
+        self._debug_out_terminal.setChecked(self.img_settings.get('debug_output_terminal', True))
+        self._debug_out_file.setChecked(self.img_settings.get('debug_output_file', False))
+        self._debug_out_activity.setChecked(self.img_settings.get('debug_output_activity', True))
+        for cb in (self._debug_out_terminal, self._debug_out_file, self._debug_out_activity):
+            dest_layout.addWidget(cb)
+        layout.addWidget(dest_group)
 
+        # --- Per-feature toggles ---
+        feat_group = QGroupBox("Log Features  (only active when debug mode is on)")
+        feat_layout = QGridLayout(feat_group)
         self._debug_log_checks = {}
         _entries = [
             ('import_via',  'Import Via'),
@@ -604,16 +621,17 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
             ('rebuild',     'Rebuild'),
             ('extract',     'Extract'),
             ('col',         'COL Operations'),
+            ('split',       'Split'),
+            ('merge',       'Merge'),
         ]
         enabled = self.img_settings.get('debug_log_functions', [])
         for i, (key, label) in enumerate(_entries):
             cb = QCheckBox(label)
             cb.setChecked(key in enabled)
             self._debug_log_checks[key] = cb
-            grid.addWidget(cb, i // 2, i % 2)
+            feat_layout.addWidget(cb, i // 2, i % 2)
+        layout.addWidget(feat_group)
 
-        scroll.setWidget(inner)
-        layout.addWidget(scroll)
         layout.addStretch()
         return widget
 
@@ -662,10 +680,22 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         self.img_settings.set("auto_backup", self.auto_backup_cb.isChecked())
         self.img_settings.set("backup_count", self.backup_count_spin.value())
 
-        # Debug Log Functions tab
+        # Debug Log tab
+        if hasattr(self, '_debug_mode_cb'):
+            self.img_settings.set('debug_mode', self._debug_mode_cb.isChecked())
+        if hasattr(self, '_debug_out_terminal'):
+            self.img_settings.set('debug_output_terminal', self._debug_out_terminal.isChecked())
+            self.img_settings.set('debug_output_file',     self._debug_out_file.isChecked())
+            self.img_settings.set('debug_output_activity', self._debug_out_activity.isChecked())
         if hasattr(self, '_debug_log_checks'):
             self.img_settings.set('debug_log_functions',
                 [k for k, cb in self._debug_log_checks.items() if cb.isChecked()])
+        # Re-sync the live debugger
+        try:
+            from apps.debug.debug_functions import img_debugger
+            img_debugger.set_main_window(self.main_window)
+        except Exception:
+            pass
 
         self.img_settings.save_settings()
 
