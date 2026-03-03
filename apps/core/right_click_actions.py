@@ -13,6 +13,7 @@ from typing import Optional, List, Any
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMenu, QTableWidget, QWidget, QMessageBox
 from PyQt6.QtGui import QAction
+from apps.core.rename import rename_entry
 
 ##Methods list -
 # analyze_col_from_table
@@ -50,13 +51,10 @@ def setup_table_context_menu(main_window): #vers 3
             table = main_window.gui_layout.table
             table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             print("DEBUG: ✓ Context menu policy set to CustomContextMenu")
-            print("DEBUG: ✓ Context menu policy set to CustomContextMenu")
             table.customContextMenuRequested.connect(lambda pos: show_context_menu(main_window, pos))
-            print("DEBUG: ✓ Signal connected to show_context_menu")
             print("DEBUG: ✓ Signal connected to show_context_menu")
             main_window.log_message("Table right-click context menu enabled")
             print("DEBUG: ✓ Setup completed successfully, returning True")
-            print("DEBUG: ✓ Setup completed successfully")
             return True
         else:
             main_window.log_message("Table not available for context menu setup")
@@ -195,6 +193,8 @@ def show_context_menu(main_window, position): #vers 4 Fixed
         # RENAME OPERATION
         if table.selectedItems() and hasattr(main_window, 'rename_entry'):
             rename_action = QAction("Rename", menu_parent)
+
+            #'rename_selected': lambda: rename_entry(self.main_window),
             rename_action.triggered.connect(main_window.rename_entry)
             menu.addAction(rename_action)
 

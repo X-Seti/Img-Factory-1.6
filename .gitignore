@@ -54,3 +54,7 @@ wheels/
 .coverage*
 nosetests.xml
 ```
+*.log
+*.dir
+*.img
+*.log

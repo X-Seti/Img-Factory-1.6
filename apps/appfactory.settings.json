@@ -4,7 +4,7 @@
   "current_theme": "App_Factory",
   "theme": "gta_forums_dark",
   "button_display_mode": "both",
-  "use_custom_gadgets": false,
+  "use_custom_gadgets": true,
   "enable_corner_resize": true,
   "use_svg_icons": true,
   "font_family": "Sans Serif",
@@ -66,5 +66,10 @@
   "table_font_weight": "Normal",
   "tooltip_font_size": 8,
   "tooltip_font_weight": "Normal",
-  "gta_root_override_enabled": 2
+  "gta_root_override_enabled": 2,
+  "pin_warn_popup": true,
+  "pin_warn_log": true,
+  "rename_notify_popup": true,
+  "rename_notify_log": true,
+  "debug_log_functions": []
 }

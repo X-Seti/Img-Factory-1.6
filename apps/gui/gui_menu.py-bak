@@ -1396,7 +1396,6 @@ class IMGFactoryMenuBar:
         try:
             if hasattr(self.main_window, 'rename_entry'):
                 # Call the rename function which should handle the rename operation
-                from apps.core.rename import rename_entry
                 self.main_window.rename_entry()
 
                 # After renaming, we should enable the save functionality

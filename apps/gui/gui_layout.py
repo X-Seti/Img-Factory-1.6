@@ -173,21 +173,20 @@ class IMGFactoryGUILayout:
     def _create_method_mappings(self): #vers 5
         """Create centralized method mappings for all buttons"""
         method_mappings = {
-            # Nav Operations
+            # Nav Operations - Keep hidden unless custom theme requires these 3 buttons.
             'filelistwindow': lambda: _switch_to_file_entries(self.main_window),
             'switch_to_dirlist': lambda: _switch_to_directory_tree(self.main_window),
             'switch_to_search': lambda: _switch_to_search(self.main_window),
+
             # IMG/COL Operations
             'create_new_img': lambda: create_new_img(self.main_window),
             'open_img_file': lambda: open_file_dialog(self.main_window),
             'reload_table': lambda: reload_current_file(self.main_window),
-            'useless_button': lambda: self._safe_log("useless_button!"),
+            'useless_button': lambda: self._safe_log("useless_button!"), # Secret function
             'close_img_file': lambda: close_img_file(self.main_window),
             'close_all_img': lambda: close_all_img(self.main_window),
             'rebuild_img': lambda: rebuild_current_img_native(self.main_window),
-            #'rebuild_all_img': lambda: integrate_batch_rebuild_functions(self.main_window),
             'rebuild_all_img': lambda: rebuild_all_open_tabs(self.main_window),
-            #'save_img_entry': lambda: save_img_entry_function(self.main_window),
             'save_img_entry': lambda: self.main_window.save_img_entry(),
             'merge_img': lambda: merge_img_function(self.main_window),
             'split_img': lambda: split_img(self.main_window),
@@ -201,7 +200,8 @@ class IMGFactoryGUILayout:
             # Export methods
             'export_selected': lambda: self.main_window.export_selected(),
             'export_selected_via': lambda: self.main_window.export_via(),
-            'quick_export_selected': lambda: self.main_window.quick_export(),            'edit_txd_file': lambda: edit_txd_file(self.main_window),
+            'quick_export_selected': lambda: self.main_window.quick_export(),
+            'edit_txd_file': lambda: edit_txd_file(self.main_window),
             'dump_entries': lambda: self.main_window.dump_all(),
 
             # Remove methods
@@ -264,9 +264,9 @@ class IMGFactoryGUILayout:
         if self._is_dark_theme():
             return {
                 # Dark Theme Button Colors
-                'filelistwindow': '#3D4A5F',       # Light blue for open/load actions
-                'dirlistwindow': '#3D4A5F',       # Light blue for open/load actions
-                'filesearch': '#3D4A5F',       # Light blue for open/load actions
+                'filelistwindow': '#3D4A5F',    # Light blue for open/load actions
+                'dirlistwindow': '#3D4A5F',     # Light blue for open/load actions
+                'filesearch': '#3D4A5F',        # Light blue for open/load actions
                 'create_action': '#3D5A5A',     # Dark teal for create/new actions
                 'open_action': '#3D4A5F',       # Dark blue for open/load actions
                 'reload_action': '#2D4A3A',     # Dark green for refresh/reload
@@ -293,9 +293,9 @@ class IMGFactoryGUILayout:
         else:
             return {
                 # Light Theme Button Colors
-                'filelistwindow': '#E3F2FD',       # Light blue for open/load actions
-                'dirlistwindow': '#E3F2FD',       # Light blue for open/load actions
-                'filesearch': '#E3F2FD',       # Light blue for open/load actions
+                'filelistwindow': '#E3F2FD',    # Light blue for open/load actions
+                'dirlistwindow': '#E3F2FD',     # Light blue for open/load actions
+                'filesearch': '#E3F2FD',        # Light blue for open/load actions
                 'create_action': '#EEFAFA',     # Light teal for create/new actions
                 'open_action': '#E3F2FD',       # Light blue for open/load actions
                 'reload_action': '#E8F5E8',     # Light green for refresh/reload
