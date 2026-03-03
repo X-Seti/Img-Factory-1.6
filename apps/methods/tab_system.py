@@ -196,6 +196,16 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         # Switch to new tab
         main_window.main_tab_widget.setCurrentIndex(new_index)
 
+        # If dir tree is showing full-width, switch to split so the new tab is visible
+        if (getattr(main_window, '_dirtree_state', 0) == 2
+                and hasattr(main_window, 'gui_layout')):
+            gl = main_window.gui_layout
+            splitter = getattr(gl, 'content_splitter', None)
+            if splitter and splitter.count() >= 2:
+                total = sum(splitter.sizes()) or 10000
+                splitter.setSizes([total // 2, total // 2])
+                main_window._dirtree_state = 1
+
         main_window.log_message(f"Tab {new_index} created: {tab_name}")
         return new_index
 

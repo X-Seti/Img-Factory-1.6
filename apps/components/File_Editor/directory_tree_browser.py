@@ -1455,51 +1455,8 @@ def integrate_directory_tree_browser(main_window): #vers 4
         if hasattr(main_window, 'load_file_unified'):
             directory_browser.file_opened.connect(main_window.load_file_unified)
             
-        # Check if we have a tab widget (for backwards compatibility)
-
-        if hasattr(main_window, 'main_tab_widget') and main_window.main_tab_widget:
-            tab_widget = main_window.main_tab_widget
-
-            # Get Tab 0
-            if tab_widget.count() > 0:
-                tab_0 = tab_widget.widget(0)
-
-                # Find the main_splitter in Tab 0
-                from PyQt6.QtWidgets import QSplitter
-                main_splitter = None
-                for child in tab_0.children():
-                    if isinstance(child, QSplitter) and child.orientation() == Qt.Orientation.Horizontal:
-                        main_splitter = child
-                        break
-
-                if main_splitter and main_splitter.count() > 0:
-                    # Get middle_panel (widget 0 of main_splitter)
-                    middle_panel = main_splitter.widget(0)
-
-                    # Find middle_vertical_splitter inside middle_panel
-                    middle_vertical_splitter = None
-                    for child in middle_panel.findChildren(QSplitter):
-                        if child.orientation() == Qt.Orientation.Vertical:
-                            middle_vertical_splitter = child
-                            break
-
-                    if middle_vertical_splitter and middle_vertical_splitter.count() > 0:
-                        # Replace widget 0 (file_window) with directory_browser
-                        file_window = middle_vertical_splitter.widget(0)
-                        file_window.hide()
-                        middle_vertical_splitter.insertWidget(0, directory_browser)
-                        main_window.log_message("✓ Directory tree in file window area")
-
-                        tab_widget.setTabIcon(0, get_folder_icon())
-                    else:
-                        main_window.log_message("⚠ Could not find middle_vertical_splitter")
-                else:
-                    main_window.log_message("⚠ Could not find main_splitter in Tab 0")
-
-        else:
-            # For button-based UI - we need to make sure the directory browser is accessible
-            # It can be added to a central widget or managed by the switch functions
-            main_window.log_message("No tab widget found - directory tree stored for button-based UI")
+        # Placement into content_splitter is handled by _autoload_dir_tree / _switch_to_directory_tree
+        # Do not manipulate Tab 0 here - tabs are for IMG/COL files only
 
         # Load saved game root if available
         settings = QSettings("IMG-Factory", "IMG-Factory")
