@@ -321,7 +321,7 @@ class IMGEntry:
                 if self._img_file:
                     data = self.get_data()
                 else:
-                    return False
+                return False
             
             if not data or len(data) < 12:
                 return False
@@ -876,7 +876,7 @@ class IMGFile:
             for i, entry in enumerate(self.entries):
                 if entry.name == filename:
                     existing_entry = entry
-                            break
+                    break
 
             # Skip if existing entry is pinned
             if existing_entry and getattr(existing_entry, 'is_pinned', False):
