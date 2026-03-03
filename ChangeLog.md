@@ -1,4 +1,57 @@
-#this belongs in root /ChangeLog.md - Version: 9
+#this belongs in root /ChangeLog.md - Version: 10
+
+## March 03, 2026 - Unified Debug System, Date Stamping, Bug Fixes
+
+**Added**: apps/debug/debug_functions.py
+- IMGDebugger v2: routes output to terminal, log file, and activity window; all controlled by Settings > Debug Log
+- set_debug_main_window v1: call once at startup to attach main window; syncs flags from img_settings
+- debug_log v1: single call point for all feature debug output; silent if feature not ticked or debug mode off
+- is_feature_enabled v1: returns True if feature key is enabled in Settings > Debug Log
+- FEATURE_KEYS list: canonical list of all feature keys matching Settings toggles
+- col_debug_log v2: routes through unified debug_log instead of standalone system
+- integrate_col_debug_with_main_window v2: uses unified system
+- All helper functions (create_debug_menu, add_status_indicators, etc.) rewritten to v2; removed emojis
+
+**Added**: apps/methods/img_factory_settings.py
+- debug_mode default False: master debug on/off switch
+- debug_output_terminal default True: route to stdout
+- debug_output_file default False: route to log file
+- debug_output_activity default True: route to activity window
+- debug_log_functions default []: per-feature enable list
+
+**Updated**: apps/methods/imgfactory_ui_settings.py
+- _create_debug_log_tab v2: added Debug Mode master switch group; added Output Destinations group (Terminal / Log file / Activity window); feature list expanded to include split and merge keys
+- _save_settings v2: saves debug_mode, debug_output_terminal/file/activity; re-syncs live img_debugger after save
+
+**Fixed**: apps/components/Img_Factory/imgfactory.py
+- startup: calls set_debug_main_window(self) after _restore_settings so debugger is live from launch
+- load_file_unified v8: COL branch now routes to _load_col_file_in_new_tab (was calling load_col_file_safely directly causing double tab); removed 51 lines of dead unreachable IMG fallback code after return True
+
+**Fixed**: apps/methods/update_ui_for_loaded_img.py
+- update_ui_for_loaded_img v6: added None guard on gui_layout.table before calling setVisible; was crashing with NoneType has no attribute setVisible when COL loaded with no active IMG tab
+
+**Fixed**: apps/gui/gui_menu.py
+- _update_recent_files_submenu: two inline QAction imports corrected from PyQt6.QtWidgets to PyQt6.QtGui; was raising ImportError on every recent file update
+
+**Fixed**: apps/methods/img_core_classes.py
+- add_entry v4: stamps date_modified on new entries at creation time; all debug prints removed; structure repaired after regex damage
+- set_entry_date v5: fallback img_path resolution (file_path → img_path → dir_path); debug prints removed
+
+**Fixed**: apps/core/undo_system.py
+- set_entry_date v5: removed debug print calls; silent on persist error
+
+**Fixed**: apps/core/pin_entries.py
+- save_pin_file v1: removed debug print loop; silent on error
+
+**Fixed**: apps/gui/gui_layout.py
+- load_and_apply_pins v4: removed debug print calls
+
+**Fixed**: apps/core/import_via.py
+- _import_log: debug_only path now calls debug_log(main_window, 'import_via', msg) instead of inline settings check
+
+**Fixed**: apps/methods/populate_img_table.py, apps/methods/col_structure_manager.py, apps/methods/col_workshop_loader.py, apps/methods/col_workshop_structures.py, apps/components/Txd_Editor/txd_workshop.py
+- Removed all DummyDebugger/DebugFallback/img_debug_logger fallback classes; these printed unconditionally bypassing the debug gate; replaced with direct import of img_debugger from apps.debug.debug_functions
+
 
 ## February 25, 2026 - Date Tracking, Pin File Integrity, Row Colours, Version Detection
 
