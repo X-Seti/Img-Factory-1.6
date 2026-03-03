@@ -522,18 +522,19 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
             event.ignore()
             return
 
-        # Auto-scroll near edges
-        pos = event.position().toPoint()
+        # Auto-scroll near edges - map to viewport coords
         viewport = tree_widget.viewport()
+        pos = tree_widget.mapTo(viewport, event.position().toPoint())
         vh = viewport.height()
         scroll_zone = 40
         sb = tree_widget.verticalScrollBar()
         if pos.y() < scroll_zone:
-            sb.setValue(sb.value() - 8)
+            sb.setValue(sb.value() - 12)
         elif pos.y() > vh - scroll_zone:
-            sb.setValue(sb.value() + 8)
+            sb.setValue(sb.value() + 12)
 
-        item = tree_widget.itemAt(event.position().toPoint())
+        item = tree_widget.itemAt(tree_widget.viewport().mapFrom(
+            tree_widget, event.position().toPoint()))
 
         # Clear previous hover
         if _hovered[0] and _hovered[0] is not item:

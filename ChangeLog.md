@@ -1,4 +1,33 @@
-#this belongs in root /ChangeLog.md - Version: 10
+#this belongs in root /ChangeLog.md - Version: 11
+
+## March 03, 2026 - Dir Tree Columns, Drag Scroll, Panel Toggle Button
+
+**Fixed**: apps/methods/dragdrop_functions.py
+- drag_move v2: fixed auto-scroll to use viewport coordinates; scroll speed increased to 12px; drop now shows Copy/Move/Cancel dialog before acting
+
+**Updated**: apps/components/File_Editor/directory_tree_browser.py
+- _setup_tree_columns v2: 7 columns - Name, Type, Size, Created, Modified, Perms, RW Ver; all Interactive resize mode with fixed default widths
+- _show_column_toggle_menu v2: updated for 7-column labels
+- _toggle_column v1: toggles visibility across both panels; state persisted per session
+- _read_rw_version v1: reads first 12 bytes of DFF/TXD, extracts RW version word at offset 8
+- _move_selected_to_parent v1: moves selected items up one directory level; refreshes tree
+- populate_tree_recursive v2: fills all 7 columns using os.stat(); Created=ctime, Modified=mtime, Perms=octal mode
+- show_context_menu v3: added Move to /parent option under copy/cut section
+
+**Fixed**: apps/components/Img_Factory/imgfactory.py
+- autoload_game_root v5: defers dir tree placement via QTimer.singleShot(200) after show()
+- _autoload_dir_tree v1: places dir tree into content_splitter at full width (state 2)
+- _create_initial_tab: removed No File tab - tab bar starts empty until file loaded
+- Panel toggle button: TopRightCorner setCornerWidget; cycles tabs-full/split/tree-full via _dirtree_state
+- showEvent v1: repositions panel toggle button after show
+- resizeEvent v2: repositions panel toggle button on resize
+
+**Fixed**: apps/components/File_Editor/directory_tree_browser.py
+- integrate_directory_tree_browser v5: removed Tab 0 splitter-hunting block; placement handled by _autoload_dir_tree
+- _toggle_tree_maximise v2: cycles 3 states matching tab bar corner button
+
+**Fixed**: apps/methods/tab_system.py
+- create_tab v7: auto-switches to split view when new file tab opens with dir tree at full width
 
 ## March 03, 2026 - Unified Debug System, Date Stamping, Bug Fixes
 
