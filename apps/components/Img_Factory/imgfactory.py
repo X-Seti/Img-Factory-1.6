@@ -2861,18 +2861,13 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Maximise button in tab bar corner - deferred to avoid startup corruption
+        # Panel toggle button - placed on QTabBar directly via setTabButton
         def _setup_corner_widget():
             try:
                 from PyQt6.QtWidgets import QPushButton
-                from PyQt6.QtCore import QSize
+                from PyQt6.QtCore import QSize, Qt
                 from apps.methods.imgfactory_svg_icons import get_panel_toggle_icon
-                _tog_btn = QPushButton()
-                _tog_btn.setIcon(get_panel_toggle_icon(16))
-                _tog_btn.setFixedSize(22, 22)
-                _tog_btn.setIconSize(QSize(16, 16))
-                _tog_btn.setFlat(True)
-                _tog_btn.setToolTip("Toggle: split / tabs full / tree full")
+
                 def _on_toggle():
                     splitter = getattr(getattr(self, 'gui_layout', None), 'content_splitter', None)
                     if not splitter or splitter.count() < 2:
@@ -2880,18 +2875,34 @@ class IMGFactory(QMainWindow):
                     total = sum(splitter.sizes()) or 10000
                     state = (getattr(self, '_dirtree_state', 0) + 1) % 3
                     self._dirtree_state = state
-                    if state == 0:   # tabs full
+                    if state == 0:
                         splitter.setSizes([total, 0])
-                    elif state == 1: # split
+                    elif state == 1:
                         splitter.setSizes([total // 2, total // 2])
-                    elif state == 2: # tree full
+                    elif state == 2:
                         splitter.setSizes([0, total])
+
+                _tog_btn = QPushButton()
+                _tog_btn.setIcon(get_panel_toggle_icon(16))
+                _tog_btn.setFixedSize(22, 22)
+                _tog_btn.setIconSize(QSize(16, 16))
+                _tog_btn.setFlat(True)
+                _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
                 _tog_btn.clicked.connect(_on_toggle)
-                self.main_tab_widget.setCornerWidget(_tog_btn)
+
+                # Add a permanent empty tab to hold the button on the right side
+                stub = self.main_tab_widget.addTab(__import__('PyQt6.QtWidgets', fromlist=['QWidget']).QWidget(), "")
+                self.main_tab_widget.tabBar().setTabButton(
+                    stub,
+                    __import__('PyQt6.QtWidgets', fromlist=['QTabBar']).QTabBar.ButtonPosition.RightSide,
+                    _tog_btn)
+                self.main_tab_widget.setTabEnabled(stub, False)
+                self._panel_toggle_tab_index = stub
+                self._panel_toggle_btn = _tog_btn
             except Exception as e:
                 self.log_message(f"Tab corner widget error: {e}")
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(100, _setup_corner_widget)
+        QTimer.singleShot(300, _setup_corner_widget)
 
         # Replace table in content_splitter with main_tab_widget
         if hasattr(self.gui_layout, 'content_splitter'):
@@ -3023,9 +3034,15 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 5
+    def _on_tab_changed(self, index): #vers 6
         """Handle tab switching - DIR Tree or file tabs"""
         try:
+            # Ignore clicks on the permanent panel-toggle stub tab
+            if index == getattr(self, '_panel_toggle_tab_index', -1):
+                prev = max(0, index - 1)
+                self.main_tab_widget.setCurrentIndex(prev)
+                return
+
             current_tab = self.main_tab_widget.widget(index)
             tab_name = self.main_tab_widget.tabText(index)
 
