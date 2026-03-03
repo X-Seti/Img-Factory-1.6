@@ -2861,7 +2861,7 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Panel toggle button - created now, positioned after show()
+        # Panel toggle button - left corner of tab bar, outside tabs
         try:
             from PyQt6.QtWidgets import QPushButton
             from PyQt6.QtCore import QSize, Qt
@@ -2881,29 +2881,15 @@ class IMGFactory(QMainWindow):
                 elif state == 2:
                     splitter.setSizes([0, total])
 
-            _tog_btn = QPushButton(self.main_tab_widget.tabBar())
+            _tog_btn = QPushButton()
             _tog_btn.setIcon(get_panel_toggle_icon(16))
             _tog_btn.setFixedSize(22, 22)
             _tog_btn.setIconSize(QSize(16, 16))
             _tog_btn.setFlat(True)
             _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
             _tog_btn.clicked.connect(_on_toggle)
+            self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopLeftCorner)
             self._panel_toggle_btn = _tog_btn
-
-            def _reposition_toggle():
-                bar = self.main_tab_widget.tabBar()
-                _tog_btn.move(bar.width() - 26, (bar.height() - 22) // 2)
-                _tog_btn.raise_()
-                _tog_btn.show()
-            self._reposition_toggle = _reposition_toggle
-
-            # Hook tabBar resizeEvent to keep button anchored right
-            _orig_resize = self.main_tab_widget.tabBar().resizeEvent
-            def _patched_resize(ev, _orig=_orig_resize):
-                _orig(ev)
-                _reposition_toggle()
-            self.main_tab_widget.tabBar().resizeEvent = _patched_resize
-
         except Exception as e:
             self.log_message(f"Panel toggle button error: {e}")
 
@@ -2921,7 +2907,7 @@ class IMGFactory(QMainWindow):
             self.open_files = {}
 
         # Create initial empty tab with just a table
-        self._create_initial_tab()
+        # No File tab removed - start empty, tabs created on file load
 
         # Setup close manager BEFORE tab system
         self.close_manager = install_close_functions(self)
@@ -5647,19 +5633,10 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def showEvent(self, event): #vers 1
-        """Position floating tab bar buttons once window is shown."""
-        super().showEvent(event)
-        if hasattr(self, '_reposition_toggle'):
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(0, self._reposition_toggle)
-
     def resizeEvent(self, event): #vers 2
         """Handle window resize event"""
         super().resizeEvent(event)
         self.update()
-        if hasattr(self, '_reposition_toggle'):
-            self._reposition_toggle()
 
 
     def _toggle_maximize(self): #vers 1
