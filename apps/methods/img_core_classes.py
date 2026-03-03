@@ -915,6 +915,12 @@ class IMGFile:
                 self.entries.append(new_entry)
 
             new_entry.is_new_entry = True
+            # Stamp creation date
+            try:
+                from datetime import datetime
+                new_entry.date_modified = datetime.now().strftime("%b %d %Y %H:%M:%S")
+            except Exception:
+                pass
 
             # Only save if requested (for batch operations, set auto_save=False)
             if auto_save:
