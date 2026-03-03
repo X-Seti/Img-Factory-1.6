@@ -2861,7 +2861,7 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Panel toggle button - placed on QTabBar directly via setTabButton
+        # Panel toggle button - far right of tab bar via setCornerWidget
         def _setup_corner_widget():
             try:
                 from PyQt6.QtWidgets import QPushButton
@@ -2882,22 +2882,14 @@ class IMGFactory(QMainWindow):
                     elif state == 2:
                         splitter.setSizes([0, total])
 
-                _tog_btn = QPushButton()
+                _tog_btn = QPushButton(self.main_tab_widget)
                 _tog_btn.setIcon(get_panel_toggle_icon(16))
                 _tog_btn.setFixedSize(22, 22)
                 _tog_btn.setIconSize(QSize(16, 16))
                 _tog_btn.setFlat(True)
                 _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
                 _tog_btn.clicked.connect(_on_toggle)
-
-                # Add a permanent empty tab to hold the button on the right side
-                stub = self.main_tab_widget.addTab(__import__('PyQt6.QtWidgets', fromlist=['QWidget']).QWidget(), "")
-                self.main_tab_widget.tabBar().setTabButton(
-                    stub,
-                    __import__('PyQt6.QtWidgets', fromlist=['QTabBar']).QTabBar.ButtonPosition.RightSide,
-                    _tog_btn)
-                self.main_tab_widget.setTabEnabled(stub, False)
-                self._panel_toggle_tab_index = stub
+                self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopRightCorner)
                 self._panel_toggle_btn = _tog_btn
             except Exception as e:
                 self.log_message(f"Tab corner widget error: {e}")
@@ -3037,12 +3029,6 @@ class IMGFactory(QMainWindow):
     def _on_tab_changed(self, index): #vers 6
         """Handle tab switching - DIR Tree or file tabs"""
         try:
-            # Ignore clicks on the permanent panel-toggle stub tab
-            if index == getattr(self, '_panel_toggle_tab_index', -1):
-                prev = max(0, index - 1)
-                self.main_tab_widget.setCurrentIndex(prev)
-                return
-
             current_tab = self.main_tab_widget.widget(index)
             tab_name = self.main_tab_widget.tabText(index)
 
