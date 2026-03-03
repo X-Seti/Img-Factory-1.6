@@ -14,11 +14,14 @@ from apps.methods.tab_system import get_current_file_from_active_tab
 from apps.methods.common_functions import sanitize_filename, detect_file_type, detect_rw_version
 
 def _import_log(main_window, msg: str, debug_only: bool = False):
-    """Log to activity window. If debug_only, only logs when import_via debug is enabled."""
+    """Log to activity window. If debug_only, only logs when Import Via is enabled in IMG Factory Settings > Debug Log."""
     if debug_only:
         try:
-            if hasattr(main_window, 'debug') and main_window.debug.is_debug_log_enabled('import_via'):
-                main_window.log_message(f"[Import] {msg}")
+            enabled = getattr(main_window, 'img_settings', None)
+            if enabled:
+                funcs = enabled.get('debug_log_functions', [])
+                if 'import_via' in funcs:
+                    main_window.log_message(f"[Import] {msg}")
         except Exception:
             pass
     else:

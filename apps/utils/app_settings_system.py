@@ -1515,16 +1515,6 @@ class DebugSettings:
             else:
                 print(debug_msg)
 
-    def is_debug_log_enabled(self, feature_key: str) -> bool:
-        """Check if a specific debug log function is enabled.
-        feature_key e.g. 'import_via', 'export_via', 'rename', 'remove', 'pin', 'open'
-        Returns False if debug_mode is off OR feature is not in debug_log_functions list.
-        """
-        if not self.debug_enabled:
-            return False
-        log_funcs = self.app_settings.current_settings.get('debug_log_functions', [])
-        return feature_key in log_funcs
-
     def toggle_debug_mode(self):
         """Toggle debug mode on/off"""
         self.debug_enabled = not self.debug_enabled
@@ -5376,38 +5366,6 @@ Ready for operations..."""
 
         layout.addWidget(categories_group)
 
-        # Debug Log Functions group
-        log_funcs_group = QGroupBox("Debug Log Functions")
-        log_funcs_layout = QGridLayout(log_funcs_group)
-
-        self.debug_log_functions = {}
-        _log_func_entries = [
-            ('import_via',   'Import Via'),
-            ('export_via',   'Export Via'),
-            ('rename',       'Rename'),
-            ('remove',       'Remove'),
-            ('pin',          'Pin / Unpin'),
-            ('open',         'Open / Load'),
-            ('save',         'Save'),
-            ('rebuild',      'Rebuild'),
-            ('extract',      'Extract'),
-            ('col',          'COL Operations'),
-        ]
-        enabled_log_funcs = self.app_settings.current_settings.get('debug_log_functions', [])
-        for i, (func_id, func_label) in enumerate(_log_func_entries):
-            cb = QCheckBox(f"{func_label} - {'Enabled' if func_id in enabled_log_funcs else 'Disabled'}")
-            cb.setChecked(func_id in enabled_log_funcs)
-            def _make_label_updater(checkbox, label):
-                def _update():
-                    checkbox.setText(f"{label} - {'Enabled' if checkbox.isChecked() else 'Disabled'}")
-                return _update
-            cb.toggled.connect(_make_label_updater(cb, func_label))
-            self.debug_log_functions[func_id] = cb
-            row, col = divmod(i, 2)
-            log_funcs_layout.addWidget(cb, row, col)
-
-        layout.addWidget(log_funcs_group)
-
         # Clear log button
         clear_btn = QPushButton("Clear Debug Log")
         clear_btn.clicked.connect(self._clear_debug_log)
@@ -7285,11 +7243,6 @@ Ready for operations..."""
                 if checkbox.isChecked():
                     enabled_categories.append(category)
             settings["debug_categories"] = enabled_categories
-
-        if hasattr(self, 'debug_log_functions'):
-            settings["debug_log_functions"] = [
-                k for k, cb in self.debug_log_functions.items() if cb.isChecked()
-            ]
 
         return settings
 
