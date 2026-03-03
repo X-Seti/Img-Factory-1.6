@@ -522,6 +522,17 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
             event.ignore()
             return
 
+        # Auto-scroll near edges
+        pos = event.position().toPoint()
+        viewport = tree_widget.viewport()
+        vh = viewport.height()
+        scroll_zone = 40
+        sb = tree_widget.verticalScrollBar()
+        if pos.y() < scroll_zone:
+            sb.setValue(sb.value() - 8)
+        elif pos.y() > vh - scroll_zone:
+            sb.setValue(sb.value() + 8)
+
         item = tree_widget.itemAt(event.position().toPoint())
 
         # Clear previous hover
@@ -585,34 +596,50 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
             event.ignore()
             return
 
-        copied = 0
+        # Ask Copy or Move
+        from PyQt6.QtWidgets import QMessageBox
+        msg = QMessageBox(tree_widget)
+        msg.setWindowTitle("Copy or Move?")
+        msg.setText(f"Drop {len(paths)} item(s) into:\n{dst_path}")
+        copy_btn = msg.addButton("Copy", QMessageBox.ButtonRole.AcceptRole)
+        move_btn = msg.addButton("Move", QMessageBox.ButtonRole.ActionRole)
+        msg.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        msg.exec()
+        clicked = msg.clickedButton()
+        if clicked is None or clicked.text() == "Cancel":
+            event.ignore()
+            return
+        do_move = (clicked is move_btn)
+
+        done = 0
         for src in paths:
             try:
                 dst = os.path.join(dst_path, os.path.basename(src))
-                if os.path.isdir(src):
+                if do_move:
+                    shutil.move(src, dst)
+                elif os.path.isdir(src):
                     shutil.copytree(src, dst)
                 else:
                     shutil.copy2(src, dst)
-                copied += 1
+                done += 1
             except Exception as e:
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"Copy error: {e}")
+                    main_window.log_message(f"{'Move' if do_move else 'Copy'} error: {e}")
 
+        action = 'Moved' if do_move else 'Copied'
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Copied {copied} item(s) → {dst_path}")
+            main_window.log_message(f"{action} {done} item(s) → {dst_path}")
 
-        # Push to undo stack on the browser
-        if copied and hasattr(tree_widget, '_browser'):
+        if done and hasattr(tree_widget, '_browser'):
             browser = tree_widget._browser
             dests = [os.path.join(dst_path, os.path.basename(p)) for p in paths]
             if hasattr(browser, 'undo_stack'):
-                browser.undo_stack.append({'action': 'copy', 'paths': dests})
+                browser.undo_stack.append({'action': 'move' if do_move else 'copy', 'paths': dests})
                 if hasattr(browser, 'redo_stack'):
                     browser.redo_stack.clear()
 
         event.acceptProposedAction()
 
-        # Refresh tree
         if hasattr(tree_widget, '_browser') and hasattr(tree_widget._browser, 'browse_directory'):
             tree_widget._browser.browse_directory(dst_path)
 

@@ -238,35 +238,49 @@ class DirectoryTreeBrowser(QWidget):
         layout.setStretchFactor(self._single_container, 1)
 
 
-    def _setup_tree_columns(self, tree, label='Name'): #vers 1
-        """Set columns: Name, Type, Size, Modified, RW Version"""
+    # Column indices
+    COL_NAME  = 0
+    COL_TYPE  = 1
+    COL_SIZE  = 2
+    COL_CREATED  = 3
+    COL_MODIFIED = 4
+    COL_PERMS = 5
+    COL_RW    = 6
+
+    def _setup_tree_columns(self, tree, label='Name'): #vers 2
+        """Set columns: Name, Type, Size, Created, Modified, Perms, RW Ver"""
         from PyQt6.QtWidgets import QHeaderView
-        cols = [label or 'Name', 'Type', 'Size', 'Modified', 'RW Ver']
+        cols = [label or 'Name', 'Type', 'Size', 'Created', 'Modified', 'Perms', 'RW Ver']
         tree.setColumnCount(len(cols))
         tree.setHeaderLabels(cols)
         hdr = tree.header()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        for i in range(1, len(cols)):
+            hdr.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+        hdr.setStretchLastSection(False)
+        hdr.resizeSection(0, 220)
+        hdr.resizeSection(1, 80)
+        hdr.resizeSection(2, 70)
+        hdr.resizeSection(3, 130)
+        hdr.resizeSection(4, 130)
+        hdr.resizeSection(5, 50)
+        hdr.resizeSection(6, 60)
         hdr.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         hdr.customContextMenuRequested.connect(
             lambda pos, t=tree: self._show_column_toggle_menu(t, pos))
-        # Hidden columns remembered per session
         if not hasattr(self, '_hidden_columns'):
             self._hidden_columns = set()
         for col in self._hidden_columns:
             tree.setColumnHidden(col, True)
 
-    def _show_column_toggle_menu(self, tree, pos): #vers 1
-        """Right-click header menu to show/hide columns."""
+    def _show_column_toggle_menu(self, tree, pos): #vers 2
+        """Right-click header to show/hide columns."""
         from PyQt6.QtWidgets import QMenu
-        labels = ['Name', 'Type', 'Size', 'Modified', 'RW Ver']
+        labels = ['Name', 'Type', 'Size', 'Created', 'Modified', 'Perms', 'RW Ver']
         menu = QMenu(tree)
         for i, lbl in enumerate(labels):
             if i == 0:
-                continue  # Name always visible
+                continue
             act = menu.addAction(lbl)
             act.setCheckable(True)
             act.setChecked(not tree.isColumnHidden(i))
@@ -995,17 +1009,23 @@ class DirectoryTreeBrowser(QWidget):
                     continue
             directories.sort(key=str.lower)
             files.sort(key=str.lower)
+            from datetime import datetime
+            import stat as _stat
             for directory in directories:
                 item_path = os.path.join(dir_path, directory)
                 tree_item = QTreeWidgetItem(parent_item)
                 tree_item.setText(0, directory)
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, item_path)
                 tree_item.setIcon(0, get_folder_icon())
-                tree_item.setText(1, 'Folder')
+                tree_item.setText(self.COL_TYPE, 'Folder')
                 try:
-                    mtime = os.path.getmtime(item_path)
-                    from datetime import datetime
-                    tree_item.setText(3, datetime.fromtimestamp(mtime).strftime('%d %b %Y %H:%M'))
+                    st = os.stat(item_path)
+                    tree_item.setText(self.COL_CREATED,
+                        datetime.fromtimestamp(st.st_ctime).strftime('%d %b %Y %H:%M'))
+                    tree_item.setText(self.COL_MODIFIED,
+                        datetime.fromtimestamp(st.st_mtime).strftime('%d %b %Y %H:%M'))
+                    tree_item.setText(self.COL_PERMS,
+                        oct(_stat.S_IMODE(st.st_mode))[2:])
                 except Exception:
                     pass
                 self.populate_tree_recursive(tree_item, item_path, max_depth, current_depth + 1)
@@ -1015,33 +1035,29 @@ class DirectoryTreeBrowser(QWidget):
                 tree_item.setText(0, file)
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, item_path)
                 file_ext = os.path.splitext(file)[1].lower()
-                icon = self.get_file_type_icon(file_ext)
-                tree_item.setIcon(0, icon)
-                # Col 1: Type
-                tree_item.setText(1, self.get_file_type_display(file_ext))
-                # Col 2: Size
+                tree_item.setIcon(0, self.get_file_type_icon(file_ext))
+                tree_item.setText(self.COL_TYPE, self.get_file_type_display(file_ext))
                 try:
-                    sz = os.path.getsize(item_path)
+                    st = os.stat(item_path)
+                    sz = st.st_size
                     if sz >= 1048576:
-                        tree_item.setText(2, f'{sz/1048576:.1f} MB')
+                        tree_item.setText(self.COL_SIZE, f'{sz/1048576:.1f} MB')
                     elif sz >= 1024:
-                        tree_item.setText(2, f'{sz/1024:.1f} KB')
+                        tree_item.setText(self.COL_SIZE, f'{sz/1024:.1f} KB')
                     else:
-                        tree_item.setText(2, f'{sz} B')
+                        tree_item.setText(self.COL_SIZE, f'{sz} B')
+                    tree_item.setText(self.COL_CREATED,
+                        datetime.fromtimestamp(st.st_ctime).strftime('%d %b %Y %H:%M'))
+                    tree_item.setText(self.COL_MODIFIED,
+                        datetime.fromtimestamp(st.st_mtime).strftime('%d %b %Y %H:%M'))
+                    tree_item.setText(self.COL_PERMS,
+                        oct(_stat.S_IMODE(st.st_mode))[2:])
                 except Exception:
                     pass
-                # Col 3: Modified date
-                try:
-                    mtime = os.path.getmtime(item_path)
-                    from datetime import datetime
-                    tree_item.setText(3, datetime.fromtimestamp(mtime).strftime('%d %b %Y %H:%M'))
-                except Exception:
-                    pass
-                # Col 4: RW Version for DFF/TXD
                 if file_ext in ('.dff', '.txd'):
                     rw = self._read_rw_version(item_path)
                     if rw:
-                        tree_item.setText(4, rw)
+                        tree_item.setText(self.COL_RW, rw)
         except Exception:
             pass
 
@@ -1122,6 +1138,16 @@ class DirectoryTreeBrowser(QWidget):
         paste_action.triggered.connect(self.paste_files)
         menu.addAction(paste_action)
         menu.addSeparator()
+        # Move to parent directory
+        if file_path and os.path.exists(file_path):
+            parent_dir = os.path.dirname(os.path.dirname(file_path))
+            if parent_dir and os.path.isdir(parent_dir):
+                move_up_action = QAction(f"Move to /{os.path.basename(parent_dir) or '..'}", self)
+                move_up_action.setIcon(get_folder_icon())
+                move_up_action.triggered.connect(
+                    lambda: self._move_selected_to_parent(file_path))
+                menu.addAction(move_up_action)
+        menu.addSeparator()
         delete_action = QAction("Delete", self)
         delete_action.setIcon(get_trash_icon())
         delete_action.triggered.connect(self.delete_selected)
@@ -1146,6 +1172,34 @@ class DirectoryTreeBrowser(QWidget):
         menu.addAction(props_action)
         menu.exec(self.tree.mapToGlobal(position))
 
+
+    def _move_selected_to_parent(self, file_path): #vers 1
+        """Move selected items up one directory level."""
+        import shutil
+        active_tree = getattr(self, '_active_tree', self.tree)
+        selected = active_tree.selectedItems()
+        if not selected:
+            selected = [active_tree.itemAt(active_tree.viewport().mapFromGlobal(
+                active_tree.cursor().pos()))]
+        parent_dir = os.path.dirname(os.path.dirname(file_path))
+        if not parent_dir or not os.path.isdir(parent_dir):
+            return
+        moved = 0
+        for item in selected:
+            if not item:
+                continue
+            src = item.data(0, Qt.ItemDataRole.UserRole)
+            if not src or not os.path.exists(src):
+                continue
+            dst = os.path.join(parent_dir, os.path.basename(src))
+            try:
+                shutil.move(src, dst)
+                moved += 1
+            except Exception as e:
+                self.log_message(f"Move error: {e}")
+        if moved:
+            self.log_message(f"Moved {moved} item(s) → {parent_dir}")
+            self.browse_directory(self.current_path)
 
     def navigate_back(self): #vers 1
         """Navigate back in history"""
