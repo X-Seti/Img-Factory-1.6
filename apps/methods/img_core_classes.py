@@ -321,7 +321,7 @@ class IMGEntry:
                 if self._img_file:
                     data = self.get_data()
                 else:
-                return False
+                    return False
             
             if not data or len(data) < 12:
                 return False
@@ -657,7 +657,6 @@ class IMGFile:
             return self.rebuild_img_file()
 
         except Exception as e:
-            print(f"[ERROR] Failed to save IMG file: {e}")
             return False
 
     def save(self, file_path=None): #vers 1
@@ -674,11 +673,9 @@ class IMGFile:
             elif self.version == IMGVersion.VERSION_2:
                 return self._rebuild_version2()
             else:
-                print(f"[ERROR] Unsupported IMG version: {self.version}")
                 return False
 
         except Exception as e:
-            print(f"[ERROR] Failed to rebuild IMG file: {e}")
             return False
 
     def _sanitize_filename(self, filename: str) -> str: #vers 1
@@ -775,7 +772,6 @@ class IMGFile:
             return True
 
         except Exception as e:
-            print(f"[ERROR] Failed to rebuild Version 2 IMG: {e}")
             return False
 
     def _rebuild_version1(self) -> bool: #vers 1
@@ -841,7 +837,6 @@ class IMGFile:
             return True
 
         except Exception as e:
-            print(f"[ERROR] Failed to rebuild Version 1 IMG: {e}")
             return False
 
     def import_file(self, file_path: str) -> bool: #vers 1
@@ -858,7 +853,6 @@ class IMGFile:
             return self.add_entry(filename, data)
 
         except Exception as e:
-            print(f"[ERROR] Failed to import file {file_path}: {e}")
             return False
 
 
@@ -868,7 +862,7 @@ class IMGFile:
             # CRITICAL: Sanitize filename to prevent corruption
             clean_filename = self._sanitize_filename(filename)
             if clean_filename != filename:
-                    filename = clean_filename
+                filename = clean_filename
 
 
             # Check for duplicate entries (replace if exists)
@@ -880,7 +874,7 @@ class IMGFile:
 
             # Skip if existing entry is pinned
             if existing_entry and getattr(existing_entry, 'is_pinned', False):
-                    return False
+                return False
 
             # Calculate proper offset for new entry
             if self.entries and not existing_entry:
@@ -889,60 +883,58 @@ class IMGFile:
                 # Align to sector boundary (2048 bytes for IMG files)
                 last_end = last_entry.offset + last_entry.size
                 new_offset = ((last_end + 2047) // 2048) * 2048
-                else:
+            else:
                 # First entry or replacing existing
                 if self.version == IMGVersion.VERSION_1:
                     new_offset = 0  # Version 1 starts at beginning of .img file
-                        else:
+                else:
                     # Version 2: Calculate directory size first
                     directory_size = len(self.entries) * 32  # 32 bytes per entry
                     new_offset = directory_size
-        
+
             # Create new IMGEntry with proper setup
             if existing_entry:
                 # Replace existing entry data
-                    new_entry = existing_entry
+                new_entry = existing_entry
                 new_entry._cached_data = data
                 new_entry.size = len(data)
-                    # Keep existing offset for replacement
+                # Keep existing offset for replacement
             else:
                 # Create brand new entry
-                    new_entry = IMGEntry()
+                new_entry = IMGEntry()
                 new_entry.name = filename
                 new_entry.size = len(data)
                 new_entry.offset = new_offset
-                    new_entry.set_img_file(self)
+                new_entry.set_img_file(self)
                 new_entry._cached_data = data
 
                 # Detect file type and RW version from data
-                    new_entry.detect_file_type_and_version()
+                new_entry.detect_file_type_and_version()
 
                 # Add to entries list
-                    self.entries.append(new_entry)
-    
+                self.entries.append(new_entry)
+
             new_entry.is_new_entry = True
 
             # Only save if requested (for batch operations, set auto_save=False)
             if auto_save:
-        
+
                 if hasattr(self, 'save_img_file'):
                     success = self.save_img_file()
-                        else:
-                            from apps.core.save_img_entry import save_img_file_with_backup
-                    success = save_img_file_with_backup(self)
-        
-                if success:
-                    print(f"[SUCCESS] IMG file saved successfully")
                 else:
-                    print(f"[ERROR] Failed to save IMG file after adding {filename}")
-                    return success
+                    from apps.core.save_img_entry import save_img_file_with_backup
+                    success = save_img_file_with_backup(self)
+
+                if success:
+                    pass
+                else:
+                    pass
+                return success
 
             # Entry added successfully but not saved
-            print(f"[SUCCESS] Entry added to memory (auto_save disabled)")
             return True
 
         except Exception as e:
-            print(f"[ERROR] Failed to add entry {filename}: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -970,7 +962,6 @@ class IMGFile:
             return aligned_offset
 
         except Exception as e:
-            print(f"[ERROR] Failed to calculate next offset: {e}")
             return 0
 
     def remove_entry(self, filename: str) -> bool: #vers 1
@@ -979,13 +970,11 @@ class IMGFile:
             for i, entry in enumerate(self.entries):
                 if entry.name == filename:
                     removed_entry = self.entries.pop(i)
-                            return True
+                    return True
 
-            print(f"[WARNING] Entry not found for removal: {filename}")
             return False
 
         except Exception as e:
-            print(f"[ERROR] Failed to remove entry {filename}: {e}")
             return False
 
     def has_entry(self, filename: str) -> bool: #vers 1
@@ -1016,20 +1005,18 @@ class IMGFile:
                 if self.add_entry(filename, data, auto_save=False):
                     added_count += 1
                 else:
-                    print(f"[WARNING] Failed to add {filename} in batch")
+                    pass
 
             # Save once at the end if requested
             if auto_save and added_count > 0:
-                    if self.save_img_file():
-                        else:
-                    print(f"[ERROR] Batch save failed")
+                if self.save_img_file():
+                    pass
+                else:
                     return 0
 
-            print(f"[SUCCESS] Batch add complete: {added_count}/{len(file_data_pairs)} entries added")
             return added_count
 
         except Exception as e:
-            print(f"[ERROR] Batch add failed: {e}")
             return 0
 
     def integrate_fixed_add_entry_methods(img_file_class): #vers 1
@@ -1092,7 +1079,7 @@ class IMGFile:
                     pass
 
         except Exception as e:
-            print(f"[ERROR] Error detecting IMG version: {e}")
+            pass
 
         self.version = IMGVersion.UNKNOWN
         return IMGVersion.UNKNOWN
@@ -1121,12 +1108,10 @@ class IMGFile:
                 self.is_open = True
                 # FIXED: Parse file types and versions for all entries
                 self._parse_all_entries()
-                print(f"[SUCCESS] Successfully opened IMG file: {len(self.entries)} entries")
             
             return success
 
         except Exception as e:
-            print(f"[ERROR] Error opening IMG file: {e}")
             return False
 
     def _parse_all_entries(self): #vers 2
@@ -1140,17 +1125,17 @@ class IMGFile:
                     
                     # Log progress for large files
                     if i > 0 and i % 100 == 0:
-                                    
+                        pass
+                        
                 except Exception as e:
-                    print(f"[WARNING] Error parsing entry {entry.name}: {e}")
+                    pass
                     
-            print(f"[SUCCESS] Completed parsing all entries")
             
             # ADDED: Trigger unknown RW file detection after parsing
             self._trigger_unknown_rw_detection()
             
         except Exception as e:
-            print(f"[ERROR] Error in _parse_all_entries: {e}")
+            pass
 
     def _trigger_unknown_rw_detection(self): #vers 1
         """ADDED: Trigger unknown RW file detection and snapshotting"""
@@ -1164,10 +1149,12 @@ class IMGFile:
                     if unknown_files:
                         print(f"[INFO] Captured {len(unknown_files)} unknown RW files for analysis")
                 else:
-                    else:
-                    
+                    pass
+            else:
+                pass
+                
         except Exception as e:
-            print(f"[WARNING] Error in unknown RW detection: {e}")
+            pass
 
     def set_main_window_reference(self, main_window): #vers 1
         """ADDED: Set main window reference for unknown RW detection"""
@@ -1188,7 +1175,7 @@ class IMGFile:
                 # Platform-specific entry count validation
                 max_entries = self.platform_specs.get('max_entries', 65535)
                 if entry_count > max_entries:
-                    print(f"[WARNING] Entry count {entry_count} exceeds platform limit {max_entries}")
+                    pass
 
                 for i in range(entry_count):
                     # Read entry: offset(4), size(4), name(24)
@@ -1209,7 +1196,6 @@ class IMGFile:
 
             return True
         except Exception as e:
-            print(f"[ERROR] Error opening Version 2 IMG: {e}")
             return False
 
     def _open_version_1(self) -> bool: #vers 4
@@ -1245,7 +1231,6 @@ class IMGFile:
 
             return True
         except Exception as e:
-            print(f"[ERROR] Error opening Version 1 IMG: {e}")
             return False
 
     def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 1
