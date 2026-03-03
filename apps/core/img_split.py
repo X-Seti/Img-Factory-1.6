@@ -325,8 +325,7 @@ class SplitViaThread(QThread): #vers 1
 
             if not matched:
                 self.split_completed.emit(False,
-                    f"No matching entries found in IMG.
-Missing: {len(unmatched)}", {})
+                    f"No matching entries found in IMG. Missing: {len(unmatched)}", {})
                 return
 
             self.progress_updated.emit(40, f"Matched {len(matched)} entries, writing...")
@@ -352,9 +351,7 @@ Missing: {len(unmatched)}", {})
 
             self.progress_updated.emit(100, "Done.")
             self.split_completed.emit(True,
-                f"Written {len(matched)} entries to {os.path.basename(self.output_path)}
-"
-                f"Missing from IMG: {len(unmatched)}",
+                f"Written {len(matched)} entries to {os.path.basename(self.output_path)}  |  Missing from IMG: {len(unmatched)}",
                 stats)
 
         except Exception as e:
@@ -451,10 +448,7 @@ class SplitViaDialog(QDialog): #vers 1
             return
         if os.path.exists(output_path):
             if QMessageBox.question(self, "Overwrite?",
-                    f"File exists:
-{output_path}
-
-Overwrite?") != QMessageBox.StandardButton.Yes:
+                    f"File exists: {output_path}\n\nOverwrite?") != QMessageBox.StandardButton.Yes:
                 return
 
         from apps.methods.tab_system import get_current_file_from_active_tab
