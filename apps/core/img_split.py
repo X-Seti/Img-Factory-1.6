@@ -284,6 +284,212 @@ class SplitDialog(QDialog): #vers 2 Fixed
             QMessageBox.critical(self, "Split Failed", message)
 
 
+class SplitViaThread(QThread): #vers 1
+    """Extract entries matching an IDE file into a new IMG."""
+    progress_updated = pyqtSignal(int, str)
+    split_completed  = pyqtSignal(bool, str, dict)
+
+    def __init__(self, img_file, ide_path: str, output_path: str, version, keep_in_source: bool):
+        super().__init__()
+        self.img_file       = img_file
+        self.ide_path       = ide_path
+        self.output_path    = output_path
+        self.version        = version
+        self.keep_in_source = keep_in_source
+
+    def run(self): #vers 1
+        """Parse IDE, match entries, write new IMG."""
+        try:
+            from apps.core.import_via import _parse_ide_sections
+            SECTOR = 2048
+
+            self.progress_updated.emit(5, "Parsing IDE file...")
+            sections = _parse_ide_sections(self.ide_path)
+            if not sections:
+                self.split_completed.emit(False, "No model definitions found in IDE.", {})
+                return
+
+            # Collect all names from IDE (models -> .dff, textures -> .txd)
+            wanted: set = set()
+            for sec in sections.values():
+                for m in sec['models']:
+                    wanted.add(m.lower() + '.dff')
+                for t in sec['textures']:
+                    wanted.add(t.lower() + '.txd')
+
+            self.progress_updated.emit(20, f"IDE defines {len(wanted)} files, scanning IMG...")
+
+            entries = self.img_file.entries
+            matched   = [e for e in entries if e.name.lower() in wanted]
+            unmatched = [n for n in wanted if not any(e.name.lower() == n for e in entries)]
+
+            if not matched:
+                self.split_completed.emit(False,
+                    f"No matching entries found in IMG.
+Missing: {len(unmatched)}", {})
+                return
+
+            self.progress_updated.emit(40, f"Matched {len(matched)} entries, writing...")
+
+            img_data_path = getattr(self.img_file, 'file_path', '')
+            if img_data_path.lower().endswith('.dir'):
+                img_data_path = img_data_path[:-4] + '.img'
+
+            # Re-use _write_img from SplitWorkerThread
+            worker = SplitWorkerThread.__new__(SplitWorkerThread)
+            worker.options = {}
+            try:
+                worker._write_img(img_data_path, matched, self.output_path, self.version, SECTOR)
+            except Exception as e:
+                self.split_completed.emit(False, f"Write failed: {e}", {})
+                return
+
+            stats = {
+                'matched':   len(matched),
+                'missing':   len(unmatched),
+                'output':    self.output_path,
+            }
+
+            self.progress_updated.emit(100, "Done.")
+            self.split_completed.emit(True,
+                f"Written {len(matched)} entries to {os.path.basename(self.output_path)}
+"
+                f"Missing from IMG: {len(unmatched)}",
+                stats)
+
+        except Exception as e:
+            self.split_completed.emit(False, str(e), {})
+
+
+class SplitViaDialog(QDialog): #vers 1
+    """Dialog for IDE-guided IMG split."""
+
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self.main_window  = main_window
+        self.split_thread = None
+        self.setWindowTitle("Split IMG via IDE")
+        self.setModal(True)
+        self.setFixedSize(500, 280)
+        self._build_ui()
+
+    def _build_ui(self): #vers 1
+        layout = QVBoxLayout(self)
+
+        # IDE file
+        ide_group = QGroupBox("IDE File")
+        ide_row = QHBoxLayout(ide_group)
+        self.ide_edit = QLineEdit()
+        self.ide_edit.setPlaceholderText("Select .ide file...")
+        ide_row.addWidget(self.ide_edit)
+        ide_browse = QPushButton("Browse")
+        ide_browse.clicked.connect(self._browse_ide)
+        ide_row.addWidget(ide_browse)
+        layout.addWidget(ide_group)
+
+        # Output IMG
+        out_group = QGroupBox("Output IMG")
+        out_row = QHBoxLayout(out_group)
+        self.out_edit = QLineEdit()
+        self.out_edit.setPlaceholderText("Save new IMG as...")
+        out_row.addWidget(self.out_edit)
+        out_browse = QPushButton("Browse")
+        out_browse.clicked.connect(self._browse_output)
+        out_row.addWidget(out_browse)
+        layout.addWidget(out_group)
+
+        # Options row
+        opts = QHBoxLayout()
+        opts.addWidget(QLabel("Version:"))
+        from PyQt6.QtWidgets import QComboBox
+        self.ver_combo = QComboBox()
+        self.ver_combo.addItems(["Version 2 (SA/IV)", "Version 1 (III/VC)"])
+        opts.addWidget(self.ver_combo)
+        opts.addStretch()
+        layout.addLayout(opts)
+
+        # Progress
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+        self.progress_label = QLabel()
+        self.progress_label.setVisible(False)
+        layout.addWidget(self.progress_label)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        btn_row.addWidget(cancel)
+        self.split_btn = QPushButton("Start Split")
+        self.split_btn.setDefault(True)
+        self.split_btn.clicked.connect(self._start)
+        btn_row.addWidget(self.split_btn)
+        layout.addLayout(btn_row)
+
+    def _browse_ide(self): #vers 1
+        p, _ = QFileDialog.getOpenFileName(
+            self, "Select IDE File", "", "IDE Files (*.ide);;All Files (*)")
+        if p:
+            self.ide_edit.setText(p)
+
+    def _browse_output(self): #vers 1
+        p, _ = QFileDialog.getSaveFileName(
+            self, "Save Output IMG", "", "IMG Files (*.img);;All Files (*)")
+        if p:
+            self.out_edit.setText(p)
+
+    def _start(self): #vers 1
+        ide_path   = self.ide_edit.text().strip()
+        output_path = self.out_edit.text().strip()
+        if not ide_path or not os.path.exists(ide_path):
+            QMessageBox.warning(self, "No IDE", "Please select a valid IDE file.")
+            return
+        if not output_path:
+            QMessageBox.warning(self, "No Output", "Please specify an output IMG path.")
+            return
+        if os.path.exists(output_path):
+            if QMessageBox.question(self, "Overwrite?",
+                    f"File exists:
+{output_path}
+
+Overwrite?") != QMessageBox.StandardButton.Yes:
+                return
+
+        from apps.methods.tab_system import get_current_file_from_active_tab
+        img_file, file_type = get_current_file_from_active_tab(self.main_window)
+        if file_type != 'IMG' or not img_file:
+            QMessageBox.warning(self, "No IMG", "No IMG file is currently active.")
+            return
+
+        version = IMGVersion.VERSION_1 if self.ver_combo.currentIndex() == 1 else IMGVersion.VERSION_2
+        self.split_thread = SplitViaThread(img_file, ide_path, output_path, version, keep_in_source=True)
+        self.split_thread.progress_updated.connect(self._update_progress)
+        self.split_thread.split_completed.connect(self._on_completed)
+        self.progress_bar.setVisible(True)
+        self.progress_label.setVisible(True)
+        self.split_btn.setEnabled(False)
+        self.split_thread.start()
+
+    def _update_progress(self, value: int, message: str): #vers 1
+        self.progress_bar.setValue(value)
+        self.progress_label.setText(message)
+
+    def _on_completed(self, success: bool, message: str, stats: dict): #vers 1
+        self.progress_bar.setVisible(False)
+        self.progress_label.setVisible(False)
+        self.split_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "Split Complete", message)
+            if self.main_window and hasattr(self.main_window, '_load_img_file_in_new_tab'):
+                if QMessageBox.question(self, "Open?", "Open the new IMG in a new tab?")                         == QMessageBox.StandardButton.Yes:
+                    self.main_window._load_img_file_in_new_tab(self.out_edit.text().strip())
+            self.accept()
+        else:
+            QMessageBox.critical(self, "Split Failed", message)
+
+
 def split_img(main_window): #vers 3 Fixed
     """Show split dialog for the active IMG tab."""
     from apps.methods.tab_system import get_current_file_from_active_tab
@@ -299,14 +505,33 @@ def split_img(main_window): #vers 3 Fixed
             main_window.log_message(f"Split error: {e}")
 
 
-def integrate_split_functions(main_window): #vers 2 Fixed
-    """Attach split_img to main_window."""
-    main_window.split_img = lambda: split_img(main_window)
+def split_img_via(main_window): #vers 1
+    """Show IDE-guided split dialog for the active IMG tab."""
+    from apps.methods.tab_system import get_current_file_from_active_tab
+    img_file, file_type = get_current_file_from_active_tab(main_window)
+    if file_type != 'IMG' or not img_file:
+        QMessageBox.warning(main_window, "No IMG", "No IMG file is currently active.")
+        return
+    try:
+        dialog = SplitViaDialog(main_window)
+        dialog.exec()
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Split Via error: {e}")
+
+
+def integrate_split_functions(main_window): #vers 3 Fixed
+    """Attach split functions to main_window."""
+    main_window.split_img     = lambda: split_img(main_window)
+    main_window.split_img_via = lambda: split_img_via(main_window)
 
 
 __all__ = [
     'split_img',
+    'split_img_via',
     'integrate_split_functions',
     'SplitDialog',
+    'SplitViaDialog',
     'SplitWorkerThread',
+    'SplitViaThread',
 ]

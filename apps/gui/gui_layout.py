@@ -48,7 +48,7 @@ from apps.core.rebuild import rebuild_current_img_native
 from apps.core.rebuild_all import rebuild_all_open_tabs
 #from apps.core.rebuild import rebuild_current_img #old function.
 from apps.core.dump import dump_all_function # dump_selected_function, integrate_dump_functions
-from apps.core.img_split import split_img, integrate_split_functions
+from apps.core.img_split import split_img, split_img_via, integrate_split_functions
 from apps.core.img_merger import merge_img_function
 from apps.core.convert import convert_img, convert_img_format
 from apps.core.rename import rename_entry
@@ -190,6 +190,7 @@ class IMGFactoryGUILayout:
             'save_img_entry': lambda: self.main_window.save_img_entry(),
             'merge_img': lambda: merge_img_function(self.main_window),
             'split_img': lambda: split_img(self.main_window),
+            'split_img_via': lambda: split_img_via(self.main_window),
             'convert_img_format': lambda: convert_img_format(self.main_window),
 
             # Import methods
@@ -345,7 +346,7 @@ class IMGFactoryGUILayout:
             ("Rebuild All", "rebuild_all", "rebuild-all", colors['build_action'], "rebuild_all_img"),
             ("Save Entry", "save_entry", "document-save-entry", colors['save_action'], "save_img_entry"),
             ("Merge", "merge", "merge", colors['merge_action'], "merge_img"),
-            ("Split via", "split", "split", colors['split_action'], "split_img"),
+            ("Split via", "split", "split", colors['split_action'], "split_img_via"),
             ("Convert", "convert", "convert", colors['convert_action'], "convert_img_format"),
         ]
 
