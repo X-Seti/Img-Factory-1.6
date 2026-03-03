@@ -2861,58 +2861,51 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Panel toggle button - floating overlay on tab bar top-right
-        def _setup_corner_widget():
-            try:
-                from PyQt6.QtWidgets import QPushButton
-                from PyQt6.QtCore import QSize, Qt
-                from apps.methods.imgfactory_svg_icons import get_panel_toggle_icon
+        # Panel toggle button - created now, positioned after show()
+        try:
+            from PyQt6.QtWidgets import QPushButton
+            from PyQt6.QtCore import QSize, Qt
+            from apps.methods.imgfactory_svg_icons import get_panel_toggle_icon
 
-                def _on_toggle():
-                    splitter = getattr(getattr(self, 'gui_layout', None), 'content_splitter', None)
-                    if not splitter or splitter.count() < 2:
-                        return
-                    total = sum(splitter.sizes()) or 10000
-                    state = (getattr(self, '_dirtree_state', 0) + 1) % 3
-                    self._dirtree_state = state
-                    if state == 0:
-                        splitter.setSizes([total, 0])
-                    elif state == 1:
-                        splitter.setSizes([total // 2, total // 2])
-                    elif state == 2:
-                        splitter.setSizes([0, total])
+            def _on_toggle():
+                splitter = getattr(getattr(self, 'gui_layout', None), 'content_splitter', None)
+                if not splitter or splitter.count() < 2:
+                    return
+                total = sum(splitter.sizes()) or 10000
+                state = (getattr(self, '_dirtree_state', 0) + 1) % 3
+                self._dirtree_state = state
+                if state == 0:
+                    splitter.setSizes([total, 0])
+                elif state == 1:
+                    splitter.setSizes([total // 2, total // 2])
+                elif state == 2:
+                    splitter.setSizes([0, total])
 
-                tab_bar = self.main_tab_widget.tabBar()
-                _tog_btn = QPushButton(tab_bar)
-                _tog_btn.setIcon(get_panel_toggle_icon(16))
-                _tog_btn.setFixedSize(22, 22)
-                _tog_btn.setIconSize(QSize(16, 16))
-                _tog_btn.setFlat(True)
-                _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
-                _tog_btn.clicked.connect(_on_toggle)
+            _tog_btn = QPushButton(self.main_tab_widget.tabBar())
+            _tog_btn.setIcon(get_panel_toggle_icon(16))
+            _tog_btn.setFixedSize(22, 22)
+            _tog_btn.setIconSize(QSize(16, 16))
+            _tog_btn.setFlat(True)
+            _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
+            _tog_btn.clicked.connect(_on_toggle)
+            self._panel_toggle_btn = _tog_btn
 
-                def _reposition():
-                    bar = self.main_tab_widget.tabBar()
-                    bw = bar.width()
-                    bh = bar.height()
-                    _tog_btn.move(bw - 24, (bh - 22) // 2)
-                    _tog_btn.raise_()
-                    _tog_btn.show()
+            def _reposition_toggle():
+                bar = self.main_tab_widget.tabBar()
+                _tog_btn.move(bar.width() - 26, (bar.height() - 22) // 2)
+                _tog_btn.raise_()
+                _tog_btn.show()
+            self._reposition_toggle = _reposition_toggle
 
-                _reposition()
-                # Reposition on resize
-                orig_resize = tab_bar.resizeEvent
-                def _tab_bar_resize(ev):
-                    orig_resize(ev)
-                    _reposition()
-                tab_bar.resizeEvent = _tab_bar_resize
+            # Hook tabBar resizeEvent to keep button anchored right
+            _orig_resize = self.main_tab_widget.tabBar().resizeEvent
+            def _patched_resize(ev, _orig=_orig_resize):
+                _orig(ev)
+                _reposition_toggle()
+            self.main_tab_widget.tabBar().resizeEvent = _patched_resize
 
-                self._panel_toggle_btn = _tog_btn
-                self._panel_toggle_reposition = _reposition
-            except Exception as e:
-                self.log_message(f"Tab corner widget error: {e}")
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(300, _setup_corner_widget)
+        except Exception as e:
+            self.log_message(f"Panel toggle button error: {e}")
 
         # Replace table in content_splitter with main_tab_widget
         if hasattr(self.gui_layout, 'content_splitter'):
@@ -5654,11 +5647,19 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
+    def showEvent(self, event): #vers 1
+        """Position floating tab bar buttons once window is shown."""
+        super().showEvent(event)
+        if hasattr(self, '_reposition_toggle'):
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self._reposition_toggle)
+
     def resizeEvent(self, event): #vers 2
         """Handle window resize event"""
         super().resizeEvent(event)
-        # Trigger repaint to update corner positions
         self.update()
+        if hasattr(self, '_reposition_toggle'):
+            self._reposition_toggle()
 
 
     def _toggle_maximize(self): #vers 1
