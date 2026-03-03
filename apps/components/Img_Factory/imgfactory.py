@@ -790,63 +790,31 @@ class IMGFactory(QMainWindow):
             self.show()
 
 
-    def autoload_game_root(self): #vers 4
-        """Autoload game root and integrate directory tree at startup"""
+    def autoload_game_root(self): #vers 5
+        """Autoload game root - defers dir tree placement until after UI is shown."""
         try:
-            # Check if directory tree autoload is enabled in settings
             from apps.methods.img_factory_settings import IMGFactorySettings
             img_settings = IMGFactorySettings()
             autoload_enabled = img_settings.get("autoload_directory_tree", True)
-            
             if not autoload_enabled:
-                self.log_message("ℹ Directory tree autoload is disabled in settings")
                 return
 
-            # Try QSettings first
+            # Resolve game root
             from PyQt6.QtCore import QSettings
             settings = QSettings("IMG-Factory", "IMG-Factory")
             game_root = settings.value("game_root", "", type=str)
-
-            # If not in QSettings, try project manager
             if not game_root and hasattr(self, 'project_manager') and self.project_manager:
                 if hasattr(self.project_manager, 'current_project') and self.project_manager.current_project:
-                    project_settings = self.project_manager.get_project_settings(
-                        self.project_manager.current_project
-                    )
-                    game_root = project_settings.get('game_root', '')
+                    ps = self.project_manager.get_project_settings(
+                        self.project_manager.current_project)
+                    game_root = ps.get('game_root', '')
 
-            # If found and valid, set it and load directory tree
             if game_root and os.path.exists(game_root):
                 self.game_root = game_root
-                self.log_message(f"✓ Autoloaded game root: {game_root}")
 
-                # Integrate directory tree if not already done
-                if not hasattr(self, 'directory_tree'):
-                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                    if integrate_directory_tree_browser(self):
-                        self.log_message("✓ Directory Tree browser integrated")
-
-                # Browse to game root
-                if hasattr(self, 'directory_tree') and hasattr(self.directory_tree, 'browse_directory'):
-                    self.directory_tree.browse_directory(game_root)
-                    self.log_message("✓ Directory Tree populated with game root")
-
-                    # Ensure directory tree is placed in Tab 0 and set as current tab
-                    # Dir tree lives in content_splitter - no tab needed
-            else:
-                self.log_message("ℹ No saved game root - showing home directory")
-
-                # Still integrate directory tree with home folder
-                if not hasattr(self, 'directory_tree'):
-                    from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
-                    if integrate_directory_tree_browser(self):
-                        home_dir = str(Path.home())
-                        if hasattr(self, 'directory_tree') and hasattr(self.directory_tree, 'browse_directory'):
-                            self.directory_tree.browse_directory(home_dir)
-                            self.log_message(f"✓ Directory Tree showing: {home_dir}")
-
-                            # Ensure directory tree is placed in Tab 0
-                            # Dir tree lives in content_splitter - no tab needed
+            # Defer until after show() so content_splitter is fully laid out
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(200, self._autoload_dir_tree)
 
         except Exception as e:
             self.log_message(f"Error autoloading game root: {str(e)}")
@@ -854,6 +822,48 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()
 
 
+
+    def _autoload_dir_tree(self): #vers 1
+        """Called after show() - places dir tree into content_splitter via standard path."""
+        try:
+            if not hasattr(self, 'gui_layout'):
+                return
+            gl = self.gui_layout
+            if not hasattr(gl, '_switch_to_directory_tree'):
+                return
+
+            # Use the same path as the button: integrate + add to content_splitter
+            mw = self
+            splitter = getattr(gl, 'content_splitter', None)
+            if not splitter:
+                return
+
+            # Integrate if not already done
+            if not hasattr(mw, 'directory_tree') or not mw.directory_tree:
+                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                if not integrate_directory_tree_browser(mw):
+                    return
+
+            # Add to splitter if not already there
+            tree = mw.directory_tree
+            already_in = any(splitter.widget(i) is tree for i in range(splitter.count()))
+            if not already_in:
+                splitter.addWidget(tree)
+
+            # Browse to game root
+            root = getattr(mw, 'game_root', None) or str(__import__('pathlib').Path.home())
+            if hasattr(tree, 'browse_directory'):
+                tree.browse_directory(root)
+
+            # Show split view (state 1)
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([total // 2, total // 2])
+            tree.show()
+            mw._dirtree_setup_complete = True
+            mw._dirtree_state = 1
+
+        except Exception as e:
+            self.log_message(f"Dir tree autoload error: {e}")
 
     def autoload_game_root_two(self): #vers 3
         """Autoload game root and integrate directory tree at startup"""
