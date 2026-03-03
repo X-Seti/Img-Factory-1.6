@@ -2882,10 +2882,9 @@ class IMGFactory(QMainWindow):
                     splitter.setSizes([0, total])
 
             _tog_btn = QPushButton()
-            _tog_btn.setIcon(get_panel_toggle_icon(16))
-            _tog_btn.setFixedSize(22, 22)
-            _tog_btn.setIconSize(QSize(16, 16))
-            _tog_btn.setFlat(True)
+            _tog_btn.setIcon(get_panel_toggle_icon(20))
+            _tog_btn.setMaximumSize(32, 32)
+            _tog_btn.setIconSize(QSize(20, 20))
             _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
             _tog_btn.clicked.connect(_on_toggle)
             self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopLeftCorner)
