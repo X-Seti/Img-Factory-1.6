@@ -585,8 +585,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        layout.addWidget(QLabel("Enable logging to the activity window for each feature.
-Disabled = no output. Enabled = logs to activity window."))
+        layout.addWidget(QLabel("Enable logging to the activity window for each feature. Disabled = no output."))
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
