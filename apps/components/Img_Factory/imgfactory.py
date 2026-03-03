@@ -855,12 +855,12 @@ class IMGFactory(QMainWindow):
             if hasattr(tree, 'browse_directory'):
                 tree.browse_directory(root)
 
-            # Show split view (state 1)
+            # Show tree full width (state 2), user can split with button
             total = sum(splitter.sizes()) or 10000
-            splitter.setSizes([total // 2, total // 2])
+            splitter.setSizes([0, total])
             tree.show()
             mw._dirtree_setup_complete = True
-            mw._dirtree_state = 1
+            mw._dirtree_state = 2
 
         except Exception as e:
             self.log_message(f"Dir tree autoload error: {e}")
