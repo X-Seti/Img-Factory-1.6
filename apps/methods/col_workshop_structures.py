@@ -9,16 +9,7 @@ from PyQt6.QtWidgets import QTableWidgetItem
 from PyQt6.QtCore import Qt
 
 # Optional debug - use print if not available
-try:
-    from apps.debug.debug_functions import img_debugger
-except ImportError:
-    class SimpleDebugger:
-        def debug(self, msg): print(f"DEBUG: {msg}")
-        def error(self, msg): print(f"ERROR: {msg}")
-        def warning(self, msg): print(f"WARN: {msg}")
-        def success(self, msg): print(f"SUCCESS: {msg}")
-    img_debugger = SimpleDebugger()
-
+from apps.debug.debug_functions import img_debugger
 ##Methods list -
 # populate_col_table
 # setup_col_table_structure

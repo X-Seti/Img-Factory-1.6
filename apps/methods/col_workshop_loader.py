@@ -11,17 +11,7 @@ from apps.methods.col_workshop_parser import COLParser
 from apps.methods.col_workshop_classes import COLModel, COLVersion
 
 # Optional debug - use print if not available
-try:
-    from apps.debug.debug_functions import img_debugger
-except ImportError:
-    class SimpleDebugger:
-        def debug(self, msg): print(f"DEBUG: {msg}")
-        def error(self, msg): print(f"ERROR: {msg}")
-        def warning(self, msg): print(f"WARN: {msg}")
-        def success(self, msg): print(f"SUCCESS: {msg}")
-        def info(self, msg): print(f"INFO: {msg}")
-    img_debugger = SimpleDebugger()
-
+from apps.debug.debug_functions import img_debugger
 ##Methods list -
 # COLFile - Class
 # Init

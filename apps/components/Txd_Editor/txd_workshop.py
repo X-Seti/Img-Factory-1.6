@@ -33,16 +33,7 @@ from apps.methods.imgfactory_svg_icons import SVGIconFactory
 from apps.methods.txd_context_menu import setup_txd_context_menu
 
 
-try:
-    from apps.debug.debug_functions import img_debugger
-except ImportError:
-    # Create minimal fallback for standalone mode
-    class DummyDebugger:
-        def debug(self, msg): print(f"DEBUG: {msg}")
-        def error(self, msg): print(f"ERROR: {msg}")
-        def warning(self, msg): print(f"WARNING: {msg}")
-        def success(self, msg): print(f"SUCCESS: {msg}")
-    img_debugger = DummyDebugger()
+from apps.debug.debug_functions import img_debugger
 
 try:
     from PIL import Image
@@ -9638,13 +9629,13 @@ class TXDWorkshop(QWidget): #vers 3
                 # If no original data, we need to create from scratch
                 # This is normal for new TXDs
             else:
-                print(f"DEBUG: Have original TXD data: {len(self.current_txd_data)} bytes")
+                img_debugger.debug(f"Have original TXD data: {len(self.current_txd_data)} bytes")
 
             if not self.texture_list:
                 print("DEBUG: ERROR - texture_list is empty in _rebuild_txd_data!")
                 return None
 
-            print(f"DEBUG: Rebuilding with {len(self.texture_list)} textures")
+            img_debugger.debug(f"Rebuilding with {len(self.texture_list)} textures")
 
             # Try to use serializer
             print("DEBUG: Attempting to use serializer...")
@@ -9667,23 +9658,23 @@ class TXDWorkshop(QWidget): #vers 3
             target_version = self.txd_version_id if self.txd_version_id else 0x1803FFFF
             target_device = self.txd_device_id if self.txd_device_id else 0x08
 
-            print(f"DEBUG: Target version: 0x{target_version:08X}, device: 0x{target_device:02X}")
+            img_debugger.debug(f"Target version: 0x{target_version:08X}, device: 0x{target_device:02X}")
 
             # Serialize
             print("DEBUG: Calling serialize_txd_file()...")
             result = serialize_txd_file(self.texture_list, target_version, target_device)
 
             if result:
-                print(f"DEBUG: Serializer returned {len(result)} bytes")
+                img_debugger.debug(f"Serializer returned {len(result)} bytes")
 
                 # Verify result has TXD header
                 if len(result) >= 12:
                     import struct
                     section_type, section_size, version = struct.unpack('<III', result[:12])
-                    print(f"DEBUG: TXD header - type: 0x{section_type:02X}, size: {section_size}, version: 0x{version:08X}")
+                    img_debugger.debug(f"TXD header - type: 0x{section_type:02X}, size: {section_size}, version: 0x{version:08X}")
 
                     if section_type != 0x16:
-                        print(f"DEBUG: WARNING - Expected section type 0x16, got 0x{section_type:02X}")
+                        img_debugger.debug(f"WARNING - Expected section type 0x16, got 0x{section_type:02X}")
                 else:
                     print("DEBUG: WARNING - Result too small to have valid header")
 
@@ -9693,7 +9684,7 @@ class TXDWorkshop(QWidget): #vers 3
                 return None
 
         except Exception as e:
-            print(f"DEBUG: EXCEPTION in _rebuild_txd_data: {type(e).__name__}: {str(e)}")
+            img_debugger.debug(f"EXCEPTION in _rebuild_txd_data: {type(e).__name__}: {str(e)}")
             import traceback
             traceback.print_exc()
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -18035,7 +18026,7 @@ if __name__ == "__main__":
         sys.exit(app.exec())
 
     except Exception as e:
-        print(f"ERROR: {e}")
+        img_debugger.error(f"{e}")
         traceback.print_exc()
         sys.exit(1)
 

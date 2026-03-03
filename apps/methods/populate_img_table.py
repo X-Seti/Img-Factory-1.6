@@ -8,14 +8,6 @@ from typing import Any, List, Optional
 from PyQt6.QtWidgets import QTableWidgetItem, QTableWidget, QHeaderView
 from PyQt6.QtCore import Qt
 from apps.debug.debug_functions import img_debugger
-try:
-    from apps.utils.img_debug_logger import img_debugger
-except ImportError:
-    class DummyDebugger:
-        def debug(self, msg): print(f"DEBUG: {msg}")
-        def error(self, msg): print(f"ERROR: {msg}")
-        def info(self, msg): print(f"INFO: {msg}")
-    img_debugger = DummyDebugger()
 
 ##Methods list - imported from tables_structure
 # reset_table_styling

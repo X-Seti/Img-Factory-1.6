@@ -14,17 +14,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
 # Import IMG debug system - NO fallback code
-try:
-    from apps.debug.debug_functions import img_debugger
-except ImportError:
-    # Fallback debug function if import fails
-    class DebugFallback:
-        def debug(self, msg): print(f"DEBUG: {msg}")
-        def error(self, msg): print(f"ERROR: {msg}")
-        def warning(self, msg): print(f"WARNING: {msg}")
-        def success(self, msg): print(f"SUCCESS: {msg}")
-    img_debugger = DebugFallback()
-
+from apps.debug.debug_functions import img_debugger
 ##Functions list -
 # _estimate_model_size
 # get_model_statistics
