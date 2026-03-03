@@ -230,13 +230,80 @@ class DirectoryTreeBrowser(QWidget):
         sc_layout.addLayout(addr_layout)
 
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabel("Directory Structure")
+        self._setup_tree_columns(self.tree)
         self.setup_tree_view()
         sc_layout.addWidget(self.tree)
 
         layout.addWidget(self._single_container)
         layout.setStretchFactor(self._single_container, 1)
 
+
+    def _setup_tree_columns(self, tree, label='Name'): #vers 1
+        """Set columns: Name, Type, Size, Modified, RW Version"""
+        from PyQt6.QtWidgets import QHeaderView
+        cols = [label or 'Name', 'Type', 'Size', 'Modified', 'RW Ver']
+        tree.setColumnCount(len(cols))
+        tree.setHeaderLabels(cols)
+        hdr = tree.header()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        hdr.customContextMenuRequested.connect(
+            lambda pos, t=tree: self._show_column_toggle_menu(t, pos))
+        # Hidden columns remembered per session
+        if not hasattr(self, '_hidden_columns'):
+            self._hidden_columns = set()
+        for col in self._hidden_columns:
+            tree.setColumnHidden(col, True)
+
+    def _show_column_toggle_menu(self, tree, pos): #vers 1
+        """Right-click header menu to show/hide columns."""
+        from PyQt6.QtWidgets import QMenu
+        labels = ['Name', 'Type', 'Size', 'Modified', 'RW Ver']
+        menu = QMenu(tree)
+        for i, lbl in enumerate(labels):
+            if i == 0:
+                continue  # Name always visible
+            act = menu.addAction(lbl)
+            act.setCheckable(True)
+            act.setChecked(not tree.isColumnHidden(i))
+            act.toggled.connect(lambda checked, col=i: self._toggle_column(col, checked))
+        menu.exec(tree.header().mapToGlobal(pos))
+
+    def _toggle_column(self, col, visible): #vers 1
+        """Toggle column visibility on all trees."""
+        if not hasattr(self, '_hidden_columns'):
+            self._hidden_columns = set()
+        if visible:
+            self._hidden_columns.discard(col)
+        else:
+            self._hidden_columns.add(col)
+        for t in [getattr(self, 'tree', None),
+                  getattr(self, '_second_tree', None)]:
+            if t:
+                t.setColumnHidden(col, not visible)
+
+    def _read_rw_version(self, file_path: str) -> str: #vers 1
+        """Read RW version from first 12 bytes of DFF/TXD file."""
+        try:
+            with open(file_path, 'rb') as f:
+                data = f.read(12)
+            if len(data) < 12:
+                return ''
+            import struct
+            version_word = struct.unpack_from('<I', data, 8)[0]
+            if version_word == 0:
+                return ''
+            major = (version_word >> 14) & 0x3FF
+            minor = (version_word >> 6) & 0xFF
+            if major == 0:
+                return ''
+            return f'{major}.{minor:02d}'
+        except Exception:
+            return ''
 
     def setup_tree_view(self): #vers 2
         """Setup tree widget"""
@@ -654,7 +721,7 @@ class DirectoryTreeBrowser(QWidget):
             right_layout.addLayout(right_addr_layout)
 
             self._second_tree = QTreeWidget()
-            self._second_tree.setHeaderLabel("Directory Structure")
+            self._setup_tree_columns(self._second_tree)
             self._second_tree.setAlternatingRowColors(True)
             self._second_tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
             self._second_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -806,7 +873,7 @@ class DirectoryTreeBrowser(QWidget):
                 return
             self._right_current_path = path
             self._second_tree.clear()
-            self._second_tree.setHeaderLabel(f"  {os.path.basename(path)}")
+            self._setup_tree_columns(self._second_tree, label=os.path.basename(path))
             self.tree = self._second_tree
             self.populate_tree(path)
         except Exception as e:
@@ -934,6 +1001,13 @@ class DirectoryTreeBrowser(QWidget):
                 tree_item.setText(0, directory)
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, item_path)
                 tree_item.setIcon(0, get_folder_icon())
+                tree_item.setText(1, 'Folder')
+                try:
+                    mtime = os.path.getmtime(item_path)
+                    from datetime import datetime
+                    tree_item.setText(3, datetime.fromtimestamp(mtime).strftime('%d %b %Y %H:%M'))
+                except Exception:
+                    pass
                 self.populate_tree_recursive(tree_item, item_path, max_depth, current_depth + 1)
             for file in files:
                 item_path = os.path.join(dir_path, file)
@@ -943,6 +1017,31 @@ class DirectoryTreeBrowser(QWidget):
                 file_ext = os.path.splitext(file)[1].lower()
                 icon = self.get_file_type_icon(file_ext)
                 tree_item.setIcon(0, icon)
+                # Col 1: Type
+                tree_item.setText(1, self.get_file_type_display(file_ext))
+                # Col 2: Size
+                try:
+                    sz = os.path.getsize(item_path)
+                    if sz >= 1048576:
+                        tree_item.setText(2, f'{sz/1048576:.1f} MB')
+                    elif sz >= 1024:
+                        tree_item.setText(2, f'{sz/1024:.1f} KB')
+                    else:
+                        tree_item.setText(2, f'{sz} B')
+                except Exception:
+                    pass
+                # Col 3: Modified date
+                try:
+                    mtime = os.path.getmtime(item_path)
+                    from datetime import datetime
+                    tree_item.setText(3, datetime.fromtimestamp(mtime).strftime('%d %b %Y %H:%M'))
+                except Exception:
+                    pass
+                # Col 4: RW Version for DFF/TXD
+                if file_ext in ('.dff', '.txd'):
+                    rw = self._read_rw_version(item_path)
+                    if rw:
+                        tree_item.setText(4, rw)
         except Exception:
             pass
 
