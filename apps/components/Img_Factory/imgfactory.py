@@ -2887,7 +2887,7 @@ class IMGFactory(QMainWindow):
             _tog_btn.setIconSize(QSize(20, 20))
             _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
             _tog_btn.clicked.connect(_on_toggle)
-            self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopLeftCorner)
+            self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopRightCorner)
             self._panel_toggle_btn = _tog_btn
         except Exception as e:
             self.log_message(f"Panel toggle button error: {e}")
