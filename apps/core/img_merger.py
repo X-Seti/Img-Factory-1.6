@@ -1,16 +1,15 @@
-#this belongs in core/img_merger.py - Version: 9
-# X-Seti - September26 2025 - IMG Factory 1.5 - IMG Merge Functions
+#this belongs in core/img_merger.py - Version: 10
+# X-Seti - March 03 2026 - IMG Factory 1.6 - IMG Merge Functions
 # Credit MexUK 2007 IMG Factory 1.2
-
 """
 IMG Factory Merge Functions
-Option 1: Merge 2 open tabs into new IMG
-Option 2: Pick 2 IMG files from folder to merge
+Option 1: Merge from open tabs
+Option 2: Pick IMG files from disk
 """
 
 import os
 import struct
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any, Optional
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QMessageBox, QProgressBar, QGroupBox,
@@ -18,23 +17,36 @@ from PyQt6.QtWidgets import (
     QListWidgetItem, QComboBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-
-# Import core IMG functions
-from apps.methods.img_core_classes import IMGFile, IMGVersion, IMGEntry
+from apps.methods.img_core_classes import IMGFile, IMGVersion
 
 ##Methods list -
 # merge_img_function
 # merge_from_open_tabs
 # merge_from_files
-# show_merge_dialog
 # _generate_unique_name
 
 ##Classes -
-# IMGMergeDialog
 # MergeWorkerThread
+# IMGMergeDialog
 
-class MergeWorkerThread(QThread): #vers 3
-    """Worker thread for IMG merging operations"""
+
+def _generate_unique_name(base_name: str, existing_names: set) -> str: #vers 1
+    """Return a unique name by appending _1, _2 etc. if base_name is taken."""
+    if base_name not in existing_names:
+        return base_name
+    name_part, _, ext = base_name.rpartition('.')
+    if not name_part:
+        name_part, ext = base_name, ''
+    counter = 1
+    while True:
+        candidate = f"{name_part}_{counter}.{ext}" if ext else f"{name_part}_{counter}"
+        if candidate not in existing_names:
+            return candidate
+        counter += 1
+
+
+class MergeWorkerThread(QThread): #vers 4 Fixed
+    """Worker thread for IMG merging operations."""
     progress_updated = pyqtSignal(int, str)
     merge_completed = pyqtSignal(bool, str)
 
@@ -44,648 +56,408 @@ class MergeWorkerThread(QThread): #vers 3
         self.output_path = output_path
         self.options = options
 
-    def run(self):
-        """Run merge operation in thread"""
+    def run(self): #vers 2 Fixed
+        """Merge all source IMGs into one output IMG."""
         try:
-            self.progress_updated.emit(10, "Initializing merge operation...")
-
-            # Collect all entries from source files
-            all_entries = []
-            existing_names = set()
-            total_entries = 0
-            successful_entries = 0
-            skipped_entries = 0
+            self.progress_updated.emit(5, "Opening source files...")
             duplicate_strategy = self.options.get('duplicate_strategy', 'rename')
-
-            # Count total entries
-            for img_path in self.source_imgs:
-                try:
-                    temp_img = IMGFile(img_path)
-                    if temp_img.open():
-                        total_entries += len(temp_img.entries)
-                        temp_img.close()
-                except Exception:
-                    continue
-
-            self.progress_updated.emit(20, f"Processing {total_entries} entries from {len(self.source_imgs)} IMG files...")
-
-            processed_entries = 0
-
-            # Collect entries from each source IMG
-            for i, img_path in enumerate(self.source_imgs):
-                try:
-                    source_img = IMGFile(img_path)
-                    if not source_img.open():
-                        self.progress_updated.emit(
-                            20 + (i * 60 // len(self.source_imgs)),
-                            f"Failed to open: {os.path.basename(img_path)}"
-                        )
-                        continue
-
-                    self.progress_updated.emit(
-                        20 + (i * 60 // len(self.source_imgs)),
-                        f"Reading from: {os.path.basename(img_path)} ({len(source_img.entries)} entries)"
-                    )
-
-                    # Open file manually for reading entry data
-                    with open(img_path, 'rb') as img_file:
-                        # Read entries from this IMG
-                        for entry in source_img.entries:
-                            processed_entries += 1
-
-                            # Handle duplicates
-                            final_name = entry.name
-                            if entry.name in existing_names:
-                                if duplicate_strategy == 'skip':
-                                    skipped_entries += 1
-                                    continue
-                                elif duplicate_strategy == 'rename':
-                                    final_name = self._generate_unique_name(entry.name, existing_names)
-
-                            # Read entry data from file
-                            try:
-                                img_file.seek(entry.offset)
-                                entry_data = img_file.read(entry.size)
-
-                                if not entry_data or len(entry_data) == 0:
-                                    skipped_entries += 1
-                                    continue
-
-                                # DEBUG: Print actual size being stored
-                                actual_size = len(entry_data)
-                                print(f"DEBUG: {final_name} - read {actual_size} bytes")
-
-                                # Store entry info
-                                all_entries.append({
-                                    'name': final_name,
-                                    'data': entry_data,
-                                    'size': actual_size  # Use calculated size, not len(entry_data)
-                                })
-
-                                existing_names.add(final_name)
-                                successful_entries += 1
-
-                            except Exception:
-                                skipped_entries += 1
-                                continue
-
-                            # Update progress
-                            if processed_entries % 50 == 0:
-                                progress = 20 + (processed_entries * 60 // total_entries)
-                                self.progress_updated.emit(
-                                    progress,
-                                    f"Processed {processed_entries}/{total_entries} entries"
-                                )
-
-                    source_img.close()
-
-                except Exception:
-                    continue
-
-            if successful_entries == 0:
-                self.merge_completed.emit(False, "No entries were successfully read")
-                return
-
-            self.progress_updated.emit(80, "Writing merged IMG file...")
-
             version = self.options.get('version', IMGVersion.VERSION_2)
 
+            all_entries = []   # list of {'name': str, 'data': bytes}
+            existing_names = set()
+            skipped = 0
+
+            total = sum(
+                len(IMGFile(p).entries) if IMGFile(p).open() else 0
+                for p in self.source_imgs
+            )
+            processed = 0
+
+            for img_path in self.source_imgs:
+                src = IMGFile(img_path)
+                if not src.open():
+                    self.progress_updated.emit(0, f"Could not open: {os.path.basename(img_path)}")
+                    continue
+
+                # V1 data lives in .img, src.file_path points to .dir
+                data_path = img_path
+                if img_path.lower().endswith('.dir'):
+                    data_path = img_path[:-4] + '.img'
+
+                self.progress_updated.emit(
+                    10 + int(processed * 60 / max(total, 1)),
+                    f"Reading {os.path.basename(img_path)} ({len(src.entries)} entries)...")
+
+                try:
+                    fh = open(data_path, 'rb')
+                except OSError as e:
+                    self.progress_updated.emit(0, f"Cannot read data file: {e}")
+                    src.close()
+                    continue
+
+                for entry in src.entries:
+                    processed += 1
+                    try:
+                        fh.seek(entry.offset)
+                        data = fh.read(entry.size)
+                    except Exception:
+                        skipped += 1
+                        continue
+
+                    if not data:
+                        skipped += 1
+                        continue
+
+                    name = entry.name
+                    if name in existing_names:
+                        if duplicate_strategy == 'skip':
+                            skipped += 1
+                            continue
+                        elif duplicate_strategy == 'rename':
+                            name = _generate_unique_name(name, existing_names)
+
+                    all_entries.append({'name': name, 'data': data})
+                    existing_names.add(name)
+
+                    if processed % 50 == 0:
+                        self.progress_updated.emit(
+                            10 + int(processed * 60 / max(total, 1)),
+                            f"Processed {processed}/{total}")
+
+                fh.close()
+                src.close()
+
+            if not all_entries:
+                self.merge_completed.emit(False, "No entries could be read from source files.")
+                return
+
+            self.progress_updated.emit(75, f"Writing {len(all_entries)} entries...")
+
             try:
-                with open(self.output_path, 'wb') as out_file:
-                    # Write version header (4 bytes)
-                    if version == IMGVersion.VERSION_2:
-                        out_file.write(b'VER2')
-                    else:
-                        out_file.write(b'VER\x01')
-
-                    # Write number of entries (4 bytes at offset 4)
-                    out_file.write(struct.pack('<I', successful_entries))
-
-                    # Calculate where data starts (after header + directory)
-                    # Header: 8 bytes (VER2 + count)
-                    # Directory: 32 bytes per entry (offset 4 + size 4 + name 24)
-                    data_start = 8 + (successful_entries * 32)
-
-                    # Align to 2048 byte boundary
-                    if data_start < 2048:
-                        data_start = 2048
-
-                    current_offset = data_start
-
-                    # Build directory entries
-                    directory_data = b''
-                    for entry_info in all_entries:
-                        # Get size from entry_info
-                        size_value = entry_info.get('size', 0)
-
-                        # DEBUG: Verify size before packing
-                        print(f"WRITE: {entry_info['name']} - size={size_value}")
-
-                        if size_value == 0:
-                            print(f"WARNING: {entry_info['name']} has 0 size!")
-
-                        # Offset (4 bytes)
-                        directory_data += struct.pack('<I', current_offset)
-                        # Size (4 bytes)
-                        directory_data += struct.pack('<I', size_value)
-                        # Name (24 bytes, null-terminated/padded)
-                        name_bytes = entry_info['name'].encode('ascii', errors='replace')[:23]
-                        name_bytes = name_bytes.ljust(24, b'\x00')
-                        directory_data += name_bytes
-
-                        current_offset += size_value
-
-                    # Write directory at offset 8
-                    out_file.seek(8)
-                    out_file.write(directory_data)
-
-                    # Pad to data start offset
-                    out_file.seek(data_start)
-
-                    # Write all entry data
-                    for entry_info in all_entries:
-                        out_file.write(entry_info['data'])
-
-
-
-                self.progress_updated.emit(100, "Merge complete!")
-
-                # Verify output
-                if os.path.exists(self.output_path):
-                    file_size = os.path.getsize(self.output_path)
-                    success_msg = (
-                        f"Merge completed successfully!\n\n"
-                        f"Output: {os.path.basename(self.output_path)}\n"
-                        f"Total entries: {successful_entries}\n"
-                        f"Skipped: {skipped_entries}\n"
-                        f"Size: {file_size / (1024*1024):.1f} MB"
-                    )
-                    self.merge_completed.emit(True, success_msg)
-                else:
-                    self.merge_completed.emit(False, "Output file was not created")
-
+                self._write_output(all_entries, version)
             except Exception as e:
-                self.merge_completed.emit(False, f"Failed to write merged IMG: {str(e)}")
+                self.merge_completed.emit(False, f"Write failed: {e}")
+                return
+
+            fsize = os.path.getsize(self.output_path)
+            self.progress_updated.emit(100, "Done.")
+            self.merge_completed.emit(True,
+                f"Merged {len(all_entries)} entries  |  skipped {skipped}  |  "
+                f"{fsize / (1024*1024):.1f} MB\n{self.output_path}")
 
         except Exception as e:
-            self.merge_completed.emit(False, f"Merge failed: {str(e)}")
+            self.merge_completed.emit(False, f"Merge failed: {e}")
 
+    def _write_output(self, entries: list, version: IMGVersion): #vers 1
+        """Write merged entries to output file."""
+        SECTOR = 2048
+        n = len(entries)
 
-    def merge_completed(self, success: bool, message: str):
-        """Handle merge completion"""
-        self.progress_bar.setVisible(False)
-        self.progress_label.setVisible(False)
-        self.merge_btn.setEnabled(True)
+        if version == IMGVersion.VERSION_1:
+            # V1: separate .dir + .img
+            dir_path = self.output_path.replace('.img', '.dir')
+            if not self.output_path.lower().endswith('.img'):
+                dir_path = self.output_path + '.dir'
 
-        if success:
-            QMessageBox.information(self, "Merge Complete", message)
+            # Build offsets (in sectors)
+            current_sector = 0
+            dir_data = b''
+            data_parts = []
+            for e in entries:
+                raw = e['data']
+                size_sectors = (len(raw) + SECTOR - 1) // SECTOR
+                padded = raw + b'\x00' * (size_sectors * SECTOR - len(raw))
+                dir_data += struct.pack('<II', current_sector, size_sectors)
+                dir_data += e['name'].encode('ascii', 'replace')[:24].ljust(24, b'\x00')
+                data_parts.append(padded)
+                current_sector += size_sectors
 
-            # Ask if user wants to open the merged file
-            reply = QMessageBox.question(
-                self,
-                "Open Merged File?",
-                "Would you like to open the merged IMG file now?"
-            )
+            with open(dir_path, 'wb') as f:
+                f.write(dir_data)
+            with open(self.output_path, 'wb') as f:
+                for part in data_parts:
+                    f.write(part)
 
-            if reply == QMessageBox.StandardButton.Yes and self.parent():
-                # Load the merged file in main window
-                self.parent()._load_img_file_in_new_tab(self.output_path)
-
-            self.accept()
         else:
-            QMessageBox.critical(self, "Merge Failed", message)
+            # V2: single .img with VER2 header + directory embedded
+            header_bytes = 8 + n * 32  # VER2(4) + count(4) + 32 per entry
+            # Data starts at next sector boundary after header
+            data_start_sector = (header_bytes + SECTOR - 1) // SECTOR
 
-        def _generate_unique_name(self, base_name: str, existing_names: set) -> str:
-            """Generate unique name for duplicate entries"""
-            if '.' in base_name:
-                name_part, ext = base_name.rsplit('.', 1)
-            else:
-                name_part, ext = base_name, ''
+            current_sector = data_start_sector
+            dir_data = b''
+            data_parts = []
+            for e in entries:
+                raw = e['data']
+                size_sectors = (len(raw) + SECTOR - 1) // SECTOR
+                padded = raw + b'\x00' * (size_sectors * SECTOR - len(raw))
+                dir_data += struct.pack('<II', current_sector, size_sectors)
+                dir_data += e['name'].encode('ascii', 'replace')[:24].ljust(24, b'\x00')
+                data_parts.append(padded)
+                current_sector += size_sectors
 
-            counter = 1
-            while True:
-                if ext:
-                    new_name = f"{name_part}_{counter}.{ext}"
-                else:
-                    new_name = f"{name_part}_{counter}"
+            with open(self.output_path, 'wb') as f:
+                f.write(b'VER2')
+                f.write(struct.pack('<I', n))
+                f.write(dir_data)
+                # Pad to data_start
+                pos = f.tell()
+                if pos < data_start_sector * SECTOR:
+                    f.write(b'\x00' * (data_start_sector * SECTOR - pos))
+                for part in data_parts:
+                    f.write(part)
 
-                if new_name not in existing_names:
-                    return new_name
-                counter += 1
 
-
-class IMGMergeDialog(QDialog): #vers 3
-    """Dialog for merging IMG files with 2 options"""
+class IMGMergeDialog(QDialog): #vers 4 Fixed
+    """Dialog for merging IMG files."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Merge IMG Archives")
         self.setModal(True)
-        self.setFixedSize(600, 500)
-
-        self.output_path = ""
+        self.setFixedSize(600, 480)
         self.merge_thread = None
-        self.tabs_list = None
-        self.files_list = None
+        self._build_ui()
+        self._on_method_changed()
 
-        self.setup_ui()
-
-    def setup_ui(self):
-        """Setup merge dialog UI"""
+    def _build_ui(self): #vers 1
         layout = QVBoxLayout(self)
 
-        # Title
-        title_label = QLabel("Merge IMG Archives")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin: 10px;")
-        layout.addWidget(title_label)
-
-        # Merge method selection
-        method_group = QGroupBox("Select Merge Method")
-        method_layout = QVBoxLayout(method_group)
-
-        self.method_group = QButtonGroup()
-
-        self.tabs_radio = QRadioButton("Option 1: Merge from Open Tabs")
+        # Method
+        method_group = QGroupBox("Merge Method")
+        ml = QVBoxLayout(method_group)
+        self._method_bg = QButtonGroup(self)
+        self.tabs_radio = QRadioButton("Merge from open tabs")
+        self.files_radio = QRadioButton("Merge from files on disk")
         self.tabs_radio.setChecked(True)
-        self.tabs_radio.toggled.connect(self.on_method_changed)
-        method_layout.addWidget(self.tabs_radio)
-
-        self.files_radio = QRadioButton("Option 2: Select IMG Files from Folder")
-        self.files_radio.toggled.connect(self.on_method_changed)
-        method_layout.addWidget(self.files_radio)
-
-        self.method_group.addButton(self.tabs_radio, 1)
-        self.method_group.addButton(self.files_radio, 2)
-
+        self._method_bg.addButton(self.tabs_radio, 1)
+        self._method_bg.addButton(self.files_radio, 2)
+        self.tabs_radio.toggled.connect(self._on_method_changed)
+        ml.addWidget(self.tabs_radio)
+        ml.addWidget(self.files_radio)
         layout.addWidget(method_group)
 
-        # Source selection area
-        self.source_group = QGroupBox("Source Selection")
+        # Source area (rebuilt on method change)
+        self.source_group = QGroupBox("Sources")
         self.source_layout = QVBoxLayout(self.source_group)
         layout.addWidget(self.source_group)
 
-        # Output selection
-        output_group = QGroupBox("Output Settings")
-        output_layout = QVBoxLayout(output_group)
-
-        output_path_layout = QHBoxLayout()
+        # Output
+        out_group = QGroupBox("Output")
+        out_layout = QVBoxLayout(out_group)
+        path_row = QHBoxLayout()
+        path_row.addWidget(QLabel("Save as:"))
         self.output_edit = QLineEdit()
         self.output_edit.setPlaceholderText("Select output path...")
-        output_path_layout.addWidget(QLabel("Output File:"))
-        output_path_layout.addWidget(self.output_edit)
+        path_row.addWidget(self.output_edit)
+        browse_btn = QPushButton("Browse")
+        browse_btn.clicked.connect(self._browse_output)
+        path_row.addWidget(browse_btn)
+        out_layout.addLayout(path_row)
 
-        browse_btn = QPushButton("Browse...")
-        browse_btn.clicked.connect(self.browse_output)
-        output_path_layout.addWidget(browse_btn)
+        opts_row = QHBoxLayout()
+        opts_row.addWidget(QLabel("Duplicates:"))
+        self.dup_combo = QComboBox()
+        self.dup_combo.addItems(["Rename", "Skip", "Replace"])
+        opts_row.addWidget(self.dup_combo)
+        opts_row.addWidget(QLabel("Version:"))
+        self.ver_combo = QComboBox()
+        self.ver_combo.addItems(["Version 2 (SA/IV)", "Version 1 (III/VC)"])
+        opts_row.addWidget(self.ver_combo)
+        opts_row.addStretch()
+        out_layout.addLayout(opts_row)
+        layout.addWidget(out_group)
 
-        output_layout.addLayout(output_path_layout)
-
-        # Options
-        options_layout = QHBoxLayout()
-
-        options_layout.addWidget(QLabel("Duplicate Handling:"))
-        self.duplicate_combo = QComboBox()
-        self.duplicate_combo.addItems(["Rename duplicates", "Skip duplicates", "Replace existing"])
-        options_layout.addWidget(self.duplicate_combo)
-
-        options_layout.addWidget(QLabel("Version:"))
-        self.version_combo = QComboBox()
-        self.version_combo.addItems(["Version 2 (GTA SA)", "Version 1 (GTA III/VC)"])
-        options_layout.addWidget(self.version_combo)
-
-        output_layout.addLayout(options_layout)
-        layout.addWidget(output_group)
-
-        # Progress area (hidden initially)
+        # Progress
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
-
-        self.progress_label = QLabel("")
+        self.progress_label = QLabel()
         self.progress_label.setVisible(False)
         layout.addWidget(self.progress_label)
 
         # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
-
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        btn_row.addWidget(cancel)
         self.merge_btn = QPushButton("Start Merge")
-        self.merge_btn.clicked.connect(self.start_merge)
         self.merge_btn.setDefault(True)
-        button_layout.addWidget(self.merge_btn)
+        self.merge_btn.clicked.connect(self._start_merge)
+        btn_row.addWidget(self.merge_btn)
+        layout.addLayout(btn_row)
 
-        layout.addLayout(button_layout)
-
-        # Initialize UI
-        self.on_method_changed()
-
-    def on_method_changed(self):
-        """Handle merge method change"""
-        # Clear ALL widgets and layouts from source_group
+    def _clear_source_layout(self): #vers 1
         while self.source_layout.count():
             item = self.source_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-            elif item.layout():
-                # Clear nested layouts
-                while item.layout().count():
-                    nested = item.layout().takeAt(0)
-                    if nested.widget():
-                        nested.widget().deleteLater()
 
-        # Add appropriate UI
+    def _on_method_changed(self): #vers 1
+        self._clear_source_layout()
         if self.tabs_radio.isChecked():
-            self.setup_tabs_selection()
+            self._build_tabs_source()
         else:
-            self.setup_files_selection()
+            self._build_files_source()
 
-    def setup_tabs_selection(self):
-        """Setup UI for selecting open tabs"""
-        label = QLabel("Select 2 or more open IMG tabs to merge:")
-        self.source_layout.addWidget(label)
-
+    def _build_tabs_source(self): #vers 1
+        self.source_layout.addWidget(QLabel("Select 2 or more open IMG tabs:"))
         self.tabs_list = QListWidget()
         self.tabs_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-
-        # Get open tabs
         try:
-            open_tabs = self.get_open_img_tabs()
-            if open_tabs:
-                for tab_info in open_tabs:
-                    item = QListWidgetItem(f"{tab_info['name']} ({tab_info['entries']} entries)")
-                    item.setData(Qt.ItemDataRole.UserRole, tab_info['path'])
-                    self.tabs_list.addItem(item)
-            else:
-                item = QListWidgetItem("No open IMG tabs found")
-                item.setEnabled(False)
-                self.tabs_list.addItem(item)
-        except Exception as e:
-            item = QListWidgetItem(f"Error loading tabs: {str(e)}")
-            item.setEnabled(False)
+            mw = self.parent()
+            if mw and hasattr(mw, 'main_tab_widget'):
+                for i in range(mw.main_tab_widget.count()):
+                    tw = mw.main_tab_widget.widget(i)
+                    if getattr(tw, 'file_type', '') == 'IMG' and getattr(tw, 'file_object', None):
+                        fp = getattr(tw, 'file_path', None) or getattr(tw.file_object, 'file_path', None)
+                        if fp:
+                            n = len(tw.file_object.entries)
+                            item = QListWidgetItem(f"{mw.main_tab_widget.tabText(i)}  ({n} entries)")
+                            item.setData(Qt.ItemDataRole.UserRole, fp)
+                            self.tabs_list.addItem(item)
+        except Exception:
+            pass
+        if not self.tabs_list.count():
+            item = QListWidgetItem("No open IMG tabs found")
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.tabs_list.addItem(item)
-
         self.source_layout.addWidget(self.tabs_list)
 
-    def setup_files_selection(self):
-        """Setup UI for selecting files"""
-        files_layout = QHBoxLayout()
-
+    def _build_files_source(self): #vers 1
+        row = QHBoxLayout()
         self.files_list = QListWidget()
-        files_layout.addWidget(self.files_list)
-
-        buttons_layout = QVBoxLayout()
-
+        row.addWidget(self.files_list)
+        btns = QVBoxLayout()
         add_btn = QPushButton("Add Files...")
-        add_btn.clicked.connect(self.add_files)
-        buttons_layout.addWidget(add_btn)
+        add_btn.clicked.connect(self._add_files)
+        btns.addWidget(add_btn)
+        rem_btn = QPushButton("Remove")
+        rem_btn.clicked.connect(lambda: [self.files_list.takeItem(
+            self.files_list.row(i)) for i in self.files_list.selectedItems()])
+        btns.addWidget(rem_btn)
+        clr_btn = QPushButton("Clear")
+        clr_btn.clicked.connect(self.files_list.clear)
+        btns.addWidget(clr_btn)
+        btns.addStretch()
+        row.addLayout(btns)
+        self.source_layout.addLayout(row)
 
-        remove_btn = QPushButton("Remove Selected")
-        remove_btn.clicked.connect(self.remove_selected_files)
-        buttons_layout.addWidget(remove_btn)
-
-        clear_btn = QPushButton("Clear All")
-        clear_btn.clicked.connect(self.clear_files)
-        buttons_layout.addWidget(clear_btn)
-
-        buttons_layout.addStretch()
-        files_layout.addLayout(buttons_layout)
-
-        self.source_layout.addLayout(files_layout)
-
-    def get_open_img_tabs(self) -> List[Dict[str, Any]]:
-        """Get list of open IMG tabs from main window"""
-        tabs = []
-
-        try:
-            if not self.parent():
-                return tabs
-
-            main_window = self.parent()
-
-            if not hasattr(main_window, 'main_tab_widget'):
-                return tabs
-
-            # Iterate through all tabs
-            for i in range(main_window.main_tab_widget.count()):
-                tab_widget = main_window.main_tab_widget.widget(i)
-
-                # Get file data from tab
-                if hasattr(tab_widget, 'file_object') and tab_widget.file_object:
-                    file_type = getattr(tab_widget, 'file_type', 'NONE')
-
-                    # Only include IMG files
-                    if file_type == 'IMG':
-                        file_path = getattr(tab_widget, 'file_path', None)
-                        file_object = tab_widget.file_object
-
-                        if file_path and hasattr(file_object, 'entries'):
-                            tab_name = main_window.main_tab_widget.tabText(i)
-                            entry_count = len(file_object.entries)
-
-                            tabs.append({
-                                'name': tab_name,
-                                'path': file_path,
-                                'entries': entry_count
-                            })
-
-            return tabs
-
-        except Exception as e:
-            print(f"Error getting open tabs: {e}")
-            return tabs
-
-    def add_files(self):
-        """Add IMG files to merge list"""
-        files, _ = QFileDialog.getOpenFileNames(
-            self, "Select IMG Files to Merge", "",
-            "IMG Files (*.img);;All Files (*.*)"
-        )
-
-        for file_path in files:
-            # Check if already added
-            existing = False
-            for i in range(self.files_list.count()):
-                item = self.files_list.item(i)
-                if item.data(Qt.ItemDataRole.UserRole) == file_path:
-                    existing = True
-                    break
-
-            if not existing:
-                item = QListWidgetItem(os.path.basename(file_path))
-                item.setData(Qt.ItemDataRole.UserRole, file_path)
-                item.setToolTip(file_path)
+    def _add_files(self): #vers 1
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select IMG Files", "", "IMG Files (*.img *.dir);;All Files (*)")
+        existing = {self.files_list.item(i).data(Qt.ItemDataRole.UserRole)
+                    for i in range(self.files_list.count())}
+        for p in paths:
+            if p not in existing:
+                item = QListWidgetItem(os.path.basename(p))
+                item.setData(Qt.ItemDataRole.UserRole, p)
+                item.setToolTip(p)
                 self.files_list.addItem(item)
 
-    def remove_selected_files(self):
-        """Remove selected files from list"""
-        for item in self.files_list.selectedItems():
-            self.files_list.takeItem(self.files_list.row(item))
+    def _browse_output(self): #vers 1
+        p, _ = QFileDialog.getSaveFileName(
+            self, "Save Merged IMG As", "", "IMG Files (*.img);;All Files (*)")
+        if p:
+            self.output_edit.setText(p)
 
-    def clear_files(self):
-        """Clear all files from list"""
-        self.files_list.clear()
+    def _start_merge(self): #vers 1
+        source_files = []
+        if self.tabs_radio.isChecked():
+            for item in self.tabs_list.selectedItems():
+                fp = item.data(Qt.ItemDataRole.UserRole)
+                if fp:
+                    source_files.append(fp)
+        else:
+            for i in range(self.files_list.count()):
+                fp = self.files_list.item(i).data(Qt.ItemDataRole.UserRole)
+                if fp:
+                    source_files.append(fp)
 
-    def browse_output(self):
-        """Browse for output file"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Merged IMG As", "",
-            "IMG Files (*.img);;All Files (*.*)"
-        )
-
-        if file_path:
-            self.output_edit.setText(file_path)
-
-    def start_merge(self):
-        """Start the merge operation"""
-        try:
-            # Get source files
-            source_files = []
-
-            if self.tabs_radio.isChecked():
-                # Get selected tabs
-                for item in self.tabs_list.selectedItems():
-                    file_path = item.data(Qt.ItemDataRole.UserRole)
-                    if file_path:
-                        source_files.append(file_path)
-            else:
-                # Get selected files
-                for i in range(self.files_list.count()):
-                    item = self.files_list.item(i)
-                    file_path = item.data(Qt.ItemDataRole.UserRole)
-                    if file_path:
-                        source_files.append(file_path)
-
-            if len(source_files) < 2:
-                QMessageBox.warning(self, "Invalid Selection",
-                                  "Please select at least 2 IMG files to merge.")
+        if len(source_files) < 2:
+            QMessageBox.warning(self, "Too Few Sources", "Select at least 2 IMG files to merge.")
+            return
+        output_path = self.output_edit.text().strip()
+        if not output_path:
+            QMessageBox.warning(self, "No Output", "Specify an output file path.")
+            return
+        if os.path.exists(output_path):
+            if QMessageBox.question(self, "Overwrite?",
+                    f"File exists:\n{output_path}\n\nOverwrite?") != QMessageBox.StandardButton.Yes:
                 return
 
-            output_path = self.output_edit.text().strip()
-            if not output_path:
-                QMessageBox.warning(self, "No Output", "Please specify an output file path.")
-                return
+        dup_map = {0: 'rename', 1: 'skip', 2: 'replace'}
+        ver_map = {0: IMGVersion.VERSION_2, 1: IMGVersion.VERSION_1}
+        options = {
+            'duplicate_strategy': dup_map[self.dup_combo.currentIndex()],
+            'version': ver_map[self.ver_combo.currentIndex()]
+        }
 
-            # Check if output exists
-            if os.path.exists(output_path):
-                reply = QMessageBox.question(self, "File Exists",
-                                           f"Output file exists:\n{output_path}\n\nOverwrite?")
-                if reply != QMessageBox.StandardButton.Yes:
-                    return
+        self.merge_thread = MergeWorkerThread(source_files, output_path, options)
+        self.merge_thread.progress_updated.connect(self._update_progress)
+        self.merge_thread.merge_completed.connect(self._on_merge_completed)
+        self.progress_bar.setVisible(True)
+        self.progress_label.setVisible(True)
+        self.merge_btn.setEnabled(False)
+        self.merge_thread.start()
 
-            # Prepare merge options
-            duplicate_strategies = {
-                0: 'rename',
-                1: 'skip',
-                2: 'replace'
-            }
-
-            versions = {
-                0: IMGVersion.VERSION_2,
-                1: IMGVersion.VERSION_1
-            }
-
-            options = {
-                'duplicate_strategy': duplicate_strategies[self.duplicate_combo.currentIndex()],
-                'version': versions[self.version_combo.currentIndex()]
-            }
-
-            # Start merge thread
-            self.merge_thread = MergeWorkerThread(source_files, output_path, options)
-            self.merge_thread.progress_updated.connect(self.update_progress)
-            self.merge_thread.merge_completed.connect(self.merge_completed)
-
-            # Show progress UI
-            self.progress_bar.setVisible(True)
-            self.progress_label.setVisible(True)
-            self.merge_btn.setEnabled(False)
-
-            self.merge_thread.start()
-
-        except Exception as e:
-            QMessageBox.critical(self, "Merge Error", f"Failed to start merge: {str(e)}")
-
-    def update_progress(self, value: int, message: str):
-        """Update progress display"""
+    def _update_progress(self, value: int, message: str): #vers 1
         self.progress_bar.setValue(value)
         self.progress_label.setText(message)
 
-    def merge_completed(self, success: bool, message: str):
-        """Handle merge completion"""
+    def _on_merge_completed(self, success: bool, message: str): #vers 1
         self.progress_bar.setVisible(False)
         self.progress_label.setVisible(False)
         self.merge_btn.setEnabled(True)
-
         if success:
             QMessageBox.information(self, "Merge Complete", message)
+            if self.parent() and hasattr(self.parent(), '_load_img_file_in_new_tab'):
+                if QMessageBox.question(self, "Open?", "Open the merged file in a new tab?") \
+                        == QMessageBox.StandardButton.Yes:
+                    self.parent()._load_img_file_in_new_tab(self.output_edit.text().strip())
             self.accept()
         else:
             QMessageBox.critical(self, "Merge Failed", message)
 
 
-def merge_img_function(main_window): #vers 5
-    """Show merge dialog and handle merging - MAIN ENTRY POINT"""
+def merge_img_function(main_window): #vers 6 Fixed
+    """Show merge dialog - main entry point."""
     try:
         dialog = IMGMergeDialog(main_window)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("IMG merge completed successfully")
+                main_window.log_message("IMG merge completed")
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error in merge operation: {str(e)}")
-        QMessageBox.critical(main_window, "Merge Error", f"Failed to show merge dialog: {str(e)}")
+            main_window.log_message(f"Merge error: {e}")
+        QMessageBox.critical(main_window, "Merge Error", str(e))
 
 
-def merge_from_open_tabs(tab_paths: List[str], output_path: str, **options) -> bool: #vers 1
-    """Merge IMG files from open tabs - Option 1"""
-    # This would use the same logic as MergeWorkerThread but synchronously
-    return False
-
-
-def merge_from_files(file_paths: List[str], output_path: str, **options) -> bool: #vers 1
-    """Merge IMG files from file selection - Option 2"""
-    return merge_from_open_tabs(file_paths, output_path, **options)
-
-
-def show_merge_dialog(parent=None) -> Optional[str]: #vers 1
-    """Show merge dialog and return output path if successful"""
+def merge_from_open_tabs(tab_paths: List[str], output_path: str, **options) -> bool: #vers 2 Fixed
+    """Merge open tab IMG paths into output_path (synchronous, no UI)."""
     try:
-        dialog = IMGMergeDialog(parent)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return dialog.output_edit.text()
-        return None
+        thread = MergeWorkerThread(tab_paths, output_path, options)
+        thread.run()
+        return os.path.exists(output_path)
     except Exception:
-        return None
+        return False
 
 
-def _generate_unique_name(base_name: str, existing_names: set) -> str: #vers 1
-    """Generate unique name for duplicate entries"""
-    if '.' in base_name:
-        name_part, ext = base_name.rsplit('.', 1)
-    else:
-        name_part, ext = base_name, ''
-
-    counter = 1
-    while True:
-        if ext:
-            new_name = f"{name_part}_{counter}.{ext}"
-        else:
-            new_name = f"{name_part}_{counter}"
-
-        if new_name not in existing_names:
-            return new_name
-        counter += 1
+def merge_from_files(file_paths: List[str], output_path: str, **options) -> bool: #vers 2 Fixed
+    """Merge file paths into output_path (synchronous, no UI)."""
+    try:
+        thread = MergeWorkerThread(file_paths, output_path, options)
+        thread.run()
+        return os.path.exists(output_path)
+    except Exception:
+        return False
 
 
 __all__ = [
     'merge_img_function',
     'merge_from_open_tabs',
     'merge_from_files',
-    'show_merge_dialog',
     'IMGMergeDialog',
-    'MergeWorkerThread'
+    'MergeWorkerThread',
 ]
