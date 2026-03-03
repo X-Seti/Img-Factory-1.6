@@ -865,31 +865,22 @@ class IMGFile:
     def add_entry(self, filename: str, data: bytes, auto_save: bool = True) -> bool: #vers 3
         """Add new entry to IMG file - FIXED VERSION with enhanced debugging"""
         try:
-            print(f"[DEBUG] === ADD_ENTRY START ===")
             # CRITICAL: Sanitize filename to prevent corruption
             clean_filename = self._sanitize_filename(filename)
             if clean_filename != filename:
-                print(f"[DEBUG] Filename sanitized: '{filename}' → '{clean_filename}'")
-                filename = clean_filename
+                    filename = clean_filename
 
-            print(f"[DEBUG] add_entry called: {filename} ({len(data)} bytes)")
-            print(f"[DEBUG] Current IMG entries before: {len(self.entries)}")
-            print(f"[DEBUG] IMG file path: {self.file_path}")
-            print(f"[DEBUG] IMG version: {self.version}")
-            print(f"[DEBUG] Auto-save enabled: {auto_save}")
 
             # Check for duplicate entries (replace if exists)
             existing_entry = None
             for i, entry in enumerate(self.entries):
                 if entry.name == filename:
                     existing_entry = entry
-                    print(f"[DEBUG] Replacing existing entry at index {i}: {filename}")
-                    break
+                            break
 
             # Skip if existing entry is pinned
             if existing_entry and getattr(existing_entry, 'is_pinned', False):
-                print(f"[DEBUG] Skipped pinned entry: {filename}")
-                return False
+                    return False
 
             # Calculate proper offset for new entry
             if self.entries and not existing_entry:
@@ -898,82 +889,62 @@ class IMGFile:
                 # Align to sector boundary (2048 bytes for IMG files)
                 last_end = last_entry.offset + last_entry.size
                 new_offset = ((last_end + 2047) // 2048) * 2048
-                print(f"[DEBUG] Calculated new offset: 0x{new_offset:08X} (after last entry)")
-            else:
+                else:
                 # First entry or replacing existing
                 if self.version == IMGVersion.VERSION_1:
                     new_offset = 0  # Version 1 starts at beginning of .img file
-                    print(f"[DEBUG] Version 1 offset: 0x{new_offset:08X}")
-                else:
+                        else:
                     # Version 2: Calculate directory size first
                     directory_size = len(self.entries) * 32  # 32 bytes per entry
                     new_offset = directory_size
-                    print(f"[DEBUG] Version 2 offset: 0x{new_offset:08X} (directory size: {directory_size})")
-
+        
             # Create new IMGEntry with proper setup
             if existing_entry:
                 # Replace existing entry data
-                print(f"[DEBUG] Updating existing entry data...")
-                new_entry = existing_entry
+                    new_entry = existing_entry
                 new_entry._cached_data = data
                 new_entry.size = len(data)
-                print(f"[DEBUG] Existing entry updated: size={new_entry.size}, offset=0x{new_entry.offset:08X}")
-                # Keep existing offset for replacement
+                    # Keep existing offset for replacement
             else:
                 # Create brand new entry
-                print(f"[DEBUG] Creating new IMGEntry...")
-                new_entry = IMGEntry()
+                    new_entry = IMGEntry()
                 new_entry.name = filename
                 new_entry.size = len(data)
                 new_entry.offset = new_offset
-                print(f"[DEBUG] Setting IMG file reference...")
-                new_entry.set_img_file(self)
+                    new_entry.set_img_file(self)
                 new_entry._cached_data = data
 
                 # Detect file type and RW version from data
-                print(f"[DEBUG] Detecting file type and version...")
-                new_entry.detect_file_type_and_version()
+                    new_entry.detect_file_type_and_version()
 
                 # Add to entries list
-                print(f"[DEBUG] Adding entry to entries list...")
-                self.entries.append(new_entry)
-                print(f"[DEBUG] Entry appended successfully")
-
-            print(f"[DEBUG] Entry processed: {filename} at offset 0x{new_entry.offset:08X}, size {new_entry.size} bytes")
-            print(f"[DEBUG] Total entries now: {len(self.entries)}")
+                    self.entries.append(new_entry)
+    
             new_entry.is_new_entry = True
 
             # Only save if requested (for batch operations, set auto_save=False)
             if auto_save:
-                print(f"[DEBUG] Auto-saving IMG file...")
-                print(f"[DEBUG] Checking if save_img_file method exists: {hasattr(self, 'save_img_file')}")
-
+        
                 if hasattr(self, 'save_img_file'):
                     success = self.save_img_file()
-                    print(f"[DEBUG] save_img_file() returned: {success}")
-                else:
-                    print(f"[DEBUG] save_img_file method not found, trying backup save...")
-                    from apps.core.save_img_entry import save_img_file_with_backup
+                        else:
+                            from apps.core.save_img_entry import save_img_file_with_backup
                     success = save_img_file_with_backup(self)
-                    print(f"[DEBUG] save_img_file_with_backup() returned: {success}")
-
+        
                 if success:
                     print(f"[SUCCESS] IMG file saved successfully")
                 else:
                     print(f"[ERROR] Failed to save IMG file after adding {filename}")
-                print(f"[DEBUG] === ADD_ENTRY END (with save) ===")
-                return success
+                    return success
 
             # Entry added successfully but not saved
             print(f"[SUCCESS] Entry added to memory (auto_save disabled)")
-            print(f"[DEBUG] === ADD_ENTRY END (no save) ===")
             return True
 
         except Exception as e:
             print(f"[ERROR] Failed to add entry {filename}: {e}")
             import traceback
             traceback.print_exc()
-            print(f"[DEBUG] === ADD_ENTRY END (error) ===")
             return False
 
 
@@ -1008,8 +979,7 @@ class IMGFile:
             for i, entry in enumerate(self.entries):
                 if entry.name == filename:
                     removed_entry = self.entries.pop(i)
-                    print(f"[DEBUG] Removed entry: {filename}")
-                    return True
+                            return True
 
             print(f"[WARNING] Entry not found for removal: {filename}")
             return False
@@ -1040,7 +1010,6 @@ class IMGFile:
         try:
             added_count = 0
 
-            print(f"[DEBUG] Adding {len(file_data_pairs)} entries in batch mode...")
 
             for filename, data in file_data_pairs:
                 # Add without auto-save for efficiency
@@ -1051,10 +1020,8 @@ class IMGFile:
 
             # Save once at the end if requested
             if auto_save and added_count > 0:
-                print(f"[DEBUG] Batch save: {added_count} entries added")
-                if self.save_img_file():
-                    print(f"[DEBUG] Batch save successful")
-                else:
+                    if self.save_img_file():
+                        else:
                     print(f"[ERROR] Batch save failed")
                     return 0
 
@@ -1095,8 +1062,6 @@ class IMGFile:
             self.platform = detected_platform
             self.platform_specs = get_platform_specific_specs(detected_platform)
             
-            print(f"[DEBUG] Detected platform: {detected_platform.value}")
-            print(f"[DEBUG] Platform specs: {self.platform_specs}")
 
             # Check if it's a .dir file (Version 1 or 1.5)
             if self.file_path.lower().endswith('.dir'):
@@ -1167,7 +1132,6 @@ class IMGFile:
     def _parse_all_entries(self): #vers 2
         """ADDED: Parse file types and versions for all entries + UNKNOWN RW DETECTION"""
         try:
-            print(f"[DEBUG] Parsing {len(self.entries)} entries for file types and versions")
             
             for i, entry in enumerate(self.entries):
                 try:
@@ -1176,8 +1140,7 @@ class IMGFile:
                     
                     # Log progress for large files
                     if i > 0 and i % 100 == 0:
-                        print(f"[DEBUG] Parsed {i}/{len(self.entries)} entries")
-                        
+                                    
                 except Exception as e:
                     print(f"[WARNING] Error parsing entry {entry.name}: {e}")
                     
@@ -1201,10 +1164,8 @@ class IMGFile:
                     if unknown_files:
                         print(f"[INFO] Captured {len(unknown_files)} unknown RW files for analysis")
                 else:
-                    print(f"[DEBUG] RW snapshot manager not available - skipping unknown detection")
-            else:
-                print(f"[DEBUG] Main window reference not available - skipping unknown detection")
-                
+                    else:
+                    
         except Exception as e:
             print(f"[WARNING] Error in unknown RW detection: {e}")
 

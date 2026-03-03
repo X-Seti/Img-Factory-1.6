@@ -150,7 +150,9 @@ def import_files_with_list(main_window, file_paths: List[str]) -> bool:
                     # Stamp date and persist to pin file
                     try:
                         from apps.core.undo_system import set_entry_date
-                        _img_path = getattr(file_object, 'file_path', None)
+                        _img_path = (getattr(file_object, 'file_path', None) or
+                                     getattr(file_object, 'img_path', None) or
+                                     getattr(file_object, 'dir_path', None))
                         set_entry_date(entry, _img_path)
                     except Exception:
                         pass

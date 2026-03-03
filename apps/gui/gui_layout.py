@@ -2831,7 +2831,7 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
-    def load_and_apply_pins(self, img_path: str): # vers 3 Fixed
+    def load_and_apply_pins(self, img_path: str): # vers 4 Fixed
         """Load .pin file, apply pin icons to Status column, colour rows, set entry.is_pinned, restore date_modified."""
         try:
             from apps.methods.export_shared import get_active_table
@@ -2839,18 +2839,13 @@ class IMGFactoryGUILayout:
             from PyQt6.QtGui import QBrush
 
             table = get_active_table(self.main_window) or self.table
-            print(f"[PINS] load_and_apply_pins: img_path={img_path}")
-            print(f"[PINS] table={table}, rowCount={table.rowCount() if table else 'N/A'}")
             if not table or not img_path:
-                print("[PINS] early exit - no table or no img_path")
                 return
 
             pin_data = load_pin_file(img_path)
             pinned_entries = pin_data.get("entries", {})
-            print(f"[PINS] entries in pin file: {list(pinned_entries.keys())[:5]}")
             if not pinned_entries:
-                print("[PINS] early exit - no entries in pin file")
-                return
+                return  # no pin data at all - nothing to restore  # nothing pinned and no saved dates - nothing to do
 
             # Find Status and Name column indices
             status_col = name_col = None
@@ -2896,7 +2891,6 @@ class IMGFactoryGUILayout:
                 # Restore date_modified for ALL entries that have it saved
                 saved_date = entry_data.get("date_modified", "")
                 if saved_date:
-                    print(f"[PINS] restoring date for {entry_name}: {saved_date}, date_col={date_col}")
                     if entry_name in entry_map:
                         entry_map[entry_name].date_modified = saved_date
                     if date_col is not None:
