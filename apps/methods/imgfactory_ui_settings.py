@@ -60,6 +60,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         tabs.addTab(self._create_ui_tab(), "UI")
         tabs.addTab(self._create_file_window_tab(), "File Window")
         tabs.addTab(self._create_advanced_tab(), "Advanced")
+        tabs.addTab(self._create_debug_log_tab(), "Debug Log")
 
         main_layout.addWidget(tabs)
 
@@ -578,7 +579,46 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
 
         return button_layout
 
-    def _save_settings(self): #vers 1
+    def _create_debug_log_tab(self): #vers 1
+        """Create Debug Log Functions tab - per-feature terminal/log toggle."""
+        from PyQt6.QtWidgets import QGridLayout, QScrollArea
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        layout.addWidget(QLabel("Enable logging to the activity window for each feature.
+Disabled = no output. Enabled = logs to activity window."))
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        inner = QWidget()
+        grid = QGridLayout(inner)
+
+        self._debug_log_checks = {}
+        _entries = [
+            ('import_via',  'Import Via'),
+            ('export_via',  'Export Via'),
+            ('rename',      'Rename'),
+            ('remove',      'Remove'),
+            ('pin',         'Pin / Unpin'),
+            ('open',        'Open / Load'),
+            ('save',        'Save'),
+            ('rebuild',     'Rebuild'),
+            ('extract',     'Extract'),
+            ('col',         'COL Operations'),
+        ]
+        enabled = self.img_settings.get('debug_log_functions', [])
+        for i, (key, label) in enumerate(_entries):
+            cb = QCheckBox(label)
+            cb.setChecked(key in enabled)
+            self._debug_log_checks[key] = cb
+            grid.addWidget(cb, i // 2, i % 2)
+
+        scroll.setWidget(inner)
+        layout.addWidget(scroll)
+        layout.addStretch()
+        return widget
+
+    def _save_settings(self): #vers 2 Fixed
         """Save all settings to file"""
         # General tab
         self.img_settings.set("auto_save_on_import", self.auto_save_cb.isChecked())
@@ -622,6 +662,11 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
         self.img_settings.set("recent_files_limit", self.recent_files_spin.value())
         self.img_settings.set("auto_backup", self.auto_backup_cb.isChecked())
         self.img_settings.set("backup_count", self.backup_count_spin.value())
+
+        # Debug Log Functions tab
+        if hasattr(self, '_debug_log_checks'):
+            self.img_settings.set('debug_log_functions',
+                [k for k, cb in self._debug_log_checks.items() if cb.isChecked()])
 
         self.img_settings.save_settings()
 
