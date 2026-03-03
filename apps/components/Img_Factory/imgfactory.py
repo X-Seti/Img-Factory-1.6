@@ -2861,7 +2861,7 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
 
-        # Panel toggle button - far right of tab bar via setCornerWidget
+        # Panel toggle button - floating overlay on tab bar top-right
         def _setup_corner_widget():
             try:
                 from PyQt6.QtWidgets import QPushButton
@@ -2882,15 +2882,33 @@ class IMGFactory(QMainWindow):
                     elif state == 2:
                         splitter.setSizes([0, total])
 
-                _tog_btn = QPushButton(self.main_tab_widget)
+                tab_bar = self.main_tab_widget.tabBar()
+                _tog_btn = QPushButton(tab_bar)
                 _tog_btn.setIcon(get_panel_toggle_icon(16))
                 _tog_btn.setFixedSize(22, 22)
                 _tog_btn.setIconSize(QSize(16, 16))
                 _tog_btn.setFlat(True)
                 _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
                 _tog_btn.clicked.connect(_on_toggle)
-                self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopRightCorner)
+
+                def _reposition():
+                    bar = self.main_tab_widget.tabBar()
+                    bw = bar.width()
+                    bh = bar.height()
+                    _tog_btn.move(bw - 24, (bh - 22) // 2)
+                    _tog_btn.raise_()
+                    _tog_btn.show()
+
+                _reposition()
+                # Reposition on resize
+                orig_resize = tab_bar.resizeEvent
+                def _tab_bar_resize(ev):
+                    orig_resize(ev)
+                    _reposition()
+                tab_bar.resizeEvent = _tab_bar_resize
+
                 self._panel_toggle_btn = _tog_btn
+                self._panel_toggle_reposition = _reposition
             except Exception as e:
                 self.log_message(f"Tab corner widget error: {e}")
         from PyQt6.QtCore import QTimer
