@@ -643,6 +643,10 @@ class IMGFactory(QMainWindow):
         # Split functions
         integrate_split_functions(self)
 
+        # Encryption
+        from apps.core.img_encryption import integrate_encryption_functions
+        integrate_encryption_functions(self)
+
         # RW detection
         integrate_unknown_rw_detection(self)
 

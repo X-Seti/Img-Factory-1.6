@@ -114,10 +114,16 @@ class Platform(Enum):
 
 class CompressionType(Enum):
     """Compression types"""
-    NONE = "none"
-    ZLIB = "zlib"
-    LZO = "lzo"
-    UNKNOWN = "unknown"
+    NONE        = "none"
+    ZLIB        = "zlib"
+    LZO         = "lzo"
+    FASTMAN92   = "fastman92"
+    UNKNOWN     = "unknown"
+
+class EncryptionType(Enum):
+    """Encryption types"""
+    NONE        = "none"
+    FASTMAN92   = "fastman92"
 
 class RecentFilesManager:
     """Manage recently opened files"""
@@ -196,6 +202,7 @@ class IMGEntry:
         self.rw_version: int = 0      # RenderWare version
         self.rw_version_name: str = "" # ADDED: Human readable version name
         self.is_encrypted: bool = False
+        self.encryption_type: EncryptionType = EncryptionType.NONE
         self.is_new_entry: bool = False
         self.is_replaced: bool = False
         self.flags: int = 0
