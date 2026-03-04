@@ -1085,7 +1085,9 @@ class IMGFile:
                             v = _detect_v1_or_v1_5(dir_path, self.file_path)
                             ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                         else:
-                            ver = IMGVersion.VERSION_1
+                            # No .dir - standalone V1/V1.5, check size
+                            sz = os.path.getsize(self.file_path)
+                            ver = IMGVersion.VERSION_1_5 if sz > 2 * 1024 * 1024 * 1024 else IMGVersion.VERSION_1
                         self.version = ver
                         return ver
                 except:
@@ -1112,7 +1114,9 @@ class IMGFile:
 
             # Open based on version
             success = False
-            if self.version == IMGVersion.VERSION_1:
+            if self.version in (IMGVersion.VERSION_1,
+                                IMGVersion.VERSION_1_5,
+                                IMGVersion.VERSION_SOL):
                 success = self._open_version_1()
             elif self.version == IMGVersion.VERSION_2:
                 success = self._open_version_2()
@@ -1211,11 +1215,12 @@ class IMGFile:
         except Exception as e:
             return False
 
-    def _open_version_1(self) -> bool: #vers 4
-        """Open IMG version 1 (DIR/IMG pair)"""
+    def _open_version_1(self) -> bool: #vers 5
+        """Open IMG version 1/1.5 (DIR/IMG pair, or standalone embedded directory)"""
         dir_path = self.file_path[:-4] + '.dir'
         if not os.path.exists(dir_path):
-            return False
+            # Standalone IMG - try reading embedded directory from start of file
+            return self._open_version_1_standalone()
 
         try:
             with open(dir_path, 'rb') as dir_file:
@@ -1244,6 +1249,44 @@ class IMGFile:
 
             return True
         except Exception as e:
+            return False
+
+    def _open_version_1_standalone(self) -> bool: #vers 1
+        """Open standalone V1/V1.5 IMG with embedded directory at start of file."""
+        try:
+            with open(self.file_path, 'rb') as f:
+                # Read first 32 bytes as first entry - use to find dir size
+                first = f.read(32)
+                if len(first) < 32:
+                    return False
+                first_offset, first_size = struct.unpack('<II', first[:8])
+                first_name = first[8:32].rstrip(b'\x00').decode('ascii', errors='ignore')
+                if not first_name:
+                    return False
+                # Directory occupies sectors 0..(first_offset-1)
+                dir_sector_count = first_offset
+                dir_bytes = dir_sector_count * 2048
+                f.seek(0)
+                dir_data = f.read(dir_bytes)
+
+            entry_count = len(dir_data) // 32
+            for i in range(entry_count):
+                entry_data = dir_data[i*32:(i+1)*32]
+                if len(entry_data) < 32:
+                    break
+                entry_offset, entry_size = struct.unpack('<II', entry_data[:8])
+                entry_name = entry_data[8:32].rstrip(b'\x00').decode('ascii', errors='ignore')
+                if not entry_name:
+                    continue
+                entry = IMGEntry()
+                entry.name = entry_name
+                entry.offset = entry_offset * 2048
+                entry.size = entry_size * 2048
+                entry.set_img_file(self)
+                self.entries.append(entry)
+
+            return len(self.entries) > 0
+        except Exception:
             return False
 
     def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 1
