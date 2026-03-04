@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "img_file": "testimg.img",
-  "last_updated": "2026-02-26T00:55:16.285950",
+  "last_updated": "2026-03-03T19:50:06.068126",
   "entries": {
     "BFOBE.dff": {
       "pinned": false,
@@ -1942,28 +1942,28 @@
       "date_modified": "Feb 26 2026 00:15:56"
     },
     "tropic.txd": {
-      "pinned": false,
+      "pinned": true,
       "creation_date": null,
       "import_date": null,
-      "date_modified": "Feb 26 2026 00:15:56"
+      "date_modified": "Mar 03 2026 19:49:58"
     },
     "uzi.txd": {
-      "pinned": false,
+      "pinned": true,
       "creation_date": null,
       "import_date": null,
-      "date_modified": "Feb 26 2026 00:15:56"
+      "date_modified": "Mar 03 2026 19:50:00"
     },
     "vcnmav.txd": {
-      "pinned": false,
+      "pinned": true,
       "creation_date": null,
       "import_date": null,
-      "date_modified": "Feb 26 2026 00:15:56"
+      "date_modified": "Mar 03 2026 19:50:03"
     },
     "vice1.txd": {
-      "pinned": false,
+      "pinned": true,
       "creation_date": null,
       "import_date": null,
-      "date_modified": "Feb 26 2026 00:15:56"
+      "date_modified": "Mar 03 2026 19:50:06"
     },
     "vice2.txd": {
       "pinned": false,
