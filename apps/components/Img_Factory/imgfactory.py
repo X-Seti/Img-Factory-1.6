@@ -3723,7 +3723,7 @@ class IMGFactory(QMainWindow):
         # Keep the same 7-column format as IMG files
         table.setColumnCount(7)
         table.setHorizontalHeaderLabels([
-            "Name", "Type", "Size", "Offset", "Version", "Compression", "Status"
+            "Name", "Type", "Size", "Offset", "Version", "Encoding", "Status"
         ])
 
         if not col_file or not hasattr(col_file, 'models') or not col_file.models:
@@ -4237,7 +4237,7 @@ class IMGFactory(QMainWindow):
 
         # Set up 9 columns: Name, Type, Date, Size, Offset, RW Address, RW Version, Compression, Status
         table.setColumnCount(9) #Date seems to mess up the table
-        table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"])
+        table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"])
 
         # Clear existing data (including sample entries)
         table.setRowCount(0)
