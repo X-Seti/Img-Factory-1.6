@@ -93,6 +93,8 @@ class IMGVersion(Enum):
     VERSION_2     = 2   # Single IMG file (SA) - magic VER2
     VERSION_3     = 3   # Single IMG file (GTA IV) - magic 0xA94E2A52, unencrypted
     VERSION_3_ENC = 30  # Single IMG file (GTA IV) - AES-256 ECB encrypted header
+    VERSION_PS2_VCS = 40  # PS2 VCS embedded-dir IMG, 512-byte sectors, type-code entries
+    VERSION_PS2_LVZ = 41  # PS2 VCS zlib DLRW streaming archive (.lvz)
     UNKNOWN       = 0
 
 class IMGPlatform(Enum):
@@ -228,6 +230,7 @@ class IMGEntry:
         self.encryption_type: EncryptionType = EncryptionType.NONE
         self.is_new_entry: bool = False
         self.is_replaced: bool = False
+        self.is_readonly: bool = False
         self.flags: int = 0
         self.compression_level = 0
 
@@ -1095,6 +1098,13 @@ class IMGFile:
                     self.version = ver
                     return ver
 
+            # Check for LVZ (PS2 VCS zlib streaming archive)
+            if self.file_path.lower().endswith('.lvz'):
+                from apps.core.img_ps2_vcs import detect_lvz
+                if detect_lvz(self.file_path):
+                    self.version = IMGVersion.VERSION_PS2_LVZ
+                    return IMGVersion.VERSION_PS2_LVZ
+
             # Check if it's a single .img file (Version 2 or 1/1.5)
             if self.file_path.lower().endswith('.img'):
                 try:
@@ -1120,6 +1130,11 @@ class IMGFile:
                             v = _detect_v1_or_v1_5(dir_path, self.file_path)
                             ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                         else:
+                            # Check PS2 VCS before generic standalone fallback
+                            from apps.core.img_ps2_vcs import detect_ps2_vcs
+                            if detect_ps2_vcs(self.file_path):
+                                self.version = IMGVersion.VERSION_PS2_VCS
+                                return IMGVersion.VERSION_PS2_VCS
                             # No .dir - standalone V1/V1.5, check size
                             sz = os.path.getsize(self.file_path)
                             ver = IMGVersion.VERSION_1_5 if sz > 2 * 1024 * 1024 * 1024 else IMGVersion.VERSION_1
@@ -1158,6 +1173,9 @@ class IMGFile:
             elif self.version in (IMGVersion.VERSION_3,
                                   IMGVersion.VERSION_3_ENC):
                 success = self._open_version_3()
+            elif self.version in (IMGVersion.VERSION_PS2_VCS,
+                                  IMGVersion.VERSION_PS2_LVZ):
+                success = self._open_ps2()
 
             if success:
                 self.is_open = True
@@ -1378,6 +1396,27 @@ class IMGFile:
                 self.entries.append(entry)
 
             return len(self.entries) > 0
+        except Exception:
+            return False
+
+    def _open_ps2(self) -> bool: #vers 1
+        """Open PS2 VCS IMG or LVZ archive - read-only, no filenames."""
+        try:
+            from apps.core.img_ps2_vcs import open_ps2_vcs, open_lvz
+            if self.version == IMGVersion.VERSION_PS2_VCS:
+                result = open_ps2_vcs(self.file_path)
+            else:
+                result = open_lvz(self.file_path)
+            if result.get("error"):
+                return False
+            for e in result["entries"]:
+                entry = IMGEntry()
+                entry.name        = e["name"]
+                entry.offset      = e["offset"]
+                entry.size        = e["size"]
+                entry.is_readonly = True
+                self.entries.append(entry)
+            return True
         except Exception:
             return False
 

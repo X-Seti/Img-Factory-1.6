@@ -3600,7 +3600,7 @@ class IMGFactory(QMainWindow):
             main_window,
             "Open Archive",
             "",
-            "All Supported (*.img *.col *.txd);;IMG Archives (*.img);;COL Archives (*.col);;TXD Textures (*.txd);;All Files (*)"
+            "All Supported (*.img *.col *.txd *.lvz);;IMG Archives (*.img);;PS2 VCS Archives (*.lvz);;COL Archives (*.col);;TXD Textures (*.txd);;All Files (*)"
         )
 
         if file_path:
