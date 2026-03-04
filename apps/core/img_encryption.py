@@ -1,8 +1,10 @@
-#this belongs in core/img_encryption.py - Version: 1
+#this belongs in core/img_encryption.py - Version: 2
 # X-Seti - March04 2026 - IMG Factory 1.6 - IMG Encryption Functions
 """
-IMG Encryption - Fastman92 IMG3 encrypt/decrypt support.
-Based on CIMGFile eIMGVersion: IMG_3_ENCRYPTED / IMG_3_UNENCRYPTED
+IMG Encryption - GTA IV Version 3 AES-256 ECB encrypt/decrypt support.
+Key and algorithm sourced from fastman92's IMG Console (public domain).
+Reference: https://github.com/Bios-Marcel/IMG-Console
+Encryption: 16 rounds of AES-256 ECB on each 16-byte block of header + table.
 """
 
 import os
@@ -10,103 +12,117 @@ import struct
 from typing import Optional, Callable
 
 ##Methods list -
-# detect_encryption
-# encrypt_img_file
-# decrypt_img_file
-# _fastman92_crypt
+# detect_v3_encryption
+# encrypt_img_v3
+# decrypt_img_v3
+# _aes_encrypt_block
+# _aes_decrypt_block
+# _process_buffer
+# encrypt_img_action
 # integrate_encryption_functions
 
-# Fastman92 IMG3 encryption key (XOR-based, 32-byte repeating key)
-FASTMAN92_KEY = bytes([
-    0x34, 0x12, 0x78, 0x56, 0xBC, 0x9A, 0xF0, 0xDE,
-    0x34, 0x12, 0x78, 0x56, 0xBC, 0x9A, 0xF0, 0xDE,
-    0x34, 0x12, 0x78, 0x56, 0xBC, 0x9A, 0xF0, 0xDE,
-    0x34, 0x12, 0x78, 0x56, 0xBC, 0x9A, 0xF0, 0xDE,
+GTAIV_MAGIC       = 0xA94E2A52
+GTAIV_MAGIC_BYTES = struct.pack('<I', GTAIV_MAGIC)
+
+# AES-256 key from fastman92 IMG Console source (public domain)
+GTAIV_KEY = bytes([
+    0x1a, 0xb5, 0x6f, 0xed, 0x7e, 0xc3, 0xff, 0x01,
+    0x22, 0x7b, 0x69, 0x15, 0x33, 0x97, 0x5d, 0xce,
+    0x47, 0xd7, 0x69, 0x65, 0x3f, 0xf7, 0x75, 0x42,
+    0x6a, 0x96, 0xcd, 0x6d, 0x53, 0x07, 0x56, 0x5d,
 ])
 
-# IMG3 encrypted magic - replaces "VER3" header
-FASTMAN92_MAGIC     = b'\x00\x00\x00\x00'
-IMG3_MAGIC          = b'VER3'
-FASTMAN92_ENC_MAGIC = b'\xA4\x15\x06\x00'  # Fastman92 encrypted header marker
+AES_ROUNDS = 16
 
 
-def detect_encryption(img_path: str) -> bool: #vers 1
-    """Return True if IMG file appears to be Fastman92 encrypted."""
+def _aes_encrypt_block(block: bytes) -> bytes: #vers 1
+    """Encrypt one 16-byte block with 16 rounds of AES-256 ECB."""
+    from Crypto.Cipher import AES
+    data = block
+    for _ in range(AES_ROUNDS):
+        data = AES.new(GTAIV_KEY, AES.MODE_ECB).encrypt(data)
+    return data
+
+
+def _aes_decrypt_block(block: bytes) -> bytes: #vers 1
+    """Decrypt one 16-byte block with 16 rounds of AES-256 ECB."""
+    from Crypto.Cipher import AES
+    data = block
+    for _ in range(AES_ROUNDS):
+        data = AES.new(GTAIV_KEY, AES.MODE_ECB).decrypt(data)
+    return data
+
+
+def _process_buffer(buf: bytes, encrypt: bool) -> bytes: #vers 1
+    """Process buffer in 16-byte blocks; pad, process, trim."""
+    pad = (16 - len(buf) % 16) % 16
+    padded = buf + b'\x00' * pad
+    fn = _aes_encrypt_block if encrypt else _aes_decrypt_block
+    result = b''.join(fn(padded[i:i+16]) for i in range(0, len(padded), 16))
+    return result[:len(buf)]
+
+
+def detect_v3_encryption(img_path: str) -> Optional[bool]: #vers 1
+    """
+    Returns True  = V3 encrypted
+             False = V3 unencrypted
+             None  = not a V3 file
+    """
     try:
         with open(img_path, 'rb') as f:
-            header = f.read(4)
-        return header == FASTMAN92_ENC_MAGIC or (header != IMG3_MAGIC and header != b'VER2')
+            first20 = f.read(20)
+        if len(first20) < 20:
+            return None
+        magic_val = struct.unpack('<I', first20[:4])[0]
+        if magic_val == GTAIV_MAGIC:
+            version = struct.unpack('<I', first20[4:8])[0]
+            return False if version == 3 else None
+        # Try decrypting to confirm V3 encrypted
+        dec = _aes_decrypt_block(first20[:16])
+        version = struct.unpack('<I', dec[4:8])[0]
+        return True if version == 3 else None
     except Exception:
-        return False
+        return None
 
 
-def _fastman92_crypt(data: bytes) -> bytes: #vers 1
-    """XOR data with repeating Fastman92 key (encrypt and decrypt are identical)."""
-    key_len = len(FASTMAN92_KEY)
-    result = bytearray(len(data))
-    for i, byte in enumerate(data):
-        result[i] = byte ^ FASTMAN92_KEY[i % key_len]
-    return bytes(result)
-
-
-def encrypt_img_file(img_path: str,
-                     output_path: Optional[str] = None,
-                     progress_cb: Optional[Callable] = None) -> bool: #vers 1
+def decrypt_img_v3(img_path: str,
+                   output_path: Optional[str] = None,
+                   progress_cb: Optional[Callable] = None) -> bool: #vers 1
     """
-    Encrypt an IMG3 file using Fastman92 XOR encryption.
-    Writes to output_path (or overwrites img_path if None).
+    Decrypt GTA IV V3 encrypted IMG.
+    Only header (20 bytes) and table (table_size bytes) are encrypted.
+    Entry data is stored plaintext.
     """
     try:
-        if detect_encryption(img_path):
-            return False  # Already encrypted
+        if progress_cb:
+            progress_cb(0, 100, "Reading encrypted IMG...")
 
         with open(img_path, 'rb') as f:
             data = f.read()
 
-        if data[:4] != IMG3_MAGIC:
-            return False  # Not a V3 IMG
+        # Decrypt first 16-byte block to read header fields
+        dec16 = _aes_decrypt_block(data[:16])
+        version    = struct.unpack('<I', dec16[4:8])[0]
+        num_items  = struct.unpack('<I', dec16[8:12])[0]
+        table_size = struct.unpack('<I', dec16[12:16])[0]
+
+        if version != 3:
+            return False
+
+        # Full header = 20 bytes (first 16 decrypted + bytes 16-20 plain)
+        header_dec = dec16 + data[16:20]
+        # Restore unencrypted magic
+        header_dec = GTAIV_MAGIC_BYTES + header_dec[4:]
+
+        table_start = 20
+        table_end   = table_start + table_size
 
         if progress_cb:
-            progress_cb(0, 100, "Encrypting IMG...")
+            progress_cb(40, 100, "Decrypting table...")
 
-        # Encrypt everything after the 4-byte magic header
-        encrypted_body = _fastman92_crypt(data[4:])
-        out_data = FASTMAN92_ENC_MAGIC + encrypted_body
+        table_dec = _process_buffer(data[table_start:table_end], encrypt=False)
 
-        dst = output_path or img_path
-        with open(dst, 'wb') as f:
-            f.write(out_data)
-
-        if progress_cb:
-            progress_cb(100, 100, "Encryption complete")
-        return True
-
-    except Exception as e:
-        if progress_cb:
-            progress_cb(0, 100, f"Encryption error: {e}")
-        return False
-
-
-def decrypt_img_file(img_path: str,
-                     output_path: Optional[str] = None,
-                     progress_cb: Optional[Callable] = None) -> bool: #vers 1
-    """
-    Decrypt a Fastman92-encrypted IMG3 file.
-    Writes to output_path (or overwrites img_path if None).
-    """
-    try:
-        if not detect_encryption(img_path):
-            return False  # Not encrypted
-
-        with open(img_path, 'rb') as f:
-            data = f.read()
-
-        if progress_cb:
-            progress_cb(0, 100, "Decrypting IMG...")
-
-        # Decrypt body, restore VER3 magic
-        decrypted_body = _fastman92_crypt(data[4:])
-        out_data = IMG3_MAGIC + decrypted_body
+        out_data = header_dec + table_dec + data[table_end:]
 
         dst = output_path or img_path
         with open(dst, 'wb') as f:
@@ -118,25 +134,67 @@ def decrypt_img_file(img_path: str,
 
     except Exception as e:
         if progress_cb:
-            progress_cb(0, 100, f"Decryption error: {e}")
+            progress_cb(0, 100, f"Decrypt error: {e}")
         return False
 
 
-def encrypt_img_action(main_window): #vers 1
+def encrypt_img_v3(img_path: str,
+                   output_path: Optional[str] = None,
+                   progress_cb: Optional[Callable] = None) -> bool: #vers 1
     """
-    GUI action: toggle encrypt/decrypt on the currently loaded IMG.
-    Called from the Encrypt button in the right panel.
+    Encrypt a GTA IV V3 unencrypted IMG.
+    Encrypts header (first 16 bytes) and full table block.
+    Entry data is left plaintext.
     """
-    from PyQt6.QtWidgets import QMessageBox, QFileDialog
     try:
-        # Get active IMG path
+        if progress_cb:
+            progress_cb(0, 100, "Reading IMG...")
+
+        with open(img_path, 'rb') as f:
+            data = f.read()
+
+        magic_val = struct.unpack('<I', data[:4])[0]
+        version   = struct.unpack('<I', data[4:8])[0]
+        if magic_val != GTAIV_MAGIC or version != 3:
+            return False
+
+        table_size  = struct.unpack('<I', data[12:16])[0]
+        table_start = 20
+        table_end   = table_start + table_size
+
+        if progress_cb:
+            progress_cb(30, 100, "Encrypting header+table...")
+
+        header_enc = _aes_encrypt_block(data[:16]) + data[16:20]
+        table_enc  = _process_buffer(data[table_start:table_end], encrypt=True)
+
+        out_data = header_enc + table_enc + data[table_end:]
+
+        dst = output_path or img_path
+        with open(dst, 'wb') as f:
+            f.write(out_data)
+
+        if progress_cb:
+            progress_cb(100, 100, "Encryption complete")
+        return True
+
+    except Exception as e:
+        if progress_cb:
+            progress_cb(0, 100, f"Encrypt error: {e}")
+        return False
+
+
+def encrypt_img_action(main_window): #vers 2
+    """GUI action: toggle encrypt/decrypt on the currently loaded V3 IMG."""
+    from PyQt6.QtWidgets import QMessageBox
+    import shutil
+    try:
         tab_widget = getattr(main_window, 'main_tab_widget', None)
         if not tab_widget:
             main_window.log_message("No tab widget found")
             return
 
-        current = tab_widget.currentWidget()
-        img_obj = getattr(current, 'file_object', None)
+        current  = tab_widget.currentWidget()
         img_path = getattr(current, 'file_path', None)
 
         if not img_path or not os.path.exists(img_path):
@@ -144,53 +202,45 @@ def encrypt_img_action(main_window): #vers 1
                 "No IMG file is currently loaded.")
             return
 
-        # Check if V3
-        with open(img_path, 'rb') as f:
-            magic = f.read(4)
+        enc_state = detect_v3_encryption(img_path)
 
-        already_enc = detect_encryption(img_path)
-        is_v3 = (magic == IMG3_MAGIC or already_enc)
-
-        if not is_v3:
+        if enc_state is None:
             QMessageBox.warning(main_window, "Encrypt IMG",
-                "Fastman92 encryption only applies to IMG Version 3 files.")
+                "This file is not a GTA IV Version 3 IMG.\n"
+                "Encryption only applies to V3 (GTA IV) files.")
             return
 
-        action = "Decrypt" if already_enc else "Encrypt"
+        action = "Decrypt" if enc_state else "Encrypt"
         reply = QMessageBox.question(
             main_window, f"{action} IMG",
-            f"{'Decrypt' if already_enc else 'Encrypt'} this IMG file?\n\n{img_path}\n\n"
-            f"A backup will be created first.",
+            f"{action} this IMG file?\n\n{img_path}\n\n"
+            f"A backup (.bak) will be created first.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        # Backup
         backup_path = img_path + '.bak'
-        import shutil
         shutil.copy2(img_path, backup_path)
         main_window.log_message(f"Backup: {backup_path}")
 
         def _progress(val, total, msg):
             main_window.log_message(msg)
 
-        if already_enc:
-            ok = decrypt_img_file(img_path, progress_cb=_progress)
-        else:
-            ok = encrypt_img_file(img_path, progress_cb=_progress)
+        ok = decrypt_img_v3(img_path, progress_cb=_progress) if enc_state \
+             else encrypt_img_v3(img_path, progress_cb=_progress)
 
         if ok:
-            main_window.log_message(f"{'Decrypted' if already_enc else 'Encrypted'}: {img_path}")
+            main_window.log_message(f"{'Decrypted' if enc_state else 'Encrypted'}: {img_path}")
             QMessageBox.information(main_window, f"{action} IMG",
-                f"{'Decryption' if already_enc else 'Encryption'} complete.\nBackup saved to:\n{backup_path}")
+                f"{action} complete.\nBackup: {backup_path}")
         else:
-            main_window.log_message(f"{action} failed")
-            QMessageBox.warning(main_window, f"{action} IMG", f"{action} failed.")
+            QMessageBox.warning(main_window, f"{action} IMG",
+                f"{action} failed — check log.")
 
     except Exception as e:
         main_window.log_message(f"Encrypt action error: {e}")
 
 
-def integrate_encryption_functions(main_window): #vers 1
+def integrate_encryption_functions(main_window): #vers 2
     """Attach encrypt_img to main_window."""
     main_window.encrypt_img = lambda: encrypt_img_action(main_window)

@@ -46,6 +46,27 @@ from apps.debug.debug_functions import img_debugger
 # TabFilterWidget
 # ValidationResult
 
+def _is_v3_encrypted(first16: bytes) -> bool:
+    """Return True if first 16 bytes decrypt (AES-256 ECB, 16 rounds) to a valid V3 header start."""
+    try:
+        from Crypto.Cipher import AES
+        import struct as _struct
+        GTAIV_KEY = bytes([
+            0x1a,0xb5,0x6f,0xed,0x7e,0xc3,0xff,0x01,
+            0x22,0x7b,0x69,0x15,0x33,0x97,0x5d,0xce,
+            0x47,0xd7,0x69,0x65,0x3f,0xf7,0x75,0x42,
+            0x6a,0x96,0xcd,0x6d,0x53,0x07,0x56,0x5d,
+        ])
+        data = first16
+        for _ in range(16):
+            data = AES.new(GTAIV_KEY, AES.MODE_ECB).decrypt(data)
+        # After decryption, bytes 4-7 should be Version = 3
+        ver = _struct.unpack('<I', data[4:8])[0]
+        return ver == 3
+    except Exception:
+        return False
+
+
 def _detect_v1_or_v1_5(dir_path: str, img_path: str) -> str:
     """Return 'V1_5' if extended (>2GB or long names), else 'V1'."""
     try:
@@ -66,11 +87,13 @@ def _detect_v1_or_v1_5(dir_path: str, img_path: str) -> str:
 
 class IMGVersion(Enum):
     """IMG Archive Version Types"""
-    VERSION_1 = 1    # DIR/IMG pair (GTA3, VC) - 2GB limit, short filenames
-    VERSION_1_5 = 15 # DIR/IMG pair extended - up to 4GB, long filenames
-    VERSION_SOL = 25 # DIR/IMG pair (SOL)
-    VERSION_2 = 2    # Single IMG file (SA)
-    UNKNOWN = 0
+    VERSION_1     = 1   # DIR/IMG pair (GTA3, VC) - 2GB limit, short filenames
+    VERSION_1_5   = 15  # DIR/IMG pair extended - up to 4GB, long filenames
+    VERSION_SOL   = 25  # DIR/IMG pair (SOL)
+    VERSION_2     = 2   # Single IMG file (SA) - magic VER2
+    VERSION_3     = 3   # Single IMG file (GTA IV) - magic 0xA94E2A52, unencrypted
+    VERSION_3_ENC = 30  # Single IMG file (GTA IV) - AES-256 ECB encrypted header
+    UNKNOWN       = 0
 
 class IMGPlatform(Enum):
     """Platform types for IMG files - MOVED HERE TO ELIMINATE CIRCULAR IMPORT"""
@@ -754,7 +777,7 @@ class IMGFile:
                     # CORRUPTION FIX: Sanitize before encoding
                     clean_name = self._sanitize_filename(entry.name)
                     if clean_name != entry.name:
-                        print(f"[CORRUPTION FIX] '{entry.name}' → '{clean_name}'")
+                        print(f"[CORRUPTION FIX] '{entry.name}' Ã¢ÂÂ '{clean_name}'")
                         entry.name = clean_name
 
                     name_bytes = clean_name.encode('ascii', errors='replace')[:24]
@@ -1080,6 +1103,18 @@ class IMGFile:
                         if header == b'VER2':
                             self.version = IMGVersion.VERSION_2
                             return IMGVersion.VERSION_2
+                        # GTA IV unencrypted magic: 0xA94E2A52 (little-endian)
+                        import struct as _struct
+                        magic_val = _struct.unpack('<I', header)[0] if len(header) == 4 else 0
+                        if magic_val == 0xA94E2A52:
+                            self.version = IMGVersion.VERSION_3
+                            return IMGVersion.VERSION_3
+                        # Check if V3 encrypted: read next 16 bytes, try AES decrypt, check Version==3
+                        f.seek(0)
+                        first16 = f.read(16)
+                        if _is_v3_encrypted(first16):
+                            self.version = IMGVersion.VERSION_3_ENC
+                            return IMGVersion.VERSION_3_ENC
                         dir_path = self.file_path[:-4] + '.dir'
                         if os.path.exists(dir_path):
                             v = _detect_v1_or_v1_5(dir_path, self.file_path)
@@ -1120,6 +1155,9 @@ class IMGFile:
                 success = self._open_version_1()
             elif self.version == IMGVersion.VERSION_2:
                 success = self._open_version_2()
+            elif self.version in (IMGVersion.VERSION_3,
+                                  IMGVersion.VERSION_3_ENC):
+                success = self._open_version_3()
 
             if success:
                 self.is_open = True
@@ -1249,6 +1287,98 @@ class IMGFile:
 
             return True
         except Exception as e:
+            return False
+
+    def _open_version_3(self) -> bool: #vers 1
+        """Open IMG version 3 - GTA IV format (unencrypted or AES-256 ECB encrypted header)."""
+        import struct as _struct
+        GTAIV_MAGIC  = 0xA94E2A52
+        GTAIV_KEY = bytes([
+            0x1a,0xb5,0x6f,0xed,0x7e,0xc3,0xff,0x01,
+            0x22,0x7b,0x69,0x15,0x33,0x97,0x5d,0xce,
+            0x47,0xd7,0x69,0x65,0x3f,0xf7,0x75,0x42,
+            0x6a,0x96,0xcd,0x6d,0x53,0x07,0x56,0x5d,
+        ])
+        try:
+            with open(self.file_path, 'rb') as f:
+                raw_header = f.read(20)
+
+            if len(raw_header) < 20:
+                return False
+
+            # Decrypt header if encrypted (16 rounds AES-256 ECB on first 16 bytes)
+            if self.version == IMGVersion.VERSION_3_ENC:
+                try:
+                    from Crypto.Cipher import AES
+                    block = raw_header[:16]
+                    for _ in range(16):
+                        block = AES.new(GTAIV_KEY, AES.MODE_ECB).decrypt(block)
+                    header_data = block + raw_header[16:]
+                except ImportError:
+                    return False
+            else:
+                header_data = raw_header
+
+            magic, version, num_items, table_size, item_size, unknown =                 _struct.unpack('<IIIIHH', header_data[:20])
+
+            if version != 3 or item_size != 16:
+                return False
+
+            # Read table (num_items * 16 bytes) + filenames block
+            names_size = table_size - (num_items * 16)
+            with open(self.file_path, 'rb') as f:
+                f.seek(20)
+                table_data  = f.read(num_items * 16)
+                names_data  = f.read(names_size)
+
+            # Decrypt table + names if encrypted
+            if self.version == IMGVersion.VERSION_3_ENC:
+                try:
+                    from Crypto.Cipher import AES
+                    # Decrypt in 16-byte blocks, 16 rounds each
+                    def _decrypt_block(b):
+                        for _ in range(16):
+                            b = AES.new(GTAIV_KEY, AES.MODE_ECB).decrypt(b)
+                        return b
+                    # Pad to 16-byte boundary, decrypt, trim
+                    def _decrypt_buf(buf):
+                        pad = (16 - len(buf) % 16) % 16
+                        padded = buf + b'\x00' * pad
+                        result = b''.join(_decrypt_block(padded[i:i+16])
+                                          for i in range(0, len(padded), 16))
+                        return result[:len(buf)]
+                    table_data = _decrypt_buf(table_data)
+                    names_data = _decrypt_buf(names_data)
+                except ImportError:
+                    return False
+
+            # Parse names (null-separated)
+            names = []
+            cur = 0
+            while cur < len(names_data):
+                end = names_data.find(b'\x00', cur)
+                if end == -1:
+                    end = len(names_data)
+                name = names_data[cur:end].decode('ascii', errors='ignore')
+                if name:
+                    names.append(name)
+                cur = end + 1
+
+            # Parse table items (16 bytes each)
+            for i in range(num_items):
+                item = table_data[i*16:(i+1)*16]
+                if len(item) < 16:
+                    break
+                size_bytes, resource_type, position, size_blocks, _unk =                     _struct.unpack('<IIIHH', item)
+                entry = IMGEntry()
+                entry.name        = names[i] if i < len(names) else f'entry_{i}'
+                entry.offset      = position * 2048
+                entry.size        = size_bytes
+                entry.set_img_file(self)
+                self.entries.append(entry)
+
+            return len(self.entries) > 0
+        except Exception:
             return False
 
     def _open_version_1_standalone(self) -> bool: #vers 1
