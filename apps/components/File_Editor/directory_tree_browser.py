@@ -269,6 +269,8 @@ class DirectoryTreeBrowser(QWidget):
             self._hidden_columns = set()
         for col in self._hidden_columns:
             tree.setColumnHidden(col, True)
+        self._restore_column_widths(tree)
+        hdr.sectionResized.connect(lambda idx, old, new: self._save_column_widths(tree))
 
     def _show_column_toggle_menu(self, tree, pos): #vers 2
         """Right-click header to show/hide columns."""
@@ -1199,6 +1201,27 @@ class DirectoryTreeBrowser(QWidget):
         if moved:
             self.log_message(f"Moved {moved} item(s) → {parent_dir}")
             self.browse_directory(self.current_path)
+
+    def _save_column_widths(self, tree): #vers 1
+        """Save column widths to QSettings."""
+        from PyQt6.QtCore import QSettings
+        s = QSettings("IMG-Factory", "IMG-Factory")
+        widths = [tree.columnWidth(i) for i in range(tree.columnCount())]
+        s.setValue("dirtree/col_widths", widths)
+
+    def _restore_column_widths(self, tree): #vers 1
+        """Restore column widths from QSettings."""
+        from PyQt6.QtCore import QSettings
+        s = QSettings("IMG-Factory", "IMG-Factory")
+        widths = s.value("dirtree/col_widths", None)
+        if not widths:
+            return
+        try:
+            for i, w in enumerate(widths):
+                if i < tree.columnCount() and int(w) > 0:
+                    tree.setColumnWidth(i, int(w))
+        except Exception:
+            pass
 
     def navigate_back(self): #vers 1
         """Navigate back in history"""
