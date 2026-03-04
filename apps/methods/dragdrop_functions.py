@@ -597,6 +597,24 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
             event.ignore()
             return
 
+        # Open GTA files directly instead of copy/move
+        openable = {'.img', '.col', '.txd'}
+        to_open = [p for p in paths if os.path.splitext(p)[1].lower() in openable]
+        to_transfer = [p for p in paths if p not in to_open]
+
+        if to_open:
+            mw = getattr(getattr(tree_widget, '_browser', None), 'main_window', None)
+            if mw and hasattr(mw, 'load_file_unified'):
+                for p in to_open:
+                    mw.load_file_unified(p)
+            event.acceptProposedAction()
+            if not to_transfer:
+                return
+
+        if not to_transfer:
+            return
+        paths = to_transfer
+
         # Ask Copy or Move
         from PyQt6.QtWidgets import QMessageBox
         msg = QMessageBox(tree_widget)
