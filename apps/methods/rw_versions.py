@@ -138,7 +138,7 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
         0x37002: "3.7.0.2",
 
         # ---- Extended / platform-packed forms ----
-        0x0401FFFF: "2.0.0.1", Early GTA3 Tex/Txd
+        0x0401FFFF: "2.0.0.1", #Early GTA3 Tex/Txd
         0x0800FFFF: "3.0.0.0", #GTA3 (PS2)
         0x0C00FFFF: "3.1.0.0", #GTA3/VC (PC)
         0x00000310: "3.1.0.0", #GTA3/VC (PC) Tex
