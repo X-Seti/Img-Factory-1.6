@@ -96,6 +96,7 @@ class IMGVersion(Enum):
     VERSION_PS2_VCS = 40  # PS2 VCS embedded-dir IMG, 512-byte sectors, type-code entries
     VERSION_PS2_LVZ = 41  # PS2 VCS zlib DLRW streaming archive (.lvz)
     VERSION_PS2_V1  = 42  # PS2/iOS/Android GTA3/VC/Bully - 12-byte entries, no names
+    VERSION_ANPK    = 43  # PSP ANPK animation package - named DGAN clip blocks
     UNKNOWN       = 0
 
 class IMGPlatform(Enum):
@@ -1106,6 +1107,13 @@ class IMGFile:
                     self.version = IMGVersion.VERSION_PS2_LVZ
                     return IMGVersion.VERSION_PS2_LVZ
 
+            # Check for ANPK (PSP animation package, uses .img extension)
+            if self.file_path.lower().endswith('.img'):
+                from apps.core.img_ps2_vcs import detect_anpk
+                if detect_anpk(self.file_path):
+                    self.version = IMGVersion.VERSION_ANPK
+                    return IMGVersion.VERSION_ANPK
+
             # Check if it's a single .img file (Version 2 or 1/1.5)
             if self.file_path.lower().endswith('.img'):
                 try:
@@ -1179,7 +1187,8 @@ class IMGFile:
                 success = self._open_version_3()
             elif self.version in (IMGVersion.VERSION_PS2_VCS,
                                   IMGVersion.VERSION_PS2_LVZ,
-                                  IMGVersion.VERSION_PS2_V1):
+                                  IMGVersion.VERSION_PS2_V1,
+                                  IMGVersion.VERSION_ANPK):
                 success = self._open_ps2()
 
             if success:
@@ -1404,14 +1413,16 @@ class IMGFile:
         except Exception:
             return False
 
-    def _open_ps2(self) -> bool: #vers 2
-        """Open PS2/iOS/Android IMG or LVZ archive - read-only, no filenames."""
+    def _open_ps2(self) -> bool: #vers 3
+        """Open PS2/PSP/iOS/Android IMG, LVZ, or ANPK archive - read-only."""
         try:
-            from apps.core.img_ps2_vcs import open_ps2_vcs, open_ps2_v1, open_lvz
+            from apps.core.img_ps2_vcs import open_ps2_vcs, open_ps2_v1, open_lvz, open_anpk
             if self.version == IMGVersion.VERSION_PS2_VCS:
                 result = open_ps2_vcs(self.file_path)
             elif self.version == IMGVersion.VERSION_PS2_V1:
                 result = open_ps2_v1(self.file_path)
+            elif self.version == IMGVersion.VERSION_ANPK:
+                result = open_anpk(self.file_path)
             else:
                 result = open_lvz(self.file_path)
             if result.get("error"):

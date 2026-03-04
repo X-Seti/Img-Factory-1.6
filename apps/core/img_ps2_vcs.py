@@ -1,10 +1,11 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 2
-# X-Seti - March04 2026 - IMG Factory 1.6 - PS2 VCS/LCS/V1 IMG and LVZ Support
+#this belongs in core/ img_ps2_vcs.py - Version: 3
+# X-Seti - March04 2026 - IMG Factory 1.6 - PS2 VCS/LCS/V1/ANPK IMG and LVZ Support
 """
-PS2 VCS/LCS/V1 IMG and LVZ Support - Read-only parsers for GTA PS2/iOS/Android archives.
+PS2 VCS/LCS/V1 IMG, LVZ, and ANPK Support - Read-only parsers for GTA PS2/PSP/iOS/Android.
 GTA3PS2.IMG (LCS/VCS): embedded directory, 32-byte entries, 512-byte sectors, type codes.
 GTA3_N.IMG (GTA3/VC/Bully PS2, iOS, Android): 12-byte entries, 512-byte sectors, no names.
 LVZ: zlib-compressed DLRW streaming archive, 8-byte indexed entries, no filenames.
+ANPK: PSP animation package, chunk-based, named animation clips (DGAN blocks).
 """
 
 import os
@@ -12,9 +13,11 @@ import struct
 import zlib
 
 ##Methods list -
+# detect_anpk
 # detect_lvz
 # detect_ps2_v1
 # detect_ps2_vcs
+# open_anpk
 # open_lvz
 # open_ps2_v1
 # open_ps2_vcs
@@ -229,6 +232,81 @@ def open_lvz(file_path: str) -> dict: #vers 1
         result['entries'] = entries
     except zlib.error as e:
         result['error'] = f'zlib decompress failed: {e}'
+    except Exception as e:
+        result['error'] = str(e)
+    return result
+
+
+ANPK_MAGIC = b'ANPK'
+
+
+def detect_anpk(path: str) -> bool: #vers 1
+    """Return True if file is a PSP ANPK animation package."""
+    try:
+        with open(path, 'rb') as f:
+            return f.read(4) == ANPK_MAGIC
+    except Exception:
+        return False
+
+
+def open_anpk(file_path: str) -> dict: #vers 1
+    """
+    Parse a PSP ANPK animation package.
+    Returns dict: { 'version': 'ANPK', 'entries': [...], 'error': None }
+    Each entry: { 'name': str, 'offset': int, 'size': int, 'index': int }
+    One entry per DGAN animation block.
+    """
+    result = {'version': 'ANPK', 'entries': [], 'error': None}
+    try:
+        with open(file_path, 'rb') as f:
+            data = f.read()
+
+        if data[0:4] != ANPK_MAGIC:
+            result['error'] = 'Not an ANPK file'
+            return result
+
+        # Collect clip names from top-level INFO and NAME chunks
+        names = []
+        pos = 8
+        dgan_offsets = []
+
+        while pos + 8 <= len(data):
+            tag  = data[pos:pos+4]
+            size = struct.unpack('<I', data[pos+4:pos+8])[0]
+            cdata = data[pos+8:pos+8+size] if pos+8+size <= len(data) else b''
+
+            if tag == b'INFO' and len(cdata) >= 4:
+                # count(4) + first_name (null-terminated, padded)
+                name_bytes = cdata[4:].split(b'\x00')[0]
+                if name_bytes:
+                    names.append(name_bytes.decode('ascii', errors='replace'))
+
+            elif tag == b'NAME' and cdata:
+                name_bytes = cdata.split(b'\x00')[0]
+                if name_bytes:
+                    names.append(name_bytes.decode('ascii', errors='replace'))
+
+            elif tag == b'DGAN':
+                dgan_offsets.append((pos, size))
+                # Skip into DGAN without descending (treat as opaque blob)
+
+            pos += 8 + size
+            # 4-byte alignment
+            remainder = (8 + size) % 4
+            if remainder:
+                pos += 4 - remainder
+
+        entries = []
+        for i, (dgan_pos, dgan_size) in enumerate(dgan_offsets):
+            name = names[i] if i < len(names) else f'anim_{i}'
+            entries.append({
+                'name':   name,
+                'offset': dgan_pos,
+                'size':   dgan_size + 8,  # include tag+size header
+                'index':  i,
+            })
+
+        result['entries'] = entries
     except Exception as e:
         result['error'] = str(e)
     return result
