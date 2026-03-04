@@ -95,6 +95,7 @@ class IMGVersion(Enum):
     VERSION_3_ENC = 30  # Single IMG file (GTA IV) - AES-256 ECB encrypted header
     VERSION_PS2_VCS = 40  # PS2 VCS embedded-dir IMG, 512-byte sectors, type-code entries
     VERSION_PS2_LVZ = 41  # PS2 VCS zlib DLRW streaming archive (.lvz)
+    VERSION_PS2_V1  = 42  # PS2/iOS/Android GTA3/VC/Bully - 12-byte entries, no names
     UNKNOWN       = 0
 
 class IMGPlatform(Enum):
@@ -1131,10 +1132,13 @@ class IMGFile:
                             ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                         else:
                             # Check PS2 VCS before generic standalone fallback
-                            from apps.core.img_ps2_vcs import detect_ps2_vcs
+                            from apps.core.img_ps2_vcs import detect_ps2_vcs, detect_ps2_v1
                             if detect_ps2_vcs(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_VCS
                                 return IMGVersion.VERSION_PS2_VCS
+                            if detect_ps2_v1(self.file_path):
+                                self.version = IMGVersion.VERSION_PS2_V1
+                                return IMGVersion.VERSION_PS2_V1
                             # No .dir - standalone V1/V1.5, check size
                             sz = os.path.getsize(self.file_path)
                             ver = IMGVersion.VERSION_1_5 if sz > 2 * 1024 * 1024 * 1024 else IMGVersion.VERSION_1
@@ -1174,7 +1178,8 @@ class IMGFile:
                                   IMGVersion.VERSION_3_ENC):
                 success = self._open_version_3()
             elif self.version in (IMGVersion.VERSION_PS2_VCS,
-                                  IMGVersion.VERSION_PS2_LVZ):
+                                  IMGVersion.VERSION_PS2_LVZ,
+                                  IMGVersion.VERSION_PS2_V1):
                 success = self._open_ps2()
 
             if success:
@@ -1399,12 +1404,14 @@ class IMGFile:
         except Exception:
             return False
 
-    def _open_ps2(self) -> bool: #vers 1
-        """Open PS2 VCS IMG or LVZ archive - read-only, no filenames."""
+    def _open_ps2(self) -> bool: #vers 2
+        """Open PS2/iOS/Android IMG or LVZ archive - read-only, no filenames."""
         try:
-            from apps.core.img_ps2_vcs import open_ps2_vcs, open_lvz
+            from apps.core.img_ps2_vcs import open_ps2_vcs, open_ps2_v1, open_lvz
             if self.version == IMGVersion.VERSION_PS2_VCS:
                 result = open_ps2_vcs(self.file_path)
+            elif self.version == IMGVersion.VERSION_PS2_V1:
+                result = open_ps2_v1(self.file_path)
             else:
                 result = open_lvz(self.file_path)
             if result.get("error"):

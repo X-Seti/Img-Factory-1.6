@@ -1,8 +1,9 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 1
-# X-Seti - March04 2026 - IMG Factory 1.6 - PS2 VCS IMG and LVZ Support
+#this belongs in core/ img_ps2_vcs.py - Version: 2
+# X-Seti - March04 2026 - IMG Factory 1.6 - PS2 VCS/LCS/V1 IMG and LVZ Support
 """
-PS2 VCS IMG and LVZ Support - Read-only parser for GTA Vice City Stories PS2 archives.
-GTA3PS2.IMG: embedded directory, 32-byte entries, 512-byte sectors, type codes, no filenames.
+PS2 VCS/LCS/V1 IMG and LVZ Support - Read-only parsers for GTA PS2/iOS/Android archives.
+GTA3PS2.IMG (LCS/VCS): embedded directory, 32-byte entries, 512-byte sectors, type codes.
+GTA3_N.IMG (GTA3/VC/Bully PS2, iOS, Android): 12-byte entries, 512-byte sectors, no names.
 LVZ: zlib-compressed DLRW streaming archive, 8-byte indexed entries, no filenames.
 """
 
@@ -12,8 +13,10 @@ import zlib
 
 ##Methods list -
 # detect_lvz
+# detect_ps2_v1
 # detect_ps2_vcs
 # open_lvz
+# open_ps2_v1
 # open_ps2_vcs
 
 DLRW_MAGIC = b'DLRW'
@@ -43,6 +46,87 @@ def detect_ps2_vcs(path: str) -> bool: #vers 1
         return has_ascii and has_null
     except Exception:
         return False
+
+
+def detect_ps2_v1(path: str) -> bool: #vers 1
+    """
+    Return True if file is a GTA3/VC/Bully PS2 (or iOS/Android port) IMG.
+    Format: 12-byte entries from byte 0, no magic, no names.
+    First u32 LE = entry count (small number, typically < 5000).
+    Third u32 LE = first entry size in 512-byte sectors (small, typically < 10000).
+    """
+    try:
+        if not path.lower().endswith('.img'):
+            return False
+        with open(path, 'rb') as f:
+            header = f.read(16)
+        if len(header) < 16:
+            return False
+        # Reject known magic formats
+        if header[:4] in (b'VER2',):
+            return False
+        import struct as _s
+        if _s.unpack('<I', header[:4])[0] == 0xA94E2A52:
+            return False
+        # Reject PS2 VCS type-code format (printable ASCII + null pad)
+        type_bytes = header[0:4]
+        if all(0x20 <= b < 0x7F or b == 0x00 for b in type_bytes) and \
+           type_bytes.rstrip(b'\x00') != b'' and header[4:8] == b'\x00\x00\x00\x00':
+            return False
+        # PS2 V1: first u32 = entry count (< 5000), third u32 = sector size (< 10000)
+        count   = _s.unpack('<I', header[0:4])[0]
+        sec_sz  = _s.unpack('<I', header[8:12])[0]
+        return 0 < count < 5000 and 0 < sec_sz < 10000
+    except Exception:
+        return False
+
+
+def open_ps2_v1(file_path: str) -> dict: #vers 1
+    """
+    Parse a GTA3/VC/Bully PS2 (or iOS/Android) IMG file.
+    Format: 12-byte entries from byte 0 - sector_offset[4] asset_id[4] sector_size[4].
+    Returns dict: { 'version': 'PS2_V1', 'entries': [...], 'error': None }
+    Each entry: { 'name': str, 'offset': int, 'size': int, 'asset_id': int, 'index': int }
+    """
+    result = {'version': 'PS2_V1', 'entries': [], 'error': None}
+    try:
+        file_size = os.path.getsize(file_path)
+        with open(file_path, 'rb') as f:
+            raw = f.read(12)
+        if len(raw) < 12:
+            result['error'] = 'File too small'
+            return result
+
+        entry_count = struct.unpack('<I', raw[0:4])[0]
+        dir_size    = entry_count * 12
+
+        with open(file_path, 'rb') as f:
+            dir_data = f.read(dir_size)
+
+        entries = []
+        for i in range(entry_count):
+            off = i * 12
+            if off + 12 > len(dir_data):
+                break
+            sec_off  = struct.unpack('<I', dir_data[off:off+4])[0]
+            asset_id = struct.unpack('<I', dir_data[off+4:off+8])[0]
+            sec_sz   = struct.unpack('<I', dir_data[off+8:off+12])[0]
+            byte_off = sec_off * PS2_SECTOR
+            byte_sz  = sec_sz  * PS2_SECTOR
+            if byte_off >= file_size:
+                continue
+            entries.append({
+                'name':     f'entry_{i}',
+                'offset':   byte_off,
+                'size':     byte_sz,
+                'asset_id': asset_id,
+                'index':    i,
+            })
+
+        result['entries'] = entries
+    except Exception as e:
+        result['error'] = str(e)
+    return result
 
 
 def detect_lvz(path: str) -> bool: #vers 1
