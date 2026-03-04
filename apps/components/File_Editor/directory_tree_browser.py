@@ -239,32 +239,29 @@ class DirectoryTreeBrowser(QWidget):
 
 
     # Column indices
-    COL_NAME  = 0
-    COL_TYPE  = 1
-    COL_SIZE  = 2
+    COL_NAME     = 0
+    COL_TYPE     = 1
+    COL_SIZE     = 2
     COL_CREATED  = 3
     COL_MODIFIED = 4
-    COL_PERMS = 5
-    COL_RW    = 6
+    COL_PERMS    = 5
 
     def _setup_tree_columns(self, tree, label='Name'): #vers 2
         """Set columns: Name, Type, Size, Created, Modified, Perms, RW Ver"""
         from PyQt6.QtWidgets import QHeaderView
-        cols = [label or 'Name', 'Type', 'Size', 'Created', 'Modified', 'Perms', 'RW Ver']
+        cols = [label or 'Name', 'Type', 'Size', 'Created', 'Modified', 'Perms']
         tree.setColumnCount(len(cols))
         tree.setHeaderLabels(cols)
         hdr = tree.header()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        for i in range(1, len(cols)):
+        for i in range(len(cols)):
             hdr.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
         hdr.setStretchLastSection(False)
         hdr.resizeSection(0, 220)
-        hdr.resizeSection(1, 80)
+        hdr.resizeSection(1, 160)
         hdr.resizeSection(2, 70)
         hdr.resizeSection(3, 130)
         hdr.resizeSection(4, 130)
         hdr.resizeSection(5, 50)
-        hdr.resizeSection(6, 60)
         hdr.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         hdr.customContextMenuRequested.connect(
             lambda pos, t=tree: self._show_column_toggle_menu(t, pos))
@@ -276,7 +273,7 @@ class DirectoryTreeBrowser(QWidget):
     def _show_column_toggle_menu(self, tree, pos): #vers 2
         """Right-click header to show/hide columns."""
         from PyQt6.QtWidgets import QMenu
-        labels = ['Name', 'Type', 'Size', 'Created', 'Modified', 'Perms', 'RW Ver']
+        labels = ['Name', 'Type', 'Size', 'Created', 'Modified', 'Perms']
         menu = QMenu(tree)
         for i, lbl in enumerate(labels):
             if i == 0:
@@ -1036,7 +1033,12 @@ class DirectoryTreeBrowser(QWidget):
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, item_path)
                 file_ext = os.path.splitext(file)[1].lower()
                 tree_item.setIcon(0, self.get_file_type_icon(file_ext))
-                tree_item.setText(self.COL_TYPE, self.get_file_type_display(file_ext))
+                type_label = self.get_file_type_display(file_ext)
+                if file_ext in ('.dff', '.txd'):
+                    rw = self._read_rw_version(item_path)
+                    if rw and not rw.startswith('Unknown'):
+                        type_label = f'{type_label} {rw}'
+                tree_item.setText(self.COL_TYPE, type_label)
                 try:
                     st = os.stat(item_path)
                     sz = st.st_size
@@ -1054,10 +1056,7 @@ class DirectoryTreeBrowser(QWidget):
                         oct(_stat.S_IMODE(st.st_mode))[2:])
                 except Exception:
                     pass
-                if file_ext in ('.dff', '.txd'):
-                    rw = self._read_rw_version(item_path)
-                    if rw:
-                        tree_item.setText(self.COL_RW, rw)
+
         except Exception:
             pass
 
