@@ -64,7 +64,7 @@ def reset_table_styling(main_window): #vers 2
 def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 3
     """Setup table structure for IMG file data"""
     try:
-        img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"]
+        img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"]
         table.setColumnCount(8)
         table.setHorizontalHeaderLabels(img_headers)
         table.setColumnWidth(0, 190)  # Name
@@ -104,7 +104,7 @@ class IMGTablePopulator:
                 return False
             table.setColumnCount(8)
             table.setHorizontalHeaderLabels([
-                "Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Compression", "Status"
+                "Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"
             ])
             table.setColumnWidth(0, 190)
             table.setColumnWidth(1, 60)
@@ -265,15 +265,26 @@ class IMGTablePopulator:
         except Exception:
             return "Unknown"
 
-    def get_compression_info(self, entry: Any) -> str: #vers 2
-        """Get compression info only"""
+    def get_compression_info(self, entry: Any) -> str: #vers 3
+        """Get encoding info - compression + encryption"""
         try:
+            parts = []
+            # Encryption takes priority in display
+            if hasattr(entry, 'is_encrypted') and entry.is_encrypted:
+                enc = getattr(entry, 'encryption_type', None)
+                if enc and str(enc.value).lower() != 'none':
+                    parts.append(f'Enc:{enc.value}')
+                else:
+                    parts.append('Encrypted')
+            # Compression
             if hasattr(entry, 'compression_type') and entry.compression_type:
-                if str(entry.compression_type).upper() != 'NONE':
-                    return str(entry.compression_type)
-            return "None"
+                ct = str(entry.compression_type.value).upper()
+                if ct not in ('NONE', 'UNKNOWN', ''):
+                    parts.append(ct)
+            return ' + '.join(parts) if parts else 'None'
         except Exception:
-            return "None"
+            return 'None'
+
 
     def get_info_light(self, entry: Any) -> str: #vers 4
         """Get entry info - LIGHT processing, no heavy detection"""

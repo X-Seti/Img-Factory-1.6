@@ -182,7 +182,7 @@ class IMGFactoryGUILayout:
             'create_new_img': lambda: create_new_img(self.main_window),
             'open_img_file': lambda: open_file_dialog(self.main_window),
             'reload_table': lambda: reload_current_file(self.main_window),
-            'useless_button': lambda: self._safe_log("useless_button!"), # Secret function
+            'encrypt_img': lambda: getattr(self.main_window, 'encrypt_img', lambda: None)(),
             'close_img_file': lambda: close_img_file(self.main_window),
             'close_all_img': lambda: close_all_img(self.main_window),
             'rebuild_img': lambda: rebuild_current_img_native(self.main_window),
@@ -339,7 +339,7 @@ class IMGFactoryGUILayout:
             ("Create", "new", "document-new", colors['create_action'], "create_new_img"),
             ("Open", "open", "document-open", colors['open_action'], "open_img_file"),
             ("Reload", "reload", "document-reload", colors['reload_action'], "reload_table"),
-            ("     ", "space", "placeholder", colors['placeholder'], "useless_button"),
+            ("Encrypt", "encrypt", "encrypt", colors['build_action'], "encrypt_img"),
             ("Close", "close", "window-close", colors['close_action'], "close_img_file"),
             ("Close All", "close_all", "window-close-all", colors['close_action'], "close_all_img"),
             ("Rebuild", "rebuild", "view-rebuild", colors['build_action'], "rebuild_img"),
