@@ -1,11 +1,12 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 3
-# X-Seti - March04 2026 - IMG Factory 1.6 - PS2 VCS/LCS/V1/ANPK IMG and LVZ Support
+#this belongs in core/ img_ps2_vcs.py - Version: 4
+# X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ and ANPK Support
 """
-PS2 VCS/LCS/V1 IMG, LVZ, and ANPK Support - Read-only parsers for GTA PS2/PSP/iOS/Android.
+PS2/PSP/Bully IMG, LVZ and ANPK Support - Read-only parsers for GTA/Bully PS2/PSP/iOS/Android.
 GTA3PS2.IMG (LCS/VCS): embedded directory, 32-byte entries, 512-byte sectors, type codes.
 GTA3_N.IMG (GTA3/VC/Bully PS2, iOS, Android): 12-byte entries, 512-byte sectors, no names.
 LVZ: zlib-compressed DLRW streaming archive, 8-byte indexed entries, no filenames.
 ANPK: PSP animation package, chunk-based, named animation clips (DGAN blocks).
+BULLY: Bully PS2 named-entry archive, 64-byte name-only directory, sequential HXD data.
 """
 
 import os
@@ -14,10 +15,12 @@ import zlib
 
 ##Methods list -
 # detect_anpk
+# detect_bully
 # detect_lvz
 # detect_ps2_v1
 # detect_ps2_vcs
 # open_anpk
+# open_bully
 # open_lvz
 # open_ps2_v1
 # open_ps2_vcs
@@ -303,6 +306,82 @@ def open_anpk(file_path: str) -> dict: #vers 1
                 'name':   name,
                 'offset': dgan_pos,
                 'size':   dgan_size + 8,  # include tag+size header
+                'index':  i,
+            })
+
+        result['entries'] = entries
+    except Exception as e:
+        result['error'] = str(e)
+    return result
+
+
+BULLY_ENTRY_SIZE = 64
+
+
+def detect_bully(path: str) -> bool: #vers 1
+    """
+    Return True if file is a Bully PS2 named-entry IMG (CUTS.IMG style).
+    Format: count[4LE] then count*64-byte name-only entries (no offsets stored).
+    Detection: small count, first entry bytes are printable ASCII, no known magic.
+    """
+    try:
+        if not path.lower().endswith('.img'):
+            return False
+        with open(path, 'rb') as f:
+            header = f.read(68)
+        if len(header) < 68:
+            return False
+        # Reject known formats
+        if header[:4] in (b'VER2', b'ANPK'):
+            return False
+        import struct as _s
+        if _s.unpack('<I', header[:4])[0] == 0xA94E2A52:
+            return False
+        # Reject LCS/VCS type-code (printable + null pad at [4:8])
+        if all(0x20 <= b < 0x7F or b == 0x00 for b in header[0:4]) and \
+           header[0:4].rstrip(b'\x00') != b'' and header[4:8] == b'\x00\x00\x00\x00':
+            return False
+        count = _s.unpack('<I', header[0:4])[0]
+        if not (0 < count < 1000):
+            return False
+        # First entry at offset 4 must start with printable ASCII name
+        name_start = header[4:20]
+        printable = sum(1 for b in name_start if 0x20 <= b < 0x7F or b == 0x00)
+        return printable >= 4 and name_start[0:1] != b'\x00'
+    except Exception:
+        return False
+
+
+def open_bully(file_path: str) -> dict: #vers 1
+    """
+    Parse a Bully PS2 CUTS.IMG style archive.
+    Format: count[4] + count*64-byte name entries (name[64], no offsets).
+    Data follows directory as sequential HXD blocks (self-describing).
+    Returns dict: { 'version': 'BULLY', 'entries': [...], 'error': None }
+    Each entry: { 'name': str, 'offset': int, 'size': int, 'index': int }
+    offset/size are 0 - sequential HXD blocks require separate scanning.
+    """
+    result = {'version': 'BULLY', 'entries': [], 'error': None}
+    try:
+        with open(file_path, 'rb') as f:
+            count_data = f.read(4)
+            if len(count_data) < 4:
+                result['error'] = 'File too small'
+                return result
+            count = struct.unpack('<I', count_data)[0]
+            dir_data = f.read(count * BULLY_ENTRY_SIZE)
+
+        entries = []
+        for i in range(count):
+            off = i * BULLY_ENTRY_SIZE
+            if off + BULLY_ENTRY_SIZE > len(dir_data):
+                break
+            raw_name = dir_data[off:off + BULLY_ENTRY_SIZE].split(b'\x00')[0]
+            name = raw_name.decode('ascii', errors='replace') if raw_name else f'entry_{i}'
+            entries.append({
+                'name':   name,
+                'offset': 0,
+                'size':   0,
                 'index':  i,
             })
 
