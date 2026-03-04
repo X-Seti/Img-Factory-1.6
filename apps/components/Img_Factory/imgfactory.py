@@ -361,7 +361,11 @@ class IMGLoadThread(QThread):
 
             # Open and parse file (entries are loaded automatically by open())
             if not img_file.open():
-                self.loading_error.emit(f"Failed to open IMG file: {self.file_path}")
+                ver = img_file.version.name if img_file.version else "UNKNOWN"
+                sz = os.path.getsize(self.file_path)
+                self.loading_error.emit(
+                    f"Failed to open IMG file: {self.file_path}\n"
+                    f"Detected version: {ver}  Size: {sz/1024/1024:.1f} MB")
                 return
 
             self.progress_updated.emit(60, "Reading entries...")
