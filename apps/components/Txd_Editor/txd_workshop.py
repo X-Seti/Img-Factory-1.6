@@ -6924,13 +6924,21 @@ class TXDWorkshop(QWidget): #vers 3
                 self.main_window.log_message(f"Error loading TXD list: {str(e)}")
 
 
-    def _on_txd_selected(self, item): #vers 1
+    def _on_txd_selected(self, item): #vers 2
         """Handle TXD file selection"""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
             if entry:
+                if self.main_window and hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"Loading TXD: {entry.name} offset={hex(entry.offset)} size={entry.size}")
                 txd_data = self._extract_txd_from_img(entry)
                 if txd_data:
+                    # Validate TXD header before loading
+                    import struct
+                    if len(txd_data) >= 4:
+                        header_type = struct.unpack('<I', txd_data[:4])[0]
+                        if self.main_window and hasattr(self.main_window, 'log_message'):
+                            self.main_window.log_message(f"TXD header type: 0x{header_type:08X}")
                     self.current_txd_data = txd_data
                     self.current_txd_name = entry.name
                     self._load_txd_textures(txd_data, entry.name)
