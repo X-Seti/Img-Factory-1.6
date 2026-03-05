@@ -2735,14 +2735,20 @@ class IMGFactory(QMainWindow):
                 if not splitter or splitter.count() < 2:
                     return
                 total = sum(splitter.sizes()) or 10000
-                state = (getattr(self, '_dirtree_state', 0) + 1) % 3
-                self._dirtree_state = state
-                if state == 0:
-                    splitter.setSizes([total, 0])
-                elif state == 1:
+                dir_tree = getattr(self, 'directory_tree', None)
+                tree_idx = -1
+                for i in range(splitter.count()):
+                    if splitter.widget(i) is dir_tree:
+                        tree_idx = i
+                        break
+                tab_idx = 1 - tree_idx if tree_idx != -1 else 0
+                sizes = splitter.sizes()
+                if sizes[tab_idx] >= total * 0.9:
                     splitter.setSizes([total // 2, total // 2])
-                elif state == 2:
-                    splitter.setSizes([0, total])
+                else:
+                    s = [0, 0]
+                    s[tab_idx] = total
+                    splitter.setSizes(s)
 
             _tog_btn = QPushButton()
             _tog_btn.setIcon(get_panel_toggle_icon(20))
