@@ -67,69 +67,102 @@ from apps.methods.imgfactory_svg_icons import (
     get_minimize_icon, get_maximize_icon, get_close_icon
 )
 
-def edit_txd_file(main_window): #vers 4
-    """Edit selected TXD file with TXD Workshop"""
+def edit_txd_file(main_window): #vers 5
+    """Edit selected TXD file with TXD Workshop - works from IMG table or dir tree"""
     try:
+        # Priority: dir tree selection
+        selected = getattr(main_window, '_dir_tree_selected_file', None)
+        if not selected:
+            # Try currentItem from tree
+            if hasattr(main_window, 'directory_tree'):
+                tree = main_window.directory_tree
+                for attr in ('tree', '_second_tree'):
+                    t = getattr(tree, attr, None)
+                    if t:
+                        item = t.currentItem()
+                        if item:
+                            from PyQt6.QtCore import Qt
+                            import os
+                            path = item.data(0, Qt.ItemDataRole.UserRole)
+                            if path and os.path.isfile(path):
+                                selected = path
+                                break
+
+        if selected and selected.lower().endswith('.txd'):
+            if hasattr(main_window, '_load_txd_file_in_new_tab'):
+                main_window._load_txd_file_in_new_tab(selected)
+            else:
+                from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                open_txd_workshop(main_window, selected)
+            main_window.log_message(f"TXD Workshop opened: {os.path.basename(selected)}")
+            return
+
+        # Fall back to IMG table selection
         from apps.methods.export_shared import get_active_table
         entries_table = get_active_table(main_window)
         selected_items = entries_table.selectedItems()
         if not selected_items:
             main_window.log_message("No TXD file selected")
             return
-
         row = selected_items[0].row()
-        filename_item = entries_table.item(row, 0)
-        filename = filename_item.text()
-
+        filename = entries_table.item(row, 0).text()
         if not filename.lower().endswith('.txd'):
             main_window.log_message("Selected file is not a TXD file")
             return
-
-        # Open TXD Workshop
-        from apps.components.Txd_Editor.txd_workshop import open_txd_workshop  # FIXED PATH
-
-        # Pass current IMG path if available
         img_path = None
         if hasattr(main_window, 'current_img') and main_window.current_img:
             img_path = main_window.current_img.file_path
-
+        from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
         workshop = open_txd_workshop(main_window, img_path)
-
         if workshop:
             main_window.log_message(f"TXD Workshop opened for: {filename}")
-        else:
-            main_window.log_message(f"Failed to open TXD Workshop")
-
     except Exception as e:
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
 
-def edit_col_file(main_window): #vers 2
-    """Edit selected COL file with COL Workshop - matches TXD pattern"""
+def edit_col_file(main_window): #vers 3
+    """Edit selected COL file - works from dir tree or IMG table"""
     try:
+        import os
+        # Priority: dir tree selection
+        selected = getattr(main_window, '_dir_tree_selected_file', None)
+        if not selected:
+            if hasattr(main_window, 'directory_tree'):
+                tree = main_window.directory_tree
+                for attr in ('tree', '_second_tree'):
+                    t = getattr(tree, attr, None)
+                    if t:
+                        item = t.currentItem()
+                        if item:
+                            from PyQt6.QtCore import Qt
+                            path = item.data(0, Qt.ItemDataRole.UserRole)
+                            if path and os.path.isfile(path):
+                                selected = path
+                                break
+
+        if selected and selected.lower().endswith('.col'):
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            open_col_workshop(main_window, selected)
+            main_window.log_message(f"COL Workshop opened: {os.path.basename(selected)}")
+            return
+
+        # Fall back to IMG table selection
         from apps.methods.export_shared import get_active_table
         entries_table = get_active_table(main_window)
         selected_items = entries_table.selectedItems()
-
         if not selected_items:
             main_window.log_message("No COL file selected")
             return
-
         row = selected_items[0].row()
         filename = entries_table.item(row, 0).text()
-
         if not filename.lower().endswith('.col'):
             main_window.log_message("Selected file is not a COL file")
             return
-
-        from apps.components.Col_Editor.col_workshop import open_col_workshop
-
         img_path = None
         if hasattr(main_window, 'current_img') and main_window.current_img:
             img_path = main_window.current_img.file_path
-
+        from apps.components.Col_Editor.col_workshop import open_col_workshop
         workshop = open_col_workshop(main_window, img_path)
-
         if workshop:
             main_window.log_message(f"COL Workshop opened for: {filename}")
     except Exception as e:

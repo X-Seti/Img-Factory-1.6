@@ -3287,8 +3287,9 @@ class IMGFactory(QMainWindow):
                 self._load_img_file_in_new_tab(file_path)  # â† Starts threading
                 return True  # â† Return immediately, let threading finish
 
-            elif file_ext == 'col':
-                self._load_col_file_in_new_tab(file_path)
+            elif file_ext == '.col':
+                from apps.components.Col_Editor.col_workshop import open_col_workshop
+                open_col_workshop(self, file_path)
                 return True
 
             else:
@@ -3337,43 +3338,13 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error loading IMG in new tab: {str(e)}")
 
 
-    def _load_txd_file_in_new_tab(self, file_path):  # vers 3
-        """Load TXD file in new tab - FIXED: creates tab, assigns data, no overwrite"""
+    def _load_txd_file_in_new_tab(self, file_path):  # vers 4
+        """Load TXD file in new tab via open_txd_workshop (single tab)"""
         try:
-            import os
-            file_name = os.path.basename(file_path)
-            base_name = file_name[:-4] if file_name.lower().endswith('.txd') else file_name
-
-            # STEP 1: Create new tab
-            tab_index = self.create_tab(file_path, 'TXD', None)
-            if tab_index is None:
-                self.log_message("Failed to create TXD tab")
-                return
-
-            # STEP 2: Load TXD via workshop
             from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
             workshop = open_txd_workshop(self, file_path)
-
             if not workshop:
                 self.log_message("TXD workshop failed to open")
-                return
-
-            # STEP 3: If TXD loading sets self.current_txd, assign it to the tab
-            if hasattr(self, 'current_txd') and self.current_txd:
-                tab_widget = self.main_tab_widget.widget(tab_index)
-                if tab_widget:
-                    tab_widget.file_object = self.current_txd
-                    tab_widget.file_type = 'TXD'
-                    tab_widget.file_path = file_path
-                    self.log_message(f"TXD object assigned to tab {tab_index}")
-                # Clear global reference
-                self.current_txd = None
-
-            # STEP 4: Ensure we're on the new tab
-            self.main_tab_widget.setCurrentIndex(tab_index)
-
-            self.log_message(f"TXD loaded in tab {tab_index}: {base_name}")
-
         except Exception as e:
             self.log_message(f"Error loading TXD in new tab: {str(e)}")
             import traceback

@@ -1116,15 +1116,12 @@ class IMGFile:
                     self.version = IMGVersion.VERSION_HXD
                     return IMGVersion.VERSION_HXD
 
-            # Check for ANPK (PSP animation package, uses .img extension)
+            # Check for ANPK (PSP animation package, uses .img extension) - has clear magic
             if self.file_path.lower().endswith('.img'):
-                from apps.core.img_ps2_vcs import detect_anpk, detect_bully
+                from apps.core.img_ps2_vcs import detect_anpk
                 if detect_anpk(self.file_path):
                     self.version = IMGVersion.VERSION_ANPK
                     return IMGVersion.VERSION_ANPK
-                if detect_bully(self.file_path):
-                    self.version = IMGVersion.VERSION_BULLY
-                    return IMGVersion.VERSION_BULLY
 
             # Check if it's a single .img file (Version 2 or 1/1.5)
             if self.file_path.lower().endswith('.img'):
@@ -1152,13 +1149,16 @@ class IMGFile:
                             ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                         else:
                             # Check PS2 VCS before generic standalone fallback
-                            from apps.core.img_ps2_vcs import detect_ps2_vcs, detect_ps2_v1
+                            from apps.core.img_ps2_vcs import detect_ps2_vcs, detect_ps2_v1, detect_bully
                             if detect_ps2_vcs(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_VCS
                                 return IMGVersion.VERSION_PS2_VCS
                             if detect_ps2_v1(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_V1
                                 return IMGVersion.VERSION_PS2_V1
+                            if detect_bully(self.file_path):
+                                self.version = IMGVersion.VERSION_BULLY
+                                return IMGVersion.VERSION_BULLY
                             # No .dir - standalone V1/V1.5, check size
                             sz = os.path.getsize(self.file_path)
                             ver = IMGVersion.VERSION_1_5 if sz > 2 * 1024 * 1024 * 1024 else IMGVersion.VERSION_1
