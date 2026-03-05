@@ -2741,7 +2741,6 @@ class IMGFactory(QMainWindow):
             }
         """)
         self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
-        self.main_tab_widget.tabBar().setFixedHeight(34)
 
         # Panel toggle button - left corner of tab bar, outside tabs
         try:
@@ -2770,11 +2769,9 @@ class IMGFactory(QMainWindow):
                     splitter.setSizes(s)
 
             _tog_btn = QPushButton()
-            _tog_btn.setIcon(get_panel_toggle_icon(26))
-            _tog_btn.setFixedSize(32, 32)
-            _tog_btn.setIconSize(QSize(26, 26))
+            _tog_btn.setIcon(get_panel_toggle_icon())
+            _tog_btn.setMaximumSize(32, 32)
             _tog_btn.setToolTip("Toggle: tabs full / split")
-            _tog_btn.setStyleSheet("QPushButton { margin: 0px; padding: 0px; border: none; }")
             _tog_btn.clicked.connect(_on_toggle)
             self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopRightCorner)
             self._panel_toggle_btn = _tog_btn
