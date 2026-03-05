@@ -235,14 +235,17 @@ class COLWorkshop(QWidget): #vers 3
         self._apply_theme()
 
 
-    def setup_ui(self): #vers 7
+    def setup_ui(self): #vers 8
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
 
-        # Toolbar
+        # Toolbar - hidden when embedded in main window tab
         toolbar = self._create_toolbar()
+        self._workshop_toolbar = toolbar
+        if not self.standalone_mode:
+            toolbar.setVisible(False)
         main_layout.addWidget(toolbar)
 
         # Tab bar for multiple col files
@@ -283,9 +286,11 @@ class COLWorkshop(QWidget): #vers 3
 
         main_layout.addWidget(main_splitter)
 
-        # Status indicators if available
+        # Status indicators - hidden when embedded in main window tab
         if hasattr(self, '_setup_status_indicators'):
             status_frame = self._setup_status_indicators()
+            if not self.standalone_mode:
+                status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
 
 
@@ -1206,7 +1211,9 @@ class COLWorkshop(QWidget): #vers 3
         if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
             titlebar_pos = self.titlebar.mapFromParent(pos)
             if self._is_on_draggable_area(titlebar_pos):
-                self.windowHandle().startSystemMove()
+                handle = self.windowHandle()
+                if handle:
+                    handle.startSystemMove()
                 event.accept()
                 return
 
@@ -3327,13 +3334,9 @@ class COLWorkshop(QWidget): #vers 3
 
     def _enable_move_mode(self): #vers 2
         """Enable move window mode using system move"""
-        # Use Qt's system move which works on Windows, Linux, etc.
-        if hasattr(self.windowHandle(), 'startSystemMove'):
-            self.windowHandle().startSystemMove()
-        else:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Move Window",
-                "Drag the titlebar to move the window")
+        handle = self.windowHandle()
+        if handle and hasattr(handle, 'startSystemMove'):
+            handle.startSystemMove()
 
     def _toggle_upscale_native(self): #vers 1
         """Toggle upscale native resolution"""
@@ -5515,22 +5518,56 @@ def open_workshop(main_window, img_path=None): #vers 3
 COLEditorDialog = COLWorkshop  #vers 1
 
 
-def open_col_workshop(main_window, img_path=None): #vers 1
-    """Open COL Workshop - matches TXD Workshop pattern"""
+def open_col_workshop(main_window, img_path=None): #vers 2
+    """Open COL Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
     try:
-        workshop = COLWorkshop(main_window, main_window)
-        if img_path:
-            if img_path.lower().endswith(".col"):
-                if hasattr(workshop, "open_col_file"):
+        from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+        # Standalone mode
+        if not main_window or not hasattr(main_window, 'main_tab_widget'):
+            workshop = COLWorkshop(None, main_window)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            if img_path and img_path.lower().endswith('.col'):
+                if hasattr(workshop, 'open_col_file'):
                     workshop.open_col_file(img_path)
-                elif hasattr(workshop, "load_col_file"):
+                elif hasattr(workshop, 'load_col_file'):
                     workshop.load_col_file(img_path)
-        workshop.setWindowTitle(f"COL Workshop - {App_name}")
+            workshop.setWindowTitle(f"COL Workshop - {App_name}")
+            workshop.resize(1200, 800)
+            workshop.show()
+            return workshop
+
+        # Embedded mode - add as tab
+        import os
+        tab_container = QWidget()
+        tab_layout = QVBoxLayout(tab_container)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+
+        workshop = COLWorkshop(tab_container, main_window)
+        workshop.setWindowFlags(Qt.WindowType.Widget)
+        tab_layout.addWidget(workshop)
+
+        if img_path and img_path.lower().endswith('.col'):
+            if hasattr(workshop, 'open_col_file'):
+                workshop.open_col_file(img_path)
+            elif hasattr(workshop, 'load_col_file'):
+                workshop.load_col_file(img_path)
+
+        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "COL Workshop"
+        try:
+            from apps.methods.imgfactory_svg_icons import get_col_file_icon
+            icon = get_col_file_icon()
+            idx = main_window.main_tab_widget.addTab(tab_container, icon, tab_label)
+        except Exception:
+            idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
+        main_window.main_tab_widget.setCurrentIndex(idx)
+
         workshop.show()
         return workshop
+
     except Exception as e:
-        if main_window and hasattr(main_window, "log_message"):
-            main_window.log_message(f"Error: {str(e)}")
+        if main_window and hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Error opening COL Workshop: {str(e)}")
         return None
 
 COLEditorDialog = COLWorkshop

@@ -2922,6 +2922,27 @@ class IMGFactory(QMainWindow):
                 self.log_message(f"→ {tab_name} (TXD Workshop)")
                 return
 
+            # Check if this tab contains an embedded COL Workshop
+            from apps.components.Col_Editor.col_workshop import COLWorkshop
+            col_workshops = current_tab.findChildren(COLWorkshop)
+            if col_workshops:
+                workshop = col_workshops[0]
+                self.current_img = None
+                self.current_col = None
+                if hasattr(self, 'update_img_status'):
+                    col_count = 0
+                    if hasattr(workshop, 'col_file') and workshop.col_file:
+                        col_count = len(getattr(workshop.col_file, 'models', [])) 
+                    col_path = getattr(workshop, 'current_col_path', '') or ''
+                    import os
+                    file_size = os.path.getsize(col_path) if col_path and os.path.isfile(col_path) else 0
+                    self.update_img_status(filename=col_path or tab_name,
+                                           entry_count=col_count,
+                                           file_size=file_size,
+                                           version='COL')
+                self.log_message(f"→ {tab_name} (COL Workshop)")
+                return
+
             if file_type == 'COL':
                 self.current_col = file_object
                 self.current_img = None
