@@ -17979,46 +17979,57 @@ def _call_external_upscaler(self, qimg, factor, command): #vers 1
             pass
 
 
-def open_txd_workshop(main_window, img_path=None): #vers 4
-    """Open TXD Workshop embedded in a new tab - not as a floating window"""
+def open_txd_workshop(main_window, img_path=None): #vers 5
+    """Open TXD Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
     try:
         from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
-        # Create a tab container
+        # Standalone mode - no main window or no tab widget
+        if not main_window or not hasattr(main_window, 'main_tab_widget'):
+            workshop = TXDWorkshop(None, main_window)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            if img_path:
+                if img_path.lower().endswith('.txd'):
+                    workshop.open_txd_file(img_path)
+                else:
+                    workshop.load_from_img_archive(img_path)
+            workshop.resize(1200, 800)
+            workshop.show()
+            return workshop
+
+        # Embedded mode - add as tab
+        import os
         tab_container = QWidget()
         tab_layout = QVBoxLayout(tab_container)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Create workshop without FramelessWindowHint - it will be embedded
         workshop = TXDWorkshop(tab_container, main_window)
         workshop.setWindowFlags(Qt.WindowType.Widget)
-
         tab_layout.addWidget(workshop)
 
-        # Load content
         if img_path:
             if img_path.lower().endswith('.txd'):
                 workshop.open_txd_file(img_path)
             else:
                 workshop.load_from_img_archive(img_path)
 
-        # Add as tab
-        if hasattr(main_window, 'main_tab_widget'):
-            import os
-            tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "TXD Workshop"
-            try:
-                from apps.methods.imgfactory_svg_icons import get_txd_file_icon
-                icon = get_txd_file_icon()
-                idx = main_window.main_tab_widget.addTab(tab_container, icon, tab_label)
-            except Exception:
-                idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
-            main_window.main_tab_widget.setCurrentIndex(idx)
-            tab_container.tab_index = idx
+        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "TXD Workshop"
+        try:
+            from apps.methods.imgfactory_svg_icons import get_txd_file_icon
+            icon = get_txd_file_icon()
+            idx = main_window.main_tab_widget.addTab(tab_container, icon, tab_label)
+        except Exception:
+            idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
+        main_window.main_tab_widget.setCurrentIndex(idx)
 
         workshop.show()
         return workshop
+
     except Exception as e:
-        QMessageBox.critical(main_window, "Error", f"Failed to open TXD Workshop: {str(e)}")
+        if main_window:
+            QMessageBox.critical(main_window, "Error", f"Failed to open TXD Workshop: {str(e)}")
+        else:
+            print(f"Failed to open TXD Workshop: {str(e)}")
         return None
 
 
