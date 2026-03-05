@@ -2772,6 +2772,7 @@ class IMGFactory(QMainWindow):
             _tog_btn.setIcon(get_panel_toggle_icon())
             _tog_btn.setMaximumSize(32, 32)
             _tog_btn.setToolTip("Toggle: tabs full / split")
+            _tog_btn.setStyleSheet("QPushButton { margin-top: 3px; }")
             _tog_btn.clicked.connect(_on_toggle)
             self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopRightCorner)
             self._panel_toggle_btn = _tog_btn
