@@ -2885,13 +2885,11 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 6
-        """Handle tab switching - DIR Tree or file tabs"""
+    def _on_tab_changed(self, index): #vers 7
+        """Handle tab switching - DIR Tree, IMG, COL, TXD tabs"""
         try:
             current_tab = self.main_tab_widget.widget(index)
             tab_name = self.main_tab_widget.tabText(index)
-
-            # File tab selected - ensure directory tree stays in its splitter position
 
             if not current_tab:
                 return
@@ -2903,6 +2901,26 @@ class IMGFactory(QMainWindow):
             tab_table = getattr(current_tab, 'table_ref', None)
             if tab_table and hasattr(self, 'gui_layout'):
                 self.gui_layout.table = tab_table
+
+            # Check if this tab contains an embedded TXD Workshop
+            from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+            workshops = current_tab.findChildren(TXDWorkshop)
+            if workshops:
+                workshop = workshops[0]
+                self.current_img = None
+                self.current_col = None
+                if hasattr(self, 'update_img_status'):
+                    tex_count = len(workshop.texture_list) if hasattr(workshop, 'texture_list') else 0
+                    txd_name = getattr(workshop, 'current_txd_name', None) or tab_name
+                    txd_path = getattr(workshop, 'current_txd_path', '') or ''
+                    import os
+                    file_size = os.path.getsize(txd_path) if txd_path and os.path.isfile(txd_path) else 0
+                    self.update_img_status(filename=txd_path or txd_name,
+                                           entry_count=tex_count,
+                                           file_size=file_size,
+                                           version='TXD')
+                self.log_message(f"→ {tab_name} (TXD Workshop)")
+                return
 
             if file_type == 'COL':
                 self.current_col = file_object
@@ -2928,7 +2946,7 @@ class IMGFactory(QMainWindow):
                 self.log_message(f"→ {tab_name}")
 
         except Exception as e:
-            self.log_message(f"Tab switch error: {str(e)}")
+            self.log_message(f"Tab switch error: {str(e)})")
             import traceback
             traceback.print_exc()
 

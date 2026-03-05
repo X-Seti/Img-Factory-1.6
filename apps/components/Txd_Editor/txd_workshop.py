@@ -639,9 +639,11 @@ class TXDWorkshop(QWidget): #vers 3
         #self.status_bar = self._create_status_bar()
         #main_layout.addWidget(self.status_bar)
 
-        # Status indicators if available
+        # Status indicators - hidden when embedded in main window tab
         if hasattr(self, '_setup_status_indicators'):
             status_frame = self._setup_status_indicators()
+            if not self.standalone_mode:
+                status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
 
     def _add_txd_tab(self, txd_data, txd_name): #vers 1
