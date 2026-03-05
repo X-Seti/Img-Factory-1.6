@@ -3113,24 +3113,40 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"Error updating open files list: {str(e)}")
 
 
-    def _on_tab_double_click(self, index): #vers 2
-        """Double-click file tab: toggle between full file tabs and split view"""
+    def _on_tab_double_click(self, index): #vers 3
+        """Double-click file tab: cycle own-full -> split -> tree-full"""
         try:
             splitter = getattr(self, 'content_splitter', None)
             if not splitter or splitter.count() < 2:
                 return
+            total = sum(splitter.sizes()) or 10000
+
+            # Find which index holds the tab widget
+            mw = self.main_window
+            tab_widget = getattr(mw, 'main_tab_widget', None)
+            tab_idx = -1
+            for i in range(splitter.count()):
+                w = splitter.widget(i)
+                if w and (w is tab_widget or (tab_widget and w.isAncestorOf(tab_widget))):
+                    tab_idx = i
+                    break
+            if tab_idx == -1:
+                tab_idx = 0
+            other_idx = 1 - tab_idx
+
             sizes = splitter.sizes()
-            total = sum(sizes)
-            if not total:
-                return
-            # If files are already maximised (tree <= 5% of total), restore split
-            if sizes[0] <= total * 0.05:
-                splitter.setSizes([total // 2, total // 2])
+            # If already at own-full, go to split; if split go to other-full; else own-full
+            if sizes[tab_idx] >= total * 0.95:
+                splitter.setSizes([total // 2 if i == tab_idx else total // 2 for i in range(2)])
                 self.main_window.log_message("→ Split view")
+            elif sizes[tab_idx] >= total * 0.45:
+                s = [0, 0]; s[other_idx] = total
+                splitter.setSizes(s)
+                self.main_window.log_message("→ Tree full")
             else:
-                # Maximise file tabs - collapse tree
-                splitter.setSizes([0, total])
-                self.main_window.log_message("→ Files maximised (double-click tab to restore split)")
+                s = [0, 0]; s[tab_idx] = total
+                splitter.setSizes(s)
+                self.main_window.log_message("→ Files full")
         except Exception as e:
             self.main_window.log_message(f"Tab double-click error: {str(e)}")
 

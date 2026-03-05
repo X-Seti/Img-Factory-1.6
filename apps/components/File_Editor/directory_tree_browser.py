@@ -592,8 +592,8 @@ class DirectoryTreeBrowser(QWidget):
         return toolbar
 
 
-    def _toggle_tree_maximise(self): #vers 4
-        """Cycle: split -> tabs-full -> tree-full -> split"""
+    def _toggle_tree_maximise(self): #vers 5
+        """Cycle own panel: own-full -> split -> other-full -> own-full"""
         try:
             mw = self.main_window
             if not mw:
@@ -602,14 +602,32 @@ class DirectoryTreeBrowser(QWidget):
             if not splitter or splitter.count() < 2:
                 return
             total = sum(splitter.sizes()) or 10000
+
+            # Find which index this widget (dir tree) lives in at runtime
+            tree_idx = -1
+            for i in range(splitter.count()):
+                w = splitter.widget(i)
+                if w and (w is self or self.isAncestorOf(w) or (w is not None and w.isAncestorOf(self))):
+                    tree_idx = i
+                    break
+            if tree_idx == -1:
+                tree_idx = 1  # fallback
+            other_idx = 1 - tree_idx
+
+            # Cycle: own-full -> split -> other-full -> own-full
             state = (getattr(mw, '_dirtree_state', 0) + 1) % 3
             mw._dirtree_state = state
-            if state == 0:   # split
-                splitter.setSizes([total // 2, total // 2])
-            elif state == 1: # tabs full (widen left/file side first)
-                splitter.setSizes([total, 0])
-            elif state == 2: # tree full
-                splitter.setSizes([0, total])
+            sizes = [0, 0]
+            if state == 0:   # own panel full
+                sizes[tree_idx] = total
+                sizes[other_idx] = 0
+            elif state == 1: # split
+                sizes[tree_idx] = total // 2
+                sizes[other_idx] = total // 2
+            elif state == 2: # other panel full
+                sizes[tree_idx] = 0
+                sizes[other_idx] = total
+            splitter.setSizes(sizes)
         except Exception as e:
             if self.main_window:
                 self.main_window.log_message(f"Panel toggle error: {str(e)}")
