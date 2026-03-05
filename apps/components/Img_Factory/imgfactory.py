@@ -2723,6 +2723,15 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
+        self.main_tab_widget.setStyleSheet("""
+            QTabBar::tab {
+                margin-bottom: 2px;
+                padding: 4px 12px;
+            }
+            QTabWidget::tab-bar {
+                alignment: left;
+            }
+        """)
 
         # Panel toggle button - left corner of tab bar, outside tabs
         try:
@@ -2752,9 +2761,11 @@ class IMGFactory(QMainWindow):
 
             _tog_btn = QPushButton()
             _tog_btn.setIcon(get_panel_toggle_icon(20))
-            _tog_btn.setMaximumSize(32, 32)
+            _tog_btn.setFixedSize(28, 28)
             _tog_btn.setIconSize(QSize(20, 20))
-            _tog_btn.setToolTip("Toggle: tabs full / split / tree full")
+            _tog_btn.setToolTip("Toggle: tabs full / split")
+            _tog_btn.setContentsMargins(0, 0, 0, 0)
+            _tog_btn.setStyleSheet("QPushButton { margin: 0px; padding: 2px; border: none; }")
             _tog_btn.clicked.connect(_on_toggle)
             self.main_tab_widget.setCornerWidget(_tog_btn, Qt.Corner.TopRightCorner)
             self._panel_toggle_btn = _tog_btn
