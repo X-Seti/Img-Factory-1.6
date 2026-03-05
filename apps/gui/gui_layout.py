@@ -798,8 +798,23 @@ class IMGFactoryGUILayout:
         try:
             from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
 
-            # Priority 1: file selected in dir tree
+            # Priority 1: stored selection from single-click
             selected = getattr(self.main_window, '_dir_tree_selected_file', None)
+
+            # Priority 2: read currentItem directly from tree (catches keyboard nav / highlight without click)
+            if not selected and hasattr(self.main_window, 'directory_tree'):
+                tree = self.main_window.directory_tree
+                for attr in ('tree', '_second_tree'):
+                    t = getattr(tree, attr, None)
+                    if t:
+                        item = t.currentItem()
+                        if item:
+                            from PyQt6.QtCore import Qt
+                            path = item.data(0, Qt.ItemDataRole.UserRole)
+                            if path and os.path.isfile(path):
+                                selected = path
+                                break
+
             if selected and selected.lower().endswith('.txd') and os.path.isfile(selected):
                 if hasattr(self.main_window, '_load_txd_file_in_new_tab'):
                     self.main_window._load_txd_file_in_new_tab(selected)
@@ -808,7 +823,7 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"TXD Workshop opened: {os.path.basename(selected)}")
                 return
 
-            # Priority 2: current IMG
+            # Priority 3: current IMG
             img_path = None
             if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
                 img_path = self.main_window.current_img.file_path
