@@ -1218,183 +1218,38 @@ class IMGFactory(QMainWindow):
 
 
     # Menu isolation: Docked workshops should not affect main window menu
-    def open_txd_workshop_docked(self, txd_name=None, txd_data=None): #vers 3
-        """Open TXD Workshop as overlay on file window"""
-        from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
-
+    def open_txd_workshop_docked(self, txd_name=None, txd_data=None, file_path=None): #vers 4
+        """Open TXD Workshop in its own tab with icon"""
+        try:
+            if file_path:
+                self._load_txd_file_in_new_tab(file_path)
+            elif txd_name and hasattr(self, 'current_img') and self.current_img:
+                # Extract from IMG and open in tab
+                from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                open_txd_workshop(self, txd_name, txd_data)
+            else:
+                from apps.core.open import open_file_dialog
+                open_file_dialog(self)
+        except Exception as e:
+            self.log_message(f"TXD workshop error: {str(e)}")
 
     # Menu isolation: Docked workshops should not affect main window menu
-    def open_col_workshop_docked(self, col_name=None, col_data=None): #vers 1
-        """Open COL Workshop as overlay on file window - SIMILAR TO TXD VERSION"""
-        from apps.components.Col_Editor.col_workshop import COLWorkshop
-        from PyQt6.QtWidgets import QTableWidget
-        from PyQt6.QtCore import Qt
-
-        # Get current tab
-        current_tab_index = self.main_tab_widget.currentIndex()
-        if current_tab_index < 0:
-            self.log_message("No active tab")
-            return None
-
-        current_tab = self.main_tab_widget.widget(current_tab_index)
-        if not current_tab:
-            return None
-
-        # Find the file list table to get its geometry
-        tables = current_tab.findChildren(QTableWidget)
-
-        if not tables:
-            self.log_message("No table found to overlay")
-            return None
-
-        file_table = tables[0]
-
-        # Create COL Workshop as frameless overlay
-        workshop = COLWorkshop(parent=self, main_window=self)
-
-        # Make it frameless overlay
-        workshop.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
-
-        # Load COL data if provided
-        if col_data:
-            # TODO: Implement COL data loading
-            workshop.load_from_img_archive(col_data)
-        elif col_name and hasattr(self, 'current_img') and self.current_img:
-            # Find the COL entry in current IMG
-            for entry in self.current_img.entries:
-                if entry.name.lower() == col_name.lower():
-                    # TODO: Implement COL loading from entry
-                    workshop.load_from_img_archive(self.current_img.file_path)
-                    break
-
-        # Get file table geometry in global coordinates
-        table_rect = file_table.geometry()
-        table_global_pos = file_table.mapToGlobal(table_rect.topLeft())
-
-        # Position workshop over the file table
-        workshop.setGeometry(
-            table_global_pos.x(),
-            table_global_pos.y(),
-            table_rect.width(),
-            table_rect.height()
-        )
-
-        # Mark as overlay
-        workshop.is_overlay = True
-        workshop.overlay_table = file_table
-        workshop.overlay_tab_index = current_tab_index
-
-        workshop.show()
-        workshop.raise_()
-
-        # Store in main window
-        if not hasattr(self, 'col_workshops'):
-            self.col_workshops = []
-        self.col_workshops.append(workshop)
-
-        # Connect tab switching to hide/show
-        self.main_tab_widget.currentChanged.connect(
-            lambda idx: self._handle_col_overlay_tab_switch(workshop, idx)
-        )
-
-        self.log_message("COL Workshop opened as overlay")
-
-        return workshop
-
-
-    def _handle_col_overlay_tab_switch(self, workshop, new_tab_index): #vers 1
-        """Handle hiding/showing COL Workshop overlay on tab switch"""
-        if not hasattr(workshop, 'is_overlay') or not workshop.is_overlay:
-            return
-
-        if new_tab_index == workshop.overlay_tab_index:
-            # Switched to COL's tab - show and raise
-            workshop.show()
-            workshop.raise_()
-            workshop.activateWindow()
-        else:
-            # Switched away - hide it
-            workshop.hide()
-
-        # Get current tab
-        current_tab_index = self.main_tab_widget.currentIndex()
-        if current_tab_index < 0:
-            self.log_message("No active tab")
-            return None
-
-        current_tab = self.main_tab_widget.widget(current_tab_index)
-        if not current_tab:
-            return None
-
-        # Find the file list table to get its geometry
-        from PyQt6.QtWidgets import QTableWidget
-        tables = current_tab.findChildren(QTableWidget)
-
-        if not tables:
-            self.log_message("No table found to overlay")
-            return None
-
-        file_table = tables[0]
-
-        # Create TXD Workshop as frameless overlay
-        workshop = TXDWorkshop(parent=self, main_window=self)
-
-        # Make it frameless overlay
-        workshop.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
-
-        # Load TXD data if provided
-        if txd_name and txd_data:
-            workshop._load_txd_textures(txd_data, txd_name)
-
-        # Get file table geometry in global coordinates
-        table_rect = file_table.geometry()
-        table_global_pos = file_table.mapToGlobal(table_rect.topLeft())
-
-        # Position workshop over the file table
-        workshop.setGeometry(
-            table_global_pos.x(),
-            table_global_pos.y(),
-            table_rect.width(),
-            table_rect.height()
-        )
-
-        # Store references for show/hide
-        workshop.overlay_table = file_table
-        workshop.overlay_tab_index = current_tab_index
-        workshop.is_overlay = True
-
-        # Show the workshop
-        workshop.show()
-        workshop.raise_()
-
-        # Store in main window
-        if not hasattr(self, 'txd_workshops'):
-            self.txd_workshops = []
-        self.txd_workshops.append(workshop)
-
-        # Connect tab switching to hide/show
-        self.main_tab_widget.currentChanged.connect(
-            lambda idx: self._handle_txd_overlay_tab_switch(workshop, idx)
-        )
-
-        self.log_message("TXD Workshop opened as overlay")
-
-        return workshop
-
-
-    def _handle_txd_overlay_tab_switch(self, workshop, new_tab_index): #vers 1
-        """Handle hiding/showing TXD Workshop overlay on tab switch"""
-        if not hasattr(workshop, 'is_overlay') or not workshop.is_overlay:
-            return
-
-        if new_tab_index == workshop.overlay_tab_index:
-            # Switched to TXD's tab - show and raise
-            workshop.show()
-            workshop.raise_()
-            workshop.activateWindow()
-        else:
-            # Switched away - hide it
-            workshop.hide()
+    def open_col_workshop_docked(self, col_name=None, col_data=None, file_path=None): #vers 2
+        """Open COL Workshop in its own tab with icon"""
+        try:
+            if file_path:
+                self._load_col_file_in_new_tab(file_path)
+            elif col_name and hasattr(self, 'current_img') and self.current_img:
+                for entry in self.current_img.entries:
+                    if entry.name.lower() == col_name.lower():
+                        self.log_message(f"COL entry found: {entry.name}")
+                        break
+                self.log_message(f"COL workshop opened for: {col_name}")
+            else:
+                from apps.core.open import open_file_dialog
+                open_file_dialog(self)
+        except Exception as e:
+            self.log_message(f"COL workshop error: {str(e)}")
 
 
     def setup_unified_signals(self): #vers 6

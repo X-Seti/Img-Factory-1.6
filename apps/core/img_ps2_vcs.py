@@ -1,12 +1,13 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 4
-# X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ and ANPK Support
+#this belongs in core/ img_ps2_vcs.py - Version: 5
+# X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ, ANPK and HXD Support
 """
-PS2/PSP/Bully IMG, LVZ and ANPK Support - Read-only parsers for GTA/Bully PS2/PSP/iOS/Android.
+PS2/PSP/Bully IMG, LVZ, ANPK, Bully and HXD Support - Read-only parsers.
 GTA3PS2.IMG (LCS/VCS): embedded directory, 32-byte entries, 512-byte sectors, type codes.
 GTA3_N.IMG (GTA3/VC/Bully PS2, iOS, Android): 12-byte entries, 512-byte sectors, no names.
 LVZ: zlib-compressed DLRW streaming archive, 8-byte indexed entries, no filenames.
 ANPK: PSP animation package, chunk-based, named animation clips (DGAN blocks).
 BULLY: Bully PS2 named-entry archive, 64-byte name-only directory, sequential HXD data.
+HXD/MXD/AGR: Bully bone/animation data, float header + internal path, single-entry.
 """
 
 import os
@@ -16,11 +17,13 @@ import zlib
 ##Methods list -
 # detect_anpk
 # detect_bully
+# detect_hxd
 # detect_lvz
 # detect_ps2_v1
 # detect_ps2_vcs
 # open_anpk
 # open_bully
+# open_hxd
 # open_lvz
 # open_ps2_v1
 # open_ps2_vcs
@@ -386,6 +389,62 @@ def open_bully(file_path: str) -> dict: #vers 1
             })
 
         result['entries'] = entries
+    except Exception as e:
+        result['error'] = str(e)
+    return result
+
+
+HXD_EXTENSIONS = {'.hxd', '.mxd', '.agr'}
+HXD_NAME_OFFSET = 0x0c
+HXD_NAME_LENGTH = 32
+
+
+def detect_hxd(path: str) -> bool: #vers 1
+    """
+    Return True if file is a Bully HXD/MXD/AGR animation/bone data file.
+    Format: float_header[12] + internal_path[32] (null-terminated ASCII).
+    Identified by extension only - no magic bytes.
+    """
+    try:
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in HXD_EXTENSIONS:
+            return False
+        if os.path.getsize(path) < HXD_NAME_OFFSET + 4:
+            return False
+        with open(path, 'rb') as f:
+            f.seek(HXD_NAME_OFFSET)
+            name_bytes = f.read(HXD_NAME_LENGTH)
+        # Must have at least one printable ASCII char at name offset
+        printable = sum(1 for b in name_bytes if 0x20 <= b < 0x7F)
+        return printable >= 2
+    except Exception:
+        return False
+
+
+def open_hxd(file_path: str) -> dict: #vers 1
+    """
+    Parse a Bully HXD/MXD/AGR animation/bone data file.
+    Single-entry format: internal path at offset 0x0c identifies the asset.
+    Returns dict: { 'version': 'HXD', 'entries': [...], 'error': None }
+    Single entry: { 'name': str, 'offset': int, 'size': int, 'index': 0 }
+    """
+    result = {'version': 'HXD', 'entries': [], 'error': None}
+    try:
+        file_size = os.path.getsize(file_path)
+        with open(file_path, 'rb') as f:
+            f.seek(HXD_NAME_OFFSET)
+            name_bytes = f.read(HXD_NAME_LENGTH)
+        internal_name = name_bytes.split(b'\x00')[0].decode('ascii', errors='replace')
+        if not internal_name:
+            internal_name = os.path.splitext(os.path.basename(file_path))[0]
+        # Normalise Windows-style path to just the final component
+        display_name = internal_name.replace('\\', '/').split('/')[-1]
+        result['entries'] = [{
+            'name':   display_name,
+            'offset': 0,
+            'size':   file_size,
+            'index':  0,
+        }]
     except Exception as e:
         result['error'] = str(e)
     return result

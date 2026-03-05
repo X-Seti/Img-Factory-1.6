@@ -98,6 +98,7 @@ class IMGVersion(Enum):
     VERSION_PS2_V1  = 42  # PS2/iOS/Android GTA3/VC/Bully - 12-byte entries, no names
     VERSION_ANPK    = 43  # PSP ANPK animation package - named DGAN clip blocks
     VERSION_BULLY   = 44  # Bully PS2 named-entry archive - 64-byte name-only directory
+    VERSION_HXD     = 45  # Bully HXD/MXD/AGR bone+animation data - float header + path
     UNKNOWN       = 0
 
 class IMGPlatform(Enum):
@@ -1108,6 +1109,13 @@ class IMGFile:
                     self.version = IMGVersion.VERSION_PS2_LVZ
                     return IMGVersion.VERSION_PS2_LVZ
 
+            # Check for HXD/MXD/AGR (Bully bone/animation data)
+            if os.path.splitext(self.file_path)[1].lower() in ('.hxd', '.mxd', '.agr'):
+                from apps.core.img_ps2_vcs import detect_hxd
+                if detect_hxd(self.file_path):
+                    self.version = IMGVersion.VERSION_HXD
+                    return IMGVersion.VERSION_HXD
+
             # Check for ANPK (PSP animation package, uses .img extension)
             if self.file_path.lower().endswith('.img'):
                 from apps.core.img_ps2_vcs import detect_anpk, detect_bully
@@ -1193,7 +1201,8 @@ class IMGFile:
                                   IMGVersion.VERSION_PS2_LVZ,
                                   IMGVersion.VERSION_PS2_V1,
                                   IMGVersion.VERSION_ANPK,
-                                  IMGVersion.VERSION_BULLY):
+                                  IMGVersion.VERSION_BULLY,
+                                  IMGVersion.VERSION_HXD):
                 success = self._open_ps2()
 
             if success:
@@ -1418,10 +1427,11 @@ class IMGFile:
         except Exception:
             return False
 
-    def _open_ps2(self) -> bool: #vers 4
-        """Open PS2/PSP/iOS/Android/Bully IMG, LVZ, ANPK, or Bully archive - read-only."""
+    def _open_ps2(self) -> bool: #vers 5
+        """Open PS2/PSP/iOS/Android/Bully/HXD archive - read-only."""
         try:
-            from apps.core.img_ps2_vcs import open_ps2_vcs, open_ps2_v1, open_lvz, open_anpk, open_bully
+            from apps.core.img_ps2_vcs import (open_ps2_vcs, open_ps2_v1, open_lvz,
+                                                open_anpk, open_bully, open_hxd)
             if self.version == IMGVersion.VERSION_PS2_VCS:
                 result = open_ps2_vcs(self.file_path)
             elif self.version == IMGVersion.VERSION_PS2_V1:
@@ -1430,6 +1440,8 @@ class IMGFile:
                 result = open_anpk(self.file_path)
             elif self.version == IMGVersion.VERSION_BULLY:
                 result = open_bully(self.file_path)
+            elif self.version == IMGVersion.VERSION_HXD:
+                result = open_hxd(self.file_path)
             else:
                 result = open_lvz(self.file_path)
             if result.get("error"):

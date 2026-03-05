@@ -17,13 +17,13 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 # _load_txd_file
 # open_file_dialog
 
-def open_file_dialog(main_window): #vers 13
-    """Unified file dialog for IMG, COL, TXD, CST, and 3DS files - now supports multiple files"""
+def open_file_dialog(main_window): #vers 14
+    """Unified file dialog for IMG, COL, TXD, CST, 3DS, HXD, MXD, AGR files"""
     file_paths, _ = QFileDialog.getOpenFileNames(
         main_window,
         "Open Archive",
         "",
-        "All Supported (*.img *.col *.txd *.cst *.3ds);;IMG Archives (*.img);;COL Archives (*.col);;TXD Textures (*.txd);;CST Files (*.cst);;3DS Models (*.3ds);;All Files (*)"
+        "All Supported (*.img *.col *.txd *.cst *.3ds *.hxd *.mxd *.agr *.lvz);;IMG Archives (*.img);;COL Archives (*.col);;TXD Textures (*.txd);;CST Files (*.cst);;3DS Models (*.3ds);;Bully Anim (*.hxd *.mxd *.agr);;LVZ Archives (*.lvz);;All Files (*)"
     )
 
     if file_paths:
@@ -37,6 +37,8 @@ def open_file_dialog(main_window): #vers 13
                 _load_cst_file(main_window, file_path)
             elif file_ext == '.3ds':
                 _load_3ds_file(main_window, file_path)
+            elif file_ext in ('.hxd', '.mxd', '.agr', '.lvz'):
+                _load_img_file(main_window, file_path)
             else:
                 _load_img_file(main_window, file_path)
 

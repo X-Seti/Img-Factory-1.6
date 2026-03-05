@@ -171,6 +171,15 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
                 except:
                     icon = None
                     has_icon = False
+            elif os.path.splitext(file_name)[1].lower() in ('.hxd', '.mxd', '.agr', '.lvz'):
+                file_name = os.path.splitext(file_name)[0]
+                try:
+                    from apps.methods.imgfactory_svg_icons import get_file_icon
+                    icon = get_file_icon()
+                    has_icon = True
+                except:
+                    icon = None
+                    has_icon = False
             else:
                 icon = None
                 has_icon = False
