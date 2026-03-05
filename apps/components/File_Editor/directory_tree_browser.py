@@ -592,7 +592,7 @@ class DirectoryTreeBrowser(QWidget):
         return toolbar
 
 
-    def _toggle_tree_maximise(self): #vers 6
+    def _toggle_tree_maximise(self): #vers 7
         """Toggle: own-full <-> split"""
         try:
             mw = self.main_window
@@ -603,17 +603,16 @@ class DirectoryTreeBrowser(QWidget):
                 return
             total = sum(splitter.sizes()) or 10000
 
-            # Find own index at runtime
-            tree_idx = 1
+            # Identify own index by direct widget comparison
+            tree_idx = -1
             for i in range(splitter.count()):
-                w = splitter.widget(i)
-                if w and (w is self or w.isAncestorOf(self)):
+                if splitter.widget(i) is self:
                     tree_idx = i
                     break
-            other_idx = 1 - tree_idx
+            if tree_idx == -1:
+                tree_idx = 1  # fallback
 
             sizes = splitter.sizes()
-            # If already own-full (own >= 90%), go to split; else go own-full
             if sizes[tree_idx] >= total * 0.9:
                 splitter.setSizes([total // 2, total // 2])
             else:

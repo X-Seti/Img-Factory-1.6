@@ -3113,7 +3113,7 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"Error updating open files list: {str(e)}")
 
 
-    def _on_tab_double_click(self, index): #vers 4
+    def _on_tab_double_click(self, index): #vers 5
         """Double-click file tab: toggle own-full <-> split"""
         try:
             splitter = getattr(self, 'content_splitter', None)
@@ -3121,15 +3121,15 @@ class IMGFactoryGUILayout:
                 return
             total = sum(splitter.sizes()) or 10000
 
-            # Find which index holds the tab widget
+            # Identify tab side: whichever index is NOT the directory_tree
             mw = self.main_window
-            tab_widget = getattr(mw, 'main_tab_widget', None)
-            tab_idx = 0
+            dir_tree = getattr(mw, 'directory_tree', None)
+            tree_idx = -1
             for i in range(splitter.count()):
-                w = splitter.widget(i)
-                if w and (w is tab_widget or (tab_widget and w.isAncestorOf(tab_widget))):
-                    tab_idx = i
+                if splitter.widget(i) is dir_tree:
+                    tree_idx = i
                     break
+            tab_idx = 1 - tree_idx if tree_idx != -1 else 0
 
             sizes = splitter.sizes()
             if sizes[tab_idx] >= total * 0.9:
