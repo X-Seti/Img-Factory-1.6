@@ -1790,6 +1790,7 @@ class AppSettings:
         QTabWidget::pane {{
             border: 1px solid {border};
             background-color: {bg_primary};
+            margin-top: 2px;
         }}
 
         QTabBar::tab {{
@@ -1797,6 +1798,7 @@ class AppSettings:
             border: 1px solid {border};
             padding: 8px 16px;
             color: {text_primary};
+            margin-bottom: 2px;
         }}
 
         QTabBar::tab:selected {{

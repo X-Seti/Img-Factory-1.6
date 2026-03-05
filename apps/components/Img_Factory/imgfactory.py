@@ -1431,7 +1431,7 @@ class IMGFactory(QMainWindow):
                         margin-right: 2px;
                     }}
                     QTabWidget::pane {{
-                        border-top: 2px solid #1e2a3a;
+                        margin-top: 2px;
                     }}
                 """)
 
@@ -2737,7 +2737,7 @@ class IMGFactory(QMainWindow):
                 padding: 4px 12px;
             }
             QTabWidget::pane {
-                border-top: 2px solid #1e2a3a;
+                margin-top: 2px;
             }
         """)
         self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
