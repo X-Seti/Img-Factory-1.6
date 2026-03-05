@@ -1426,6 +1426,12 @@ class IMGFactory(QMainWindow):
                         max-height: {individual_tab_height}px;
                         min-width: {tab_min_width}px;
                         padding: {tab_padding}px 12px;
+                        margin-top: 3px;
+                        margin-bottom: 3px;
+                        margin-right: 2px;
+                    }}
+                    QTabWidget::pane {{
+                        border-top: 2px solid transparent;
                     }}
                 """)
 
@@ -2725,11 +2731,13 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setMovable(True)
         self.main_tab_widget.setStyleSheet("""
             QTabBar::tab {
-                margin-bottom: 2px;
+                margin-top: 3px;
+                margin-bottom: 3px;
+                margin-right: 2px;
                 padding: 4px 12px;
             }
-            QTabWidget::tab-bar {
-                alignment: left;
+            QTabWidget::pane {
+                border-top: 2px solid transparent;
             }
         """)
 
