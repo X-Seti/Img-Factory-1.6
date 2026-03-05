@@ -3113,8 +3113,8 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"Error updating open files list: {str(e)}")
 
 
-    def _on_tab_double_click(self, index): #vers 3
-        """Double-click file tab: cycle own-full -> split -> tree-full"""
+    def _on_tab_double_click(self, index): #vers 4
+        """Double-click file tab: toggle own-full <-> split"""
         try:
             splitter = getattr(self, 'content_splitter', None)
             if not splitter or splitter.count() < 2:
@@ -3124,27 +3124,20 @@ class IMGFactoryGUILayout:
             # Find which index holds the tab widget
             mw = self.main_window
             tab_widget = getattr(mw, 'main_tab_widget', None)
-            tab_idx = -1
+            tab_idx = 0
             for i in range(splitter.count()):
                 w = splitter.widget(i)
                 if w and (w is tab_widget or (tab_widget and w.isAncestorOf(tab_widget))):
                     tab_idx = i
                     break
-            if tab_idx == -1:
-                tab_idx = 0
-            other_idx = 1 - tab_idx
 
             sizes = splitter.sizes()
-            # If already at own-full, go to split; if split go to other-full; else own-full
-            if sizes[tab_idx] >= total * 0.95:
-                splitter.setSizes([total // 2 if i == tab_idx else total // 2 for i in range(2)])
+            if sizes[tab_idx] >= total * 0.9:
+                splitter.setSizes([total // 2, total // 2])
                 self.main_window.log_message("→ Split view")
-            elif sizes[tab_idx] >= total * 0.45:
-                s = [0, 0]; s[other_idx] = total
-                splitter.setSizes(s)
-                self.main_window.log_message("→ Tree full")
             else:
-                s = [0, 0]; s[tab_idx] = total
+                s = [0, 0]
+                s[tab_idx] = total
                 splitter.setSizes(s)
                 self.main_window.log_message("→ Files full")
         except Exception as e:

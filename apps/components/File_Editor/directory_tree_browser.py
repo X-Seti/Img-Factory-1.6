@@ -592,8 +592,8 @@ class DirectoryTreeBrowser(QWidget):
         return toolbar
 
 
-    def _toggle_tree_maximise(self): #vers 5
-        """Cycle own panel: own-full -> split -> other-full -> own-full"""
+    def _toggle_tree_maximise(self): #vers 6
+        """Toggle: own-full <-> split"""
         try:
             mw = self.main_window
             if not mw:
@@ -603,31 +603,23 @@ class DirectoryTreeBrowser(QWidget):
                 return
             total = sum(splitter.sizes()) or 10000
 
-            # Find which index this widget (dir tree) lives in at runtime
-            tree_idx = -1
+            # Find own index at runtime
+            tree_idx = 1
             for i in range(splitter.count()):
                 w = splitter.widget(i)
-                if w and (w is self or self.isAncestorOf(w) or (w is not None and w.isAncestorOf(self))):
+                if w and (w is self or w.isAncestorOf(self)):
                     tree_idx = i
                     break
-            if tree_idx == -1:
-                tree_idx = 1  # fallback
             other_idx = 1 - tree_idx
 
-            # Cycle: own-full -> split -> other-full -> own-full
-            state = (getattr(mw, '_dirtree_state', 0) + 1) % 3
-            mw._dirtree_state = state
-            sizes = [0, 0]
-            if state == 0:   # own panel full
-                sizes[tree_idx] = total
-                sizes[other_idx] = 0
-            elif state == 1: # split
-                sizes[tree_idx] = total // 2
-                sizes[other_idx] = total // 2
-            elif state == 2: # other panel full
-                sizes[tree_idx] = 0
-                sizes[other_idx] = total
-            splitter.setSizes(sizes)
+            sizes = splitter.sizes()
+            # If already own-full (own >= 90%), go to split; else go own-full
+            if sizes[tree_idx] >= total * 0.9:
+                splitter.setSizes([total // 2, total // 2])
+            else:
+                s = [0, 0]
+                s[tree_idx] = total
+                splitter.setSizes(s)
         except Exception as e:
             if self.main_window:
                 self.main_window.log_message(f"Panel toggle error: {str(e)}")
