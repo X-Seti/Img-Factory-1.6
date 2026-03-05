@@ -1369,20 +1369,32 @@ class IMGFactory(QMainWindow):
             self.log_message("Some rows are hidden! Check the filter settings.")
 
 
-    def _unified_double_click_handler(self, row, filename, item): #vers 2
-        """Handle double-click through unified system"""
-        # Get the actual filename from the first column (index 0)
+    def _unified_double_click_handler(self, row, filename, item): #vers 3
+        """Handle double-click - opens TXD/COL workshop for matching entries"""
         if row < self.gui_layout.table.rowCount():
             name_item = self.gui_layout.table.item(row, 0)
             if name_item:
-                actual_filename = name_item.text()
-                self.log_message(f"Double-clicked: {actual_filename}")
+                actual_filename = name_item.text().lower()
+                self.log_message(f"Double-clicked: {name_item.text()}")
 
-                # Show file info if IMG is loaded
-                if self.current_img and row < len(self.current_img.entries):
-                    entry = self.current_img.entries[row]
-                    from apps.methods.img_core_classes import format_file_size
-                    self.log_message(f"File info: {entry.name} ({format_file_size(entry.size)})")
+                if actual_filename.endswith('.txd') and self.current_img:
+                    from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                    img_path = self.current_img.file_path
+                    workshop = open_txd_workshop(self, img_path)
+                    if workshop and hasattr(workshop, 'txd_list_widget') and workshop.txd_list_widget:
+                        for i in range(workshop.txd_list_widget.count()):
+                            list_item = workshop.txd_list_widget.item(i)
+                            if list_item and list_item.text().lower() == name_item.text().lower():
+                                workshop.txd_list_widget.setCurrentItem(list_item)
+                                workshop._on_txd_selected(list_item)
+                                break
+                    return
+
+                elif actual_filename.endswith('.col') and self.current_img:
+                    from apps.components.Col_Editor.col_workshop import open_col_workshop
+                    open_col_workshop(self, self.current_img.file_path)
+                    return
+
             else:
                 self.log_message(f"Double-clicked row {row} (no filename found)")
         else:
