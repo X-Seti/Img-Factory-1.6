@@ -3,6 +3,7 @@
 ├── appfactory.settings.json
 ├── apps
 │   ├── appfactory.settings.json
+│   ├── app_info.py
 │   ├── components
 │   │   ├── Col_Creator
 │   │   │   └── col_creator.py
@@ -117,6 +118,7 @@
 │   │   ├── Txd_Converter
 │   │   │   └── txd_converter.py
 │   │   ├── Txd_Editor
+│   │   │   ├── depends
 │   │   │   └── txd_workshop.py
 │   │   └── unified_signal_handler.py
 │   ├── core
@@ -145,8 +147,10 @@
 │   │   ├── imgcol_replace.py
 │   │   ├── img_corruption_analyzer.py
 │   │   ├── img_detection.py
+│   │   ├── img_encryption.py
 │   │   ├── img_formats.py
 │   │   ├── img_merger.py
+│   │   ├── img_ps2_vcs.py
 │   │   ├── img_split.py
 │   │   ├── img_version15.py
 │   │   ├── img_version1.py
@@ -187,15 +191,16 @@
 │   │   ├── col_tab_css_theme.css
 │   │   ├── col_workshop_dialogs.py
 │   │   ├── cross_platform_theme.py
+│   │   ├── directory_tree_system.py
 │   │   ├── file_menu_integration.py
 │   │   ├── gui_backend.py
 │   │   ├── gui_context.py
 │   │   ├── gui_infobar.py
 │   │   ├── gui_layout_custom.py
 │   │   ├── gui_layout.py
-│   │   ├── gui_layout.py-bak
 │   │   ├── gui_menu_custom.py
 │   │   ├── gui_menu.py
+│   │   ├── gui_menu.py-bak
 │   │   ├── gui_settings.py
 │   │   ├── ide_dialog.py
 │   │   ├── imgcol_tearoff.py
@@ -268,7 +273,6 @@
 │   │   ├── __init__.py
 │   │   ├── mirror_tab_shared.py
 │   │   ├── pin_file_manager.py
-│   │   ├── pin_file_manager.zip
 │   │   ├── populate_col_table.py
 │   │   ├── populate_img_table.py
 │   │   ├── progressbar_functions.py
@@ -276,6 +280,7 @@
 │   │   ├── rw_detection.py
 │   │   ├── rw_versions.py
 │   │   ├── table_handlers.py
+│   │   ├── tab_settings_apply.py
 │   │   ├── tab_system.py
 │   │   ├── txd_context_menu.py
 │   │   ├── txd_serializer.py
@@ -446,8 +451,9 @@
 ├── launch_txd_workshop.py
 ├── main-branch
 ├── package-lock.json
+├── requirements.txt
 ├── testdisk.log
 ├── TODO.md
 └── tree.git
 
-34 directories, 417 files
+35 directories, 422 files

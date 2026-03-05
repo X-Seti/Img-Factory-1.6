@@ -58,3 +58,4 @@ nosetests.xml
 *.dir
 *.img
 *.log
+*.spec
