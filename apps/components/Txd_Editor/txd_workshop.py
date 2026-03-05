@@ -581,14 +581,17 @@ class TXDWorkshop(QWidget): #vers 3
             print(App_name + " initialized")
 
 
-    def setup_ui(self): #vers 7
+    def setup_ui(self): #vers 8
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
 
-        # Toolbar
+        # Toolbar - hidden when embedded in main window tab
         toolbar = self._create_toolbar()
+        self._workshop_toolbar = toolbar
+        if not self.standalone_mode:
+            toolbar.setVisible(False)
         main_layout.addWidget(toolbar)
 
         # Tab bar for multiple TXD files
