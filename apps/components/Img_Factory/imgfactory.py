@@ -2741,6 +2741,7 @@ class IMGFactory(QMainWindow):
             }
         """)
         self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
+        self.main_tab_widget.tabBar().setFixedHeight(34)
 
         # Panel toggle button - left corner of tab bar, outside tabs
         try:
