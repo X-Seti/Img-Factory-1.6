@@ -592,8 +592,8 @@ class DirectoryTreeBrowser(QWidget):
         return toolbar
 
 
-    def _toggle_tree_maximise(self): #vers 3
-        """Cycle: split -> tree-full -> tabs-full -> split"""
+    def _toggle_tree_maximise(self): #vers 4
+        """Cycle: split -> tabs-full -> tree-full -> split"""
         try:
             mw = self.main_window
             if not mw:
@@ -602,14 +602,13 @@ class DirectoryTreeBrowser(QWidget):
             if not splitter or splitter.count() < 2:
                 return
             total = sum(splitter.sizes()) or 10000
-            # Cycle starting from split so first press always widens tree panel
-            state = (getattr(mw, '_dirtree_state', 1) + 1) % 3
+            state = (getattr(mw, '_dirtree_state', 0) + 1) % 3
             mw._dirtree_state = state
-            if state == 0:   # tabs full
-                splitter.setSizes([total, 0])
-            elif state == 1: # split
+            if state == 0:   # split
                 splitter.setSizes([total // 2, total // 2])
-            elif state == 2: # tree full - widens own panel
+            elif state == 1: # tabs full (widen left/file side first)
+                splitter.setSizes([total, 0])
+            elif state == 2: # tree full
                 splitter.setSizes([0, total])
         except Exception as e:
             if self.main_window:
