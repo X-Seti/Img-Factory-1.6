@@ -3228,17 +3228,23 @@ class IMGFactory(QMainWindow):
             return False
 
 
-    def load_file_unified(self, file_path: str): #vers 8
-        """Unified file loader for IMG and COL files"""
+    def load_file_unified(self, file_path: str): #vers 9
+        """Unified file loader - handles IMG, COL, TXD, HXD, MXD, AGR, LVZ"""
         try:
             if not file_path or not os.path.exists(file_path):
                 self.log_message("File not found")
                 return False
 
-            file_ext = file_path.lower().split('.')[-1]
-            file_name = os.path.basename(file_path)
+            file_ext = os.path.splitext(file_path)[1].lower()
 
-            if file_ext == 'img':
+            if file_ext == '.txd':
+                self._load_txd_file_in_new_tab(file_path)
+                return True
+            elif file_ext in ('.hxd', '.mxd', '.agr', '.lvz'):
+                self._load_img_file_in_new_tab(file_path)
+                return True
+
+            if file_ext == '.img':
                 self._load_img_file_in_new_tab(file_path)  # â† Starts threading
                 return True  # â† Return immediately, let threading finish
 

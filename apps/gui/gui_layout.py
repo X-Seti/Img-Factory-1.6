@@ -793,24 +793,29 @@ class IMGFactoryGUILayout:
             self.main_window.button_panel.addWidget(txd_button)
 
 
-    def launch_txd_editor(self): #vers 3
-        """Launch TXD Workshop - works with or without IMG loaded"""
+    def launch_txd_editor(self): #vers 4
+        """Launch TXD Workshop - uses dir tree selected file, current IMG, or file dialog"""
         try:
             from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
 
-            # Get current IMG path if available (optional)
+            # Priority 1: file selected in dir tree
+            selected = getattr(self.main_window, '_dir_tree_selected_file', None)
+            if selected and selected.lower().endswith('.txd') and os.path.isfile(selected):
+                if hasattr(self.main_window, '_load_txd_file_in_new_tab'):
+                    self.main_window._load_txd_file_in_new_tab(selected)
+                else:
+                    open_txd_workshop(self.main_window, selected)
+                self.main_window.log_message(f"TXD Workshop opened: {os.path.basename(selected)}")
+                return
+
+            # Priority 2: current IMG
             img_path = None
             if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
                 img_path = self.main_window.current_img.file_path
 
-            # Open workshop - works without IMG too
             workshop = open_txd_workshop(self.main_window, img_path)
-
             if workshop:
-                if img_path:
-                    self.main_window.log_message("TXD Workshop opened with IMG")
-                else:
-                    self.main_window.log_message("TXD Workshop opened (standalone mode)")
+                self.main_window.log_message("TXD Workshop opened")
             else:
                 self.main_window.log_message("Failed to open TXD Workshop")
 

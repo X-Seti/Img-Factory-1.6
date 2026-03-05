@@ -1063,8 +1063,8 @@ class DirectoryTreeBrowser(QWidget):
             pass
 
 
-    def get_file_type_icon(self, file_ext: str): #vers 1
-        """Get SVG icon for file type"""
+    def get_file_type_icon(self, file_ext: str): #vers 2
+        """Get icon for file type - SVG for known types, system icon for others"""
         icon_map = {
             '.img': get_img_file_icon,
             '.txd': get_txd_file_icon,
@@ -1073,12 +1073,25 @@ class DirectoryTreeBrowser(QWidget):
             '.ide': get_edit_icon,
             '.ipl': get_view_icon,
             '.dat': get_file_icon,
+            '.hxd': get_file_icon,
+            '.mxd': get_file_icon,
+            '.agr': get_file_icon,
+            '.lvz': get_file_icon,
         }
-        icon_func = icon_map.get(file_ext, get_file_icon)
-        return icon_func()
+        if file_ext in icon_map:
+            return icon_map[file_ext]()
+        # Fall back to system icon provider for everything else
+        try:
+            from PyQt6.QtWidgets import QFileIconProvider
+            from PyQt6.QtCore import QFileInfo
+            provider = QFileIconProvider()
+            # We only have the extension, use a dummy filename
+            return provider.icon(QFileInfo(f'dummy{file_ext}'))
+        except Exception:
+            return get_file_icon()
 
 
-    def get_file_type_display(self, file_ext: str) -> str: #vers 1
+    def get_file_type_display(self, file_ext: str) -> str: #vers 2
         """Get display name for file type"""
         type_map = {
             '.img': 'IMG Archive',
@@ -1088,15 +1101,36 @@ class DirectoryTreeBrowser(QWidget):
             '.ide': 'Item Definition',
             '.ipl': 'Item Placement',
             '.dat': 'Data File',
+            '.hxd': 'Bully Anim Data',
+            '.mxd': 'Bully Motion Data',
+            '.agr': 'Bully Anim Group',
+            '.lvz': 'LVZ Archive',
+            '.py':  'Python Script',
+            '.exe': 'Executable',
+            '.bmp': 'Bitmap Image',
+            '.png': 'PNG Image',
+            '.jpg': 'JPEG Image',
+            '.txt': 'Text File',
+            '.xml': 'XML File',
+            '.cfg': 'Config File',
+            '.ini': 'Config File',
+            '.lua': 'Lua Script',
+            '.dff': '3D Model (DFF)',
         }
-        return type_map.get(file_ext, 'File')
+        return type_map.get(file_ext, f'{file_ext[1:].upper()} File' if file_ext else 'File')
 
 
-    def on_item_clicked(self, item, column): #vers 1
-        """Handle item click"""
+    def on_item_clicked(self, item, column): #vers 2
+        """Handle item click - store selected path on main_window"""
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
         if file_path and os.path.isfile(file_path):
             self.file_selected.emit(file_path)
+            # Store on main_window so toolbar buttons can use it
+            w = self.parent()
+            while w and not hasattr(w, 'log_message'):
+                w = w.parent()
+            if w:
+                w._dir_tree_selected_file = file_path
 
 
     def on_item_double_clicked(self, item, column): #vers 1
