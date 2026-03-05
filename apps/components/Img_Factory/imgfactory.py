@@ -1431,7 +1431,7 @@ class IMGFactory(QMainWindow):
                         margin-right: 2px;
                     }}
                     QTabWidget::pane {{
-                        margin-top: 2px;
+                        border-top: 2px solid #1e2a3a;
                     }}
                 """)
 
@@ -2732,14 +2732,15 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setStyleSheet("""
             QTabBar::tab {
                 margin-top: 3px;
-                margin-bottom: 3px;
+                margin-bottom: 2px;
                 margin-right: 2px;
                 padding: 4px 12px;
             }
             QTabWidget::pane {
-                margin-top: 2px;
+                border-top: 2px solid #1e2a3a;
             }
         """)
+        self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
 
         # Panel toggle button - left corner of tab bar, outside tabs
         try:
