@@ -1218,15 +1218,26 @@ class IMGFactory(QMainWindow):
 
 
     # Menu isolation: Docked workshops should not affect main window menu
-    def open_txd_workshop_docked(self, txd_name=None, txd_data=None, file_path=None): #vers 4
+    def open_txd_workshop_docked(self, txd_name=None, txd_data=None, file_path=None): #vers 5
         """Open TXD Workshop in its own tab with icon"""
         try:
             if file_path:
-                self._load_txd_file_in_new_tab(file_path)
-            elif txd_name and hasattr(self, 'current_img') and self.current_img:
-                # Extract from IMG and open in tab
+                # Direct file path - standalone TXD or IMG
                 from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
-                open_txd_workshop(self, txd_name, txd_data)
+                open_txd_workshop(self, file_path)
+            elif txd_name and hasattr(self, 'current_img') and self.current_img:
+                # TXD entry inside current IMG - open workshop with IMG, then select entry
+                from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                img_path = self.current_img.file_path
+                workshop = open_txd_workshop(self, img_path)
+                # Auto-select the named TXD entry in the list
+                if workshop and hasattr(workshop, 'txd_list_widget'):
+                    for i in range(workshop.txd_list_widget.count()):
+                        item = workshop.txd_list_widget.item(i)
+                        if item and item.text().lower() == txd_name.lower():
+                            workshop.txd_list_widget.setCurrentItem(item)
+                            workshop._on_txd_selected(item)
+                            break
             else:
                 from apps.core.open import open_file_dialog
                 open_file_dialog(self)
@@ -3466,7 +3477,7 @@ class IMGFactory(QMainWindow):
         return workshop
 
 
-    def _update_workshop_on_tab_change(self, workshop, tab_index): #vers 1
+    def _update_workshop_on_tab_change(self, workshop, tab_index): #vers 2
         """Update specific workshop when tab changes"""
         if not workshop or not workshop.isVisible():
             return
@@ -3478,9 +3489,15 @@ class IMGFactory(QMainWindow):
         file_path = getattr(tab_widget, 'file_path', None)
         if file_path:
             if file_path.lower().endswith('.txd'):
-                workshop.open_txd_file(file_path)
+                # Only open standalone TXD if workshop doesn't have an IMG loaded
+                if not getattr(workshop, 'current_img', None):
+                    workshop.open_txd_file(file_path)
             elif file_path.lower().endswith('.img'):
-                workshop.load_from_img_archive(file_path)
+                # Only reload IMG if it's a different one
+                current_img = getattr(workshop, 'current_img', None)
+                current_path = getattr(current_img, 'file_path', None) if current_img else None
+                if current_path != file_path:
+                    workshop.load_from_img_archive(file_path)
 
     def _on_workshop_closed(self, workshop): #vers 1
         """Remove closed workshop from tracking list"""
