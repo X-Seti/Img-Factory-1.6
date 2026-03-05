@@ -2770,6 +2770,7 @@ class IMGFactory(QMainWindow):
 
             _tog_btn = QPushButton()
             _tog_btn.setIcon(get_panel_toggle_icon())
+            _tog_btn.setMinimumSize(32, 32)
             _tog_btn.setMaximumSize(32, 32)
             _tog_btn.setToolTip("Toggle: tabs full / split")
             _tog_btn.clicked.connect(_on_toggle)
