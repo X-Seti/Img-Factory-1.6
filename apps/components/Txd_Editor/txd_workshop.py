@@ -9997,9 +9997,11 @@ class TXDWorkshop(QWidget): #vers 3
                 elif fmt == 'LUM8':
                     size = w * h
                 elif fmt == 'PAL8':
-                    size = 1024 + w * h        # palette + indices
+                    _pal_bytes = 3 if tex.get('palette_entry_format') == 'RGB888' else 4
+                    size = 256 * _pal_bytes + w * h
                 elif fmt == 'PAL4':
-                    size = 64 + (w * h + 1) // 2  # palette + 4-bit indices
+                    _pal_bytes = 3 if tex.get('palette_entry_format') == 'RGB888' else 4
+                    size = 16 * _pal_bytes + (w * h + 1) // 2
                 else:
                     size = w * h * 2  # safe default
 
@@ -10016,15 +10018,26 @@ class TXDWorkshop(QWidget): #vers 3
                 pos += size
 
                 # Decompress if needed
+                lw = max(1, width >> level)
+                lh = max(1, height >> level)
                 if 'DXT' in tex['format']:
-                    rgba_data = self._decompress_texture(
-                        level_data,
-                        max(1, width >> level),
-                        max(1, height >> level),
-                        tex['format']
-                    )
+                    rgba_data = self._decompress_texture(level_data, lw, lh, tex['format'])
+                elif tex['format'] in ('PAL8', 'PAL4'):
+                    pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
+                    pal_bytes = 3 if pal_entry_fmt == 'RGB888' else 4
+                    num_entries = 256 if tex['format'] == 'PAL8' else 16
+                    pal_size = num_entries * pal_bytes
+                    if len(level_data) >= pal_size:
+                        pal_data = level_data[:pal_size]
+                        pix_data = level_data[pal_size:]
+                        rgba_data = self._decompress_uncompressed(
+                            pix_data, lw, lh, tex['format'],
+                            palette=pal_data, palette_entry_fmt=pal_entry_fmt)
+                    else:
+                        rgba_data = b'\x00' * (lw * lh * 4)
                 else:
-                    rgba_data = level_data
+                    rgba_data = self._decompress_uncompressed(
+                        level_data, lw, lh, tex['format'])
 
                 mipmap_level = {
                     'level': level,
@@ -10289,7 +10302,7 @@ class TXDWorkshop(QWidget): #vers 3
 
 
     # Update _decompress_uncompressed method:
-    def _decompress_uncompressed(self, data, width, height, format_type, palette=None): #vers 4
+    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888'): #vers 5
         """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
         try:
             import struct
@@ -10297,18 +10310,30 @@ class TXDWorkshop(QWidget): #vers 3
             rgba = bytearray(pixel_count * 4)
 
             if format_type == 'PAL8':
-                # 8-bit indexed: 256 BGRA palette entries (1024 bytes) then pixel indices
-                if not palette or len(palette) < 1024:
+                # 8-bit indexed palette. Entry size depends on palette_entry_fmt:
+                #   RGB888  = 3 bytes per entry (no alpha) - GTA3/VC era (raster 0x2600)
+                #   ARGB8888 = 4 bytes per entry (with alpha) - SA era
+                is_rgb888_pal = (palette_entry_fmt == 'RGB888')
+                entry_size = 3 if is_rgb888_pal else 4
+                min_pal = 256 * entry_size
+                if not palette or len(palette) < min_pal:
                     return None
                 for i in range(min(pixel_count, len(data))):
-                    p = data[i] * 4
-                    if p + 3 < len(palette):
-                        b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                        rgba[i*4:i*4+4] = [r, g, b, a]
+                    p = data[i] * entry_size
+                    if p + entry_size <= len(palette):
+                        if is_rgb888_pal:
+                            r, g, b = palette[p], palette[p+1], palette[p+2]
+                            rgba[i*4:i*4+4] = [r, g, b, 255]
+                        else:
+                            b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                            rgba[i*4:i*4+4] = [r, g, b, a]
 
             elif format_type == 'PAL4':
-                # 4-bit indexed: 16 BGRA palette entries (64 bytes), 2 pixels per byte
-                if not palette or len(palette) < 64:
+                # 4-bit indexed. Entry size depends on palette_entry_fmt
+                is_rgb888_pal = (palette_entry_fmt == 'RGB888')
+                entry_size = 3 if is_rgb888_pal else 4
+                min_pal = 16 * entry_size
+                if not palette or len(palette) < min_pal:
                     return None
                 pixel = 0
                 for i in range(len(data)):
@@ -10316,10 +10341,14 @@ class TXDWorkshop(QWidget): #vers 3
                         if pixel >= pixel_count:
                             break
                         idx = (data[i] >> (nibble * 4)) & 0x0F
-                        p = idx * 4
-                        if p + 3 < len(palette):
-                            b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                            rgba[pixel*4:pixel*4+4] = [r, g, b, a]
+                        p = idx * entry_size
+                        if p + entry_size <= len(palette):
+                            if is_rgb888_pal:
+                                r, g, b = palette[p], palette[p+1], palette[p+2]
+                                rgba[pixel*4:pixel*4+4] = [r, g, b, 255]
+                            else:
+                                b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                                rgba[pixel*4:pixel*4+4] = [r, g, b, a]
                         pixel += 1
 
             elif 'ARGB8888' in format_type or 'ARGB32' in format_type:
