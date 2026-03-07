@@ -9975,11 +9975,8 @@ class TXDWorkshop(QWidget): #vers 3
                 if not tex.get('has_alpha'):
                     tex['has_alpha'] = True
 
-            # Read total data size
-            data_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
-            pos += 4
-
             # Calculate individual mipmap sizes
+            # NOTE: No data_size field here - GTA3/VC TXD data starts directly after header
             mipmap_sizes = []
             w, h = width, height
             fmt = tex['format']
@@ -9997,11 +9994,9 @@ class TXDWorkshop(QWidget): #vers 3
                 elif fmt == 'LUM8':
                     size = w * h
                 elif fmt == 'PAL8':
-                    _pal_bytes = 3 if tex.get('palette_entry_format') == 'RGB888' else 4
-                    size = 256 * _pal_bytes + w * h
+                    size = 1024 + w * h       # always 256 * 4-byte BGRA entries
                 elif fmt == 'PAL4':
-                    _pal_bytes = 3 if tex.get('palette_entry_format') == 'RGB888' else 4
-                    size = 16 * _pal_bytes + (w * h + 1) // 2
+                    size = 64 + (w * h + 1) // 2  # always 16 * 4-byte BGRA entries
                 else:
                     size = w * h * 2  # safe default
 
@@ -10302,7 +10297,7 @@ class TXDWorkshop(QWidget): #vers 3
 
 
     # Update _decompress_uncompressed method:
-    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888'): #vers 5
+    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888'): #vers 6
         """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
         try:
             import struct
@@ -10310,45 +10305,32 @@ class TXDWorkshop(QWidget): #vers 3
             rgba = bytearray(pixel_count * 4)
 
             if format_type == 'PAL8':
-                # 8-bit indexed palette. Entry size depends on palette_entry_fmt:
-                #   RGB888  = 3 bytes per entry (no alpha) - GTA3/VC era (raster 0x2600)
-                #   ARGB8888 = 4 bytes per entry (with alpha) - SA era
-                is_rgb888_pal = (palette_entry_fmt == 'RGB888')
-                entry_size = 3 if is_rgb888_pal else 4
-                min_pal = 256 * entry_size
-                if not palette or len(palette) < min_pal:
+                # 8-bit indexed, 256 x 4-byte BGRA palette entries (always, regardless of pixel_fmt)
+                # palette_entry_fmt controls alpha output: RGB888 = force alpha=255
+                if not palette or len(palette) < 1024:
                     return None
+                force_opaque = (palette_entry_fmt == 'RGB888')
                 for i in range(min(pixel_count, len(data))):
-                    p = data[i] * entry_size
-                    if p + entry_size <= len(palette):
-                        if is_rgb888_pal:
-                            r, g, b = palette[p], palette[p+1], palette[p+2]
-                            rgba[i*4:i*4+4] = [r, g, b, 255]
-                        else:
-                            b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                            rgba[i*4:i*4+4] = [r, g, b, a]
+                    p = data[i] * 4
+                    if p + 3 < len(palette):
+                        b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                        rgba[i*4:i*4+4] = [r, g, b, 255 if force_opaque else a]
 
             elif format_type == 'PAL4':
-                # 4-bit indexed. Entry size depends on palette_entry_fmt
-                is_rgb888_pal = (palette_entry_fmt == 'RGB888')
-                entry_size = 3 if is_rgb888_pal else 4
-                min_pal = 16 * entry_size
-                if not palette or len(palette) < min_pal:
+                # 4-bit indexed, 16 x 4-byte BGRA palette entries (always)
+                if not palette or len(palette) < 64:
                     return None
+                force_opaque = (palette_entry_fmt == 'RGB888')
                 pixel = 0
                 for i in range(len(data)):
                     for nibble in range(2):
                         if pixel >= pixel_count:
                             break
                         idx = (data[i] >> (nibble * 4)) & 0x0F
-                        p = idx * entry_size
-                        if p + entry_size <= len(palette):
-                            if is_rgb888_pal:
-                                r, g, b = palette[p], palette[p+1], palette[p+2]
-                                rgba[pixel*4:pixel*4+4] = [r, g, b, 255]
-                            else:
-                                b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
-                                rgba[pixel*4:pixel*4+4] = [r, g, b, a]
+                        p = idx * 4
+                        if p + 3 < len(palette):
+                            b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                            rgba[pixel*4:pixel*4+4] = [r, g, b, 255 if force_opaque else a]
                         pixel += 1
 
             elif 'ARGB8888' in format_type or 'ARGB32' in format_type:
@@ -11192,9 +11174,12 @@ class TXDWorkshop(QWidget): #vers 3
                     self.preview_widget.setText("No alpha channel")
 
 
-    def _show_normal_view(self, rgba_data, width, height): #vers 1
+    def _show_normal_view(self, rgba_data, width, height): #vers 2
         """Display normal texture with optional checkerboard"""
-        image = QImage(rgba_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
+        # Keep a reference to the buffer - QImage doesn't own it and Python GC will
+        # free it before Qt renders, causing banding/corruption on large textures
+        self._preview_buffer = bytes(rgba_data)
+        image = QImage(self._preview_buffer, width, height, width * 4, QImage.Format.Format_RGBA8888)
 
         if self._show_checkerboard:
             image = self._add_checkerboard_background(image)
@@ -11203,7 +11188,7 @@ class TXDWorkshop(QWidget): #vers 3
         self.preview_widget.setPixmap(pixmap)
 
 
-    def _show_alpha_view(self, rgba_data, width, height): #vers 1
+    def _show_alpha_view(self, rgba_data, width, height): #vers 2
         """Display alpha channel as grayscale with optional invert"""
         alpha_data = self._extract_alpha_channel(rgba_data)
 
@@ -11211,7 +11196,8 @@ class TXDWorkshop(QWidget): #vers 3
         if self._invert_alpha:
             alpha_data = self._invert_grayscale(alpha_data)
 
-        image = QImage(alpha_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
+        self._preview_buffer = bytes(alpha_data)  # keep ref to prevent GC
+        image = QImage(self._preview_buffer, width, height, width * 4, QImage.Format.Format_RGBA8888)
         pixmap = QPixmap.fromImage(image)
         self.preview_widget.setPixmap(pixmap)
 

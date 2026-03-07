@@ -491,16 +491,16 @@ class TXDSerializer: #vers 1
 
                 elif tex['format'] in ('PAL8', 'PAL4'):
                     # Palettized: palette comes first, then pixel indices
-                    # Palette entry size depends on palette_entry_format field
-                    pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
-                    pal_entry_bytes = 3 if pal_entry_fmt == 'RGB888' else 4  # RGB888=3, ARGB8888/others=4
-                    num_entries = 256 if tex['format'] == 'PAL8' else 16
-                    palette_size = num_entries * pal_entry_bytes
+                    # RW always stores palette entries as 4-byte BGRA regardless of pixel_fmt
+                    # pixel_fmt (e.g. C888) describes the OUTPUT colour space, not palette entry size
+                    palette_size = 1024 if tex['format'] == 'PAL8' else 64  # 256*4 or 16*4 BGRA
                     tex['original_bgra_data'] = original_data
                     if len(original_data) >= palette_size:
                         palette_data = original_data[:palette_size]
                         pixel_data = original_data[palette_size:]
                         tex['palette_data'] = palette_data
+                        # Pass palette_entry_format so decoder knows whether to output alpha
+                        pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
                         converted = self._decompress_uncompressed(
                             pixel_data, width, height, tex['format'],
                             palette=palette_data,
