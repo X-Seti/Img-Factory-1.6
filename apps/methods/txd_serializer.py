@@ -303,7 +303,7 @@ class TXDSerializer: #vers 1
     
 
 
-    def _parse_single_texture(self, txd_data, offset, index): #vers 5
+    def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 6
         """
         Parse single texture from TXD - FIXED: Preserves original binary data to prevent corruption
 
@@ -391,32 +391,45 @@ class TXDSerializer: #vers 1
 
             pos += 15
 
-            # Determine format from raster_format_flags
-            # RW raster_format bit layout:
-            #   bits 0-3:  pixel format (1=C1555,2=C565,3=C4444,4=LUM8,5=C8888,6=C888,0xA=C555)
-            #   bit 12:    PAL8 flag (0x1000)
-            #   bit 13:    PAL4 flag (0x2000)
-            #   bit 14:    mipmap flag (0x4000)
-            #   bit 15:    swizzled/PS2 flag (0x8000)
-            # D3D format field used for SA/VC PC instead of raster format pixel format
+            # Determine format from raster_format_flags + d3d_format
+            # raster_format bit layout (all RW versions):
+            #   bits 8-11: pixel format (0x0100=C1555, 0x0200=C565, 0x0300=C4444,
+            #               0x0400=LUM8, 0x0500=C8888, 0x0600=C888, 0x0A00=C555)
+            #   0x1000: PAL8 flag
+            #   0x2000: PAL4 flag
+            #   0x4000: mipmap flag
+            #   0x8000: swizzled (PS2)
+            # For SA+ (rw >= 0x1803FFFF): d3d_format is a real D3D format code
+            # For GTA3/VC (rw < 0x1803FFFF): d3d_format field is unreliable - use raster_format
 
-            is_pal8   = bool(raster_format_flags & 0x1000)
-            is_pal4   = bool(raster_format_flags & 0x2000)
-            is_mipmap = bool(raster_format_flags & 0x4000)
+            is_pal8     = bool(raster_format_flags & 0x1000)
+            is_pal4     = bool(raster_format_flags & 0x2000)
+            is_mipmap   = bool(raster_format_flags & 0x4000)
             is_swizzled = bool(raster_format_flags & 0x8000)
-            pixel_fmt = raster_format_flags & 0x0F00  # pixel format in bits 8-11
+            pixel_fmt   = raster_format_flags & 0xFF00  # pixel format in bits 8-15
+            is_sa_plus  = (rw_version >= 0x1803FFFF)
 
             tex['has_mipmaps'] = is_mipmap
             tex['is_swizzled'] = is_swizzled
 
-            # PAL types checked first - d3d_format field tells us the palette entry format
+            raster_pixel_map = {
+                0x0100: 'ARGB1555',
+                0x0200: 'RGB565',
+                0x0300: 'ARGB4444',
+                0x0400: 'LUM8',
+                0x0500: 'ARGB8888',
+                0x0600: 'RGB888',
+                0x0A00: 'RGB555',
+            }
+
+            # PAL types always use raster_format flags
             if is_pal8:
                 tex['format'] = 'PAL8'
-                tex['palette_entry_format'] = {20:'RGB888',21:'ARGB8888',22:'RGB888'}.get(d3d_format,'ARGB8888')
+                tex['palette_entry_format'] = raster_pixel_map.get(pixel_fmt, 'ARGB8888')
             elif is_pal4:
                 tex['format'] = 'PAL4'
-                tex['palette_entry_format'] = {20:'RGB888',21:'ARGB8888',22:'RGB888'}.get(d3d_format,'ARGB8888')
-            # DXT compressed - check d3d_format fourcc
+                tex['palette_entry_format'] = raster_pixel_map.get(pixel_fmt, 'ARGB8888')
+            # DXT - fourcc in d3d_format, valid for all versions
             elif d3d_format == 0x31545844:
                 tex['format'] = 'DXT1'
             elif d3d_format == 0x32545844:
@@ -427,42 +440,23 @@ class TXDSerializer: #vers 1
                 tex['format'] = 'DXT4'
             elif d3d_format == 0x35545844:
                 tex['format'] = 'DXT5'
-            # Uncompressed - use d3d_format code (SA/VC PC) or raster pixel_fmt (GTA3/older)
-            elif d3d_format == 21 or d3d_format == 32:  # A8R8G8B8 / A8B8G8R8
-                tex['format'] = 'ARGB8888'
-            elif d3d_format == 20 or d3d_format == 22:  # R8G8B8 / X8R8G8B8
-                tex['format'] = 'RGB888'
-            elif d3d_format == 23:  # R5G6B5
-                tex['format'] = 'RGB565'
-            elif d3d_format == 25:  # A1R5G5B5
-                tex['format'] = 'ARGB1555'
-            elif d3d_format == 26:  # A4R4G4B4
-                tex['format'] = 'ARGB4444'
-            elif d3d_format == 24:  # X1R5G5B5
-                tex['format'] = 'RGB555'
-            elif d3d_format == 50:  # L8
-                tex['format'] = 'LUM8'
-            elif d3d_format == 51:  # A8L8
-                tex['format'] = 'A8L8'
-            elif d3d_format == 41:  # P8 (palettized - fallback)
-                tex['format'] = 'PAL8'
-            # Fallback to raster pixel format
-            elif pixel_fmt == 0x0500 or pixel_fmt == 0x0100:
-                tex['format'] = 'ARGB8888'
-            elif pixel_fmt == 0x0600:
-                tex['format'] = 'RGB888'
-            elif pixel_fmt == 0x0200:
-                tex['format'] = 'RGB565'
-            elif pixel_fmt == 0x0100:
-                tex['format'] = 'ARGB1555'
-            elif pixel_fmt == 0x0300:
-                tex['format'] = 'ARGB4444'
-            elif pixel_fmt == 0x0400:
-                tex['format'] = 'LUM8'
-            elif pixel_fmt == 0x0A00:
-                tex['format'] = 'RGB555'
+            elif is_sa_plus:
+                # SA+: d3d_format is a real D3D format code
+                d3d_fmt_map = {
+                    21: 'ARGB8888', 32: 'ARGB8888',  # A8R8G8B8, A8B8G8R8
+                    20: 'RGB888',   22: 'RGB888',     # R8G8B8, X8R8G8B8
+                    23: 'RGB565',   25: 'ARGB1555',
+                    26: 'ARGB4444', 24: 'RGB555',
+                    50: 'LUM8',     51: 'A8L8',
+                    41: 'PAL8',
+                }
+                tex['format'] = d3d_fmt_map.get(d3d_format,
+                    raster_pixel_map.get(pixel_fmt,
+                    f'UNKNOWN_RF{raster_format_flags:08X}_D3D{d3d_format:08X}'))
             else:
-                tex['format'] = f'UNKNOWN_RF{raster_format_flags:08X}_D3D{d3d_format:08X}'
+                # GTA3/VC: use raster_format pixel bits only
+                tex['format'] = raster_pixel_map.get(pixel_fmt,
+                    f'UNKNOWN_RF{raster_format_flags:08X}_D3D{d3d_format:08X}')
 
             # Alpha flag
             if raster_format_flags & 0x10000:

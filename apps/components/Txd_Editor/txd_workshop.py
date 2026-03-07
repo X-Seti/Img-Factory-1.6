@@ -7163,7 +7163,7 @@ class TXDWorkshop(QWidget): #vers 3
                     # Parse texture structure (88-byte header + data)
                     log(f"  Status       : Parsing 88-byte texture structure...")
 
-                    tex = self._parse_single_texture(txd_data, offset, i)
+                    tex = self._parse_single_texture(txd_data, offset, i, rw_version=self.txd_version_id)
 
                     if tex:
                         tex_name = tex.get('name', f'texture_{i}')
@@ -9934,7 +9934,7 @@ class TXDWorkshop(QWidget): #vers 3
             details_item.setText(details)
 
 
-    def _parse_single_texture(self, txd_data, offset, index): #vers 5
+    def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 6
         """
         Parse single texture from TXD with bumpmap and reflection support
         ADDED: Extract separate alpha mask for display switching
@@ -10010,24 +10010,55 @@ class TXDWorkshop(QWidget): #vers 3
             platform_prop = struct.unpack('<B', txd_data[pos:pos+1])[0]
             pos += 1
 
-            # Format detection
-            if platform_id == 8:  # D3D8
-                if platform_prop == 1:
-                    tex['format'] = 'DXT1'
-                elif platform_prop == 3:
-                    tex['format'] = 'DXT3'
-                    if not tex.get('has_alpha'):
-                        tex['has_alpha'] = True
-                elif platform_prop == 5:
-                    tex['format'] = 'DXT5'
-                    if not tex.get('has_alpha'):
-                        tex['has_alpha'] = True
-                elif d3d_format == 21:  # ARGB8888
-                    tex['format'] = 'ARGB8888'
-                    if not tex.get('has_alpha'):
-                        tex['has_alpha'] = True
-                elif d3d_format == 20:  # RGB888
-                    tex['format'] = 'RGB888'
+            # Format detection - version-aware
+            is_pal8     = bool(raster_format_flags & 0x1000)
+            is_pal4     = bool(raster_format_flags & 0x2000)
+            pixel_fmt   = raster_format_flags & 0xFF00
+            is_sa_plus  = (rw_version >= 0x1803FFFF)
+
+            raster_pixel_map = {
+                0x0100: 'ARGB1555', 0x0200: 'RGB565',
+                0x0300: 'ARGB4444', 0x0400: 'LUM8',
+                0x0500: 'ARGB8888', 0x0600: 'RGB888',
+                0x0A00: 'RGB555',
+            }
+
+            if is_pal8:
+                tex['format'] = 'PAL8'
+            elif is_pal4:
+                tex['format'] = 'PAL4'
+            elif platform_prop in (1, 8):
+                tex['format'] = 'DXT1'
+            elif platform_prop in (3, 24):
+                tex['format'] = 'DXT3'
+                tex['has_alpha'] = True
+            elif platform_prop in (5, 40):
+                tex['format'] = 'DXT5'
+                tex['has_alpha'] = True
+            elif d3d_format == 0x31545844:
+                tex['format'] = 'DXT1'
+            elif d3d_format == 0x33545844:
+                tex['format'] = 'DXT3'
+            elif d3d_format == 0x35545844:
+                tex['format'] = 'DXT5'
+            elif is_sa_plus:
+                d3d_fmt_map = {
+                    21: 'ARGB8888', 32: 'ARGB8888',
+                    20: 'RGB888',   22: 'RGB888',
+                    23: 'RGB565',   25: 'ARGB1555',
+                    26: 'ARGB4444', 24: 'RGB555',
+                    50: 'LUM8',     51: 'A8L8',
+                    41: 'PAL8',
+                }
+                tex['format'] = d3d_fmt_map.get(d3d_format,
+                    raster_pixel_map.get(pixel_fmt, f'UNKNOWN_{raster_format_flags:08X}'))
+            else:
+                tex['format'] = raster_pixel_map.get(pixel_fmt,
+                    f'UNKNOWN_{raster_format_flags:08X}')
+
+            if tex['format'] in ('ARGB8888', 'ARGB1555', 'ARGB4444', 'DXT3', 'DXT5', 'PAL8', 'A8L8'):
+                if not tex.get('has_alpha'):
+                    tex['has_alpha'] = True
 
             # Read total data size
             data_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
@@ -10036,17 +10067,26 @@ class TXDWorkshop(QWidget): #vers 3
             # Calculate individual mipmap sizes
             mipmap_sizes = []
             w, h = width, height
+            fmt = tex['format']
             for i in range(num_levels):
-                if 'DXT1' in tex['format']:
+                if 'DXT1' in fmt:
                     size = max(1, (w + 3) // 4) * max(1, (h + 3) // 4) * 8
-                elif 'DXT' in tex['format']:
+                elif 'DXT' in fmt:
                     size = max(1, (w + 3) // 4) * max(1, (h + 3) // 4) * 16
-                elif 'ARGB8888' in tex['format']:
+                elif fmt in ('ARGB8888', 'A8L8'):
                     size = w * h * 4
-                elif 'RGB888' in tex['format']:
+                elif fmt == 'RGB888':
                     size = w * h * 3
-                else:
+                elif fmt in ('RGB565', 'ARGB1555', 'ARGB4444', 'RGB555'):
                     size = w * h * 2
+                elif fmt == 'LUM8':
+                    size = w * h
+                elif fmt == 'PAL8':
+                    size = 1024 + w * h        # palette + indices
+                elif fmt == 'PAL4':
+                    size = 64 + (w * h + 1) // 2  # palette + 4-bit indices
+                else:
+                    size = w * h * 2  # safe default
 
                 mipmap_sizes.append(size)
                 w = max(1, w // 2)
