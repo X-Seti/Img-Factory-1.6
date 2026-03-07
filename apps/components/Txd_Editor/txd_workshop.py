@@ -6237,6 +6237,23 @@ class TXDWorkshop(QWidget): #vers 3
                 self.upscale_btn.setEnabled(True)
             if hasattr(self, 'format_combo'):
                 self.format_combo.setEnabled(True)
+                # Sync combo to current texture format
+                fmt = self.selected_texture.get('format', '')
+                fmt_map = {  # map stored format names to combo entries
+                    'ARGB8888': 'ARGB8888', 'RGB888': 'RGB888',
+                    'RGB565':   'RGB565',   'ARGB1555': 'ARGB1555',
+                    'ARGB4444': 'ARGB4444', 'RGB555':   'RGB565',
+                    'PAL8':     'ARGB8888', 'PAL4':     'ARGB8888',
+                    'LUM8':     'RGB565',   'A8L8':     'ARGB8888',
+                    'DXT1': 'DXT1', 'DXT2': 'DXT3', 'DXT3': 'DXT3',
+                    'DXT4': 'DXT5', 'DXT5': 'DXT5',
+                }
+                combo_text = fmt_map.get(fmt, fmt)
+                idx = self.format_combo.findText(combo_text)
+                if idx >= 0:
+                    self.format_combo.blockSignals(True)
+                    self.format_combo.setCurrentIndex(idx)
+                    self.format_combo.blockSignals(False)
             if hasattr(self, 'compress_btn'):
                 self.compress_btn.setEnabled(True)
             if hasattr(self, 'uncompress_btn'):
@@ -11206,8 +11223,15 @@ class TXDWorkshop(QWidget): #vers 3
         if hasattr(self, 'format_status_label'):
             self.format_status_label.setText(f"Format: {fmt}")
 
-        # Update bit depth
-        depth = texture.get('depth', 32)
+        # Update bit depth label - derive from format, not raw header byte
+        fmt_depth = {
+            'ARGB8888': 32, 'RGB888': 24,
+            'RGB565': 16, 'ARGB1555': 16, 'ARGB4444': 16, 'RGB555': 16,
+            'DXT1': 4, 'DXT2': 8, 'DXT3': 8, 'DXT4': 8, 'DXT5': 8,
+            'PAL8': 8, 'PAL4': 4, 'LUM8': 8, 'A8L8': 16,
+        }
+        fmt_str = texture.get('format', '')
+        depth = fmt_depth.get(fmt_str, texture.get('depth', 32))
         if hasattr(self, 'info_bitdepth'):
             self.info_bitdepth.setText(f"[{depth}bit]")
 
@@ -13139,6 +13163,39 @@ class TXDWorkshop(QWidget): #vers 3
             details += "Alpha: No"
 
         details_item = QTableWidgetItem(details)
+
+        # Build extended tooltip for hover
+        mipmaps = texture.get('mipmaps', 1)
+        raster_flags = texture.get('raster_format_flags', 0)
+        filter_flags = texture.get('filter_flags', 0)
+        has_bumpmap = texture.get('has_bumpmap', False)
+        is_swizzled = texture.get('is_swizzled', False)
+        palette_fmt = texture.get('palette_entry_format', '')
+        alpha_name  = texture.get('alpha_name', '')
+        on_disk_kb  = texture.get('compressed_size', 0) / 1024 if texture.get('compressed_size') else 0
+
+        tt_lines = [
+            f"<b>{name}</b>",
+            f"Dimensions : {width} × {height}  ({depth}-bit)",
+            f"Format     : {fmt}" + (f"  [{palette_fmt} palette]" if palette_fmt else ""),
+            f"Alpha      : {'Yes — ' + alpha_name if has_alpha and alpha_name else ('Yes' if has_alpha else 'No')}",
+            f"Mipmaps    : {mipmaps}",
+        ]
+        if on_disk_kb:
+            tt_lines.append(f"Disk size  : {on_disk_kb:.1f} KB")
+        tt_lines.append(f"RGBA size  : {file_size_kb:.1f} KB")
+        if has_bumpmap:
+            tt_lines.append("Bumpmap    : Present")
+        if is_swizzled:
+            tt_lines.append("Swizzled   : Yes (PS2)")
+        tt_lines.append(f"raster_fmt : 0x{raster_flags:08X}")
+        if filter_flags:
+            tt_lines.append(f"filter     : 0x{filter_flags:08X}")
+
+        tooltip_html = "<br>".join(tt_lines)
+        thumb_item.setToolTip(tooltip_html)
+        details_item.setToolTip(tooltip_html)
+
         self.texture_table.setItem(row, 1, details_item)
 
 
