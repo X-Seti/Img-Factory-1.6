@@ -10018,10 +10018,9 @@ class TXDWorkshop(QWidget): #vers 3
                 if 'DXT' in tex['format']:
                     rgba_data = self._decompress_texture(level_data, lw, lh, tex['format'])
                 elif tex['format'] in ('PAL8', 'PAL4'):
+                    # Palette entries always 4-byte BGRA; palette_entry_fmt only affects alpha output
                     pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
-                    pal_bytes = 3 if pal_entry_fmt == 'RGB888' else 4
-                    num_entries = 256 if tex['format'] == 'PAL8' else 16
-                    pal_size = num_entries * pal_bytes
+                    pal_size = 1024 if tex['format'] == 'PAL8' else 64
                     if len(level_data) >= pal_size:
                         pal_data = level_data[:pal_size]
                         pix_data = level_data[pal_size:]
