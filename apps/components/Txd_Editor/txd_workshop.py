@@ -10334,32 +10334,31 @@ class TXDWorkshop(QWidget): #vers 3
 
 
     # Update _decompress_uncompressed method:
-    def _decompress_uncompressed(self, data, width, height, format_type, palette=None): #vers 3
-        """Decompress uncompressed formats including PAL8/PAL4 palettized textures"""
+    def _decompress_uncompressed(self, data, width, height, format_type, palette=None): #vers 4
+        """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
         try:
             import struct
-            rgba = bytearray(width * height * 4)
+            pixel_count = width * height
+            rgba = bytearray(pixel_count * 4)
 
             if format_type == 'PAL8':
-                # 8-bit indexed: palette is 256 BGRA entries (1024 bytes), then pixel indices
+                # 8-bit indexed: 256 BGRA palette entries (1024 bytes) then pixel indices
                 if not palette or len(palette) < 1024:
                     return None
-                for i in range(min(width * height, len(data))):
-                    idx = data[i]
-                    p = idx * 4
+                for i in range(min(pixel_count, len(data))):
+                    p = data[i] * 4
                     if p + 3 < len(palette):
                         b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
                         rgba[i*4:i*4+4] = [r, g, b, a]
-                return bytes(rgba)
 
             elif format_type == 'PAL4':
-                # 4-bit indexed: palette is 16 BGRA entries (64 bytes), 2 pixels per byte
+                # 4-bit indexed: 16 BGRA palette entries (64 bytes), 2 pixels per byte
                 if not palette or len(palette) < 64:
                     return None
                 pixel = 0
                 for i in range(len(data)):
                     for nibble in range(2):
-                        if pixel >= width * height:
+                        if pixel >= pixel_count:
                             break
                         idx = (data[i] >> (nibble * 4)) & 0x0F
                         p = idx * 4
@@ -10367,24 +10366,23 @@ class TXDWorkshop(QWidget): #vers 3
                             b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
                             rgba[pixel*4:pixel*4+4] = [r, g, b, a]
                         pixel += 1
-                return bytes(rgba)
 
             elif 'ARGB8888' in format_type or 'ARGB32' in format_type:
-                # RenderWare stores as BGRA, not RGBA
-                for i in range(width * height):
+                # RenderWare stores as BGRA
+                for i in range(pixel_count):
                     if i*4+4 <= len(data):
-                        b, g, r, a = struct.unpack('BBBB', data[i*4:i*4+4])
-                        rgba[i*4:i*4+4] = [r, g, b, a]  # Convert to RGBA
+                        b, g, r, a = data[i*4], data[i*4+1], data[i*4+2], data[i*4+3]
+                        rgba[i*4:i*4+4] = [r, g, b, a]
 
             elif 'RGB888' in format_type:
-                # RGB888 is stored as BGR
-                for i in range(width * height):
+                # Stored as BGR
+                for i in range(pixel_count):
                     if i*3+3 <= len(data):
-                        b, g, r = struct.unpack('BBB', data[i*3:i*3+3])
+                        b, g, r = data[i*3], data[i*3+1], data[i*3+2]
                         rgba[i*4:i*4+4] = [r, g, b, 255]
 
             elif 'RGB565' in format_type:
-                for i in range(width * height):
+                for i in range(pixel_count):
                     if i*2+2 <= len(data):
                         pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
                         r = ((pixel >> 11) & 0x1F) << 3
@@ -10393,7 +10391,7 @@ class TXDWorkshop(QWidget): #vers 3
                         rgba[i*4:i*4+4] = [r, g, b, 255]
 
             elif 'ARGB1555' in format_type:
-                for i in range(width * height):
+                for i in range(pixel_count):
                     if i*2+2 <= len(data):
                         pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
                         a = 255 if (pixel & 0x8000) else 0
@@ -10403,7 +10401,7 @@ class TXDWorkshop(QWidget): #vers 3
                         rgba[i*4:i*4+4] = [r, g, b, a]
 
             elif 'ARGB4444' in format_type:
-                for i in range(width * height):
+                for i in range(pixel_count):
                     if i*2+2 <= len(data):
                         pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
                         a = ((pixel >> 12) & 0x0F) * 17
@@ -10412,21 +10410,31 @@ class TXDWorkshop(QWidget): #vers 3
                         b = (pixel & 0x0F) * 17
                         rgba[i*4:i*4+4] = [r, g, b, a]
 
-            elif 'ARGB4444' in format_type:
-                for i in range(width * height):
+            elif 'RGB555' in format_type:
+                for i in range(pixel_count):
                     if i*2+2 <= len(data):
                         pixel = struct.unpack('<H', data[i*2:i*2+2])[0]
-                        a = ((pixel >> 12) & 0x0F) * 17
-                        r = ((pixel >> 8) & 0x0F) * 17
-                        g = ((pixel >> 4) & 0x0F) * 17
-                        b = (pixel & 0x0F) * 17
-                        rgba[i*4:i*4+4] = [r, g, b, a]
+                        r = ((pixel >> 10) & 0x1F) << 3
+                        g = ((pixel >> 5) & 0x1F) << 3
+                        b = (pixel & 0x1F) << 3
+                        rgba[i*4:i*4+4] = [r, g, b, 255]
+
+            elif 'A8L8' in format_type:
+                for i in range(pixel_count):
+                    if i*2+2 <= len(data):
+                        lum, a = data[i*2], data[i*2+1]
+                        rgba[i*4:i*4+4] = [lum, lum, lum, a]
 
             elif 'LUM8' in format_type or 'L8' in format_type:
-                for i in range(width * height):
+                for i in range(pixel_count):
                     if i < len(data):
                         lum = data[i]
                         rgba[i*4:i*4+4] = [lum, lum, lum, 255]
+
+            else:
+                # Unknown format - render as grey so it at least shows something
+                for i in range(pixel_count):
+                    rgba[i*4:i*4+4] = [128, 128, 128, 255]
 
             return bytes(rgba)
         except Exception as e:
