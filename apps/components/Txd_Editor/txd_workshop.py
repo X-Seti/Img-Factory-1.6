@@ -6322,60 +6322,11 @@ class TXDWorkshop(QWidget): #vers 3
                 self.main_window.log_message(traceback.format_exc())
 
 
-    def _reload_texture_table(self): #vers 2
-        """Reload texture table display with mipmap info"""
+    def _reload_texture_table(self): #vers 3
+        """Reload texture table display - delegates to _add_texture_to_table for consistency"""
         self.texture_table.setRowCount(0)
-
         for tex in self.texture_list:
-            row = self.texture_table.rowCount()
-            self.texture_table.insertRow(row)
-
-            thumb_item = QTableWidgetItem()
-            if tex.get('rgba_data') and tex['width'] > 0:
-                pixmap = self._create_thumbnail(tex['rgba_data'], tex['width'], tex['height'])
-                if pixmap:
-                    thumb_item.setData(Qt.ItemDataRole.DecorationRole, pixmap)
-                else:
-                    thumb_item.setText("🖼️")
-            else:
-                thumb_item.setText("🖼️")
-
-            # Build details with mipmap info
-            depth = tex.get('depth', 32)
-            details = f"Name: {tex['name']} - {depth}bit\n"
-
-            if tex.get('has_alpha', False):
-                alpha_name = tex.get('alpha_name', tex['name'] + 'a')
-                details += f"Alpha: {alpha_name}\n"
-            else:
-                details += "\n"
-
-            if tex['width'] > 0:
-                details += f"Size: {tex['width']}x{tex['height']} | Format: {tex['format']}\n"
-            else:
-                details += f"Format: {tex['format']}\n"
-
-            # Mipmap info
-            mipmap_levels = tex.get('mipmap_levels', [])
-            num_mipmaps = len(mipmap_levels)
-
-            if num_mipmaps > 0:
-                is_compressed = 'DXT' in tex['format']
-                compress_status = "compressed" if is_compressed else "uncompressed"
-                details += f"📊 {num_mipmaps} mipmap levels ({compress_status}) - Click to view"
-            else:
-                details += "📊 No mipmaps"
-
-            thumb_item.setFlags(thumb_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            details_item = QTableWidgetItem(details)
-            details_item.setFlags(details_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
-            self.texture_table.setItem(row, 0, thumb_item)
-            self.texture_table.setItem(row, 1, details_item)
-
-        for row in range(self.texture_table.rowCount()):
-            self.texture_table.setRowHeight(row, 100)
-        self.texture_table.setColumnWidth(0, 80)
+            self._add_texture_to_table(tex)
 
 
     def _save_undo_state(self, action_name): #vers 2
@@ -7360,60 +7311,7 @@ class TXDWorkshop(QWidget): #vers 3
                 update_progress(table_progress)
 
                 self.texture_list.append(tex)
-                row = self.texture_table.rowCount()
-                self.texture_table.insertRow(row)
-
-                # Create thumbnail
-                thumb_item = QTableWidgetItem()
-                try:
-                    if tex.get('rgba_data') and tex['width'] > 0:
-                        expected_size = tex['width'] * tex['height'] * 4
-                        rgba_data = tex.get('rgba_data', b'')
-
-                        if len(rgba_data) == expected_size:
-                            pixmap = self._create_thumbnail(rgba_data, tex['width'], tex['height'])
-                            if pixmap:
-                                thumb_item.setData(Qt.ItemDataRole.DecorationRole, pixmap)
-                            else:
-                                thumb_item.setText("[IMG]")
-                        else:
-                            thumb_item.setText("[!]")
-                    else:
-                        thumb_item.setText("[IMG]")
-                except:
-                    thumb_item.setText("[ERR]")
-
-                # Build details
-                depth = tex.get('depth', 32)
-                details = f"Name: {tex['name']} - {depth}bit\n"
-
-                if tex.get('has_alpha', False):
-                    alpha_name = tex.get('alpha_name', tex['name'] + 'a')
-                    details += f"Alpha: {alpha_name}\n"
-                else:
-                    details += "\n"
-
-                if tex['width'] > 0:
-                    details += f"Size: {tex['width']}x{tex['height']} | Format: {tex['format']}\n"
-                else:
-                    details += f"Format: {tex['format']}\n"
-
-                mipmap_levels = tex.get('mipmap_levels', [])
-                num_mipmaps = len(mipmap_levels)
-
-                if num_mipmaps > 0:
-                    is_compressed = 'DXT' in tex['format']
-                    compress_status = "compressed" if is_compressed else "uncompressed"
-                    details += f"Mipmaps: {num_mipmaps} levels ({compress_status})"
-                else:
-                    details += "Mipmaps: None"
-
-                thumb_item.setFlags(thumb_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                details_item = QTableWidgetItem(details)
-                details_item.setFlags(details_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
-                self.texture_table.setItem(row, 0, thumb_item)
-                self.texture_table.setItem(row, 1, details_item)
+                self._add_texture_to_table(tex)
 
             for row in range(self.texture_table.rowCount()):
                 self.texture_table.setRowHeight(row, 100)
@@ -13197,6 +13095,8 @@ class TXDWorkshop(QWidget): #vers 3
         details_item.setToolTip(tooltip_html)
 
         self.texture_table.setItem(row, 1, details_item)
+        self.texture_table.setRowHeight(row, 100)
+        self.texture_table.setColumnWidth(0, 80)
 
 
     def _quick_alpha_check(self, texture): #vers 1
