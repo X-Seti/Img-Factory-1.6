@@ -401,11 +401,14 @@ class TXDSerializer: #vers 1
                 0x15: 'ARGB8888',
                 0x14: 'RGB888',
                 0x02: 'ARGB1555',
+                0x03: 'ARGB4444',
                 0x01: 'RGB565',
+                0x06: 'LUM8',
+                0x04: 'PAL4',
                 0x05: 'PAL8',
             }
 
-            tex['format'] = format_map.get(format_code, 'DXT1')
+            tex['format'] = format_map.get(format_code, f'UNKNOWN_{format_code:04X}')
 
             # Check alpha flag in raster format
             if raster_format_flags & 0x10000:
@@ -436,6 +439,23 @@ class TXDSerializer: #vers 1
                     else:
                         # Decompression failed, create blank
                         tex['rgba_data'] = b'\x00' * (width * height * 4)
+
+                elif tex['format'] in ('PAL8', 'PAL4'):
+                    # Palettized: palette comes first, then pixel indices
+                    palette_size = 1024 if tex['format'] == 'PAL8' else 64  # 256*4 or 16*4 BGRA entries
+                    tex['original_bgra_data'] = original_data
+                    if len(original_data) >= palette_size:
+                        palette_data = original_data[:palette_size]
+                        pixel_data = original_data[palette_size:]
+                        tex['palette_data'] = palette_data
+                        converted = self._decompress_uncompressed(
+                            pixel_data, width, height, tex['format'],
+                            palette=palette_data
+                        )
+                        tex['rgba_data'] = converted if converted else b'\x00' * (width * height * 4)
+                    else:
+                        tex['rgba_data'] = b'\x00' * (width * height * 4)
+
                 else:
                     # Uncompressed texture (stored as BGRA in RenderWare)
                     tex['original_bgra_data'] = original_data  # Store original BGRA
