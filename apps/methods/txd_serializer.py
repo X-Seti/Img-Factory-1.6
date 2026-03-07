@@ -407,7 +407,7 @@ class TXDSerializer: #vers 1
             is_pal4     = bool(raster_format_flags & 0x4000)  # FORMAT_EXT_PAL4
             is_mipmap   = bool(raster_format_flags & 0x8000)  # FORMAT_EXT_MIPMAP
             is_swizzled = bool(raster_format_flags & 0x10000) # RASTER_SWIZZLED
-            pixel_fmt   = raster_format_flags & 0xFF00  # pixel format in bits 8-15
+            pixel_fmt   = raster_format_flags & 0x0F00  # pixel format in bits 8-11 (0x0100-0x0A00)
             is_sa_plus  = (rw_version >= 0x1803FFFF)
 
             tex['has_mipmaps'] = is_mipmap

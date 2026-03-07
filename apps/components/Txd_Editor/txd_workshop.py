@@ -10030,7 +10030,7 @@ class TXDWorkshop(QWidget): #vers 3
             # Format detection - version-aware
             is_pal8     = bool(raster_format_flags & 0x2000)  # FORMAT_EXT_PAL8
             is_pal4     = bool(raster_format_flags & 0x4000)  # FORMAT_EXT_PAL4
-            pixel_fmt   = raster_format_flags & 0xFF00
+            pixel_fmt   = raster_format_flags & 0x0F00  # bits 8-11 only, excludes PAL flags
             is_sa_plus  = (rw_version >= 0x1803FFFF)
 
             raster_pixel_map = {
