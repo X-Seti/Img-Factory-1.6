@@ -395,17 +395,18 @@ class TXDSerializer: #vers 1
             # raster_format bit layout (all RW versions):
             #   bits 8-11: pixel format (0x0100=C1555, 0x0200=C565, 0x0300=C4444,
             #               0x0400=LUM8, 0x0500=C8888, 0x0600=C888, 0x0A00=C555)
-            #   0x1000: PAL8 flag
-            #   0x2000: PAL4 flag
-            #   0x4000: mipmap flag
-            #   0x8000: swizzled (PS2)
+            #   0x1000: FORMAT_EXT_AUTO_MIPMAP (RW auto-generates mipmaps)
+            #   0x2000: FORMAT_EXT_PAL8  (256-colour palette)
+            #   0x4000: FORMAT_EXT_PAL4  (16-colour palette)
+            #   0x8000: FORMAT_EXT_MIPMAP (mipmaps included in data)
+            #   0x10000: RASTER_SWIZZLED (PS2)
             # For SA+ (rw >= 0x1803FFFF): d3d_format is a real D3D format code
             # For GTA3/VC (rw < 0x1803FFFF): d3d_format field is unreliable - use raster_format
 
-            is_pal8     = bool(raster_format_flags & 0x1000)
-            is_pal4     = bool(raster_format_flags & 0x2000)
-            is_mipmap   = bool(raster_format_flags & 0x4000)
-            is_swizzled = bool(raster_format_flags & 0x8000)
+            is_pal8     = bool(raster_format_flags & 0x2000)  # FORMAT_EXT_PAL8
+            is_pal4     = bool(raster_format_flags & 0x4000)  # FORMAT_EXT_PAL4
+            is_mipmap   = bool(raster_format_flags & 0x8000)  # FORMAT_EXT_MIPMAP
+            is_swizzled = bool(raster_format_flags & 0x10000) # RASTER_SWIZZLED
             pixel_fmt   = raster_format_flags & 0xFF00  # pixel format in bits 8-15
             is_sa_plus  = (rw_version >= 0x1803FFFF)
 
@@ -638,8 +639,8 @@ class TXDSerializer: #vers 1
             'RGB555':   0x0A00,
             'LUM8':     0x0400,
             'A8L8':     0x0400,  # closest RW type
-            'PAL8':     0x0500 | 0x1000,  # C8888 palette entries + PAL8 flag
-            'PAL4':     0x0500 | 0x2000,  # C8888 palette entries + PAL4 flag
+            'PAL8':     0x0500 | 0x2000,  # C8888 palette entries + FORMAT_EXT_PAL8
+            'PAL4':     0x0500 | 0x4000,  # C8888 palette entries + FORMAT_EXT_PAL4
         }
         return raster_map.get(format_str, 0x31545844)
 
