@@ -1,6 +1,58 @@
 #this belongs in root /ChangeLog.md - Version: 11
 
-## March 03, 2026 - Dir Tree Columns, Drag Scroll, Panel Toggle Button
+## March 08, 2026 — RW Reference Dialog, RW Version Detection Complete (GTA III PC)
+
+**Added**: apps/components/Txd_Editor/txd_workshop.py
+- `_show_rw_reference` v1: RW Reference dialog — 6-tab reference covering everything researched for GTA III PC support in IMG Factory 1.6
+  - **RW Versions tab**: all three encoding formats (plain 0x300–0x3FF, old compact 0x30000–0x3FFFF, packed 0xFFFF low-word); full version table with platform annotations; validation rules including Xbox offset scan and 0-byte guard
+  - **Section Types tab**: all RW section IDs (0x0001–0x001F + Criterion plugin extensions 0x0253F2xx); header layout (type/size/version at offsets 0/4/8)
+  - **TXD Format tab**: TXD container structure; tex_count differences (GTA III/VC uint32 vs SA uint16+device_id); Texture Native struct field-by-field platform comparison; pixel format detection priority order; data_size field presence rules per platform
+  - **Platforms / Xbox tab**: full Xbox compression byte map (0x00/0x0B/0x0C/0x0E/0x0F/0x10/0x11); Xbox name corruption explanation and known-extension whitelist; platform_id table; PS2 vs PC differences
+  - **IMG Archive tab**: V1 (GTA III/VC), V2 (SA), V1.5 (extended) formats with field layouts; sector addressing rules (2048-byte sectors); special entry display rules (Empty, Unknown)
+  - **Status tab**: complete read/write support matrix for all texture formats, RW version ranges, and IMG archive versions
+- Toolbar: `rw_ref_btn` added immediately after `settings_btn` — "RW Ref" with info icon and tooltip
+
+**Added**: apps/methods/rw_versions.py (commits 5e0a45b → 2ae2999)
+- `0x00000300` = "3.0.0 (GTA3 PC early)" — plain integer, earliest builds
+- `0x00000304` = "3.0.4 (GTA3 PC early)" — confirmed by GTAElift.DFF
+- `is_valid_rw_version` v5: plain-integer range widened from single 0x310 special case to full 0x300–0x3FF range, covering all GTA III PC pre-packed versions
+
+**Added**: apps/methods/img_core_classes.py
+- `_is_valid_rw_version` v2: mirrors rw_versions change — 0x300–0x3FF range replacing 0x310 single check
+
+---
+
+**Previous session commits (March 08, 2026 — earlier):**
+
+commit 4f384de — Xbox IMG RW version detection
+- `_scan_rw_version()` module-level helper: scans bytes at offsets 8/12/16 for valid RW version; handles standard and Xbox-prefixed header layouts
+- `_is_valid_rw_version()` module-level helper in img_core_classes.py
+- `_detect_rw_version()` / `detect_rw_version()` on IMGEntry use scanner
+- `detect_rw_version_from_data()` in rw_detection.py scans multiple offsets
+- `get_rw_version_light()` in populate_img_table.py validates before accepting
+- `is_valid_rw_version()` in rw_versions.py: range extended to include 0x1400FFFF (Xbox)
+- `0x1400FFFF` = "3.4.0.0 (GTA III/VC Xbox)" added to name table
+
+commit a8d40e6 — V1 DIR name corruption (split-on-null)
+- `rstrip(b'\x00')` → `split(b'\x00')[0]` at all four name-decode sites
+
+commit 3d889c7 — V1 DIR name corruption (known-extension whitelist)
+- `_KNOWN_GTA_EXTENSIONS` set and `_parse_entry_name()` module-level helper
+- Stops at first null, finds last dot, checks chars after against known extension set; handles non-null garbage bytes like 0x77 0x78 after extension
+- Fallback: keep only `[A-Za-z0-9_\-@+.]` chars
+- Applied to all four name-decode sites; `detect_file_type_and_version` re-sanitizes via `_parse_entry_name`
+
+commit 5e0a45b — Early GTA3 RW versions
+- `0x00000310` = "3.1.0 (GTA3 PC)" — plain integer, not packed
+- `0x0401FFFF` = "2.0.0.1 (GTA3 early TXD)" — packed but below old 0x0800FFFF lower bound
+- `is_valid_rw_version` v4: uses `(v & 0xFFFF) == 0xFFFF AND 0x0400 <= (v >> 16) <= 0x1C03` discriminator for packed format; explicit special cases for 0x310 and 0x1C020037
+
+commit 6fd5e3a — 0-byte entry display
+- `get_rw_version_light()` v5: DFF/TXD entries with size==0 return "Empty"
+- `get_rw_address_light()` v3: same 0-byte guard
+- `get_version_text()` v3 on IMGEntry: same 0-byte guard
+
+
 
 **Fixed**: apps/methods/dragdrop_functions.py
 - drag_move v2: fixed auto-scroll to use viewport coordinates; scroll speed increased to 12px; drop now shows Copy/Move/Cancel dialog before acting
