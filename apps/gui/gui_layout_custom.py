@@ -898,31 +898,43 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             t.setHtml(html)
             return t
 
-        # Pull theme colours — never hardcode hex in the HTML
+        # Derive all colours from the live Qt palette so the dialog is correct
+        # on every theme (light, dark, system) with zero hardcoded hex values.
+        from PyQt6.QtGui import QPalette
+        from PyQt6.QtWidgets import QApplication
+        pal = QApplication.instance().palette()
+
+        def _hex(role):
+            return pal.color(role).name()
+
+        c_bg     = _hex(QPalette.ColorRole.Base)
+        c_bg2    = _hex(QPalette.ColorRole.AlternateBase)
+        c_text   = _hex(QPalette.ColorRole.Text)
+        c_text2  = _hex(QPalette.ColorRole.PlaceholderText)
+        c_accent = _hex(QPalette.ColorRole.Highlight)
+        c_border = _hex(QPalette.ColorRole.Mid)
+        c_th_bg  = _hex(QPalette.ColorRole.Button)
+        c_th_txt = _hex(QPalette.ColorRole.ButtonText)
+
+        # Status colours: try app_settings first, fall back to palette-relative
         _tc = {}
         if hasattr(self.main_window, 'app_settings'):
             _theme = self.main_window.app_settings.current_settings.get('theme', 'IMG_Factory')
             _tc = self.main_window.app_settings.get_theme_colors(_theme) or {}
-        c_bg       = _tc.get('bg_primary',    '#ffffff')
-        c_bg2      = _tc.get('bg_secondary',  '#f5f5f5')
-        c_bg3      = _tc.get('bg_tertiary',   '#e9ecef')
-        c_text     = _tc.get('text_primary',  '#000000')
-        c_text2    = _tc.get('text_secondary','#666666')
-        c_accent   = _tc.get('accent_primary','#0078d4')
-        c_accent2  = _tc.get('text_accent',   '#0066cc')
-        c_border   = _tc.get('border',        '#cccccc')
-        c_th_bg    = _tc.get('bg_tertiary',   '#e9ecef')
-        c_ok       = _tc.get('success',       '#2e7d32')
-        c_err      = _tc.get('error',         '#c62828')
-        c_warn     = _tc.get('warning',       '#e65100')
+        # If the theme dict has explicit success/error/warning use them;
+        # otherwise derive safe semantic colours from the highlight palette colour
+        # (these are the only three values that can't be cleanly inferred from QPalette).
+        c_ok   = _tc.get('success', '')  or _hex(QPalette.ColorRole.Link)
+        c_err  = _tc.get('error',   '')  or _hex(QPalette.ColorRole.LinkVisited)
+        c_warn = _tc.get('warning', '')  or _hex(QPalette.ColorRole.Highlight)
 
         css = (
             "<style>"
             f"body{{font-family:monospace;font-size:11px;background:{c_bg};color:{c_text};}}"
             f"h3{{color:{c_accent};margin-bottom:4px;}}"
-            f"h4{{color:{c_accent2};margin:6px 0 2px 0;}}"
+            f"h4{{color:{c_accent};margin:6px 0 2px 0;}}"
             "table{border-collapse:collapse;width:100%;}"
-            f"th{{background:{c_th_bg};color:{c_text};padding:3px 6px;text-align:left;border-bottom:1px solid {c_border};}}"
+            f"th{{background:{c_th_bg};color:{c_th_txt};padding:3px 6px;text-align:left;border-bottom:1px solid {c_border};}}"
             f"td{{padding:2px 6px;border-bottom:1px solid {c_border};color:{c_text};background:{c_bg};}}"
             f"tr:nth-child(even) td{{background:{c_bg2};}}"
             f".note{{color:{c_text2};font-style:italic;}}"
@@ -1249,7 +1261,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         author_font = QFont("Arial", 12)
         author.setFont(author_font)
         author.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        author.setStyleSheet("color: #666;")
+        author.setStyleSheet("color: palette(placeholder-text);")
         layout.addWidget(author)
 
         # Description
@@ -1279,7 +1291,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Version info
         version_info = QLabel(f"Version: {App_build} | Python Edition")
         version_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        version_info.setStyleSheet("color: #888; font-size: 10px;")
+        version_info.setStyleSheet("color: palette(placeholder-text); font-size: 10px;")
         layout.addWidget(version_info)
 
         layout.addStretch()

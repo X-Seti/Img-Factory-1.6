@@ -1,4 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 11
+#this belongs in root /ChangeLog.md - Version: 12
+
+## March 08, 2026 — Format Reference: iOS platform docs, palette-based colours
+
+**Updated**: apps/gui/gui_layout_custom.py — `_show_rw_reference` v3
+- **IMG Archive tab**: added iOS/Android platform table covering all War Drum Studios ports (GTA III Dec 2011, VC Dec 2012, SA Dec 2013 — all confirmed loading OK; LCS Jun 2015 — fails, under investigation); VCS noted as never released on iOS/Android (PSP/PS2 only); sector size table updated to distinguish PC/iOS/Android (2048 B) from PS2/PSP (512 B)
+- **Status tab**: IMG archive section expanded with individual rows for GTA III iOS/Android ✓, VC iOS/Android ✓, SA iOS/Android ✓, LCS iOS/Android ~ (investigating); VCS never-released note added
+- **All colour values**: replaced every hardcoded hex fallback with live `QPalette` role lookups (`Base`, `AlternateBase`, `Text`, `PlaceholderText`, `Highlight`, `Mid`, `Button`, `ButtonText`, `Link`, `LinkVisited`) — dialog renders correctly on any Qt theme (light, dark, system, custom)
+- About dialog labels: replaced `color: #666` / `color: #888` with `color: palette(placeholder-text)` — no hardcoded hex anywhere in gui_layout_custom.py
+
+---
 
 ## March 08, 2026 — RW Reference Dialog, RW Version Detection Complete (GTA III PC)
 
