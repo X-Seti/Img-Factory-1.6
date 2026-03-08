@@ -483,7 +483,7 @@ class TXDSerializer: #vers 1
                 elif tex['format'] in ('ARGB8888', 'A8L8'):
                     data_size = width * height * 4
                 elif tex['format'] == 'RGB888':
-                    data_size = width * height * 3
+                    data_size = width * height * (4 if tex.get('depth', 0) == 32 else 3)
                 elif tex['format'] == 'LUM8':
                     data_size = width * height
                 else:  # 16-bit: RGB565, ARGB1555, ARGB4444, RGB555

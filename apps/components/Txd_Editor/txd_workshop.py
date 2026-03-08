@@ -9990,7 +9990,7 @@ class TXDWorkshop(QWidget): #vers 3
                 elif fmt in ('ARGB8888', 'A8L8'):
                     expected = w * h * 4
                 elif fmt == 'RGB888':
-                    expected = w * h * 3
+                    expected = w * h * (4 if tex.get('depth', 0) == 32 else 3)
                 elif fmt in ('RGB565', 'ARGB1555', 'ARGB4444', 'RGB555'):
                     expected = w * h * 2
                 elif fmt == 'LUM8':
@@ -10039,7 +10039,8 @@ class TXDWorkshop(QWidget): #vers 3
                         rgba_data = b'\x00' * (lw * lh * 4)
                 else:
                     rgba_data = self._decompress_uncompressed(
-                        level_data, lw, lh, tex['format'])
+                        level_data, lw, lh, tex['format'],
+                        depth=tex.get('depth', 0))
 
                 mipmap_level = {
                     'level': level,
@@ -10308,7 +10309,7 @@ class TXDWorkshop(QWidget): #vers 3
 
 
     # Update _decompress_uncompressed method:
-    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888'): #vers 6
+    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0): #vers 6
         """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
         try:
             import struct
@@ -10352,10 +10353,11 @@ class TXDWorkshop(QWidget): #vers 3
                         rgba[i*4:i*4+4] = [r, g, b, a]
 
             elif 'RGB888' in format_type:
-                # Stored as BGR
+                # Stored as BGR (3 bpp) or BGRX (4 bpp when depth==32)
+                stride = 4 if depth == 32 else 3
                 for i in range(pixel_count):
-                    if i*3+3 <= len(data):
-                        b, g, r = data[i*3], data[i*3+1], data[i*3+2]
+                    if i*stride+stride <= len(data):
+                        b, g, r = data[i*stride], data[i*stride+1], data[i*stride+2]
                         rgba[i*4:i*4+4] = [r, g, b, 255]
 
             elif 'RGB565' in format_type:
