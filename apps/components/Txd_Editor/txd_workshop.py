@@ -11342,18 +11342,12 @@ class TXDWorkshop(QWidget): #vers 3
                     self.preview_widget.setText("No alpha channel")
 
 
-    def _show_normal_view(self, rgba_data, width, height): #vers 2
-        """Display normal texture with optional checkerboard"""
-        # Keep a reference to the buffer - QImage doesn't own it and Python GC will
-        # free it before Qt renders, causing banding/corruption on large textures
+    def _show_normal_view(self, rgba_data, width, height): #vers 3
+        """Display normal texture - background handled by ZoomablePreview paintEvent"""
         self._preview_buffer = bytes(rgba_data)
         image = QImage(self._preview_buffer, width, height, width * 4, QImage.Format.Format_RGBA8888)
-
-        if self._show_checkerboard:
-            image = self._add_checkerboard_background(image)
-
         pixmap = QPixmap.fromImage(image)
-        self.preview_widget.setPixmap(pixmap)
+        self.preview_widget.set_pixmap(pixmap)
 
 
     def _show_alpha_view(self, rgba_data, width, height): #vers 2
@@ -11459,9 +11453,16 @@ class TXDWorkshop(QWidget): #vers 3
         return bytes(inverted)
 
 
-    def _toggle_checkerboard(self): #vers 1
+    def _toggle_checkerboard(self): #vers 2
         """Toggle checkerboard background display"""
         self._show_checkerboard = not self._show_checkerboard
+
+        # Sync to preview widget background mode
+        if hasattr(self, 'preview_widget'):
+            if self._show_checkerboard:
+                self.preview_widget.set_checkerboard_background()
+            else:
+                self.preview_widget.set_background_color(self.preview_widget.bg_color)
 
         # Refresh current texture
         if self.selected_texture:
@@ -17928,6 +17929,13 @@ class ZoomablePreview(QLabel): #vers 2
     def pan(self, dx, dy): #vers 1
         """Pan the view by dx, dy pixels"""
         self.pan_offset += QPoint(dx, dy)
+        self.update()
+
+
+    def set_pixmap(self, pixmap): #vers 1
+        """Store texture pixmap (with alpha) and refresh display"""
+        self.original_pixmap = pixmap
+        self._update_scaled_pixmap()
         self.update()
 
 
