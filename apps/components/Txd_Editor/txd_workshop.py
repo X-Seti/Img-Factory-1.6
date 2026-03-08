@@ -7071,8 +7071,14 @@ class TXDWorkshop(QWidget): #vers 3
                     raise Exception(f"Invalid struct section - expected 0x01, got 0x{struct_type:02X}")
 
                 if struct_size >= 4:
-                    texture_count = struct.unpack('<I', txd_data[offset:offset+4])[0]
-                    log(f"  Texture Count: {texture_count}")
+                    # SA (RW >= 0x1803FFFF): uint16 tex_count + uint16 device_id
+                    # GTA3/VC (RW < 0x1803FFFF): uint32 tex_count
+                    if self.txd_version_id >= 0x1803FFFF:
+                        texture_count, device_id = struct.unpack('<HH', txd_data[offset:offset+4])
+                        log(f"  Texture Count: {texture_count} (SA format, device_id={device_id})")
+                    else:
+                        texture_count = struct.unpack('<I', txd_data[offset:offset+4])[0]
+                        log(f"  Texture Count: {texture_count}")
                     offset += struct_size
                 else:
                     raise Exception(f"Struct section too small: {struct_size} bytes")
@@ -9622,13 +9628,18 @@ class TXDWorkshop(QWidget): #vers 3
             return None
 
 
-    def _build_texture_dictionary_manual(self, texture_sections, texture_count): #vers 1
+    def _build_texture_dictionary_manual(self, texture_sections, texture_count): #vers 2
         """Manual TXD dictionary builder for serializer - add to TXDSerializer class"""
         import struct
 
-        # Calculate struct size
-        struct_size = 4  # texture count (u32)
-        struct_data = struct.pack('<I', texture_count)
+        # SA (RW >= 0x1803FFFF): struct = uint16 tex_count + uint16 device_id
+        # GTA3/VC: struct = uint32 tex_count
+        struct_size = 4
+        if getattr(self, 'txd_version_id', 0) >= 0x1803FFFF:
+            device_id = getattr(self, 'txd_device_id', 2)
+            struct_data = struct.pack('<HH', texture_count, device_id)
+        else:
+            struct_data = struct.pack('<I', texture_count)
 
         # Build complete dictionary
         result = bytearray()
