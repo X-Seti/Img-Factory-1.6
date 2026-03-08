@@ -7089,7 +7089,9 @@ class TXDWorkshop(QWidget): #vers 3
             log(f"Validation: {texture_count} textures declared")
 
             if texture_count <= 0:
-                raise Exception("No textures found in TXD file")
+                log("  Warning: TXD contains 0 textures (empty/placeholder file)")
+                update_progress(100)
+                return []  # return empty list, not an error
 
             if texture_count > 500:
                 raise Exception(f"Invalid texture count: {texture_count} (maximum 500)")
@@ -9957,9 +9959,15 @@ class TXDWorkshop(QWidget): #vers 3
                 tex['format'] = 'PAL8'
             elif is_pal4:
                 tex['format'] = 'PAL4'
+            elif is_xbox and platform_prop == 0x00:
+                # Raw ARGB8888 - use raster_format pixel bits
+                tex['format'] = {0x0500:'ARGB8888',0x0600:'RGB888'}.get(pixel_fmt, 'ARGB8888')
             elif is_xbox and platform_prop == 0x0C:
                 tex['format'] = 'DXT1'
             elif is_xbox and platform_prop == 0x0E:
+                tex['format'] = 'DXT3'
+                tex['has_alpha'] = True
+            elif is_xbox and platform_prop == 0x0F:
                 tex['format'] = 'DXT3'
                 tex['has_alpha'] = True
             elif is_xbox and platform_prop == 0x10:
@@ -10033,7 +10041,11 @@ class TXDWorkshop(QWidget): #vers 3
                         lsize = max(1,(w+3)//4)*max(1,(h+3)//4)*8
                     elif 'DXT' in fmt:
                         lsize = max(1,(w+3)//4)*max(1,(h+3)//4)*16
-                    else:
+                    elif fmt == 'RGB888':
+                        lsize = w*h*(4 if depth==32 else 3)
+                    elif fmt in ('RGB565','ARGB1555','ARGB4444','RGB555'):
+                        lsize = w*h*2
+                    else:  # ARGB8888, LUM8, etc
                         lsize = w*h*(depth//8)
                     level_data = xbox_data_block[block_pos:block_pos+lsize]
                     block_pos += lsize
@@ -10041,7 +10053,9 @@ class TXDWorkshop(QWidget): #vers 3
                     if 'DXT' in fmt:
                         rgba_data = self._decompress_texture(level_data, lw, lh, fmt)
                     else:
-                        rgba_data = self._decompress_uncompressed(level_data, lw, lh, fmt, depth=depth)
+                        rgba_data = self._decompress_uncompressed(
+                            level_data, lw, lh, fmt, depth=depth,
+                            force_opaque=tex.get('force_opaque', False))
                     mipmap_level = {'level': level, 'width': lw, 'height': lh,
                         'rgba_data': rgba_data, 'compressed_data': level_data if is_dxt else None,
                         'compressed_size': len(level_data)}
