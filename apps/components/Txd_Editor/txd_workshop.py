@@ -9969,12 +9969,18 @@ class TXDWorkshop(QWidget): #vers 3
                 tex['format'] = 'DXT5'
             elif is_sa_plus:
                 d3d_fmt_map = {
-                    21: 'ARGB8888', 32: 'ARGB8888',
-                    20: 'RGB888',   22: 'RGB888',
-                    23: 'RGB565',   25: 'ARGB1555',
-                    26: 'ARGB4444', 24: 'RGB555',
-                    50: 'LUM8',     51: 'A8L8',
-                    41: 'PAL8',
+                    # D3D9 format enum -> internal format name
+                    21: 'ARGB8888',  # D3DFMT_A8R8G8B8 - stored BGRA 4bpp
+                    22: 'ARGB8888',  # D3DFMT_X8R8G8B8 - stored BGRX 4bpp, treat as ARGB8888 (alpha=255)
+                    32: 'ARGB8888',  # D3DFMT_A8B8G8R8
+                    20: 'RGB888',    # D3DFMT_R8G8B8   - true 24-bit, rare
+                    23: 'RGB565',    # D3DFMT_R5G6B5
+                    25: 'ARGB1555',  # D3DFMT_A1R5G5B5
+                    26: 'ARGB4444',  # D3DFMT_A4R4G4B4
+                    24: 'RGB555',    # D3DFMT_X1R5G5B5
+                    50: 'LUM8',      # D3DFMT_L8
+                    51: 'A8L8',      # D3DFMT_A8L8
+                    41: 'PAL8',      # D3DFMT_P8
                 }
                 tex['format'] = d3d_fmt_map.get(d3d_format,
                     raster_pixel_map.get(pixel_fmt, f'UNKNOWN_{raster_format_flags:08X}'))
@@ -9982,8 +9988,12 @@ class TXDWorkshop(QWidget): #vers 3
                 tex['format'] = raster_pixel_map.get(pixel_fmt,
                     f'UNKNOWN_{raster_format_flags:08X}')
 
+            # D3DFMT_X8R8G8B8 (22): stored BGRX, X channel is padding not alpha
+            if d3d_format == 22:
+                tex['force_opaque'] = True  # force alpha=255 when decoding
+
             if tex['format'] in ('ARGB8888', 'ARGB1555', 'ARGB4444', 'DXT3', 'DXT5', 'PAL8', 'A8L8'):
-                if not tex.get('has_alpha'):
+                if not tex.get('has_alpha') and not tex.get('force_opaque'):
                     tex['has_alpha'] = True
 
             # Read mipmap data
@@ -10051,7 +10061,8 @@ class TXDWorkshop(QWidget): #vers 3
                 else:
                     rgba_data = self._decompress_uncompressed(
                         level_data, lw, lh, tex['format'],
-                        depth=tex.get('depth', 0))
+                        depth=tex.get('depth', 0),
+                        force_opaque=tex.get('force_opaque', False))
 
                 mipmap_level = {
                     'level': level,
@@ -10320,7 +10331,7 @@ class TXDWorkshop(QWidget): #vers 3
 
 
     # Update _decompress_uncompressed method:
-    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0): #vers 6
+    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0, force_opaque=False): #vers 6
         """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
         try:
             import struct
@@ -10357,11 +10368,11 @@ class TXDWorkshop(QWidget): #vers 3
                         pixel += 1
 
             elif 'ARGB8888' in format_type or 'ARGB32' in format_type:
-                # RenderWare stores as BGRA
+                # RenderWare stores as BGRA; X8R8G8B8 (force_opaque) has padding not alpha
                 for i in range(pixel_count):
                     if i*4+4 <= len(data):
                         b, g, r, a = data[i*4], data[i*4+1], data[i*4+2], data[i*4+3]
-                        rgba[i*4:i*4+4] = [r, g, b, a]
+                        rgba[i*4:i*4+4] = [r, g, b, 255 if force_opaque else a]
 
             elif 'RGB888' in format_type:
                 # Stored as BGR (3 bpp) or BGRX (4 bpp when depth==32)
