@@ -9975,37 +9975,41 @@ class TXDWorkshop(QWidget): #vers 3
                 if not tex.get('has_alpha'):
                     tex['has_alpha'] = True
 
-            # Calculate individual mipmap sizes
-            # NOTE: No data_size field here - GTA3/VC TXD data starts directly after header
-            mipmap_sizes = []
-            w, h = width, height
+            # Read mipmap data - each level preceded by a 4-byte data_size field
             fmt = tex['format']
-            for i in range(num_levels):
+            w, h = width, height
+            for level in range(num_levels):
+                if pos + 4 > len(txd_data):
+                    break
+
+                # Read per-level data size
+                level_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
+                pos += 4
+
+                # Sanity-check against expected size
                 if 'DXT1' in fmt:
-                    size = max(1, (w + 3) // 4) * max(1, (h + 3) // 4) * 8
+                    expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 8
                 elif 'DXT' in fmt:
-                    size = max(1, (w + 3) // 4) * max(1, (h + 3) // 4) * 16
+                    expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 16
                 elif fmt in ('ARGB8888', 'A8L8'):
-                    size = w * h * 4
+                    expected = w * h * 4
                 elif fmt == 'RGB888':
-                    size = w * h * 3
+                    expected = w * h * 3
                 elif fmt in ('RGB565', 'ARGB1555', 'ARGB4444', 'RGB555'):
-                    size = w * h * 2
+                    expected = w * h * 2
                 elif fmt == 'LUM8':
-                    size = w * h
+                    expected = w * h
                 elif fmt == 'PAL8':
-                    size = 1024 + w * h       # always 256 * 4-byte BGRA entries
+                    expected = 1024 + w * h
                 elif fmt == 'PAL4':
-                    size = 64 + (w * h + 1) // 2  # always 16 * 4-byte BGRA entries
+                    expected = 64 + (w * h + 1) // 2
                 else:
-                    size = w * h * 2  # safe default
+                    expected = w * h * 2
 
-                mipmap_sizes.append(size)
-                w = max(1, w // 2)
-                h = max(1, h // 2)
+                # Use declared size unless it looks wildly wrong (corrupt header)
+                size = level_size if (expected // 2 <= level_size <= expected * 2) else expected
+                lw, lh = w, h
 
-            # Read mipmap data
-            for level, size in enumerate(mipmap_sizes):
                 if pos + size > len(txd_data):
                     break
 
@@ -10053,6 +10057,10 @@ class TXDWorkshop(QWidget): #vers 3
                         for i in range(width * height):
                             alpha_mask[i] = rgba_data[i * 4 + 3]  # Extract alpha byte
                         tex['alpha_mask'] = bytes(alpha_mask)
+
+                # Advance mipmap dimensions
+                w = max(1, w // 2)
+                h = max(1, h // 2)
 
             # Read bumpmap data (if present)
             if tex['has_bumpmap'] and pos + 5 <= len(txd_data):

@@ -207,10 +207,12 @@ def parse_txd(data, verbose=False, export_dir=None):
         print(f"  │  d3d_format  : 0x{d3d_fmt_raw:08X} = {d3d_name}")
         print(f"  │  filter_flags: 0x{filter_flags:08X}")
 
-        # Check for extra byte after standard 15-byte block (some parsers read platform_prop)
+        # compression byte (platform_prop): 0=raw, 1=DXT1, 3=DXT3, 5=DXT5
+        # For D3D8 (GTA3/VC): this overrides raster_format for format detection
         if p < sec_end:
             extra_byte = read_u8(data, p)
-            print(f"  │  extra_byte  : 0x{extra_byte:02X} (DXT hint? 1=DXT1 3=DXT3 5=DXT5)")
+            dxt_name = {1:'DXT1', 3:'DXT3', 5:'DXT5'}.get(extra_byte, 'raw/uncompressed')
+            print(f"  │  compression : 0x{extra_byte:02X} = {dxt_name}")
 
         if verbose:
             # Raw header bytes
@@ -224,10 +226,13 @@ def parse_txd(data, verbose=False, export_dir=None):
         pix_map_pal = {0x0100:'ARGB1555',0x0200:'RGB565',0x0300:'ARGB4444',
                        0x0400:'LUM8',0x0500:'ARGB8888',0x0600:'RGB888',0x0A00:'RGB555'}
         pal_entry_fmt = pix_map_pal.get(raster_fmt & 0x0F00, 'ARGB8888')
+        extra_byte = read_u8(data, p) if p < sec_end else 0
         if is_pal8:
             detected = f'PAL8  [palette entries: {pal_entry_fmt}]'
         elif is_pal4:
             detected = f'PAL4  [palette entries: {pal_entry_fmt}]'
+        elif extra_byte in (1, 3, 5):
+            detected = {1:'DXT1', 3:'DXT3', 5:'DXT5'}[extra_byte] + '  [via compression byte]'
         elif d3d_fmt_raw in (0x31545844, 0x32545844, 0x33545844, 0x34545844, 0x35545844):
             detected = {0x31545844:'DXT1',0x33545844:'DXT3',0x35545844:'DXT5',
                         0x32545844:'DXT2',0x34545844:'DXT4'}[d3d_fmt_raw]
