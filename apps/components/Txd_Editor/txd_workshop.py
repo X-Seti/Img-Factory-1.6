@@ -9949,24 +9949,38 @@ class TXDWorkshop(QWidget): #vers 3
                 0x0A00: 'RGB555',
             }
 
+            # Xbox (platform_id=5): compression byte 0x0C/0x0E/0x10 = DXT1/3/5
+            # D3D8 GTA3/VC: platform_prop 1/3/5 = DXT1/3/5
+            # SA D3D9: use d3d_format FourCC
+            is_xbox = (platform_id == 5)
             if is_pal8:
                 tex['format'] = 'PAL8'
             elif is_pal4:
                 tex['format'] = 'PAL4'
-            elif platform_prop in (1, 8):
+            elif is_xbox and platform_prop == 0x0C:
                 tex['format'] = 'DXT1'
-            elif platform_prop in (3, 24):
+            elif is_xbox and platform_prop == 0x0E:
                 tex['format'] = 'DXT3'
                 tex['has_alpha'] = True
-            elif platform_prop in (5, 40):
+            elif is_xbox and platform_prop == 0x10:
                 tex['format'] = 'DXT5'
                 tex['has_alpha'] = True
             elif d3d_format == 0x31545844:
                 tex['format'] = 'DXT1'
             elif d3d_format == 0x33545844:
                 tex['format'] = 'DXT3'
+                tex['has_alpha'] = True
             elif d3d_format == 0x35545844:
                 tex['format'] = 'DXT5'
+                tex['has_alpha'] = True
+            elif not is_xbox and platform_prop == 1:
+                tex['format'] = 'DXT1'
+            elif not is_xbox and platform_prop == 3:
+                tex['format'] = 'DXT3'
+                tex['has_alpha'] = True
+            elif not is_xbox and platform_prop == 5:
+                tex['format'] = 'DXT5'
+                tex['has_alpha'] = True
             elif is_sa_plus:
                 d3d_fmt_map = {
                     # D3D9 format enum -> internal format name
@@ -9997,98 +10011,137 @@ class TXDWorkshop(QWidget): #vers 3
                     tex['has_alpha'] = True
 
             # Read mipmap data
-            # SA (D3D9, RW >= 0x1803FFFF): ALL formats have a 4-byte data_size field per mipmap
-            # GTA3/VC (D3D8): ONLY DXT formats have data_size; raw/PAL data follows header directly
+            # SA (D3D9, RW >= 0x1803FFFF): ALL formats have a 4-byte data_size field PER mipmap level
+            # GTA3/VC (D3D8): ONLY DXT formats have data_size per level; raw/PAL data follows directly
+            # Xbox (platform_id=5): ONE total data_size field covers ALL mipmap levels combined
             fmt = tex['format']
             is_dxt = 'DXT' in fmt
-            has_data_size_field = is_dxt or is_sa_plus
-            w, h = width, height
-            for level in range(num_levels):
-                # Calculate expected size for this mipmap level
-                if 'DXT1' in fmt:
-                    expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 8
-                elif 'DXT' in fmt:
-                    expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 16
-                elif fmt in ('ARGB8888', 'A8L8'):
-                    expected = w * h * 4
-                elif fmt == 'RGB888':
-                    expected = w * h * (4 if tex.get('depth', 0) == 32 else 3)
-                elif fmt in ('RGB565', 'ARGB1555', 'ARGB4444', 'RGB555'):
-                    expected = w * h * 2
-                elif fmt == 'LUM8':
-                    expected = w * h
-                elif fmt == 'PAL8':
-                    expected = 1024 + w * h
-                elif fmt == 'PAL4':
-                    expected = 64 + (w * h + 1) // 2
-                else:
-                    expected = w * h * 2
+            is_xbox = (platform_id == 5)
+            has_data_size_field = (is_dxt or is_sa_plus) and not is_xbox
 
-                # Read declared data_size if present, use it if sane
-                if has_data_size_field:
-                    if pos + 4 > len(txd_data):
-                        break
-                    declared = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                    pos += 4
-                    size = declared if (expected // 2 <= declared <= expected * 4) else expected
-                else:
-                    size = expected
-
-                lw, lh = w, h
-
-                if pos + size > len(txd_data):
-                    break
-
-                level_data = txd_data[pos:pos+size]
-                pos += size
-
-                # Decompress if needed
-                lw = max(1, width >> level)
-                lh = max(1, height >> level)
-                if 'DXT' in tex['format']:
-                    rgba_data = self._decompress_texture(level_data, lw, lh, tex['format'])
-                elif tex['format'] in ('PAL8', 'PAL4'):
-                    # Palette entries always 4-byte BGRA; palette_entry_fmt only affects alpha output
-                    pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
-                    pal_size = 1024 if tex['format'] == 'PAL8' else 64
-                    if len(level_data) >= pal_size:
-                        pal_data = level_data[:pal_size]
-                        pix_data = level_data[pal_size:]
-                        rgba_data = self._decompress_uncompressed(
-                            pix_data, lw, lh, tex['format'],
-                            palette=pal_data, palette_entry_fmt=pal_entry_fmt)
+            # Xbox: read single total size, then consume all levels from that block
+            if is_xbox and pos + 4 <= len(txd_data):
+                xbox_total_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
+                pos += 4
+                xbox_data_block = txd_data[pos:pos+xbox_total_size]
+                pos += xbox_total_size
+                # Split into per-level chunks using calculated sizes
+                block_pos = 0
+                w, h = width, height
+                for level in range(num_levels):
+                    if 'DXT1' in fmt:
+                        lsize = max(1,(w+3)//4)*max(1,(h+3)//4)*8
+                    elif 'DXT' in fmt:
+                        lsize = max(1,(w+3)//4)*max(1,(h+3)//4)*16
                     else:
-                        rgba_data = b'\x00' * (lw * lh * 4)
-                else:
-                    rgba_data = self._decompress_uncompressed(
-                        level_data, lw, lh, tex['format'],
-                        depth=tex.get('depth', 0),
-                        force_opaque=tex.get('force_opaque', False))
+                        lsize = w*h*(depth//8)
+                    level_data = xbox_data_block[block_pos:block_pos+lsize]
+                    block_pos += lsize
+                    lw, lh = w, h
+                    if 'DXT' in fmt:
+                        rgba_data = self._decompress_texture(level_data, lw, lh, fmt)
+                    else:
+                        rgba_data = self._decompress_uncompressed(level_data, lw, lh, fmt, depth=depth)
+                    mipmap_level = {'level': level, 'width': lw, 'height': lh,
+                        'rgba_data': rgba_data, 'compressed_data': level_data if is_dxt else None,
+                        'compressed_size': len(level_data)}
+                    tex['mipmap_levels'].append(mipmap_level)
+                    if level == 0:
+                        tex['rgba_data'] = rgba_data
+                        if tex['has_alpha'] and rgba_data and len(rgba_data) == width*height*4:
+                            alpha_mask = bytearray(width*height)
+                            for i in range(width*height):
+                                alpha_mask[i] = rgba_data[i*4+3]
+                            tex['alpha_mask'] = bytes(alpha_mask)
+                    w = max(1, w//2); h = max(1, h//2)
+            else:
+                w, h = width, height
+                for level in range(num_levels):
+                    # Calculate expected size for this mipmap level
+                    if 'DXT1' in fmt:
+                        expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 8
+                    elif 'DXT' in fmt:
+                        expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 16
+                    elif fmt in ('ARGB8888', 'A8L8'):
+                        expected = w * h * 4
+                    elif fmt == 'RGB888':
+                        expected = w * h * (4 if tex.get('depth', 0) == 32 else 3)
+                    elif fmt in ('RGB565', 'ARGB1555', 'ARGB4444', 'RGB555'):
+                        expected = w * h * 2
+                    elif fmt == 'LUM8':
+                        expected = w * h
+                    elif fmt == 'PAL8':
+                        expected = 1024 + w * h
+                    elif fmt == 'PAL4':
+                        expected = 64 + (w * h + 1) // 2
+                    else:
+                        expected = w * h * 2
 
-                mipmap_level = {
-                    'level': level,
-                    'width': max(1, width >> level),
-                    'height': max(1, height >> level),
-                    'rgba_data': rgba_data,
-                    'compressed_data': level_data if 'DXT' in tex['format'] else None,
-                    'compressed_size': len(level_data)
-                }
-                tex['mipmap_levels'].append(mipmap_level)
+                    # Read declared data_size if present, use it if sane
+                    if has_data_size_field:
+                        if pos + 4 > len(txd_data):
+                            break
+                        declared = struct.unpack('<I', txd_data[pos:pos+4])[0]
+                        pos += 4
+                        size = declared if (expected // 2 <= declared <= expected * 4) else expected
+                    else:
+                        size = expected
 
-                # Store main texture data
-                if level == 0:
-                    tex['rgba_data'] = rgba_data
+                    lw, lh = w, h
 
-                    # NEW: Extract alpha channel as separate grayscale mask
-                    if tex['has_alpha'] and rgba_data and len(rgba_data) == width * height * 4:
-                        alpha_mask = bytearray(width * height)
-                        for i in range(width * height):
-                            alpha_mask[i] = rgba_data[i * 4 + 3]  # Extract alpha byte
-                        tex['alpha_mask'] = bytes(alpha_mask)
+                    if pos + size > len(txd_data):
+                        break
 
-                # Advance mipmap dimensions
-                w = max(1, w // 2)
-                h = max(1, h // 2)
+                    level_data = txd_data[pos:pos+size]
+                    pos += size
+
+                    # Decompress if needed
+                    lw = max(1, width >> level)
+                    lh = max(1, height >> level)
+                    if 'DXT' in tex['format']:
+                        rgba_data = self._decompress_texture(level_data, lw, lh, tex['format'])
+                    elif tex['format'] in ('PAL8', 'PAL4'):
+                        # Palette entries always 4-byte BGRA; palette_entry_fmt only affects alpha output
+                        pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
+                        pal_size = 1024 if tex['format'] == 'PAL8' else 64
+                        if len(level_data) >= pal_size:
+                            pal_data = level_data[:pal_size]
+                            pix_data = level_data[pal_size:]
+                            rgba_data = self._decompress_uncompressed(
+                                pix_data, lw, lh, tex['format'],
+                                palette=pal_data, palette_entry_fmt=pal_entry_fmt)
+                        else:
+                            rgba_data = b'\x00' * (lw * lh * 4)
+                    else:
+                        rgba_data = self._decompress_uncompressed(
+                            level_data, lw, lh, tex['format'],
+                            depth=tex.get('depth', 0),
+                            force_opaque=tex.get('force_opaque', False))
+
+                    mipmap_level = {
+                        'level': level,
+                        'width': max(1, width >> level),
+                        'height': max(1, height >> level),
+                        'rgba_data': rgba_data,
+                        'compressed_data': level_data if 'DXT' in tex['format'] else None,
+                        'compressed_size': len(level_data)
+                    }
+                    tex['mipmap_levels'].append(mipmap_level)
+
+                    # Store main texture data
+                    if level == 0:
+                        tex['rgba_data'] = rgba_data
+
+                        # NEW: Extract alpha channel as separate grayscale mask
+                        if tex['has_alpha'] and rgba_data and len(rgba_data) == width * height * 4:
+                            alpha_mask = bytearray(width * height)
+                            for i in range(width * height):
+                                alpha_mask[i] = rgba_data[i * 4 + 3]  # Extract alpha byte
+                            tex['alpha_mask'] = bytes(alpha_mask)
+
+                    # Advance mipmap dimensions
+                    w = max(1, w // 2)
+                    h = max(1, h // 2)
 
             # Read bumpmap data (if present)
             if tex['has_bumpmap'] and pos + 5 <= len(txd_data):
