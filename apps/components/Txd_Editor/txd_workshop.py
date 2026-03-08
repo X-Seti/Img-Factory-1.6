@@ -10420,18 +10420,31 @@ class TXDWorkshop(QWidget): #vers 3
             return None
 
 
-    def _create_thumbnail(self, rgba_data, width, height): #vers 1
+    def _create_thumbnail(self, rgba_data, width, height): #vers 2
         """Create thumbnail from RGBA data"""
         try:
             if not rgba_data or width <= 0 or height <= 0:
                 return None
 
-            image = QImage(rgba_data, width, height, width*4, QImage.Format.Format_RGBA8888)
+            # Keep buffer reference alive - QImage doesn't own it and GC will
+            # free it before Qt renders, causing blank thumbnails on small textures
+            buf = bytes(rgba_data)
+            image = QImage(buf, width, height, width*4, QImage.Format.Format_RGBA8888)
             if image.isNull():
                 return None
 
+            # copy() makes Qt own the data - buffer reference no longer needed
+            image = image.copy()
             pixmap = QPixmap.fromImage(image)
-            return pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            thumb_size = 64
+            if width < thumb_size and height < thumb_size:
+                # Scale up small textures with nearest-neighbour to show pixels clearly
+                return pixmap.scaled(thumb_size, thumb_size,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.FastTransformation)
+            return pixmap.scaled(thumb_size, thumb_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
         except:
             return None
 
