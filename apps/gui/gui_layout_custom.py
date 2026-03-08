@@ -863,28 +863,28 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 
 
-    def _show_rw_reference(self): #vers 1
-        """Show RenderWare format reference documentation dialog"""
+    def _show_rw_reference(self): #vers 2
+        """Show comprehensive GTA format reference — IMG, RW, TXD, COL"""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QTextEdit, QLabel
         from PyQt6.QtGui import QFont
         from PyQt6.QtCore import Qt
 
         dialog = QDialog(self.main_window)
-        dialog.setWindowTitle("RenderWare Format Reference - GTA III PC")
-        dialog.setMinimumWidth(820)
-        dialog.setMinimumHeight(680)
-        dialog.resize(860, 720)
+        dialog.setWindowTitle("GTA File Format Reference — IMG Factory 1.6")
+        dialog.setMinimumWidth(860)
+        dialog.setMinimumHeight(700)
+        dialog.resize(900, 740)
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(8)
         layout.setContentsMargins(10, 10, 10, 10)
 
-        header = QLabel("RenderWare Format Reference  —  GTA III PC  (IMG Factory 1.6)")
+        header = QLabel("GTA File Format Reference  —  IMG Factory 1.6")
         header.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
 
-        sub = QLabel("Documents all RW section types, version encodings, texture formats, and platform differences researched for IMG Factory.")
+        sub = QLabel("Documents all researched format details for IMG archives, RenderWare sections/versions, TXD textures, and COL collision files.")
         sub.setWordWrap(True)
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(sub)
@@ -898,27 +898,77 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             t.setHtml(html)
             return t
 
-        ver_html = """
-<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;margin-bottom:4px;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.note{color:#aaa;font-style:italic;}.ok{color:#6f6;}</style>
-<h3>RenderWare Version Encoding</h3>
-<p class="note">All GTA III era files use little-endian uint32 at bytes [8..11] of every RW section header.</p>
-<h4>Format 1 — Plain Integer (GTA III PC, pre-1.0 era)</h4>
-<p>Version stored as a raw 3-nibble integer: <b>0xMmP</b> where M=major, m=minor, P=patch.</p>
-<table><tr><th>Value</th><th>Version</th><th>Notes</th></tr>
+        css = "<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;margin-bottom:4px;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.note{color:#aaa;font-style:italic;}.ok{color:#6f6;font-weight:bold;}.no{color:#f66;}.wip{color:#fa0;}</style>"
+
+        # ── IMG Archive ───────────────────────────────────────────────────────
+        img_html = css + """
+<h3>IMG Archive Formats</h3>
+<h4>Version 1 — GTA III / VC PC (.img + .dir pair)</h4>
+<p>The .dir is a flat list of 32-byte entry records. The .img is raw concatenated data aligned to 2048-byte sectors.</p>
+<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
+<tr><td>0</td><td>4</td><td>Sector offset (uint32 LE) × 2048 = byte offset in .img</td></tr>
+<tr><td>4</td><td>4</td><td>Sector size (uint32 LE) × 2048 = byte size of entry</td></tr>
+<tr><td>8</td><td>24</td><td>Filename — null-padded; Xbox builds have garbage bytes after the null terminator</td></tr></table>
+
+<h4>Version 1.5 — Extended V1 (large archives)</h4>
+<p>Same record layout as V1 but detected by IMG file >2GB or name field with no null terminator. Extended addressing for up to 4GB and long filenames.</p>
+
+<h4>Version 2 — GTA SA PC (self-contained .img)</h4>
+<p>No separate .dir — the directory is embedded in the .img file itself.</p>
+<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
+<tr><td>0</td><td>4</td><td>Magic: "VER2" = 0x32524556 (LE)</td></tr>
+<tr><td>4</td><td>4</td><td>Entry count (uint32 LE)</td></tr>
+<tr><td>8</td><td>32×N</td><td>Entry records (same 32-byte layout as V1)</td></tr></table>
+
+<h4>Version 3 — GTA IV (AES-256 ECB encrypted)</h4>
+<p>Header begins with a 16-byte AES block. Magic visible only after decryption. Not fully supported in IMG Factory 1.6 (read-only / partial).</p>
+
+<h4>Sector Addressing</h4>
+<table><tr><th>Rule</th><th>Value</th></tr>
+<tr><td>Sector size</td><td>2048 bytes (0x800)</td></tr>
+<tr><td>Byte offset</td><td>sector_offset × 2048</td></tr>
+<tr><td>Byte size</td><td>sector_size × 2048</td></tr>
+<tr><td>Alignment on rebuild</td><td>Entries padded to next sector boundary</td></tr></table>
+
+<h4>Xbox V1 Name Corruption</h4>
+<p>Xbox DIR entries use a 24-byte name field. After the null terminator, remaining bytes contain arbitrary non-null garbage (e.g. 0x77 0x78 = 'wx' appended to ".txd"). IMG Factory uses a known-extension whitelist to truncate at the real extension boundary.</p>
+<p class="note"><b>Known extensions:</b> dff txd col ifp ipl dat wav ide zon ped grp cut cnf img dir scm mp3 ogg fxp bmp png jpg spl rrr rdb rsc</p>
+
+<h4>Special Entry Display Rules</h4>
+<table><tr><th>Condition</th><th>RW Version column</th><th>RW Address column</th></tr>
+<tr><td>Entry size == 0 and type DFF/TXD</td><td><b>Empty</b></td><td><b>Empty</b></td></tr>
+<tr><td>Valid RW version read</td><td>Version string</td><td>Hex offset</td></tr>
+<tr><td>No valid RW version</td><td>Unknown / file-type label</td><td>Hex offset</td></tr></table>
+"""
+
+        # ── RW Versions ───────────────────────────────────────────────────────
+        ver_html = css + """
+<h3>RenderWare Section Header</h3>
+<p>Every RW chunk starts with a 12-byte header — all fields little-endian uint32:</p>
+<table><tr><th>Offset</th><th>Field</th></tr>
+<tr><td>0</td><td>Section type ID</td></tr>
+<tr><td>4</td><td>Section data size (bytes following this header)</td></tr>
+<tr><td>8</td><td>RW version</td></tr></table>
+
+<h4>Version Encoding — Format 1: Plain Integer (GTA III PC, pre-retail)</h4>
+<p>Raw 3-nibble integer <b>0xMmP</b>. Range 0x300–0x3FF accepted by IMG Factory.</p>
+<table><tr><th>Value</th><th>Version</th><th>Confirmed file</th></tr>
 <tr><td>0x00000300</td><td>3.0.0</td><td>GTA III PC earliest builds</td></tr>
-<tr><td>0x00000304</td><td>3.0.4</td><td>GTA III PC — GTAElift.DFF confirmed</td></tr>
-<tr><td>0x00000310</td><td>3.1.0</td><td>GTA III PC retail — most DFF/TXD files</td></tr></table>
-<p class="note">IMG Factory accepts the full range 0x300–0x3FF for robustness.</p>
-<h4>Format 2 — Old Compact (RW SDK 3.0–3.7)</h4>
-<p>Version stored as <b>0xMm0P</b> (5 hex digits). Used by later GTA III / VC SDK-linked tools.</p>
-<table><tr><th>Value</th><th>Version</th><th>Notes</th></tr>
+<tr><td>0x00000304</td><td>3.0.4</td><td>GTAElift.DFF</td></tr>
+<tr><td>0x00000310</td><td>3.1.0</td><td>GTA III PC retail DFF/TXD (most files)</td></tr></table>
+
+<h4>Version Encoding — Format 2: Old Compact (SDK 3.0–3.7)</h4>
+<p><b>0xMm0P</b> (5 hex digits). Used by SDK-linked tools and exports.</p>
+<table><tr><th>Value</th><th>Version</th><th>Game</th></tr>
 <tr><td>0x30000</td><td>3.0.0.0</td><td></td></tr>
 <tr><td>0x31001</td><td>3.1.0.1</td><td>GTA III (canonical SDK)</td></tr>
 <tr><td>0x33002</td><td>3.3.0.2</td><td>GTA VC (canonical SDK)</td></tr>
 <tr><td>0x34001</td><td>3.4.0.1</td><td>Manhunt / GTA SOL</td></tr>
+<tr><td>0x34003</td><td>3.4.0.3</td><td>GTA VC late</td></tr>
 <tr><td>0x36003</td><td>3.6.0.3</td><td>GTA SA / Bully</td></tr>
 <tr><td>0x37002</td><td>3.7.0.2</td><td>SA Mobile / PSP</td></tr></table>
-<h4>Format 3 — Packed Platform Form (low word = 0xFFFF)</h4>
+
+<h4>Version Encoding — Format 3: Packed Platform Form</h4>
 <p>Discriminator: <b>(v &amp; 0xFFFF) == 0xFFFF</b> and high word 0x0400–0x1C03.</p>
 <table><tr><th>Value</th><th>Version</th><th>Platform</th></tr>
 <tr><td>0x0401FFFF</td><td>2.0.0.1</td><td>GTA III early TXD (pre-retail)</td></tr>
@@ -932,175 +982,180 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 <tr><td>0x1400FFFF</td><td>3.4.0.0</td><td><b>GTA III / VC Xbox</b></td></tr>
 <tr><td>0x1803FFFF</td><td>3.6.0.3</td><td>GTA SA PC</td></tr>
 <tr><td>0x1C020037</td><td>3.7.0.2</td><td>SA Mobile / PSP (special case)</td></tr></table>
-<h4>Validation Rules (IMG Factory)</h4>
-<ul>
-<li>Bytes [8..11] of the first section header are checked at up to 3 offsets (0, 4, 8) to handle Xbox-prefixed layouts.</li>
-<li>0-byte DFF/TXD entries are shown as <b>Empty</b> rather than attempting to read a version.</li>
-<li>Unknown values display as <b>Unknown (0xXXXXXXXX)</b>.</li>
-</ul>"""
+<p class="note">Xbox RW headers may have a 4-byte prefix before the standard 12-byte header. IMG Factory scans offsets 0, 4, and 8 for valid version values to handle this.</p>
 
-        sect_html = """
-<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.note{color:#aaa;font-style:italic;}</style>
-<h3>RenderWare Section Header</h3>
-<p>Every RW chunk starts with a 12-byte header:</p>
-<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
-<tr><td>0</td><td>4</td><td>Section type (uint32 LE)</td></tr>
-<tr><td>4</td><td>4</td><td>Section data size in bytes (uint32 LE)</td></tr>
-<tr><td>8</td><td>4</td><td>RW version (uint32 LE)</td></tr></table>
 <h4>Core Section Type IDs</h4>
 <table><tr><th>ID</th><th>Name</th><th>Used in</th></tr>
-<tr><td>0x0001</td><td>Struct</td><td>All — raw binary data block</td></tr>
-<tr><td>0x0002</td><td>String</td><td>Material names, frame names</td></tr>
-<tr><td>0x0003</td><td>Extension</td><td>Plugin data (Hanim, collision, etc.)</td></tr>
-<tr><td>0x0006</td><td>Texture</td><td>DFF material texture reference</td></tr>
-<tr><td>0x0007</td><td>Material</td><td>DFF material (colour, texture, flags)</td></tr>
-<tr><td>0x0008</td><td>Material List</td><td>DFF container for all materials</td></tr>
-<tr><td>0x000E</td><td>Atomic</td><td>DFF render unit (geometry + frame)</td></tr>
-<tr><td>0x000F</td><td>Plane Section</td><td>BSP world plane</td></tr>
-<tr><td>0x0010</td><td>World</td><td>IPL / BSP world container</td></tr>
-<tr><td>0x0014</td><td>Frame List</td><td>DFF bone/frame hierarchy</td></tr>
-<tr><td>0x0015</td><td>Geometry</td><td>DFF mesh (verts, UVs, colours)</td></tr>
-<tr><td>0x0016</td><td>Texture Dictionary</td><td>TXD root container</td></tr>
+<tr><td>0x0001</td><td>Struct</td><td>All — raw binary payload block</td></tr>
+<tr><td>0x0002</td><td>String</td><td>Frame names, material names</td></tr>
+<tr><td>0x0003</td><td>Extension</td><td>Plugin data container (Hanim, skin, etc.)</td></tr>
+<tr><td>0x0006</td><td>Texture</td><td>DFF — material texture reference</td></tr>
+<tr><td>0x0007</td><td>Material</td><td>DFF — colour, texture, flags</td></tr>
+<tr><td>0x0008</td><td>Material List</td><td>DFF — container for all materials</td></tr>
+<tr><td>0x000E</td><td>Atomic</td><td>DFF — render unit linking geometry to frame</td></tr>
+<tr><td>0x0014</td><td>Frame List</td><td>DFF — bone/frame hierarchy</td></tr>
+<tr><td>0x0015</td><td>Geometry</td><td>DFF — mesh (vertices, UVs, vertex colours)</td></tr>
+<tr><td>0x0016</td><td>Texture Dictionary</td><td>TXD — root container</td></tr>
 <tr><td>0x0018</td><td>Texture Native</td><td>TXD — one texture entry</td></tr>
-<tr><td>0x001A</td><td>Clump</td><td>DFF root container</td></tr>
-<tr><td>0x001F</td><td>Atomic Section</td><td>BSP world atomic</td></tr>
-<tr><td>0x0253F2F7</td><td>Hanim PLG</td><td>Extension: bone animation data</td></tr>
-<tr><td>0x0253F2F8</td><td>User Data PLG</td><td>Extension: custom user data</td></tr>
+<tr><td>0x001A</td><td>Clump</td><td>DFF — root container</td></tr>
+<tr><td>0x0253F2F7</td><td>Hanim PLG</td><td>Extension: bone animation</td></tr>
 <tr><td>0x0253F2FB</td><td>Skin PLG</td><td>Extension: skinning weights</td></tr>
-<tr><td>0x0253F2FE</td><td>Delta Morph PLG</td><td>Extension: delta morph targets</td></tr></table>
-<p class="note">Section IDs above 0x0100 following the 0x0253F2xx pattern are Criterion plugin extensions.</p>"""
+<tr><td>0x0253F2FE</td><td>Delta Morph PLG</td><td>Extension: morph targets</td></tr></table>
+"""
 
-        txd_html = """
-<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.note{color:#aaa;font-style:italic;}.ok{color:#6f6;}</style>
-<h3>TXD — Texture Dictionary Format</h3>
-<h4>TXD Container Layout</h4>
+        # ── TXD Format ────────────────────────────────────────────────────────
+        txd_html = css + """
+<h3>TXD — Texture Dictionary</h3>
+<h4>Container Structure</h4>
 <table><tr><th>Section</th><th>Contents</th></tr>
-<tr><td>0x0016 Texture Dictionary</td><td>Root container</td></tr>
-<tr><td>&nbsp;&nbsp;└ 0x0001 Struct</td><td>tex_count (uint16) + device_id (uint16) [SA] OR tex_count (uint32) [GTA3/VC]</td></tr>
+<tr><td>0x0016 Texture Dictionary</td><td>Root</td></tr>
+<tr><td>&nbsp;&nbsp;└ 0x0001 Struct</td><td>GTA III/VC: tex_count uint32 &nbsp;|&nbsp; SA: tex_count uint16 + device_id uint16</td></tr>
 <tr><td>&nbsp;&nbsp;└ 0x0018 Texture Native ×N</td><td>One per texture</td></tr>
-<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ 0x0001 Struct</td><td>All texture binary data</td></tr>
-<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ 0x0003 Extension</td><td>Usually empty for GTA textures</td></tr></table>
-<h4>tex_count Field Differences</h4>
-<table><tr><th>Game</th><th>Field type</th><th>Notes</th></tr>
-<tr><td>GTA III / VC</td><td>uint32 (4 bytes)</td><td>Full 32-bit count</td></tr>
-<tr><td>GTA SA (RW ≥ 0x1803FFFF)</td><td>uint16 + uint16 device_id</td><td>Also 4 bytes total</td></tr></table>
-<h4>Texture Native Struct — Platform Differences</h4>
-<table><tr><th>Field</th><th>GTA III/VC (D3D8)</th><th>GTA SA (D3D9)</th><th>Xbox (platform_id=5)</th></tr>
-<tr><td>platform_id</td><td>8 (D3D8)</td><td>9 (D3D9)</td><td>5</td></tr>
-<tr><td>name / mask_name</td><td>32 bytes each</td><td>32 bytes each</td><td>32 bytes each</td></tr>
-<tr><td>raster_format</td><td>uint32</td><td>uint32</td><td>uint32</td></tr>
-<tr><td>d3d_format / FourCC</td><td>uint32 FourCC</td><td>uint32 D3DFORMAT</td><td>uint32 Xbox-specific</td></tr>
-<tr><td>width / height</td><td>uint16 each</td><td>uint16 each</td><td>uint16 each</td></tr>
-<tr><td>depth / mipmap_count</td><td>uint8 each</td><td>uint8 each</td><td>uint8 each</td></tr>
-<tr><td>compression byte</td><td>0=none / 1/3/5=DXT</td><td>uint8</td><td>Xbox compression map</td></tr>
-<tr><td>data_size field</td><td>DXT formats only</td><td>Every mipmap level</td><td>ONE total for all levels</td></tr></table>
-<h4>Pixel Format Detection Priority</h4>
-<ol><li>PAL8 / PAL4 flags in raster_format</li>
-<li>Xbox (platform_id=5): compression byte map (see Platforms tab)</li>
-<li>D3D FourCC: 0x31545844=DXT1, 0x33545844=DXT3, 0x35545844=DXT5</li>
-<li>GTA III/VC non-Xbox: platform_prop 1=DXT1, 3=DXT3, 5=DXT5</li>
-<li>SA+: d3d_fmt_map (21=ARGB8888, 22=XRGB8888, 23=RGB565, 25=ARGB1555, etc.)</li>
-<li>GTA III/VC raster_pixel_map (0x0100=ARGB1555, 0x0200=RGB565, 0x0500=ARGB8888, etc.)</li></ol>
-<h4>data_size Field Rules</h4>
-<table><tr><th>Platform</th><th>Format</th><th>data_size present?</th></tr>
-<tr><td>SA D3D9 (RW ≥ 0x1803FFFF)</td><td>Any</td><td class="ok">Yes — per mipmap level</td></tr>
-<tr><td>GTA III/VC D3D8</td><td>DXT1/3/5</td><td class="ok">Yes — per mipmap level</td></tr>
-<tr><td>GTA III/VC D3D8</td><td>Raw / PAL / 16-bit</td><td>No</td></tr>
-<tr><td>Xbox (platform_id=5)</td><td>Any</td><td class="ok">Yes — ONE total for all levels</td></tr></table>"""
+<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ 0x0001 Struct</td><td>All texture binary data (see struct below)</td></tr>
+<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ 0x0003 Extension</td><td>Usually empty in GTA files</td></tr></table>
 
-        plat_html = """
-<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.note{color:#aaa;font-style:italic;}</style>
-<h3>Platform-Specific Formats</h3>
+<h4>Texture Native Struct Fields</h4>
+<table><tr><th>Field</th><th>Size</th><th>GTA III/VC D3D8</th><th>GTA SA D3D9</th><th>Xbox (id=5)</th></tr>
+<tr><td>platform_id</td><td>4</td><td>8</td><td>9</td><td>5</td></tr>
+<tr><td>filter_flags</td><td>4</td><td>uint32</td><td>uint32</td><td>uint32</td></tr>
+<tr><td>name</td><td>32</td><td>texture name</td><td>texture name</td><td>texture name</td></tr>
+<tr><td>mask_name</td><td>32</td><td>alpha mask name</td><td>alpha mask name</td><td>alpha mask name</td></tr>
+<tr><td>raster_format</td><td>4</td><td>format flags</td><td>format flags</td><td>format flags</td></tr>
+<tr><td>d3d_format / FourCC</td><td>4</td><td>DXT FourCC</td><td>D3DFORMAT enum</td><td>Xbox-specific</td></tr>
+<tr><td>width / height</td><td>2+2</td><td>uint16 each</td><td>uint16 each</td><td>uint16 each</td></tr>
+<tr><td>depth</td><td>1</td><td>bits per pixel</td><td>bits per pixel</td><td>bits per pixel</td></tr>
+<tr><td>mipmap_count</td><td>1</td><td>uint8</td><td>uint8</td><td>uint8</td></tr>
+<tr><td>raster_type</td><td>1</td><td>uint8</td><td>uint8</td><td>uint8</td></tr>
+<tr><td>compression</td><td>1</td><td>0=none / 1/3/5=DXT</td><td>uint8</td><td>Xbox compression byte</td></tr>
+<tr><td>has_alpha</td><td>1</td><td>uint8</td><td>uint8</td><td>uint8</td></tr>
+<tr><td>data_size</td><td>4</td><td>DXT formats only (per mip)</td><td>every mip level</td><td>ONE total for all mips</td></tr></table>
+
+<h4>Pixel Format Detection Priority (IMG Factory)</h4>
+<ol>
+<li>PAL8 / PAL4 flags in raster_format</li>
+<li>Xbox (platform_id=5) — compression byte map (see Platforms tab)</li>
+<li>D3D FourCC: 0x31545844=DXT1 &nbsp; 0x33545844=DXT3 &nbsp; 0x35545844=DXT5</li>
+<li>GTA III/VC non-Xbox: platform_prop 1=DXT1, 3=DXT3, 5=DXT5</li>
+<li>SA D3D9 format map: 21=ARGB8888, 22=XRGB8888, 23=RGB565, 25=ARGB1555, 26=ARGB4444, 50=LUM8</li>
+<li>GTA III/VC raster map: 0x0100=ARGB1555, 0x0200=RGB565, 0x0300=ARGB4444, 0x0500=ARGB8888, 0x0600=RGB888</li>
+</ol>
+
 <h4>Xbox Compression Byte Map (platform_id = 5)</h4>
 <table><tr><th>Byte</th><th>Format</th><th>Notes</th></tr>
 <tr><td>0x00</td><td>Raw ARGB8888</td><td>Uncompressed 32-bit</td></tr>
-<tr><td>0x0B</td><td>LIN_DXT1</td><td>Linear DXT1 (no swizzle)</td></tr>
-<tr><td>0x0C</td><td>DXT1 (swizzled)</td><td>Morton-order tiled DXT1</td></tr>
-<tr><td>0x0E</td><td>DXT3 (swizzled)</td><td>Morton-order tiled DXT3</td></tr>
+<tr><td>0x0B</td><td>LIN_DXT1</td><td>Linear DXT1</td></tr>
+<tr><td>0x0C</td><td>DXT1 swizzled</td><td>Morton-order tiled</td></tr>
+<tr><td>0x0E</td><td>DXT3 swizzled</td><td>Morton-order tiled</td></tr>
 <tr><td>0x0F</td><td>LIN_DXT3</td><td>Linear DXT3 — e.g. fonts.txd</td></tr>
-<tr><td>0x10</td><td>DXT5 (swizzled)</td><td>Morton-order tiled DXT5</td></tr>
+<tr><td>0x10</td><td>DXT5 swizzled</td><td>Morton-order tiled</td></tr>
 <tr><td>0x11</td><td>LIN_DXT5</td><td>Linear DXT5</td></tr></table>
-<p class="note">All Xbox variants decode via PIL DDS header injection. No manual Morton unswizzle needed.</p>
-<h4>Xbox IMG Entry Name Corruption</h4>
-<p>Xbox V1 DIR entries use a fixed 24-byte name field. After the null terminator, the remaining bytes contain arbitrary garbage (e.g. <code>0x77 0x78</code> = 'wx' after ".txd"). IMG Factory uses a known-extension whitelist to truncate at the real extension boundary.</p>
-<p><b>Known GTA extensions:</b> dff, txd, col, ifp, ipl, dat, wav, ide, zon, ped, grp, cut, cnf, img, dir, scm, mp3, ogg, fxp, bmp, png, jpg, spl, rrr, rdb, rsc</p>
+<p class="note">All Xbox variants decoded via PIL DDS header injection — no manual Morton unswizzle required.</p>
+
 <h4>Platform IDs</h4>
-<table><tr><th>ID</th><th>Platform</th><th>Notes</th></tr>
-<tr><td>5</td><td>Xbox</td><td>GTA III / VC Xbox</td></tr>
-<tr><td>8</td><td>D3D8</td><td>GTA III / VC PC</td></tr>
-<tr><td>9</td><td>D3D9</td><td>GTA SA PC</td></tr>
-<tr><td>6</td><td>PlayStation 2</td><td>VRAM swizzle format</td></tr>
-<tr><td>3</td><td>GameCube</td><td>rarely seen in GTA files</td></tr></table>"""
+<table><tr><th>ID</th><th>Platform</th></tr>
+<tr><td>5</td><td>Xbox (GTA III / VC Xbox)</td></tr>
+<tr><td>8</td><td>D3D8 — GTA III / VC PC</td></tr>
+<tr><td>9</td><td>D3D9 — GTA SA PC</td></tr>
+<tr><td>6</td><td>PlayStation 2 (VRAM swizzle — not supported)</td></tr></table>
+"""
 
-        img_html = """
-<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.note{color:#aaa;font-style:italic;}</style>
-<h3>IMG Archive Formats</h3>
-<h4>Version 1 — GTA III / VC PC (.img + .dir)</h4>
-<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
-<tr><td>0</td><td>4</td><td>Sector offset (uint32 LE) × 2048 = byte offset</td></tr>
-<tr><td>4</td><td>4</td><td>Sector size (uint32 LE)</td></tr>
-<tr><td>8</td><td>24</td><td>Filename (null-padded, may have garbage after null on Xbox)</td></tr></table>
-<h4>Version 2 — GTA SA PC (self-contained .img)</h4>
-<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
-<tr><td>0</td><td>4</td><td>Magic: "VER2" (0x32524556)</td></tr>
-<tr><td>4</td><td>4</td><td>Entry count (uint32 LE)</td></tr>
-<tr><td>8+</td><td>32 × N</td><td>Entry records</td></tr></table>
-<h4>Version 1.5 (Extended V1)</h4>
-<p>Used for very large archives (&gt;2GB) or long filenames. Same record layout as V1 with extended addressing.</p>
-<h4>Sector Addressing</h4>
-<ul><li>Sector size: <b>2048 bytes</b> (0x800)</li>
-<li>Byte offset = sector_offset × 2048</li>
-<li>Entries padded to next sector boundary on rebuild</li></ul>
-<h4>Special Entries</h4>
-<table><tr><th>Condition</th><th>Display</th></tr>
-<tr><td>size == 0 (DFF or TXD)</td><td>RW Version = <b>Empty</b>, RW Address = <b>Empty</b></td></tr>
-<tr><td>Valid RW version found</td><td>Version string shown in RW Version column</td></tr>
-<tr><td>No valid RW version</td><td>Shown as <b>Unknown</b> or file type label</td></tr></table>"""
+        # ── COL Format ────────────────────────────────────────────────────────
+        col_html = css + """
+<h3>COL — Collision Format</h3>
 
-        status_html = """
-<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.ok{color:#6f6;font-weight:bold;}.no{color:#f66;}.wip{color:#fa0;}.note{color:#aaa;font-style:italic;}</style>
-<h3>IMG Factory 1.6 — GTA III PC Implementation Status</h3>
-<h4>Texture Format Support (TXD Workshop)</h4>
+<h4>File Structure — Multiple Models Concatenated</h4>
+<p>A .col file is a sequence of model blocks, each starting with an 8-byte header:</p>
+<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
+<tr><td>0</td><td>4</td><td>FourCC / version magic (see below)</td></tr>
+<tr><td>4</td><td>4</td><td>Model data size in bytes (uint32 LE) — NOT including this 8-byte header</td></tr>
+<tr><td>8</td><td>N</td><td>Model data (name, bounding box, counts, primitives)</td></tr></table>
+
+<h4>Version Magic Bytes</h4>
+<table><tr><th>Bytes</th><th>Version</th><th>Game</th></tr>
+<tr><td>COLL (0x434F4C4C)</td><td>COL1</td><td>GTA III</td></tr>
+<tr><td>COL\x02</td><td>COL2</td><td>GTA Vice City</td></tr>
+<tr><td>COL\x03</td><td>COL3</td><td>GTA San Andreas</td></tr>
+<tr><td>COL\x04</td><td>COL4</td><td>Extended (rare)</td></tr></table>
+
+<h4>Model Data Layout — COL1 (GTA III)</h4>
+<table><tr><th>Field</th><th>Size</th><th>Notes</th></tr>
+<tr><td>Model name</td><td>22 bytes</td><td>ASCII, null-padded</td></tr>
+<tr><td>Model ID</td><td>2</td><td>uint16 LE</td></tr>
+<tr><td>Bounding radius</td><td>4</td><td>float32</td></tr>
+<tr><td>Bounding center</td><td>12</td><td>3× float32 (x,y,z)</td></tr>
+<tr><td>Bounding min</td><td>12</td><td>3× float32</td></tr>
+<tr><td>Bounding max</td><td>12</td><td>3× float32</td></tr>
+<tr><td>num_spheres</td><td>4</td><td>uint32 LE</td></tr>
+<tr><td>num_boxes</td><td>4</td><td>uint32 LE</td></tr>
+<tr><td>num_vertices</td><td>4</td><td>uint32 LE</td></tr>
+<tr><td>num_faces</td><td>4</td><td>uint32 LE — may be garbage, recalculated from file size</td></tr>
+<tr><td>Sphere data</td><td>24 × N</td><td>center(12) + radius(4) + material(4) + flags(4)</td></tr>
+<tr><td>Box data</td><td>32 × N</td><td>min(12) + max(12) + material(4) + flags(4)</td></tr>
+<tr><td>Vertex data</td><td>12 × N</td><td>position (3× float32)</td></tr>
+<tr><td>Face data</td><td>14 × N</td><td>indices(6: 3×uint16) + mat_id(2) + light(2) + flags(4)</td></tr></table>
+
+<h4>Model Data Layout — COL2/COL3 (VC / SA)</h4>
+<table><tr><th>Field</th><th>Size</th><th>Difference from COL1</th></tr>
+<tr><td>Model name</td><td>22 bytes</td><td>Same</td></tr>
+<tr><td>Model ID</td><td>2</td><td>Same</td></tr>
+<tr><td>Bounding min/max/center/radius</td><td>40</td><td>Order: min(12), max(12), center(12), radius(4)</td></tr>
+<tr><td>Counts order</td><td>16</td><td><b>spheres, boxes, faces, vertices</b> (faces and vertices swapped vs COL1)</td></tr>
+<tr><td>Sphere data</td><td>20 × N</td><td>center(12) + radius(4) + material(4) — no flags field</td></tr>
+<tr><td>Box data</td><td>28 × N</td><td>min(12) + max(12) + material(4) — no flags field</td></tr>
+<tr><td>Face data</td><td>12 × N</td><td>indices(6) + mat_id(2) + light(2) + <b>padding(2)</b> instead of flags(4)</td></tr></table>
+
+<h4>Garbage Face Count Fix</h4>
+<p>COL1 files sometimes store a corrupt face count (e.g. 3,226,344,957 instead of 46). IMG Factory detects values exceeding 1,000,000 or 10× the calculated count and recalculates from remaining bytes:</p>
+<p class="note">calculated_faces = (remaining_bytes_after_vertices) ÷ face_size</p>
+"""
+
+        # ── Status ────────────────────────────────────────────────────────────
+        status_html = css + """
+<h3>IMG Factory 1.6 — Implementation Status</h3>
+
+<h4>IMG Archive</h4>
+<table><tr><th>Format</th><th>Read</th><th>Write</th></tr>
+<tr><td>Version 1 — GTA III / VC PC</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 1 — GTA III / VC Xbox</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 1.5 — Extended</td><td class="ok">✓</td><td class="wip">~</td></tr>
+<tr><td>Version 2 — GTA SA PC</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 3 — GTA IV encrypted</td><td class="wip">~</td><td class="no">✗</td></tr></table>
+
+<h4>TXD Texture Formats</h4>
 <table><tr><th>Format</th><th>Read</th><th>Write</th><th>Notes</th></tr>
-<tr><td>GTA III/VC  DXT1</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D8, FourCC 0x31545844</td></tr>
-<tr><td>GTA III/VC  DXT3</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D8, FourCC 0x33545844</td></tr>
-<tr><td>GTA III/VC  DXT5</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D8, FourCC 0x35545844</td></tr>
+<tr><td>GTA III/VC  DXT1/3/5</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D8 FourCC</td></tr>
 <tr><td>GTA III/VC  PAL8</td><td class="ok">✓</td><td class="ok">✓</td><td>256-colour palette</td></tr>
-<tr><td>GTA III/VC  ARGB1555</td><td class="ok">✓</td><td class="ok">✓</td><td>raster_format 0x0100</td></tr>
-<tr><td>GTA III/VC  RGB565</td><td class="ok">✓</td><td class="ok">✓</td><td>raster_format 0x0200</td></tr>
-<tr><td>GTA III/VC  ARGB4444</td><td class="ok">✓</td><td class="ok">✓</td><td>raster_format 0x0300</td></tr>
-<tr><td>GTA III/VC  ARGB8888</td><td class="ok">✓</td><td class="ok">✓</td><td>raster_format 0x0500</td></tr>
-<tr><td>GTA III/VC  RGB888</td><td class="ok">✓</td><td class="ok">✓</td><td>raster_format 0x0600, depth forced 32</td></tr>
-<tr><td>GTA SA      DXT1/3/5</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D9, per-mip data_size</td></tr>
-<tr><td>GTA SA      ARGB8888</td><td class="ok">✓</td><td class="ok">✓</td><td>d3d_fmt 21</td></tr>
-<tr><td>GTA SA      XRGB8888</td><td class="ok">✓</td><td class="ok">✓</td><td>d3d_fmt 22, force_opaque</td></tr>
-<tr><td>Xbox        LIN_DXT1/3/5</td><td class="ok">✓</td><td class="wip">~</td><td>compression bytes 0x0B/0x0F/0x11</td></tr>
-<tr><td>Xbox        DXT1/3/5 swizzled</td><td class="ok">✓</td><td class="wip">~</td><td>compression bytes 0x0C/0x0E/0x10</td></tr>
+<tr><td>GTA III/VC  ARGB1555 / RGB565 / ARGB4444</td><td class="ok">✓</td><td class="ok">✓</td><td>16-bit formats</td></tr>
+<tr><td>GTA III/VC  ARGB8888 / RGB888</td><td class="ok">✓</td><td class="ok">✓</td><td>32-bit uncompressed</td></tr>
+<tr><td>GTA SA      DXT1/3/5</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D9 per-mip data_size</td></tr>
+<tr><td>GTA SA      ARGB8888 / XRGB8888</td><td class="ok">✓</td><td class="ok">✓</td><td>d3d_fmt 21/22</td></tr>
+<tr><td>Xbox        LIN_DXT1/3/5 + swizzled variants</td><td class="ok">✓</td><td class="wip">~</td><td>compression bytes 0x0B–0x11</td></tr>
 <tr><td>Xbox        Raw ARGB8888</td><td class="ok">✓</td><td class="wip">~</td><td>compression byte 0x00</td></tr>
 <tr><td>PS2         VRAM swizzle</td><td class="no">✗</td><td class="no">✗</td><td>Not targeted</td></tr></table>
-<h4>RW Version Detection (IMG Browser)</h4>
-<table><tr><th>Version / Range</th><th>Status</th><th>Notes</th></tr>
-<tr><td>0x300–0x3FF (plain integer)</td><td class="ok">✓</td><td>GTA III PC pre-packed era</td></tr>
-<tr><td>0x0401FFFF (early GTA3 TXD)</td><td class="ok">✓</td><td>Pre-retail packed form</td></tr>
-<tr><td>0x0800FFFF–0x1C03FFFF (packed)</td><td class="ok">✓</td><td>All standard packed variants</td></tr>
-<tr><td>0x30000–0x3FFFF (compact)</td><td class="ok">✓</td><td>SDK compact format</td></tr>
-<tr><td>0x1C020037 (SA Mobile)</td><td class="ok">✓</td><td>Special case</td></tr>
-<tr><td>Xbox offset scan</td><td class="ok">✓</td><td>Scans offsets 0/4/8 for Xbox-prefixed headers</td></tr>
-<tr><td>0-byte entry guard</td><td class="ok">✓</td><td>Shows "Empty" instead of reading</td></tr></table>
-<h4>IMG Archive Formats</h4>
-<table><tr><th>Format</th><th>Read</th><th>Write</th></tr>
-<tr><td>Version 1 (GTA III/VC PC)</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 1 (GTA III/VC Xbox)</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 1.5 (extended)</td><td class="ok">✓</td><td class="wip">~</td></tr>
-<tr><td>Version 2 (GTA SA)</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 3 (GTA IV encrypted)</td><td class="wip">~</td><td class="no">✗</td></tr></table>
-<p class="note">~ = partial / read-only / in progress</p>"""
 
-        tabs.addTab(make_text(ver_html),    "RW Versions")
-        tabs.addTab(make_text(sect_html),   "Section Types")
-        tabs.addTab(make_text(txd_html),    "TXD Format")
-        tabs.addTab(make_text(plat_html),   "Platforms / Xbox")
+<h4>RW Version Detection</h4>
+<table><tr><th>Range</th><th>Status</th><th>Notes</th></tr>
+<tr><td>0x300–0x3FF  plain integer</td><td class="ok">✓</td><td>GTA III PC pre-packed (0x304=GTAElift, 0x310=retail)</td></tr>
+<tr><td>0x0401FFFF  early packed</td><td class="ok">✓</td><td>GTA III pre-retail TXD</td></tr>
+<tr><td>0x0800FFFF–0x1C03FFFF  packed</td><td class="ok">✓</td><td>All standard packed variants incl. Xbox 0x1400FFFF</td></tr>
+<tr><td>0x30000–0x3FFFF  compact</td><td class="ok">✓</td><td>SDK compact format</td></tr>
+<tr><td>0x1C020037  SA Mobile</td><td class="ok">✓</td><td>Special case</td></tr>
+<tr><td>Xbox header offset scan</td><td class="ok">✓</td><td>Scans offsets 0/4/8 for Xbox-prefixed layouts</td></tr>
+<tr><td>0-byte entry guard</td><td class="ok">✓</td><td>Shows "Empty" instead of attempting read</td></tr></table>
+
+<h4>COL Collision</h4>
+<table><tr><th>Version</th><th>Read</th><th>Write</th><th>Notes</th></tr>
+<tr><td>COL1 — GTA III</td><td class="ok">✓</td><td class="ok">✓</td><td>Garbage face count auto-corrected</td></tr>
+<tr><td>COL2 — GTA VC</td><td class="ok">✓</td><td class="ok">✓</td><td></td></tr>
+<tr><td>COL3 — GTA SA</td><td class="ok">✓</td><td class="ok">✓</td><td></td></tr>
+<tr><td>COL4 — Extended</td><td class="wip">~</td><td class="wip">~</td><td>Rare — partial support</td></tr></table>
+<p class="note">~ = partial / read-only / in progress</p>
+"""
+
         tabs.addTab(make_text(img_html),    "IMG Archive")
+        tabs.addTab(make_text(ver_html),    "RW Versions & Sections")
+        tabs.addTab(make_text(txd_html),    "TXD Format")
+        tabs.addTab(make_text(col_html),    "COL Format")
         tabs.addTab(make_text(status_html), "Status")
 
         close_btn = QPushButton("Close")
@@ -1112,6 +1167,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         layout.addLayout(btn_row)
 
         dialog.exec()
+
 
     def _show_imgfactory_info(self): #vers 1
         """Show IMG Factory application information dialog"""
