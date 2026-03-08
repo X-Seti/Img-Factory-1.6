@@ -9966,15 +9966,16 @@ class TXDWorkshop(QWidget): #vers 3
             elif is_xbox and platform_prop == 0x00:
                 # Raw ARGB8888 - use raster_format pixel bits
                 tex['format'] = {0x0500:'ARGB8888',0x0600:'RGB888'}.get(pixel_fmt, 'ARGB8888')
-            elif is_xbox and platform_prop == 0x0C:
+            elif is_xbox and platform_prop in (0x0B, 0x0C):
+                # 0x0B = LIN_DXT1 (linear/standard), 0x0C = DXT1 (swizzled)
+                # Both decode identically via PIL DDS
                 tex['format'] = 'DXT1'
-            elif is_xbox and platform_prop == 0x0E:
+            elif is_xbox and platform_prop in (0x0E, 0x0F):
+                # 0x0E = DXT3 (swizzled), 0x0F = LIN_DXT3 (linear/standard)
                 tex['format'] = 'DXT3'
                 tex['has_alpha'] = True
-            elif is_xbox and platform_prop == 0x0F:
-                tex['format'] = 'DXT3'
-                tex['has_alpha'] = True
-            elif is_xbox and platform_prop == 0x10:
+            elif is_xbox and platform_prop in (0x10, 0x11):
+                # 0x10 = DXT5 (swizzled), 0x11 = LIN_DXT5 (linear/standard)
                 tex['format'] = 'DXT5'
                 tex['has_alpha'] = True
             elif d3d_format == 0x31545844:
