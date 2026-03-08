@@ -468,14 +468,17 @@ class TXDSerializer: #vers 1
             compression = struct.unpack('<B', txd_data[pos:pos+1])[0]
             pos += 1
 
-            # Data size field (4 bytes) - present ONLY for DXT formats
-            # Raw/PAL/16-bit textures have no size field; data follows immediately
+            # Data size field (4 bytes):
+            # SA (D3D9, RW >= 0x1803FFFF): present for ALL formats
+            # GTA3/VC (D3D8): present ONLY for DXT; raw/PAL data follows header directly
             is_dxt = 'DXT' in tex['format']
-            if is_dxt:
+            is_sa_plus = (rw_version >= 0x1803FFFF)
+            has_data_size_field = is_dxt or is_sa_plus
+            if has_data_size_field:
                 data_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
                 pos += 4
             else:
-                # Calculate expected size for raw formats
+                # Calculate expected size for GTA3/VC raw formats
                 if tex['format'] == 'PAL8':
                     data_size = 1024 + width * height
                 elif tex['format'] == 'PAL4':

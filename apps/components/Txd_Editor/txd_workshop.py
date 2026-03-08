@@ -9997,10 +9997,11 @@ class TXDWorkshop(QWidget): #vers 3
                     tex['has_alpha'] = True
 
             # Read mipmap data
-            # DXT formats have a 4-byte data_size field before each mipmap level
-            # Raw/PAL/16-bit formats do NOT - data follows header directly
+            # SA (D3D9, RW >= 0x1803FFFF): ALL formats have a 4-byte data_size field per mipmap
+            # GTA3/VC (D3D8): ONLY DXT formats have data_size; raw/PAL data follows header directly
             fmt = tex['format']
             is_dxt = 'DXT' in fmt
+            has_data_size_field = is_dxt or is_sa_plus
             w, h = width, height
             for level in range(num_levels):
                 # Calculate expected size for this mipmap level
@@ -10023,8 +10024,8 @@ class TXDWorkshop(QWidget): #vers 3
                 else:
                     expected = w * h * 2
 
-                # DXT only: read declared data_size, use it if sane
-                if is_dxt:
+                # Read declared data_size if present, use it if sane
+                if has_data_size_field:
                     if pos + 4 > len(txd_data):
                         break
                     declared = struct.unpack('<I', txd_data[pos:pos+4])[0]
