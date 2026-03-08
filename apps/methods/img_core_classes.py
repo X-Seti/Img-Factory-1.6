@@ -217,6 +217,35 @@ class ValidationResult:
     def add_warning(self, message: str): #vers 1
         self.warnings.append(message)
 
+_KNOWN_GTA_EXTENSIONS = {
+    'dff', 'txd', 'col', 'ifp', 'ipl', 'dat', 'wav', 'ide', 'zon',
+    'ped', 'grp', 'cut', 'cnf', 'img', 'dir', 'scm', 'mp3', 'ogg',
+    'fxp', 'bmp', 'png', 'jpg', 'spl', 'rrr', 'rdb', 'rsc',
+}
+
+def _parse_entry_name(raw_name_bytes: bytes) -> str:
+    """Parse a 24-byte IMG directory name field robustly.
+
+    Some third-party tools write garbage bytes after the extension (non-null),
+    or embed partial Windows paths in the remaining bytes.  Standard null-split
+    handles most cases, but when non-null garbage follows the extension we use a
+    known-extension whitelist to truncate at the correct boundary.
+    """
+    # Stop at first null byte
+    s = raw_name_bytes.split(b'\x00')[0].decode('ascii', errors='replace')
+    # Find the last dot and check whether the chars that follow are a known extension
+    dot_pos = s.rfind('.')
+    if dot_pos > 0:
+        after_dot = s[dot_pos + 1:dot_pos + 5].lower()
+        for ext in sorted(_KNOWN_GTA_EXTENSIONS, key=len, reverse=True):
+            if after_dot.startswith(ext):
+                return s[:dot_pos + 1 + len(ext)]
+    # No known extension: keep only filename-safe characters
+    import re as _re
+    m = _re.match(r'^[A-Za-z0-9_\-@+.]+', s)
+    return m.group(0) if m else s
+
+
 def _is_valid_rw_version(v: int) -> bool:
     """Check if value is a plausible RW version number."""
     # Packed format: 0x0800FFFF (GTA3) .. 0x1C03FFFF (SA Mobile)
@@ -274,13 +303,14 @@ class IMGEntry:
         """Set reference to parent IMG file"""
         self._img_file = img_file
 
-    def detect_file_type_and_version(self): #vers 3
+    def detect_file_type_and_version(self): #vers 4
         """Detect file type and RW version. Robust against garbage bytes after the null
-        terminator in DIR entry name fields (real-world GTA .dir files can have this)."""
+        terminator or after the extension in DIR entry name fields."""
         try:
-            # Sanitize name: stop at first embedded null, keep printable ASCII only
-            if '\x00' in self.name:
-                self.name = self.name.split('\x00')[0]
+            # Re-sanitize name using the same robust helper used during directory parsing.
+            # This catches cases where the name was stored as a raw string with embedded
+            # garbage bytes that got past the initial decode (e.g. non-null junk after ext).
+            self.name = _parse_entry_name(self.name.encode('ascii', errors='replace'))
 
             if '.' in self.name:
                 self.extension = self.name.split('.')[-1].upper()
@@ -1255,7 +1285,7 @@ class IMGFile:
                         break
 
                     entry_offset, entry_size = struct.unpack('<II', entry_data[:8])
-                    entry_name = entry_data[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
+                    entry_name = _parse_entry_name(entry_data[8:32])
 
                     if entry_name:
                         entry = IMGEntry()
@@ -1291,7 +1321,7 @@ class IMGFile:
 
                 # Parse entry: offset(4), size(4), name(24)
                 entry_offset, entry_size = struct.unpack('<II', entry_data[:8])
-                entry_name = entry_data[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
+                entry_name = _parse_entry_name(entry_data[8:32])
 
                 if entry_name:
                     entry = IMGEntry()
@@ -1436,7 +1466,7 @@ class IMGFile:
                 if len(first) < 32:
                     return False
                 first_offset, first_size = struct.unpack('<II', first[:8])
-                first_name = first[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
+                first_name = _parse_entry_name(first[8:32])
                 if not first_name:
                     return False
                 # Directory occupies sectors 0..(first_offset-1)
@@ -1451,7 +1481,7 @@ class IMGFile:
                 if len(entry_data) < 32:
                     break
                 entry_offset, entry_size = struct.unpack('<II', entry_data[:8])
-                entry_name = entry_data[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
+                entry_name = _parse_entry_name(entry_data[8:32])
                 if not entry_name:
                     continue
                 entry = IMGEntry()
