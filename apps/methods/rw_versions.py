@@ -123,6 +123,7 @@ class MDLVersion(Enum):
 def get_rw_version_name(version_value: int) -> str:  # vers 11
     rw_versions = {
         # ---- Canonical SDK versions ----
+        0x00000310: "3.1.0 (GTA3 PC)",
         0x20001: "2.0.0.1 (GTA3) Radar Tex",
         0x30000: "3.0.0.0",
         0x31000: "3.1.0.0",
@@ -138,10 +139,10 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
         0x37002: "3.7.0.2",
 
         # ---- Extended / platform-packed forms ----
-        0x0401FFFF: "2.0.0.1", #Early GTA3 Tex/Txd
+        0x0401FFFF: "2.0.0.1 (GTA3 early TXD)",
+        0x0401FFFE: "2.0.0.0 (GTA3 early)",
         0x0800FFFF: "3.0.0.0", #GTA3 (PS2)
         0x0C00FFFF: "3.1.0.0", #GTA3/VC (PC)
-        0x00000310: "3.1.0.0", #GTA3/VC (PC) Tex
         0x0C01FFFF: "3.1.0.1", #GTA VC (PC)
         0x0C02FFFF: "3.1.0.2", #GTA III PC / GTA VC (PS2)
         0x1000FFFF: "3.2.0.0", #GTA3 (PC)
@@ -161,16 +162,19 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
 
     return rw_versions.get(version_value, f"Unknown (0x{version_value:X})")
 
-def is_valid_rw_version(version_value: int) -> bool: #vers 3
+def is_valid_rw_version(version_value: int) -> bool: #vers 4
     """Check if value is a plausible RenderWare version number."""
     if not version_value:
         return False
-    # Old compact format: 3.0.0 .. 3.7.x  (0x30000 - 0x3FFFF)
+    # Plain early format: 0x310 = RW 3.1.0 (GTA3 PC, pre-packed encoding)
+    if version_value == 0x00000310:
+        return True
+    # Old compact format: 3.0.0 .. 3.7.x (0x30000 - 0x3FFFF)
     if 0x30000 <= version_value <= 0x3FFFF:
         return True
-    # Packed format: high word = 0x0800..0x1C03, low word = 0xFFFF (or 0x0037 for SA Mobile)
-    # Range covers GTA3 Xbox (0x0800FFFF) through SA Mobile (0x1C020037)
-    if 0x0800FFFF <= version_value <= 0x1C03FFFF:
+    # Packed format: low word == 0xFFFF, high word 0x0400..0x1C03
+    # Covers 0x0401FFFF (early GTA3 TXD) through 0x1C03FFFF
+    if (version_value & 0xFFFF) == 0xFFFF and 0x0400 <= (version_value >> 16) <= 0x1C03:
         return True
     # SA Mobile special case
     if version_value == 0x1C020037:

@@ -247,12 +247,16 @@ def _parse_entry_name(raw_name_bytes: bytes) -> str:
 
 
 def _is_valid_rw_version(v: int) -> bool:
-    """Check if value is a plausible RW version number."""
-    # Packed format: 0x0800FFFF (GTA3) .. 0x1C03FFFF (SA Mobile)
-    if 0x0800FFFF <= v <= 0x1C03FFFF:
+    """Check if value is a plausible RW version number (mirrors rw_versions.is_valid_rw_version)."""
+    if not v:
+        return False
+    if v == 0x00000310:       # GTA3 PC plain encoding
         return True
-    # Old compact format: 0x30000 (3.0.0) .. 0x3FFFF
-    if 0x30000 <= v <= 0x3FFFF:
+    if 0x30000 <= v <= 0x3FFFF:  # old compact 3.0..3.7
+        return True
+    if (v & 0xFFFF) == 0xFFFF and 0x0400 <= (v >> 16) <= 0x1C03:  # packed, incl early 0x0401FFFF
+        return True
+    if v == 0x1C020037:       # SA Mobile
         return True
     return False
 
