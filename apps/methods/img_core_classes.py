@@ -217,6 +217,33 @@ class ValidationResult:
     def add_warning(self, message: str): #vers 1
         self.warnings.append(message)
 
+def _is_valid_rw_version(v: int) -> bool:
+    """Check if value is a plausible RW version number."""
+    # Packed format: 0x0800FFFF (GTA3) .. 0x1C03FFFF (SA Mobile)
+    if 0x0800FFFF <= v <= 0x1C03FFFF:
+        return True
+    # Old compact format: 0x30000 (3.0.0) .. 0x3FFFF
+    if 0x30000 <= v <= 0x3FFFF:
+        return True
+    return False
+
+def _scan_rw_version(data: bytes):
+    """Scan first 64 bytes of a file for a valid RW version.
+
+    RW chunk layout: type(4) + size(4) + version(4).
+    Handles plain RW files and Xbox variants with a 4/8-byte prefix.
+    Returns (version_int, byte_offset) or (None, -1).
+    """
+    # Check standard offset first (bytes 8-11), then prefixed variants
+    for base_offset in (0, 4, 8):
+        off = base_offset + 8
+        if len(data) >= off + 4:
+            v = struct.unpack_from('<I', data, off)[0]
+            if _is_valid_rw_version(v):
+                return v, off
+    return None, -1
+
+
 class IMGEntry:
     """Represents a single file entry within an IMG archive - FIXED WITH RW VERSION DETECTION"""
     
@@ -315,78 +342,49 @@ class IMGEntry:
         except Exception as e:
             img_debugger.error(f"Error detecting file type for {self.name}: {e}")
 
-    def _detect_rw_version(self): #vers 1
-        """ADDED: Detect RenderWare version from file header"""
+    def _detect_rw_version(self): #vers 2
+        """Detect RenderWare version from file header - scans for valid version across known offsets"""
         try:
             if not self._img_file or not self._img_file.file_path:
                 return
 
-            # Read file header (first 12 bytes contain RW version info)
-            file_data = self._read_header_data(12)
+            # Read enough bytes to cover standard + prefixed layouts
+            file_data = self._read_header_data(64)
             if not file_data or len(file_data) < 12:
                 return
 
-            # Use existing parse_rw_version function
-            version_value, version_name = parse_rw_version(file_data[8:12])
-            
-            if version_value > 0:
+            version_value, found_offset = _scan_rw_version(file_data)
+            if version_value:
+                version_name = get_rw_version_name(version_value)
                 self.rw_version = version_value
                 self.rw_version_name = version_name
                 self._version_detected = True
                 img_debugger.success(f"Detected RW version {version_name} (0x{version_value:X}) for {self.name}")
-            else:
-                # Fallback: try reading from different offset
-                if len(file_data) >= 8:
-                    try:
-                        alt_version = struct.unpack('<I', file_data[4:8])[0]
-                        if 0x30000 <= alt_version <= 0x40000:  # Valid RW version range
-                            self.rw_version = alt_version
-                            self.rw_version_name = get_rw_version_name(alt_version)
-                            self._version_detected = True
-                            img_debugger.success(f"Detected RW version {self.rw_version_name} (alt method) for {self.name}")
-                    except:
-                        pass
 
         except Exception as e:
             img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
 
-    def detect_rw_version(self, data: bytes = None) -> bool: #vers 1
-        """ADDED: Detect RenderWare version from provided data"""
+    def detect_rw_version(self, data: bytes = None) -> bool: #vers 2
+        """Detect RenderWare version from provided data - validates version range"""
         try:
-            # If no data provided, try to get it from the IMG file
             if data is None:
                 if self._img_file:
                     data = self.get_data()
                 else:
                     return False
-            
+
             if not data or len(data) < 12:
                 return False
 
-            # Use existing parse_rw_version function on the data
-            version_value, version_name = parse_rw_version(data[8:12])
-            
-            if version_value > 0:
+            version_value, _ = _scan_rw_version(data[:64])
+            if version_value:
+                version_name = get_rw_version_name(version_value)
                 self.rw_version = version_value
                 self.rw_version_name = version_name
                 self._version_detected = True
                 if hasattr(img_debugger, 'success'):
                     img_debugger.success(f"Detected RW version {version_name} (0x{version_value:X}) for {self.name}")
                 return True
-            else:
-                # Fallback: try reading from different offset
-                if len(data) >= 8:
-                    try:
-                        alt_version = struct.unpack('<I', data[4:8])[0]
-                        if 0x30000 <= alt_version <= 0x40000:  # Valid RW version range
-                            self.rw_version = alt_version
-                            self.rw_version_name = get_rw_version_name(alt_version)
-                            self._version_detected = True
-                            if hasattr(img_debugger, 'success'):
-                                img_debugger.success(f"Detected RW version {self.rw_version_name} (alt method) for {self.name}")
-                            return True
-                    except:
-                        pass
 
             return False
 

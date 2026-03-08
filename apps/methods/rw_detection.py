@@ -25,35 +25,30 @@ from apps.methods.rw_versions import (
 # get_file_type_from_name
 # integrate_rw_detection_working
 
-def detect_rw_version_from_data(data: bytes, filename: str = "") -> Tuple[Optional[int], str, Tuple[str, str]]: #vers 1
-    """Detect RW version from raw data using comprehensive RW version database"""
+def detect_rw_version_from_data(data: bytes, filename: str = "") -> Tuple[Optional[int], str, Tuple[str, str]]: #vers 2
+    """Detect RW version from raw data - validates version is in known range"""
     if len(data) < 4:
         return None, "Unknown", (get_file_type_from_name(filename), "Unknown")
-    
-    # Get file extension for type detection
+
     file_type = get_file_type_from_name(filename)
-    
-    # COL files have different detection
+
     if file_type == "COL":
         return detect_col_version(data)
-    
-    # RenderWare files (DFF/TXD) - use comprehensive version data
+
     if file_type in ['DFF', 'TXD'] and len(data) >= 12:
-        # RW version is at bytes 8-12
-        version_bytes = data[8:12]
-        
-        # Use comprehensive parsing from apps.methods.rw_versions.py
-        version_value, version_name = parse_rw_version(version_bytes)
-        
-        if is_valid_rw_version(version_value):
-            # Get detailed model format info for DFF files
-            if file_type == 'DFF':
-                format_type, format_version = get_model_format_version(filename, data)
-                return version_value, version_name, (format_type, format_version)
-            else:
-                return version_value, version_name, (file_type, version_name)
-    
-    # Non-RenderWare files
+        # Scan for valid RW version at standard offset and Xbox-prefixed offsets
+        for base_offset in (0, 4, 8):
+            off = base_offset + 8
+            if len(data) >= off + 4:
+                version_bytes = data[off:off+4]
+                version_value, version_name = parse_rw_version(version_bytes)
+                if is_valid_rw_version(version_value):
+                    if file_type == 'DFF':
+                        format_type, format_version = get_model_format_version(filename, data)
+                        return version_value, version_name, (format_type, format_version)
+                    else:
+                        return version_value, version_name, (file_type, version_name)
+
     return None, "N/A", (file_type, "Non-RW")
 
 def detect_col_version(data: bytes) -> Tuple[Optional[int], str, Tuple[str, str]]: #vers 1

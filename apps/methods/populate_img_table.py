@@ -226,35 +226,29 @@ class IMGTablePopulator:
         except Exception:
             return "N/A"
 
-    def get_rw_version_light(self, entry: Any) -> str: #vers 3
-        """Get RW version - IMPROVED processing with better detection"""
+    def get_rw_version_light(self, entry: Any) -> str: #vers 4
+        """Get RW version - validates version is in known RW range before accepting"""
         try:
-            # First, try to get existing RW version info
-            if hasattr(entry, 'rw_version_name') and entry.rw_version_name:
-                if entry.rw_version_name not in ["Unknown", "", "N/A", "Error"]:
+            from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version, parse_rw_version
+            # Use validated cached rw_version (only trust it if it's a known-valid version)
+            if hasattr(entry, 'rw_version') and entry.rw_version and is_valid_rw_version(entry.rw_version):
+                if hasattr(entry, 'rw_version_name') and entry.rw_version_name not in ["Unknown", "", "N/A", "Error"]:
                     return entry.rw_version_name
-            # Check for numeric RW version
-            if hasattr(entry, 'rw_version') and entry.rw_version and entry.rw_version != 0:
-                from apps.methods.rw_versions import get_rw_version_name
-                version_name = get_rw_version_name(entry.rw_version)
-                if version_name and version_name not in ["Unknown", "", "N/A", "Error"]:
-                    return version_name
-            # If no existing info, try to detect from entry type
+                return get_rw_version_name(entry.rw_version)
+            # Try to detect from cached data with multi-offset scan
             entry_type = self.get_img_entry_type_simple(entry)
             if entry_type in ['DFF', 'TXD']:
-                # For DFF/TXD files, try to detect RW version from data if possible
                 if hasattr(entry, '_cached_data') and entry._cached_data:
-                    from apps.methods.rw_versions import parse_rw_version
-                    if len(entry._cached_data) >= 12:
-                        version_info = parse_rw_version(entry._cached_data[8:12])
-                        if version_info and 'version' in version_info:
-                            version_val = version_info['version']
-                            version_name = get_rw_version_name(version_val)
-                            if version_name and version_name not in ["Unknown", "", "N/A", "Error"]:
-                                # Cache the detected version
-                                entry.rw_version = version_val
-                                entry.rw_version_name = version_name
-                                return version_name
+                    data = entry._cached_data
+                    for base in (0, 4, 8):
+                        off = base + 8
+                        if len(data) >= off + 4:
+                            v, _ = parse_rw_version(data[off:off+4])
+                            if is_valid_rw_version(v):
+                                name = get_rw_version_name(v)
+                                entry.rw_version = v
+                                entry.rw_version_name = name
+                                return name
                 return "RW File"
             elif entry_type == 'COL':
                 return "COL File"

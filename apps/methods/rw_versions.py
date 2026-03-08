@@ -150,6 +150,7 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
         0x1402FFFF: "3.3.0.2", #GTA3/VC (PS2)
         0x1401FFFF: "3.4.0.1", #Manhunt / SOL
         0x1403FFFF: "3.4.0.3", #GTA VC (late)
+        0x1400FFFF: "3.4.0.0", #GTA III/VC (Xbox)
         0x1800FFFF: "3.5.0.0", #Internal Dev (SA Alpha)
         0x1801FFFF: "3.5.0.1", #Internal Dev (LCS)
         0x1802FFFF: "3.5.0.2", #Internal Dev (VCS)
@@ -160,11 +161,21 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
 
     return rw_versions.get(version_value, f"Unknown (0x{version_value:X})")
 
-def is_valid_rw_version(version_value: int) -> bool: #vers 2
+def is_valid_rw_version(version_value: int) -> bool: #vers 3
+    """Check if value is a plausible RenderWare version number."""
+    if not version_value:
+        return False
+    # Old compact format: 3.0.0 .. 3.7.x  (0x30000 - 0x3FFFF)
     if 0x30000 <= version_value <= 0x3FFFF:
         return True
-    extended_versions = {0x0800FFFF, 0x0C00FFFF, 0x0C01FFFF, 0x0C02FFFF, 0x1000FFFF, 0x1003FFFF, 0x1005FFFF, 0x1402FFFF, 0x1401FFFF, 0x1403FFFF, 0x1800FFFF, 0x1801FFFF, 0x1802FFFF, 0x1803FFFF, 0x1C020037}
-    return version_value in extended_versions
+    # Packed format: high word = 0x0800..0x1C03, low word = 0xFFFF (or 0x0037 for SA Mobile)
+    # Range covers GTA3 Xbox (0x0800FFFF) through SA Mobile (0x1C020037)
+    if 0x0800FFFF <= version_value <= 0x1C03FFFF:
+        return True
+    # SA Mobile special case
+    if version_value == 0x1C020037:
+        return True
+    return False
 
 def get_default_version_for_game(game: str) -> int: #vers 2
     game_versions = {
