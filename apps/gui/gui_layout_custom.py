@@ -313,6 +313,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.rw_ref_btn.setToolTip("RenderWare Format Reference (versions, sections, texture formats, platforms)")
         layout.addWidget(self.rw_ref_btn)
 
+        layout.addStretch()
+
         # App title in center
         self.title_label = QLabel(App_name)
         self.title_label.setFont(self.title_font)
