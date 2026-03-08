@@ -913,8 +913,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 <h4>Version 1.5 — Extended V1 (large archives)</h4>
 <p>Same record layout as V1 but detected by IMG file >2GB or name field with no null terminator. Extended addressing for up to 4GB and long filenames.</p>
 
-<h4>Version 2 — GTA SA PC (self-contained .img)</h4>
-<p>No separate .dir — the directory is embedded in the .img file itself.</p>
+<h4>Version 2 — GTA SA PC + iOS/Android ports (self-contained .img)</h4>
+<p>No separate .dir — the directory is embedded in the .img file itself. Used by GTA SA PC and all War Drum Studios iOS/Android ports.</p>
 <table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
 <tr><td>0</td><td>4</td><td>Magic: "VER2" = 0x32524556 (LE)</td></tr>
 <tr><td>4</td><td>4</td><td>Entry count (uint32 LE)</td></tr>
@@ -925,10 +925,19 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
 <h4>Sector Addressing</h4>
 <table><tr><th>Rule</th><th>Value</th></tr>
-<tr><td>Sector size</td><td>2048 bytes (0x800)</td></tr>
-<tr><td>Byte offset</td><td>sector_offset × 2048</td></tr>
-<tr><td>Byte size</td><td>sector_size × 2048</td></tr>
+<tr><td>Sector size</td><td>2048 bytes (0x800) — all PC, iOS, Android builds</td></tr>
+<tr><td>PS2 / PSP sector size</td><td>512 bytes (0x200)</td></tr>
+<tr><td>Byte offset</td><td>sector_offset × sector_size</td></tr>
 <tr><td>Alignment on rebuild</td><td>Entries padded to next sector boundary</td></tr></table>
+
+<h4>iOS / Android Releases (War Drum Studios ports)</h4>
+<table><tr><th>Game</th><th>iOS</th><th>Android</th><th>IMG Format</th><th>IMG Factory</th></tr>
+<tr><td>GTA III</td><td class="ok">Dec 2011</td><td class="ok">Dec 2011</td><td>VER2, 2048-byte sectors</td><td class="ok">Loads OK</td></tr>
+<tr><td>GTA Vice City</td><td class="ok">Dec 2012</td><td class="ok">Dec 2012</td><td>VER2, 2048-byte sectors</td><td class="ok">Loads OK</td></tr>
+<tr><td>GTA San Andreas</td><td class="ok">Dec 2013</td><td class="ok">Dec 2013</td><td>VER2, 2048-byte sectors</td><td class="ok">Loads OK</td></tr>
+<tr><td>GTA Liberty City Stories</td><td class="ok">Jun 2015</td><td class="ok">Jun 2015</td><td>VER2 — internal format under investigation</td><td class="wip">Fails — investigating</td></tr>
+<tr><td>GTA Vice City Stories</td><td class="no">Never released</td><td class="no">Never released</td><td>PSP/PS2 only</td><td class="no">N/A</td></tr></table>
+<p class="note">GTA VC iOS confirmed loads OK (VER2 + D3D8 TXD, same as PC). LCS iOS failure likely relates to PSP-derived MDL asset format (RW 0x35001) or non-standard sector layout inherited from PSP version — needs a file sample to confirm.</p>
 
 <h4>Xbox V1 Name Corruption</h4>
 <p>Xbox DIR entries use a 24-byte name field. After the null terminator, remaining bytes contain arbitrary non-null garbage (e.g. 0x77 0x78 = 'wx' appended to ".txd"). IMG Factory uses a known-extension whitelist to truncate at the real extension boundary.</p>
@@ -1119,7 +1128,12 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 <tr><td>Version 1 — GTA III / VC Xbox</td><td class="ok">✓</td><td class="ok">✓</td></tr>
 <tr><td>Version 1.5 — Extended</td><td class="ok">✓</td><td class="wip">~</td></tr>
 <tr><td>Version 2 — GTA SA PC</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 2 — GTA III iOS / Android</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 2 — GTA VC iOS / Android</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 2 — GTA SA iOS / Android</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 2 — GTA LCS iOS / Android</td><td class="wip">~</td><td class="no">✗</td></tr>
 <tr><td>Version 3 — GTA IV encrypted</td><td class="wip">~</td><td class="no">✗</td></tr></table>
+<p class="note">GTA VCS was never released on iOS or Android (PSP/PS2 only).</p>
 
 <h4>TXD Texture Formats</h4>
 <table><tr><th>Format</th><th>Read</th><th>Write</th><th>Notes</th></tr>
