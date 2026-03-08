@@ -7089,9 +7089,8 @@ class TXDWorkshop(QWidget): #vers 3
             log(f"Validation: {texture_count} textures declared")
 
             if texture_count <= 0:
-                log("  Warning: TXD contains 0 textures (empty/placeholder file)")
-                update_progress(100)
-                return []  # return empty list, not an error
+                log("  Warning: TXD contains 0 textures (stub/placeholder file)")
+                raise Exception("__STUB_TXD__")
 
             if texture_count > 500:
                 raise Exception(f"Invalid texture count: {texture_count} (maximum 500)")
@@ -7359,6 +7358,11 @@ class TXDWorkshop(QWidget): #vers 3
         except Exception as e:
             if 'dialog' in locals():
                 dialog.close()
+
+            if str(e) == "__STUB_TXD__":
+                QMessageBox.warning(self, "Stub TXD",
+                    "This is a stub/placeholder .txd with no textures.\n\nPlease pick another file.")
+                return
 
             if "cancelled" not in str(e).lower():
                 QMessageBox.critical(self, "Load Error", f"Failed to load TXD:\n\n{str(e)}")
