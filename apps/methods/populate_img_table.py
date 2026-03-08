@@ -212,13 +212,15 @@ class IMGTablePopulator:
         except Exception:
             return "0 B"
 
-    def get_rw_address_light(self, entry: Any) -> str: #vers 2
+    def get_rw_address_light(self, entry: Any) -> str: #vers 3
         """Get RW address - LIGHT processing, no file reading"""
         try:
+            entry_type = self.get_img_entry_type_simple(entry)
+            if entry_type in ['DFF', 'TXD'] and hasattr(entry, 'size') and entry.size == 0:
+                return "Empty"
             if hasattr(entry, 'rw_version') and entry.rw_version > 0:
                 return f"0x{entry.rw_version:08X}"
             else:
-                entry_type = self.get_img_entry_type_simple(entry)
                 if entry_type in ['DFF', 'TXD']:
                     return "RW File"
                 else:
@@ -226,17 +228,21 @@ class IMGTablePopulator:
         except Exception:
             return "N/A"
 
-    def get_rw_version_light(self, entry: Any) -> str: #vers 4
+    def get_rw_version_light(self, entry: Any) -> str: #vers 5
         """Get RW version - validates version is in known RW range before accepting"""
         try:
             from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version, parse_rw_version
+            # 0-byte entries have no data to parse - show as Empty, not Unknown
+            entry_type = self.get_img_entry_type_simple(entry)
+            if entry_type in ['DFF', 'TXD']:
+                if hasattr(entry, 'size') and entry.size == 0:
+                    return "Empty"
             # Use validated cached rw_version (only trust it if it's a known-valid version)
             if hasattr(entry, 'rw_version') and entry.rw_version and is_valid_rw_version(entry.rw_version):
                 if hasattr(entry, 'rw_version_name') and entry.rw_version_name not in ["Unknown", "", "N/A", "Error"]:
                     return entry.rw_version_name
                 return get_rw_version_name(entry.rw_version)
             # Try to detect from cached data with multi-offset scan
-            entry_type = self.get_img_entry_type_simple(entry)
             if entry_type in ['DFF', 'TXD']:
                 if hasattr(entry, '_cached_data') and entry._cached_data:
                     data = entry._cached_data

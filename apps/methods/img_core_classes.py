@@ -432,10 +432,12 @@ class IMGEntry:
         except ValueError:
             return FileType.UNKNOWN
 
-    def get_version_text(self) -> str: #vers 2
-        """FIXED: Get human-readable version text"""
+    def get_version_text(self) -> str: #vers 3
+        """Get human-readable version text"""
         try:
             if self.extension in ['DFF', 'TXD']:
+                if self.size == 0:
+                    return "Empty"
                 if self.rw_version > 0 and self.rw_version_name:
                     return f"RW {self.rw_version_name}"
                 elif self.rw_version > 0:
