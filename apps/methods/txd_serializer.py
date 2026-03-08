@@ -463,12 +463,31 @@ class TXDSerializer: #vers 1
             if raster_format_flags & 0x10000:
                 tex['has_alpha'] = True
 
-            # Compression byte (1 byte) + Data size (4 bytes)
+            # Compression byte (1 byte)
+            # For D3D8 GTA3/VC: 0=raw, 1=DXT1, 3=DXT3, 5=DXT5
             compression = struct.unpack('<B', txd_data[pos:pos+1])[0]
             pos += 1
 
-            data_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
-            pos += 4
+            # Data size field (4 bytes) - present ONLY for DXT formats
+            # Raw/PAL/16-bit textures have no size field; data follows immediately
+            is_dxt = 'DXT' in tex['format']
+            if is_dxt:
+                data_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
+                pos += 4
+            else:
+                # Calculate expected size for raw formats
+                if tex['format'] == 'PAL8':
+                    data_size = 1024 + width * height
+                elif tex['format'] == 'PAL4':
+                    data_size = 64 + (width * height + 1) // 2
+                elif tex['format'] in ('ARGB8888', 'A8L8'):
+                    data_size = width * height * 4
+                elif tex['format'] == 'RGB888':
+                    data_size = width * height * 3
+                elif tex['format'] == 'LUM8':
+                    data_size = width * height
+                else:  # 16-bit: RGB565, ARGB1555, ARGB4444, RGB555
+                    data_size = width * height * 2
 
             # === TEXTURE DATA ===
             data_offset = pos

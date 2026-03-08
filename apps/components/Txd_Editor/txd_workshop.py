@@ -9975,18 +9975,14 @@ class TXDWorkshop(QWidget): #vers 3
                 if not tex.get('has_alpha'):
                     tex['has_alpha'] = True
 
-            # Read mipmap data - each level preceded by a 4-byte data_size field
+            # Read mipmap data
+            # DXT formats have a 4-byte data_size field before each mipmap level
+            # Raw/PAL/16-bit formats do NOT - data follows header directly
             fmt = tex['format']
+            is_dxt = 'DXT' in fmt
             w, h = width, height
             for level in range(num_levels):
-                if pos + 4 > len(txd_data):
-                    break
-
-                # Read per-level data size
-                level_size = struct.unpack('<I', txd_data[pos:pos+4])[0]
-                pos += 4
-
-                # Sanity-check against expected size
+                # Calculate expected size for this mipmap level
                 if 'DXT1' in fmt:
                     expected = max(1, (w+3)//4) * max(1, (h+3)//4) * 8
                 elif 'DXT' in fmt:
@@ -10006,8 +10002,16 @@ class TXDWorkshop(QWidget): #vers 3
                 else:
                     expected = w * h * 2
 
-                # Use declared size unless it looks wildly wrong (corrupt header)
-                size = level_size if (expected // 2 <= level_size <= expected * 2) else expected
+                # DXT only: read declared data_size, use it if sane
+                if is_dxt:
+                    if pos + 4 > len(txd_data):
+                        break
+                    declared = struct.unpack('<I', txd_data[pos:pos+4])[0]
+                    pos += 4
+                    size = declared if (expected // 2 <= declared <= expected * 4) else expected
+                else:
+                    size = expected
+
                 lw, lh = w, h
 
                 if pos + size > len(txd_data):
