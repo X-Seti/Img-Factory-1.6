@@ -898,7 +898,39 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             t.setHtml(html)
             return t
 
-        css = "<style>body{font-family:monospace;font-size:11px;}h3{color:#5599ff;margin-bottom:4px;}h4{color:#aaddff;margin:6px 0 2px 0;}table{border-collapse:collapse;width:100%;}th{background:#334;color:#cce;padding:3px 6px;text-align:left;}td{padding:2px 6px;border-bottom:1px solid #333;}.note{color:#aaa;font-style:italic;}.ok{color:#6f6;font-weight:bold;}.no{color:#f66;}.wip{color:#fa0;}</style>"
+        # Pull theme colours — never hardcode hex in the HTML
+        _tc = {}
+        if hasattr(self.main_window, 'app_settings'):
+            _theme = self.main_window.app_settings.current_settings.get('theme', 'IMG_Factory')
+            _tc = self.main_window.app_settings.get_theme_colors(_theme) or {}
+        c_bg       = _tc.get('bg_primary',    '#ffffff')
+        c_bg2      = _tc.get('bg_secondary',  '#f5f5f5')
+        c_bg3      = _tc.get('bg_tertiary',   '#e9ecef')
+        c_text     = _tc.get('text_primary',  '#000000')
+        c_text2    = _tc.get('text_secondary','#666666')
+        c_accent   = _tc.get('accent_primary','#0078d4')
+        c_accent2  = _tc.get('text_accent',   '#0066cc')
+        c_border   = _tc.get('border',        '#cccccc')
+        c_th_bg    = _tc.get('bg_tertiary',   '#e9ecef')
+        c_ok       = _tc.get('success',       '#2e7d32')
+        c_err      = _tc.get('error',         '#c62828')
+        c_warn     = _tc.get('warning',       '#e65100')
+
+        css = (
+            "<style>"
+            f"body{{font-family:monospace;font-size:11px;background:{c_bg};color:{c_text};}}"
+            f"h3{{color:{c_accent};margin-bottom:4px;}}"
+            f"h4{{color:{c_accent2};margin:6px 0 2px 0;}}"
+            "table{border-collapse:collapse;width:100%;}"
+            f"th{{background:{c_th_bg};color:{c_text};padding:3px 6px;text-align:left;border-bottom:1px solid {c_border};}}"
+            f"td{{padding:2px 6px;border-bottom:1px solid {c_border};color:{c_text};background:{c_bg};}}"
+            f"tr:nth-child(even) td{{background:{c_bg2};}}"
+            f".note{{color:{c_text2};font-style:italic;}}"
+            f".ok{{color:{c_ok};font-weight:bold;}}"
+            f".no{{color:{c_err};}}"
+            f".wip{{color:{c_warn};}}"
+            "</style>"
+        )
 
         # ── IMG Archive ───────────────────────────────────────────────────────
         img_html = css + """
