@@ -10449,6 +10449,37 @@ class TXDWorkshop(QWidget): #vers 3
             return None
 
 
+    def _add_warning_badge(self, pixmap): #vers 1
+        """Composite a small warning triangle onto bottom-left of thumbnail pixmap"""
+        from PyQt6.QtGui import QPainter, QColor, QFont
+        from PyQt6.QtCore import Qt
+        result = pixmap.copy()
+        painter = QPainter(result)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Draw small yellow triangle badge (12x12) at bottom-left
+        badge_size = 14
+        x = 1
+        y = result.height() - badge_size - 1
+        painter.setBrush(QColor(255, 200, 0, 220))
+        painter.setPen(QColor(180, 120, 0, 220))
+        from PyQt6.QtGui import QPolygon
+        from PyQt6.QtCore import QPoint
+        tri = QPolygon([
+            QPoint(x + badge_size // 2, y),
+            QPoint(x, y + badge_size),
+            QPoint(x + badge_size, y + badge_size),
+        ])
+        painter.drawPolygon(tri)
+        # Draw exclamation mark
+        painter.setPen(QColor(80, 50, 0, 255))
+        font = QFont()
+        font.setPixelSize(9)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(x + 5, y + badge_size - 2, "!")
+        painter.end()
+        return result
+
     def _convert_texture(self): #vers 3
         """Convert texture format with GTA III 8-bit support"""
         if not self.selected_texture:
@@ -13068,18 +13099,14 @@ class TXDWorkshop(QWidget): #vers 3
         if rgba_data and width > 0:
             pixmap = self._create_thumbnail(rgba_data, width, height)
             if pixmap:
+                # Composite warning badge onto thumbnail if alpha looks suspicious
+                if texture.get('has_alpha', False) and self._quick_alpha_check(texture):
+                    pixmap = self._add_warning_badge(pixmap)
                 thumb_item.setData(Qt.ItemDataRole.DecorationRole, pixmap)
             else:
-                thumb_item.setText("🖼️")
+                thumb_item.setText("⚠️" if texture.get('has_alpha', False) and self._quick_alpha_check(texture) else "🖼️")
         else:
             thumb_item.setText("🖼️")
-
-        # Check alpha validity and add warning icon if needed
-        if texture.get('has_alpha', False):
-            # Quick check if alpha might be same as RGB
-            if self._quick_alpha_check(texture):
-                warning_icon = self._create_warning_icon_svg()
-                thumb_item.setIcon(warning_icon)
 
         self.texture_table.setItem(row, 0, thumb_item)
 
