@@ -250,7 +250,7 @@ def _is_valid_rw_version(v: int) -> bool:
     """Check if value is a plausible RW version number (mirrors rw_versions.is_valid_rw_version)."""
     if not v:
         return False
-    if v == 0x00000310:       # GTA3 PC plain encoding
+    if 0x300 <= v <= 0x3FF:   # GTA3 PC plain encoding (0x304=3.0.4, 0x310=3.1.0, etc.)
         return True
     if 0x30000 <= v <= 0x3FFFF:  # old compact 3.0..3.7
         return True

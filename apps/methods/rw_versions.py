@@ -123,6 +123,8 @@ class MDLVersion(Enum):
 def get_rw_version_name(version_value: int) -> str:  # vers 11
     rw_versions = {
         # ---- Canonical SDK versions ----
+        0x00000300: "3.0.0 (GTA3 PC early)",
+        0x00000304: "3.0.4 (GTA3 PC early)",
         0x00000310: "3.1.0 (GTA3 PC)",
         0x20001: "2.0.0.1 (GTA3) Radar Tex",
         0x30000: "3.0.0.0",
@@ -162,12 +164,12 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
 
     return rw_versions.get(version_value, f"Unknown (0x{version_value:X})")
 
-def is_valid_rw_version(version_value: int) -> bool: #vers 4
+def is_valid_rw_version(version_value: int) -> bool: #vers 5
     """Check if value is a plausible RenderWare version number."""
     if not version_value:
         return False
-    # Plain early format: 0x310 = RW 3.1.0 (GTA3 PC, pre-packed encoding)
-    if version_value == 0x00000310:
+    # Plain early format: 0x300..0x3FF (GTA3 PC pre-packed, e.g. 0x304=3.0.4, 0x310=3.1.0)
+    if 0x300 <= version_value <= 0x3FF:
         return True
     # Old compact format: 3.0.0 .. 3.7.x (0x30000 - 0x3FFFF)
     if 0x30000 <= version_value <= 0x3FFFF:
