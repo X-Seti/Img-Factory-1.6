@@ -274,42 +274,14 @@ class IMGEntry:
         """Set reference to parent IMG file"""
         self._img_file = img_file
 
-    def detect_file_type_and_version(self): #vers 2
-        """ADDED: Detect file type and RW version from file data"""
+    def detect_file_type_and_version(self): #vers 3
+        """Detect file type and RW version. Robust against garbage bytes after the null
+        terminator in DIR entry name fields (real-world GTA .dir files can have this)."""
         try:
-            # Extract extension from name
-            if '.' in self.name:
-                self.extension = self.name.split('.')[-1].lower()
-                self.file_type = self._get_file_type_from_extension()
+            # Sanitize name: stop at first embedded null, keep printable ASCII only
+            if '\x00' in self.name:
+                self.name = self.name.split('\x00')[0]
 
-            # For RenderWare files, detect version from data
-            if self.is_renderware_file() and self._img_file and not self._version_detected: #nroken
-                try:
-                    data = self.get_data()
-                    if len(data) >= 12:  # Minimum RW header size
-                        # Use existing RW version detection function
-                        version_info = parse_rw_version(data)
-                        if version_info and 'version' in version_info:
-                            self.rw_version = version_info['version']
-                            self.rw_version_name = get_rw_version_name(self.rw_version)
-                            self._version_detected = True
-
-                            if hasattr(img_debugger, 'debug'):
-                                img_debugger.debug(f"RW Version detected for {self.name}: {self.rw_version_name}")
-
-                except Exception as e:
-                    if hasattr(img_debugger, 'warning'):
-                        img_debugger.warning(f"Could not detect RW version for {self.name}: {e}")
-
-        except Exception as e:
-            if hasattr(img_debugger, 'error'):
-                img_debugger.error(f"Error detecting file type/version for {self.name}: {e}")
-
-
-    def detect_file_type_and_version(self): #vers 1
-        """ADDED: Detect file type and RW version from file data"""
-        try:
-            # Extract extension from name
             if '.' in self.name:
                 self.extension = self.name.split('.')[-1].upper()
                 self.extension = ''.join(c for c in self.extension if c.isalpha())
@@ -1283,7 +1255,7 @@ class IMGFile:
                         break
 
                     entry_offset, entry_size = struct.unpack('<II', entry_data[:8])
-                    entry_name = entry_data[8:32].rstrip(b'\x00').decode('ascii', errors='ignore')
+                    entry_name = entry_data[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
 
                     if entry_name:
                         entry = IMGEntry()
@@ -1319,7 +1291,7 @@ class IMGFile:
 
                 # Parse entry: offset(4), size(4), name(24)
                 entry_offset, entry_size = struct.unpack('<II', entry_data[:8])
-                entry_name = entry_data[8:32].rstrip(b'\x00').decode('ascii', errors='ignore')
+                entry_name = entry_data[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
 
                 if entry_name:
                     entry = IMGEntry()
@@ -1464,7 +1436,7 @@ class IMGFile:
                 if len(first) < 32:
                     return False
                 first_offset, first_size = struct.unpack('<II', first[:8])
-                first_name = first[8:32].rstrip(b'\x00').decode('ascii', errors='ignore')
+                first_name = first[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
                 if not first_name:
                     return False
                 # Directory occupies sectors 0..(first_offset-1)
@@ -1479,7 +1451,7 @@ class IMGFile:
                 if len(entry_data) < 32:
                     break
                 entry_offset, entry_size = struct.unpack('<II', entry_data[:8])
-                entry_name = entry_data[8:32].rstrip(b'\x00').decode('ascii', errors='ignore')
+                entry_name = entry_data[8:32].split(b'\x00')[0].decode('ascii', errors='ignore')
                 if not entry_name:
                     continue
                 entry = IMGEntry()
