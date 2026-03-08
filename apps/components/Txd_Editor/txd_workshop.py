@@ -7092,8 +7092,8 @@ class TXDWorkshop(QWidget): #vers 3
                 log("  Warning: TXD contains 0 textures (stub/placeholder file)")
                 raise Exception("__STUB_TXD__")
 
-            if texture_count > 500:
-                raise Exception(f"Invalid texture count: {texture_count} (maximum 500)")
+            if texture_count > 4096:
+                raise Exception(f"Invalid texture count: {texture_count} (likely corrupt header)")
 
             # === PARSE TEXTURE NATIVE SECTIONS ===
             log("")
@@ -10221,27 +10221,44 @@ class TXDWorkshop(QWidget): #vers 3
         return tex
 
 
-    def _decompress_texture(self, compressed_data, width, height, format_str): #vers 2
+    def _decompress_texture(self, compressed_data, width, height, format_str): #vers 3
         """
-        Decompress DXT texture data to RGBA
-
-        Args:
-            compressed_data: Compressed texture bytes
-            width: Texture width
-            height: Texture height
-            format_str: Format string (DXT1, DXT3, DXT5)
-
-        Returns:
-            bytes: Decompressed RGBA data
+        Decompress DXT texture data to RGBA using PIL (fast) with pure-Python fallback.
         """
-        if 'DXT1' in format_str:
-            return self._decompress_dxt1(compressed_data, width, height)
-        elif 'DXT3' in format_str:
-            return self._decompress_dxt3(compressed_data, width, height)
-        elif 'DXT5' in format_str:
-            return self._decompress_dxt5(compressed_data, width, height)
-        else:
+        import struct, io
+        fmt = 'DXT1' if 'DXT1' in format_str else 'DXT3' if 'DXT3' in format_str else 'DXT5' if 'DXT5' in format_str else None
+        if fmt is None:
             return compressed_data
+
+        # --- PIL/DDS path (fast, accurate) ---
+        try:
+            from PIL import Image
+            fourcc = fmt.encode('ascii')
+            pitch = max(1, (width + 3) // 4) * (8 if fmt == 'DXT1' else 16)
+            hdr = bytearray(128)
+            struct.pack_into('<I', hdr,  0, 0x20534444)        # 'DDS '
+            struct.pack_into('<I', hdr,  4, 124)               # header size
+            struct.pack_into('<I', hdr,  8, 0x1|0x2|0x4|0x1000)
+            struct.pack_into('<I', hdr, 12, height)
+            struct.pack_into('<I', hdr, 16, width)
+            struct.pack_into('<I', hdr, 20, pitch * max(1, (height + 3) // 4))
+            struct.pack_into('<I', hdr, 28, 1)
+            struct.pack_into('<I', hdr, 76, 32)                # pixel format size
+            struct.pack_into('<I', hdr, 80, 0x4)               # DDPF_FOURCC
+            hdr[84:88] = fourcc
+            dds = bytes(hdr) + compressed_data
+            img = Image.open(io.BytesIO(dds)).convert('RGBA')
+            return bytes(img.tobytes())
+        except Exception:
+            pass
+
+        # --- Pure Python fallback ---
+        if fmt == 'DXT1':
+            return self._decompress_dxt1(compressed_data, width, height)
+        elif fmt == 'DXT3':
+            return self._decompress_dxt3(compressed_data, width, height)
+        else:
+            return self._decompress_dxt5(compressed_data, width, height)
 
 
     def _decompress_dxt1(self, dxt_data, width, height): #vers 1
