@@ -1,26 +1,32 @@
-#this belongs in methods/gta_dat_parser.py - Version: 2
+#this belongs in methods/gta_dat_parser.py - Version: 3
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
-GTA3 Data File Parser — mirrors the RenderWare engine load chain exactly.
+GTA3 + VC Data File Parser — mirrors the RenderWare engine load chain exactly.
 
 GTA3 load order (verified from real files):
-  Step 1: default.dat  (hardcoded by exe)
-          -> IDE  DATA/DEFAULT.IDE
-          -> TEXDICTION / MODELFILE / COLFILE for generic assets
-  Step 2: gta3.dat
-          -> IDE  DATA/MAPS/*.ide   (in file order)
-          -> COLFILE <island> *.col
-          -> MAPZONE DATA/MAP.ZON
-          -> IPL   DATA/GTA3.ZON + DATA/MAPS/*.IPL  (in file order)
+  Phase 1: default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
+  Phase 2: gta3.dat     -> IDEs in order, COLFILEs (with island index), MAPZONE, IPLs
 
-GTA3 IDE objs format (from default.ide):
-  id, model, txd, meshCount, dist1[, dist2], flags
-  meshCount=1 -> 6 fields;  meshCount=2 -> 7 fields
+VC load order (verified from real files):
+  Phase 1: default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
+  Phase 2: gta_vc.dat   -> IDEs (31, split by SPLASH mid-block), 1 COLFILE, IPLs (36)
 
+VC field differences from GTA3:
+  cars: adds animFile after gameName   (13 fields vs 12)
+  peds: adds animFile, radio1, radio2  (10 fields vs 7)
+  weap: adds animFile before meshCount (7 fields vs 6)
+  objs/tobj/hier: same as GTA3
+
+GTA3 objs: id, model, txd, meshCount, dist1[, dist2], flags
 GTA3 peds: id, model, txd, pedType, behaviour, animGroup, carsDriveMask
 GTA3 cars: id, model, txd, type, handlingId, gameName, class, freq, level, compRules[, wheelId, wheelScale]
+GTA3 weap: id, model, txd, meshCount, drawDist, flags
 GTA3 hier: id, model, txd
-GTA3 IPL inst: id, modelName, posX, posY, posZ, scaleX, scaleY, scaleZ, rotX, rotY, rotZ, rotW
+GTA3 IPL inst: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw
+
+VC peds: id, model, txd, pedType, behaviour, animGroup, carsDriveMask, animFile, radio1, radio2
+VC cars: id, model, txd, type, handlingId, gameName, animFile, class, freq, level, compRules[, wheelId, wheelScale]
+VC weap: id, model, txd, animFile, meshCount, drawDist, flags
 """
 
 import os
@@ -296,6 +302,9 @@ class IDEParser: #vers 2
                                  "object", section, extra, source, lineno)
 
             elif section == "cars":
+                # GTA3: id, model, txd, type, handlingId, gameName, class, freq, level, compRules[, wheelId, wheelScale]
+                # VC:   id, model, txd, type, handlingId, gameName, animFile, class, freq, level, compRules[, wheelId, wheelScale]
+                # VC adds animFile between gameName and class — shift all subsequent fields by 1
                 if len(parts) < 7:
                     return None
                 model_id   = int(parts[0])
@@ -305,24 +314,36 @@ class IDEParser: #vers 2
                     "veh_type":  parts[3],
                     "handling":  parts[4],
                     "game_name": parts[5],
-                    "veh_class": parts[6],
                 }
-                if len(parts) > 7:
-                    try: extra["freq"] = int(parts[7])
+                if self.game == GTAGame.VC:
+                    # parts[6] = animFile, parts[7] = class, parts[8] = freq, ...
+                    extra["anim_file"] = parts[6] if len(parts) > 6 else ""
+                    class_idx = 7
+                else:
+                    # GTA3: parts[6] = class, parts[7] = freq, ...
+                    class_idx = 6
+                if len(parts) > class_idx:
+                    extra["veh_class"] = parts[class_idx]
+                if len(parts) > class_idx + 1:
+                    try: extra["freq"]  = int(parts[class_idx + 1])
                     except ValueError: pass
-                if len(parts) > 8:
-                    try: extra["level"] = int(parts[8])
+                if len(parts) > class_idx + 2:
+                    try: extra["level"] = int(parts[class_idx + 2])
                     except ValueError: pass
-                if len(parts) > 10:
-                    try: extra["wheel_model"] = int(parts[10])
+                wheel_idx = class_idx + 4
+                if len(parts) > wheel_idx:
+                    try: extra["wheel_model"] = int(parts[wheel_idx])
                     except ValueError: pass
-                if len(parts) > 11:
-                    try: extra["wheel_scale"] = float(parts[11])
+                if len(parts) > wheel_idx + 1:
+                    try: extra["wheel_scale"] = float(parts[wheel_idx + 1])
                     except ValueError: pass
                 return IDEObject(model_id, model_name, txd_name,
                                  "vehicle", section, extra, source, lineno)
 
             elif section in ("peds", "ped"):
+                # GTA3: id, model, txd, pedType, behaviour, animGroup, carsDriveMask           (7 fields)
+                # VC:   id, model, txd, pedType, behaviour, animGroup, carsDriveMask,
+                #            animFile, radio1, radio2                                           (10 fields)
                 if len(parts) < 7:
                     return None
                 model_id   = int(parts[0])
@@ -334,18 +355,45 @@ class IDEParser: #vers 2
                     "anim_group":      parts[5],
                     "cars_drive_mask": parts[6],
                 }
+                if self.game == GTAGame.VC and len(parts) > 7:
+                    extra["anim_file"] = parts[7]
+                if self.game == GTAGame.VC and len(parts) > 9:
+                    try:
+                        extra["radio1"] = int(parts[8])
+                        extra["radio2"] = int(parts[9])
+                    except ValueError:
+                        pass
                 return IDEObject(model_id, model_name, txd_name,
                                  "ped", section, extra, source, lineno)
 
             elif section == "weap":
-                if len(parts) < 3:
+                # GTA3: id, model, txd, meshCount, drawDist, flags             (6 fields, same as objs meshCount=1)
+                # VC:   id, model, txd, animFile, meshCount, drawDist, flags    (7 fields, adds animFile in slot 3)
+                if len(parts) < 6:
                     return None
                 model_id   = int(parts[0])
                 model_name = parts[1]
                 txd_name   = parts[2]
-                extra = {}
-                if len(parts) > 3:
-                    extra["anim"] = parts[3]
+                extra: Dict[str, Any] = {}
+                if self.game == GTAGame.VC:
+                    # slot 3 = animFile, slot 4 = meshCount, slot 5 = drawDist, slot 6 = flags
+                    extra["anim_file"] = parts[3]
+                    try: extra["mesh_count"] = int(parts[4])
+                    except (ValueError, IndexError): pass
+                    try: extra["draw_dist"]  = float(parts[5])
+                    except (ValueError, IndexError): pass
+                    if len(parts) > 6:
+                        try: extra["flags"] = int(parts[6])
+                        except ValueError: pass
+                else:
+                    # GTA3: slot 3 = meshCount, slot 4 = drawDist, slot 5 = flags
+                    try: extra["mesh_count"] = int(parts[3])
+                    except (ValueError, IndexError): pass
+                    try: extra["draw_dist"]  = float(parts[4])
+                    except (ValueError, IndexError): pass
+                    if len(parts) > 5:
+                        try: extra["flags"] = int(parts[5])
+                        except ValueError: pass
                 return IDEObject(model_id, model_name, txd_name,
                                  "weapon", section, extra, source, lineno)
 
