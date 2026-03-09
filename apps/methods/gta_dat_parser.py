@@ -1,32 +1,40 @@
-#this belongs in methods/gta_dat_parser.py - Version: 3
+#this belongs in methods/gta_dat_parser.py - Version: 4
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
-GTA3 + VC Data File Parser — mirrors the RenderWare engine load chain exactly.
+GTA3 + VC + SA Data File Parser — mirrors the RenderWare engine load chain exactly.
 
 GTA3 load order (verified from real files):
   Phase 1: default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
-  Phase 2: gta3.dat     -> IDEs in order, COLFILEs (with island index), MAPZONE, IPLs
+  Phase 2: gta3.dat     -> 16 IDEs, 16 COLFILEs (island index 0-3), 14 IPLs
 
 VC load order (verified from real files):
   Phase 1: default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
-  Phase 2: gta_vc.dat   -> IDEs (31, split by SPLASH mid-block), 1 COLFILE, IPLs (36)
+  Phase 2: gta_vc.dat   -> 31 IDEs, 1 COLFILE, 36 IPLs
 
-VC field differences from GTA3:
-  cars: adds animFile after gameName   (13 fields vs 12)
-  peds: adds animFile, radio1, radio2  (10 fields vs 7)
-  weap: adds animFile before meshCount (7 fields vs 6)
-  objs/tobj/hier: same as GTA3
+SA load order (verified from real files):
+  Phase 1: default.dat  -> 3 IDEs (DEFAULT.IDE + VEHICLES.IDE + PEDS.IDE), 1 COLFILE
+  Phase 2: gta.dat      -> 3 IMGs, 54 IDEs, 52 IPLs, 0 COLFILEs
+  Alt:     gta_quick.dat -> stripped dev variant (1 IMG, 13 IDE, 11 IPL)
 
-GTA3 objs: id, model, txd, meshCount, dist1[, dist2], flags
-GTA3 peds: id, model, txd, pedType, behaviour, animGroup, carsDriveMask
-GTA3 cars: id, model, txd, type, handlingId, gameName, class, freq, level, compRules[, wheelId, wheelScale]
-GTA3 weap: id, model, txd, meshCount, drawDist, flags
-GTA3 hier: id, model, txd
-GTA3 IPL inst: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw
+Field formats per game (verified from real .ide files):
+  GTA3 objs: id, model, txd, meshCount, dist1[, dist2], flags
+  GTA3 peds: id, model, txd, pedType, behaviour, animGroup, carsDriveMask
+  GTA3 cars: id, model, txd, type, handlingId, gameName, class, freq, level, compRules[, wheelId, wheelScale]
+  GTA3 weap: id, model, txd, meshCount, drawDist, flags
+  GTA3 hier: id, model, txd
+  GTA3 inst: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw  (12 fields)
 
-VC peds: id, model, txd, pedType, behaviour, animGroup, carsDriveMask, animFile, radio1, radio2
-VC cars: id, model, txd, type, handlingId, gameName, animFile, class, freq, level, compRules[, wheelId, wheelScale]
-VC weap: id, model, txd, animFile, meshCount, drawDist, flags
+  VC peds: ..., carsDriveMask, animFile, radio1, radio2           (+3 vs GTA3)
+  VC cars: ..., gameName, animFile, class, ...                    (+animFile vs GTA3)
+  VC weap: id, model, txd, animFile, meshCount, drawDist, flags   (+animFile vs GTA3)
+  VC hier: id, model, txd                                          (same as GTA3)
+
+  SA weap: id, model, txd, animFile, meshCount, drawDist, flags   (same layout as VC)
+  SA hier: id, model, txd, animFile, drawDist                     (5 fields, +animFile+drawDist)
+  SA objs: same meshCount format as GTA3
+  SA inst: id, model, interior, px, py, pz, rx, ry, rz, rw[, lod] (10-11 fields)
+  SA default.dat: loads VEHICLES.IDE + PEDS.IDE separately (no inline cars/peds in DEFAULT.IDE)
+  SA gta.dat: has IMG directives (CARREC.IMG, SCRIPT.IMG, CUTSCENE.IMG), no COLFILEs
 """
 
 import os
@@ -46,11 +54,17 @@ class GTAGame:
         "sa":   "gta.dat",
     }
 
+    # Alternative DAT names (e.g. SA dev/quick-load variant)
+    ALT_DAT_FILE = {
+        "sa": "gta_quick.dat",
+    }
+
     # default.dat is hardcoded by the exe and loaded before the main .dat
+    # SA loads default.dat too (3 IDEs: DEFAULT.IDE, VEHICLES.IDE, PEDS.IDE)
     DEFAULT_DAT = {
         "gta3": "default.dat",
         "vc":   "default.dat",
-        "sa":   None,
+        "sa":   "default.dat",
     }
 
     DATA_SUBDIR = "data"
@@ -303,8 +317,8 @@ class IDEParser: #vers 2
 
             elif section == "cars":
                 # GTA3: id, model, txd, type, handlingId, gameName, class, freq, level, compRules[, wheelId, wheelScale]
-                # VC:   id, model, txd, type, handlingId, gameName, animFile, class, freq, level, compRules[, wheelId, wheelScale]
-                # VC adds animFile between gameName and class — shift all subsequent fields by 1
+                # VC/SA: id, model, txd, type, handlingId, gameName, animFile, class, freq, level, compRules[, wheelId, wheelScale]
+                # VC/SA add animFile between gameName and class — shift all subsequent fields by 1
                 if len(parts) < 7:
                     return None
                 model_id   = int(parts[0])
@@ -315,7 +329,7 @@ class IDEParser: #vers 2
                     "handling":  parts[4],
                     "game_name": parts[5],
                 }
-                if self.game == GTAGame.VC:
+                if self.game in (GTAGame.VC, GTAGame.SA):
                     # parts[6] = animFile, parts[7] = class, parts[8] = freq, ...
                     extra["anim_file"] = parts[6] if len(parts) > 6 else ""
                     class_idx = 7
@@ -355,9 +369,9 @@ class IDEParser: #vers 2
                     "anim_group":      parts[5],
                     "cars_drive_mask": parts[6],
                 }
-                if self.game == GTAGame.VC and len(parts) > 7:
+                if self.game in (GTAGame.VC, GTAGame.SA) and len(parts) > 7:
                     extra["anim_file"] = parts[7]
-                if self.game == GTAGame.VC and len(parts) > 9:
+                if self.game in (GTAGame.VC, GTAGame.SA) and len(parts) > 9:
                     try:
                         extra["radio1"] = int(parts[8])
                         extra["radio2"] = int(parts[9])
@@ -367,15 +381,15 @@ class IDEParser: #vers 2
                                  "ped", section, extra, source, lineno)
 
             elif section == "weap":
-                # GTA3: id, model, txd, meshCount, drawDist, flags             (6 fields, same as objs meshCount=1)
-                # VC:   id, model, txd, animFile, meshCount, drawDist, flags    (7 fields, adds animFile in slot 3)
+                # GTA3: id, model, txd, meshCount, drawDist, flags             (6 fields)
+                # VC/SA: id, model, txd, animFile, meshCount, drawDist, flags  (7 fields, adds animFile in slot 3)
                 if len(parts) < 6:
                     return None
                 model_id   = int(parts[0])
                 model_name = parts[1]
                 txd_name   = parts[2]
                 extra: Dict[str, Any] = {}
-                if self.game == GTAGame.VC:
+                if self.game in (GTAGame.VC, GTAGame.SA):
                     # slot 3 = animFile, slot 4 = meshCount, slot 5 = drawDist, slot 6 = flags
                     extra["anim_file"] = parts[3]
                     try: extra["mesh_count"] = int(parts[4])
@@ -398,13 +412,22 @@ class IDEParser: #vers 2
                                  "weapon", section, extra, source, lineno)
 
             elif section in ("hier", "anim", "tanm"):
+                # GTA3/VC hier: id, model, txd                             (3 fields)
+                # SA      hier: id, model, txd, animFile, drawDist         (5 fields)
                 if len(parts) < 3:
                     return None
                 model_id   = int(parts[0])
                 model_name = parts[1]
                 txd_name   = parts[2]
+                extra: Dict[str, Any] = {}
+                if self.game == GTAGame.SA:
+                    if len(parts) > 3:
+                        extra["anim_file"] = parts[3]
+                    if len(parts) > 4:
+                        try: extra["draw_dist"] = float(parts[4])
+                        except ValueError: pass
                 return IDEObject(model_id, model_name, txd_name,
-                                 "hierarchy", section, {}, source, lineno)
+                                 "hierarchy", section, extra, source, lineno)
 
             elif section == "txdp":
                 if len(parts) >= 2:
@@ -536,11 +559,12 @@ class IPLParser: #vers 2
         return None
 
 
-class GTAWorldLoader: #vers 2
+class GTAWorldLoader: #vers 3
     """
-    Orchestrates the full two-phase GTA3 load chain:
-      Phase 1: default.dat -> DEFAULT.IDE (base objects/vehicles/peds)
-      Phase 2: gta3.dat   -> all map IDEs, then all IPLs
+    Orchestrates the full two-phase GTA3/VC/SA load chain in engine order:
+      Phase 1: default.dat -> base IDEs (DEFAULT.IDE; SA also loads VEHICLES.IDE + PEDS.IDE)
+      Phase 2: main .dat   -> map IDEs, then IPLs (SA: also IMG directives)
+                              SA alt: gta_quick.dat (stripped dev variant, auto-detected)
 
     Later IDE definitions override earlier ones (matches engine behaviour).
     """
@@ -558,7 +582,7 @@ class GTAWorldLoader: #vers 2
         self.stats       = ParseStats()
         self.progress_cb = None
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 2
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 3
         """Full load from a game root directory."""
         self.progress_cb = progress_cb
         self._reset()
@@ -576,14 +600,19 @@ class GTAWorldLoader: #vers 2
                 self.stats.warnings.append(
                     f"default.dat not found: {default_path}")
 
-        # Phase 2 — main .dat
+        # Phase 2 — main .dat (try primary name, then alt name)
         main_name = GTAGame.DAT_FILE.get(self.game)
-        if not main_name:
-            self.stats.errors.append(f"No DAT filename for game: {self.game}")
-            return False
-        main_path = os.path.join(data_dir, main_name)
+        main_path = os.path.join(data_dir, main_name) if main_name else ""
         if not os.path.isfile(main_path):
-            self.stats.errors.append(f"Main DAT not found: {main_path}")
+            alt_name = GTAGame.ALT_DAT_FILE.get(self.game)
+            if alt_name:
+                alt_path = os.path.join(data_dir, alt_name)
+                if os.path.isfile(alt_path):
+                    main_path = alt_path
+                    main_name = alt_name
+        if not main_name or not os.path.isfile(main_path):
+            self.stats.errors.append(
+                f"Main DAT not found for game {self.game} in {data_dir}")
             return False
 
         self._progress(0, 1, f"Phase 2: {main_name}")
@@ -710,19 +739,30 @@ class GTAWorldLoader: #vers 2
         ])
 
 
-def detect_game(game_root: str) -> Optional[str]: #vers 2
+def detect_game(game_root: str) -> Optional[str]: #vers 3
     data = os.path.join(game_root, "data")
-    if os.path.isfile(os.path.join(data, "gta.dat")):    return GTAGame.SA
-    if os.path.isfile(os.path.join(data, "gta_vc.dat")): return GTAGame.VC
-    if os.path.isfile(os.path.join(data, "gta3.dat")):   return GTAGame.GTA3
+    if os.path.isfile(os.path.join(data, "gta.dat")):      return GTAGame.SA
+    if os.path.isfile(os.path.join(data, "gta_quick.dat")): return GTAGame.SA
+    if os.path.isfile(os.path.join(data, "gta_vc.dat")):   return GTAGame.VC
+    if os.path.isfile(os.path.join(data, "gta3.dat")):     return GTAGame.GTA3
     return None
 
 
-def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 1
+def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 2
+    """Return absolute path to the main .dat for the given game, or the alt .dat, or None."""
+    data = os.path.join(game_root, "data")
     name = GTAGame.DAT_FILE.get(game)
-    if not name: return None
-    c = os.path.join(game_root, "data", name)
-    return c if os.path.isfile(c) else None
+    if name:
+        c = os.path.join(data, name)
+        if os.path.isfile(c):
+            return c
+    # Try alternative name (e.g. gta_quick.dat for SA)
+    alt = GTAGame.ALT_DAT_FILE.get(game)
+    if alt:
+        c = os.path.join(data, alt)
+        if os.path.isfile(c):
+            return c
+    return None
 
 
 def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 1
