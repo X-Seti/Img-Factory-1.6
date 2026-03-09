@@ -1,4 +1,21 @@
-#this belongs in root /ChangeLog.md - Version: 16
+#this belongs in root /ChangeLog.md - Version: 17
+
+## March 09, 2026 — RW button icon/visibility, SIGSEGV fix, stylesheet bug fix
+
+**Updated**: apps/methods/imgfactory_svg_icons.py
+- `SVGIconFactory.rw_scan_icon()`: magnifying glass with "RW" label inside lens; themed via `_create_icon`
+
+**Updated**: apps/gui/gui_layout.py
+- `rw_scan_btn`: now uses `rw_scan_icon()` SVG — no more blank button
+- `refresh_icons()` v2: updates rw_scan_btn icon on theme change
+- `_update_rw_btn_visibility()` v1: shows button only when active tab is IMG; connected to `main_tab_widget.currentChanged`
+- `_apply_status_window_theme_styling()`: fixed `color: #{text_primary}` → `color: {text_primary}` (was emitting `##hex`, causing stylesheet parse error)
+
+**Updated**: apps/methods/column_width_manager.py
+- `setup_column_width_tracking()`: guard `new_size > 0` on sectionResized; `setSectionsMovable(False)` now set here — column drag-reorder disabled (was causing SIGSEGV when signal fired mid-move on C++ Qt object)
+
+---
+
 
 ## March 09, 2026 — RW Version Scan dialog implemented in activity bar
 

@@ -92,14 +92,27 @@ def setup_column_width_tracking(table: QTableWidget, main_window, table_type: st
             return False
 
         def on_resized(logical_index, old_size, new_size):
+            # Guard: skip zero-size and negative (happens mid-drag)
+            if new_size > 0:
+                save_column_widths(table, table_type, main_window)
+
+        def on_moved(logical, old_visual, new_visual):
+            # Save after a column drag completes
             save_column_widths(table, table_type, main_window)
 
-        # Disconnect any previous connection to avoid duplicates
+        # Disconnect any previous connections to avoid duplicates
         try:
             header.sectionResized.disconnect()
         except Exception:
             pass
+        try:
+            header.sectionMoved.disconnect()
+        except Exception:
+            pass
         header.sectionResized.connect(on_resized)
+        # NOTE: sectionMoved is NOT connected intentionally - drag-reorder causes
+        # SIGSEGV in Qt when saving during the move gesture. Column move is disabled.
+        header.setSectionsMovable(False)
 
         apply_column_widths(table, table_type, main_window)
         return True

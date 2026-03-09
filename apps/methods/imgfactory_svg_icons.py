@@ -421,6 +421,17 @@ class SVGIconFactory: #vers 7
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
+    @staticmethod
+    def rw_scan_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """RW version scan icon — magnifying glass with 'RW' label"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="13.5" y1="13.5" x2="20" y2="20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <text x="5.5" y="11.5" font-family="Arial,sans-serif" font-size="5.5" font-weight="bold"
+                  fill="currentColor" text-anchor="middle">RW</text>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
 
     @staticmethod
     def database_icon(size: int = 20, color: str = None) -> QIcon: #vers 7

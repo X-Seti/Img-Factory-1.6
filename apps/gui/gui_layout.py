@@ -465,12 +465,12 @@ class IMGFactoryGUILayout:
             return False
 
 
-    def refresh_icons(self, color: str): #vers 1
+    def refresh_icons(self, color: str): #vers 2
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
         try:
             from apps.methods.imgfactory_svg_icons import (
                 get_twin_panel_icon, get_layout_w1left_icon,
-                get_single_panel_icon, get_view_icon
+                get_single_panel_icon, get_view_icon, SVGIconFactory
             )
             if hasattr(self, 'f_entries_btn'):
                 self.f_entries_btn.setIcon(get_twin_panel_icon(20, color))
@@ -480,7 +480,9 @@ class IMGFactoryGUILayout:
                 self.search_btn.setIcon(get_single_panel_icon(20, color))
             if hasattr(self, 'log_btn'):
                 self.log_btn.setIcon(get_view_icon(20, color))
-            print(f"Toolbar icons refreshed with color: {color}")
+            if hasattr(self, 'rw_scan_btn'):
+                self.rw_scan_btn.setIcon(SVGIconFactory.rw_scan_icon(20, color))
+                self.rw_scan_btn.setIconSize(__import__('PyQt6.QtCore', fromlist=['QSize']).QSize(18, 18))
         except Exception as e:
             print(f"refresh_icons failed: {e}")
 
@@ -1678,10 +1680,16 @@ class IMGFactoryGUILayout:
         self.rw_scan_btn = QPushButton()
         self.rw_scan_btn.setFixedSize(24, 24)
         self.rw_scan_btn.setToolTip("RW Version Scan — show detected RenderWare versions and rescan if needed")
-        self.rw_scan_btn.setText("RW")
-        self.rw_scan_btn.setFont(QFont("Arial", 7, QFont.Weight.Bold))
+        self.rw_scan_btn.setVisible(False)  # Hidden until an IMG tab is active
         self.rw_scan_btn.clicked.connect(self._show_rw_scan_dialog)
         header_layout.addWidget(self.rw_scan_btn)
+
+        # RW scan button initial icon (uses same icon_color from top of create_status_window)
+        try:
+            self.rw_scan_btn.setIcon(SVGIconFactory.rw_scan_icon(20, icon_color))
+            self.rw_scan_btn.setIconSize(QSize(18, 18))
+        except Exception:
+            pass
 
         # Show Logs button - icon only, shows log file content
         self.log_btn = QPushButton()
@@ -1693,6 +1701,13 @@ class IMGFactoryGUILayout:
         header_layout.addWidget(self.log_btn)
 
         status_layout.addLayout(header_layout)
+
+        # Connect tab changes to show/hide rw_scan_btn
+        try:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'main_tab_widget'):
+                self.main_window.main_tab_widget.currentChanged.connect(self._update_rw_btn_visibility)
+        except Exception:
+            pass
 
         # Activity log text area
         self.log = QTextEdit()
@@ -1893,6 +1908,23 @@ class IMGFactoryGUILayout:
             if hasattr(self, 'main_window'):
                 self.main_window.log_message(f"Log file error: {str(e)}")
 
+
+
+    def _update_rw_btn_visibility(self, index=None): #vers 1
+        """Show RW scan button only when the active tab contains an IMG file."""
+        try:
+            if not hasattr(self, 'rw_scan_btn'):
+                return
+            mw = self.main_window
+            if index is None:
+                index = mw.main_tab_widget.currentIndex() if hasattr(mw, 'main_tab_widget') else -1
+            tab_widget = mw.main_tab_widget.widget(index) if hasattr(mw, 'main_tab_widget') and index >= 0 else None
+            file_type = getattr(tab_widget, 'file_type', None) if tab_widget else None
+            img = getattr(tab_widget, 'file_object', None) if tab_widget else None
+            is_img = (file_type == 'IMG') or (img is not None and hasattr(img, 'entries'))
+            self.rw_scan_btn.setVisible(bool(is_img))
+        except Exception:
+            pass
 
     def _rescan_rw_versions(self, img_file, progress_cb=None): #vers 1
         """Aggressively rescan RW versions for all DFF/TXD entries.
@@ -2368,7 +2400,7 @@ class IMGFactoryGUILayout:
                     border-radius: 3px;
                 }}
                 QLabel {{
-                    color: #{text_primary};
+                    color: {text_primary};
                     font-weight: bold;
                 }}
             """)
