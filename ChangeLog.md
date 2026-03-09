@@ -1,4 +1,16 @@
-#this belongs in root /ChangeLog.md - Version: 15
+#this belongs in root /ChangeLog.md - Version: 16
+
+## March 09, 2026 — RW Version Scan dialog implemented in activity bar
+
+**Updated**: apps/gui/gui_layout_custom.py
+- `_show_rw_scan_dialog()` fully implemented (was a stub wired to a button but had no body)
+- Shows table of all DFF/TXD entries: Name, Type, RW Hex, RW Version name
+- Summary counts by version at top (e.g. `3.1.0: 120  |  Unknown: 12`)
+- Unknown entries shown in dimmed placeholder-text colour
+- **Force Rescan All** button: resets cached rw_version on every DFF/TXD entry, re-runs detect_file_type_and_version() from disk, refreshes column 5 of active table without full reload
+- All colours from QPalette (theme-aware)
+
+---
 
 ## March 09, 2026 — RW Scan button: forced rescan + version frequency dialog
 
