@@ -318,45 +318,81 @@ class ColumnSettingsDialog(QDialog): #vers 1
             checkbox.setChecked(visible_columns.get(column_name, True))
 
 
-def setup_column_header_menu(table, main_window): #vers 1
-    """Right-click header menu to show/hide columns"""
+def setup_column_header_menu(table, main_window): #vers 2
+    """Right-click header menu to show/hide columns — deferred apply to prevent SIGSEGV"""
     from PyQt6.QtWidgets import QMenu
-    from PyQt6.QtCore import Qt
+    from PyQt6.QtCore import Qt, QTimer
 
     header = table.horizontalHeader()
     header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
     def show_header_menu(pos):
-        menu = QMenu()
+        # Snapshot column state BEFORE opening menu
+        col_info = []
         for col in range(table.columnCount()):
             item = table.horizontalHeaderItem(col)
-            if not item:
-                continue
-            name = item.text()
+            if item:
+                col_info.append((col, item.text(), table.isColumnHidden(col)))
+
+        if not col_info:
+            return
+
+        menu = QMenu(main_window)
+        for col, name, hidden in col_info:
             action = menu.addAction(name)
             action.setCheckable(True)
-            action.setChecked(not table.isColumnHidden(col))
+            action.setChecked(not hidden)
             action.setData(col)
 
-        chosen = menu.exec(header.mapToGlobal(pos))
-        if chosen:
-            col = chosen.data()
-            hidden = table.isColumnHidden(col)
-            table.setColumnHidden(col, not hidden)
-            # Save hidden state
+        # Use global position from the header widget — safer than mapToGlobal during signal
+        global_pos = header.mapToGlobal(pos)
+        chosen = menu.exec(global_pos)
+
+        if chosen is None:
+            return
+
+        col_idx = chosen.data()
+        currently_hidden = table.isColumnHidden(col_idx)
+        new_hidden = not currently_hidden
+
+        # CRITICAL: defer the model change until after menu teardown
+        # Calling setColumnHidden() synchronously inside customContextMenuRequested
+        # causes SIGSEGV because Qt's header view internal state is still mid-event
+        def _apply():
             try:
-                from apps.methods.img_factory_settings import IMGFactorySettings
-                settings = IMGFactorySettings()
-                key = "column_hidden_img"
-                hidden_cols = settings.get(key, {})
-                col_name = table.horizontalHeaderItem(col).text()
-                hidden_cols[col_name] = not hidden
-                settings.set(key, hidden_cols)
-                settings.save_settings()
+                if not table or not table.horizontalHeader():
+                    return
+                table.setColumnHidden(col_idx, new_hidden)
+                # Save hidden state
+                try:
+                    from apps.methods.img_factory_settings import IMGFactorySettings
+                    col_item = table.horizontalHeaderItem(col_idx)
+                    if col_item:
+                        settings = IMGFactorySettings()
+                        hidden_cols = settings.get("column_hidden_img", {})
+                        hidden_cols[col_item.text()] = new_hidden
+                        settings.set("column_hidden_img", hidden_cols)
+                        settings.save_settings()
+                except Exception:
+                    pass
             except Exception:
                 pass
 
+        QTimer.singleShot(0, _apply)
+
     header.customContextMenuRequested.connect(show_header_menu)
+
+    # Restore previously hidden columns
+    try:
+        from apps.methods.img_factory_settings import IMGFactorySettings
+        settings = IMGFactorySettings()
+        hidden_cols = settings.get("column_hidden_img", {})
+        for col in range(table.columnCount()):
+            item = table.horizontalHeaderItem(col)
+            if item and item.text() in hidden_cols:
+                table.setColumnHidden(col, hidden_cols[item.text()])
+    except Exception:
+        pass
 
     # Restore previously hidden columns
     try:
