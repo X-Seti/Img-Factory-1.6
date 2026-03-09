@@ -1,4 +1,18 @@
-#this belongs in root /ChangeLog.md - Version: 14
+#this belongs in root /ChangeLog.md - Version: 15
+
+## March 09, 2026 — RW Scan button: forced rescan + version frequency dialog
+
+**Updated**: apps/gui/gui_layout.py
+- `RW` button added to activity log header (24×24, sits left of the log button)
+- `_show_rw_scan_dialog()`: QPalette-themed dialog showing:
+  - File name, format version, total entries, DFF/TXD count, detected count, unknown count
+  - Version frequency table — RW version string, count, % of DFF/TXD; unknown rows highlighted orange
+  - **Rescan RW Versions**: re-reads first 128 bytes of every DFF/TXD entry from disk and probes every 4-byte-aligned offset 0..64 (wider net than the original 8/12/16 probe)
+  - **Reload Table**: repopulates the active IMG table widget with updated `entry.rw_version` data after a rescan
+  - Progress bar during rescan; status label shows scanned/updated counts
+- `_rescan_rw_versions(img_file, progress_cb)`: standalone method; handles `.dir`→`.img` path redirect; returns `(scanned, updated)` counts
+
+---
 
 ## March 09, 2026 — VERSION_1_IOS: separate iOS detection, fix _read_header_data for V1 family
 

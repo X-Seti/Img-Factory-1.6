@@ -1674,6 +1674,15 @@ class IMGFactoryGUILayout:
         self.search_btn.clicked.connect(self._show_search)
         header_layout.addWidget(self.search_btn)
 
+        # RW Scan button - rescan RW versions for current IMG
+        self.rw_scan_btn = QPushButton()
+        self.rw_scan_btn.setFixedSize(24, 24)
+        self.rw_scan_btn.setToolTip("RW Version Scan — show detected RenderWare versions and rescan if needed")
+        self.rw_scan_btn.setText("RW")
+        self.rw_scan_btn.setFont(QFont("Arial", 7, QFont.Weight.Bold))
+        self.rw_scan_btn.clicked.connect(self._show_rw_scan_dialog)
+        header_layout.addWidget(self.rw_scan_btn)
+
         # Show Logs button - icon only, shows log file content
         self.log_btn = QPushButton()
         self.log_btn.setFixedSize(24, 24)
@@ -1883,6 +1892,233 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self, 'main_window'):
                 self.main_window.log_message(f"Log file error: {str(e)}")
+
+
+    def _rescan_rw_versions(self, img_file, progress_cb=None): #vers 1
+        """Aggressively rescan RW versions for all DFF/TXD entries.
+        Reads 128 bytes per entry and probes all 4-byte-aligned offsets 0..64."""
+        import struct as _s, os as _os
+
+        def _is_valid(v):
+            if not v: return False
+            if 0x300 <= v <= 0x3FF: return True
+            if 0x30000 <= v <= 0x3FFFF: return True
+            if (v & 0xFFFF) == 0xFFFF and 0x0400 <= (v >> 16) <= 0x1C03: return True
+            if v == 0x1C020037: return True
+            return False
+
+        def _scan128(data):
+            for off in range(0, min(65, len(data) - 3), 4):
+                v = _s.unpack_from('<I', data, off)[0]
+                if _is_valid(v):
+                    return v
+            return None
+
+        from apps.methods.rw_versions import get_rw_version_name
+
+        data_file = img_file.file_path
+        if data_file.lower().endswith('.dir'):
+            data_file = data_file[:-4] + '.img'
+        if not _os.path.exists(data_file):
+            return 0, 0
+
+        scanned = updated = 0
+        try:
+            with open(data_file, 'rb') as f:
+                for i, entry in enumerate(img_file.entries):
+                    if progress_cb and i % 50 == 0:
+                        progress_cb(i)
+                    ext = getattr(entry, 'extension', '').upper()
+                    if ext not in ('DFF', 'TXD'):
+                        continue
+                    if entry.size == 0:
+                        continue
+                    scanned += 1
+                    try:
+                        f.seek(entry.offset)
+                        data = f.read(min(128, entry.size))
+                        v = _scan128(data)
+                        if v:
+                            entry.rw_version = v
+                            entry.rw_version_name = get_rw_version_name(v)
+                            entry._version_detected = True
+                            updated += 1
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        return scanned, updated
+
+    def _show_rw_scan_dialog(self): #vers 1
+        """Show RW version scan dialog: version frequency list + rescan + reload table."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                     QPushButton, QTableWidget, QTableWidgetItem,
+                                     QHeaderView, QProgressBar, QAbstractItemView)
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QColor, QPalette
+
+        mw = self.main_window
+        img_file = getattr(mw, 'current_img', None)
+
+        pal = mw.palette()
+        c_base    = pal.color(QPalette.ColorRole.Base).name()
+        c_altbase = pal.color(QPalette.ColorRole.AlternateBase).name()
+        c_text    = pal.color(QPalette.ColorRole.Text).name()
+        c_hl      = pal.color(QPalette.ColorRole.Highlight).name()
+        c_btn     = pal.color(QPalette.ColorRole.Button).name()
+        c_btntext = pal.color(QPalette.ColorRole.ButtonText).name()
+
+        dlg = QDialog(mw)
+        dlg.setWindowTitle("RW Version Scan")
+        dlg.resize(700, 480)
+        dlg.setStyleSheet(
+            f"QDialog {{ background: {c_base}; color: {c_text}; }}"
+            f"QLabel {{ color: {c_text}; }}"
+            f"QTableWidget {{ background: {c_base}; color: {c_text};"
+            f"  gridline-color: {c_altbase}; border: 1px solid {c_altbase}; }}"
+            f"QHeaderView::section {{ background: {c_altbase}; color: {c_text};"
+            f"  padding: 4px; border: none; }}"
+            f"QPushButton {{ background: {c_btn}; color: {c_btntext};"
+            f"  border: 1px solid {c_altbase}; border-radius: 4px; padding: 4px 10px; }}"
+            f"QPushButton:hover {{ background: {c_hl}; color: white; }}"
+            f"QProgressBar {{ background: {c_altbase}; border: 1px solid {c_altbase};"
+            f"  border-radius: 3px; text-align: center; color: {c_text}; }}"
+            f"QProgressBar::chunk {{ background: {c_hl}; border-radius: 3px; }}"
+        )
+
+        layout = QVBoxLayout(dlg)
+
+        if not img_file or not img_file.entries:
+            layout.addWidget(QLabel("No IMG file loaded."))
+            close = QPushButton("Close")
+            close.clicked.connect(dlg.accept)
+            layout.addWidget(close)
+            dlg.exec()
+            return
+
+        fname = img_file.file_path.replace('\\', '/').split('/')[-1]
+        ver_name = img_file.version.name if img_file.version else "UNKNOWN"
+        total = len(img_file.entries)
+        dff_txd = [e for e in img_file.entries if getattr(e,'extension','').upper() in ('DFF','TXD')]
+        detected = [e for e in dff_txd if getattr(e,'rw_version',0) > 0]
+        unknown  = [e for e in dff_txd if not getattr(e,'rw_version',0)]
+
+        info = QLabel(
+            f"<b>File:</b> {fname} &nbsp;|&nbsp; <b>Format:</b> {ver_name} &nbsp;|&nbsp; "
+            f"<b>Entries:</b> {total} &nbsp;|&nbsp; "
+            f"<b>DFF/TXD:</b> {len(dff_txd)} &nbsp;|&nbsp; "
+            f"<b style=\'color:{c_hl}\'>Detected:</b> {len(detected)} &nbsp;|&nbsp; "
+            f"<b style=\'color:orange\'>Unknown:</b> {len(unknown)}"
+        )
+        info.setTextFormat(Qt.TextFormat.RichText)
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        from collections import Counter
+
+        def build_counts():
+            counts = Counter()
+            for e in dff_txd:
+                rv = getattr(e, 'rw_version', 0)
+                if rv:
+                    name = getattr(e, 'rw_version_name', '') or f"0x{rv:08X}"
+                    counts[f"RW {name}  [0x{rv:08X}]"] += 1
+                else:
+                    counts["Unknown / Not Detected"] += 1
+            return counts
+
+        def populate_table(tbl, counts):
+            tbl.setRowCount(len(counts))
+            for row, (ver_str, cnt) in enumerate(sorted(counts.items())):
+                pct = f"{100*cnt/max(len(dff_txd),1):.1f}%"
+                tbl.setItem(row, 0, QTableWidgetItem(ver_str))
+                tbl.setItem(row, 1, QTableWidgetItem(str(cnt)))
+                tbl.setItem(row, 2, QTableWidgetItem(pct))
+                if "Unknown" in ver_str:
+                    for col in range(3):
+                        item = tbl.item(row, col)
+                        if item:
+                            item.setForeground(QColor("orange"))
+
+        tbl = QTableWidget()
+        tbl.setColumnCount(3)
+        tbl.setHorizontalHeaderLabels(["RW Version", "Count", "% of DFF/TXD"])
+        tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tbl.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        tbl.setAlternatingRowColors(True)
+        populate_table(tbl, build_counts())
+        layout.addWidget(tbl)
+
+        progress = QProgressBar()
+        progress.setMaximum(max(total, 1))
+        progress.setValue(0)
+        progress.setVisible(False)
+        layout.addWidget(progress)
+
+        status_lbl = QLabel("")
+        status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(status_lbl)
+
+        btn_row = QHBoxLayout()
+        rescan_btn = QPushButton("Rescan RW Versions")
+        rescan_btn.setToolTip("Re-read first 128 bytes of every DFF/TXD and probe all offsets")
+        reload_btn = QPushButton("Reload Table")
+        reload_btn.setEnabled(False)
+        reload_btn.setToolTip("Repopulate the IMG table with updated RW version data")
+        close_btn = QPushButton("Close")
+        btn_row.addWidget(rescan_btn)
+        btn_row.addWidget(reload_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+        def do_rescan():
+            rescan_btn.setEnabled(False)
+            progress.setVisible(True)
+            progress.setValue(0)
+            status_lbl.setText("Scanning...")
+            dlg.repaint()
+
+            scanned, updated = self._rescan_rw_versions(img_file, lambda i: progress.setValue(i) or dlg.repaint())
+            progress.setValue(total)
+            status_lbl.setText(f"Scanned {scanned} DFF/TXD entries — updated {updated} RW versions")
+            reload_btn.setEnabled(True)
+            rescan_btn.setEnabled(True)
+
+            populate_table(tbl, build_counts())
+            new_det = len([e for e in dff_txd if getattr(e,'rw_version',0) > 0])
+            new_unk = len([e for e in dff_txd if not getattr(e,'rw_version',0)])
+            info.setText(
+                f"<b>File:</b> {fname} &nbsp;|&nbsp; <b>Format:</b> {ver_name} &nbsp;|&nbsp; "
+                f"<b>Entries:</b> {total} &nbsp;|&nbsp; "
+                f"<b>DFF/TXD:</b> {len(dff_txd)} &nbsp;|&nbsp; "
+                f"<b style=\'color:{c_hl}\'>Detected:</b> {new_det} &nbsp;|&nbsp; "
+                f"<b style=\'color:orange\'>Unknown:</b> {new_unk}"
+            )
+
+        def do_reload():
+            try:
+                from PyQt6.QtWidgets import QTableWidget as QTW
+                tab_widget = mw.main_tab_widget.currentWidget()
+                table = getattr(tab_widget, 'table_ref', None)
+                if table is None and tab_widget:
+                    tables = tab_widget.findChildren(QTW)
+                    table = tables[0] if tables else None
+                if table and hasattr(mw, '_populate_img_table_widget'):
+                    mw._populate_img_table_widget(table, img_file)
+                    status_lbl.setText("Table reloaded.")
+                else:
+                    status_lbl.setText("Could not find active table widget.")
+            except Exception as ex:
+                status_lbl.setText(f"Reload error: {ex}")
+
+        rescan_btn.clicked.connect(do_rescan)
+        reload_btn.clicked.connect(do_reload)
+        close_btn.clicked.connect(dlg.accept)
+        dlg.exec()
 
     def _toggle_merge_view_layout(self): #vers 3
         """4-state cycle: W1L|W2R, W1T/W2B, W2L|W1R, W2T/W1B"""
