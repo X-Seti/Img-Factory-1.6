@@ -1,4 +1,21 @@
-#this belongs in root /ChangeLog.md - Version: 12
+#this belongs in root /ChangeLog.md - Version: 13
+
+## March 09, 2026 — iOS/Android GTA3/VC: V1_MOBILE detection (512-byte sectors)
+
+**Fixed**: apps/methods/img_core_classes.py
+- `IMGVersion.VERSION_1_MOBILE = 46` — new enum for .dir+.img pairs using 512-byte sectors (iOS/Android GTA3 and VC ports)
+- `_probe_dir_sector_size(dir_path, img_path)` — new helper: reads first 32 .dir entries, computes max byte address at both 2048 and 512 sectors, returns 512 if 2048-sector layout overshoots the .img file size but 512-sector layout fits
+- `_detect_v1_or_v1_5()` v2: calls `_probe_dir_sector_size` before name inspection; returns `'V1_MOBILE'` when 512-byte sectors detected
+- `detect_version()` v5: maps `'V1_MOBILE'` result to `IMGVersion.VERSION_1_MOBILE` in both the .dir entry path and the .img-with-companion-.dir path
+- `_open_version_1()` v6: reads `sector_size = 512` when `version == VERSION_1_MOBILE`, otherwise `2048`; all entry `offset` and `size` calculations use the probed sector size
+- Open dispatch: `VERSION_1_MOBILE` added to the V1/V1.5/SOL routing block
+
+**Updated**: apps/gui/gui_layout_custom.py — format reference dialog
+- iOS/Android table: GTA III and VC rows updated to show `.dir+.img pair, 512-byte sectors (V1_MOBILE)`; SA row retains VER2/2048; LCS still under investigation
+- Sector addressing table: added explicit row for `iOS / Android GTA3/VC (.dir+.img) → 512 bytes, detected automatically as V1_MOBILE`
+- Status tab: replaced `Version 2 — GTA III/VC iOS/Android` rows with `Version 1 Mobile — GTA III/VC iOS/Android (512-byte sectors)` — read ✓, write ✗ (read-only)
+
+---
 
 ## March 08, 2026 — Format Reference: iOS platform docs, palette-based colours
 

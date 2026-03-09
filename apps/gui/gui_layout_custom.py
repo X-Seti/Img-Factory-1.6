@@ -973,13 +973,14 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 <table><tr><th>Rule</th><th>Value</th></tr>
 <tr><td>Sector size</td><td>2048 bytes (0x800) — all PC, iOS, Android builds</td></tr>
 <tr><td>PS2 / PSP sector size</td><td>512 bytes (0x200)</td></tr>
+<tr><td>iOS / Android GTA3/VC (.dir+.img)</td><td>512 bytes (0x200) — detected automatically as V1_MOBILE</td></tr>
 <tr><td>Byte offset</td><td>sector_offset × sector_size</td></tr>
 <tr><td>Alignment on rebuild</td><td>Entries padded to next sector boundary</td></tr></table>
 
 <h4>iOS / Android Releases (War Drum Studios ports)</h4>
 <table><tr><th>Game</th><th>iOS</th><th>Android</th><th>IMG Format</th><th>IMG Factory</th></tr>
-<tr><td>GTA III</td><td class="ok">Dec 2011</td><td class="ok">Dec 2011</td><td>VER2, 2048-byte sectors</td><td class="ok">Loads OK</td></tr>
-<tr><td>GTA Vice City</td><td class="ok">Dec 2012</td><td class="ok">Dec 2012</td><td>VER2, 2048-byte sectors</td><td class="ok">Loads OK</td></tr>
+<tr><td>GTA III</td><td class="ok">Dec 2011</td><td class="ok">Dec 2011</td><td>.dir+.img pair, <b>512-byte sectors</b> (V1_MOBILE)</td><td class="ok">Loads OK</td></tr>
+<tr><td>GTA Vice City</td><td class="ok">Dec 2012</td><td class="ok">Dec 2012</td><td>.dir+.img pair, <b>512-byte sectors</b> (V1_MOBILE)</td><td class="ok">Loads OK</td></tr>
 <tr><td>GTA San Andreas</td><td class="ok">Dec 2013</td><td class="ok">Dec 2013</td><td>VER2, 2048-byte sectors</td><td class="ok">Loads OK</td></tr>
 <tr><td>GTA Liberty City Stories</td><td class="ok">Jun 2015</td><td class="ok">Jun 2015</td><td>VER2 — internal format under investigation</td><td class="wip">Fails — investigating</td></tr>
 <tr><td>GTA Vice City Stories</td><td class="no">Never released</td><td class="no">Never released</td><td>PSP/PS2 only</td><td class="no">N/A</td></tr></table>
@@ -1174,8 +1175,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 <tr><td>Version 1 — GTA III / VC Xbox</td><td class="ok">✓</td><td class="ok">✓</td></tr>
 <tr><td>Version 1.5 — Extended</td><td class="ok">✓</td><td class="wip">~</td></tr>
 <tr><td>Version 2 — GTA SA PC</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 2 — GTA III iOS / Android</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 2 — GTA VC iOS / Android</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+<tr><td>Version 1 Mobile — GTA III iOS / Android (512-byte sectors)</td><td class="ok">✓</td><td class="no">✗</td></tr>
+<tr><td>Version 1 Mobile — GTA VC iOS / Android (512-byte sectors)</td><td class="ok">✓</td><td class="no">✗</td></tr>
 <tr><td>Version 2 — GTA SA iOS / Android</td><td class="ok">✓</td><td class="ok">✓</td></tr>
 <tr><td>Version 2 — GTA LCS iOS / Android</td><td class="wip">~</td><td class="no">✗</td></tr>
 <tr><td>Version 3 — GTA IV encrypted</td><td class="wip">~</td><td class="no">✗</td></tr></table>
