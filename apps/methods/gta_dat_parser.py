@@ -1,20 +1,29 @@
-#this belongs in methods/gta_dat_parser.py - Version: 4
+#this belongs in methods/gta_dat_parser.py - Version: 5
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA Data File Parser
 """
-GTA3 + VC + SA Data File Parser — mirrors the RenderWare engine load chain exactly.
+GTA3 + VC + SA + GTASOL Data File Parser — mirrors the RenderWare engine load chain exactly.
 
 GTA3 load order (verified from real files):
-  Phase 1: default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
-  Phase 2: gta3.dat     -> 16 IDEs, 16 COLFILEs (island index 0-3), 14 IPLs
+  Phase 1: data/default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
+  Phase 2: data/gta3.dat     -> 16 IDEs, 16 COLFILEs (island index 0-3), 14 IPLs
 
 VC load order (verified from real files):
-  Phase 1: default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
-  Phase 2: gta_vc.dat   -> 31 IDEs, 1 COLFILE, 36 IPLs
+  Phase 1: data/default.dat  -> IDE DATA/DEFAULT.IDE, TEXDICTION, MODELFILE, COLFILE
+  Phase 2: data/gta_vc.dat   -> 31 IDEs, 1 COLFILE, 36 IPLs
 
 SA load order (verified from real files):
-  Phase 1: default.dat  -> 3 IDEs (DEFAULT.IDE + VEHICLES.IDE + PEDS.IDE), 1 COLFILE
-  Phase 2: gta.dat      -> 3 IMGs, 54 IDEs, 52 IPLs, 0 COLFILEs
-  Alt:     gta_quick.dat -> stripped dev variant (1 IMG, 13 IDE, 11 IPL)
+  Phase 1: data/default.dat  -> 3 IDEs (DEFAULT.IDE + VEHICLES.IDE + PEDS.IDE), 1 COLFILE
+  Phase 2: data/gta.dat      -> 3 IMGs, 54 IDEs, 52 IPLs, 0 COLFILEs
+  Alt:     data/gta_quick.dat -> stripped dev variant (1 IMG, 13 IDE, 11 IPL)
+
+SOL (GTASOL mod) load order (verified from real files):
+  Phase 1: sol/special.dat   -> IDE models/gta3.ide, TEXDICTION, MODELFILE, 2 COLFILEs
+  Phase 2: sol/gta_sol.dat   -> 12 CDIMAGEs, 16 IDEs (+5 .iFX lighting), 11 COLFILEs, 111 IPLs
+  Alt DAT: sol/gtasol.dat    -> same content, no-underscore variant
+  Sol dir: sol/ or SOL/      -> case-insensitive search on Linux required
+  Paths:   relative to SA game root (not to dat file); sol/ and models/ prefixes
+  Notes:   .iFX files are listed as IDE directives (SA 2dfx lighting extension)
+           CDIMAGE and IMG are interchangeable directives (same meaning)
 
 Field formats per game (verified from real .ide files):
   GTA3 objs: id, model, txd, meshCount, dist1[, dist2], flags
@@ -24,17 +33,14 @@ Field formats per game (verified from real .ide files):
   GTA3 hier: id, model, txd
   GTA3 inst: id, model, px, py, pz, sx, sy, sz, rx, ry, rz, rw  (12 fields)
 
-  VC peds: ..., carsDriveMask, animFile, radio1, radio2           (+3 vs GTA3)
-  VC cars: ..., gameName, animFile, class, ...                    (+animFile vs GTA3)
-  VC weap: id, model, txd, animFile, meshCount, drawDist, flags   (+animFile vs GTA3)
-  VC hier: id, model, txd                                          (same as GTA3)
+  VC/SA peds: ..., carsDriveMask, animFile, radio1, radio2        (+3 vs GTA3)
+  VC/SA cars: ..., gameName, animFile, class, ...                  (+animFile vs GTA3)
+  VC/SA weap: id, model, txd, animFile, meshCount, drawDist, flags (+animFile vs GTA3)
+  VC   hier:  id, model, txd                                        (same as GTA3)
+  SA   hier:  id, model, txd, animFile, drawDist                   (5 fields)
+  SA   inst:  id, model, interior, px, py, pz, rx, ry, rz, rw[, lod]
 
-  SA weap: id, model, txd, animFile, meshCount, drawDist, flags   (same layout as VC)
-  SA hier: id, model, txd, animFile, drawDist                     (5 fields, +animFile+drawDist)
-  SA objs: same meshCount format as GTA3
-  SA inst: id, model, interior, px, py, pz, rx, ry, rz, rw[, lod] (10-11 fields)
-  SA default.dat: loads VEHICLES.IDE + PEDS.IDE separately (no inline cars/peds in DEFAULT.IDE)
-  SA gta.dat: has IMG directives (CARREC.IMG, SCRIPT.IMG, CUTSCENE.IMG), no COLFILEs
+  SOL: SA-format IDE/IPL sections (mod runs on SA engine)
 """
 
 import os
@@ -47,33 +53,40 @@ class GTAGame:
     GTA3 = "gta3"
     VC   = "vc"
     SA   = "sa"
+    SOL  = "sol"   # GTASOL mod (SA engine, multi-city)
 
     DAT_FILE = {
         "gta3": "gta3.dat",
         "vc":   "gta_vc.dat",
         "sa":   "gta.dat",
+        "sol":  "gta_sol.dat",   # lives in sol/ or SOL/ subfolder
     }
 
-    # Alternative DAT names (e.g. SA dev/quick-load variant)
+    # Alternative DAT names
     ALT_DAT_FILE = {
-        "sa": "gta_quick.dat",
+        "sa":  "gta_quick.dat",
+        "sol": "gtasol.dat",     # no-underscore variant
     }
 
-    # default.dat is hardcoded by the exe and loaded before the main .dat
-    # SA loads default.dat too (3 IDEs: DEFAULT.IDE, VEHICLES.IDE, PEDS.IDE)
+    # Phase-1 dat loaded before the main dat
+    # SOL uses special.dat (in same sol/ folder) as its phase-1 loader
     DEFAULT_DAT = {
-        "gta3": "default.dat",
-        "vc":   "default.dat",
-        "sa":   "default.dat",
+        "gta3": "default.dat",   # in data/
+        "vc":   "default.dat",   # in data/
+        "sa":   "default.dat",   # in data/
+        "sol":  "special.dat",   # in sol/ or SOL/
     }
 
     DATA_SUBDIR = "data"
+    SOL_SUBDIRS = ("sol", "SOL")  # case variants to try on Linux
 
     IDE_SECTIONS = {
         "gta3": {"objs", "tobj", "weap", "hier", "anim", "cars", "peds", "path"},
         "vc":   {"objs", "tobj", "weap", "hier", "anim", "cars", "peds", "path", "txdp"},
         "sa":   {"objs", "tobj", "weap", "hier", "anim", "cars", "peds", "path",
                  "txdp", "2dfx", "tanm"},
+        "sol":  {"objs", "tobj", "weap", "hier", "anim", "cars", "peds", "path",
+                 "txdp", "2dfx", "tanm"},  # SA engine — same sections
     }
 
     IPL_SECTIONS = {
@@ -81,12 +94,15 @@ class GTAGame:
         "vc":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo", "zone"},
         "sa":   {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
                  "zone", "occl", "mult", "grge", "tcyc", "scrn"},
+        "sol":  {"inst", "cull", "pick", "jump", "enex", "cars", "auzo",
+                 "zone", "occl", "mult", "grge", "tcyc", "scrn"},  # SA engine
     }
 
     ID_RANGES = {
         "gta3": (0,  5999),
         "vc":   (0,  5999),
         "sa":   (0, 19999),
+        "sol":  (0, 65535),  # multi-city mod — expanded ID space
     }
 
 
@@ -140,6 +156,29 @@ class ParseStats:
     instances:       int = 0
     errors:          List[str] = field(default_factory=list)
     warnings:        List[str] = field(default_factory=list)
+
+
+def _resolve_ci(base: str, rel_path: str) -> Optional[str]:
+    """Case-insensitive path resolution from base directory.
+    Walks each path component, matching case-insensitively.
+    Returns the real absolute path if found, else None.
+    Needed for SOL on Linux where sol/ vs SOL/ (case) appear in the same .dat file.
+    """
+    parts = rel_path.replace("\\", "/").split("/")
+    current = base
+    for part in parts:
+        if not part:
+            continue
+        try:
+            entries = os.listdir(current)
+        except (PermissionError, NotADirectoryError, FileNotFoundError):
+            return None
+        part_lower = part.lower()
+        match = next((e for e in entries if e.lower() == part_lower), None)
+        if match is None:
+            return None
+        current = os.path.join(current, match)
+    return current if os.path.isfile(current) else None
 
 
 class DATParser: #vers 2
@@ -213,14 +252,25 @@ class DATParser: #vers 2
 
         return True
 
-    def _resolve(self, raw: str) -> str: #vers 2
-        norm = raw.replace("\\", os.sep).replace("/", os.sep)
+    def _resolve(self, raw: str) -> str: #vers 3
+        """Resolve a Windows-style relative path to an absolute path.
+        Uses case-insensitive fallback for Linux (needed for SOL's mixed-case paths)."""
+        norm = raw.strip().replace("\\", os.sep).replace("/", os.sep)
         if os.path.isabs(norm):
             return norm
+        # Try game_root-relative first (most GTA paths are relative to install root)
         cand = os.path.normpath(os.path.join(self.game_root, norm))
         if os.path.isfile(cand):
             return cand
-        return os.path.normpath(os.path.join(os.path.dirname(self.dat_path), norm))
+        # Try dat-file-relative
+        cand2 = os.path.normpath(os.path.join(os.path.dirname(self.dat_path), norm))
+        if os.path.isfile(cand2):
+            return cand2
+        # Case-insensitive fallback (Linux: sol/ vs SOL/ in same file)
+        ci = _resolve_ci(self.game_root, norm)
+        if ci:
+            return ci
+        return cand  # return game-root candidate even if not found
 
     def get_by_directive(self, d: str) -> List[DATEntry]:
         return [e for e in self.entries if e.directive == d.upper()]
@@ -420,7 +470,7 @@ class IDEParser: #vers 2
                 model_name = parts[1]
                 txd_name   = parts[2]
                 extra: Dict[str, Any] = {}
-                if self.game == GTAGame.SA:
+                if self.game in (GTAGame.SA, GTAGame.SOL):
                     if len(parts) > 3:
                         extra["anim_file"] = parts[3]
                     if len(parts) > 4:
@@ -508,7 +558,7 @@ class IPLParser: #vers 2
     def _parse_inst(self, line: str, source: str, lineno: int) -> Optional[IPLInstance]: #vers 2
         try:
             parts = [p.strip() for p in line.split(",")]
-            if self.game == GTAGame.SA:
+            if self.game in (GTAGame.SA, GTAGame.SOL):
                 if len(parts) < 10:
                     return None
                 return IPLInstance(
@@ -582,40 +632,29 @@ class GTAWorldLoader: #vers 3
         self.stats       = ParseStats()
         self.progress_cb = None
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 3
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 4
         """Full load from a game root directory."""
         self.progress_cb = progress_cb
         self._reset()
-        data_dir = os.path.join(game_root, GTAGame.DATA_SUBDIR)
 
-        # Phase 1 — default.dat
-        default_name = GTAGame.DEFAULT_DAT.get(self.game)
-        if default_name:
-            default_path = os.path.join(data_dir, default_name)
-            if os.path.isfile(default_path):
-                self._progress(0, 1, f"Phase 1: {default_name}")
-                self.default_dat.parse(default_path, game_root)
-                self._process_dat(self.default_dat, "default")
-            else:
-                self.stats.warnings.append(
-                    f"default.dat not found: {default_path}")
+        # ── Locate phase-1 (default/special) dat ─────────────────────────
+        default_path = find_default_dat(game_root, self.game)
+        if default_path:
+            self._progress(0, 1, f"Phase 1: {os.path.basename(default_path)}")
+            self.default_dat.parse(default_path, game_root)
+            self._process_dat(self.default_dat, "default")
+        else:
+            self.stats.warnings.append(
+                f"Phase-1 dat not found for game '{self.game}' in {game_root}")
 
-        # Phase 2 — main .dat (try primary name, then alt name)
-        main_name = GTAGame.DAT_FILE.get(self.game)
-        main_path = os.path.join(data_dir, main_name) if main_name else ""
-        if not os.path.isfile(main_path):
-            alt_name = GTAGame.ALT_DAT_FILE.get(self.game)
-            if alt_name:
-                alt_path = os.path.join(data_dir, alt_name)
-                if os.path.isfile(alt_path):
-                    main_path = alt_path
-                    main_name = alt_name
-        if not main_name or not os.path.isfile(main_path):
+        # ── Locate phase-2 main dat ───────────────────────────────────────
+        main_path = find_dat_file(game_root, self.game)
+        if not main_path:
             self.stats.errors.append(
-                f"Main DAT not found for game {self.game} in {data_dir}")
+                f"Main DAT not found for game '{self.game}' in {game_root}")
             return False
 
-        self._progress(0, 1, f"Phase 2: {main_name}")
+        self._progress(0, 1, f"Phase 2: {os.path.basename(main_path)}")
         self.main_dat.parse(main_path, game_root)
         self._process_dat(self.main_dat, "main")
 
@@ -739,24 +778,49 @@ class GTAWorldLoader: #vers 3
         ])
 
 
-def detect_game(game_root: str) -> Optional[str]: #vers 3
-    data = os.path.join(game_root, "data")
-    if os.path.isfile(os.path.join(data, "gta.dat")):      return GTAGame.SA
-    if os.path.isfile(os.path.join(data, "gta_quick.dat")): return GTAGame.SA
-    if os.path.isfile(os.path.join(data, "gta_vc.dat")):   return GTAGame.VC
-    if os.path.isfile(os.path.join(data, "gta3.dat")):     return GTAGame.GTA3
+def _find_sol_dir(game_root: str) -> Optional[str]:
+    """Return the absolute path to the sol folder (sol/ or SOL/), or None."""
+    for name in GTAGame.SOL_SUBDIRS:
+        candidate = os.path.join(game_root, name)
+        if os.path.isdir(candidate):
+            return candidate
     return None
 
 
-def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 2
-    """Return absolute path to the main .dat for the given game, or the alt .dat, or None."""
+def detect_game(game_root: str) -> Optional[str]: #vers 4
+    """Detect which GTA game lives at game_root. Checks SA data/ and SOL sol/ subfolder."""
+    data = os.path.join(game_root, "data")
+    # SOL: check sol/ or SOL/ for gta_sol.dat or gtasol.dat
+    sol_dir = _find_sol_dir(game_root)
+    if sol_dir:
+        for name in (GTAGame.DAT_FILE["sol"], GTAGame.ALT_DAT_FILE["sol"]):
+            if os.path.isfile(os.path.join(sol_dir, name)):
+                return GTAGame.SOL
+    if os.path.isfile(os.path.join(data, "gta.dat")):       return GTAGame.SA
+    if os.path.isfile(os.path.join(data, "gta_quick.dat")): return GTAGame.SA
+    if os.path.isfile(os.path.join(data, "gta_vc.dat")):    return GTAGame.VC
+    if os.path.isfile(os.path.join(data, "gta3.dat")):      return GTAGame.GTA3
+    return None
+
+
+def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 3
+    """Return absolute path to the main .dat for the given game, or None.
+    SOL: searches sol/ and SOL/ subfolders; tries alt name (gtasol.dat) if primary missing."""
+    if game == GTAGame.SOL:
+        sol_dir = _find_sol_dir(game_root)
+        if not sol_dir:
+            return None
+        for name in (GTAGame.DAT_FILE["sol"], GTAGame.ALT_DAT_FILE["sol"]):
+            c = os.path.join(sol_dir, name)
+            if os.path.isfile(c):
+                return c
+        return None
     data = os.path.join(game_root, "data")
     name = GTAGame.DAT_FILE.get(game)
     if name:
         c = os.path.join(data, name)
         if os.path.isfile(c):
             return c
-    # Try alternative name (e.g. gta_quick.dat for SA)
     alt = GTAGame.ALT_DAT_FILE.get(game)
     if alt:
         c = os.path.join(data, alt)
@@ -765,20 +829,32 @@ def find_dat_file(game_root: str, game: str) -> Optional[str]: #vers 2
     return None
 
 
-def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 1
+def find_default_dat(game_root: str, game: str) -> Optional[str]: #vers 2
+    """Return absolute path to the phase-1 dat (default.dat / special.dat), or None."""
     name = GTAGame.DEFAULT_DAT.get(game)
-    if not name: return None
+    if not name:
+        return None
+    if game == GTAGame.SOL:
+        sol_dir = _find_sol_dir(game_root)
+        if not sol_dir:
+            return None
+        c = os.path.join(sol_dir, name)
+        # Also try case-insensitive on Linux
+        if not os.path.isfile(c):
+            ci = _resolve_ci(sol_dir, name)
+            return ci
+        return c
     c = os.path.join(game_root, "data", name)
     return c if os.path.isfile(c) else None
 
 
-def integrate_gta_dat_parser(main_window) -> bool: #vers 2
+def integrate_gta_dat_parser(main_window) -> bool: #vers 3
     try:
         main_window.gta_world_loader = GTAWorldLoader()
         main_window.detect_gta_game  = detect_game
         main_window.find_dat_file    = find_dat_file
         if hasattr(main_window, "log_message"):
-            main_window.log_message("GTA DAT/IDE/IPL parser integrated (v2, GTA3-accurate)")
+            main_window.log_message("GTA DAT/IDE/IPL parser integrated (v5, GTA3/VC/SA/SOL)")
         return True
     except Exception as e:
         if hasattr(main_window, "log_message"):
@@ -790,5 +866,6 @@ __all__ = [
     "GTAGame", "DATEntry", "IDEObject", "IPLInstance", "ParseStats",
     "DATParser", "IDEParser", "IPLParser", "GTAWorldLoader",
     "detect_game", "find_dat_file", "find_default_dat",
+    "_find_sol_dir", "_resolve_ci",
     "integrate_gta_dat_parser",
 ]
