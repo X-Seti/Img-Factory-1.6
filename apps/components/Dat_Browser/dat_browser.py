@@ -21,12 +21,14 @@ from PyQt6.QtGui import QFont, QColor
 
 try:
     from apps.methods.gta_dat_parser import (
-        GTAGame, GTAWorldLoader, detect_game, find_dat_file,
+        GTAGame, GTAWorldLoader, GTAWorldXRef, build_xref,
+        detect_game, find_dat_file,
     )
     from apps.debug.debug_functions import img_debugger
 except ImportError:
     from apps.methods.gta_dat_parser import (
-        GTAGame, GTAWorldLoader, detect_game, find_dat_file,
+        GTAGame, GTAWorldLoader, GTAWorldXRef, build_xref,
+        detect_game, find_dat_file,
     )
     img_debugger = None
 
@@ -49,10 +51,10 @@ class _LoadThread(QThread): #vers 1
         self.dat_path  = dat_path
         self.game_root = game_root
 
-    def run(self): #vers 1
+    def run(self): #vers 2
         def cb(cur, tot, msg):
             self.progress.emit(cur, tot, msg)
-        ok = self.loader.load(self.dat_path, self.game_root, progress_cb=cb)
+        ok = self.loader.load(self.game_root, progress_cb=cb)
         self.finished.emit(ok, self.loader.get_summary())
 
 
@@ -60,19 +62,21 @@ class _LoadThread(QThread): #vers 1
 # Main browser widget
 # ─────────────────────────────────────────────────────────────────────────────
 
-class DATBrowserWidget(QWidget): #vers 1
+class DATBrowserWidget(QWidget): #vers 2
     """
     Full DAT/IDE/IPL browser panel.
     Drop into any QTabWidget or use standalone.
     """
 
-    open_img_requested = pyqtSignal(str)   # emits abs path to .img
+    open_img_requested = pyqtSignal(str)          # emits abs path to .img
+    xref_ready         = pyqtSignal(object)        # emits GTAWorldXRef after load
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
         self.main_window = main_window
         self.loader      = GTAWorldLoader()
-        self._thread: Optional[_LoadThread] = None
+        self.xref:       Optional[GTAWorldXRef] = None
+        self._thread:    Optional[_LoadThread]  = None
         self._setup_ui()
 
     # ── UI construction ────────────────────────────────────────────────────
@@ -87,7 +91,7 @@ class DATBrowserWidget(QWidget): #vers 1
         toolbar.setSpacing(6)
 
         self._game_combo = QComboBox()
-        self._game_combo.addItems(["Auto-detect", "GTA III", "Vice City", "San Andreas"])
+        self._game_combo.addItems(["Auto-detect", "GTA III", "Vice City", "San Andreas", "GTASOL"])
         self._game_combo.setFixedWidth(130)
         self._game_combo.setToolTip("Select game or Auto-detect from folder")
 
@@ -205,7 +209,7 @@ class DATBrowserWidget(QWidget): #vers 1
 
     # ── Browse / load ──────────────────────────────────────────────────────
 
-    def _browse_game_root(self): #vers 1
+    def _browse_game_root(self): #vers 2
         path = QFileDialog.getExistingDirectory(
             self, "Select GTA game root folder",
             self._path_edit.text() or os.path.expanduser("~"))
@@ -214,37 +218,39 @@ class DATBrowserWidget(QWidget): #vers 1
         self._path_edit.setText(path)
         game = detect_game(path)
         if game:
-            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2, GTAGame.SA: 3}.get(game, 0)
+            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2, GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
             self._game_combo.setCurrentIndex(idx)
-            names = {1: "GTA III", 2: "Vice City", 3: "San Andreas"}
+            names = {1: "GTA III", 2: "Vice City", 3: "San Andreas", 4: "GTASOL"}
             self._status_lbl.setText(f"Detected: {names.get(idx, 'unknown')}")
         else:
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
 
-    def _start_load(self): #vers 1
+    def _start_load(self): #vers 2
         game_root = self._path_edit.text().strip()
         if not game_root:
             return
 
         game_idx = self._game_combo.currentIndex()
-        game_map = {0: None, 1: GTAGame.GTA3, 2: GTAGame.VC, 3: GTAGame.SA}
+        game_map = {0: None, 1: GTAGame.GTA3, 2: GTAGame.VC,
+                    3: GTAGame.SA, 4: GTAGame.SOL}
         game = game_map.get(game_idx)
         if game is None:
             game = detect_game(game_root)
         if game is None:
             QMessageBox.warning(self, "Cannot detect game",
-                "Could not find gta3.dat / gta_vc.dat / gta.dat in the data/ folder.\n"
+                "Could not find a supported game DAT file.\n"
                 "Select the correct game from the dropdown.")
             return
 
         dat_path = find_dat_file(game_root, game)
         if not dat_path:
             QMessageBox.warning(self, "DAT not found",
-                f"Cannot find {GTAGame.DAT_FILE[game]} under {game_root}/data/")
+                f"Cannot find DAT file for {game} under {game_root}")
             return
 
         self.loader = GTAWorldLoader(game)
+        self.xref   = None
         self._clear_ui()
         self._load_btn.setEnabled(False)
         self._search_edit.setEnabled(False)
@@ -265,7 +271,7 @@ class DATBrowserWidget(QWidget): #vers 1
         self._progress.setFormat(msg)
 
     @pyqtSlot(bool, str)
-    def _on_load_done(self, ok, summary): #vers 1
+    def _on_load_done(self, ok, summary): #vers 2
         self._progress.setVisible(False)
         self._load_btn.setEnabled(True)
         if ok:
@@ -273,6 +279,13 @@ class DATBrowserWidget(QWidget): #vers 1
                 f"Loaded — {self.loader.stats.objects_loaded:,} objects, "
                 f"{self.loader.stats.instances:,} instances, "
                 f"{len(self.loader.zones):,} zones")
+            # Build cross-reference index and notify listeners
+            try:
+                self.xref = build_xref(self.loader)
+                self.xref_ready.emit(self.xref)
+            except Exception as e:
+                if img_debugger:
+                    img_debugger.warning(f"XRef build failed: {e}")
         else:
             self._status_lbl.setText("Load failed — see Load Log tab.")
         self._populate_all()
@@ -295,14 +308,23 @@ class DATBrowserWidget(QWidget): #vers 1
         self._populate_instances()
         self._populate_zones()
 
-    def _populate_tree(self): #vers 1
+    def _populate_tree(self): #vers 2
         self._tree.clear()
-        dat_name  = os.path.basename(self.loader.dat.dat_path)
-        root_item = QTreeWidgetItem([dat_name, "DAT", "", "✓"])
+        default_path = getattr(self.loader.default_dat, "dat_path", "")
+        main_path    = getattr(self.loader.main_dat,    "dat_path", "")
+        display_name = os.path.basename(main_path) if main_path else "unknown.dat"
+
+        root_item = QTreeWidgetItem([display_name, "DAT", "", "✓"])
         root_item.setExpanded(True)
         self._tree.addTopLevelItem(root_item)
 
-        for entry_type, path, success in self.loader.load_log:
+        if default_path:
+            def_name = os.path.basename(default_path)
+            def_item = QTreeWidgetItem([def_name, "DAT-1", "", "✓"])
+            def_item.setForeground(0, QColor("#888888"))
+            root_item.addChild(def_item)
+
+        for phase, entry_type, path, success in self.loader.load_log:
             bname = os.path.basename(path)
             if entry_type == "IDE":
                 count = sum(1 for o in self.loader.objects.values()
@@ -395,7 +417,7 @@ class DATBrowserWidget(QWidget): #vers 1
 
     def _build_log_text(self) -> str: #vers 1
         lines = [self.loader.get_summary(), "", "── Load order ──"]
-        for entry_type, path, success in self.loader.load_log:
+        for phase, entry_type, path, success in self.loader.load_log:
             mark = "✓" if success else "✗ MISSING"
             lines.append(f"  [{entry_type}] {mark}  {path}")
         if self.loader.stats.warnings:
@@ -518,11 +540,12 @@ class DATBrowserWidget(QWidget): #vers 1
     # ── Public API ─────────────────────────────────────────────────────────
 
     def load_from_game_root(self, game_root: str,
-                             game: Optional[str] = None): #vers 1
+                             game: Optional[str] = None): #vers 2
         """Programmatic load (e.g. triggered when user opens a known game IMG)."""
         self._path_edit.setText(game_root)
         if game:
-            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2, GTAGame.SA: 3}.get(game, 0)
+            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
+                   GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
             self._game_combo.setCurrentIndex(idx)
         self._load_btn.setEnabled(True)
         self._start_load()
@@ -532,20 +555,48 @@ class DATBrowserWidget(QWidget): #vers 1
 # Integration hook
 # ─────────────────────────────────────────────────────────────────────────────
 
-def integrate_dat_browser(main_window) -> bool: #vers 1
-    """Add a DAT Browser tab to main_window.main_tab_widget."""
+def integrate_dat_browser(main_window) -> bool: #vers 2
+    """Add a DAT Browser tab to main_window.main_tab_widget (non-closable permanent tab)."""
     try:
         widget = DATBrowserWidget(main_window, parent=main_window)
+
         if hasattr(main_window, "main_tab_widget"):
-            main_window.main_tab_widget.addTab(widget, "DAT Browser")
+            tw = main_window.main_tab_widget
+            tab_idx = tw.addTab(widget, "DAT Browser")
+            # Make this tab non-closable (no X button)
+            tw.tabBar().setTabButton(tab_idx,
+                tw.tabBar().ButtonPosition.RightSide, None)
+            tw.tabBar().setTabButton(tab_idx,
+                tw.tabBar().ButtonPosition.LeftSide, None)
             main_window.dat_browser = widget
         else:
             widget.setWindowTitle("GTA DAT/IDE/IPL Browser")
             widget.resize(1100, 700)
             widget.show()
             main_window.dat_browser = widget
+
+        # Wire xref_ready: apply tooltips to current IMG table when DAT loads
+        def _on_xref_ready(xref):
+            try:
+                from apps.methods.populate_img_table import apply_xref_tooltips
+                # Find the active IMG table
+                tw = getattr(main_window, "main_tab_widget", None)
+                if not tw:
+                    return
+                tab = tw.currentWidget()
+                if not tab:
+                    return
+                table = getattr(tab, "table_ref", None)
+                if table:
+                    apply_xref_tooltips(table, xref)
+            except Exception as e:
+                if hasattr(main_window, "log_message"):
+                    main_window.log_message(f"XRef tooltip error: {e}")
+
+        widget.xref_ready.connect(_on_xref_ready)
+
         if hasattr(main_window, "log_message"):
-            main_window.log_message("DAT Browser integrated")
+            main_window.log_message("DAT Browser integrated (v2)")
         return True
     except Exception as e:
         if hasattr(main_window, "log_message"):

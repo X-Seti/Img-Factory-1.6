@@ -2842,6 +2842,13 @@ class IMGFactory(QMainWindow):
         # Setup unified signal system
         self.setup_unified_signals()
 
+        # Integrate DAT Browser tab (non-closable, wires xref tooltips)
+        try:
+            from apps.components.Dat_Browser.dat_browser import integrate_dat_browser
+            integrate_dat_browser(self)
+        except Exception as e:
+            print(f"DAT Browser integration failed: {e}")
+
 
     def _create_initial_tab(self): #vers 5
         #./components/img_close_functions.py: - def _create_initial_tab[self]
@@ -4350,6 +4357,18 @@ class IMGFactory(QMainWindow):
                 table.setItem(row, 6, QTableWidgetItem("Error"))
 
         self.log_message(f"Table populated with {len(entries)} entries (SA format parser fixed)")
+
+        # Apply DAT cross-reference tooltips if a DAT has been loaded
+        try:
+            dat_browser = getattr(self, "dat_browser", None)
+            xref = getattr(dat_browser, "xref", None) if dat_browser else None
+            if xref:
+                from apps.methods.populate_img_table import apply_xref_tooltips
+                hits = apply_xref_tooltips(table, xref)
+                if hits:
+                    self.log_message(f"XRef tooltips: {hits} entries cross-referenced")
+        except Exception:
+            pass
 
         # Restore saved column widths
         try:

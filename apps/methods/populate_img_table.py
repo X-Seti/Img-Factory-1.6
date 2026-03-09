@@ -438,11 +438,37 @@ def update_img_table_selection_info(main_window) -> bool: #vers 2
         return False
 
 # Export functions
+def apply_xref_tooltips(table, xref) -> int: #vers 1
+    """Apply DAT cross-reference tooltips to every row in an IMG table.
+
+    Reads column 0 (Name) of each row, looks up the stem in xref,
+    and sets a ToolTip on the name cell with IDE/TXD/COL info.
+    Returns the number of rows that received a non-empty tooltip.
+
+    Args:
+        table: QTableWidget populated by _populate_real_img_table
+        xref:  GTAWorldXRef built from build_xref(loader)
+    """
+    if not table or not xref:
+        return 0
+    hits = 0
+    for row in range(table.rowCount()):
+        name_item = table.item(row, 0)
+        if not name_item:
+            continue
+        tip = xref.tooltip_for(name_item.text())
+        if tip:
+            name_item.setToolTip(tip)
+            hits += 1
+    return hits
+
+
 __all__ = [
     'IMGTablePopulator',
     'populate_img_table',
     'refresh_img_table',
     'clear_img_table',
     'install_img_table_populator',
-    'update_img_table_selection_info'
+    'update_img_table_selection_info',
+    'apply_xref_tooltips',
 ]

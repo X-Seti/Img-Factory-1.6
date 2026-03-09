@@ -862,9 +862,88 @@ def integrate_gta_dat_parser(main_window) -> bool: #vers 3
         return False
 
 
+class GTAWorldXRef: #vers 1
+    """
+    Cross-reference index built from a loaded GTAWorldLoader.
+    Used to produce hover tooltips on IMG Factory table entries.
+
+    For a given stem (filename without extension):
+      - model_map[stem]   -> IDEObject  (defined in some .ide)
+      - txd_stems         -> set of txd names referenced by any IDE object
+      - col_stems         -> set of COL file stems from COLFILE entries
+      - img_stems         -> set of IMG/CDIMAGE archive stems
+
+    Example tooltip for "landstal.dff":
+      "Defined in default.ide (vehicle)
+       TXD: landstal  [in gta3.img]
+       COL: vehicles  [present]"
+    """
+
+    def __init__(self):
+        self.model_map:  Dict[str, "IDEObject"] = {}  # stem.lower() -> IDEObject
+        self.txd_stems:  set = set()                  # all txd_name.lower() values
+        self.col_stems:  set = set()                  # col file stem.lower()
+        self.img_stems:  set = set()                  # img/cdimage archive stems
+
+    def tooltip_for(self, filename: str) -> str:
+        """Return a tooltip string for an IMG entry filename, or '' if nothing known."""
+        if not filename or "." not in filename:
+            return ""
+        stem = filename.rsplit(".", 1)[0].lower()
+        ext  = filename.rsplit(".", 1)[1].lower()
+        lines = []
+
+        obj = self.model_map.get(stem)
+        if obj:
+            lines.append(f"IDE: {obj.source_ide}  [{obj.obj_type}]")
+            txd = obj.txd_name.lower() if obj.txd_name else ""
+            if txd and txd != "null":
+                lines.append(f"TXD: {txd}")
+        elif ext == "txd":
+            # TXD file: check if any model references this txd
+            if stem in self.txd_stems:
+                lines.append(f"TXD referenced by IDE objects")
+        elif ext == "col":
+            if stem in self.col_stems:
+                lines.append(f"COL: listed in COLFILE entries")
+
+        if not lines:
+            return ""
+        return "\n".join(lines)
+
+
+def build_xref(loader: "GTAWorldLoader") -> GTAWorldXRef: #vers 1
+    """Build a cross-reference index from a fully loaded GTAWorldLoader."""
+    xref = GTAWorldXRef()
+
+    def _stem(path: str) -> str:
+        """Extract lowercase filename stem, handling both / and \\ separators."""
+        name = path.replace("\\", "/").split("/")[-1]
+        return name.rsplit(".", 1)[0].lower() if "." in name else name.lower()
+
+    # Index all IDE objects by model name stem
+    for obj in loader.objects.values():
+        xref.model_map[obj.model_name.lower()] = obj
+        if obj.txd_name and obj.txd_name.lower() not in ("null", ""):
+            xref.txd_stems.add(obj.txd_name.lower())
+
+    # Index COLFILE stems from both dat parsers
+    for dat in (loader.default_dat, loader.main_dat):
+        for entry in dat.col_entries():
+            xref.col_stems.add(_stem(entry.path))
+
+    # Index IMG/CDIMAGE archive stems
+    for dat in (loader.default_dat, loader.main_dat):
+        for entry in dat.img_entries():
+            xref.img_stems.add(_stem(entry.path))
+
+    return xref
+
+
 __all__ = [
     "GTAGame", "DATEntry", "IDEObject", "IPLInstance", "ParseStats",
     "DATParser", "IDEParser", "IPLParser", "GTAWorldLoader",
+    "GTAWorldXRef", "build_xref",
     "detect_game", "find_dat_file", "find_default_dat",
     "_find_sol_dir", "_resolve_ci",
     "integrate_gta_dat_parser",
