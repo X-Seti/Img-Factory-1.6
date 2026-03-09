@@ -1,4 +1,17 @@
-#this belongs in root /ChangeLog.md - Version: 13
+#this belongs in root /ChangeLog.md - Version: 14
+
+## March 09, 2026 — VERSION_1_IOS: separate iOS detection, fix _read_header_data for V1 family
+
+**Updated**: apps/methods/img_core_classes.py
+- `IMGVersion.VERSION_1_IOS = 47` — dedicated enum for iOS GTA3/VC (`*_pvr.img`); same 12-byte/512-byte-sector format as `VERSION_PS2_V1` but kept separate so iOS files are never conflated with Android or PS2 files
+- Removed `VERSION_1_MOBILE = 46` — this was architecturally wrong (iOS files do not use a companion `.dir`; they are self-contained with embedded 12-byte entries, same as `VERSION_PS2_V1`)
+- Removed `_probe_dir_sector_size()` — no longer needed; restored `_detect_v1_or_v1_5()` to its original simple form
+- Detection in `detect_version()`: before `detect_ps2_v1()` check, test if filename contains `_pvr` → assign `VERSION_1_IOS`; otherwise `VERSION_PS2_V1` (Android/PS2)
+- `_open_ps2()`: `VERSION_1_IOS` now routes to `open_ps2_v1()` alongside `VERSION_PS2_V1`
+- Open dispatch: `VERSION_1_IOS` added to PS2 block; removed from V1 block
+- `_read_header_data()` v2: V1-family (VERSION_1, VERSION_1_5, VERSION_SOL) opened via `.dir` path now correctly redirects to companion `.img`; uses `endswith('.dir')` check instead of unconditional `.replace('.dir', '.img')` which could corrupt paths that don't end in `.dir`
+
+---
 
 ## March 09, 2026 — iOS/Android GTA3/VC: V1_MOBILE detection (512-byte sectors)
 

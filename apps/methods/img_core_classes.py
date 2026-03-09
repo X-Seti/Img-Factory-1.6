@@ -67,56 +67,18 @@ def _is_v3_encrypted(first16: bytes) -> bool:
         return False
 
 
-def _probe_dir_sector_size(dir_path: str, img_path: str) -> int:
-    """Return the sector size (512 or 2048) used by a .dir/.img pair.
-
-    Strategy: read the first few valid entries from the .dir and compute the
-    maximum byte address they imply (offset*S + size*S).  If that address
-    exceeds the .img file size for S=2048 but fits for S=512, the archive
-    uses 512-byte sectors (iOS/Android GTA3/VC mobile ports).
-    Falls back to 2048 when the result is ambiguous or on any error.
-    """
-    try:
-        import os as _os, struct as _s
-        img_size = _os.path.getsize(img_path)
-        with open(dir_path, 'rb') as f:
-            raw = f.read(32 * 32)   # sample first 32 entries at most
-        entries = []
-        for i in range(len(raw) // 32):
-            chunk = raw[i*32:(i+1)*32]
-            off = _s.unpack_from('<I', chunk, 0)[0]
-            sz  = _s.unpack_from('<I', chunk, 4)[0]
-            if off == 0 and sz == 0:
-                continue
-            entries.append((off, sz))
-        if not entries:
-            return 2048
-        max_addr_2048 = max(o * 2048 + s * 2048 for o, s in entries)
-        max_addr_512  = max(o * 512  + s * 512  for o, s in entries)
-        # If 2048-sector layout overshoots the file but 512-sector fits -> mobile
-        if max_addr_2048 > img_size and max_addr_512 <= img_size:
-            return 512
-        return 2048
-    except Exception:
-        return 2048
-
-
 def _detect_v1_or_v1_5(dir_path: str, img_path: str) -> str:
-    """Return 'V1_5' if extended (>2GB or long names), 'V1_MOBILE' if 512-byte sectors,
-    else 'V1'."""
+    """Return 'V1_5' if extended (>2GB or long names), else 'V1'."""
     try:
         import os as _os
         if _os.path.getsize(img_path) > 2 * 1024 * 1024 * 1024:
             return 'V1_5'
-        # Check for mobile 512-byte-sector layout before name inspection
-        if _probe_dir_sector_size(dir_path, img_path) == 512:
-            return 'V1_MOBILE'
         with open(dir_path, 'rb') as f:
             while True:
                 entry = f.read(32)
                 if len(entry) < 32:
                     break
-                if b'\\x00' not in entry[8:32]:
+                if b'\x00' not in entry[8:32]:
                     return 'V1_5'
         return 'V1'
     except Exception:
@@ -137,7 +99,7 @@ class IMGVersion(Enum):
     VERSION_ANPK    = 43  # PSP ANPK animation package - named DGAN clip blocks
     VERSION_BULLY   = 44  # Bully PS2 named-entry archive - 64-byte name-only directory
     VERSION_HXD     = 45  # Bully HXD/MXD/AGR bone+animation data - float header + path
-    VERSION_1_MOBILE = 46  # DIR/IMG pair (iOS/Android GTA3/VC) - 512-byte sectors
+    VERSION_1_IOS   = 47  # iOS GTA3/VC (*_pvr.img) - 12-byte entries, 512-byte sectors, no names
     UNKNOWN       = 0
 
 class IMGPlatform(Enum):
@@ -438,22 +400,23 @@ class IMGEntry:
                 img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
             return False
 
-    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 1
-        """ADDED: Read file header data from IMG file"""
+    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 2
+        """Read file header data from the data portion of the IMG archive."""
         try:
             if not self._img_file or not self._img_file.file_path:
                 return None
 
-            # Determine which file to read from based on IMG version
-            if self._img_file.version == IMGVersion.VERSION_1:
-                # Read from .img file (companion to .dir)
-                img_path = self._img_file.file_path.replace('.dir', '.img')
+            file_path = self._img_file.file_path
+
+            # V1-family opened via .dir: data lives in the companion .img file
+            if (self._img_file.version in (IMGVersion.VERSION_1,
+                                           IMGVersion.VERSION_1_5,
+                                           IMGVersion.VERSION_SOL)
+                    and file_path.lower().endswith('.dir')):
+                img_path = file_path[:-4] + '.img'
                 if not os.path.exists(img_path):
                     return None
                 file_path = img_path
-            else:
-                # Read from single .img file
-                file_path = self._img_file.file_path
 
             with open(file_path, 'rb') as f:
                 f.seek(self.offset)
@@ -1143,12 +1106,7 @@ class IMGFile:
                 img_path = self.file_path[:-4] + '.img'
                 if os.path.exists(img_path):
                     v = _detect_v1_or_v1_5(self.file_path, img_path)
-                    if v == 'V1_5':
-                        ver = IMGVersion.VERSION_1_5
-                    elif v == 'V1_MOBILE':
-                        ver = IMGVersion.VERSION_1_MOBILE
-                    else:
-                        ver = IMGVersion.VERSION_1
+                    ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                     self.version = ver
                     return ver
 
@@ -1196,18 +1154,18 @@ class IMGFile:
                         dir_path = self.file_path[:-4] + '.dir'
                         if os.path.exists(dir_path):
                             v = _detect_v1_or_v1_5(dir_path, self.file_path)
-                            if v == 'V1_5':
-                                ver = IMGVersion.VERSION_1_5
-                            elif v == 'V1_MOBILE':
-                                ver = IMGVersion.VERSION_1_MOBILE
-                            else:
-                                ver = IMGVersion.VERSION_1
+                            ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                         else:
                             # Check PS2 VCS before generic standalone fallback
                             from apps.core.img_ps2_vcs import detect_ps2_vcs, detect_ps2_v1, detect_bully
                             if detect_ps2_vcs(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_VCS
                                 return IMGVersion.VERSION_PS2_VCS
+                            # iOS GTA3/VC: *_pvr.img suffix, same 12-byte format as PS2_V1
+                            _fname = os.path.basename(self.file_path).lower()
+                            if '_pvr' in _fname and detect_ps2_v1(self.file_path):
+                                self.version = IMGVersion.VERSION_1_IOS
+                                return IMGVersion.VERSION_1_IOS
                             if detect_ps2_v1(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_V1
                                 return IMGVersion.VERSION_PS2_V1
@@ -1245,7 +1203,6 @@ class IMGFile:
             success = False
             if self.version in (IMGVersion.VERSION_1,
                                 IMGVersion.VERSION_1_5,
-                                IMGVersion.VERSION_1_MOBILE,
                                 IMGVersion.VERSION_SOL):
                 success = self._open_version_1()
             elif self.version == IMGVersion.VERSION_2:
@@ -1256,6 +1213,7 @@ class IMGFile:
             elif self.version in (IMGVersion.VERSION_PS2_VCS,
                                   IMGVersion.VERSION_PS2_LVZ,
                                   IMGVersion.VERSION_PS2_V1,
+                                  IMGVersion.VERSION_1_IOS,
                                   IMGVersion.VERSION_ANPK,
                                   IMGVersion.VERSION_BULLY,
                                   IMGVersion.VERSION_HXD):
@@ -1362,8 +1320,7 @@ class IMGFile:
             # Standalone IMG - try reading embedded directory from start of file
             return self._open_version_1_standalone()
 
-        # Mobile ports (iOS/Android GTA3/VC) use 512-byte sectors; all others use 2048
-        sector_size = 512 if self.version == IMGVersion.VERSION_1_MOBILE else 2048
+        sector_size = 2048
 
         try:
             with open(dir_path, 'rb') as dir_file:
@@ -1493,7 +1450,8 @@ class IMGFile:
                                                 open_anpk, open_bully, open_hxd)
             if self.version == IMGVersion.VERSION_PS2_VCS:
                 result = open_ps2_vcs(self.file_path)
-            elif self.version == IMGVersion.VERSION_PS2_V1:
+            elif self.version in (IMGVersion.VERSION_PS2_V1,
+                                  IMGVersion.VERSION_1_IOS):
                 result = open_ps2_v1(self.file_path)
             elif self.version == IMGVersion.VERSION_ANPK:
                 result = open_anpk(self.file_path)
