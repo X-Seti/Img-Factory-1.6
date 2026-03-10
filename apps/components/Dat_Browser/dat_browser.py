@@ -555,48 +555,136 @@ class DATBrowserWidget(QWidget): #vers 2
 # Integration hook
 # ─────────────────────────────────────────────────────────────────────────────
 
-def integrate_dat_browser(main_window) -> bool: #vers 2
-    """Add a DAT Browser tab to main_window.main_tab_widget (non-closable permanent tab)."""
+def _wire_xref_signal(widget, main_window): #vers 1
+    """Connect widget.xref_ready to apply tooltips on the active IMG table."""
+    def _on_xref_ready(xref):
+        try:
+            from apps.methods.populate_img_table import apply_xref_tooltips
+            tw = getattr(main_window, "main_tab_widget", None)
+            if not tw:
+                return
+            tab = tw.currentWidget()
+            if not tab:
+                return
+            table = getattr(tab, "table_ref", None)
+            if table:
+                hits = apply_xref_tooltips(table, xref)
+                if hits and hasattr(main_window, "log_message"):
+                    main_window.log_message(f"XRef: {hits} entries cross-referenced")
+        except Exception as e:
+            if hasattr(main_window, "log_message"):
+                main_window.log_message(f"XRef tooltip error: {e}")
+    widget.xref_ready.connect(_on_xref_ready)
+
+
+def show_dat_browser(main_window) -> bool: #vers 1
+    """Show the DAT Browser tab.
+
+    If the tab was closed (widget still alive on main_window.dat_browser),
+    re-adds it and switches to it.  If it was never created, calls
+    integrate_dat_browser first.  Used by the 'Dat Edit' button.
+    """
     try:
-        widget = DATBrowserWidget(main_window, parent=main_window)
+        tw = getattr(main_window, "main_tab_widget", None)
+        widget = getattr(main_window, "dat_browser", None)
+
+        # Never created — create it now
+        if widget is None:
+            return integrate_dat_browser(main_window)
+
+        if tw is None:
+            widget.show()
+            widget.raise_()
+            return True
+
+        # Check if the tab is still in the tab widget
+        for i in range(tw.count()):
+            if tw.widget(i) is widget:
+                tw.setCurrentIndex(i)
+                return True
+
+        # Tab was closed — re-add it
+        tab_idx = tw.addTab(widget, "DAT Browser")
+        tw.setCurrentIndex(tab_idx)
+        if hasattr(main_window, "log_message"):
+            main_window.log_message("DAT Browser re-opened")
+        return True
+    except Exception as e:
+        if hasattr(main_window, "log_message"):
+            main_window.log_message(f"DAT Browser show error: {e}")
+        return False
+
+
+def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
+    """Read current_path from the directory tree and pass it to the DAT Browser."""
+    try:
+        widget = getattr(main_window, "dat_browser", None)
+        if widget is None:
+            if hasattr(main_window, "log_message"):
+                main_window.log_message("DAT Browser not open — open it first")
+            return False
+
+        # Pull path from directory tree
+        game_root = None
+        dt = getattr(main_window, "directory_tree", None)
+        if dt and getattr(dt, "current_path", None):
+            game_root = dt.current_path
+        if not game_root:
+            game_root = getattr(main_window, "game_root", None)
+        if not game_root:
+            if hasattr(main_window, "log_message"):
+                main_window.log_message("No game root set in directory tree")
+            return False
+
+        # Make browser visible first
+        show_dat_browser(main_window)
+        # Push the path into the browser's path field and auto-detect
+        widget._path_edit.setText(game_root)
+        from apps.methods.gta_dat_parser import detect_game, GTAGame
+        game = detect_game(game_root)
+        if game:
+            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
+                   GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            widget._game_combo.setCurrentIndex(idx)
+        widget._load_btn.setEnabled(True)
+        if hasattr(main_window, "log_message"):
+            names = {GTAGame.GTA3: "GTA III", GTAGame.VC: "Vice City",
+                     GTAGame.SA: "San Andreas", GTAGame.SOL: "GTASOL"}
+            main_window.log_message(
+                f"DAT Browser: game root set to {game_root}"
+                + (f"  [{names[game]}]" if game else " [undetected]"))
+        return True
+    except Exception as e:
+        if hasattr(main_window, "log_message"):
+            main_window.log_message(f"Set game root error: {e}")
+        return False
+
+
+def integrate_dat_browser(main_window) -> bool: #vers 3
+    """Add a DAT Browser tab to main_window.main_tab_widget.
+    The tab has a normal close [x] button; use show_dat_browser() to re-open it.
+    """
+    try:
+        # Pass parent only if main_window is an actual QWidget
+        from PyQt6.QtWidgets import QWidget as _QW
+        parent_arg = main_window if isinstance(main_window, _QW) else None
+        widget = DATBrowserWidget(main_window, parent=parent_arg)
+        main_window.dat_browser = widget
 
         if hasattr(main_window, "main_tab_widget"):
             tw = main_window.main_tab_widget
             tab_idx = tw.addTab(widget, "DAT Browser")
-            # Make this tab non-closable (no X button)
-            tw.tabBar().setTabButton(tab_idx,
-                tw.tabBar().ButtonPosition.RightSide, None)
-            tw.tabBar().setTabButton(tab_idx,
-                tw.tabBar().ButtonPosition.LeftSide, None)
-            main_window.dat_browser = widget
+            tw.setCurrentIndex(tab_idx)
+            # tab is closable by default (tabsClosable=True already set on tw)
         else:
             widget.setWindowTitle("GTA DAT/IDE/IPL Browser")
             widget.resize(1100, 700)
             widget.show()
-            main_window.dat_browser = widget
 
-        # Wire xref_ready: apply tooltips to current IMG table when DAT loads
-        def _on_xref_ready(xref):
-            try:
-                from apps.methods.populate_img_table import apply_xref_tooltips
-                # Find the active IMG table
-                tw = getattr(main_window, "main_tab_widget", None)
-                if not tw:
-                    return
-                tab = tw.currentWidget()
-                if not tab:
-                    return
-                table = getattr(tab, "table_ref", None)
-                if table:
-                    apply_xref_tooltips(table, xref)
-            except Exception as e:
-                if hasattr(main_window, "log_message"):
-                    main_window.log_message(f"XRef tooltip error: {e}")
-
-        widget.xref_ready.connect(_on_xref_ready)
+        _wire_xref_signal(widget, main_window)
 
         if hasattr(main_window, "log_message"):
-            main_window.log_message("DAT Browser integrated (v2)")
+            main_window.log_message("DAT Browser integrated (v3)")
         return True
     except Exception as e:
         if hasattr(main_window, "log_message"):
@@ -604,4 +692,9 @@ def integrate_dat_browser(main_window) -> bool: #vers 2
         return False
 
 
-__all__ = ["DATBrowserWidget", "integrate_dat_browser"]
+__all__ = [
+    "DATBrowserWidget",
+    "integrate_dat_browser",
+    "show_dat_browser",
+    "set_game_root_from_dir_tree",
+]

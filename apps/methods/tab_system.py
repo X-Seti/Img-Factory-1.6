@@ -311,18 +311,23 @@ def clear_tab(main_window, tab_index: int): #vers 1
         return False
 
 
-def close_tab(main_window, tab_index: int): #vers 1
-    """Close and remove tab"""
+def close_tab(main_window, tab_index: int): #vers 2
+    """Close and remove tab.
+    For the DAT Browser tab the widget is kept alive on main_window.dat_browser
+    so it can be re-opened via show_dat_browser().
+    """
     try:
         if tab_index < 0 or tab_index >= main_window.main_tab_widget.count():
             return False
 
         tab_widget = main_window.main_tab_widget.widget(tab_index)
-        if tab_widget:
+
+        # Keep the DAT Browser widget alive — don't deleteLater it
+        dat_browser = getattr(main_window, "dat_browser", None)
+        if tab_widget is not dat_browser and tab_widget:
             tab_widget.deleteLater()
 
         main_window.main_tab_widget.removeTab(tab_index)
-
         main_window.log_message(f"Tab {tab_index} closed")
         return True
 

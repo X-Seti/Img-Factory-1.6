@@ -264,7 +264,7 @@ class IMGFactoryGUILayout:
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
             'edit_ide_file': lambda: open_ide_editor(self.main_window),
             'edit_ipl_file': lambda: self._log_missing_method('edit_ipl_file'),
-            'edit_dat_file': lambda: self._log_missing_method('edit_dat_file'),
+            'edit_dat_file': self._open_dat_browser,
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
             'edit_vehi_file': lambda: self._log_missing_method('edit_vehi_file'),
@@ -290,6 +290,44 @@ class IMGFactoryGUILayout:
             self.main_window.log_message(f"Method '{method_name}' not yet implemented")
         else:
             print(f"Method '{method_name}' not yet implemented")
+
+    def _open_dat_browser(self): #vers 1
+        """Open (or re-open) the DAT Browser tab — wired to the 'Dat Edit' button."""
+        try:
+            from apps.components.Dat_Browser.dat_browser import show_dat_browser
+            show_dat_browser(self.main_window)
+        except Exception as e:
+            self._log_missing_method('edit_dat_file')
+
+    def _dat_edit_context_menu(self, btn, pos): #vers 1
+        """Right-click context menu on the 'Dat Edit' button."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(btn)
+
+        open_act = menu.addAction("Open DAT Browser")
+        open_act.triggered.connect(self._open_dat_browser)
+
+        menu.addSeparator()
+
+        set_root_act = menu.addAction("Set Game Root from Dir Tree")
+        set_root_act.triggered.connect(self._set_dat_game_root_from_dir_tree)
+
+        # Show what root is currently set (greyed info item)
+        root = getattr(self.main_window, 'game_root', None)
+        if root:
+            info = menu.addAction(f"  Current: {root}")
+            info.setEnabled(False)
+
+        menu.exec(btn.mapToGlobal(pos))
+
+    def _set_dat_game_root_from_dir_tree(self): #vers 1
+        """Push the dir-tree current path into the DAT Browser as game root."""
+        try:
+            from apps.components.Dat_Browser.dat_browser import set_game_root_from_dir_tree
+            set_game_root_from_dir_tree(self.main_window)
+        except Exception as e:
+            if hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Set game root error: {e}")
 
 
 
@@ -1487,6 +1525,11 @@ class IMGFactoryGUILayout:
             btn = self.create_pastel_button(label, action_type, icon, color, method_name)
             btn.setMaximumHeight(button_height)
             btn.setMinimumHeight(button_height - 4)
+            # Wire right-click context menu for the Dat Edit button
+            if action_type == "dat_edit":
+                btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                btn.customContextMenuRequested.connect(
+                    lambda pos, b=btn: self._dat_edit_context_menu(b, pos))
             self.options_buttons.append(btn)
             # Add to backend as well
             if hasattr(self, 'backend'):
