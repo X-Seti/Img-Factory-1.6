@@ -936,10 +936,15 @@ class GTAWorldXRef: #vers 1
                 if users:
                     return f"TXD referenced by IDE - used by: {', '.join(users)}{suffix}"
                 return "TXD archive referenced by IDE model"
+            return f"WARNING: Orphan TXD - {filename} not found in any .ide file"
 
         elif ext == "col":
             if stem in self.col_stems:
                 return "COL listed in COLFILE directive"
+            return f"WARNING: Orphan COL - {filename} not found in any COLFILE directive"
+
+        elif ext == "dff":
+            return f"WARNING: Orphan model - {filename} not found in any .ide file"
 
         return ""
 
