@@ -391,21 +391,22 @@ def _xbox_lzo_decompress_entry(data: bytes) -> bytes:
       Master header (12 bytes):
         magic     u32  0x67A3A1CE (LE)
         checksum  u32
-        total_sz  u32  total compressed data size (blocks only)
+        total_sz  u32  total size of all block headers+data combined
       Then one or more blocks:
         always    u32  always 4
-        decomp_sz u32  suggested decompressed size for this block
-        comp_sz   u32  size of compressed block data
-        data      bytes[comp_sz]
+        decomp_sz u32  decompressed size of this block
+        comp_sz   u32  size of the LZO block data following
 
-    Returns concatenated decompressed output.
-    Uses python-lzo if available, falls back to pure-Python decompressor.
+      NOTE: In GTA Xbox, comp_sz often equals decomp_sz — this does NOT mean
+      the block is stored uncompressed. The block data is always LZO1X
+      compressed; comp_sz is simply the stored (compressed) byte count.
+      comp_sz == 0 signals end of stream.
     """
     if len(data) < 12:
         return data
     magic = struct.unpack_from('<I', data, 0)[0]
     if magic != _XBOX_LZO_MAGIC:
-        return data   # not LZO compressed
+        return data
 
     try:
         import lzo as _lzo
@@ -422,17 +423,19 @@ def _xbox_lzo_decompress_entry(data: bytes) -> bytes:
             break
         block = data[pos:pos + comp_sz]
         pos += comp_sz
+
+        # Always LZO compressed (comp_sz == decomp_sz is normal for GTA Xbox)
         if _has_lzo:
             try:
                 out.extend(_lzo.decompress(block, False, decomp_sz))
                 continue
             except Exception:
                 pass
-        # Pure-Python fallback
         try:
             out.extend(_lzo1x_decompress(block, decomp_sz))
         except Exception:
-            out.extend(block)   # best-effort: return compressed if decompressor fails
+            out.extend(block)  # best-effort on decompressor failure
+
     return bytes(out)
 
 
