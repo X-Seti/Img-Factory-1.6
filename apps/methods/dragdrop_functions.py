@@ -669,14 +669,21 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
     tree_widget.dropEvent = drop_event
 
 
-def setup_table_entry_drag(table_widget, main_window): #vers 1
-    """Enable drag FROM table (IMG/COL entries) and drop TO table (import files)"""
-    table_widget.setDragEnabled(True)
+def setup_table_entry_drag(table_widget, main_window): #vers 2
+    """Wire drag-OUT (entries → desktop/dir-tree) and drop-IN (files → import).
+
+    Does NOT call setDragEnabled(True) — that would steal the left-button
+    gesture away from row selection.  Drag-out is triggered explicitly via
+    table_widget._explicit_start_drag() (e.g. from a right-click action).
+    Drop-in still works because we set acceptDrops=True on the viewport.
+    """
+    # Accept drops FROM outside (files dropped onto the table to import them)
     table_widget.setAcceptDrops(True)
     table_widget.setDropIndicatorShown(True)
-    table_widget.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+    # Use NoDragDrop so Qt never auto-starts a drag on left-button-down
+    table_widget.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
 
-    def start_drag(supported_actions):
+    def start_drag(supported_actions=None):
         selected = table_widget.selectedItems()
         if not selected:
             return
@@ -745,7 +752,6 @@ def setup_table_entry_drag(table_widget, main_window): #vers 1
             paths = [p for p in mime.text().split('\n') if os.path.exists(p)]
 
         if paths and hasattr(main_window, 'import_multiple_files'):
-            # Get img_archive from current tab
             img_archive = None
             if hasattr(main_window, 'main_tab_widget'):
                 tab = main_window.main_tab_widget.currentWidget()
@@ -760,7 +766,8 @@ def setup_table_entry_drag(table_widget, main_window): #vers 1
         else:
             event.ignore()
 
-    table_widget.startDrag = start_drag
+    # Expose explicit drag start so right-click menu can trigger it
+    table_widget._explicit_start_drag = start_drag
     table_widget.dragEnterEvent = drag_enter
     table_widget.dragMoveEvent = drag_move
     table_widget.dropEvent = drop_event

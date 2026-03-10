@@ -153,6 +153,12 @@ def show_context_menu(main_window, position): #vers 4 Fixed
                 extract_selected_action.triggered.connect(main_window.extract_selected_files)
                 menu.addAction(extract_selected_action)
 
+                # Drag selected entries to desktop / dir-tree / file manager
+                if hasattr(table, '_explicit_start_drag'):
+                    drag_action = QAction("Drag to Desktop / Folder…", menu_parent)
+                    drag_action.triggered.connect(table._explicit_start_drag)
+                    menu.addAction(drag_action)
+
             if hasattr(main_window, 'extract_all_files'):
                 extract_all_action = QAction("Extract All", menu_parent)
                 extract_all_action.triggered.connect(main_window.extract_all_files)
