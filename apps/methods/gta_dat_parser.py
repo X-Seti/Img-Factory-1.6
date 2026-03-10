@@ -885,42 +885,63 @@ class GTAWorldXRef: #vers 1
         self.col_stems:  set = set()                  # col file stem.lower()
         self.img_stems:  set = set()                  # img/cdimage archive stems
 
-    def tooltip_for(self, filename: str) -> str:
-        """Return a hover tooltip string for an IMG entry filename, or '' if nothing known."""
+    def tooltip_for(self, filename: str) -> str: #vers 3
+        """Return a single-line hover tooltip for an IMG entry filename, or '' if nothing known.
+
+        Format (DFF):
+          Model defined in gta3.ide,  has txd - name.txd,  has col - name.col
+          Model defined in gta3.ide,  has txd - name.txd,  missing name.col
+          Model defined in gta3.ide,  missing name.txd,  missing name.col
+
+        Format (TXD):
+          TXD referenced by IDE - used by: model1, model2 ...
+
+        Format (COL):
+          COL listed in COLFILE directive
+        """
         if not filename or "." not in filename:
             return ""
         stem = filename.rsplit(".", 1)[0].lower()
         ext  = filename.rsplit(".", 1)[1].lower()
-        lines = []
 
         obj = self.model_map.get(stem)
         if obj:
-            lines.append(f"Model defined in:  {obj.source_ide}")
-            type_label = obj.obj_type.capitalize() if obj.obj_type else "Object"
-            lines.append(f"Type:  {type_label}")
+            ide = obj.source_ide or "unknown.ide"
+            parts = [f"Model defined in {ide}"]
+
             txd = obj.txd_name.lower() if obj.txd_name else ""
             if txd and txd != "null":
-                lines.append(f"TXD:  {txd}.txd")
+                txd_present = txd in self.txd_stems
+                if txd_present:
+                    parts.append(f"has txd - {txd}.txd")
+                else:
+                    parts.append(f"missing {txd}.txd")
+            else:
+                parts.append("no txd")
+
             if ext == "dff":
-                col = stem
-                if col in self.col_stems:
-                    lines.append(f"COL:  {col}.col  [present]")
+                col_present = stem in self.col_stems
+                if col_present:
+                    parts.append(f"has col - {stem}.col")
+                else:
+                    parts.append(f"missing {stem}.col")
+
+            return ",  ".join(parts)
+
         elif ext == "txd":
             if stem in self.txd_stems:
-                lines.append(f"TXD archive referenced by IDE model")
-                # Find which models reference this txd
                 users = [o.model_name for o in self.model_map.values()
                          if o.txd_name and o.txd_name.lower() == stem][:5]
+                suffix = " ..." if len(users) == 5 else ""
                 if users:
-                    lines.append(f"Used by:  {', '.join(users)}"
-                                 + (" …" if len(users) == 5 else ""))
+                    return f"TXD referenced by IDE - used by: {', '.join(users)}{suffix}"
+                return "TXD archive referenced by IDE model"
+
         elif ext == "col":
             if stem in self.col_stems:
-                lines.append(f"COL file listed in COLFILE directive")
+                return "COL listed in COLFILE directive"
 
-        if not lines:
-            return ""
-        return "\n".join(lines)
+        return ""
 
 
 def build_xref(loader: "GTAWorldLoader") -> GTAWorldXRef: #vers 1
