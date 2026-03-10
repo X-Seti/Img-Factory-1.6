@@ -3407,7 +3407,7 @@ class IMGFactory(QMainWindow):
                 self.current_img = img
                 self._clean_on_img_loaded(img)
 
-            # Store pairing data on the active tab for future hybrid table view
+            # Store pairing data and fill the COL column
             try:
                 tab = self.main_tab_widget.currentWidget()
                 if tab:
@@ -3415,13 +3415,20 @@ class IMGFactory(QMainWindow):
                     tab._col_in_img      = col_in_img
                     tab._col_sibling     = col_sibling
                     tab._col_external    = col_external
-            except Exception:
-                pass
 
-            self.log_message(
-                "Hybrid Load complete — interleaved table view is pending (next session). "
-                "Pairing data stored on tab."
-            )
+                    # Fill and reveal COL column (index 8)
+                    table = getattr(tab, "table_ref", None)
+                    if table:
+                        from apps.methods.populate_img_table import populate_col_column
+                        col_hits = populate_col_column(table, paired)
+                        self.log_message(
+                            f"Hybrid: COL column populated — "
+                            f"{col_hits} matched, {len(paired) - col_hits} missing"
+                        )
+            except Exception as e:
+                self.log_message(f"Hybrid: COL column error: {e}")
+
+            self.log_message("Hybrid Load complete.")
 
         except Exception as e:
             self.log_message(f"Hybrid Load error: {e}")

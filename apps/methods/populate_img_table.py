@@ -137,11 +137,14 @@ def reset_table_styling(main_window): #vers 2
         img_debugger.error(error_msg)
         return False
 
-def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 3
-    """Setup table structure for IMG file data"""
+def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 4
+    """Setup table structure for IMG file data.
+    Column 8 (COL) is always present but hidden by default;
+    hybrid load reveals it via table.setColumnHidden(8, False).
+    """
     try:
-        img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"]
-        table.setColumnCount(8)
+        img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "COL"]
+        table.setColumnCount(9)
         table.setHorizontalHeaderLabels(img_headers)
         table.setColumnWidth(0, 190)  # Name
         table.setColumnWidth(1, 60)   # Type
@@ -149,12 +152,14 @@ def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 3
         table.setColumnWidth(3, 100)  # Offset
         table.setColumnWidth(4, 100)  # RW Address
         table.setColumnWidth(5, 100)  # RW Version
-        table.setColumnWidth(6, 110)  # Compression
+        table.setColumnWidth(6, 110)  # Encoding
         table.setColumnWidth(7, 110)  # Status
+        table.setColumnWidth(8, 160)  # COL
+        table.setColumnHidden(8, True)  # hidden until hybrid load
         header = table.horizontalHeader()
         header.setSectionsMovable(True)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for col in range(1, 8):
+        for col in range(1, 9):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
         table.setSortingEnabled(True)
         img_debugger.debug("Table structure setup for IMG data")
@@ -178,9 +183,9 @@ class IMGTablePopulator:
             if not table:
                 img_debugger.error("No table found for IMG population")
                 return False
-            table.setColumnCount(8)
+            table.setColumnCount(9)
             table.setHorizontalHeaderLabels([
-                "Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"
+                "Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "COL"
             ])
             table.setColumnWidth(0, 190)
             table.setColumnWidth(1, 60)
@@ -190,10 +195,12 @@ class IMGTablePopulator:
             table.setColumnWidth(5, 100)
             table.setColumnWidth(6, 110)
             table.setColumnWidth(7, 110)
+            table.setColumnWidth(8, 160)
+            table.setColumnHidden(8, True)   # hidden until hybrid load
             header = table.horizontalHeader()
             header.setSectionsMovable(True)
             header.setStretchLastSection(True)
-            for col in range(7):
+            for col in range(8):
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             entries = img_file.entries
             if not entries:
@@ -528,6 +535,64 @@ def update_img_table_selection_info(main_window) -> bool: #vers 2
         return False
 
 # Export functions
+def populate_col_column(table, paired: list) -> int: #vers 1
+    """Fill the hidden COL column (index 8) from a hybrid-load pairing list
+    and make the column visible.
+
+    Args:
+        table:  QTableWidget already populated with IMG entries
+        paired: list of (dff_entry, col_source_str or None) from open_hybrid_load
+
+    Returns the number of DFF rows that received a COL match.
+
+    Column text per row:
+      DFF with COL found  ->  "✓ stem  (source)"  or  "✓ stem"  green-ish text
+      DFF with no COL     ->  "✗ missing"          red-ish text
+      Non-DFF row         ->  ""                   (blank)
+    """
+    from PyQt6.QtGui import QColor
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    if not table or not paired:
+        return 0
+
+    # Build a quick name -> col_source map from the pairing list
+    pair_map = {}
+    for entry, source in paired:
+        name = getattr(entry, "name", "") or ""
+        pair_map[name.lower()] = source  # source is str or None
+
+    hits = 0
+    for row in range(table.rowCount()):
+        name_item = table.item(row, 0)
+        if not name_item:
+            continue
+        name = name_item.text().lower()
+        col_item = QTableWidgetItem()
+        col_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+
+        if name.endswith(".dff"):
+            source = pair_map.get(name)
+            if source is not None:
+                # Show just the stem + source archive if external
+                stem = name.rsplit(".", 1)[0]
+                # source already contains "(archive.col)" suffix if external
+                display = f"✓ {source}"
+                col_item.setText(display)
+                col_item.setForeground(QColor("#4CAF50"))   # green
+                hits += 1
+            else:
+                col_item.setText("✗ missing")
+                col_item.setForeground(QColor("#F44336"))   # red
+        # non-DFF rows: leave blank
+
+        table.setItem(row, 8, col_item)
+
+    table.setColumnHidden(8, False)
+    return hits
+
+
 def apply_xref_tooltips(table, xref) -> int: #vers 2
     """Apply DAT cross-reference tooltips to every row in an IMG table.
 
@@ -567,4 +632,5 @@ __all__ = [
     'install_img_table_populator',
     'update_img_table_selection_info',
     'apply_xref_tooltips',
+    'populate_col_column',
 ]
