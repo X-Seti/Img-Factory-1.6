@@ -8,7 +8,7 @@
   "colors": {
     "bg_primary": "#e9f8e9",
     "bg_secondary": "#f0f8f0",
-    "bg_tertiary": "#e8f5e8",
+    "bg_tertiary": "#c8e6c9",
     "panel_bg": "#f1f8f1",
     "accent_primary": "#4caf50",
     "accent_secondary": "#388e3c",
@@ -49,5 +49,24 @@
     "scrollbar_handle_hover": "#ffffff",
     "scrollbar_handle_pressed": "#ffffff",
     "scrollbar_border": "#ffffff"
+  },
+  "styles": {
+    "button_shape": "Rounded",
+    "button_border_radius": 4,
+    "button_min_height": 30,
+    "button_padding_horizontal": 12,
+    "button_padding_vertical": 6,
+    "slider_height": 8,
+    "slider_handle_size": 16,
+    "slider_handle_radius": 8,
+    "checkbox_size": 18,
+    "checkbox_border_radius": 3,
+    "scrollbar_width": 12,
+    "scrollbar_handle_radius": 3,
+    "splitter_handle_width": 8,
+    "splitter_border_radius": 3,
+    "splitter_show_grip": true,
+    "panel_opacity": 100,
+    "enable_animations": true
   }
 }
