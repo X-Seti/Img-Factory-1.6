@@ -4265,13 +4265,27 @@ class IMGFactory(QMainWindow):
                 pending = getattr(self, '_pending_hybrid_pairs', None)
                 if pending is not None and table:
                     try:
-                        from apps.methods.populate_img_table import populate_col_column
+                        from apps.methods.populate_img_table import populate_col_column, apply_xref_tooltips
                         col_hits = populate_col_column(table, pending)
                         total = len([p for p in pending if p[0] is not None])
                         self.log_message(
                             f"Hybrid: COL column filled — "
                             f"{col_hits} matched, {total - col_hits} missing"
                         )
+
+                        # Push matched stems into xref.col_stems so tooltip_for()
+                        # stops reporting "missing col" for entries hybrid found
+                        dat_browser = getattr(self, "dat_browser", None)
+                        xref = getattr(dat_browser, "xref", None) if dat_browser else None
+                        if xref is not None:
+                            for entry, source in pending:
+                                if source is not None:
+                                    name = getattr(entry, "name", "") or ""
+                                    stem = name.lower().rsplit(".", 1)[0]
+                                    xref.col_stems.add(stem)
+                            # Re-apply tooltips so hover text reflects the update
+                            apply_xref_tooltips(table, xref)
+
                     except Exception as e:
                         self.log_message(f"Hybrid: COL column error: {e}")
                     finally:
