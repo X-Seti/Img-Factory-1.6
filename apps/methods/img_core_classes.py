@@ -771,32 +771,96 @@ class IMGEntry:
         self._img_file.write_entry_data(self, data)
 
 # INLINE PLATFORM DETECTION FUNCTIONS - to replace the circular import
-def detect_img_platform(file_path: str): #vers 1
-    """INLINE: Simple platform detection to avoid circular import"""
+def _detect_xbox_by_content(file_path: str) -> bool:
+    """Return True if this IMG/DIR pair contains Xbox LZO-compressed entries.
+
+    Reads the first DIR entry to get the offset of the first data entry,
+    then peeks at 4 bytes in the .img file.  If they match the Xbox LZO
+    magic (0x67A3A1CE) it is Xbox.
+    """
     try:
+        path_lower = file_path.lower()
+
+        if path_lower.endswith('.dir'):
+            img_path = file_path[:-4] + '.img'
+            if not os.path.exists(img_path):
+                img_path = file_path[:-4] + '.IMG'
+            if not os.path.exists(img_path):
+                return False
+            with open(file_path, 'rb') as df:
+                entry = df.read(32)
+            if len(entry) < 8:
+                return False
+            offset_bytes = struct.unpack_from('<I', entry, 0)[0] * 2048
+            with open(img_path, 'rb') as f:
+                f.seek(offset_bytes)
+                magic_bytes = f.read(4)
+
+        elif path_lower.endswith('.img'):
+            dir_path = file_path[:-4] + '.dir'
+            if not os.path.exists(dir_path):
+                dir_path = file_path[:-4] + '.DIR'
+            if os.path.exists(dir_path):
+                with open(dir_path, 'rb') as df:
+                    entry = df.read(32)
+                if len(entry) < 8:
+                    return False
+                offset_bytes = struct.unpack_from('<I', entry, 0)[0] * 2048
+                with open(file_path, 'rb') as f:
+                    f.seek(offset_bytes)
+                    magic_bytes = f.read(4)
+            else:
+                # VER2 single file — read first entry offset from directory
+                with open(file_path, 'rb') as f:
+                    f.seek(8)
+                    entry = f.read(8)
+                    if len(entry) < 8:
+                        return False
+                    offset_bytes = struct.unpack_from('<I', entry, 0)[0] * 2048
+                    f.seek(offset_bytes)
+                    magic_bytes = f.read(4)
+        else:
+            return False
+
+        if len(magic_bytes) < 4:
+            return False
+        return struct.unpack_from('<I', magic_bytes, 0)[0] == _XBOX_LZO_MAGIC
+
+    except Exception:
+        return False
+
+
+def detect_img_platform(file_path: str): #vers 2
+    """Detect IMG platform — content-based first, filename as secondary hint.
+
+    Xbox detection probes the first entry data bytes for the LZO magic
+    (0x67A3A1CE) so gta3.img from Xbox is correctly distinguished from PC.
+    """
+    try:
+        if _detect_xbox_by_content(file_path):
+            return IMGPlatform.XBOX, {'confidence': 95, 'indicators': ['lzo_magic']}
+
         filename = os.path.basename(file_path).lower()
-        
-        # Simple platform detection based on filename/path
         if any(keyword in filename for keyword in ['ps2', 'playstation']):
             return IMGPlatform.PS2, {'confidence': 70, 'indicators': ['ps2_filename']}
         elif any(keyword in filename for keyword in ['xbox']):
-            return IMGPlatform.XBOX, {'confidence': 70, 'indicators': ['xbox_filename']}
+            return IMGPlatform.XBOX, {'confidence': 80, 'indicators': ['xbox_filename']}
         elif any(keyword in filename for keyword in ['android', 'mobile']):
             return IMGPlatform.ANDROID, {'confidence': 70, 'indicators': ['android_filename']}
         elif any(keyword in filename for keyword in ['psp', 'stories']):
             return IMGPlatform.PSP, {'confidence': 70, 'indicators': ['psp_filename']}
         else:
             return IMGPlatform.PC, {'confidence': 50, 'indicators': ['default_pc']}
-            
+
     except Exception:
         return IMGPlatform.UNKNOWN, {'confidence': 0, 'indicators': ['error']}
 
-def detect_img_platform_inline(file_path: str) -> IMGPlatform: #vers 1
-    """MOVED: Simple platform detection to avoid circular import"""
+def detect_img_platform_inline(file_path: str) -> IMGPlatform: #vers 2
+    """Content-based platform detection (inline, no tuple return)."""
     try:
+        if _detect_xbox_by_content(file_path):
+            return IMGPlatform.XBOX
         filename = os.path.basename(file_path).lower()
-
-        # Simple platform detection based on filename/path
         if any(keyword in filename for keyword in ['ps2', 'playstation']):
             return IMGPlatform.PS2
         elif any(keyword in filename for keyword in ['xbox']):
@@ -807,10 +871,8 @@ def detect_img_platform_inline(file_path: str) -> IMGPlatform: #vers 1
             return IMGPlatform.PSP
         else:
             return IMGPlatform.PC
-
     except Exception:
         return IMGPlatform.UNKNOWN
-
 
 def get_platform_specific_specs(platform: IMGPlatform) -> Dict[str, Any]: #vers 1
     """INLINE: Get platform-specific specifications"""
