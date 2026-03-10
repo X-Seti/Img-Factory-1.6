@@ -5,9 +5,85 @@ IMG Table Population
 """
 import os
 from typing import Any, List, Optional
-from PyQt6.QtWidgets import QTableWidgetItem, QTableWidget, QHeaderView
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QTableWidgetItem, QTableWidget, QHeaderView, QAbstractItemView
+from PyQt6.QtCore import Qt, QItemSelectionModel
+from PyQt6.QtGui import QMouseEvent
 from apps.debug.debug_functions import img_debugger
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DragSelectTableWidget
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DragSelectTableWidget(QTableWidget): #vers 1
+    """QTableWidget subclass that supports click-and-drag row selection.
+
+    Holding the left mouse button and moving up or down continuously extends
+    (or shrinks) the row selection — identical to how file managers behave.
+    Works with Shift+Click and Ctrl+Click as usual.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._drag_selecting = False
+        self._drag_anchor_row = -1
+        # Sensible defaults — callers can override after construction
+        self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setDragEnabled(False)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
+        self.setMouseTracking(False)  # only track while button held
+
+    def mousePressEvent(self, event: QMouseEvent): #vers 1
+        if event.button() == Qt.MouseButton.LeftButton:
+            item = self.itemAt(event.pos())
+            if item is not None:
+                self._drag_anchor_row = item.row()
+                self._drag_selecting = True
+                self.setMouseTracking(True)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent): #vers 1
+        if not self._drag_selecting:
+            super().mouseMoveEvent(event)
+            return
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            self._drag_selecting = False
+            self.setMouseTracking(False)
+            return
+
+        item = self.itemAt(event.pos())
+        if item is None:
+            # Clamp to first/last row when cursor leaves the table
+            y = event.pos().y()
+            current_row = 0 if y < 0 else self.rowCount() - 1
+        else:
+            current_row = item.row()
+
+        anchor = self._drag_anchor_row
+        if anchor < 0 or current_row < 0:
+            return
+
+        top    = min(anchor, current_row)
+        bottom = max(anchor, current_row)
+        cols   = self.columnCount()
+
+        sm = self.selectionModel()
+        # Clear only if no modifier held
+        mods = event.modifiers()
+        if not (mods & Qt.KeyboardModifier.ControlModifier):
+            sm.clearSelection()
+
+        for row in range(top, bottom + 1):
+            for col in range(cols):
+                idx = self.model().index(row, col)
+                sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
+
+    def mouseReleaseEvent(self, event: QMouseEvent): #vers 1
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_selecting = False
+            self.setMouseTracking(False)
+        super().mouseReleaseEvent(event)
 
 ##Methods list - imported from tables_structure
 # reset_table_styling
@@ -469,6 +545,7 @@ def apply_xref_tooltips(table, xref) -> int: #vers 2
 
 
 __all__ = [
+    'DragSelectTableWidget',
     'IMGTablePopulator',
     'populate_img_table',
     'refresh_img_table',

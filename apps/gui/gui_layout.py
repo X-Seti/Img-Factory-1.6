@@ -1477,12 +1477,10 @@ class IMGFactoryGUILayout:
         self.content_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Create main table placeholder (replaced by main_tab_widget in _create_ui)
-        self.table = QTableWidget()
+        from apps.methods.populate_img_table import DragSelectTableWidget
+        self.table = DragSelectTableWidget()
         self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setSortingEnabled(True)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._apply_table_theme_styling()
 
         self.content_splitter.addWidget(self.table)

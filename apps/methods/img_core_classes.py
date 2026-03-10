@@ -20,6 +20,7 @@ from PyQt6.QtCore import pyqtSignal, Qt
 # Import existing RW version functions - KEPT ALL ORIGINAL IMPORTS
 from apps.methods.rw_versions import get_rw_version_name, parse_rw_version, get_model_format_version
 from apps.debug.debug_functions import img_debugger
+from apps.methods.populate_img_table import DragSelectTableWidget
 
 
 ##Methods list -
@@ -1581,20 +1582,16 @@ def format_file_size(size_bytes: int) -> str: #vers 1
         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 # ALL ORIGINAL GUI CLASSES PRESERVED EXACTLY AS IN ORIGINAL
-class IMGEntriesTable(QTableWidget):
-    """Enhanced table widget for IMG entries"""
+class IMGEntriesTable(DragSelectTableWidget): #vers 2
+    """Enhanced table widget for IMG entries — supports click-drag row selection."""
     entry_double_clicked = pyqtSignal(object)
-    
+
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self.setColumnCount(7)
         self.setHorizontalHeaderLabels(['Name', 'Type', 'Size', 'Offset', 'Version', 'Compression', 'Status'])
-        
-        # Setup table properties
         self.setAlternatingRowColors(True)
-        self.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
-        
+
         # Auto-resize columns
         header = self.horizontalHeader()
         header.setStretchLastSection(True)

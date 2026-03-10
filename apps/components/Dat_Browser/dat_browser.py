@@ -204,18 +204,16 @@ class DATBrowserWidget(QWidget): #vers 2
         self._log_text.setFont(QFont("Consolas", 9))
         self._tabs.addTab(self._log_text, "Load Log")
 
-    def _make_table(self, headers): #vers 2
-        t = QTableWidget()
+    def _make_table(self, headers): #vers 3
+        from apps.methods.populate_img_table import DragSelectTableWidget
+        t = DragSelectTableWidget()
         t.setColumnCount(len(headers))
         t.setHorizontalHeaderLabels(headers)
         t.setAlternatingRowColors(True)
-        t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        t.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         t.setSortingEnabled(True)
         t.horizontalHeader().setStretchLastSection(True)
         t.horizontalHeader().setSectionsMovable(False)
         t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        t.setDragEnabled(False)          # keep drag off so click-drag selects rows
         t.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         t.customContextMenuRequested.connect(
             lambda pos, tbl=t: self._table_context_menu(tbl, pos))

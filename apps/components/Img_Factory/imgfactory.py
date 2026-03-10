@@ -2853,20 +2853,15 @@ class IMGFactory(QMainWindow):
     def _create_initial_tab(self): #vers 5
         #./components/img_close_functions.py: - def _create_initial_tab[self]
         """Create initial empty tab with a standalone table"""
-        from PyQt6.QtWidgets import QTableWidget
+        from apps.methods.populate_img_table import DragSelectTableWidget
         tab_widget = QWidget()
         tab_layout = QVBoxLayout(tab_widget)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        table = QTableWidget()
+        table = DragSelectTableWidget()
         table.setAlternatingRowColors(True)
-        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.horizontalHeader().setStretchLastSection(True)
-        table.setDragEnabled(False)      # drag-off lets click-drag multi-select work
-        table.setDragDropMode(QTableWidget.DragDropMode.NoDragDrop)
         table.setSortingEnabled(True)
+        table.horizontalHeader().setStretchLastSection(True)
         table.horizontalHeader().setSortIndicatorShown(True)
         tab_layout.addWidget(table)
         tab_widget.table_ref = table
