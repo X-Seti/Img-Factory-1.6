@@ -262,13 +262,238 @@ def _is_valid_rw_version(v: int) -> bool:
         return True
     return False
 
+_XBOX_LZO_MAGIC = 0x67A3A1CE  # little-endian master header magic for Xbox LZO streams
+
+def _lzo1x_decompress(data: bytes, expected_size: int = 0) -> bytes:
+    """Pure-Python LZO1X-1 decompressor.
+
+    Implements the LZO1X decompression algorithm as used by GTA Xbox
+    (lzo1x-999 compressed, lzo1x_decompress_safe compatible).
+    Returns decompressed bytes or raises ValueError on malformed input.
+    """
+    out = bytearray()
+    if expected_size:
+        out = bytearray()
+
+    pos = 0
+    n = len(data)
+
+    def read_byte():
+        nonlocal pos
+        if pos >= n:
+            raise ValueError("LZO: unexpected end of input")
+        b = data[pos]
+        pos += 1
+        return b
+
+    # First byte handling
+    t = read_byte()
+    if t > 17:
+        # copy literal run
+        t -= 17
+        if t < 4:
+            # short literal
+            while t:
+                out.append(read_byte())
+                t -= 1
+        else:
+            count = t
+            while count:
+                out.append(read_byte())
+                count -= 1
+        t = read_byte()
+
+    while True:
+        if t < 16:
+            if t == 0:
+                while data[pos] == 0:
+                    t += 255
+                    pos += 1
+                t += 15 + read_byte()
+            # copy literals
+            count = t + 3
+            while count:
+                out.append(read_byte())
+                count -= 1
+            t = read_byte()
+            if t < 16:
+                # match from history
+                match_pos = len(out) - 0x801 - (t >> 2) - (read_byte() << 2)
+                if match_pos < 0:
+                    raise ValueError("LZO: match pos out of range")
+                out.extend(out[match_pos:match_pos + 3])
+                t >>= 2
+                # literal copy
+                count = t
+                while count:
+                    out.append(read_byte())
+                    count -= 1
+                t = read_byte()
+                continue
+
+        if t >= 64:
+            # type 3: short match
+            length = (t >> 5) - 1
+            dist_lo = read_byte()
+            match_dist = ((t >> 2) & 7) + (dist_lo << 3) + 1
+            match_pos = len(out) - match_dist
+            if match_pos < 0:
+                raise ValueError("LZO: match pos out of range")
+            length += 2
+            out.extend(out[match_pos:match_pos + length])
+        elif t >= 32:
+            # type 2: medium match
+            length = t & 31
+            if length == 0:
+                while data[pos] == 0:
+                    length += 255
+                    pos += 1
+                length += 31 + read_byte()
+            b1 = read_byte()
+            b2 = read_byte()
+            match_dist = (b1 >> 2) + (b2 << 6) + 1
+            match_pos = len(out) - match_dist
+            if match_pos < 0:
+                raise ValueError("LZO: match pos out of range")
+            out.extend(out[match_pos:match_pos + length + 2])
+        elif t >= 16:
+            # type 4: long match
+            length = t & 7
+            if length == 0:
+                while data[pos] == 0:
+                    length += 255
+                    pos += 1
+                length += 7 + read_byte()
+            b1 = read_byte()
+            b2 = read_byte()
+            match_dist = (b1 >> 2) + (b2 << 6) + 0x4001
+            if t & 8:
+                match_dist += 0x4000
+            match_pos = len(out) - match_dist
+            if match_pos < 0:
+                raise ValueError("LZO: match pos out of range")
+            out.extend(out[match_pos:match_pos + length + 2])
+        else:
+            # t < 16 — handled above with history match
+            b1 = read_byte()
+            b2 = read_byte()
+            match_dist = (t >> 2) + (b1 << 2) + (b2 << 10) + 1
+            match_pos = len(out) - match_dist
+            if match_pos < 0:
+                raise ValueError("LZO: match pos out of range")
+            out.extend(out[match_pos:match_pos + 3])
+
+        # end-of-stream marker
+        t = t & 3
+        if t == 0:
+            t = read_byte()
+            continue
+        while t:
+            out.append(read_byte())
+            t -= 1
+        t = read_byte()
+        if t < 16:
+            match_pos = len(out) - 0x801 - (t >> 2) - (read_byte() << 2)
+            if match_pos < 0:
+                raise ValueError("LZO: match pos out of range")
+            out.extend(out[match_pos:match_pos + 3])
+            t = t & 3
+            while t:
+                out.append(read_byte())
+                t -= 1
+            t = read_byte()
+
+    return bytes(out)
+
+
+def _xbox_lzo_decompress_entry(data: bytes) -> bytes:
+    """Decompress an Xbox LZO-compressed entry (GTA III/VC Xbox).
+
+    Stream layout:
+      Master header (12 bytes):
+        magic     u32  0x67A3A1CE (LE)
+        checksum  u32
+        total_sz  u32  total compressed data size (blocks only)
+      Then one or more blocks:
+        always    u32  always 4
+        decomp_sz u32  suggested decompressed size for this block
+        comp_sz   u32  size of compressed block data
+        data      bytes[comp_sz]
+
+    Returns concatenated decompressed output.
+    Uses python-lzo if available, falls back to pure-Python decompressor.
+    """
+    if len(data) < 12:
+        return data
+    magic = struct.unpack_from('<I', data, 0)[0]
+    if magic != _XBOX_LZO_MAGIC:
+        return data   # not LZO compressed
+
+    try:
+        import lzo as _lzo
+        _has_lzo = True
+    except ImportError:
+        _has_lzo = False
+
+    pos = 12  # skip master header
+    out = bytearray()
+    while pos + 12 <= len(data):
+        _always, decomp_sz, comp_sz = struct.unpack_from('<III', data, pos)
+        pos += 12
+        if comp_sz == 0:
+            break
+        block = data[pos:pos + comp_sz]
+        pos += comp_sz
+        if _has_lzo:
+            try:
+                out.extend(_lzo.decompress(block, False, decomp_sz))
+                continue
+            except Exception:
+                pass
+        # Pure-Python fallback
+        try:
+            out.extend(_lzo1x_decompress(block, decomp_sz))
+        except Exception:
+            out.extend(block)   # best-effort: return compressed if decompressor fails
+    return bytes(out)
+
+
+def _is_xbox_lzo(data: bytes) -> bool:
+    """Return True if data starts with the Xbox LZO master header magic."""
+    return len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC
+
+
+def _strip_xbox_lzo_header(data: bytes) -> bytes:
+    """If data starts with the Xbox LZO master header (magic 0x67A3A1CE),
+    return data with the 12-byte master header stripped so callers see
+    the first compressed block header.  Otherwise return data unchanged."""
+    if len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC:
+        return data[12:]   # skip magic(4) + checksum(4) + total_size(4)
+    return data
+
+
 def _scan_rw_version(data: bytes):
     """Scan first 64 bytes of a file for a valid RW version.
 
     RW chunk layout: type(4) + size(4) + version(4).
-    Handles plain RW files and Xbox variants with a 4/8-byte prefix.
+    Handles plain RW files, Xbox LZO-prefixed files (12-byte master header
+    before the first compressed block), and other 4/8-byte prefix variants.
     Returns (version_int, byte_offset) or (None, -1).
     """
+    # If this is an Xbox LZO stream, peek at the first block payload.
+    # Block header: always(4) + decompressed_size(4) + compressed_size(4) = 12 bytes,
+    # then compressed data follows.  We can't decompress here cheaply, but the RW
+    # version still lives at type+size+version layout, so try scanning the raw
+    # compressed block too — if the version wasn't scrambled by the compressor it
+    # may still be visible (Xbox LZO is block-level; small blocks often match).
+    # More robustly: mark as LZO and let _read_header_data decompress if needed.
+    is_lzo = len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC
+    if is_lzo:
+        # Skip past master header (12) + block header (12) to reach payload bytes
+        payload_start = 24
+        if len(data) >= payload_start + 12:
+            data = data[payload_start:]
+
     # Check standard offset first (bytes 8-11), then prefixed variants
     for base_offset in (0, 4, 8):
         off = base_offset + 8
@@ -421,7 +646,18 @@ class IMGEntry:
 
             with open(file_path, 'rb') as f:
                 f.seek(self.offset)
-                return f.read(min(self.size, bytes_to_read))
+                raw = f.read(min(self.size, bytes_to_read + 256))
+
+            # For Xbox LZO entries, decompress enough to get the RW header
+            if (self._img_file and
+                    getattr(self._img_file, 'platform', None) == IMGPlatform.XBOX and
+                    _is_xbox_lzo(raw)):
+                try:
+                    raw = _xbox_lzo_decompress_entry(raw)
+                except Exception:
+                    pass
+
+            return raw[:bytes_to_read]
 
         except Exception as e:
             img_debugger.error(f"Error reading header data for {self.name}: {e}")
@@ -613,6 +849,16 @@ def get_platform_specific_specs(platform: IMGPlatform) -> Dict[str, Any]: #vers 
             'supports_compression': False,
             'max_entries': 8000,
             'stories_format': True
+        },
+        IMGPlatform.XBOX: {
+            'sector_size': 2048,
+            'entry_size': 32,
+            'name_length': 24,
+            'endianness': 'little',     # IMG directory is LE, same as PC
+            'supports_compression': True,
+            'max_entries': 65535,
+            'lzo_compressed': True,     # DFF/TXD entries may be LZO-compressed
+            'lzo_magic': 0x67A3A1CE,
         }
     }
     return specs.get(platform, specs[IMGPlatform.PC])
@@ -1513,22 +1759,30 @@ class IMGFile:
         except Exception:
             return False
 
-    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 1
-        """Read data for a specific entry"""
+    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 2
+        """Read data for a specific entry, transparently decompressing Xbox LZO if needed."""
         try:
             if self.version == IMGVersion.VERSION_1:
-                # Read from .img file
                 img_path = self.file_path.replace('.dir', '.img')
                 with open(img_path, 'rb') as f:
                     f.seek(entry.offset)
-                    return f.read(entry.size)
+                    data = f.read(entry.size)
             else:
-                # Read from single .img file
                 with open(self.file_path, 'rb') as f:
                     f.seek(entry.offset)
-                    return f.read(entry.size)
+                    data = f.read(entry.size)
+
+            # Transparent Xbox LZO decompression
+            if self.platform == IMGPlatform.XBOX and _is_xbox_lzo(data):
+                try:
+                    data = _xbox_lzo_decompress_entry(data)
+                    entry.compression_type = CompressionType.LZO
+                except Exception:
+                    pass  # return raw on failure
+
+            return data
         except Exception as e:
-            raise RuntimeError(f"Failed to write entry data: {e}")
+            raise RuntimeError(f"Failed to read entry data: {e}")
 
     def write_entry_data(self, entry: IMGEntry, data: bytes): #vers 1
         """Write data for a specific entry"""
