@@ -204,6 +204,20 @@ class IMGTablePopulator:
             for row, entry in enumerate(entries):
                 self.populate_table_row_minimal(table, row, entry)
             img_debugger.info(f"Table populated with {len(entries)} entries")
+
+            # Apply DAT cross-reference tooltips if a DAT browser xref is available
+            try:
+                mw = self.main_window
+                dat_browser = getattr(mw, "dat_browser", None)
+                xref = getattr(dat_browser, "xref", None) if dat_browser else None
+                if xref:
+                    from apps.methods.populate_img_table import apply_xref_tooltips
+                    hits = apply_xref_tooltips(table, xref)
+                    if hits and hasattr(mw, "log_message"):
+                        mw.log_message(f"XRef tooltips: {hits} entries cross-referenced")
+            except Exception as e:
+                img_debugger.error(f"XRef tooltip error: {e}")
+
             return True
         except Exception as e:
             img_debugger.error(f"Error populating IMG table: {str(e)}")

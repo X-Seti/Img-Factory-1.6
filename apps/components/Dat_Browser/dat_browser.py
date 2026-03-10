@@ -751,22 +751,24 @@ class DATBrowserWidget(QWidget): #vers 2
 # Integration hook
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _wire_xref_signal(widget, main_window): #vers 1
-    """Connect widget.xref_ready to apply tooltips on the active IMG table."""
+def _wire_xref_signal(widget, main_window): #vers 2
+    """Connect widget.xref_ready to apply tooltips on ALL open IMG tabs."""
     def _on_xref_ready(xref):
         try:
             from apps.methods.populate_img_table import apply_xref_tooltips
             tw = getattr(main_window, "main_tab_widget", None)
             if not tw:
                 return
-            tab = tw.currentWidget()
-            if not tab:
-                return
-            table = getattr(tab, "table_ref", None)
-            if table:
-                hits = apply_xref_tooltips(table, xref)
-                if hits and hasattr(main_window, "log_message"):
-                    main_window.log_message(f"XRef: {hits} entries cross-referenced")
+            total_hits = 0
+            for i in range(tw.count()):
+                tab = tw.widget(i)
+                if not tab:
+                    continue
+                table = getattr(tab, "table_ref", None)
+                if table:
+                    total_hits += apply_xref_tooltips(table, xref)
+            if total_hits and hasattr(main_window, "log_message"):
+                main_window.log_message(f"XRef: {total_hits} entries cross-referenced across all tabs")
         except Exception as e:
             if hasattr(main_window, "log_message"):
                 main_window.log_message(f"XRef tooltip error: {e}")
