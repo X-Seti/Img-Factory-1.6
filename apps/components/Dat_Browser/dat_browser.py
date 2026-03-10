@@ -104,27 +104,16 @@ class DATBrowserWidget(QWidget): #vers 2
         self._path_edit.setReadOnly(True)
 
         browse_btn = QPushButton("Browse…")
-        browse_btn.setFixedWidth(72)
         browse_btn.setToolTip("Browse for game root folder")
         browse_btn.clicked.connect(self._browse_game_root)
         self._browse_btn = browse_btn
 
         self._load_btn = QPushButton("Load")
-        self._load_btn.setFixedWidth(56)
         self._load_btn.setEnabled(False)
         self._load_btn.setToolTip("Load DAT/IDE/IPL world data")
         self._load_btn.clicked.connect(self._start_load)
 
-        # Pre-load icons for compact mode
-        try:
-            from apps.methods.imgfactory_svg_icons import get_folder_icon, get_go_icon
-            self._browse_btn._icon = get_folder_icon(16)
-            self._load_btn._icon   = get_go_icon(16)
-        except Exception:
-            self._browse_btn._icon = None
-            self._load_btn._icon   = None
-
-        # Track current compact state to avoid redundant updates
+        # Track current compact state; icons loaded lazily on first compact switch
         self._toolbar_compact = False
 
         toolbar.addWidget(QLabel("Game:"))
@@ -238,40 +227,57 @@ class DATBrowserWidget(QWidget): #vers 2
         super().resizeEvent(event)
         self._update_toolbar_compact(event.size().width())
 
-    def _update_toolbar_compact(self, width: int): #vers 1
-        """Switch Browse/Load buttons between text+icon and icon-only modes."""
+    def _update_toolbar_compact(self, width: int): #vers 2
+        """Switch Browse/Load between full text and icon-only when narrow."""
         compact = width < self._COMPACT_THRESHOLD
         if compact == self._toolbar_compact:
             return
         self._toolbar_compact = compact
 
         from PyQt6.QtCore import QSize
-        from PyQt6.QtGui  import QIcon
+        from PyQt6.QtGui import QIcon
+        from PyQt6.QtWidgets import QSizePolicy
 
         bb = self._browse_btn
         lb = self._load_btn
 
         if compact:
+            # Load icons lazily here (Qt display context guaranteed)
+            if not getattr(bb, "_icon_loaded", False):
+                try:
+                    from apps.methods.imgfactory_svg_icons import get_folder_icon, get_go_icon
+                    bb._icon = get_folder_icon(20)
+                    lb._icon = get_go_icon(20)
+                except Exception:
+                    bb._icon = None
+                    lb._icon = None
+                bb._icon_loaded = True
+
             for btn, tip in (
                 (bb, "Browse for game root folder"),
                 (lb, "Load DAT world"),
             ):
-                icon = getattr(btn, "_icon", None)
                 btn.setText("")
-                if icon:
+                icon = getattr(btn, "_icon", None)
+                if icon and not icon.isNull():
                     btn.setIcon(icon)
-                    btn.setIconSize(QSize(16, 16))
-                btn.setFixedWidth(26)
+                    btn.setIconSize(QSize(20, 20))
+                # Square button: fixed at 32px (icon 20 + 6px padding each side)
+                btn.setFixedSize(32, btn.sizeHint().height())
                 btn.setToolTip(tip)
         else:
-            bb.setText("Browse…")
-            bb.setIcon(QIcon())
-            bb.setFixedWidth(72)
-            bb.setToolTip("Browse for game root folder")
-            lb.setText("Load")
-            lb.setIcon(QIcon())
-            lb.setFixedWidth(56)
-            lb.setToolTip("Load DAT world")
+            for btn, text, tip in (
+                (bb, "Browse…", "Browse for game root folder"),
+                (lb, "Load",    "Load DAT/IDE/IPL world data"),
+            ):
+                btn.setIcon(QIcon())           # clear icon
+                btn.setText(text)
+                btn.setMinimumWidth(0)
+                btn.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX — let Qt size it
+                btn.setSizePolicy(
+                    QSizePolicy.Policy.Preferred,
+                    QSizePolicy.Policy.Fixed)
+                btn.setToolTip(tip)
 
     # ── Browse / load ──────────────────────────────────────────────────────
 
