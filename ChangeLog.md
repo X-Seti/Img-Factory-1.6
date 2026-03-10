@@ -1,5 +1,63 @@
 #this belongs in root /ChangeLog.md - Version: 17
 
+## March 10, 2026 — DAT Browser enhancements, Dir Tree improvements, click-drag multi-select
+
+### DAT Browser
+
+**Updated**: apps/components/Dat_Browser/dat_browser.py
+- `_game_combo` v2: added **"Game Root (Dir Tree)"** entry (index 5); combo width increased to 155 px
+- `_on_game_combo_changed()` v1: new slot wired to `currentIndexChanged` — selecting "Game Root (Dir Tree)" immediately reads `directory_tree.current_path` (falls back to `main_window.game_root`), fills the path field, detects the game, switches the combo to the detected game entry, and calls `_start_load()` automatically — no Browse or Load click required
+- `_start_load()` v4: cleaned up (removed dead index-5 block now handled by `_on_game_combo_changed`)
+- `_auto_fill_game_root()` v1: silently pre-fills path and game combo from dir tree on every open/re-open; only fires if path field is currently empty (never overwrites a manually set path)
+- `show_dat_browser()` v2: calls `_auto_fill_game_root` on show and on tab re-add
+- `integrate_dat_browser()` v4: calls `_auto_fill_game_root` after widget creation
+- `_make_table()` v3: switched base class to `DragSelectTableWidget`; added `ExtendedSelection` — all three tables (Objects, Instances, Zones) now support click-drag row selection
+- Responsive toolbar v2: `Browse…` / `Load` buttons collapse to 32×32 icon-only squares below 520 px width; icons loaded lazily on first compact transition (folder icon / go-arrow icon); no fixed widths in full mode — Qt sizes naturally
+- Load-order tree right-click context menu: **Edit** (opens text editor) for `.ide .ipl .dat .txt .cfg .ini`; **Open in IDE Editor** for `.ide`; **Copy path** for all entries
+- `_setup_tree_context_menu()` v1, `_on_tree_context_menu()` v1, `_open_path_in_editor()` v1, `_open_in_ide_editor()` v1
+
+**Updated**: apps/methods/gta_dat_parser.py
+- `GTAWorldXRef.tooltip_for()` v2: richer hover bubble — `"Model defined in: vehicles.ide"`, `"Type: Vehicle"`, `"TXD: landstal.txd"`, optional `"COL: landstal.col  [present]"`; TXD-only files list up to 5 model names that share the TXD; COL files confirm COLFILE directive presence
+
+**Updated**: apps/methods/populate_img_table.py
+- `apply_xref_tooltips()` v2: sets tooltip on **all columns** of each matching row (not just Name column) so the info bubble appears wherever the cursor lands on the row
+- **Added `DragSelectTableWidget`** v1: `QTableWidget` subclass implementing click-hold-drag row selection via `mousePressEvent` / `mouseMoveEvent` / `mouseReleaseEvent` overrides; `DragEnabled=False`, `NoDragDrop`, `ExtendedSelection`, `SelectRows` set by default; Shift+Click and Ctrl+Click still work normally; exported in `__all__`
+
+### Dir Tree
+
+**Updated**: apps/components/File_Editor/directory_tree_browser.py
+- `populate_tree_recursive()`: permissions column now shows **`755  rwxr-xr-x`** (octal + symbolic) for both files and folders via new `_perms_str(mode)` inner helper
+- `show_context_menu()` v3: **Edit** action for `.ide .ipl .dat .txt .cfg .ini .zon .cut .fxt` files (opens `IMGFactoryTextEditor`); **Open in IDE Editor** action for `.ide` files
+- `_edit_text_file()` v1, `_open_ide_editor()` v1: delegate to `notepad.open_text_file_in_editor` and `ide_editor.open_ide_editor`
+
+### IMG Factory file window / IDE Editor buttons
+
+**Updated**: apps/gui/gui_layout.py
+- `edit_ipl_file` mapping: wired to `_open_selected_text_file('.ipl')` (was `_log_missing_method`)
+- `_open_selected_text_file()` v1: opens currently selected file from dir tree if it is a text-editable type; falls back to QFileDialog filtered by extension
+- `_get_dir_tree_selected_file()` v1: returns currently selected file path from dir tree widget or `_dir_tree_selected_file` attr
+- `_open_file_in_text_editor()` v1, `_open_file_in_ide_editor()` v1: helpers for dir-list context menu
+- `_on_directory_list_context_menu()` v2: **Edit** and **Open in IDE Editor** actions for `.ide .ipl .dat .txt .cfg .ini .zon .cut .fxt` in the directory file list; COL Workshop action preserved
+- Main table: switched to `DragSelectTableWidget` (was plain `QTableWidget`)
+
+### Click-drag multi-select (all tables)
+
+**Added**: apps/methods/populate_img_table.py — `DragSelectTableWidget` (see above)
+
+**Updated**: apps/methods/img_core_classes.py
+- `IMGEntriesTable` v2: now inherits `DragSelectTableWidget` instead of `QTableWidget`; redundant `setSelectionBehavior/Mode` calls removed (set by base class)
+
+**Updated**: apps/components/Img_Factory/imgfactory.py
+- `_create_initial_tab()`: tab tables now use `DragSelectTableWidget`
+
+**Updated**: apps/methods/dragdrop_functions.py
+- `setup_table_entry_drag()` v2: **removed `setDragEnabled(True)` and `DragDrop` mode** — these were stealing the left-button gesture away from row selection and showing a `+` drag cursor on first click; drag-out logic preserved as `table._explicit_start_drag()` (callable from right-click menu); drop-in (files → import) still works via `acceptDrops=True`
+
+**Updated**: apps/core/right_click_actions.py
+- Added **"Drag to Desktop / Folder…"** action under Extract Selected; calls `table._explicit_start_drag()` if present
+
+---
+
 ## March 09, 2026 — RW button icon/visibility, SIGSEGV fix, stylesheet bug fix
 
 **Updated**: apps/methods/imgfactory_svg_icons.py
