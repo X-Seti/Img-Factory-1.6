@@ -225,6 +225,724 @@ _KNOWN_GTA_EXTENSIONS = {
     'fxp', 'bmp', 'png', 'jpg', 'spl', 'rrr', 'rdb', 'rsc',
 }
 
+_XBOX_LZO_MAGIC = 0x67A3A1CE  # little-endian master header magic for Xbox LZO streams
+
+def _lzo1x_decompress(data: bytes, expected_size: int = 0) -> bytes:
+    """Pure-Python LZO1X-1 decompressor (lzo1x_decompress_safe compatible).
+
+    Based on the canonical LZO1X algorithm. Handles the compressed block
+    data as produced by lzo1x-999 (used in GTA Xbox TXD/DFF entries).
+    Returns decompressed bytes. Raises ValueError on malformed input.
+    """
+    out = bytearray(expected_size) if expected_size else bytearray()
+    if expected_size:
+        out = bytearray()
+
+    src = 0
+    n = len(data)
+
+    def peek():
+        return data[src] if src < n else 0
+
+    def get():
+        nonlocal src
+        if src >= n:
+            raise ValueError("LZO: truncated input")
+        b = data[src]; src += 1
+        return b
+
+    def copy_match(dist, length):
+        start = len(out) - dist
+        if start < 0:
+            raise ValueError(f"LZO: invalid match distance {dist}")
+        for _ in range(length):
+            out.append(out[start])
+            start += 1
+
+    # Decode first instruction
+    t = get()
+    if t >= 18:
+        # Initial literal run
+        cnt = t - 17
+        for _ in range(cnt):
+            out.append(get())
+        t = get()
+    elif t >= 16:
+        pass  # fall through to main loop
+    else:
+        # t < 16 on first byte: short literal
+        pass
+
+    # Main decode loop
+    while True:
+        if t < 16:
+            # Short literal + end-of-block
+            if t == 0:
+                cnt = 15
+                while peek() == 0:
+                    cnt += 255; get()
+                cnt += get()
+            else:
+                cnt = t
+            for _ in range(cnt + 3):
+                out.append(get())
+            t = get()
+            if t >= 16:
+                continue
+            # EOS short match
+            dist = 0x801 + (get() << 2) + (t >> 2)
+            copy_match(dist, 3)
+            t &= 3
+            if t:
+                for _ in range(t):
+                    out.append(get())
+                t = get()
+            continue
+
+        if t >= 64:
+            # Short match (2-8 bytes, dist 1-8*256)
+            length = (t >> 5) - 1 + 2
+            dist = ((t >> 2) & 7) * 256 + get() + 1
+            copy_match(dist, length)
+
+        elif t >= 32:
+            # Medium match
+            length = t & 31
+            if length == 0:
+                length = 31
+                while peek() == 0:
+                    length += 255; get()
+                length += get()
+            length += 2
+            b1 = get(); b2 = get()
+            dist = (b1 >> 2) + (b2 << 6) + 1
+            copy_match(dist, length)
+
+        else:  # 16 <= t < 32
+            # Long match
+            length = t & 7
+            if length == 0:
+                length = 7
+                while peek() == 0:
+                    length += 255; get()
+                length += get()
+            length += 2
+            b1 = get(); b2 = get()
+            dist = (b1 >> 2) + (b2 << 6) + 0x4001
+            if t & 8:
+                dist += 0x4000
+            copy_match(dist, length)
+
+        # Trailing literal nibble
+        t &= 3
+        if t == 0:
+            t = get()
+            continue
+        for _ in range(t):
+            out.append(get())
+        t = get()
+        if src >= n:
+            break
+
+    return bytes(out)
+
+
+def _xbox_lzo_peek_header(data: bytes, want: int = 64) -> bytes:
+    """Fast extraction of the RW chunk header from an Xbox LZO stream.
+
+    The RW header (12 bytes: type + size + version) is always encoded as an
+    initial literal run in the very first LZO instruction byte.  We decode
+    only that literal run — no back-references needed — and return the result.
+
+    This is O(want) instead of O(block_size) and avoids reading megabytes of
+    compressed data just to get a 12-byte header.
+
+    Falls back to full decompression if the first byte is not a literal-run
+    instruction (i.e. the data is structured differently than expected).
+    """
+    # Layout: master_header(12) + block_header(12) + lzo_payload(...)
+    # lzo_payload starts at offset 24
+    PAYLOAD_START = 24
+    if len(data) < PAYLOAD_START + 1:
+        return b''
+
+    out = bytearray()
+    pos = PAYLOAD_START
+
+    first = data[pos]
+    if first >= 18:
+        # Initial literal run: copy (first - 17) bytes verbatim
+        n_lit = first - 17
+        pos += 1
+        lit_end = pos + n_lit
+        if lit_end <= len(data):
+            out.extend(data[pos:lit_end])
+            pos = lit_end
+        else:
+            out.extend(data[pos:])
+        # If we have enough, return early — no back-reference decoding needed
+        if len(out) >= want:
+            return bytes(out)
+        # Continue decoding the next instruction (one more literal or match)
+        if pos < len(data):
+            nxt = data[pos]
+            if nxt >= 18:
+                # Another literal run
+                n2 = nxt - 17
+                pos += 1
+                out.extend(data[pos:pos + n2])
+    elif first == 0:
+        # Long literal: read zero-run then count
+        pos += 1
+        n_lit = 15
+        while pos < len(data) and data[pos] == 0:
+            n_lit += 255; pos += 1
+        if pos < len(data):
+            n_lit += data[pos]; pos += 1
+        n_lit += 3
+        out.extend(data[pos:pos + n_lit])
+    # else: match instruction on first byte — fall back to full decompress
+    # (uncommon for well-formed RW files)
+
+    if len(out) >= want:
+        return bytes(out[:want])
+
+    # Fallback: full decompress (slow path, should rarely be needed)
+    try:
+        full = _xbox_lzo_decompress_entry(data)
+        return full[:want]
+    except Exception:
+        return bytes(out)
+
+
+def _xbox_lzo_decompress_entry(data: bytes) -> bytes:
+    """Decompress an Xbox LZO-compressed entry (GTA III/VC Xbox).
+
+    Stream layout:
+      Master header (12 bytes):
+        magic     u32  0x67A3A1CE (LE)
+        checksum  u32
+        total_sz  u32  total size of all block headers+data combined
+      Then one or more blocks:
+        always    u32  always 4
+        decomp_sz u32  decompressed size of this block
+        comp_sz   u32  size of the LZO block data following
+
+      NOTE: In GTA Xbox, comp_sz often equals decomp_sz — this does NOT mean
+      the block is stored uncompressed. The block data is always LZO1X
+      compressed; comp_sz is simply the stored (compressed) byte count.
+      comp_sz == 0 signals end of stream.
+    """
+    if len(data) < 12:
+        return data
+    magic = struct.unpack_from('<I', data, 0)[0]
+    if magic != _XBOX_LZO_MAGIC:
+        return data
+
+    try:
+        import lzo as _lzo
+        _has_lzo = True
+    except ImportError:
+        _has_lzo = False
+
+    pos = 12  # skip master header
+    out = bytearray()
+    while pos + 12 <= len(data):
+        _always, decomp_sz, comp_sz = struct.unpack_from('<III', data, pos)
+        pos += 12
+        if comp_sz == 0:
+            break
+        block = data[pos:pos + comp_sz]
+        pos += comp_sz
+
+        # Always LZO compressed (comp_sz == decomp_sz is normal for GTA Xbox)
+        if _has_lzo:
+            try:
+                out.extend(_lzo.decompress(block, False, decomp_sz))
+                continue
+            except Exception:
+                pass
+        try:
+            out.extend(_lzo1x_decompress(block, decomp_sz))
+        except Exception:
+            out.extend(block)  # best-effort on decompressor failure
+
+    return bytes(out)
+
+
+def _is_xbox_lzo(data: bytes) -> bool:
+    """Return True if data starts with the Xbox LZO master header magic."""
+    return len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC
+
+
+def _strip_xbox_lzo_header(data: bytes) -> bytes:
+    """If data starts with the Xbox LZO master header (magic 0x67A3A1CE),
+    return data with the 12-byte master header stripped so callers see
+    the first compressed block header.  Otherwise return data unchanged."""
+    if len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC:
+        return data[12:]   # skip magic(4) + checksum(4) + total_size(4)
+    return data
+
+
+def _scan_rw_version(data: bytes):
+    """Scan first 64 bytes of a file for a valid RW version.
+
+    RW chunk layout: type(4) + size(4) + version(4).
+    Handles plain RW files, Xbox LZO-prefixed files (12-byte master header
+    before the first compressed block), and other 4/8-byte prefix variants.
+    Returns (version_int, byte_offset) or (None, -1).
+    """
+    # If this is an Xbox LZO stream, peek at the first block payload.
+    # Block header: always(4) + decompressed_size(4) + compressed_size(4) = 12 bytes,
+    # then compressed data follows.  We can't decompress here cheaply, but the RW
+    # version still lives at type+size+version layout, so try scanning the raw
+    # compressed block too — if the version wasn't scrambled by the compressor it
+    # may still be visible (Xbox LZO is block-level; small blocks often match).
+    # More robustly: mark as LZO and let _read_header_data decompress if needed.
+    is_lzo = len(data) >= 4 and struct.unpack_from('<I', data, 0)[0] == _XBOX_LZO_MAGIC
+    if is_lzo:
+        # Skip past master header (12) + block header (12) to reach payload bytes
+        payload_start = 24
+        if len(data) >= payload_start + 12:
+            data = data[payload_start:]
+
+    # Check standard offset first (bytes 8-11), then prefixed variants
+    for base_offset in (0, 4, 8):
+        off = base_offset + 8
+        if len(data) >= off + 4:
+            v = struct.unpack_from('<I', data, off)[0]
+            if _is_valid_rw_version(v):
+                return v, off
+    return None, -1
+
+
+class IMGEntry:
+    """Represents a single file entry within an IMG archive - FIXED WITH RW VERSION DETECTION"""
+    
+    def __init__(self): #vers 4
+        self.name: str = ""
+        self.extension: str = ""
+        self.offset: int = 0          # Offset in bytes
+        self.size: int = 0            # Size in bytes
+        self.uncompressed_size: int = 0
+        self.file_type: FileType = FileType.UNKNOWN
+        self.compression_type: CompressionType = CompressionType.NONE
+        self.rw_version: int = 0      # RenderWare version
+        self.rw_version_name: str = "" # ADDED: Human readable version name
+        self.is_encrypted: bool = False
+        self.encryption_type: EncryptionType = EncryptionType.NONE
+        self.is_new_entry: bool = False
+        self.is_replaced: bool = False
+        self.is_readonly: bool = False
+        self.flags: int = 0
+        self.compression_level = 0
+
+        # Internal data cache
+        self._cached_data: Optional[bytes] = None
+        self._img_file: Optional['IMGFile'] = None
+        self._version_detected: bool = False # ADDED: Track if version was detected
+    
+    def set_img_file(self, img_file: 'IMGFile'): #vers 1
+        """Set reference to parent IMG file"""
+        self._img_file = img_file
+
+    def detect_file_type_and_version(self): #vers 4
+        """Detect file type and RW version. Robust against garbage bytes after the null
+        terminator or after the extension in DIR entry name fields.
+
+        """
+        try:
+            self.name = _parse_entry_name(self.name.encode('ascii', errors='replace'))
+
+            if '.' in self.name:
+                self.extension = self.name.split('.')[-1].upper()
+                self.extension = ''.join(c for c in self.extension if c.isalpha())
+            else:
+                self.extension = "NO_EXT"
+
+            ext_lower = self.extension.lower()
+            if ext_lower == 'dff':
+                self.file_type = FileType.DFF
+            elif ext_lower == 'txd':
+                self.file_type = FileType.TXD
+            elif ext_lower == 'col':
+                self.file_type = FileType.COL
+            elif ext_lower == 'ifp':
+                self.file_type = FileType.IFP
+            elif ext_lower == 'ipl':
+                self.file_type = FileType.IPL
+            elif ext_lower == 'dat':
+                self.file_type = FileType.DAT
+            elif ext_lower == 'wav':
+                self.file_type = FileType.WAV
+            else:
+                self.file_type = FileType.UNKNOWN
+
+            # RW version detection — skipped during bulk load (expensive: disk I/O + LZO)
+            if self.extension in ['DFF', 'TXD'] and not self._version_detected:
+                self._detect_rw_version()
+
+        except Exception as e:
+            img_debugger.error(f"Error detecting file type for {self.name}: {e}")
+
+    def _detect_rw_version(self): #vers 2
+        """Detect RenderWare version from file header - scans for valid version across known offsets"""
+        try:
+            if not self._img_file or not self._img_file.file_path:
+                return
+
+            # Read enough bytes to cover standard + prefixed layouts
+            file_data = self._read_header_data(64)
+            if not file_data or len(file_data) < 12:
+                return
+
+            version_value, found_offset = _scan_rw_version(file_data)
+            if version_value:
+                version_name = get_rw_version_name(version_value)
+                self.rw_version = version_value
+                self.rw_version_name = version_name
+                self._version_detected = True
+                img_debugger.success(f"Detected RW version {version_name} (0x{version_value:X}) for {self.name}")
+
+        except Exception as e:
+            img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
+
+    def detect_rw_version(self, data: bytes = None) -> bool: #vers 2
+        """Detect RenderWare version from provided data - validates version range"""
+        try:
+            if data is None:
+                if self._img_file:
+                    data = self.get_data()
+                else:
+                    return False
+
+            if not data or len(data) < 12:
+                return False
+
+            version_value, _ = _scan_rw_version(data[:64])
+            if version_value:
+                version_name = get_rw_version_name(version_value)
+                self.rw_version = version_value
+                self.rw_version_name = version_name
+                self._version_detected = True
+                if hasattr(img_debugger, 'success'):
+                    img_debugger.success(f"Detected RW version {version_name} (0x{version_value:X}) for {self.name}")
+                return True
+
+            return False
+
+        except Exception as e:
+            if hasattr(img_debugger, 'error'):
+                img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
+            return False
+
+    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 4
+        """Read file header data from the data portion of the IMG archive.
+
+        For Xbox LZO entries only the first ~512 bytes of the compressed stream
+        are read.  The RW chunk header (12 bytes) is always encoded as a literal
+        run in the first LZO instruction, so we only need to decompress the very
+        start of the stream — not a full 64 KB block.
+        """
+        try:
+            if not self._img_file or not self._img_file.file_path:
+                return None
+
+            file_path = self._img_file.file_path
+
+            # V1-family opened via .dir: data lives in the companion .img file
+            if (self._img_file.version in (IMGVersion.VERSION_1,
+                                           IMGVersion.VERSION_1_5,
+                                           IMGVersion.VERSION_SOL)
+                    and file_path.lower().endswith('.dir')):
+                img_path = file_path[:-4] + '.img'
+                if not os.path.exists(img_path):
+                    return None
+                file_path = img_path
+
+            is_xbox = (getattr(self._img_file, 'platform', None) == IMGPlatform.XBOX)
+
+            # For Xbox: only read 512 bytes — the RW header is always in the first
+            # LZO literal run (~30-50 compressed bytes).  No need to read 64 KB.
+            read_size = min(self.size, 512) if is_xbox else min(self.size, bytes_to_read + 256)
+
+            with open(file_path, 'rb') as f:
+                f.seek(self.offset)
+                raw = f.read(read_size)
+
+            # Decompress just enough of the LZO stream to extract the RW header
+            if is_xbox and _is_xbox_lzo(raw):
+                raw = _xbox_lzo_peek_header(raw, bytes_to_read)
+
+            return raw[:bytes_to_read]
+
+        except Exception as e:
+            img_debugger.error(f"Error reading header data for {self.name}: {e}")
+            return None
+
+    def _get_file_type_from_extension(self) -> FileType: #vers 1
+        """Get file type from extension"""
+        ext_lower = self.extension.lower()
+        try:
+            return FileType(ext_lower)
+        except ValueError:
+            return FileType.UNKNOWN
+
+    def get_version_text(self) -> str: #vers 3
+        """Get human-readable version text"""
+        try:
+            if self.extension in ['DFF', 'TXD']:
+                if self.size == 0:
+                    return "Empty"
+                if self.rw_version > 0 and self.rw_version_name:
+                    return f"RW {self.rw_version_name}"
+                elif self.rw_version > 0:
+                    return f"RW 0x{self.rw_version:X}"
+                else:
+                    return "RW Unknown"
+            elif self.extension == 'COL':
+                return "COL"
+            elif self.extension == 'IFP':
+                return "IFP"
+            elif self.extension == 'IPL':
+                return "IPL"
+            elif self.extension in ['WAV', 'MP3']:
+                return "Audio"
+            else:
+                return "Unknown"
+        except:
+            return "Unknown"
+    
+    def get_offset_in_sectors(self) -> int: #vers 1
+        """Get offset in 2048-byte sectors"""
+        return self.offset // 2048
+    
+    def get_size_in_sectors(self) -> int: #vers 1
+        """Get size in 2048-byte sectors (rounded up)"""
+        return (self.size + 2047) // 2048
+    
+    def get_file_type(self) -> FileType: #vers 1
+        """Get file type based on extension"""
+        if not self.extension:
+            return FileType.UNKNOWN
+        
+        ext_lower = self.extension.lower().lstrip('.')
+        try:
+            return FileType(ext_lower)
+        except ValueError:
+            return FileType.UNKNOWN
+    
+    def is_renderware_file(self) -> bool: #vers 1
+        """Check if file is a RenderWare format"""
+        return self.extension.upper() in ['DFF', 'TXD']
+    
+    def validate(self) -> ValidationResult: #vers 1
+        """Validate entry data"""
+        result = ValidationResult()
+        
+        try:
+            # Check basic attributes
+            if not self.name:
+                result.add_error("Entry has no name")
+            
+            if self.size < 0:
+                result.add_error("Entry has negative size")
+            
+            if self.offset < 0:
+                result.add_error("Entry has negative offset")
+            
+            # Check name validity
+            if len(self.name) > 24:
+                result.add_warning("Entry name longer than 24 characters")
+            
+            invalid_chars = set('\x00\xff\xcd')
+            if any(char in self.name for char in invalid_chars):
+                result.add_error("Entry name contains invalid characters")
+            
+            # Validate data if available
+            if self._img_file:
+                try:
+                    data = self.get_data()
+                    if len(data) != self.size:
+                        result.add_warning(f"Entry {self.name} actual size differs from header")
+                except Exception as e:
+                    result.add_error(f"Cannot read data for {self.name}: {str(e)}")
+
+        except Exception as e:
+            result.add_error(f"Validation error for {self.name}: {str(e)}")
+
+        return result
+    
+    def get_data(self) -> bytes: #vers 1
+        """Read entry data from IMG file"""
+        if not self._img_file:
+            raise ValueError("No IMG file reference set")
+        
+        return self._img_file.read_entry_data(self)
+    
+    def set_data(self, data: bytes): #vers 1
+        """Write entry data to IMG file"""
+        if not self._img_file:
+            raise ValueError("No IMG file reference set")
+        
+        self._img_file.write_entry_data(self, data)
+
+# INLINE PLATFORM DETECTION FUNCTIONS - to replace the circular import
+def _detect_xbox_by_content(file_path: str) -> bool:
+    """Return True if this IMG/DIR pair contains Xbox LZO-compressed entries.
+
+    Reads the first DIR entry to get the offset of the first data entry,
+    then peeks at 4 bytes in the .img file.  If they match the Xbox LZO
+    magic (0x67A3A1CE) it is Xbox.
+    """
+    try:
+        path_lower = file_path.lower()
+
+        if path_lower.endswith('.dir'):
+            img_path = file_path[:-4] + '.img'
+            if not os.path.exists(img_path):
+                img_path = file_path[:-4] + '.IMG'
+            if not os.path.exists(img_path):
+                return False
+            with open(file_path, 'rb') as df:
+                entry = df.read(32)
+            if len(entry) < 8:
+                return False
+            offset_bytes = struct.unpack_from('<I', entry, 0)[0] * 2048
+            with open(img_path, 'rb') as f:
+                f.seek(offset_bytes)
+                magic_bytes = f.read(4)
+
+        elif path_lower.endswith('.img'):
+            dir_path = file_path[:-4] + '.dir'
+            if not os.path.exists(dir_path):
+                dir_path = file_path[:-4] + '.DIR'
+            if os.path.exists(dir_path):
+                with open(dir_path, 'rb') as df:
+                    entry = df.read(32)
+                if len(entry) < 8:
+                    return False
+                offset_bytes = struct.unpack_from('<I', entry, 0)[0] * 2048
+                with open(file_path, 'rb') as f:
+                    f.seek(offset_bytes)
+                    magic_bytes = f.read(4)
+            else:
+                # VER2 single file — read first entry offset from directory
+                with open(file_path, 'rb') as f:
+                    f.seek(8)
+                    entry = f.read(8)
+                    if len(entry) < 8:
+                        return False
+                    offset_bytes = struct.unpack_from('<I', entry, 0)[0] * 2048
+                    f.seek(offset_bytes)
+                    magic_bytes = f.read(4)
+        else:
+            return False
+
+        if len(magic_bytes) < 4:
+            return False
+        return struct.unpack_from('<I', magic_bytes, 0)[0] == _XBOX_LZO_MAGIC
+
+    except Exception:
+        return False
+
+
+def detect_img_platform(file_path: str): #vers 2
+    """Detect IMG platform — content-based first, filename as secondary hint.
+
+    Xbox detection probes the first entry data bytes for the LZO magic
+    (0x67A3A1CE) so gta3.img from Xbox is correctly distinguished from PC.
+    """
+    try:
+        if _detect_xbox_by_content(file_path):
+            return IMGPlatform.XBOX, {'confidence': 95, 'indicators': ['lzo_magic']}
+
+        filename = os.path.basename(file_path).lower()
+        if any(keyword in filename for keyword in ['ps2', 'playstation']):
+            return IMGPlatform.PS2, {'confidence': 70, 'indicators': ['ps2_filename']}
+        elif any(keyword in filename for keyword in ['xbox']):
+            return IMGPlatform.XBOX, {'confidence': 80, 'indicators': ['xbox_filename']}
+        elif any(keyword in filename for keyword in ['android', 'mobile']):
+            return IMGPlatform.ANDROID, {'confidence': 70, 'indicators': ['android_filename']}
+        elif any(keyword in filename for keyword in ['psp', 'stories']):
+            return IMGPlatform.PSP, {'confidence': 70, 'indicators': ['psp_filename']}
+        else:
+            return IMGPlatform.PC, {'confidence': 50, 'indicators': ['default_pc']}
+
+    except Exception:
+        return IMGPlatform.UNKNOWN, {'confidence': 0, 'indicators': ['error']}
+
+def detect_img_platform_inline(file_path: str) -> IMGPlatform: #vers 2
+    """Content-based platform detection (inline, no tuple return)."""
+    try:
+        if _detect_xbox_by_content(file_path):
+            return IMGPlatform.XBOX
+        filename = os.path.basename(file_path).lower()
+        if any(keyword in filename for keyword in ['ps2', 'playstation']):
+            return IMGPlatform.PS2
+        elif any(keyword in filename for keyword in ['xbox']):
+            return IMGPlatform.XBOX
+        elif any(keyword in filename for keyword in ['android', 'mobile']):
+            return IMGPlatform.ANDROID
+        elif any(keyword in filename for keyword in ['psp', 'stories']):
+            return IMGPlatform.PSP
+        else:
+            return IMGPlatform.PC
+    except Exception:
+        return IMGPlatform.UNKNOWN
+
+def get_platform_specific_specs(platform: IMGPlatform) -> Dict[str, Any]: #vers 1
+    """INLINE: Get platform-specific specifications"""
+    specs = {
+        IMGPlatform.PC: {
+            'sector_size': 2048,
+            'entry_size': 32,
+            'name_length': 24,
+            'endianness': 'little',
+            'supports_compression': True,
+            'max_entries': 65535
+        },
+        IMGPlatform.PS2: {
+            'sector_size': 2048,
+            'entry_size': 32,
+            'name_length': 24,
+            'endianness': 'little',
+            'supports_compression': False,
+            'max_entries': 16000,
+            'special_alignment': True
+        },
+        IMGPlatform.ANDROID: {
+            'sector_size': 2048,
+            'entry_size': 32,
+            'name_length': 24,
+            'endianness': 'little',
+            'supports_compression': True,
+            'max_entries': 32000,
+            'mobile_optimized': True
+        },
+        IMGPlatform.PSP: {
+            'sector_size': 2048,
+            'entry_size': 32,
+            'name_length': 24,
+            'endianness': 'little',
+            'supports_compression': False,
+            'max_entries': 8000,
+            'stories_format': True
+        },
+        IMGPlatform.XBOX: {
+            'sector_size': 2048,
+            'entry_size': 32,
+            'name_length': 24,
+            'endianness': 'little',     # IMG directory is LE, same as PC
+            'supports_compression': True,
+            'max_entries': 65535,
+            'lzo_compressed': True,     # DFF/TXD entries may be LZO-compressed
+            'lzo_magic': 0x67A3A1CE,
+        }
+    }
+    return specs.get(platform, specs[IMGPlatform.PC])
+
+
 def _parse_entry_name(raw_name_bytes: bytes) -> str:
     """Parse a 24-byte IMG directory name field robustly.
 
@@ -1513,22 +2231,30 @@ class IMGFile:
         except Exception:
             return False
 
-    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 1
-        """Read data for a specific entry"""
+    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 2
+        """Read data for a specific entry, transparently decompressing Xbox LZO if needed."""
         try:
             if self.version == IMGVersion.VERSION_1:
-                # Read from .img file
                 img_path = self.file_path.replace('.dir', '.img')
                 with open(img_path, 'rb') as f:
                     f.seek(entry.offset)
-                    return f.read(entry.size)
+                    data = f.read(entry.size)
             else:
-                # Read from single .img file
                 with open(self.file_path, 'rb') as f:
                     f.seek(entry.offset)
-                    return f.read(entry.size)
+                    data = f.read(entry.size)
+
+            # Transparent Xbox LZO decompression
+            if self.platform == IMGPlatform.XBOX and _is_xbox_lzo(data):
+                try:
+                    data = _xbox_lzo_decompress_entry(data)
+                    entry.compression_type = CompressionType.LZO
+                except Exception:
+                    pass  # return raw on failure
+
+            return data
         except Exception as e:
-            raise RuntimeError(f"Failed to write entry data: {e}")
+            raise RuntimeError(f"Failed to read entry data: {e}")
 
     def write_entry_data(self, entry: IMGEntry, data: bytes): #vers 1
         """Write data for a specific entry"""
