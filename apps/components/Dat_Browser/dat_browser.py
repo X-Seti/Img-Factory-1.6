@@ -98,6 +98,7 @@ class DATBrowserWidget(QWidget): #vers 2
         self._game_combo.setFixedWidth(155)
         self._game_combo.setToolTip(
             "Select game, Auto-detect, or use Game Root from Dir Tree")
+        self._game_combo.currentIndexChanged.connect(self._on_game_combo_changed)
 
         self._path_edit = QLineEdit()
         self._path_edit.setPlaceholderText("Game root folder (contains data/gta3.dat, gta_vc.dat or gta.dat)")
@@ -281,6 +282,61 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Browse / load ──────────────────────────────────────────────────────
 
+    def _on_game_combo_changed(self, idx: int): #vers 1
+        """React immediately when the game combo selection changes.
+
+        Index 5 = 'Game Root (Dir Tree)': grab the dir-tree path, auto-detect
+        the game, switch the combo to the real entry, and start loading —
+        no Browse or Load click required.
+        """
+        if idx != 5:
+            # Show Browse/Load normally for all other entries
+            self._browse_btn.setVisible(True)
+            self._load_btn.setVisible(True)
+            return
+
+        # Hide Browse/Load — they are irrelevant for this mode
+        self._browse_btn.setVisible(False)
+        self._load_btn.setVisible(False)
+
+        mw = self.main_window
+        dt = getattr(mw, "directory_tree", None)
+        root = (getattr(dt, "current_path", None) if dt else None) \
+            or getattr(mw, "game_root", None)
+
+        if not root or not os.path.isdir(root):
+            self._status_lbl.setText(
+                "No path set in Dir Tree — browse there first.")
+            # Restore buttons so the user isn't stuck
+            self._browse_btn.setVisible(True)
+            self._load_btn.setVisible(True)
+            return
+
+        self._path_edit.setText(root)
+        game = detect_game(root)
+        if game:
+            # Switch combo to the detected game (suppresses re-entrant signal)
+            self._game_combo.blockSignals(True)
+            real_idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
+                        GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            self._game_combo.setCurrentIndex(real_idx)
+            self._game_combo.blockSignals(False)
+            names = {1: "GTA III", 2: "Vice City", 3: "San Andreas", 4: "GTASOL"}
+            self._status_lbl.setText(
+                f"Dir Tree: {names.get(real_idx, 'unknown')} — loading…")
+        else:
+            # Keep at 0 (Auto-detect) and let _start_load try
+            self._game_combo.blockSignals(True)
+            self._game_combo.setCurrentIndex(0)
+            self._game_combo.blockSignals(False)
+            self._status_lbl.setText("Dir Tree path set — auto-detecting game…")
+
+        # Restore buttons now that path is filled, then kick off load
+        self._browse_btn.setVisible(True)
+        self._load_btn.setVisible(True)
+        self._load_btn.setEnabled(True)
+        self._start_load()
+
     def _browse_game_root(self): #vers 2
         path = QFileDialog.getExistingDirectory(
             self, "Select GTA game root folder",
@@ -298,36 +354,8 @@ class DATBrowserWidget(QWidget): #vers 2
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
 
-    def _start_load(self): #vers 3
+    def _start_load(self): #vers 4
         game_idx = self._game_combo.currentIndex()
-
-        # Index 5 = "Game Root (Dir Tree)": pull path from dir tree first
-        if game_idx == 5:
-            mw = self.main_window
-            dt = getattr(mw, "directory_tree", None)
-            root = (getattr(dt, "current_path", None) if dt else None) \
-                or getattr(mw, "game_root", None)
-            if root and os.path.isdir(root):
-                self._path_edit.setText(root)
-                # Auto-detect game and update combo to show result
-                from apps.methods.gta_dat_parser import detect_game as _dg
-                detected = _dg(root)
-                if detected:
-                    real_idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
-                                GTAGame.SA: 3, GTAGame.SOL: 4}.get(detected, 0)
-                    # Temporarily set to detected so the rest of the method picks it up
-                    self._game_combo.setCurrentIndex(real_idx)
-                    game_idx = real_idx
-                else:
-                    self._game_combo.setCurrentIndex(0)  # Auto-detect
-                    game_idx = 0
-            else:
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.warning(self, "No Dir Tree path",
-                    "No path is set in the Directory Tree.\n"
-                    "Browse to a game folder in the Dir Tree first.")
-                return
-
         game_root = self._path_edit.text().strip()
         if not game_root:
             return
