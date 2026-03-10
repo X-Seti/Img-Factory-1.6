@@ -4373,9 +4373,19 @@ class IMGFactory(QMainWindow):
 
                 VERSION_COL = 5
 
-                def _apply_version(row, version_text, _tbl=table):
+                # Build entry-index → visual-row lookup once (O(n), sort-safe)
+                _idx_to_row = {}
+                for vrow in range(table.rowCount()):
+                    ni = table.item(vrow, 0)
+                    if ni is not None:
+                        idx = ni.data(256)
+                        if idx is not None:
+                            _idx_to_row[idx] = vrow
+
+                def _apply_version(entry_idx, version_text, _tbl=table, _lut=_idx_to_row):
                     try:
-                        item = _tbl.item(row, VERSION_COL)
+                        vrow = _lut.get(entry_idx, entry_idx)  # fallback: idx==row
+                        item = _tbl.item(vrow, VERSION_COL)
                         if item:
                             item.setText(version_text)
                     except Exception:
