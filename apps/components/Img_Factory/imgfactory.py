@@ -3253,24 +3253,21 @@ class IMGFactory(QMainWindow):
         return open_file_dialog(self)
 
 
-    def open_hybrid_load(self): #vers 1
+    def open_hybrid_load(self): #vers 2
         """Hybrid Load: open an IMG file and automatically pair each DFF entry
         with its matching COL data.
 
-        Pairing strategy per game:
-          GTA III / VC  — COL entries live inside the IMG itself alongside DFFs.
-                          Scan the IMG for .col entries; pair by stem.
-          SA / SOL      — World/prop COLs are inside the IMG (same as above).
-                          Vehicle/ped/weapon COLs are in models/coll/ externally
-                          (vehicles.col, peds.col, weapons.col).
-                          Game root is resolved from DAT Browser or dir tree.
+        Pairing sources (checked in priority order):
+          1. Sibling .col file in the same directory (e.g. game_sa.col next to game_sa.img)
+          2. .col entries inside the IMG itself (GTA3/VC/SA world props)
+          3. models/coll/ sub-models (SA/SOL vehicles, peds, weapons)
 
-        The table view for hybrid mode is TODO: currently this method loads the
-        IMG normally and logs a pairing summary.  The interleaved paired-row
-        table view will be implemented in a future session.
+        The interleaved paired-row table view is TODO — currently logs pairing
+        summary and loads the IMG normally, storing pairs on the tab.
         """
         try:
-            from PyQt6.QtWidgets import QFileDialog, QMessageBox
+            import struct
+            from PyQt6.QtWidgets import QFileDialog
             from apps.methods.img_core_classes import IMGFile
             from apps.methods.gta_dat_parser import detect_game, GTAGame
 
@@ -3282,68 +3279,104 @@ class IMGFactory(QMainWindow):
             if not img_path:
                 return
 
+            img_name = os.path.basename(img_path)
+            img_dir  = os.path.dirname(img_path)
+            img_stem = img_name.lower().rsplit(".", 1)[0]   # e.g. "game_sa"
+
             # ── 2. Open the IMG ──────────────────────────────────────────────
             img = IMGFile(img_path)
             img.open()
-            img_name = os.path.basename(img_path)
-            img_dir  = os.path.dirname(img_path)
 
             # ── 3. Resolve game root and game type ───────────────────────────
             game_root = getattr(self, "game_root", None)
             if not game_root:
                 dat_browser = getattr(self, "dat_browser", None)
-                if dat_browser:
-                    game_root = dat_browser._path_edit.text().strip() if hasattr(dat_browser, "_path_edit") else ""
+                if dat_browser and hasattr(dat_browser, "_path_edit"):
+                    game_root = dat_browser._path_edit.text().strip()
             if not game_root:
-                # Fallback: img_dir is likely models/ — go up one level
+                # img likely lives in models/ — go up one level
                 game_root = os.path.dirname(img_dir)
 
-            game = detect_game(game_root) if game_root else None
+            game     = detect_game(game_root) if game_root else None
             is_sa_sol = game in (GTAGame.SA, GTAGame.SOL)
 
-            # ── 4. Build COL stem index ──────────────────────────────────────
-            # 4a. COL entries inside the IMG itself (all games)
-            col_in_img = {}  # stem.lower() -> entry
+            # ── helper: index sub-models from a COL archive binary ───────────
+            def _index_col_binary(data: bytes, source_label: str, dest: dict):
+                offset = 0
+                while offset + 32 < len(data):
+                    sig = data[offset:offset + 4]
+                    if sig in (b"COLL", b"COL2", b"COL3", b"COL4"):
+                        name_raw = data[offset + 8: offset + 30]
+                        sub = name_raw.split(b"\x00")[0].decode(
+                            "ascii", errors="ignore").strip().lower()
+                        if sub and sub not in dest:
+                            dest[sub] = source_label
+                        try:
+                            blk_size = struct.unpack_from("<I", data, offset + 4)[0]
+                            offset += blk_size + 8
+                        except Exception:
+                            offset += 4
+                    else:
+                        offset += 1
+
+            # ── 4a. Sibling .col file (same dir, same stem or any .col) ──────
+            # e.g. game_sa.col sitting next to game_sa.img
+            col_sibling = {}   # stem -> source label
+            sibling_col = os.path.join(img_dir, img_stem + ".col")
+            if not os.path.isfile(sibling_col):
+                # Try any .col in same dir with same stem prefix
+                for fname in os.listdir(img_dir):
+                    if fname.lower().endswith(".col"):
+                        candidate = os.path.join(img_dir, fname)
+                        if os.path.isfile(candidate):
+                            sibling_col = candidate
+                            break
+                else:
+                    sibling_col = None
+            if sibling_col:
+                try:
+                    with open(sibling_col, "rb") as f:
+                        data = f.read()
+                    label = os.path.basename(sibling_col)
+                    _index_col_binary(data, label, col_sibling)
+                    self.log_message(
+                        f"Hybrid: indexed {len(col_sibling)} sub-models "
+                        f"from sibling {label}"
+                    )
+                except Exception as e:
+                    self.log_message(f"Hybrid: could not read sibling COL: {e}")
+
+            # ── 4b. COL entries inside the IMG itself ────────────────────────
+            col_in_img = {}   # stem -> entry
             for entry in img.entries:
                 name = getattr(entry, "name", "") or ""
                 if name.lower().endswith(".col"):
                     col_in_img[name.lower().rsplit(".", 1)[0]] = entry
 
-            # 4b. External models/coll/ archives (SA/SOL only)
-            col_external = {}  # stem.lower() -> source_filename
+            # ── 4c. models/coll/ external archives (SA/SOL only) ─────────────
+            col_external = {}  # stem -> source filename
             if is_sa_sol:
                 coll_dir = os.path.join(game_root, "models", "coll")
                 if os.path.isdir(coll_dir):
-                    import struct
                     for fname in os.listdir(coll_dir):
                         if not fname.lower().endswith(".col"):
                             continue
                         try:
                             with open(os.path.join(coll_dir, fname), "rb") as f:
                                 data = f.read()
-                            offset = 0
-                            while offset + 32 < len(data):
-                                sig = data[offset:offset + 4]
-                                if sig in (b"COLL", b"COL2", b"COL3", b"COL4"):
-                                    name_raw = data[offset + 8: offset + 30]
-                                    sub = name_raw.split(b"\x00")[0].decode(
-                                        "ascii", errors="ignore").strip().lower()
-                                    if sub:
-                                        col_external[sub] = fname
-                                    blk_size = struct.unpack_from("<I", data, offset + 4)[0]
-                                    offset += blk_size + 8
-                                else:
-                                    offset += 1
+                            _index_col_binary(data, fname, col_external)
                         except Exception as e:
                             self.log_message(f"Hybrid: could not scan {fname}: {e}")
 
-            # ── 5. Pair DFF entries with COL sources ─────────────────────────
+            # ── 5. Pair DFF entries ──────────────────────────────────────────
             dff_entries = [e for e in img.entries
                            if getattr(e, "name", "").lower().endswith(".dff")]
-            paired      = []  # (dff_entry, col_source_str or None)
+            paired = []   # (dff_entry, col_source_str or None)
             for entry in dff_entries:
                 stem = entry.name.lower().rsplit(".", 1)[0]
-                if stem in col_in_img:
+                if stem in col_sibling:
+                    paired.append((entry, f"{stem}.col ({col_sibling[stem]})"))
+                elif stem in col_in_img:
                     paired.append((entry, f"{stem}.col (in IMG)"))
                 elif stem in col_external:
                     paired.append((entry, f"{stem}.col ({col_external[stem]})"))
@@ -3353,37 +3386,47 @@ class IMGFactory(QMainWindow):
             matched   = sum(1 for _, c in paired if c)
             unmatched = len(paired) - matched
 
-            self.log_message(
-                f"Hybrid Load: {img_name}  |  {len(dff_entries)} DFF entries  |  "
-                f"{matched} paired  |  {unmatched} no COL"
-                + (f"  |  {len(col_external)} external COL sub-models indexed" if col_external else "")
-            )
+            parts = [
+                f"Hybrid Load: {img_name}",
+                f"{len(dff_entries)} DFF entries",
+                f"{matched} paired",
+                f"{unmatched} no COL",
+            ]
+            if col_sibling:
+                parts.append(f"{len(col_sibling)} sibling COL sub-models")
+            if col_external:
+                parts.append(f"{len(col_external)} external COL sub-models")
+            self.log_message("  |  ".join(parts))
 
-            # ── 6. Load IMG into a normal tab (paired table view is TODO) ────
-            from apps.core.open_img import open_file_dialog
-            self.current_img = img
-            self._clean_on_img_loaded(img)
+            # ── 6. Load IMG into a normal tab ────────────────────────────────
+            if hasattr(self, "_load_img_file_in_new_tab"):
+                self._load_img_file_in_new_tab(img_path)
+            elif hasattr(self, "load_img_file_in_new_tab"):
+                self.load_img_file_in_new_tab(img_path)
+            else:
+                self.current_img = img
+                self._clean_on_img_loaded(img)
 
-            # Store pairing data on the tab for future hybrid table view
+            # Store pairing data on the active tab for future hybrid table view
             try:
                 tab = self.main_tab_widget.currentWidget()
                 if tab:
-                    tab._hybrid_pairs   = paired
-                    tab._col_in_img     = col_in_img
-                    tab._col_external   = col_external
+                    tab._hybrid_pairs    = paired
+                    tab._col_in_img      = col_in_img
+                    tab._col_sibling     = col_sibling
+                    tab._col_external    = col_external
             except Exception:
                 pass
 
             self.log_message(
-                "Hybrid Load complete — paired table view coming in next session. "
-                "COL pairing data stored on tab (_hybrid_pairs)."
+                "Hybrid Load complete — interleaved table view is pending (next session). "
+                "Pairing data stored on tab."
             )
 
         except Exception as e:
             self.log_message(f"Hybrid Load error: {e}")
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Hybrid Load Error", str(e))
-
 
     def _clean_on_img_loaded(self, img_file: IMGFile): #vers 6
         """Handle IMG loading - USES ISOLATED FILE WINDOW"""
