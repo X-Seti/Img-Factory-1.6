@@ -452,6 +452,7 @@ def _xbox_lzo_peek_header(data: bytes, want: int = 64) -> bytes:
         return bytes(out)
 
 
+
 def _xbox_lzo_decompress_entry(data: bytes) -> bytes:
     """Decompress an Xbox LZO-compressed entry (GTA III/VC Xbox).
 
@@ -583,15 +584,13 @@ class IMGEntry:
         """Set reference to parent IMG file"""
         self._img_file = img_file
 
-    def detect_file_type_and_version(self, skip_rw_version: bool = False): #vers 5
+    def detect_file_type_and_version(self): #vers 4
         """Detect file type and RW version. Robust against garbage bytes after the null
-        terminator or after the extension in DIR entry name fields.
-
-        skip_rw_version=True skips the expensive disk I/O + LZO decompression used
-        to read the RW version header.  Use during bulk load; call without the flag
-        when the version is actually needed for display or export.
-        """
+        terminator or after the extension in DIR entry name fields."""
         try:
+            # Re-sanitize name using the same robust helper used during directory parsing.
+            # This catches cases where the name was stored as a raw string with embedded
+            # garbage bytes that got past the initial decode (e.g. non-null junk after ext).
             self.name = _parse_entry_name(self.name.encode('ascii', errors='replace'))
 
             if '.' in self.name:
@@ -599,7 +598,8 @@ class IMGEntry:
                 self.extension = ''.join(c for c in self.extension if c.isalpha())
             else:
                 self.extension = "NO_EXT"
-
+            
+            # Set file type based on extension
             ext_lower = self.extension.lower()
             if ext_lower == 'dff':
                 self.file_type = FileType.DFF
@@ -618,10 +618,10 @@ class IMGEntry:
             else:
                 self.file_type = FileType.UNKNOWN
 
-            # RW version detection — skipped during bulk load (expensive: disk I/O + LZO)
-            if not skip_rw_version and self.extension in ['DFF', 'TXD'] and not self._version_detected:
+            # Detect RW version for RenderWare files
+            if self.extension in ['DFF', 'TXD'] and not self._version_detected:
                 self._detect_rw_version()
-
+                
         except Exception as e:
             img_debugger.error(f"Error detecting file type for {self.name}: {e}")
 
@@ -1595,25 +1595,26 @@ class IMGFile:
         except Exception as e:
             return False
 
-    def _parse_all_entries(self): #vers 3
-        """Parse file types for all entries during load.
-
-        Only sets extension/file_type (cheap string ops).
-        RW version detection (_detect_rw_version) is intentionally skipped here
-        because it requires disk I/O and LZO decompression per entry — too slow
-        for large/Xbox IMGs at load time.  Version is resolved lazily when the
-        Version column is populated in populate_img_table.
-        """
+    def _parse_all_entries(self): #vers 2
+        """ADDED: Parse file types and versions for all entries + UNKNOWN RW DETECTION"""
         try:
-            for entry in self.entries:
+            
+            for i, entry in enumerate(self.entries):
                 try:
-                    entry.detect_file_type_and_version(skip_rw_version=True)
-                except Exception:
+                    # Detect file type and RW version
+                    entry.detect_file_type_and_version()
+                    
+                    # Log progress for large files
+                    if i > 0 and i % 100 == 0:
+                        pass
+                        
+                except Exception as e:
                     pass
-
-            # Trigger unknown RW detection after parsing
+                    
+            
+            # ADDED: Trigger unknown RW file detection after parsing
             self._trigger_unknown_rw_detection()
-
+            
         except Exception as e:
             pass
 

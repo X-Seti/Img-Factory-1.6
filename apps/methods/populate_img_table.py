@@ -246,9 +246,6 @@ class IMGTablePopulator:
             # Create items with minimal processing
             name_text = str(entry.name) if hasattr(entry, 'name') else f"Entry_{row}"
             name_item = self.create_img_table_item(name_text, is_highlighted, highlight_type)
-            # Store the entry-list index so RWVersionFillThread can find the right
-            # visual row even when the table is sorted (Qt.ItemDataRole.UserRole = 256)
-            name_item.setData(256, row)
             table.setItem(row, 0, name_item)
             
             entry_type = self.get_img_entry_type_simple(entry)
@@ -312,14 +309,19 @@ class IMGTablePopulator:
         except Exception:
             return "0 B"
 
-    def get_rw_address_light(self, entry: Any) -> str: #vers 4
-        """Get RW address - byte offset of the RW chunk within the IMG entry.
-        rw_address is not currently populated by the loader, so show N/A."""
+    def get_rw_address_light(self, entry: Any) -> str: #vers 3
+        """Get RW address - LIGHT processing, no file reading"""
         try:
-            rw_addr = getattr(entry, 'rw_address', None)
-            if rw_addr is not None and rw_addr >= 0:
-                return f"0x{rw_addr:08X}"
-            return "N/A"
+            entry_type = self.get_img_entry_type_simple(entry)
+            if entry_type in ['DFF', 'TXD'] and hasattr(entry, 'size') and entry.size == 0:
+                return "Empty"
+            if hasattr(entry, 'rw_version') and entry.rw_version > 0:
+                return f"0x{entry.rw_version:08X}"
+            else:
+                if entry_type in ['DFF', 'TXD']:
+                    return "RW File"
+                else:
+                    return "N/A"
         except Exception:
             return "N/A"
 
