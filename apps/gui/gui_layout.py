@@ -263,7 +263,7 @@ class IMGFactoryGUILayout:
             'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
             'edit_ide_file': lambda: open_ide_editor(self.main_window),
-            'edit_ipl_file': lambda: self._log_missing_method('edit_ipl_file'),
+            'edit_ipl_file': lambda: self._open_selected_text_file('.ipl'),
             'edit_dat_file': self._open_dat_browser,
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
@@ -298,6 +298,56 @@ class IMGFactoryGUILayout:
             show_dat_browser(self.main_window)
         except Exception as e:
             self._log_missing_method('edit_dat_file')
+
+    def _open_selected_text_file(self, preferred_ext: str = None): #vers 1
+        """Open a file from the dir tree selection in the text editor.
+        Falls back to a QFileDialog filtered by preferred_ext if nothing is selected."""
+        try:
+            from apps.core.notepad import open_text_file_in_editor
+
+            # Try dir-tree current selection first
+            file_path = self._get_dir_tree_selected_file()
+            if file_path and os.path.isfile(file_path):
+                ext = os.path.splitext(file_path)[1].lower()
+                editable = (".ide", ".ipl", ".dat", ".txt", ".cfg", ".ini",
+                            ".zon", ".cut", ".fxt")
+                if ext in editable:
+                    open_text_file_in_editor(file_path, self.main_window)
+                    return
+
+            # Nothing useful selected — open file dialog
+            from PyQt6.QtWidgets import QFileDialog
+            ext_label = preferred_ext.upper().lstrip('.') if preferred_ext else "Text"
+            ext_filter = f"{ext_label} Files (*{preferred_ext});;All Files (*)" \
+                         if preferred_ext else "Text Files (*.ide *.ipl *.dat *.txt *.cfg *.ini);;All Files (*)"
+            start_dir = getattr(self.main_window, "game_root", "") or os.path.expanduser("~")
+            path, _ = QFileDialog.getOpenFileName(
+                None, f"Open {ext_label} File", start_dir, ext_filter)
+            if path:
+                open_text_file_in_editor(path, self.main_window)
+        except Exception as e:
+            if hasattr(self.main_window, "log_message"):
+                self.main_window.log_message(f"Text editor open error: {e}")
+
+    def _get_dir_tree_selected_file(self) -> str: #vers 1
+        """Return the currently selected file path in the dir tree, or ''."""
+        mw = self.main_window
+        # Check _dir_tree_selected_file attr first (set by dir list)
+        path = getattr(mw, "_dir_tree_selected_file", None)
+        if path and os.path.isfile(path):
+            return path
+        # Check directory_tree widget selection
+        dt = getattr(mw, "directory_tree", None)
+        if dt:
+            try:
+                items = dt.tree.selectedItems()
+                if items:
+                    p = items[0].data(0, Qt.ItemDataRole.UserRole)
+                    if p and os.path.isfile(p):
+                        return p
+            except Exception:
+                pass
+        return ""
 
     def _dat_edit_context_menu(self, btn, pos): #vers 1
         """Right-click context menu on the 'Dat Edit' button."""
@@ -3546,7 +3596,7 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message(f"Error selecting directory file: {str(e)}")
 
 
-    def _on_directory_list_context_menu(self, pos): #vers 1
+    def _on_directory_list_context_menu(self, pos): #vers 2
         """Show context menu for directory file list"""
         try:
             from PyQt6.QtWidgets import QMenu
@@ -3561,6 +3611,7 @@ class IMGFactoryGUILayout:
             menu = QMenu(self.directory_files_list)
             file_ext = os.path.splitext(file_path)[1].lower()
 
+            # ── COL Workshop ─────────────────────────────────────────────
             if file_ext == '.col':
                 open_action = menu.addAction("Open in COL Workshop")
                 try:
@@ -3569,6 +3620,26 @@ class IMGFactoryGUILayout:
                 except Exception:
                     pass
                 open_action.triggered.connect(lambda: self._open_file_in_col_workshop(file_path))
+                menu.addSeparator()
+
+            # ── IDE Editor ───────────────────────────────────────────────
+            if file_ext == '.ide':
+                ide_action = menu.addAction("Open in IDE Editor")
+                ide_action.triggered.connect(lambda: self._open_file_in_ide_editor(file_path))
+                menu.addSeparator()
+
+            # ── Generic text editor for editable types ───────────────────
+            _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
+                              '.ini', '.zon', '.cut', '.fxt')
+            if file_ext in _TEXT_EDITABLE:
+                edit_action = menu.addAction(f"Edit  {os.path.basename(file_path)}")
+                try:
+                    from apps.methods.imgfactory_svg_icons import get_edit_icon
+                    edit_action.setIcon(get_edit_icon())
+                except Exception:
+                    pass
+                edit_action.triggered.connect(
+                    lambda _=False, p=file_path: self._open_file_in_text_editor(p))
                 menu.addSeparator()
 
             load_action = menu.addAction("Load File")
@@ -3590,6 +3661,27 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message("Failed to open COL Workshop")
         except Exception as e:
             self.main_window.log_message(f"COL Workshop error: {str(e)}")
+
+    def _open_file_in_text_editor(self, file_path: str): #vers 1
+        """Open any text-editable GTA file in the IMG Factory text editor."""
+        try:
+            from apps.core.notepad import open_text_file_in_editor
+            open_text_file_in_editor(file_path, self.main_window)
+            self.main_window.log_message(
+                f"Text Editor opened: {os.path.basename(file_path)}")
+        except Exception as e:
+            self.main_window.log_message(f"Text Editor error: {str(e)}")
+
+    def _open_file_in_ide_editor(self, file_path: str): #vers 1
+        """Open an .ide file in the structured IDE Editor."""
+        try:
+            from apps.components.Ide_Editor.ide_editor import open_ide_editor
+            editor = open_ide_editor(self.main_window)
+            editor.load_ide_file(file_path)
+            self.main_window.log_message(
+                f"IDE Editor opened: {os.path.basename(file_path)}")
+        except Exception as e:
+            self.main_window.log_message(f"IDE Editor error: {str(e)}")
 
     def update_col_menu_for_selection(self, file_path=None): #vers 1
         """Enable/disable COL menu workshop action based on selected file"""

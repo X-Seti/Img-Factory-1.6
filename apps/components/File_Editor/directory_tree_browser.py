@@ -1151,7 +1151,7 @@ class DirectoryTreeBrowser(QWidget):
             self.file_opened.emit(file_path)
 
 
-    def show_context_menu(self, position): #vers 2
+    def show_context_menu(self, position): #vers 3
         """Show context menu - tracks which tree triggered it"""
         # Identify which tree sent the signal
         sender = self.sender()
@@ -1168,6 +1168,22 @@ class DirectoryTreeBrowser(QWidget):
             open_action.setIcon(get_folder_icon())
             open_action.triggered.connect(lambda: self.file_opened.emit(file_path))
             menu.addAction(open_action)
+
+            # ── Text-editable types get an "Edit" action ──────────────
+            _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
+                              '.ini', '.zon', '.cut', '.fxt')
+            file_ext = os.path.splitext(file_path)[1].lower()
+            if file_ext in _TEXT_EDITABLE:
+                edit_action = QAction(f"Edit  {os.path.basename(file_path)}", self)
+                edit_action.triggered.connect(
+                    lambda _=False, p=file_path: self._edit_text_file(p))
+                menu.addAction(edit_action)
+                if file_ext == '.ide':
+                    ide_action = QAction("Open in IDE Editor", self)
+                    ide_action.triggered.connect(
+                        lambda _=False, p=file_path: self._open_ide_editor(p))
+                    menu.addAction(ide_action)
+
             menu.addSeparator()
         copy_action = QAction("Copy", self)
         copy_action.setIcon(get_copy_icon())
@@ -1216,6 +1232,32 @@ class DirectoryTreeBrowser(QWidget):
         menu.addAction(props_action)
         menu.exec(self.tree.mapToGlobal(position))
 
+    def _edit_text_file(self, file_path: str): #vers 1
+        """Open a text-editable GTA file in the IMG Factory text editor."""
+        try:
+            from apps.core.notepad import open_text_file_in_editor
+            mw = getattr(self, "main_window", None)
+            open_text_file_in_editor(file_path, mw)
+            if mw and hasattr(mw, "log_message"):
+                mw.log_message(f"Text Editor: {os.path.basename(file_path)}")
+        except Exception as e:
+            mw = getattr(self, "main_window", None)
+            if mw and hasattr(mw, "log_message"):
+                mw.log_message(f"Text Editor error: {e}")
+
+    def _open_ide_editor(self, file_path: str): #vers 1
+        """Open an .ide file in the structured IDE Editor."""
+        try:
+            from apps.components.Ide_Editor.ide_editor import open_ide_editor
+            mw = getattr(self, "main_window", None)
+            editor = open_ide_editor(mw)
+            editor.load_ide_file(file_path)
+            if mw and hasattr(mw, "log_message"):
+                mw.log_message(f"IDE Editor: {os.path.basename(file_path)}")
+        except Exception as e:
+            mw = getattr(self, "main_window", None)
+            if mw and hasattr(mw, "log_message"):
+                mw.log_message(f"IDE Editor error: {e}")
 
     def _move_selected_to_parent(self, file_path): #vers 1
         """Move selected items up one directory level."""

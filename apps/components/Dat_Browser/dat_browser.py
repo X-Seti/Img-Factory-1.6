@@ -91,9 +91,13 @@ class DATBrowserWidget(QWidget): #vers 2
         toolbar.setSpacing(6)
 
         self._game_combo = QComboBox()
-        self._game_combo.addItems(["Auto-detect", "GTA III", "Vice City", "San Andreas", "GTASOL"])
-        self._game_combo.setFixedWidth(130)
-        self._game_combo.setToolTip("Select game or Auto-detect from folder")
+        self._game_combo.addItems([
+            "Auto-detect", "GTA III", "Vice City", "San Andreas", "GTASOL",
+            "Game Root (Dir Tree)",
+        ])
+        self._game_combo.setFixedWidth(155)
+        self._game_combo.setToolTip(
+            "Select game, Auto-detect, or use Game Root from Dir Tree")
 
         self._path_edit = QLineEdit()
         self._path_edit.setPlaceholderText("Game root folder (contains data/gta3.dat, gta_vc.dat or gta.dat)")
@@ -168,6 +172,9 @@ class DATBrowserWidget(QWidget): #vers 2
         ll.addWidget(self._tree)
         splitter.addWidget(left)
 
+        # Enable right-click on tree to open source files
+        self._setup_tree_context_menu()
+
         # Right — tabbed result tables
         self._tabs = QTabWidget()
         splitter.addWidget(self._tabs)
@@ -226,18 +233,47 @@ class DATBrowserWidget(QWidget): #vers 2
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
 
-    def _start_load(self): #vers 2
+    def _start_load(self): #vers 3
+        game_idx = self._game_combo.currentIndex()
+
+        # Index 5 = "Game Root (Dir Tree)": pull path from dir tree first
+        if game_idx == 5:
+            mw = self.main_window
+            dt = getattr(mw, "directory_tree", None)
+            root = (getattr(dt, "current_path", None) if dt else None) \
+                or getattr(mw, "game_root", None)
+            if root and os.path.isdir(root):
+                self._path_edit.setText(root)
+                # Auto-detect game and update combo to show result
+                from apps.methods.gta_dat_parser import detect_game as _dg
+                detected = _dg(root)
+                if detected:
+                    real_idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
+                                GTAGame.SA: 3, GTAGame.SOL: 4}.get(detected, 0)
+                    # Temporarily set to detected so the rest of the method picks it up
+                    self._game_combo.setCurrentIndex(real_idx)
+                    game_idx = real_idx
+                else:
+                    self._game_combo.setCurrentIndex(0)  # Auto-detect
+                    game_idx = 0
+            else:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "No Dir Tree path",
+                    "No path is set in the Directory Tree.\n"
+                    "Browse to a game folder in the Dir Tree first.")
+                return
+
         game_root = self._path_edit.text().strip()
         if not game_root:
             return
 
-        game_idx = self._game_combo.currentIndex()
         game_map = {0: None, 1: GTAGame.GTA3, 2: GTAGame.VC,
                     3: GTAGame.SA, 4: GTAGame.SOL}
         game = game_map.get(game_idx)
         if game is None:
             game = detect_game(game_root)
         if game is None:
+            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Cannot detect game",
                 "Could not find a supported game DAT file.\n"
                 "Select the correct game from the dropdown.")
@@ -245,6 +281,7 @@ class DATBrowserWidget(QWidget): #vers 2
 
         dat_path = find_dat_file(game_root, game)
         if not dat_path:
+            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "DAT not found",
                 f"Cannot find DAT file for {game} under {game_root}")
             return
@@ -536,6 +573,72 @@ class DATBrowserWidget(QWidget): #vers 2
             if name_it:
                 self._search_edit.setText(name_it.text())
                 self._tabs.setCurrentIndex(1)
+
+    # ── Tree right-click — open source file in editor ─────────────────────
+
+    def _setup_tree_context_menu(self): #vers 1
+        """Enable right-click on the load-order tree to open IDE/IPL/DAT files."""
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._on_tree_context_menu)
+
+    def _on_tree_context_menu(self, pos): #vers 1
+        item = self._tree.itemAt(pos)
+        if not item:
+            return
+        entry_type = item.text(1)
+        bname      = item.text(0)
+
+        # Resolve the abs path from load_log
+        abs_path = None
+        for _phase, _etype, _path, _ok in self.loader.load_log:
+            if os.path.basename(_path) == bname and _etype == entry_type:
+                abs_path = _path
+                break
+
+        menu = QMenu(self)
+
+        if abs_path and os.path.isfile(abs_path):
+            ext = os.path.splitext(abs_path)[1].lower()
+            # Text-editable types
+            if ext in (".ide", ".ipl", ".dat", ".txt", ".cfg", ".ini"):
+                edit_act = menu.addAction(f"Edit  {bname}")
+                edit_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_path_in_editor(p))
+                menu.addSeparator()
+
+            # IDE → open structured IDE Editor
+            if ext == ".ide":
+                ide_act = menu.addAction("Open in IDE Editor")
+                ide_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_in_ide_editor(p))
+                menu.addSeparator()
+
+        copy_act = menu.addAction("Copy path")
+        copy_act.triggered.connect(
+            lambda _=False, p=(abs_path or bname):
+                QApplication.clipboard().setText(p))
+
+        if menu.actions():
+            menu.exec(self._tree.viewport().mapToGlobal(pos))
+
+    def _open_path_in_editor(self, file_path: str): #vers 1
+        """Open any text-type file in the IMG Factory text editor."""
+        try:
+            from apps.core.notepad import open_text_file_in_editor
+            open_text_file_in_editor(file_path, self.main_window)
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, "log_message"):
+                self.main_window.log_message(f"Text editor error: {e}")
+
+    def _open_in_ide_editor(self, file_path: str): #vers 1
+        """Open an .ide file in the structured IDE Editor."""
+        try:
+            from apps.components.Ide_Editor.ide_editor import open_ide_editor
+            editor = open_ide_editor(self.main_window)
+            editor.load_ide_file(file_path)
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, "log_message"):
+                self.main_window.log_message(f"IDE Editor error: {e}")
 
     # ── Public API ─────────────────────────────────────────────────────────
 
