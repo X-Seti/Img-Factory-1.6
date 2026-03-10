@@ -885,50 +885,109 @@ class GTAWorldXRef: #vers 1
         self.col_stems:  set = set()                  # col file stem.lower()
         self.img_stems:  set = set()                  # img/cdimage archive stems
 
-    def tooltip_for(self, filename: str) -> str: #vers 3
+    def tooltip_for(self, filename: str) -> str: #vers 5
         """Return a single-line hover tooltip for an IMG entry filename, or '' if nothing known.
 
-        Format (DFF):
-          Model defined in gta3.ide,  has txd - name.txd,  has col - name.col
-          Model defined in gta3.ide,  has txd - name.txd,  missing name.col
-          Model defined in gta3.ide,  missing name.txd,  missing name.col
-
-        Format (TXD):
-          TXD referenced by IDE - used by: model1, model2 ...
-
-        Format (COL):
-          COL listed in COLFILE directive
+        Covers all IDE section types: objs, tobj, cars, peds, weap, hier, anim, tanm, txdp, 2dfx.
+        Unknown DFF/TXD/COL files produce an orphan WARNING line.
         """
         if not filename or "." not in filename:
             return ""
         stem = filename.rsplit(".", 1)[0].lower()
         ext  = filename.rsplit(".", 1)[1].lower()
 
+        # ── Section label map ────────────────────────────────────────────────
+        _section_label = {
+            "objs":  "Static Object",
+            "tobj":  "Timed Object",
+            "cars":  "Vehicle",
+            "peds":  "Ped",
+            "weap":  "Weapon",
+            "hier":  "Clump/Hierarchy",
+            "anim":  "Animated Object",
+            "tanm":  "Timed Anim Object",
+            "txdp":  "TXD Parent",
+            "2dfx":  "2DFX Effect",
+        }
+
         obj = self.model_map.get(stem)
         if obj:
             ide = obj.source_ide or "unknown.ide"
-            parts = [f"Model defined in {ide}"]
+            section = obj.section or ""
+            label = _section_label.get(section, obj.obj_type.capitalize() if obj.obj_type else "Object")
 
+            parts = [f"{label} in {ide}"]
+
+            # ── TXD reference ────────────────────────────────────────────────
             txd = obj.txd_name.lower() if obj.txd_name else ""
-            if txd and txd != "null":
-                txd_present = txd in self.txd_stems
-                if txd_present:
+            if section == "txdp":
+                # txdp: model_name = child txd, txd_name = parent txd
+                parts.append(f"parent txd - {txd}.txd")
+            elif txd and txd not in ("null", ""):
+                if txd in self.txd_stems:
                     parts.append(f"has txd - {txd}.txd")
                 else:
                     parts.append(f"missing {txd}.txd")
-            else:
+            elif section not in ("2dfx", "txdp"):
                 parts.append("no txd")
 
+            # ── Section-specific extras ──────────────────────────────────────
+            extra = obj.extra or {}
+
+            if section == "tobj":
+                # Timed objects have on/off time in flags (high byte = on, next = off)
+                flags = extra.get("flags")
+                if flags is not None:
+                    time_on  = (flags >> 8) & 0xFF
+                    time_off = (flags >> 16) & 0xFF
+                    if time_on or time_off:
+                        parts.append(f"active {time_on:02d}:00–{time_off:02d}:00")
+
+            elif section == "cars":
+                veh_type = extra.get("veh_type", "")
+                handling = extra.get("handling_id", "")
+                if veh_type:
+                    parts.append(f"type - {veh_type}")
+                if handling:
+                    parts.append(f"handling - {handling}")
+                anim = extra.get("anim_file", "")
+                if anim:
+                    parts.append(f"anim - {anim}")
+
+            elif section in ("peds", "ped"):
+                ped_type = extra.get("ped_type", "")
+                anim = extra.get("anim_group", "")
+                if ped_type:
+                    parts.append(f"type - {ped_type}")
+                if anim:
+                    parts.append(f"anim - {anim}")
+
+            elif section == "weap":
+                anim = extra.get("anim_file", "")
+                if anim:
+                    parts.append(f"anim - {anim}")
+
+            elif section in ("hier", "anim", "tanm"):
+                anim = extra.get("anim_file", "")
+                if anim:
+                    parts.append(f"anim - {anim}")
+
+            # ── Draw distance (objs / tobj / weap / hier / anim) ────────────
+            dd = extra.get("draw_dist")
+            if dd is not None and section not in ("cars", "peds", "ped", "txdp", "2dfx"):
+                parts.append(f"draw dist - {dd:.0f}")
+
+            # ── COL check for DFF files ──────────────────────────────────────
             if ext == "dff":
-                col_present = stem in self.col_stems
-                if col_present:
+                if stem in self.col_stems:
                     parts.append(f"has col - {stem}.col")
                 else:
                     parts.append(f"missing {stem}.col")
 
             return ",  ".join(parts)
 
-        elif ext == "txd":
+        # ── No IDE entry found — check orphan status ─────────────────────────
+        if ext == "txd":
             if stem in self.txd_stems:
                 users = [o.model_name for o in self.model_map.values()
                          if o.txd_name and o.txd_name.lower() == stem][:5]
