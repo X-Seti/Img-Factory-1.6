@@ -1,5 +1,41 @@
 #this belongs in root /ChangeLog.md - Version: 17
 
+## March 10, 2026 (evening) — Hybrid Load, COL column, DAT Browser xref improvements
+
+### Hybrid Load
+
+**Added**: File → **Hybrid Load (IMG + COL)...** `Ctrl+Shift+H`
+
+**Updated**: apps/components/Img_Factory/imgfactory.py
+- `open_hybrid_load()` v2: opens an IMG file and automatically pairs every DFF entry with its matching COL data before the table renders. COL sources checked in priority order:
+  1. COL entries **inside the IMG itself** (GTA III / VC / SA world props)
+  2. **Sibling `.col` file** in the same directory (e.g. `game_sa.col` next to `game_sa.img`, `game_vc.col` next to `game_vc.img`)
+  3. **`models/coll/`** external category archives for SA/SOL (`vehicles.col`, `peds.col`, `weapons.col`) — sub-model names read directly from COL binary headers
+- Game type detected from DAT Browser / `game_root`; SA/SOL external scan only runs when appropriate
+- Log summary e.g. `Hybrid Load: game_sa.img  |  2734 DFF entries  |  2190 paired  |  544 no COL  |  312 sibling COL sub-models`
+- Pairs stored in `self._pending_hybrid_pairs` before async thread starts; consumed in `_on_img_loaded()` once table is actually populated (fixes timing bug where column was filled before table existed)
+- `_on_img_loaded()` v5: checks `_pending_hybrid_pairs` after `_populate_img_table_widget()`; calls `populate_col_column()`, logs match count, clears pending data
+
+**Updated**: apps/gui/gui_menu.py
+- `MenuAction("hybrid_load", "Hybrid &Load (IMG + COL)...", "Ctrl+Shift+H")` added to File menu after Open Multiple
+
+### COL column (column 8)
+
+**Updated**: apps/methods/populate_img_table.py
+- `setup_table_for_img_data()` v4: column count → 9; added **COL** header at index 8; `setColumnHidden(8, True)` — invisible on normal open, revealed only by hybrid load; resize mode set for all 9 columns
+- `populate_table_with_img_data()`: same 9-column setup with COL hidden by default
+- **Added `populate_col_column(table, paired)`** v1: iterates all rows; for DFF rows looks up stem in paired list — `✓ stem (source)` in green if matched, `✗ missing` in red if not; non-DFF rows left blank; calls `setColumnHidden(8, False)` to reveal column; sortable so missing entries can be grouped by clicking header
+
+### DAT Browser / xref improvements
+
+**Updated**: apps/methods/gta_dat_parser.py
+- `build_xref()` v2: accepts optional `game_root`; for SA/SOL also scans `models/coll/` COL archives and indexes sub-model name stems into `col_stems` — tooltips now correctly show `has col` for vehicle/ped/weapon DFFs whose collision lives in an external archive rather than inside the IMG
+
+**Updated**: apps/components/Dat_Browser/dat_browser.py
+- `_on_load_done()`: passes `_thread.game_root` to `build_xref()` so SA/SOL external COL scan runs automatically on DAT load
+
+---
+
 ## March 10, 2026 — DAT Browser enhancements, Dir Tree improvements, click-drag multi-select
 
 ### DAT Browser
