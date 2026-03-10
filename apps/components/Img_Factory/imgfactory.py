@@ -340,6 +340,51 @@ def debug_img_entries(self): #vers 2
             pass
 
 
+class RWVersionFillThread(QThread):
+    """Background thread: fills RW version for DFF/TXD entries after the table appears.
+
+    Emits (row, version_text) for each entry so the main thread can update
+    the Version column cell without blocking the UI.
+    """
+    version_ready = pyqtSignal(int, str)   # (table row, version string)
+    finished_fill = pyqtSignal(int)        # total entries processed
+
+    def __init__(self, img_file, parent=None):
+        super().__init__(parent)
+        self._img_file = img_file
+        self._stop = False
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version
+        count = 0
+        for row, entry in enumerate(self._img_file.entries):
+            if self._stop:
+                break
+            ext = getattr(entry, 'extension', '').upper()
+            if ext not in ('DFF', 'TXD'):
+                continue
+            if getattr(entry, '_version_detected', False) and getattr(entry, 'rw_version', 0):
+                # Already cached from a previous scan
+                name = getattr(entry, 'rw_version_name', None) or get_rw_version_name(entry.rw_version)
+                self.version_ready.emit(row, name)
+                count += 1
+                continue
+            try:
+                entry._detect_rw_version()
+                if getattr(entry, 'rw_version', 0) and is_valid_rw_version(entry.rw_version):
+                    name = getattr(entry, 'rw_version_name', None) or get_rw_version_name(entry.rw_version)
+                    self.version_ready.emit(row, name)
+                    count += 1
+            except Exception:
+                pass
+            # Yield CPU so UI stays responsive
+            self.msleep(0)
+        self.finished_fill.emit(count)
+
+
 class IMGLoadThread(QThread):
     """Background thread for loading IMG files"""
     progress_updated = pyqtSignal(int, str)  # progress, status
@@ -4312,6 +4357,34 @@ class IMGFactory(QMainWindow):
                     entry_data = pin_data.get("entries", {}).get(entry_name, {})
                     if entry_data.get("pinned", False):
                         entry.is_pinned = True
+
+            # Start background RW version fill (deferred from load to keep UI snappy)
+            if table and img_file and img_file.entries:
+                # Stop any previous fill thread
+                prev = getattr(self, '_rw_fill_thread', None)
+                if prev and prev.isRunning():
+                    prev.stop(); prev.wait(500)
+
+                rw_thread = RWVersionFillThread(img_file, self)
+                self._rw_fill_thread = rw_thread
+                self._rw_fill_table = table   # table ref for slot
+
+                VERSION_COL = 5
+
+                def _apply_version(row, version_text, _tbl=table):
+                    try:
+                        item = _tbl.item(row, VERSION_COL)
+                        if item:
+                            item.setText(version_text)
+                    except Exception:
+                        pass
+
+                def _fill_done(count, _fn=file_name):
+                    self.log_message(f"RW versions scanned: {count} entries in {_fn}")
+
+                rw_thread.version_ready.connect(_apply_version)
+                rw_thread.finished_fill.connect(_fill_done)
+                rw_thread.start(QThread.Priority.LowPriority)
 
             # Log success
             entry_count = len(img_file.entries) if img_file.entries else 0
