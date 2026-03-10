@@ -745,35 +745,39 @@ def _wire_xref_signal(widget, main_window): #vers 1
     widget.xref_ready.connect(_on_xref_ready)
 
 
-def show_dat_browser(main_window) -> bool: #vers 1
+def show_dat_browser(main_window) -> bool: #vers 2
     """Show the DAT Browser tab.
 
     If the tab was closed (widget still alive on main_window.dat_browser),
     re-adds it and switches to it.  If it was never created, calls
-    integrate_dat_browser first.  Used by the 'Dat Edit' button.
+    integrate_dat_browser first.  Auto-fills game root from dir tree.
     """
     try:
         tw = getattr(main_window, "main_tab_widget", None)
         widget = getattr(main_window, "dat_browser", None)
 
-        # Never created — create it now
+        # Never created — create it now (integrate handles auto-fill too)
         if widget is None:
             return integrate_dat_browser(main_window)
 
         if tw is None:
             widget.show()
             widget.raise_()
+            _auto_fill_game_root(widget, main_window)
             return True
 
         # Check if the tab is still in the tab widget
         for i in range(tw.count()):
             if tw.widget(i) is widget:
                 tw.setCurrentIndex(i)
+                # Re-fill in case dir tree root changed since last open
+                _auto_fill_game_root(widget, main_window)
                 return True
 
         # Tab was closed — re-add it
         tab_idx = tw.addTab(widget, "DAT Browser")
         tw.setCurrentIndex(tab_idx)
+        _auto_fill_game_root(widget, main_window)
         if hasattr(main_window, "log_message"):
             main_window.log_message("DAT Browser re-opened")
         return True
@@ -781,6 +785,44 @@ def show_dat_browser(main_window) -> bool: #vers 1
         if hasattr(main_window, "log_message"):
             main_window.log_message(f"DAT Browser show error: {e}")
         return False
+
+
+def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers 1
+    """Silently pre-fill the DAT Browser path field from the directory tree.
+
+    Only updates the field if it is currently empty — never overwrites a path
+    the user already set manually.  Does not trigger a load.
+    """
+    try:
+        # Don't overwrite a path the user already chose
+        if widget._path_edit.text().strip():
+            return
+
+        game_root = None
+        dt = getattr(main_window, "directory_tree", None)
+        if dt:
+            game_root = getattr(dt, "current_path", None)
+        if not game_root:
+            game_root = getattr(main_window, "game_root", None)
+        if not game_root or not os.path.isdir(game_root):
+            return
+
+        from apps.methods.gta_dat_parser import detect_game, GTAGame
+        game = detect_game(game_root)
+
+        widget._path_edit.setText(game_root)
+        if game:
+            idx = {GTAGame.GTA3: 1, GTAGame.VC: 2,
+                   GTAGame.SA: 3, GTAGame.SOL: 4}.get(game, 0)
+            widget._game_combo.setCurrentIndex(idx)
+            if hasattr(main_window, "log_message"):
+                names = {GTAGame.GTA3: "GTA III", GTAGame.VC: "Vice City",
+                         GTAGame.SA: "San Andreas", GTAGame.SOL: "GTASOL"}
+                main_window.log_message(
+                    f"DAT Browser: auto-detected {names[game]} at {game_root}")
+        widget._load_btn.setEnabled(True)
+    except Exception:
+        pass  # Auto-fill is best-effort; never crash on it
 
 
 def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
@@ -828,9 +870,10 @@ def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
         return False
 
 
-def integrate_dat_browser(main_window) -> bool: #vers 3
+def integrate_dat_browser(main_window) -> bool: #vers 4
     """Add a DAT Browser tab to main_window.main_tab_widget.
     The tab has a normal close [x] button; use show_dat_browser() to re-open it.
+    Auto-populates game root from the directory tree on creation.
     """
     try:
         # Pass parent only if main_window is an actual QWidget
@@ -851,8 +894,11 @@ def integrate_dat_browser(main_window) -> bool: #vers 3
 
         _wire_xref_signal(widget, main_window)
 
+        # Auto-fill game root from directory tree (silent — no warning if not set)
+        _auto_fill_game_root(widget, main_window)
+
         if hasattr(main_window, "log_message"):
-            main_window.log_message("DAT Browser integrated (v3)")
+            main_window.log_message("DAT Browser integrated (v4)")
         return True
     except Exception as e:
         if hasattr(main_window, "log_message"):

@@ -1019,6 +1019,18 @@ class DirectoryTreeBrowser(QWidget):
             files.sort(key=str.lower)
             from datetime import datetime
             import stat as _stat
+
+            def _perms_str(mode: int) -> str:
+                """Return e.g. '755  rwxr-xr-x' from a stat st_mode value."""
+                octal = oct(_stat.S_IMODE(mode))[2:]
+                flags = (
+                    (_stat.S_IRUSR, 'r'), (_stat.S_IWUSR, 'w'), (_stat.S_IXUSR, 'x'),
+                    (_stat.S_IRGRP, 'r'), (_stat.S_IWGRP, 'w'), (_stat.S_IXGRP, 'x'),
+                    (_stat.S_IROTH, 'r'), (_stat.S_IWOTH, 'w'), (_stat.S_IXOTH, 'x'),
+                )
+                rwx = ''.join(c if mode & bit else '-' for bit, c in flags)
+                return f"{octal}  {rwx}"
+
             for directory in directories:
                 item_path = os.path.join(dir_path, directory)
                 tree_item = QTreeWidgetItem(parent_item)
@@ -1032,8 +1044,7 @@ class DirectoryTreeBrowser(QWidget):
                         datetime.fromtimestamp(st.st_ctime).strftime('%d %b %Y %H:%M'))
                     tree_item.setText(self.COL_MODIFIED,
                         datetime.fromtimestamp(st.st_mtime).strftime('%d %b %Y %H:%M'))
-                    tree_item.setText(self.COL_PERMS,
-                        oct(_stat.S_IMODE(st.st_mode))[2:])
+                    tree_item.setText(self.COL_PERMS, _perms_str(st.st_mode))
                 except Exception:
                     pass
                 self.populate_tree_recursive(tree_item, item_path, max_depth, current_depth + 1)
@@ -1063,8 +1074,7 @@ class DirectoryTreeBrowser(QWidget):
                         datetime.fromtimestamp(st.st_ctime).strftime('%d %b %Y %H:%M'))
                     tree_item.setText(self.COL_MODIFIED,
                         datetime.fromtimestamp(st.st_mtime).strftime('%d %b %Y %H:%M'))
-                    tree_item.setText(self.COL_PERMS,
-                        oct(_stat.S_IMODE(st.st_mode))[2:])
+                    tree_item.setText(self.COL_PERMS, _perms_str(st.st_mode))
                 except Exception:
                     pass
 
