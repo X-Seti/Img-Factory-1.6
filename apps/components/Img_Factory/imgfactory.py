@@ -3398,7 +3398,11 @@ class IMGFactory(QMainWindow):
                 parts.append(f"{len(col_external)} external COL sub-models")
             self.log_message("  |  ".join(parts))
 
-            # ── 6. Load IMG into a normal tab ────────────────────────────────
+            # ── 6. Store pairing data then load IMG (async thread) ───────────
+            # _on_img_loaded will consume _pending_hybrid_pairs once the
+            # table is actually populated.
+            self._pending_hybrid_pairs = paired
+
             if hasattr(self, "_load_img_file_in_new_tab"):
                 self._load_img_file_in_new_tab(img_path)
             elif hasattr(self, "load_img_file_in_new_tab"):
@@ -3406,29 +3410,6 @@ class IMGFactory(QMainWindow):
             else:
                 self.current_img = img
                 self._clean_on_img_loaded(img)
-
-            # Store pairing data and fill the COL column
-            try:
-                tab = self.main_tab_widget.currentWidget()
-                if tab:
-                    tab._hybrid_pairs    = paired
-                    tab._col_in_img      = col_in_img
-                    tab._col_sibling     = col_sibling
-                    tab._col_external    = col_external
-
-                    # Fill and reveal COL column (index 8)
-                    table = getattr(tab, "table_ref", None)
-                    if table:
-                        from apps.methods.populate_img_table import populate_col_column
-                        col_hits = populate_col_column(table, paired)
-                        self.log_message(
-                            f"Hybrid: COL column populated — "
-                            f"{col_hits} matched, {len(paired) - col_hits} missing"
-                        )
-            except Exception as e:
-                self.log_message(f"Hybrid: COL column error: {e}")
-
-            self.log_message("Hybrid Load complete.")
 
         except Exception as e:
             self.log_message(f"Hybrid Load error: {e}")
@@ -4279,6 +4260,22 @@ class IMGFactory(QMainWindow):
                 # Sync gui_layout.table so all core/ files see the active table
                 if hasattr(self, 'gui_layout'):
                     self.gui_layout.table = table
+
+                # Hybrid load: if pairing data is waiting, fill the COL column now
+                pending = getattr(self, '_pending_hybrid_pairs', None)
+                if pending is not None and table:
+                    try:
+                        from apps.methods.populate_img_table import populate_col_column
+                        col_hits = populate_col_column(table, pending)
+                        total = len([p for p in pending if p[0] is not None])
+                        self.log_message(
+                            f"Hybrid: COL column filled — "
+                            f"{col_hits} matched, {total - col_hits} missing"
+                        )
+                    except Exception as e:
+                        self.log_message(f"Hybrid: COL column error: {e}")
+                    finally:
+                        self._pending_hybrid_pairs = None
 
             # Update window title
             file_name = os.path.basename(img_file.file_path)
