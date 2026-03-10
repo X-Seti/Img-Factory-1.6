@@ -3676,17 +3676,58 @@ class COLWorkshop(QWidget): #vers 3
             return False
 
 
-    def load_from_img_archive(self, img_path): #vers 1
-        """Load COL files from IMG archive"""
+    def open_img_archive(self): #vers 1
+        """Open file dialog to select an IMG archive and load COL entries from it"""
         try:
-            # TODO: Implement IMG archive COL loading
-            # This would extract COL files from the IMG and populate the list
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Open IMG Archive",
+                "",
+                "IMG Archives (*.img);;All Files (*)"
+            )
+            if file_path:
+                self.load_from_img_archive(file_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open IMG:\n{str(e)}")
 
+
+    def load_from_img_archive(self, img_path): #vers 2
+        """Load all COL entries from an IMG archive and populate the collision list"""
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            from apps.methods.col_workshop_loader import COLFile
+
+            img = IMGFile(img_path)
+            img.open()
+            self.current_img = img
+
+            img_name = os.path.basename(img_path)
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Loading COL files from IMG: {os.path.basename(img_path)}")
+                self.main_window.log_message(f"Scanning {img_name} for COL entries...")
 
-            print(f"IMG archive COL loading - not yet implemented: {img_path}")
-            return False
+            col_entries = [e for e in img.entries
+                           if getattr(e, 'name', '').lower().endswith('.col')]
+
+            if not col_entries:
+                QMessageBox.information(self, "No COL Files",
+                    f"No .col entries found in {img_name}")
+                return False
+
+            # Populate the collision list widget with COL entries
+            if hasattr(self, 'collision_list'):
+                self.collision_list.clear()
+                for entry in col_entries:
+                    item = QListWidgetItem(entry.name)
+                    item.setData(Qt.ItemDataRole.UserRole, entry)
+                    self.collision_list.addItem(item)
+
+            count = len(col_entries)
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Loaded {count} COL entr{'ies' if count != 1 else 'y'} from {img_name}")
+
+            self.setWindowTitle(f"COL Workshop: {img_name}")
+            return True
 
         except Exception as e:
             print(f"Error loading from IMG archive: {str(e)}")
