@@ -2864,7 +2864,7 @@ class IMGFactory(QMainWindow):
         table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setStretchLastSection(True)
-        table.setDragEnabled(True)
+        table.setDragEnabled(False)      # drag-off lets click-drag multi-select work
         table.setDragDropMode(QTableWidget.DragDropMode.NoDragDrop)
         table.setSortingEnabled(True)
         table.horizontalHeader().setSortIndicatorShown(True)
