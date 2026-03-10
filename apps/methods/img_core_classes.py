@@ -265,143 +265,121 @@ def _is_valid_rw_version(v: int) -> bool:
 _XBOX_LZO_MAGIC = 0x67A3A1CE  # little-endian master header magic for Xbox LZO streams
 
 def _lzo1x_decompress(data: bytes, expected_size: int = 0) -> bytes:
-    """Pure-Python LZO1X-1 decompressor.
+    """Pure-Python LZO1X-1 decompressor (lzo1x_decompress_safe compatible).
 
-    Implements the LZO1X decompression algorithm as used by GTA Xbox
-    (lzo1x-999 compressed, lzo1x_decompress_safe compatible).
-    Returns decompressed bytes or raises ValueError on malformed input.
+    Based on the canonical LZO1X algorithm. Handles the compressed block
+    data as produced by lzo1x-999 (used in GTA Xbox TXD/DFF entries).
+    Returns decompressed bytes. Raises ValueError on malformed input.
     """
-    out = bytearray()
+    out = bytearray(expected_size) if expected_size else bytearray()
     if expected_size:
         out = bytearray()
 
-    pos = 0
+    src = 0
     n = len(data)
 
-    def read_byte():
-        nonlocal pos
-        if pos >= n:
-            raise ValueError("LZO: unexpected end of input")
-        b = data[pos]
-        pos += 1
+    def peek():
+        return data[src] if src < n else 0
+
+    def get():
+        nonlocal src
+        if src >= n:
+            raise ValueError("LZO: truncated input")
+        b = data[src]; src += 1
         return b
 
-    # First byte handling
-    t = read_byte()
-    if t > 17:
-        # copy literal run
-        t -= 17
-        if t < 4:
-            # short literal
-            while t:
-                out.append(read_byte())
-                t -= 1
-        else:
-            count = t
-            while count:
-                out.append(read_byte())
-                count -= 1
-        t = read_byte()
+    def copy_match(dist, length):
+        start = len(out) - dist
+        if start < 0:
+            raise ValueError(f"LZO: invalid match distance {dist}")
+        for _ in range(length):
+            out.append(out[start])
+            start += 1
 
+    # Decode first instruction
+    t = get()
+    if t >= 18:
+        # Initial literal run
+        cnt = t - 17
+        for _ in range(cnt):
+            out.append(get())
+        t = get()
+    elif t >= 16:
+        pass  # fall through to main loop
+    else:
+        # t < 16 on first byte: short literal
+        pass
+
+    # Main decode loop
     while True:
         if t < 16:
+            # Short literal + end-of-block
             if t == 0:
-                while data[pos] == 0:
-                    t += 255
-                    pos += 1
-                t += 15 + read_byte()
-            # copy literals
-            count = t + 3
-            while count:
-                out.append(read_byte())
-                count -= 1
-            t = read_byte()
-            if t < 16:
-                # match from history
-                match_pos = len(out) - 0x801 - (t >> 2) - (read_byte() << 2)
-                if match_pos < 0:
-                    raise ValueError("LZO: match pos out of range")
-                out.extend(out[match_pos:match_pos + 3])
-                t >>= 2
-                # literal copy
-                count = t
-                while count:
-                    out.append(read_byte())
-                    count -= 1
-                t = read_byte()
+                cnt = 15
+                while peek() == 0:
+                    cnt += 255; get()
+                cnt += get()
+            else:
+                cnt = t
+            for _ in range(cnt + 3):
+                out.append(get())
+            t = get()
+            if t >= 16:
                 continue
+            # EOS short match
+            dist = 0x801 + (get() << 2) + (t >> 2)
+            copy_match(dist, 3)
+            t &= 3
+            if t:
+                for _ in range(t):
+                    out.append(get())
+                t = get()
+            continue
 
         if t >= 64:
-            # type 3: short match
-            length = (t >> 5) - 1
-            dist_lo = read_byte()
-            match_dist = ((t >> 2) & 7) + (dist_lo << 3) + 1
-            match_pos = len(out) - match_dist
-            if match_pos < 0:
-                raise ValueError("LZO: match pos out of range")
-            length += 2
-            out.extend(out[match_pos:match_pos + length])
+            # Short match (2-8 bytes, dist 1-8*256)
+            length = (t >> 5) - 1 + 2
+            dist = ((t >> 2) & 7) * 256 + get() + 1
+            copy_match(dist, length)
+
         elif t >= 32:
-            # type 2: medium match
+            # Medium match
             length = t & 31
             if length == 0:
-                while data[pos] == 0:
-                    length += 255
-                    pos += 1
-                length += 31 + read_byte()
-            b1 = read_byte()
-            b2 = read_byte()
-            match_dist = (b1 >> 2) + (b2 << 6) + 1
-            match_pos = len(out) - match_dist
-            if match_pos < 0:
-                raise ValueError("LZO: match pos out of range")
-            out.extend(out[match_pos:match_pos + length + 2])
-        elif t >= 16:
-            # type 4: long match
+                length = 31
+                while peek() == 0:
+                    length += 255; get()
+                length += get()
+            length += 2
+            b1 = get(); b2 = get()
+            dist = (b1 >> 2) + (b2 << 6) + 1
+            copy_match(dist, length)
+
+        else:  # 16 <= t < 32
+            # Long match
             length = t & 7
             if length == 0:
-                while data[pos] == 0:
-                    length += 255
-                    pos += 1
-                length += 7 + read_byte()
-            b1 = read_byte()
-            b2 = read_byte()
-            match_dist = (b1 >> 2) + (b2 << 6) + 0x4001
+                length = 7
+                while peek() == 0:
+                    length += 255; get()
+                length += get()
+            length += 2
+            b1 = get(); b2 = get()
+            dist = (b1 >> 2) + (b2 << 6) + 0x4001
             if t & 8:
-                match_dist += 0x4000
-            match_pos = len(out) - match_dist
-            if match_pos < 0:
-                raise ValueError("LZO: match pos out of range")
-            out.extend(out[match_pos:match_pos + length + 2])
-        else:
-            # t < 16 — handled above with history match
-            b1 = read_byte()
-            b2 = read_byte()
-            match_dist = (t >> 2) + (b1 << 2) + (b2 << 10) + 1
-            match_pos = len(out) - match_dist
-            if match_pos < 0:
-                raise ValueError("LZO: match pos out of range")
-            out.extend(out[match_pos:match_pos + 3])
+                dist += 0x4000
+            copy_match(dist, length)
 
-        # end-of-stream marker
-        t = t & 3
+        # Trailing literal nibble
+        t &= 3
         if t == 0:
-            t = read_byte()
+            t = get()
             continue
-        while t:
-            out.append(read_byte())
-            t -= 1
-        t = read_byte()
-        if t < 16:
-            match_pos = len(out) - 0x801 - (t >> 2) - (read_byte() << 2)
-            if match_pos < 0:
-                raise ValueError("LZO: match pos out of range")
-            out.extend(out[match_pos:match_pos + 3])
-            t = t & 3
-            while t:
-                out.append(read_byte())
-                t -= 1
-            t = read_byte()
+        for _ in range(t):
+            out.append(get())
+        t = get()
+        if src >= n:
+            break
 
     return bytes(out)
 
@@ -626,7 +604,7 @@ class IMGEntry:
                 img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
             return False
 
-    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 2
+    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 3
         """Read file header data from the data portion of the IMG archive."""
         try:
             if not self._img_file or not self._img_file.file_path:
@@ -644,18 +622,21 @@ class IMGEntry:
                     return None
                 file_path = img_path
 
+            # For Xbox: read enough to cover master header (12) + first block
+            # header (12) + first block compressed data (up to ~64 KB typical)
+            is_xbox = (getattr(self._img_file, 'platform', None) == IMGPlatform.XBOX)
+            read_size = min(self.size, bytes_to_read + 256) if not is_xbox else min(self.size, 65536)
+
             with open(file_path, 'rb') as f:
                 f.seek(self.offset)
-                raw = f.read(min(self.size, bytes_to_read + 256))
+                raw = f.read(read_size)
 
-            # For Xbox LZO entries, decompress enough to get the RW header
-            if (self._img_file and
-                    getattr(self._img_file, 'platform', None) == IMGPlatform.XBOX and
-                    _is_xbox_lzo(raw)):
+            # For Xbox LZO entries, decompress the first block to get the RW header
+            if is_xbox and _is_xbox_lzo(raw):
                 try:
                     raw = _xbox_lzo_decompress_entry(raw)
                 except Exception:
-                    pass
+                    pass  # return raw on failure — version will show Unknown
 
             return raw[:bytes_to_read]
 
