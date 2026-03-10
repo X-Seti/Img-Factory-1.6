@@ -886,7 +886,7 @@ class GTAWorldXRef: #vers 1
         self.img_stems:  set = set()                  # img/cdimage archive stems
 
     def tooltip_for(self, filename: str) -> str:
-        """Return a tooltip string for an IMG entry filename, or '' if nothing known."""
+        """Return a hover tooltip string for an IMG entry filename, or '' if nothing known."""
         if not filename or "." not in filename:
             return ""
         stem = filename.rsplit(".", 1)[0].lower()
@@ -895,17 +895,28 @@ class GTAWorldXRef: #vers 1
 
         obj = self.model_map.get(stem)
         if obj:
-            lines.append(f"IDE: {obj.source_ide}  [{obj.obj_type}]")
+            lines.append(f"Model defined in:  {obj.source_ide}")
+            type_label = obj.obj_type.capitalize() if obj.obj_type else "Object"
+            lines.append(f"Type:  {type_label}")
             txd = obj.txd_name.lower() if obj.txd_name else ""
             if txd and txd != "null":
-                lines.append(f"TXD: {txd}")
+                lines.append(f"TXD:  {txd}.txd")
+            if ext == "dff":
+                col = stem
+                if col in self.col_stems:
+                    lines.append(f"COL:  {col}.col  [present]")
         elif ext == "txd":
-            # TXD file: check if any model references this txd
             if stem in self.txd_stems:
-                lines.append(f"TXD referenced by IDE objects")
+                lines.append(f"TXD archive referenced by IDE model")
+                # Find which models reference this txd
+                users = [o.model_name for o in self.model_map.values()
+                         if o.txd_name and o.txd_name.lower() == stem][:5]
+                if users:
+                    lines.append(f"Used by:  {', '.join(users)}"
+                                 + (" …" if len(users) == 5 else ""))
         elif ext == "col":
             if stem in self.col_stems:
-                lines.append(f"COL: listed in COLFILE entries")
+                lines.append(f"COL file listed in COLFILE directive")
 
         if not lines:
             return ""

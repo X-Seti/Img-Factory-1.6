@@ -438,11 +438,11 @@ def update_img_table_selection_info(main_window) -> bool: #vers 2
         return False
 
 # Export functions
-def apply_xref_tooltips(table, xref) -> int: #vers 1
+def apply_xref_tooltips(table, xref) -> int: #vers 2
     """Apply DAT cross-reference tooltips to every row in an IMG table.
 
-    Reads column 0 (Name) of each row, looks up the stem in xref,
-    and sets a ToolTip on the name cell with IDE/TXD/COL info.
+    Sets the tooltip on ALL cells of each matching row so the info bubble
+    appears wherever the cursor lands on the row, not only on the Name cell.
     Returns the number of rows that received a non-empty tooltip.
 
     Args:
@@ -452,13 +452,18 @@ def apply_xref_tooltips(table, xref) -> int: #vers 1
     if not table or not xref:
         return 0
     hits = 0
+    col_count = table.columnCount()
     for row in range(table.rowCount()):
         name_item = table.item(row, 0)
         if not name_item:
             continue
         tip = xref.tooltip_for(name_item.text())
         if tip:
-            name_item.setToolTip(tip)
+            # Set on every column so hover anywhere on the row shows the bubble
+            for col in range(col_count):
+                cell = table.item(row, col)
+                if cell:
+                    cell.setToolTip(tip)
             hits += 1
     return hits
 
