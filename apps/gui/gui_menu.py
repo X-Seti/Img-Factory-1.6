@@ -53,6 +53,7 @@ class MenuDefinition:
                 MenuAction("new_img", "&New IMG", "Ctrl+N", "document-new"),
                 MenuAction("open_img", "&Open IMG", "Ctrl+O", "document-open"),
                 MenuAction("open_multiple", "Open &Multiple Files", "Ctrl+Shift+O", "folder-open"),
+                MenuAction("hybrid_load", "Hybrid &Load (IMG + COL)...", "Ctrl+Shift+H", "document-open"),
 
                 # Recent files will be added dynamically as a submenu
 

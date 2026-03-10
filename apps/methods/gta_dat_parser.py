@@ -1008,8 +1008,13 @@ class GTAWorldXRef: #vers 1
         return ""
 
 
-def build_xref(loader: "GTAWorldLoader") -> GTAWorldXRef: #vers 1
-    """Build a cross-reference index from a fully loaded GTAWorldLoader."""
+def build_xref(loader: "GTAWorldLoader", game_root: str = "") -> GTAWorldXRef: #vers 2
+    """Build a cross-reference index from a fully loaded GTAWorldLoader.
+
+    For SA/SOL also scans models/coll/ for external category COL archives
+    (peds.col, vehicles.col, weapons.col) and indexes their sub-model stems
+    so tooltip_for() can confirm COL presence for vehicle/ped/weapon DFFs.
+    """
     xref = GTAWorldXRef()
 
     def _stem(path: str) -> str:
@@ -1032,6 +1037,40 @@ def build_xref(loader: "GTAWorldLoader") -> GTAWorldXRef: #vers 1
     for dat in (loader.default_dat, loader.main_dat):
         for entry in dat.img_entries():
             xref.img_stems.add(_stem(entry.path))
+
+    # SA/SOL: also scan models/coll/ for external category COL archives.
+    # These contain sub-models for vehicles, peds and weapons which are not
+    # listed as COLFILE entries in the .dat files.
+    if loader.game in (GTAGame.SA, GTAGame.SOL) and game_root:
+        coll_dir = os.path.join(game_root, "models", "coll")
+        if os.path.isdir(coll_dir):
+            for fname in os.listdir(coll_dir):
+                if not fname.lower().endswith(".col"):
+                    continue
+                col_path = os.path.join(coll_dir, fname)
+                try:
+                    with open(col_path, "rb") as f:
+                        data = f.read()
+                    # COL archive: scan for sub-model name headers.
+                    # Each sub-model starts with "COLL"/"COL2"/"COL3"/"COL4"
+                    # followed by uint32 size then 22-byte name field.
+                    offset = 0
+                    while offset + 32 < len(data):
+                        sig = data[offset:offset + 4]
+                        if sig in (b"COLL", b"COL2", b"COL3", b"COL4"):
+                            name_raw = data[offset + 8: offset + 30]
+                            name = name_raw.split(b"\x00")[0].decode(
+                                "ascii", errors="ignore").strip().lower()
+                            if name:
+                                xref.col_stems.add(name)
+                            # advance by reported size (uint32 at offset+4) + 8 header bytes
+                            import struct
+                            blk_size = struct.unpack_from("<I", data, offset + 4)[0]
+                            offset += blk_size + 8
+                        else:
+                            offset += 1
+                except Exception as e:
+                    print(f"build_xref: could not scan {col_path}: {e}")
 
     return xref
 

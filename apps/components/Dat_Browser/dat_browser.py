@@ -411,7 +411,8 @@ class DATBrowserWidget(QWidget): #vers 2
                 f"{len(self.loader.zones):,} zones")
             # Build cross-reference index and notify listeners
             try:
-                self.xref = build_xref(self.loader)
+                game_root = getattr(self._thread, "game_root", "")
+                self.xref = build_xref(self.loader, game_root)
                 self.xref_ready.emit(self.xref)
             except Exception as e:
                 if img_debugger:
