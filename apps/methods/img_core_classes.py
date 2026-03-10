@@ -384,6 +384,74 @@ def _lzo1x_decompress(data: bytes, expected_size: int = 0) -> bytes:
     return bytes(out)
 
 
+def _xbox_lzo_peek_header(data: bytes, want: int = 64) -> bytes:
+    """Fast extraction of the RW chunk header from an Xbox LZO stream.
+
+    The RW header (12 bytes: type + size + version) is always encoded as an
+    initial literal run in the very first LZO instruction byte.  We decode
+    only that literal run — no back-references needed — and return the result.
+
+    This is O(want) instead of O(block_size) and avoids reading megabytes of
+    compressed data just to get a 12-byte header.
+
+    Falls back to full decompression if the first byte is not a literal-run
+    instruction (i.e. the data is structured differently than expected).
+    """
+    # Layout: master_header(12) + block_header(12) + lzo_payload(...)
+    # lzo_payload starts at offset 24
+    PAYLOAD_START = 24
+    if len(data) < PAYLOAD_START + 1:
+        return b''
+
+    out = bytearray()
+    pos = PAYLOAD_START
+
+    first = data[pos]
+    if first >= 18:
+        # Initial literal run: copy (first - 17) bytes verbatim
+        n_lit = first - 17
+        pos += 1
+        lit_end = pos + n_lit
+        if lit_end <= len(data):
+            out.extend(data[pos:lit_end])
+            pos = lit_end
+        else:
+            out.extend(data[pos:])
+        # If we have enough, return early — no back-reference decoding needed
+        if len(out) >= want:
+            return bytes(out)
+        # Continue decoding the next instruction (one more literal or match)
+        if pos < len(data):
+            nxt = data[pos]
+            if nxt >= 18:
+                # Another literal run
+                n2 = nxt - 17
+                pos += 1
+                out.extend(data[pos:pos + n2])
+    elif first == 0:
+        # Long literal: read zero-run then count
+        pos += 1
+        n_lit = 15
+        while pos < len(data) and data[pos] == 0:
+            n_lit += 255; pos += 1
+        if pos < len(data):
+            n_lit += data[pos]; pos += 1
+        n_lit += 3
+        out.extend(data[pos:pos + n_lit])
+    # else: match instruction on first byte — fall back to full decompress
+    # (uncommon for well-formed RW files)
+
+    if len(out) >= want:
+        return bytes(out[:want])
+
+    # Fallback: full decompress (slow path, should rarely be needed)
+    try:
+        full = _xbox_lzo_decompress_entry(data)
+        return full[:want]
+    except Exception:
+        return bytes(out)
+
+
 def _xbox_lzo_decompress_entry(data: bytes) -> bytes:
     """Decompress an Xbox LZO-compressed entry (GTA III/VC Xbox).
 
@@ -608,8 +676,14 @@ class IMGEntry:
                 img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
             return False
 
-    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 3
-        """Read file header data from the data portion of the IMG archive."""
+    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 4
+        """Read file header data from the data portion of the IMG archive.
+
+        For Xbox LZO entries only the first ~512 bytes of the compressed stream
+        are read.  The RW chunk header (12 bytes) is always encoded as a literal
+        run in the first LZO instruction, so we only need to decompress the very
+        start of the stream — not a full 64 KB block.
+        """
         try:
             if not self._img_file or not self._img_file.file_path:
                 return None
@@ -626,21 +700,19 @@ class IMGEntry:
                     return None
                 file_path = img_path
 
-            # For Xbox: read enough to cover master header (12) + first block
-            # header (12) + first block compressed data (up to ~64 KB typical)
             is_xbox = (getattr(self._img_file, 'platform', None) == IMGPlatform.XBOX)
-            read_size = min(self.size, bytes_to_read + 256) if not is_xbox else min(self.size, 65536)
+
+            # For Xbox: only read 512 bytes — the RW header is always in the first
+            # LZO literal run (~30-50 compressed bytes).  No need to read 64 KB.
+            read_size = min(self.size, 512) if is_xbox else min(self.size, bytes_to_read + 256)
 
             with open(file_path, 'rb') as f:
                 f.seek(self.offset)
                 raw = f.read(read_size)
 
-            # For Xbox LZO entries, decompress the first block to get the RW header
+            # Decompress just enough of the LZO stream to extract the RW header
             if is_xbox and _is_xbox_lzo(raw):
-                try:
-                    raw = _xbox_lzo_decompress_entry(raw)
-                except Exception:
-                    pass  # return raw on failure — version will show Unknown
+                raw = _xbox_lzo_peek_header(raw, bytes_to_read)
 
             return raw[:bytes_to_read]
 

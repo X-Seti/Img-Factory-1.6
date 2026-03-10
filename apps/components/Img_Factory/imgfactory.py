@@ -360,6 +360,7 @@ class RWVersionFillThread(QThread):
     def run(self):
         from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version
         count = 0
+        batch = 0
         for row, entry in enumerate(self._img_file.entries):
             if self._stop:
                 break
@@ -367,7 +368,6 @@ class RWVersionFillThread(QThread):
             if ext not in ('DFF', 'TXD'):
                 continue
             if getattr(entry, '_version_detected', False) and getattr(entry, 'rw_version', 0):
-                # Already cached from a previous scan
                 name = getattr(entry, 'rw_version_name', None) or get_rw_version_name(entry.rw_version)
                 self.version_ready.emit(row, name)
                 count += 1
@@ -380,8 +380,10 @@ class RWVersionFillThread(QThread):
                     count += 1
             except Exception:
                 pass
-            # Yield CPU so UI stays responsive
-            self.msleep(0)
+            # Yield to UI every 50 entries so the table updates feel smooth
+            batch += 1
+            if batch % 50 == 0:
+                self.msleep(1)
         self.finished_fill.emit(count)
 
 
