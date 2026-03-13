@@ -1,4 +1,4 @@
-#this belongs in Components/Txd_Editor/depends/txd_versions.py - Version: 10
+#this belongs in Components/Txd_Editor/depends/txd_versions.py - Version: 11
 # X-Seti - October13 2025 - IMG Factory 1.5 - TXD Version Detection and Format Utilities
 
 """
@@ -39,13 +39,17 @@ from enum import IntEnum
 
 class TXDPlatform(IntEnum):
     """TXD Platform/Device IDs"""
-    DEVICE_NONE = 0
-    DEVICE_D3D8 = 1
-    DEVICE_D3D9 = 2
-    DEVICE_GC = 3
-    DEVICE_PS2 = 6
-    DEVICE_XBOX = 8
-    DEVICE_PSP = 9
+    DEVICE_NONE    = 0
+    DEVICE_D3D8    = 1
+    DEVICE_D3D9    = 2
+    DEVICE_GC      = 3
+    DEVICE_PS2     = 6
+    DEVICE_XBOX    = 8
+    DEVICE_PSP     = 9
+    # Mobile ports — not RenderWare device IDs; used internally by IMG Factory
+    # to identify mobile texture database files (.pvr.dat / .etc.dat)
+    DEVICE_IOS     = 20   # iOS:     PVRTC-compressed mobile texture DB
+    DEVICE_ANDROID = 21   # Android: ETC1-compressed mobile texture DB
 
 class TXDVersion(IntEnum):
     """Known TXD RenderWare versions by platform"""
@@ -231,16 +235,18 @@ def get_version_string(version_id: int, device_id: int = 0) -> str: #vers 3
         # Old format
         return f"Unknown (0x{version_id:08X})"
 
-def get_platform_name(device_id: int) -> str: #vers 3
+def get_platform_name(device_id: int) -> str: #vers 4
     """Get platform name from device ID"""
     platforms = {
         0: "PC",
         1: "Direct3D 8",
-        2: "Direct3D 9", 
+        2: "Direct3D 9",
         3: "GameCube",
         6: "PlayStation 2",
         8: "Xbox",
-        9: "PSP"
+        9: "PSP",
+        20: "iOS (PVRTC)",
+        21: "Android (ETC1)",
     }
     return platforms.get(device_id, f"Unknown ({device_id})")
 
@@ -288,6 +294,10 @@ def get_game_from_version(version_id: int, device_id: int = 0) -> str: #vers 3
         return "Vice City Stories (PSP)"
     elif version_id == 0x34005:
         return "GTA III or Vice City (Android)"
+    elif device_id == TXDPlatform.DEVICE_IOS:
+        return "GTA SA or Vice City (iOS)"
+    elif device_id == TXDPlatform.DEVICE_ANDROID:
+        return "GTA SA or Vice City (Android)"
     else:
         return "Unknown GTA version"
 
@@ -413,7 +423,26 @@ def get_platform_capabilities(device_id: int) -> Dict[str, any]: #vers 2
             'supports_bump': False,
             'swizzled': True,
             'paletted': True
-        }
+        },
+        TXDPlatform.DEVICE_IOS: {
+            'name': 'iOS (PVRTC)',
+            'compression': ['PVRTC-4bpp-RGB', 'PVRTC-4bpp-RGBA',
+                            'PVRTC-2bpp-RGB', 'PVRTC-2bpp-RGBA'],
+            'formats': ['RGBA8888', 'RGB565', 'RGBA4444', 'RGBA5551'],
+            'supports_bump': False,
+            'swizzled': False,
+            'paletted': False,
+            'mobile_db': True,  # uses .txt/.toc/.dat/.tmb quad-file format
+        },
+        TXDPlatform.DEVICE_ANDROID: {
+            'name': 'Android (ETC1)',
+            'compression': ['ETC1'],
+            'formats': ['RGBA8888', 'RGB565', 'RGBA4444', 'RGBA5551'],
+            'supports_bump': False,
+            'swizzled': False,
+            'paletted': False,
+            'mobile_db': True,  # uses .txt/.toc/.dat/.tmb quad-file format
+        },
     }
     
     return platform_caps.get(device_id, {
