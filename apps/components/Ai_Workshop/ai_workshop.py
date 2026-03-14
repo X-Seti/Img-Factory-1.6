@@ -239,6 +239,12 @@ class AIWorkshop(QWidget):
         self.resize(1400, 800)
         self.setMinimumSize(800, 500)
 
+        # Frameless in standalone (custom titlebar), widget when docked
+        if self.standalone_mode:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        else:
+            self.setWindowFlags(Qt.WindowType.Widget)
+
         if parent:
             p = parent.pos()
             self.move(p.x() + 50, p.y() + 80)
@@ -262,8 +268,7 @@ class AIWorkshop(QWidget):
 
         toolbar = self._create_toolbar()
         self._workshop_toolbar = toolbar
-        if not self.standalone_mode:
-            toolbar.setVisible(False)
+        toolbar.setVisible(self.standalone_mode)   # shown standalone, hidden docked
         main_layout.addWidget(toolbar)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -300,88 +305,106 @@ class AIWorkshop(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # Settings
+        # Theme-aware icon colour
+        icon_color = self._get_icon_color()
+
+        # Settings button (standalone only — docked uses right-panel button)
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
         self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(20, 20))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip("AI Workshop Settings")
+        self.settings_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.settings_btn)
 
         layout.addStretch()
 
+        # AI icon + title in centre
+        title_row = QHBoxLayout()
+        title_row.setSpacing(6)
+        ai_icon_lbl = QLabel()
+        if ICONS_AVAILABLE:
+            pix = SVGIconFactory.ai_icon(20, icon_color).pixmap(20, 20)
+            ai_icon_lbl.setPixmap(pix)
+        title_row.addWidget(ai_icon_lbl)
         self.title_label = QLabel(App_name)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
+        title_row.addWidget(self.title_label)
+        layout.addLayout(title_row)
 
         layout.addStretch()
 
         # New session
         self.new_session_btn = QPushButton()
         self.new_session_btn.setFont(self.button_font)
-        self.new_session_btn.setIcon(self.icon_factory.add_icon())
+        self.new_session_btn.setIcon(SVGIconFactory.add_icon(20, icon_color))
         self.new_session_btn.setText("New Session")
         self.new_session_btn.setIconSize(QSize(20, 20))
         self.new_session_btn.clicked.connect(self._new_session_action)
-        self.new_session_btn.setToolTip("Start a new chat session")
+        self.new_session_btn.setToolTip("Start a new chat session (Ctrl+N)")
         layout.addWidget(self.new_session_btn)
 
         # Clear chat
         self.clear_btn = QPushButton()
         self.clear_btn.setFont(self.button_font)
-        self.clear_btn.setIcon(self.icon_factory.delete_icon())
+        self.clear_btn.setIcon(SVGIconFactory.delete_icon(20, icon_color))
         self.clear_btn.setText("Clear")
         self.clear_btn.setIconSize(QSize(20, 20))
         self.clear_btn.clicked.connect(self._clear_current_session)
         self.clear_btn.setToolTip("Clear current session messages")
         layout.addWidget(self.clear_btn)
 
-        # Theme
+        # Theme / Properties
         self.properties_btn = QPushButton()
-        self.properties_btn.setFont(self.button_font)
-        self.properties_btn.setIcon(self.icon_factory.properties_icon() if hasattr(self.icon_factory, 'properties_icon') else QIcon())
-        self.properties_btn.setToolTip("Theme")
+        self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
+        self.properties_btn.setIconSize(QSize(20, 20))
         self.properties_btn.setFixedSize(35, 35)
+        self.properties_btn.setToolTip("Theme Settings")
         self.properties_btn.clicked.connect(self._launch_theme_settings)
         layout.addWidget(self.properties_btn)
 
-        # Dock / Tearoff
+        # Dock button — hidden in standalone (nothing to dock to)
         self.dock_btn = QPushButton("D")
         self.dock_btn.setMinimumWidth(40)
         self.dock_btn.setMaximumWidth(40)
         self.dock_btn.setMinimumHeight(30)
-        self.dock_btn.setToolTip("Dock")
+        self.dock_btn.setToolTip("Dock into IMG Factory")
         self.dock_btn.clicked.connect(self.toggle_dock_mode)
+        self.dock_btn.setVisible(not self.standalone_mode)
         layout.addWidget(self.dock_btn)
 
+        # Tear-off button — only when docked
         if not self.standalone_mode:
             self.tearoff_btn = QPushButton("T")
             self.tearoff_btn.setMinimumWidth(40)
             self.tearoff_btn.setMaximumWidth(40)
             self.tearoff_btn.setMinimumHeight(30)
             self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("Tear off window")
+            self.tearoff_btn.setToolTip("Tear off to standalone window")
             layout.addWidget(self.tearoff_btn)
 
-        # Window controls
-        for attr, icon_method, slot, tip in [
-            ('minimize_btn', 'minimize_icon', self.showMinimized, "Minimize"),
-            ('maximize_btn', 'maximize_icon', self._toggle_maximize,  "Maximize"),
-            ('close_btn',    'close_icon',    self.close,             "Close"),
-        ]:
-            btn = QPushButton()
-            btn.setIcon(getattr(self.icon_factory, icon_method)())
-            btn.setIconSize(QSize(20, 20))
-            btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
-            btn.clicked.connect(slot)
-            btn.setToolTip(tip)
-            setattr(self, attr, btn)
-            layout.addWidget(btn)
+        # Window controls (standalone only)
+        if self.standalone_mode:
+            for attr, icon_method, slot, tip in [
+                ('minimize_btn', 'minimize_icon', self.showMinimized,   "Minimize"),
+                ('maximize_btn', 'maximize_icon', self._toggle_maximize, "Maximize"),
+                ('close_btn',    'close_icon',    self.close,            "Close"),
+            ]:
+                btn = QPushButton()
+                btn.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
+                btn.setIconSize(QSize(20, 20))
+                btn.setMinimumWidth(40); btn.setMaximumWidth(40); btn.setMinimumHeight(30)
+                btn.clicked.connect(slot)
+                btn.setToolTip(tip)
+                setattr(self, attr, btn)
+                layout.addWidget(btn)
 
         return self.toolbar
+
+
 
     # --- Left panel: session list ------------------------------------------
 
@@ -604,7 +627,7 @@ class AIWorkshop(QWidget):
         url_group = QGroupBox("Ollama")
         url_layout = QFormLayout(url_group)
 
-        self.url_input = QLineEdit(OLLAMA_BASE_URL)
+        self.url_input = QLineEdit(OLLAMA_BASE_URL)  # http://localhost:11434
         self.url_input.setFont(self.panel_font)
         self.url_input.setToolTip("Ollama base URL")
         url_layout.addRow("URL:", self.url_input)
@@ -1422,6 +1445,25 @@ class AIWorkshop(QWidget):
 
     def _refresh_icons(self):
         SVGIconFactory.clear_cache()
+        # Re-apply theme-aware icon colour to toolbar buttons
+        color = self._get_icon_color()
+        icon_map = [
+            ('settings_btn',    'settings_icon'),
+            ('new_session_btn', 'add_icon'),
+            ('clear_btn',       'delete_icon'),
+            ('properties_btn',  'properties_icon'),
+            ('docked_settings_btn', 'settings_icon'),
+        ]
+        for attr, method in icon_map:
+            if hasattr(self, attr):
+                btn = getattr(self, attr)
+                btn.setIcon(getattr(SVGIconFactory, method)(20, color))
+        # Window control buttons
+        for attr, method in [('minimize_btn','minimize_icon'),
+                              ('maximize_btn','maximize_icon'),
+                              ('close_btn','close_icon')]:
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(getattr(SVGIconFactory, method)(20, color))
 
     def _launch_theme_settings(self):
         try:
@@ -1452,16 +1494,28 @@ class AIWorkshop(QWidget):
 
     def _dock_to_main(self):
         self.is_docked = True
+        self.standalone_mode = False
+        if hasattr(self, '_workshop_toolbar'):
+            self._workshop_toolbar.setVisible(False)
         if hasattr(self, 'docked_settings_btn'):
             self.docked_settings_btn.setVisible(True)
+        if hasattr(self, 'dock_btn'):
+            self.dock_btn.setVisible(False)
         self.show(); self.raise_()
 
     def _undock_from_main(self):
-        self.setWindowFlags(Qt.WindowType.Window)
+        self.standalone_mode = True
         self.is_docked = False
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        if hasattr(self, '_workshop_toolbar'):
+            self._workshop_toolbar.setVisible(True)
         if hasattr(self, 'docked_settings_btn'):
             self.docked_settings_btn.setVisible(False)
-        self.resize(1200, 800)
+        if hasattr(self, 'settings_btn'):
+            self.settings_btn.setVisible(True)
+        if hasattr(self, 'dock_btn'):
+            self.dock_btn.setVisible(False)
+        self.resize(1300, 800)
         self.show(); self.raise_()
 
     def _toggle_tearoff(self):
