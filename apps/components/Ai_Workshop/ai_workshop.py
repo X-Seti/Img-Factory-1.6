@@ -81,6 +81,12 @@ class OllamaWorker(QThread):
         self.temperature = temperature
         self.max_tokens  = max_tokens
         self._full_response = ""
+        self._stop_flag  = False
+        self.setTerminationEnabled(True)
+
+    def stop(self):
+        """Request clean stop."""
+        self._stop_flag = True
 
     def run(self):
         try:
@@ -98,6 +104,8 @@ class OllamaWorker(QThread):
             with requests.post(url, json=body, stream=True, timeout=120) as resp:
                 resp.raise_for_status()
                 for line in resp.iter_lines():
+                    if self._stop_flag:
+                        break
                     if not line:
                         continue
                     chunk = json.loads(line)
@@ -116,7 +124,8 @@ class OllamaWorker(QThread):
                 "Make sure it is running:  ollama serve"
             )
         except Exception as e:
-            self.error_occurred.emit(str(e))
+            if not self._stop_flag:
+                self.error_occurred.emit(str(e))
 
 
 # ---------------------------------------------------------------------------
@@ -686,6 +695,18 @@ class AIWorkshop(QWidget):
         # Simple approach: replace last placeholder with growing response
         self._refresh_last_assistant_bubble(self._current_response)
 
+    def _cleanup_worker(self):
+        """Safely stop and wait for worker thread to finish."""
+        if self.worker is not None:
+            if self.worker.isRunning():
+                self.worker.stop()          # set stop flag
+                self.worker.quit()          # ask event loop to exit
+                if not self.worker.wait(3000):  # wait up to 3s
+                    self.worker.terminate() # hard kill if still stuck
+                    self.worker.wait(1000)
+            self.worker.deleteLater()
+            self.worker = None
+
     def _on_response_done(self, full_response: str):
         session = self.sessions[self.current_session_index]
         session["messages"].append({"role": "assistant", "content": full_response})
@@ -693,19 +714,23 @@ class AIWorkshop(QWidget):
         self.send_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.typing_label.setText("")
-        self.worker = None
+        # Don't null out worker here — let it finish naturally, cleanup on next send or close
+        if self.worker:
+            self.worker.deleteLater()
+            self.worker = None
 
     def _on_error(self, error_msg: str):
         self.typing_label.setText("")
         self.send_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self._append_bubble("error", error_msg)
-        self.worker = None
+        if self.worker:
+            self.worker.deleteLater()
+            self.worker = None
 
     def _stop_generation(self):
         if self.worker and self.worker.isRunning():
-            self.worker.terminate()
-            self.worker = None
+            self._cleanup_worker()
             self.typing_label.setText("Stopped.")
             self.send_btn.setEnabled(True)
             self.stop_btn.setEnabled(False)
@@ -944,6 +969,7 @@ class AIWorkshop(QWidget):
             self.showMaximized()
 
     def closeEvent(self, event):
+        self._cleanup_worker()
         self.window_closed.emit()
         event.accept()
 
