@@ -483,6 +483,7 @@ class AIWorkshop(QWidget):
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
         self.chat_display.setFont(self.chat_font)
+        self.chat_display.document().setDefaultFont(self.chat_font)
         self.chat_display.setPlaceholderText("Messages will appear here…")
         layout.addWidget(self.chat_display, stretch=1)
 
@@ -1226,49 +1227,44 @@ class AIWorkshop(QWidget):
         """Return (bg, fg, label) for a bubble role, using current theme colours."""
         colors = self.app_settings.get_theme_colors() if self.app_settings else {}
 
-        # Derive bubble colours from theme — tint the theme's bg/accent
-        # rather than using fixed hex values
-        bg_base    = colors.get('bg_secondary',   '#252525')
-        accent     = colors.get('accent_primary',  '#1976d2')
-        text       = colors.get('text_primary',    '#e0e0e0')
-        success    = colors.get('success',         '#4caf50')
-        error_col  = colors.get('error',           '#f44336')
+        bg_base   = colors.get('bg_secondary',  '#252525')
+        accent    = colors.get('accent_primary', '#1976d2')
+        text      = colors.get('text_primary',   '#e0e0e0')
+        success   = colors.get('success',        '#4caf50')
+        error_col = colors.get('error',          '#f44336')
+        label_col = colors.get('text_secondary', '#aaaaaa')
 
-        def _tint(hex_col: str, factor: float = 0.18) -> str:
+        def _tint(hex_col: str, factor: float) -> str:
             """Mix hex_col into bg_base at factor strength."""
             try:
                 c = QColor(hex_col)
                 b = QColor(bg_base)
-                r = int(b.red()   * (1 - factor) + c.red()   * factor)
-                g = int(b.green() * (1 - factor) + c.green() * factor)
-                bl= int(b.blue()  * (1 - factor) + c.blue()  * factor)
+                r  = int(b.red()   * (1 - factor) + c.red()   * factor)
+                g  = int(b.green() * (1 - factor) + c.green() * factor)
+                bl = int(b.blue()  * (1 - factor) + c.blue()  * factor)
                 return QColor(r, g, bl).name()
             except Exception:
                 return bg_base
 
-        def _lighten(hex_col: str, amount: int = 160) -> str:
-            """Produce a lighter/readable text colour from a base."""
-            try:
-                c = QColor(hex_col)
-                h, s, v, a = c.getHsv()
-                return QColor.fromHsv(h, max(0, s - 60), min(255, v + amount)).name()
-            except Exception:
-                return text
-
+        # Always use text_primary as the message foreground — readable on any theme
         bubble_map = {
-            "user":      (_tint(accent,    0.25), _lighten(accent,    120), "You"),
-            "assistant": (_tint(success,   0.20), _lighten(success,   120), "AI"),
-            "error":     (_tint(error_col, 0.25), _lighten(error_col, 120), "Error"),
+            "user":      (_tint(accent,    0.22), text, label_col, "You"),
+            "assistant": (_tint(success,   0.18), text, label_col, "AI"),
+            "error":     (_tint(error_col, 0.25), text, error_col, "Error"),
         }
-        return bubble_map.get(role, (_tint(text, 0.05), text, role.title()))
+        return bubble_map.get(role, (_tint(accent, 0.10), text, label_col, role.title()))
 
     def _append_bubble(self, role: str, content: str):
         """Append a styled message bubble to the chat display."""
-        bg, fg, label = self._bubble_colors(role)
+        bg, fg, label_fg, label = self._bubble_colors(role)
 
-        # Font size from current chat_font setting
-        font_size = self.chat_font.pointSize()
+        font_size   = self.chat_font.pointSize()
         font_family = self.chat_font.family()
+
+        # Ensure QTextEdit document font matches chat_font
+        # (QTextEdit.append ignores widget font for new HTML blocks without this)
+        doc = self.chat_display.document()
+        doc.setDefaultFont(self.chat_font)
 
         escaped = (content
                    .replace("&", "&amp;")
@@ -1277,11 +1273,14 @@ class AIWorkshop(QWidget):
                    .replace("\n", "<br>"))
 
         html = (
-            f'<div style="margin:6px 2px; padding:8px 12px; '
-            f'background:{bg}; border-radius:6px; color:{fg};">'
-            f'<b style="font-size:{max(8, font_size-2)}px; opacity:0.7;">{label}</b><br>'
-            f'<span style="font-family:{font_family}; font-size:{font_size}px;">'
-            f'{escaped}</span>'
+            f'<div style="margin:5px 2px; padding:8px 12px; '
+            f'background:{bg}; border-radius:6px; '
+            f'border-left:3px solid {label_fg};">'
+            f'<span style="font-size:{max(8, font_size - 2)}px; '
+            f'color:{label_fg}; font-weight:bold; '
+            f'font-family:Arial,sans-serif;">{label}</span><br>'
+            f'<span style="font-family:{font_family}; font-size:{font_size}pt; '
+            f'color:{fg};">{escaped}</span>'
             f'</div>'
         )
         self.chat_display.append(html)
@@ -1345,10 +1344,11 @@ class AIWorkshop(QWidget):
             )
 
     def _on_chat_size_changed(self, size: int):
-        """Live-update chat font size and redraw the current session."""
+        """Live-update chat font size and redraw."""
         self.chat_font.setPointSize(size)
         if hasattr(self, 'chat_display'):
             self.chat_display.setFont(self.chat_font)
+            self.chat_display.document().setDefaultFont(self.chat_font)
         if hasattr(self, 'input_box'):
             self.input_box.setFont(self.chat_font)
         self._redraw_chat()
@@ -1358,6 +1358,7 @@ class AIWorkshop(QWidget):
         self.chat_font.setFamily(font.family())
         if hasattr(self, 'chat_display'):
             self.chat_display.setFont(self.chat_font)
+            self.chat_display.document().setDefaultFont(self.chat_font)
         if hasattr(self, 'input_box'):
             self.input_box.setFont(self.chat_font)
         self._redraw_chat()
