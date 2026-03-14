@@ -98,7 +98,7 @@
     "col_offset": "Offset",
     "col_version": "Version",
     "col_compression": "Compression",
-    "col_status": "Status",
+    "col_status": "Status"
   },
   "menus": {
     "menu_structure": [
