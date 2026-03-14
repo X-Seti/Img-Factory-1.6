@@ -942,9 +942,12 @@ function bindEvents() {
   $('btn-send')?.addEventListener('click', sendMessage);
   $('btn-stop')?.addEventListener('click', stopGeneration);
 
-  // Ctrl+Enter to send
+  // Enter to send, Shift+Enter or Ctrl+Enter for newline
   $('chat-input')?.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      sendMessage();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       sendMessage();
     }
