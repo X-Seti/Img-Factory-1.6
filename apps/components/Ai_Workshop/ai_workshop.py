@@ -476,7 +476,7 @@ class AIWorkshop(QWidget):
         # Status bar (Ollama connection)
         self.status_label = QLabel("Checking Ollama...")
         self.status_label.setFont(QFont("Arial", 9))
-        self.status_label.setStyleSheet("color: #aaa;")
+        self.status_label.setObjectName("status_label")
         layout.addWidget(self.status_label)
 
         # Chat display
@@ -489,7 +489,7 @@ class AIWorkshop(QWidget):
         # Typing indicator
         self.typing_label = QLabel("")
         self.typing_label.setFont(QFont("Arial", 9))
-        self.typing_label.setStyleSheet("color: #888; font-style: italic;")
+        self.typing_label.setObjectName("typing_label")
         layout.addWidget(self.typing_label)
 
         # Attachment chips area (hidden when empty)
@@ -622,6 +622,28 @@ class AIWorkshop(QWidget):
         sys_layout.addWidget(self.system_prompt_edit)
 
         layout.addWidget(sys_group)
+
+        # Chat Display options
+        display_group = QGroupBox("Chat Display")
+        display_layout = QFormLayout(display_group)
+
+        # Text size spinner
+        self.chat_size_spin = QSpinBox()
+        self.chat_size_spin.setRange(8, 24)
+        self.chat_size_spin.setValue(self.chat_font.pointSize())
+        self.chat_size_spin.setSuffix(" pt")
+        self.chat_size_spin.setToolTip("Chat message text size")
+        self.chat_size_spin.valueChanged.connect(self._on_chat_size_changed)
+        display_layout.addRow("Text size:", self.chat_size_spin)
+
+        # Font family
+        self.chat_font_combo = QFontComboBox()
+        self.chat_font_combo.setCurrentFont(self.chat_font)
+        self.chat_font_combo.setToolTip("Chat message font")
+        self.chat_font_combo.currentFontChanged.connect(self._on_chat_font_changed)
+        display_layout.addRow("Font:", self.chat_font_combo)
+
+        layout.addWidget(display_group)
 
         # Ollama URL
         url_group = QGroupBox("Ollama")
@@ -1202,22 +1224,66 @@ class AIWorkshop(QWidget):
     # Chat display helpers
     # -----------------------------------------------------------------------
 
+    def _bubble_colors(self, role: str) -> tuple:
+        """Return (bg, fg, label) for a bubble role, using current theme colours."""
+        colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+
+        # Derive bubble colours from theme — tint the theme's bg/accent
+        # rather than using fixed hex values
+        bg_base    = colors.get('bg_secondary',   '#252525')
+        accent     = colors.get('accent_primary',  '#1976d2')
+        text       = colors.get('text_primary',    '#e0e0e0')
+        success    = colors.get('success',         '#4caf50')
+        error_col  = colors.get('error',           '#f44336')
+
+        def _tint(hex_col: str, factor: float = 0.18) -> str:
+            """Mix hex_col into bg_base at factor strength."""
+            try:
+                c = QColor(hex_col)
+                b = QColor(bg_base)
+                r = int(b.red()   * (1 - factor) + c.red()   * factor)
+                g = int(b.green() * (1 - factor) + c.green() * factor)
+                bl= int(b.blue()  * (1 - factor) + c.blue()  * factor)
+                return QColor(r, g, bl).name()
+            except Exception:
+                return bg_base
+
+        def _lighten(hex_col: str, amount: int = 160) -> str:
+            """Produce a lighter/readable text colour from a base."""
+            try:
+                c = QColor(hex_col)
+                h, s, v, a = c.getHsv()
+                return QColor.fromHsv(h, max(0, s - 60), min(255, v + amount)).name()
+            except Exception:
+                return text
+
+        bubble_map = {
+            "user":      (_tint(accent,    0.25), _lighten(accent,    120), "You"),
+            "assistant": (_tint(success,   0.20), _lighten(success,   120), "AI"),
+            "error":     (_tint(error_col, 0.25), _lighten(error_col, 120), "Error"),
+        }
+        return bubble_map.get(role, (_tint(text, 0.05), text, role.title()))
+
     def _append_bubble(self, role: str, content: str):
         """Append a styled message bubble to the chat display."""
-        colors = {
-            "user":      ("#1a3a5c", "#d0e8ff", "You"),
-            "assistant": ("#1a3d1a", "#d0ffd0", "AI"),
-            "error":     ("#5c1a1a", "#ffd0d0", "Error"),
-        }
-        bg, fg, label = colors.get(role, ("#333", "#eee", role.title()))
+        bg, fg, label = self._bubble_colors(role)
 
-        escaped = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+        # Font size from current chat_font setting
+        font_size = self.chat_font.pointSize()
+        font_family = self.chat_font.family()
+
+        escaped = (content
+                   .replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace("\n", "<br>"))
 
         html = (
             f'<div style="margin:6px 2px; padding:8px 12px; '
             f'background:{bg}; border-radius:6px; color:{fg};">'
-            f'<b style="font-size:10px; opacity:0.7;">{label}</b><br>'
-            f'<span style="font-family:Courier New; font-size:10px;">{escaped}</span>'
+            f'<b style="font-size:{max(8, font_size-2)}px; opacity:0.7;">{label}</b><br>'
+            f'<span style="font-family:{font_family}; font-size:{font_size}px;">'
+            f'{escaped}</span>'
             f'</div>'
         )
         self.chat_display.append(html)
@@ -1259,17 +1325,50 @@ class AIWorkshop(QWidget):
     def _on_model_changed(self, model: str):
         self.selected_model = model
 
-    def _update_ollama_status(self):
+    def _on_chat_size_changed(self, size: int):
+        """Live-update chat font size and redraw the current session."""
+        self.chat_font.setPointSize(size)
+        if hasattr(self, 'chat_display'):
+            self.chat_display.setFont(self.chat_font)
+        if hasattr(self, 'input_box'):
+            self.input_box.setFont(self.chat_font)
+        self._redraw_chat()
+
+    def _on_chat_font_changed(self, font):
+        """Live-update chat font family and redraw."""
+        self.chat_font.setFamily(font.family())
+        if hasattr(self, 'chat_display'):
+            self.chat_display.setFont(self.chat_font)
+        if hasattr(self, 'input_box'):
+            self.input_box.setFont(self.chat_font)
+        self._redraw_chat()
+
+    def _redraw_chat(self):
+        """Redraw all bubbles in the current session with current font/theme."""
+        if not hasattr(self, 'chat_display') or self.current_session_index < 0:
+            return
+        if self.current_session_index >= len(self.sessions):
+            return
+        self.chat_display.clear()
+        for msg in self.sessions[self.current_session_index].get("messages", []):
+            self._append_bubble(msg["role"], msg["content"])
+
+
         base_url = self.url_input.text().rstrip("/") if hasattr(self, 'url_input') else OLLAMA_BASE_URL
         running = _ollama_running(base_url)
+        colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+        success_col = colors.get('success', '#4caf50')
+        error_col   = colors.get('error',   '#f44336')
+        secondary   = colors.get('text_secondary', '#aaaaaa')
         if hasattr(self, 'ollama_status'):
             if running:
                 self.ollama_status.setText("● Ollama running")
-                self.ollama_status.setStyleSheet("color: #4caf50;")
+                self.ollama_status.setStyleSheet(f"color: {success_col};")
             else:
                 self.ollama_status.setText("● Ollama offline")
-                self.ollama_status.setStyleSheet("color: #f44336;")
+                self.ollama_status.setStyleSheet(f"color: {error_col};")
         if hasattr(self, 'status_label'):
+            self.status_label.setStyleSheet(f"color: {secondary};")
             self.status_label.setText(
                 f"Ollama: {'connected' if running else 'not running  — start with: ollama serve'}"
             )
@@ -1434,12 +1533,21 @@ class AIWorkshop(QWidget):
                 app_settings = getattr(self.main_window, 'app_settings', None)
             if app_settings:
                 self.setStyleSheet(app_settings.get_stylesheet())
+                # Apply theme colours to status labels
+                colors = app_settings.get_theme_colors()
+                secondary = colors.get('text_secondary', '#aaaaaa')
+                if hasattr(self, 'typing_label'):
+                    self.typing_label.setStyleSheet(
+                        f"color: {secondary}; font-style: italic;")
             else:
                 self.setStyleSheet("""
                     QWidget { background-color: #2b2b2b; color: #e0e0e0; }
                     QTextEdit, QListWidget { background-color: #1e1e1e; border: 1px solid #3a3a3a; }
                     QGroupBox { border: 1px solid #3a3a3a; margin-top: 6px; }
                 """)
+            # Redraw chat bubbles with updated theme colours
+            self._redraw_chat()
+            self._update_ollama_status()
         except Exception as e:
             print(f"[AI Workshop] Theme error: {e}")
 
