@@ -17,8 +17,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import uvicorn
@@ -29,7 +28,35 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
 
 static_dir    = current_dir / "static"
 templates_dir = current_dir / "templates"
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# Serve static files with no-cache headers so JS changes take effect immediately
+from fastapi.responses import FileResponse, Response
+
+@app.get("/static/{filename:path}")
+async def static_files(filename: str):
+    path = static_dir / filename
+    if not path.exists():
+        raise HTTPException(404, f"Not found: {filename}")
+    media_types = {
+        ".js":   "application/javascript",
+        ".css":  "text/css",
+        ".png":  "image/png",
+        ".ico":  "image/x-icon",
+        ".svg":  "image/svg+xml",
+        ".woff": "font/woff",
+        ".woff2":"font/woff2",
+    }
+    ext = path.suffix.lower()
+    content = path.read_bytes()
+    return Response(
+        content=content,
+        media_type=media_types.get(ext, "application/octet-stream"),
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma":        "no-cache",
+            "Expires":       "0",
+        }
+    )
 
 _config = {
     "ollama_url":   "http://localhost:11434",
@@ -50,7 +77,12 @@ _ssh_connections: dict = {}
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    return HTMLResponse((templates_dir / "index.html").read_text())
+    content = (templates_dir / "index.html").read_text()
+    return HTMLResponse(content, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma":        "no-cache",
+        "Expires":       "0",
+    })
 
 
 # ---------------------------------------------------------------------------
