@@ -413,6 +413,21 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.properties_btn.customContextMenuRequested.connect(self._show_settings_context_menu)
         layout.addWidget(self.properties_btn)
 
+        # AI Workshop button
+        self.ai_btn = QPushButton()
+        self.ai_btn.setFont(self.button_font)
+        self.ai_btn.setIcon(self.icon_factory.info_icon(20, icon_color))
+        self.ai_btn.setText("AI")
+        self.ai_btn.setIconSize(QSize(20, 20))
+        self.ai_btn.setMinimumWidth(40)
+        self.ai_btn.setMaximumWidth(40)
+        self.ai_btn.setMinimumHeight(30)
+        self.ai_btn.setToolTip("AI Workshop – Local LLM chat via Ollama\nLeft-click: dock into tab\nRight-click: open standalone")
+        self.ai_btn.clicked.connect(lambda: self.main_window.open_ai_workshop_docked())
+        self.ai_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.ai_btn.customContextMenuRequested.connect(self._show_ai_context_menu)
+        layout.addWidget(self.ai_btn)
+
         #self.debug_btn = QPushButton()
         #self.debug_btn.setFont(self.button_font)
         #self.debug_btn.setText("DEBUG")
@@ -1809,7 +1824,21 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         menu.exec(self.properties_btn.mapToGlobal(pos))
 
 
-    def _apply_always_on_top(self): #vers 1
+    def _show_ai_context_menu(self, pos): #vers 1
+        """Right-click menu for AI Workshop button"""
+        from PyQt6.QtWidgets import QMenu
+
+        menu = QMenu(self.main_window)
+
+        docked_action = menu.addAction("Open AI Workshop (Docked Tab)")
+        docked_action.triggered.connect(lambda: self.main_window.open_ai_workshop_docked())
+
+        standalone_action = menu.addAction("Open AI Workshop (Standalone Window)")
+        standalone_action.triggered.connect(lambda: self.main_window.open_ai_workshop_standalone())
+
+        menu.exec(self.ai_btn.mapToGlobal(pos))
+
+
         """Apply always on top window flag"""
         current_flags = self.windowFlags()
 
