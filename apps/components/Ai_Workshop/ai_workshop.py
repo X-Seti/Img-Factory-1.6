@@ -186,6 +186,12 @@ class AIWorkshop(QWidget):
             "You are a helpful coding assistant specialising in Python, "
             "PyQt6, and GTA modding tools. Be concise and practical."
         )
+        self.ai_rules         = (
+            "- Always reply in the same language the user writes in\n"
+            "- Keep responses concise unless asked to elaborate\n"
+            "- For code, always specify the language in fenced blocks\n"
+            "- Never make up library names or functions that don't exist"
+        )
         self.sessions_dir     = os.path.expanduser("~/.config/imgfactory/ai_sessions")
 
         # SSH settings
@@ -1155,10 +1161,15 @@ class AIWorkshop(QWidget):
         self._save_current_session()
         self._refresh_session_list()
 
-        # Build API messages
+        # Build API messages — combine system prompt and rules
         api_messages = []
+        system_parts = []
         if self.system_prompt.strip():
-            api_messages.append({"role": "system", "content": self.system_prompt})
+            system_parts.append(self.system_prompt.strip())
+        if getattr(self, 'ai_rules', '').strip():
+            system_parts.append("\n\nRules:\n" + self.ai_rules.strip())
+        if system_parts:
+            api_messages.append({"role": "system", "content": "".join(system_parts)})
         # History (use display text for history context)
         for msg in session["messages"][:-1]:
             api_messages.append({"role": msg["role"], "content": msg["content"]})
@@ -1674,6 +1685,85 @@ class AIWorkshop(QWidget):
 
         tabs.addTab(gen_tab, "General")
 
+        # --- Rules tab ---
+        rules_tab = QWidget()
+        rules_layout = QVBoxLayout(rules_tab)
+
+        # System prompt
+        sp_group = QGroupBox("System Prompt")
+        sp_group.setToolTip("Sets the AI's persona and context — sent before every conversation")
+        sp_layout = QVBoxLayout(sp_group)
+        sp_edit = QTextEdit()
+        sp_edit.setFont(QFont("Courier New", 9))
+        sp_edit.setMinimumHeight(80)
+        sp_edit.setPlaceholderText("e.g. You are a helpful Python coding assistant...")
+        sp_edit.setPlainText(self.system_prompt)
+        sp_layout.addWidget(sp_edit)
+        rules_layout.addWidget(sp_group)
+
+        # Rules list
+        rules_group = QGroupBox("Rules")
+        rules_group.setToolTip(
+            "Additional rules appended to the system prompt.\n"
+            "One rule per line. These constrain the AI's behaviour.")
+        rules_vl = QVBoxLayout(rules_group)
+
+        rules_hint = QLabel(
+            "One rule per line — appended to the system prompt as a rules list.\n"
+            "Example:  - Always reply in the language the user writes in"
+        )
+        rules_hint.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        rules_hint.setWordWrap(True)
+        rules_vl.addWidget(rules_hint)
+
+        rules_edit = QTextEdit()
+        rules_edit.setFont(QFont("Courier New", 9))
+        rules_edit.setMinimumHeight(120)
+        rules_edit.setPlaceholderText(
+            "- Always reply in the user's language\n"
+            "- Keep responses concise\n"
+            "- Use fenced code blocks with language specified"
+        )
+        rules_edit.setPlainText(getattr(self, 'ai_rules', ''))
+        rules_vl.addWidget(rules_edit)
+
+        # Quick-add preset rules
+        presets_row = QHBoxLayout()
+        presets_label = QLabel("Add preset:")
+        presets_label.setFont(self.panel_font)
+        presets_row.addWidget(presets_label)
+
+        preset_combo = QComboBox()
+        preset_combo.addItems([
+            "Select a preset…",
+            "Always reply in user's language",
+            "Keep responses concise",
+            "Always use fenced code blocks with language",
+            "Never make up library names or functions",
+            "Always explain your reasoning step by step",
+            "Reply as a GTA modding expert",
+            "Reply as a Python/PyQt6 expert",
+            "Do not add unsolicited advice",
+        ])
+        presets_row.addWidget(preset_combo, stretch=1)
+
+        add_preset_btn = QPushButton("Add")
+        add_preset_btn.setFont(self.button_font)
+        def _add_preset():
+            txt = preset_combo.currentText()
+            if txt and not txt.startswith("Select"):
+                current = rules_edit.toPlainText().rstrip()
+                prefix = "- " if not txt.startswith("-") else ""
+                rules_edit.setPlainText(
+                    (current + "\n" if current else "") + prefix + txt)
+        add_preset_btn.clicked.connect(_add_preset)
+        presets_row.addWidget(add_preset_btn)
+
+        rules_vl.addLayout(presets_row)
+        rules_layout.addWidget(rules_group)
+        rules_layout.addStretch()
+        tabs.addTab(rules_tab, "Rules")
+
         # --- SSH tab ---
         ssh_tab = QWidget()
         ssh_layout = QVBoxLayout(ssh_tab)
@@ -1881,6 +1971,11 @@ class AIWorkshop(QWidget):
                     try: self._ssh.disconnect()
                     except Exception: pass
                     self._ssh = None
+            # Rules & system prompt
+            self.system_prompt = sp_edit.toPlainText()
+            self.ai_rules      = rules_edit.toPlainText()
+            if hasattr(self, 'system_prompt_edit'):
+                self.system_prompt_edit.setPlainText(self.system_prompt)
             # Display options
             self.show_timestamps   = ts_chk.isChecked()
             self.show_line_numbers = ln_chk.isChecked()
