@@ -5140,6 +5140,81 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error opening COL Workshop: {str(e)}")
 
 
+    def open_ai_workshop_docked(self): #vers 1
+        """Open AI Workshop embedded as a tab in IMG Factory"""
+        try:
+            from apps.components.Ai_Workshop.ai_workshop import AIWorkshop
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+                # No tab widget - open standalone
+                self.open_ai_workshop_standalone()
+                return None
+
+            # Check if AI Workshop tab is already open
+            for i in range(self.main_tab_widget.count()):
+                widget = self.main_tab_widget.widget(i)
+                if widget:
+                    workshops = widget.findChildren(AIWorkshop)
+                    if workshops:
+                        self.main_tab_widget.setCurrentIndex(i)
+                        self.log_message("AI Workshop already open - switched to tab")
+                        return workshops[0]
+
+            # Create tab container
+            tab_container = QWidget()
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+
+            workshop = AIWorkshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            # Add tab with icon if available
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                icon = SVGIconFactory().info_icon()
+                idx = self.main_tab_widget.addTab(tab_container, icon, "AI Workshop")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "AI Workshop")
+
+            self.main_tab_widget.setCurrentIndex(idx)
+            workshop.show()
+            self.log_message("AI Workshop opened (docked)")
+            return workshop
+
+        except Exception as e:
+            self.log_message(f"Error opening AI Workshop: {str(e)}")
+            return None
+
+
+    def open_ai_workshop_standalone(self): #vers 1
+        """Open AI Workshop as a standalone floating window"""
+        try:
+            from apps.components.Ai_Workshop.ai_workshop import AIWorkshop
+
+            workshop = AIWorkshop(None, self)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            workshop.setWindowTitle("AI Workshop")
+            workshop.resize(1300, 800)
+            workshop.show()
+            workshop.raise_()
+
+            if not hasattr(self, 'ai_workshops'):
+                self.ai_workshops = []
+            self.ai_workshops.append(workshop)
+            workshop.window_closed.connect(
+                lambda: self.ai_workshops.remove(workshop) if workshop in self.ai_workshops else None
+            )
+
+            self.log_message("AI Workshop opened (standalone)")
+            return workshop
+
+        except Exception as e:
+            self.log_message(f"Error opening AI Workshop standalone: {str(e)}")
+            return None
+
+
    #TODO below, coming soon.
     def open_dff_editor(self): #vers 1
         """Open DFF model editor"""
