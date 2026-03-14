@@ -798,10 +798,8 @@ class AIWorkshop(QWidget):
             return
         if index < 0 or index >= len(self.sessions):
             return
-        session = self.sessions[index]
-        self.chat_display.clear()
-        for msg in session.get("messages", []):
-            self._append_bubble(msg["role"], msg["content"])
+        self.current_session_index = index
+        self._redraw_chat()
 
     def _session_context_menu(self, pos):
         item = self.session_list.itemAt(pos)
@@ -1175,6 +1173,8 @@ class AIWorkshop(QWidget):
         self.typing_label.setText(f"{model} is thinking…")
 
         self._current_response = ""
+        # Add placeholder to session so _append_bubble can index it
+        session["messages"].append({"role": "assistant", "content": ""})
         self._append_bubble("assistant", "")
 
         self.worker = OllamaWorker(model, api_messages, base_url,
@@ -1206,7 +1206,12 @@ class AIWorkshop(QWidget):
 
     def _on_response_done(self, full_response: str):
         session = self.sessions[self.current_session_index]
-        session["messages"].append({"role": "assistant", "content": full_response})
+        # Update the placeholder message that was added when streaming started
+        msgs = session.get("messages", [])
+        if msgs and msgs[-1].get("role") == "assistant":
+            msgs[-1]["content"] = full_response
+        else:
+            session["messages"].append({"role": "assistant", "content": full_response})
         self._refresh_last_assistant_bubble(full_response)
         self.send_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
@@ -1218,10 +1223,16 @@ class AIWorkshop(QWidget):
             self.worker = None
 
     def _on_error(self, error_msg: str):
+        session = self.sessions[self.current_session_index]
+        # Remove empty assistant placeholder if present
+        msgs = session.get("messages", [])
+        if msgs and msgs[-1].get("role") == "assistant" and not msgs[-1].get("content"):
+            msgs.pop()
+        session["messages"].append({"role": "error", "content": error_msg})
         self.typing_label.setText("")
         self.send_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        self._append_bubble("error", error_msg)
+        self._redraw_chat()
         if self.worker:
             self.worker.deleteLater()
             self.worker = None
@@ -1269,21 +1280,14 @@ class AIWorkshop(QWidget):
         }
         return bubble_map.get(role, (row_bg, text, label_col, role.title()))
 
-    def _append_bubble(self, role: str, content: str):
-        """Append a styled message bubble using alternating row pattern."""
-        if self.current_session_index >= 0 and self.current_session_index < len(self.sessions):
-            idx = len(self.sessions[self.current_session_index].get("messages", []))
-        else:
-            idx = self.chat_display.document().blockCount()
-
+    def _make_bubble_html(self, role: str, content: str, idx: int,
+                           font_size: int, font_family: str,
+                           colors: dict, ts: str = "") -> str:
+        """Return the HTML string for a single message bubble."""
         bg, fg, label_fg, label = self._bubble_colors(role, idx)
-        font_size   = self.chat_font.pointSize()
-        font_family = self.chat_font.family()
-        self.chat_display.document().setDefaultFont(self.chat_font)
-
-        colors    = self.app_settings.get_theme_colors() if self.app_settings else {}
-        meta_col  = colors.get("text_secondary", "#888888")
-        border_col = colors.get("border", "#3a3a3a")
+        meta_col   = colors.get("text_secondary", "#888888")
+        border_col = colors.get("border",         "#3a3a3a")
+        bg_base    = colors.get("bg_primary",      "#1e1e1e")
 
         escaped = (content
                    .replace("&", "&amp;")
@@ -1291,58 +1295,99 @@ class AIWorkshop(QWidget):
                    .replace(">", "&gt;")
                    .replace("\n", "<br>"))
 
-        # Meta line — line number, label, timestamp (outside copy/paste region via user-select:none)
         meta_parts = []
         if getattr(self, "show_line_numbers", True):
             meta_parts.append(f"#{idx + 1}")
         meta_parts.append(label)
-        if getattr(self, "show_timestamps", True):
-            from datetime import datetime
-            meta_parts.append(datetime.now().strftime("%H:%M:%S"))
+        if getattr(self, "show_timestamps", True) and ts:
+            meta_parts.append(ts)
 
-        meta_html = (
-            f'<span style="font-size:{max(7, font_size - 3)}px; '
-            f'color:{meta_col}; font-family:Arial,sans-serif; '
-            f'user-select:none; -webkit-user-select:none;">' +
-            "&nbsp;&middot;&nbsp;".join(meta_parts) +
-            f'</span>'
-        )
+        meta_str = " &middot; ".join(meta_parts)
 
-        html = (
-            # Spacer before each bubble for visual separation
-            f'<div style="margin:0; padding:2px 0; background:transparent;"> </div>'
-            f'<div style="margin:0; padding:6px 14px 8px 14px; '
-            f'background:{bg}; border-left:3px solid {label_fg}; '
-            f'border-bottom:1px solid {border_col};">'
-            f'{meta_html}<br>'
-            f'<span style="font-family:{font_family}; font-size:{font_size}pt; '
-            f'color:{fg};">{escaped}</span>'
-            f'</div>'
+        # Gap row between bubbles using the page background colour
+        gap = (f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+               f'<tr><td height="6" bgcolor="{bg_base}"></td></tr></table>')
+
+        # Message row — table layout for reliable Qt HTML rendering
+        row = (
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+            f' style="border-left:3px solid {label_fg}; background:{bg};">'
+            f'<tr>'
+            f'<td style="padding:5px 14px 2px 14px; font-size:{max(7,font_size-3)}pt;'
+            f' color:{meta_col}; font-family:Arial,sans-serif;">{meta_str}</td>'
+            f'</tr><tr>'
+            f'<td style="padding:2px 14px 8px 14px; border-bottom:1px solid {border_col};'
+            f' font-family:{font_family}; font-size:{font_size}pt; color:{fg};">'
+            f'{escaped}'
+            f'</td></tr></table>'
         )
-        self.chat_display.append(html)
-        self.chat_display.verticalScrollBar().setValue(
-            self.chat_display.verticalScrollBar().maximum()
-        )
+        return gap + row
+
+    def _build_full_html(self, messages: list) -> str:
+        """Build the complete HTML document for the chat display."""
+        colors    = self.app_settings.get_theme_colors() if self.app_settings else {}
+        bg_page   = colors.get("bg_primary", "#1e1e1e")
+        font_size = self.chat_font.pointSize()
+        font_fam  = self.chat_font.family()
+
+        parts = [f'<html><body style="background:{bg_page}; margin:0; padding:0;">']
+        for i, msg in enumerate(messages):
+            ts = msg.get("ts", "")
+            parts.append(self._make_bubble_html(
+                msg["role"], msg["content"], i, font_size, font_fam, colors, ts))
+        parts.append("</body></html>")
+        return "".join(parts)
+
+    def _append_bubble(self, role: str, content: str):
+        """Add a message to the current session and refresh the display."""
+        from datetime import datetime
+        ts = datetime.now().strftime("%H:%M:%S") if getattr(self, "show_timestamps", True) else ""
+
+        # Store timestamp in the message for redraws
+        if self.current_session_index >= 0 and self.current_session_index < len(self.sessions):
+            msgs = self.sessions[self.current_session_index].setdefault("messages_meta", {})
+            idx  = len(self.sessions[self.current_session_index].get("messages", []))
+            msgs[str(idx)] = ts
+
+        self._redraw_chat()
+
+    def _get_ts(self, session: dict, idx: int) -> str:
+        """Get stored timestamp for a message by index."""
+        return session.get("messages_meta", {}).get(str(idx), "")
 
     def _refresh_last_assistant_bubble(self, content: str):
-        """Rebuild chat HTML to update the last streaming assistant message."""
+        """Update the last assistant message with current streaming content."""
+        if self.current_session_index < 0:
+            return
         session = self.sessions[self.current_session_index]
-        self.chat_display.clear()
-        self.chat_display.document().setDefaultFont(self.chat_font)
-        for msg in session["messages"][:-1]:
-            self._append_bubble(msg["role"], msg["content"])
-        self._append_bubble("assistant", content)
+        msgs = session.get("messages", [])
+        if not msgs:
+            return
+        # Update the last message content in-place then redraw
+        last = msgs[-1]
+        last["content"] = content
+        self._redraw_chat()
 
     def _redraw_chat(self):
-        """Redraw all bubbles with current font and theme."""
-        if not hasattr(self, 'chat_display') or self.current_session_index < 0:
+        """Rebuild the full chat HTML from scratch using setHtml for reliable rendering."""
+        if not hasattr(self, "chat_display") or self.current_session_index < 0:
             return
         if self.current_session_index >= len(self.sessions):
             return
-        self.chat_display.clear()
+        session  = self.sessions[self.current_session_index]
+        messages = session.get("messages", [])
+
+        # Inject stored timestamps into message dicts for rendering
+        meta = session.get("messages_meta", {})
+        for i, msg in enumerate(messages):
+            msg["ts"] = meta.get(str(i), "")
+
         self.chat_display.document().setDefaultFont(self.chat_font)
-        for msg in self.sessions[self.current_session_index].get("messages", []):
-            self._append_bubble(msg["role"], msg["content"])
+        html = self._build_full_html(messages)
+        # Preserve scroll position — scroll to bottom after set
+        sb = self.chat_display.verticalScrollBar()
+        self.chat_display.setHtml(html)
+        sb.setValue(sb.maximum())
 
     def _refresh_model_list(self):
         base_url = self.url_input.text().rstrip("/") if hasattr(self, 'url_input') else OLLAMA_BASE_URL
@@ -1759,6 +1804,8 @@ class AIWorkshop(QWidget):
         disp_layout.addWidget(chat_disp_group)
         disp_layout.addStretch()
         tabs.addTab(disp_tab, "Display")
+
+        layout.addWidget(tabs)  # ← was missing, caused settings to show only Apply/Close
 
         # Buttons
         btns = QHBoxLayout()
