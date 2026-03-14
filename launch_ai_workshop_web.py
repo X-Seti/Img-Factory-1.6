@@ -1,146 +1,102 @@
 #!/usr/bin/env python3
 """
-X-Seti - March 2026 - AI Workshop 1.0 - Web Launcher
+X-Seti - March 2026 - AI Workshop Web Server Launcher
 #this belongs in root /launch_ai_workshop_web.py - Version: 1
-
-Starts the FastAPI web server for AI Workshop.
-- Auto-installs missing dependencies
-- Opens browser automatically
-- Port configurable via ~/.config/imgfactory/ai_workshop_web.json
 """
 import sys
 import os
-import json
 import subprocess
-import importlib
+import threading
+import time
+import webbrowser
 from pathlib import Path
 
 root_dir = Path(__file__).parent.resolve()
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-# ── Requirements ────────────────────────────────────────────────────────────
-
-REQUIREMENTS = [
-    ("fastapi",    "fastapi"),
-    ("uvicorn",    "uvicorn"),
-    ("httpx",      "httpx"),
-    ("multipart",  "python-multipart"),  # for file uploads
-]
+REQUIREMENTS = ["fastapi", "uvicorn[standard]", "httpx", "python-multipart"]
+IMPORT_NAMES = {"fastapi": "fastapi", "uvicorn[standard]": "uvicorn",
+                "httpx": "httpx", "python-multipart": "multipart"}
 
 
-def check_and_install():
+def ensure_deps():
     missing = []
-    for import_name, pkg_name in REQUIREMENTS:
+    for pkg in REQUIREMENTS:
+        imp = IMPORT_NAMES.get(pkg, pkg.split("[")[0].replace("-", "_"))
         try:
-            importlib.import_module(import_name)
+            __import__(imp)
         except ImportError:
-            missing.append((import_name, pkg_name))
-
+            missing.append(pkg)
     if not missing:
         return True
-
-    print(f"\nAI Workshop Web — installing {len(missing)} missing package(s):")
-    for _, pkg in missing:
-        print(f"  pip install {pkg}")
-
-    print()
-    for _, pkg in missing:
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", pkg, "--break-system-packages"],
-            capture_output=False
-        )
-        if result.returncode != 0:
-            print(f"\nERROR: Failed to install {pkg}")
-            print("Try manually:  pip install " + pkg + " --break-system-packages")
-            return False
-
-    print("\nAll dependencies installed.\n")
+    print(f"Installing: {', '.join(missing)}")
+    r = subprocess.run([sys.executable, "-m", "pip", "install",
+                        "--break-system-packages"] + missing)
+    if r.returncode != 0:
+        print("pip install failed. Try manually:")
+        print(f"  pip install {' '.join(missing)} --break-system-packages")
+        return False
+    print("Done.\n")
     return True
 
 
-# ── Config ──────────────────────────────────────────────────────────────────
-
-CONFIG_PATH = os.path.expanduser("~/.config/imgfactory/ai_workshop_web.json")
-
-DEFAULT_CONFIG = {
-    "host":         "127.0.0.1",
-    "port":         8080,
-    "ollama_url":   "http://localhost:11434",
-    "sessions_dir": os.path.expanduser("~/.config/imgfactory/ai_sessions"),
-    "ssh": {
-        "host": "127.0.0.1", "port": 22,
-        "username": "", "password": "", "key_path": "", "root_path": "/home"
-    }
-}
-
-
 def load_config():
+    cfg = {"port": 8080, "host": "127.0.0.1",
+           "ollama_url": "http://localhost:11434",
+           "sessions_dir": os.path.expanduser("~/.config/imgfactory/ai_sessions")}
     try:
-        if os.path.exists(CONFIG_PATH):
-            with open(CONFIG_PATH) as f:
-                cfg = json.load(f)
-            merged = dict(DEFAULT_CONFIG)
-            merged.update(cfg)
-            return merged
-    except Exception as e:
-        print(f"Config load error: {e}")
-    # Write defaults on first run
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(DEFAULT_CONFIG, f, indent=2)
-    print(f"Created default config at: {CONFIG_PATH}")
-    return dict(DEFAULT_CONFIG)
+        import json
+        p = os.path.expanduser("~/.config/imgfactory/ai_workshop_web.json")
+        if os.path.exists(p):
+            with open(p) as f:
+                cfg.update(json.load(f))
+    except Exception:
+        pass
+    return cfg
 
-
-# ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    print("=" * 55)
-    print("  AI Workshop 1.0 — Web Interface")
-    print("=" * 55)
+    print("=" * 50)
+    print("  AI Workshop — Web Server")
+    print("=" * 50)
 
-    if not check_and_install():
+    if not ensure_deps():
         sys.exit(1)
 
     cfg  = load_config()
-    host = cfg.get("host", "127.0.0.1")
-    port = cfg.get("port", 8080)
-    url  = f"http://{host}:{port}"
+    port = int(os.environ.get("AIWS_PORT", cfg["port"]))
+    host = os.environ.get("AIWS_HOST", cfg["host"])
 
-    print(f"\n  URL:  {url}")
-    print(f"  Sessions: {cfg.get('sessions_dir', '~/.config/imgfactory/ai_sessions')}")
-    print(f"  Ollama:   {cfg.get('ollama_url', 'http://localhost:11434')}")
+    from apps.components.Ai_Workshop.web.server import app, configure
+    configure(ollama_url=cfg["ollama_url"], sessions_dir=cfg["sessions_dir"],
+              port=port, host=host)
+
+    display_host = "localhost" if host in ("0.0.0.0", "127.0.0.1") else host
+    url = f"http://{display_host}:{port}"
+
+    print(f"\n  URL      : {url}")
+    print(f"  Sessions : {cfg['sessions_dir']}")
+    print(f"  Ollama   : {cfg['ollama_url']}")
     print(f"\n  Press Ctrl+C to stop\n")
 
-    # Open browser after short delay (give server time to start)
-    def _open_browser():
-        import time, webbrowser
+    def _open():
         time.sleep(1.2)
+        print(f"  Opening browser…")
         webbrowser.open(url)
-        print(f"  Browser opened: {url}")
 
-    import threading
-    threading.Thread(target=_open_browser, daemon=True).start()
+    threading.Thread(target=_open, daemon=True).start()
 
-    # Start uvicorn
     import uvicorn
-    uvicorn.run(
-        "apps.components.Ai_Workshop.web.server:app",
-        host=host,
-        port=port,
-        reload=False,
-        log_level="warning",
-    )
+    uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\nAI Workshop Web stopped.")
+        print("\nServer stopped.")
     except Exception as e:
-        print(f"\nERROR: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"ERROR: {e}")
+        import traceback; traceback.print_exc()
         sys.exit(1)

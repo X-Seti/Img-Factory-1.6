@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Workshop</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="titlebar">
+    <div class="tb-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4"/>
+        <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+        <line x1="4.9" y1="4.9" x2="7.1" y2="7.1"/><line x1="16.9" y1="16.9" x2="19.1" y2="19.1"/>
+        <line x1="4.9" y1="19.1" x2="7.1" y2="16.9"/><line x1="16.9" y1="7.1" x2="19.1" y2="4.9"/>
+      </svg>
+      AI Workshop
+    </div>
+    <button class="icon-btn mobile-only" title="Sessions" onclick="toggleSidebar()">☰</button>
+    <div class="tb-spacer"></div>
+    <div class="tb-status">
+      <div class="dot" id="ollama-dot"></div>
+      <span id="ollama-status-text">Checking…</span>
+    </div>
+    <button class="icon-btn mobile-only" title="Settings" onclick="toggleSettings()">⚙</button>
+  </div>
+
+  <div id="main">
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <span class="panel-title">Sessions</span>
+        <button class="icon-btn" title="New session" onclick="newSession()">＋</button>
+      </div>
+      <input id="session-search" type="text" placeholder="Search sessions…" oninput="filterSessions(this.value)">
+      <ul id="session-list"></ul>
+      <div id="sidebar-footer">
+        <button onclick="exportSession('md')">Export</button>
+        <button class="danger" onclick="deleteCurrentSession()">Delete</button>
+      </div>
+    </div>
+
+    <div id="chat-panel">
+      <div id="chat-header">
+        <span id="session-name-display" title="Click to rename" onclick="renameCurrentSession()">—</span>
+        <span id="msg-count-display"></span>
+      </div>
+      <div id="chat-messages"></div>
+      <div id="typing-indicator"></div>
+      <div id="attachment-bar"></div>
+      <div id="input-area">
+        <textarea id="message-input" placeholder="Type your message… (Ctrl+Enter to send)"
+                  rows="2" onkeydown="handleInputKey(event)"></textarea>
+        <div id="input-buttons">
+          <button class="primary" id="send-btn" onclick="sendMessage()">Send</button>
+          <button id="stop-btn" onclick="stopGeneration()" disabled>Stop</button>
+          <button title="Attach local file" onclick="triggerFileUpload()">📎</button>
+          <button title="Attach SSH file" onclick="openSSHBrowser()">🔗</button>
+        </div>
+      </div>
+      <input type="file" id="file-input" multiple style="display:none" onchange="handleFileUpload(event)">
+    </div>
+
+    <div id="settings-panel">
+      <h3>Model</h3>
+      <div class="settings-group">
+        <label>Active Model</label>
+        <select id="model-select" onchange="state.model=this.value"><option value="">Loading…</option></select>
+        <button onclick="loadModels()">Refresh</button>
+      </div>
+      <h3>Generation</h3>
+      <div class="settings-group">
+        <label>Temperature</label>
+        <div class="range-row">
+          <input type="range" min="0" max="2" step="0.05" value="0.7" id="temp-range"
+                 oninput="state.temperature=+this.value; document.getElementById('temp-val').textContent=(+this.value).toFixed(2)">
+          <span class="range-val" id="temp-val">0.70</span>
+        </div>
+        <label>Max Tokens</label>
+        <input type="number" id="tokens-input" value="2048" min="128" max="16384" step="256"
+               onchange="state.maxTokens=+this.value">
+      </div>
+      <h3>System Prompt</h3>
+      <div class="settings-group">
+        <textarea id="system-prompt-input" rows="4"
+          onchange="state.systemPrompt=this.value">You are a helpful coding assistant specialising in Python, PyQt6, and GTA modding tools. Be concise and practical.</textarea>
+      </div>
+      <h3>Ollama</h3>
+      <div class="settings-group">
+        <label>URL</label>
+        <input type="text" id="ollama-url-input" value="http://localhost:11434"
+               onchange="state.ollamaUrl=this.value; checkOllamaStatus()">
+        <div class="status-row">
+          <div class="status-dot" id="right-ollama-dot"></div>
+          <span id="right-ollama-text">Checking…</span>
+        </div>
+      </div>
+      <h3>Theme</h3>
+      <div class="settings-group">
+        <label>Active Theme</label>
+        <select id="theme-select" onchange="applyTheme(this.value)"><option value="">Default</option></select>
+      </div>
+      <h3>SSH Access</h3>
+      <div class="settings-group">
+        <button onclick="openSSHBrowser()">Open SSH File Browser</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="ssh-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>SSH File Browser</h2>
+      <button class="icon-btn" onclick="closeSSHModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="ssh-connect-form">
+        <div class="ssh-form">
+          <label>Host</label><input type="text" id="ssh-host" value="127.0.0.1">
+          <label>Port</label><input type="number" id="ssh-port" value="22">
+          <label>Username</label><input type="text" id="ssh-user">
+          <label>Password</label><input type="password" id="ssh-pass">
+          <label>Key path</label><input type="text" id="ssh-key" placeholder="~/.ssh/id_rsa (optional)">
+        </div>
+        <button class="primary" onclick="sshConnect()">Connect</button>
+        <span id="ssh-connect-msg"></span>
+      </div>
+      <div id="ssh-browser" style="display:none">
+        <div id="ssh-path">/</div>
+        <ul id="ssh-file-list"></ul>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="ssh-attach-btn" disabled onclick="sshAttachSelected()">Attach Selected</button>
+      <button onclick="closeSSHModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
