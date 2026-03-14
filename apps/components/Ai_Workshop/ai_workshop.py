@@ -211,7 +211,8 @@ class AIWorkshop(QWidget):
         self.icon_factory = SVGIconFactory()
 
         self.setWindowTitle(App_name)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        if ICONS_AVAILABLE:
+            self.setWindowIcon(SVGIconFactory.ai_icon(24))
         self.resize(1400, 800)
         self.setMinimumSize(800, 500)
 
@@ -785,13 +786,15 @@ class AIWorkshop(QWidget):
 
     def eventFilter(self, obj, event):
         from PyQt6.QtCore import QEvent
-        if obj is self.input_box and event.type() == QEvent.Type.KeyPress:
-            from PyQt6.QtGui import QKeyEvent
-            ke: QKeyEvent = event
-            if (ke.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and
-                    ke.modifiers() & Qt.KeyboardModifier.ControlModifier):
-                self._send_message()
-                return True
+        # Guard: input_box may not exist yet during early toolbar init
+        if hasattr(self, 'input_box') and obj is self.input_box:
+            if event.type() == QEvent.Type.KeyPress:
+                from PyQt6.QtGui import QKeyEvent
+                ke: QKeyEvent = event
+                if (ke.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and
+                        ke.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                    self._send_message()
+                    return True
         return super().eventFilter(obj, event)
 
     # -----------------------------------------------------------------------

@@ -903,6 +903,34 @@ class SVGIconFactory: #vers 7
 
 
     @staticmethod
+    def ai_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
+        """AI Workshop icon - circuit brain / neural spark"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="4"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            <line x1="12" y1="2"  x2="12" y2="5"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="19" x2="12" y2="22"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="2"  y1="12" x2="5"  y2="12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="19" y1="12" x2="22" y2="12"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4.9"  y1="4.9"  x2="7.1"  y2="7.1"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="16.9" y1="16.9" x2="19.1" y2="19.1"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4.9"  y1="19.1" x2="7.1"  y2="16.9"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="16.9" y1="7.1"  x2="19.1" y2="4.9"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
+
+
+    @staticmethod
     def color_picker_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Color picker icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
