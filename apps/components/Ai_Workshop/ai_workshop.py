@@ -199,6 +199,19 @@ class AIWorkshop(QWidget):
         }
         self._ssh = None   # SSHFileAccess instance, lazy-init
 
+        # Web server settings
+        self.web_config = {
+            "enabled":  False,
+            "host":     "127.0.0.1",
+            "port":     8080,
+        }
+        self._web_thread  = None   # background thread running uvicorn
+        self._web_running = False
+
+        # Chat display options
+        self.show_timestamps   = True
+        self.show_line_numbers = True
+
         # Fonts (mirrors COL Workshop)
         self.title_font   = QFont("Arial", 14)
         self.panel_font   = QFont("Arial", 10)
@@ -1268,17 +1281,38 @@ class AIWorkshop(QWidget):
         font_family = self.chat_font.family()
         self.chat_display.document().setDefaultFont(self.chat_font)
 
+        colors    = self.app_settings.get_theme_colors() if self.app_settings else {}
+        meta_col  = colors.get("text_secondary", "#888888")
+        border_col = colors.get("border", "#3a3a3a")
+
         escaped = (content
                    .replace("&", "&amp;")
                    .replace("<", "&lt;")
                    .replace(">", "&gt;")
                    .replace("\n", "<br>"))
 
+        # Meta line — line number, label, timestamp (outside copy/paste region via user-select:none)
+        meta_parts = []
+        if getattr(self, "show_line_numbers", True):
+            meta_parts.append(f"#{idx + 1}")
+        meta_parts.append(label)
+        if getattr(self, "show_timestamps", True):
+            from datetime import datetime
+            meta_parts.append(datetime.now().strftime("%H:%M:%S"))
+
+        meta_html = (
+            f'<span style="font-size:{max(7, font_size - 3)}px; '
+            f'color:{meta_col}; font-family:Arial,sans-serif; '
+            f'user-select:none; -webkit-user-select:none;">' +
+            "&nbsp;&middot;&nbsp;".join(meta_parts) +
+            f'</span>'
+        )
+
         html = (
-            f'<div style="margin:0; padding:8px 14px; '
-            f'background:{bg}; border-left:3px solid {label_fg};">'
-            f'<span style="font-size:{max(8, font_size - 2)}px; '
-            f'color:{label_fg}; font-weight:bold; font-family:Arial,sans-serif;">{label}</span><br>'
+            f'<div style="margin:0; padding:6px 14px 8px 14px; '
+            f'background:{bg}; border-left:3px solid {label_fg}; '
+            f'border-bottom:1px solid {border_col};">'
+            f'{meta_html}<br>'
             f'<span style="font-family:{font_family}; font-size:{font_size}pt; '
             f'color:{fg};">{escaped}</span>'
             f'</div>'
@@ -1349,6 +1383,73 @@ class AIWorkshop(QWidget):
             self.status_label.setText(
                 f"Ollama: {'connected' if running else 'not running — start with: ollama serve'}"
             )
+
+    def _update_web_status_label(self, label):
+        """Update a QLabel with current web server status."""
+        colors = self.app_settings.get_theme_colors() if self.app_settings else {}
+        if self._web_running:
+            h = self.web_config.get("host", "127.0.0.1")
+            p = self.web_config.get("port", 8080)
+            display = "127.0.0.1" if h == "0.0.0.0" else h
+            label.setText(f"● Running at http://{display}:{p}")
+            label.setStyleSheet(f"color: {colors.get('success', '#4caf50')};")
+        else:
+            label.setText("● Stopped")
+            label.setStyleSheet(f"color: {colors.get('text_secondary', '#aaaaaa')};")
+
+    def _start_web_server(self):
+        """Start the FastAPI web server in a daemon thread."""
+        if self._web_running:
+            return
+        try:
+            import threading
+            import uvicorn
+            from apps.components.Ai_Workshop.web.server import app as fastapi_app
+
+            host = self.web_config.get("host", "127.0.0.1")
+            port = self.web_config.get("port", 8080)
+
+            config = uvicorn.Config(fastapi_app, host=host, port=port,
+                                    log_level="warning", loop="asyncio")
+            self._uvicorn_server = uvicorn.Server(config)
+
+            def _run():
+                import asyncio
+                asyncio.run(self._uvicorn_server.serve())
+
+            self._web_thread = threading.Thread(target=_run, daemon=True)
+            self._web_thread.start()
+            self._web_running = True
+
+            h = "127.0.0.1" if host == "0.0.0.0" else host
+            self.log_message(f"Web server started: http://{h}:{port}")
+
+        except ImportError as e:
+            QMessageBox.warning(self, "Web Server",
+                f"Missing dependency: {e}\n\n"
+                "Install with:\npip install fastapi uvicorn httpx python-multipart --break-system-packages")
+        except Exception as e:
+            QMessageBox.warning(self, "Web Server Error", str(e))
+
+    def _stop_web_server(self):
+        """Stop the running web server."""
+        if not self._web_running:
+            return
+        try:
+            if hasattr(self, '_uvicorn_server'):
+                self._uvicorn_server.should_exit = True
+            self._web_running = False
+            self._web_thread  = None
+            self.log_message("Web server stopped")
+        except Exception as e:
+            print(f"[AI Workshop] Web stop error: {e}")
+
+    def log_message(self, msg: str):
+        """Log to main window if available, otherwise print."""
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(msg)
+        else:
+            print(f"[AI Workshop] {msg}")
 
     def _on_chat_size_changed(self, size: int):
         """Live-update chat font size and redraw."""
@@ -1555,7 +1656,107 @@ class AIWorkshop(QWidget):
         ssh_layout.addStretch()
         tabs.addTab(ssh_tab, "SSH")
 
-        layout.addWidget(tabs)
+        # --- Web Server tab ---
+        web_tab = QWidget()
+        web_layout = QVBoxLayout(web_tab)
+
+        web_enable_group = QGroupBox("Web Interface")
+        web_enable_layout = QVBoxLayout(web_enable_group)
+
+        web_enabled_chk = QCheckBox("Enable web server")
+        web_enabled_chk.setChecked(self.web_config.get("enabled", False))
+        web_enabled_chk.setToolTip("Start a local web server so AI Workshop is accessible from a browser")
+        web_enable_layout.addWidget(web_enabled_chk)
+
+        web_form = QFormLayout()
+        web_host_edit = QLineEdit(self.web_config.get("host", "127.0.0.1"))
+        web_host_edit.setToolTip("127.0.0.1 = local only  |  0.0.0.0 = all network interfaces")
+        web_form.addRow("Host:", web_host_edit)
+
+        web_port_spin = QSpinBox()
+        web_port_spin.setRange(1024, 65535)
+        web_port_spin.setValue(self.web_config.get("port", 8080))
+        web_form.addRow("Port:", web_port_spin)
+
+        web_enable_layout.addLayout(web_form)
+        web_layout.addWidget(web_enable_group)
+
+        # Status + open button
+        web_status_label = QLabel()
+        web_status_label.setFont(QFont("Arial", 9))
+        self._update_web_status_label(web_status_label)
+        web_layout.addWidget(web_status_label)
+
+        web_btn_row = QHBoxLayout()
+        web_start_btn = QPushButton("Start Server")
+        web_stop_btn  = QPushButton("Stop Server")
+        web_open_btn  = QPushButton("Open in Browser")
+
+        def _refresh_web_btns():
+            running = self._web_running
+            web_start_btn.setEnabled(not running)
+            web_stop_btn.setEnabled(running)
+            web_open_btn.setEnabled(running)
+            self._update_web_status_label(web_status_label)
+
+        def _start_web():
+            self.web_config["enabled"] = True
+            self.web_config["host"]    = web_host_edit.text().strip()
+            self.web_config["port"]    = web_port_spin.value()
+            self._start_web_server()
+            _refresh_web_btns()
+
+        def _stop_web():
+            self._stop_web_server()
+            self.web_config["enabled"] = False
+            _refresh_web_btns()
+
+        def _open_browser():
+            import webbrowser
+            h = self.web_config.get("host", "127.0.0.1")
+            p = self.web_config.get("port", 8080)
+            display_host = "127.0.0.1" if h == "0.0.0.0" else h
+            webbrowser.open(f"http://{display_host}:{p}")
+
+        web_start_btn.clicked.connect(_start_web)
+        web_stop_btn.clicked.connect(_stop_web)
+        web_open_btn.clicked.connect(_open_browser)
+        web_btn_row.addWidget(web_start_btn)
+        web_btn_row.addWidget(web_stop_btn)
+        web_btn_row.addWidget(web_open_btn)
+        web_layout.addLayout(web_btn_row)
+
+        web_note = QLabel(
+            "Requires: pip install fastapi uvicorn httpx python-multipart --break-system-packages\n"
+            "Access from any browser at http://HOST:PORT"
+        )
+        web_note.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        web_note.setWordWrap(True)
+        web_layout.addWidget(web_note)
+        web_layout.addStretch()
+        _refresh_web_btns()
+        tabs.addTab(web_tab, "Web")
+
+        # --- Display tab ---
+        disp_tab = QWidget()
+        disp_layout = QVBoxLayout(disp_tab)
+
+        chat_disp_group = QGroupBox("Chat Message Display")
+        chat_disp_layout = QVBoxLayout(chat_disp_group)
+
+        ts_chk = QCheckBox("Show timestamp on each message")
+        ts_chk.setChecked(self.show_timestamps)
+        ts_chk.setToolTip("Show HH:MM:SS next to each message (not included when copying text)")
+        chat_disp_layout.addWidget(ts_chk)
+
+        ln_chk = QCheckBox("Show line/message number")
+        ln_chk.setChecked(self.show_line_numbers)
+        ln_chk.setToolTip("Show #N message counter (not included when copying text)")
+        chat_disp_layout.addWidget(ln_chk)
+
+        disp_layout.addWidget(chat_disp_group)
+        disp_layout.addStretch()
+        tabs.addTab(disp_tab, "Display")
 
         # Buttons
         btns = QHBoxLayout()
@@ -1575,11 +1776,14 @@ class AIWorkshop(QWidget):
                 self.sessions_dir = new_dir
             if ssh_group:
                 self.ssh_config = ssh_group.get_values()
-                # Reconnect SSH with new settings
                 if self._ssh:
                     try: self._ssh.disconnect()
                     except Exception: pass
                     self._ssh = None
+            # Display options
+            self.show_timestamps   = ts_chk.isChecked()
+            self.show_line_numbers = ln_chk.isChecked()
+            self._redraw_chat()
             self._update_ollama_status()
         apply_btn.clicked.connect(_apply)
         btns.addWidget(apply_btn)
@@ -1709,6 +1913,7 @@ class AIWorkshop(QWidget):
 
     def closeEvent(self, event):
         self._cleanup_worker()
+        self._stop_web_server()
         self.window_closed.emit()
         event.accept()
 
