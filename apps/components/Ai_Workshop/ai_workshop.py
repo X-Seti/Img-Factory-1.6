@@ -220,8 +220,8 @@ class AIWorkshop(QWidget):
             p = parent.pos()
             self.move(p.x() + 50, p.y() + 80)
 
-        self._new_session()   # start with one blank session
         self.setup_ui()
+        self._new_session()   # start with one blank session — AFTER setup_ui so widgets exist
         self._setup_hotkeys()
         self._apply_theme()
         self._refresh_model_list()
@@ -562,6 +562,8 @@ class AIWorkshop(QWidget):
         self._load_session(self.current_session_index)
 
     def _refresh_session_list(self):
+        if not hasattr(self, 'session_list'):
+            return
         self.session_list.blockSignals(True)
         self.session_list.clear()
         for s in self.sessions:
@@ -577,6 +579,8 @@ class AIWorkshop(QWidget):
         self._load_session(row)
 
     def _load_session(self, index: int):
+        if not hasattr(self, 'chat_display'):
+            return
         session = self.sessions[index]
         self.chat_display.clear()
         for msg in session["messages"]:
@@ -615,6 +619,8 @@ class AIWorkshop(QWidget):
 
     def _clear_current_session(self):
         if self.current_session_index < 0:
+            return
+        if not hasattr(self, 'chat_display'):
             return
         reply = QMessageBox.question(self, "Clear Session",
                                      "Clear all messages in this session?",
