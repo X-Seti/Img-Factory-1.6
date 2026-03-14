@@ -248,7 +248,7 @@ class AIWorkshop(QWidget):
 
         self.setWindowTitle(App_name)
         if ICONS_AVAILABLE:
-            self.setWindowIcon(SVGIconFactory.ai_icon(24))
+            self.setWindowIcon(SVGIconFactory.ai_app_icon())
         self.resize(1400, 800)
         self.setMinimumSize(800, 500)
 
@@ -1309,6 +1309,8 @@ class AIWorkshop(QWidget):
         )
 
         html = (
+            # Spacer before each bubble for visual separation
+            f'<div style="margin:0; padding:2px 0; background:transparent;"> </div>'
             f'<div style="margin:0; padding:6px 14px 8px 14px; '
             f'background:{bg}; border-left:3px solid {label_fg}; '
             f'border-bottom:1px solid {border_col};">'

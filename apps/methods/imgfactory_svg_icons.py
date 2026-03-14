@@ -903,29 +903,108 @@ class SVGIconFactory: #vers 7
 
 
     @staticmethod
-    def ai_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
-        """AI Workshop icon - circuit brain / neural spark"""
-        svg_data = '''<svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="4"
+    def ai_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
+        """AI Workshop icon - brain with circuit nodes"""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- Outer brain-like circle -->
+            <circle cx="12" cy="12" r="9"
+                stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.4"/>
+            <!-- Inner core -->
+            <circle cx="12" cy="12" r="3"
                 stroke="currentColor" stroke-width="2" fill="none"/>
-            <line x1="12" y1="2"  x2="12" y2="5"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="19" x2="12" y2="22"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="2"  y1="12" x2="5"  y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="19" y1="12" x2="22" y2="12"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="4.9"  y1="4.9"  x2="7.1"  y2="7.1"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="16.9" y1="16.9" x2="19.1" y2="19.1"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="4.9"  y1="19.1" x2="7.1"  y2="16.9"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="16.9" y1="7.1"  x2="19.1" y2="4.9"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <!-- Neural spokes with end nodes -->
+            <line x1="12" y1="9"  x2="12" y2="4"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="3.5" r="1.2" fill="currentColor"/>
+            <line x1="12" y1="15" x2="12" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="12" cy="20.5" r="1.2" fill="currentColor"/>
+            <line x1="9"  y1="12" x2="4"  y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="3.5" cy="12" r="1.2" fill="currentColor"/>
+            <line x1="15" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="20.5" cy="12" r="1.2" fill="currentColor"/>
+            <!-- Diagonal spokes -->
+            <line x1="9.9"  y1="9.9"  x2="6.5" y2="6.5"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="5.8" cy="5.8" r="1.0" fill="currentColor"/>
+            <line x1="14.1" y1="14.1" x2="17.5" y2="17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="18.2" cy="18.2" r="1.0" fill="currentColor"/>
+            <line x1="9.9"  y1="14.1" x2="6.5" y2="17.5"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="5.8" cy="18.2" r="1.0" fill="currentColor"/>
+            <line x1="14.1" y1="9.9"  x2="17.5" y2="6.5"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="18.2" cy="5.8" r="1.0" fill="currentColor"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def ai_app_icon() -> QIcon: #vers 1
+        """Generate a full-colour app icon for AI Workshop (window icon, taskbar)."""
+        from PyQt6.QtGui import QPainter, QPixmap, QRadialGradient, QColor, QBrush, QPen, QFont
+        from PyQt6.QtCore import Qt, QPointF
+
+        size = 256
+        pix  = QPixmap(size, size)
+        pix.fill(Qt.GlobalColor.transparent)
+
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        cx, cy, r = size // 2, size // 2, size // 2 - 4
+
+        # Background circle with gradient
+        grad = QRadialGradient(QPointF(cx, cy), r)
+        grad.setColorAt(0.0, QColor('#1e3a5f'))
+        grad.setColorAt(1.0, QColor('#0d1f33'))
+        p.setBrush(QBrush(grad))
+        p.setPen(QPen(QColor('#2a5a9f'), 4))
+        p.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+
+        # Outer ring
+        p.setPen(QPen(QColor('#4a9eff'), 2))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawEllipse(cx - r + 10, cy - r + 10, (r - 10) * 2, (r - 10) * 2)
+
+        # Core circle
+        core_r = 28
+        grad2 = QRadialGradient(QPointF(cx, cy), core_r)
+        grad2.setColorAt(0.0, QColor('#4a9eff'))
+        grad2.setColorAt(1.0, QColor('#1976d2'))
+        p.setBrush(QBrush(grad2))
+        p.setPen(QPen(QColor('#7dc4ff'), 3))
+        p.drawEllipse(cx - core_r, cy - core_r, core_r * 2, core_r * 2)
+
+        # Spokes and endpoint nodes
+        import math
+        spoke_angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        inner_r  = core_r + 4
+        outer_r1 = r - 30
+        outer_r2 = r - 14
+
+        for angle in spoke_angles:
+            rad = math.radians(angle)
+            x1 = cx + inner_r  * math.cos(rad)
+            y1 = cy + inner_r  * math.sin(rad)
+            x2 = cx + outer_r1 * math.cos(rad)
+            y2 = cy + outer_r1 * math.sin(rad)
+            xn = cx + outer_r2 * math.cos(rad)
+            yn = cy + outer_r2 * math.sin(rad)
+
+            # Spoke line
+            p.setPen(QPen(QColor('#4a9eff'), 3, Qt.PenStyle.SolidLine,
+                          Qt.PenCapStyle.RoundCap))
+            p.drawLine(int(x1), int(y1), int(x2), int(y2))
+
+            # End node — cardinal directions bigger
+            node_r = 10 if angle % 90 == 0 else 7
+            p.setBrush(QBrush(QColor('#1976d2')))
+            p.setPen(QPen(QColor('#7dc4ff'), 2))
+            p.drawEllipse(int(xn - node_r), int(yn - node_r), node_r * 2, node_r * 2)
+
+        # "AI" text in centre
+        font = QFont("Arial", 36, QFont.Weight.Bold)
+        p.setFont(font)
+        p.setPen(QColor('#ffffff'))
+        p.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, "AI")
+
+        p.end()
+        return QIcon(pix)
 
 
 
