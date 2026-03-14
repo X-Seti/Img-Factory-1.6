@@ -1518,36 +1518,6 @@ class AIWorkshop(QWidget):
             self.input_box.setFont(self.chat_font)
         self._redraw_chat()
 
-    def _redraw_chat(self):
-        """Redraw all bubbles in the current session with current font/theme."""
-        if not hasattr(self, 'chat_display') or self.current_session_index < 0:
-            return
-        if self.current_session_index >= len(self.sessions):
-            return
-        self.chat_display.clear()
-        for msg in self.sessions[self.current_session_index].get("messages", []):
-            self._append_bubble(msg["role"], msg["content"])
-
-
-        base_url = self.url_input.text().rstrip("/") if hasattr(self, 'url_input') else OLLAMA_BASE_URL
-        running = _ollama_running(base_url)
-        colors = self.app_settings.get_theme_colors() if self.app_settings else {}
-        success_col = colors.get('success', '#4caf50')
-        error_col   = colors.get('error',   '#f44336')
-        secondary   = colors.get('text_secondary', '#aaaaaa')
-        if hasattr(self, 'ollama_status'):
-            if running:
-                self.ollama_status.setText("● Ollama running")
-                self.ollama_status.setStyleSheet(f"color: {success_col};")
-            else:
-                self.ollama_status.setText("● Ollama offline")
-                self.ollama_status.setStyleSheet(f"color: {error_col};")
-        if hasattr(self, 'status_label'):
-            self.status_label.setStyleSheet(f"color: {secondary};")
-            self.status_label.setText(
-                f"Ollama: {'connected' if running else 'not running  — start with: ollama serve'}"
-            )
-
     # -----------------------------------------------------------------------
     # eventFilter: Ctrl+Enter to send, Ctrl+wheel/+/- to zoom chat text
     # -----------------------------------------------------------------------
