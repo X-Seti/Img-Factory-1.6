@@ -175,6 +175,8 @@ class AIWorkshop(QWidget):
         self.sessions: list[dict] = []   # [{name, messages, created}]
         self.current_session_index = -1
         self.worker: OllamaWorker | None = None
+        self._current_response   = ""
+        self._pending_attachments: list[dict] = []  # files queued for next send
 
         # Settings
         self.selected_model   = ""
@@ -184,6 +186,18 @@ class AIWorkshop(QWidget):
             "You are a helpful coding assistant specialising in Python, "
             "PyQt6, and GTA modding tools. Be concise and practical."
         )
+        self.sessions_dir     = os.path.expanduser("~/.config/imgfactory/ai_sessions")
+
+        # SSH settings
+        self.ssh_config = {
+            "host":      "127.0.0.1",
+            "port":      22,
+            "username":  "",
+            "password":  "",
+            "key_path":  "",
+            "root_path": "/home",
+        }
+        self._ssh = None   # SSHFileAccess instance, lazy-init
 
         # Fonts (mirrors COL Workshop)
         self.title_font   = QFont("Arial", 14)
@@ -230,7 +244,9 @@ class AIWorkshop(QWidget):
             self.move(p.x() + 50, p.y() + 80)
 
         self.setup_ui()
-        self._new_session()   # start with one blank session — AFTER setup_ui so widgets exist
+        self._load_sessions_from_disk()   # load persisted sessions AFTER widgets exist
+        self._refresh_session_list()
+        self._load_session(self.current_session_index)
         self._setup_hotkeys()
         self._apply_theme()
         self._refresh_model_list()
@@ -372,27 +388,57 @@ class AIWorkshop(QWidget):
     def _create_left_panel(self):
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(160)
-        panel.setMaximumWidth(260)
+        panel.setMinimumWidth(180)
+        panel.setMaximumWidth(280)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(4)
 
+        # Header row
+        hdr = QHBoxLayout()
         header = QLabel("Sessions")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        hdr.addWidget(header)
+        hdr.addStretch()
 
+        new_btn = QPushButton("+")
+        new_btn.setFixedSize(24, 24)
+        new_btn.setToolTip("New session")
+        new_btn.clicked.connect(self._new_session_action)
+        hdr.addWidget(new_btn)
+        layout.addLayout(hdr)
+
+        # Search bar
+        self.session_search = QLineEdit()
+        self.session_search.setPlaceholderText("Search sessions…")
+        self.session_search.setFont(self.panel_font)
+        self.session_search.textChanged.connect(self._on_session_search)
+        layout.addWidget(self.session_search)
+
+        # Session list
         self.session_list = QListWidget()
         self.session_list.setAlternatingRowColors(True)
         self.session_list.currentRowChanged.connect(self._on_session_selected)
         self.session_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.session_list.customContextMenuRequested.connect(self._session_context_menu)
+        self.session_list.setToolTip("Right-click for options")
         layout.addWidget(self.session_list)
 
-        new_btn = QPushButton("+ New Session")
-        new_btn.setFont(self.button_font)
-        new_btn.clicked.connect(self._new_session_action)
-        layout.addWidget(new_btn)
+        # Bottom buttons
+        btn_row = QHBoxLayout()
+        export_btn = QPushButton("Export")
+        export_btn.setFont(self.button_font)
+        export_btn.setToolTip("Export current session")
+        export_btn.clicked.connect(self._export_current_session)
+        btn_row.addWidget(export_btn)
+
+        del_btn = QPushButton("Delete")
+        del_btn.setFont(self.button_font)
+        del_btn.setToolTip("Delete current session")
+        del_btn.clicked.connect(lambda: self._delete_session(self.current_session_index))
+        btn_row.addWidget(del_btn)
+        layout.addLayout(btn_row)
 
         self._refresh_session_list()
         return panel
@@ -423,6 +469,15 @@ class AIWorkshop(QWidget):
         self.typing_label.setStyleSheet("color: #888; font-style: italic;")
         layout.addWidget(self.typing_label)
 
+        # Attachment chips area (hidden when empty)
+        self.attachments_frame = QFrame()
+        self.attachments_layout = QHBoxLayout(self.attachments_frame)
+        self.attachments_layout.setContentsMargins(0, 2, 0, 2)
+        self.attachments_layout.setSpacing(4)
+        self.attachments_layout.addStretch()
+        self.attachments_frame.setVisible(False)
+        layout.addWidget(self.attachments_frame)
+
         # Input area
         input_frame = QFrame()
         input_layout = QHBoxLayout(input_frame)
@@ -436,14 +491,14 @@ class AIWorkshop(QWidget):
         self.input_box.installEventFilter(self)
         input_layout.addWidget(self.input_box, stretch=1)
 
-        send_col = QVBoxLayout()
+        btn_col = QVBoxLayout()
         self.send_btn = QPushButton("Send")
         self.send_btn.setFont(self.button_font)
         self.send_btn.setFixedWidth(70)
-        self.send_btn.setMinimumHeight(36)
+        self.send_btn.setMinimumHeight(30)
         self.send_btn.clicked.connect(self._send_message)
         self.send_btn.setToolTip("Send message (Ctrl+Enter)")
-        send_col.addWidget(self.send_btn)
+        btn_col.addWidget(self.send_btn)
 
         self.stop_btn = QPushButton("Stop")
         self.stop_btn.setFont(self.button_font)
@@ -451,10 +506,26 @@ class AIWorkshop(QWidget):
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self._stop_generation)
         self.stop_btn.setToolTip("Stop generation")
-        send_col.addWidget(self.stop_btn)
+        btn_col.addWidget(self.stop_btn)
 
-        send_col.addStretch()
-        input_layout.addLayout(send_col)
+        # Attach local file
+        attach_btn = QPushButton("📎")
+        attach_btn.setFixedWidth(70)
+        attach_btn.setFont(self.button_font)
+        attach_btn.setToolTip("Attach local file")
+        attach_btn.clicked.connect(self._attach_local_file)
+        btn_col.addWidget(attach_btn)
+
+        # Attach via SSH
+        ssh_btn = QPushButton("🔗")
+        ssh_btn.setFixedWidth(70)
+        ssh_btn.setFont(self.button_font)
+        ssh_btn.setToolTip("Attach file via SSH")
+        ssh_btn.clicked.connect(self._attach_ssh_file)
+        btn_col.addWidget(ssh_btn)
+
+        btn_col.addStretch()
+        input_layout.addLayout(btn_col)
         layout.addWidget(input_frame)
 
         return panel
@@ -555,88 +626,421 @@ class AIWorkshop(QWidget):
     # Session management
     # -----------------------------------------------------------------------
 
+    # -----------------------------------------------------------------------
+    # Session management — backed by SessionManager
+    # -----------------------------------------------------------------------
+
+    def _get_session_manager(self):
+        """Lazy-init SessionManager using current sessions_dir setting."""
+        from apps.components.Ai_Workshop.depends.session_manager import SessionManager
+        return SessionManager(self.sessions_dir)
+
     def _new_session(self, name: str = "") -> dict:
-        idx = len(self.sessions) + 1
-        if not name:
-            name = f"Session {idx}"
-        session = {"name": name, "messages": [], "created": datetime.now().isoformat()}
+        sm = self._get_session_manager()
+        session = sm.new_session(name)
         self.sessions.append(session)
         self.current_session_index = len(self.sessions) - 1
+        sm.save_session(session)
         return session
 
     def _new_session_action(self):
         self._new_session()
         self._refresh_session_list()
-        self.session_list.setCurrentRow(self.current_session_index)
+        if hasattr(self, 'session_list'):
+            self.session_list.setCurrentRow(self.current_session_index)
         self._load_session(self.current_session_index)
+
+    def _load_sessions_from_disk(self):
+        """Load all persisted sessions from disk on startup."""
+        try:
+            sm = self._get_session_manager()
+            loaded = sm.load_all()
+            if loaded:
+                self.sessions = loaded
+                self.current_session_index = 0
+            else:
+                self._new_session()
+        except Exception as e:
+            print(f"[AI Workshop] load sessions error: {e}")
+            self._new_session()
+
+    def _save_current_session(self):
+        """Persist current session to disk."""
+        if self.current_session_index < 0 or self.current_session_index >= len(self.sessions):
+            return
+        try:
+            sm = self._get_session_manager()
+            sm.save_session(self.sessions[self.current_session_index])
+        except Exception as e:
+            print(f"[AI Workshop] save session error: {e}")
 
     def _refresh_session_list(self):
         if not hasattr(self, 'session_list'):
             return
+        # Apply search filter if active
+        query = self.session_search.text() if hasattr(self, 'session_search') else ""
+        if query.strip():
+            try:
+                sm = self._get_session_manager()
+                visible = sm.search(query, self.sessions)
+            except Exception:
+                visible = self.sessions
+        else:
+            visible = self.sessions
+
         self.session_list.blockSignals(True)
         self.session_list.clear()
-        for s in self.sessions:
-            self.session_list.addItem(s["name"])
+        for s in visible:
+            pin  = "⭐ " if s.get("pinned") else ""
+            name = s.get("name", "Unnamed")
+            msgs = len(s.get("messages", []))
+            item = QListWidgetItem(f"{pin}{name}  ({msgs})")
+            item.setData(Qt.ItemDataRole.UserRole, s.get("id"))
+            self.session_list.addItem(item)
         self.session_list.blockSignals(False)
+
+        # Re-select current
         if self.current_session_index >= 0:
-            self.session_list.setCurrentRow(self.current_session_index)
+            # Find the item matching current session id
+            cur_id = self.sessions[self.current_session_index].get("id") if self.sessions else None
+            for i in range(self.session_list.count()):
+                if self.session_list.item(i).data(Qt.ItemDataRole.UserRole) == cur_id:
+                    self.session_list.setCurrentRow(i)
+                    break
+
+    def _on_session_search(self, text: str):
+        self._refresh_session_list()
 
     def _on_session_selected(self, row: int):
-        if row < 0 or row >= len(self.sessions):
+        if not hasattr(self, 'session_list') or row < 0:
             return
-        self.current_session_index = row
-        self._load_session(row)
+        item = self.session_list.item(row)
+        if not item:
+            return
+        sid = item.data(Qt.ItemDataRole.UserRole)
+        for i, s in enumerate(self.sessions):
+            if s.get("id") == sid:
+                self.current_session_index = i
+                self._load_session(i)
+                return
 
     def _load_session(self, index: int):
         if not hasattr(self, 'chat_display'):
             return
+        if index < 0 or index >= len(self.sessions):
+            return
         session = self.sessions[index]
         self.chat_display.clear()
-        for msg in session["messages"]:
+        for msg in session.get("messages", []):
             self._append_bubble(msg["role"], msg["content"])
 
     def _session_context_menu(self, pos):
         item = self.session_list.itemAt(pos)
         if not item:
             return
-        row = self.session_list.row(item)
+        sid = item.data(Qt.ItemDataRole.UserRole)
+        row = next((i for i, s in enumerate(self.sessions) if s.get("id") == sid), -1)
+        if row < 0:
+            return
+
         menu = QMenu(self)
-        rename = menu.addAction("Rename")
-        delete = menu.addAction("Delete")
+        rename_a  = menu.addAction("Rename")
+        pin_a     = menu.addAction("Unpin ⭐" if self.sessions[row].get("pinned") else "Pin ⭐")
+        menu.addSeparator()
+        export_txt_a = menu.addAction("Export as .txt")
+        export_md_a  = menu.addAction("Export as .md")
+        menu.addSeparator()
+        delete_a  = menu.addAction("Delete")
+
         action = menu.exec(self.session_list.mapToGlobal(pos))
-        if action == rename:
+        if action == rename_a:
             self._rename_session(row)
-        elif action == delete:
+        elif action == pin_a:
+            self._toggle_pin_session(row)
+        elif action == export_txt_a:
+            self._export_session(row, "txt")
+        elif action == export_md_a:
+            self._export_session(row, "md")
+        elif action == delete_a:
             self._delete_session(row)
 
     def _rename_session(self, row: int):
         from PyQt6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "Rename Session",
-                                        "Session name:", text=self.sessions[row]["name"])
+                                        "Session name:",
+                                        text=self.sessions[row].get("name", ""))
         if ok and name.strip():
             self.sessions[row]["name"] = name.strip()
+            self._save_current_session()
             self._refresh_session_list()
 
+    def _toggle_pin_session(self, row: int):
+        self.sessions[row]["pinned"] = not self.sessions[row].get("pinned", False)
+        # Re-sort: pinned first
+        self.sessions.sort(key=lambda s: not s.get("pinned", False))
+        self.current_session_index = next(
+            (i for i, s in enumerate(self.sessions)
+             if s.get("id") == self.sessions[row].get("id")), 0)
+        self._save_current_session()
+        self._refresh_session_list()
+
     def _delete_session(self, row: int):
+        if row < 0 or row >= len(self.sessions):
+            return
         if len(self.sessions) <= 1:
             QMessageBox.information(self, "Delete", "Cannot delete the only session.")
             return
+        reply = QMessageBox.question(
+            self, "Delete Session",
+            f"Delete session '{self.sessions[row].get('name', '')}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            sm = self._get_session_manager()
+            sm.delete_session(self.sessions[row].get("id", ""))
+        except Exception:
+            pass
         self.sessions.pop(row)
-        self.current_session_index = max(0, row - 1)
+        self.current_session_index = max(0, min(row, len(self.sessions) - 1))
         self._refresh_session_list()
         self._load_session(self.current_session_index)
 
     def _clear_current_session(self):
-        if self.current_session_index < 0:
-            return
-        if not hasattr(self, 'chat_display'):
+        if self.current_session_index < 0 or not hasattr(self, 'chat_display'):
             return
         reply = QMessageBox.question(self, "Clear Session",
                                      "Clear all messages in this session?",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self.sessions[self.current_session_index]["messages"] = []
+            self._save_current_session()
             self.chat_display.clear()
+            self._refresh_session_list()
+
+    def _export_current_session(self):
+        if self.current_session_index < 0:
+            return
+        self._export_session(self.current_session_index, "md")
+
+    def _export_session(self, row: int, fmt: str):
+        from PyQt6.QtWidgets import QFileDialog
+        session = self.sessions[row]
+        name = session.get("name", "session").replace(" ", "_")
+        default = os.path.join(os.path.expanduser("~"), f"{name}.{fmt}")
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export Session as .{fmt}", default,
+            f"{'Text' if fmt == 'txt' else 'Markdown'} (*.{fmt});;All Files (*)")
+        if not path:
+            return
+        try:
+            sm = self._get_session_manager()
+            ok = sm.export_txt(session, path) if fmt == "txt" else sm.export_md(session, path)
+            if ok:
+                QMessageBox.information(self, "Export", f"Saved to:\n{path}")
+            else:
+                QMessageBox.warning(self, "Export", "Export failed.")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Error", str(e))
+
+    # -----------------------------------------------------------------------
+    # File attachments
+    # -----------------------------------------------------------------------
+
+    def _attach_local_file(self):
+        from PyQt6.QtWidgets import QFileDialog
+        from apps.components.Ai_Workshop.depends.file_attachments import (
+            read_local_file, create_attachment_chip)
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Attach File(s)", os.path.expanduser("~"),
+            "All Files (*);;Python (*.py);;Images (*.png *.jpg *.jpeg);;Text (*.txt *.cfg *.dat)")
+        for path in paths:
+            att = read_local_file(path)
+            self._add_attachment(att)
+
+    def _attach_ssh_file(self):
+        """Open SSH file browser to pick a remote file."""
+        if not self._ensure_ssh_connected():
+            return
+        self._show_ssh_browser()
+
+    def _ensure_ssh_connected(self) -> bool:
+        """Connect SSH if not already. Returns True if connected."""
+        if self._ssh and getattr(self._ssh, 'connected', False):
+            return True
+        cfg = self.ssh_config
+        if not cfg.get("username"):
+            QMessageBox.warning(self, "SSH Not Configured",
+                                "Configure SSH credentials in Settings → SSH tab first.")
+            return False
+        try:
+            from apps.components.Ai_Workshop.depends.ssh_file_access import SSHFileAccess
+            ssh = SSHFileAccess()
+            ok, msg = ssh.connect(cfg["host"], cfg["port"],
+                                  cfg["username"], cfg["password"], cfg["key_path"])
+            if ok:
+                self._ssh = ssh
+                if hasattr(self, 'ollama_status'):
+                    self.ollama_status.setText(f"SSH: {cfg['username']}@{cfg['host']}")
+                return True
+            else:
+                QMessageBox.warning(self, "SSH Connection Failed", msg)
+                return False
+        except Exception as e:
+            QMessageBox.warning(self, "SSH Error", str(e))
+            return False
+
+    def _show_ssh_browser(self):
+        """Simple SSH directory browser dialog."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                      QListWidget, QListWidgetItem, QPushButton, QLabel)
+        from apps.components.Ai_Workshop.depends.file_attachments import read_ssh_file
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("SSH File Browser")
+        dlg.resize(500, 400)
+        layout = QVBoxLayout(dlg)
+
+        path_label = QLabel(self.ssh_config.get("root_path", "/home"))
+        path_label.setFont(self.panel_font)
+        layout.addWidget(path_label)
+
+        file_list = QListWidget()
+        layout.addWidget(file_list)
+
+        current_path = [self.ssh_config.get("root_path", "/home")]
+
+        def populate(path):
+            file_list.clear()
+            path_label.setText(path)
+            ok, entries = self._ssh.list_dir(path)
+            if not ok:
+                return
+            # Add parent dir entry
+            if path != "/":
+                up = QListWidgetItem("📁 ..")
+                up.setData(Qt.ItemDataRole.UserRole, {"path": str(Path(path).parent), "is_dir": True})
+                file_list.addItem(up)
+            for e in entries:
+                icon = "📁 " if e["is_dir"] else "📄 "
+                size = f"  ({e['size'] // 1024} KB)" if not e["is_dir"] and e["size"] > 0 else ""
+                item = QListWidgetItem(f"{icon}{e['name']}{size}")
+                item.setData(Qt.ItemDataRole.UserRole, e)
+                file_list.addItem(item)
+
+        def on_double_click(item):
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            if entry and entry.get("is_dir"):
+                current_path[0] = entry["path"]
+                populate(current_path[0])
+
+        file_list.itemDoubleClicked.connect(on_double_click)
+        populate(current_path[0])
+
+        btn_row = QHBoxLayout()
+        attach_btn = QPushButton("Attach Selected")
+        cancel_btn = QPushButton("Cancel")
+        btn_row.addWidget(attach_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+        def do_attach():
+            item = file_list.currentItem()
+            if not item:
+                return
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            if not entry or entry.get("is_dir"):
+                return
+            att = read_ssh_file(self._ssh, entry["path"])
+            self._add_attachment(att)
+            dlg.accept()
+
+        attach_btn.clicked.connect(do_attach)
+        cancel_btn.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def _add_attachment(self, attachment: dict):
+        """Add attachment to pending list and show chip."""
+        from apps.components.Ai_Workshop.depends.file_attachments import create_attachment_chip
+        self._pending_attachments.append(attachment)
+        chip = create_attachment_chip(attachment,
+                                       on_remove=self._remove_attachment,
+                                       parent=self)
+        # Insert before the stretch
+        self.attachments_layout.insertWidget(
+            self.attachments_layout.count() - 1, chip)
+        self.attachments_frame.setVisible(True)
+
+        if attachment.get("error"):
+            QMessageBox.warning(self, "Attachment Warning",
+                                f"{attachment['name']}: {attachment['error']}")
+
+    def _remove_attachment(self, attachment: dict):
+        """Remove attachment chip and from pending list."""
+        if attachment in self._pending_attachments:
+            self._pending_attachments.remove(attachment)
+        # Rebuild chip area
+        self._rebuild_attachment_chips()
+
+    def _rebuild_attachment_chips(self):
+        """Redraw all attachment chips from pending list."""
+        from apps.components.Ai_Workshop.depends.file_attachments import create_attachment_chip
+        # Clear layout except stretch
+        while self.attachments_layout.count() > 1:
+            item = self.attachments_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for att in self._pending_attachments:
+            chip = create_attachment_chip(att, on_remove=self._remove_attachment, parent=self)
+            self.attachments_layout.insertWidget(
+                self.attachments_layout.count() - 1, chip)
+        self.attachments_frame.setVisible(bool(self._pending_attachments))
+
+    # -----------------------------------------------------------------------
+    # Backup helper
+    # -----------------------------------------------------------------------
+
+    def _offer_backup(self, path: str) -> bool:
+        """
+        Ask user to backup before writing. Returns True to proceed, False to cancel.
+        Remembers 'don't ask again this session' if user chose Skip.
+        """
+        if getattr(self, '_backup_skipped_this_session', False):
+            return True
+
+        reply = QMessageBox.question(
+            self, "Backup Before Writing",
+            f"Create a tar.gz backup of:\n{path}\n\n"
+            "This keeps only ONE backup (overwrites previous).\n\n"
+            "Backup now?",
+            QMessageBox.StandardButton.Yes |
+            QMessageBox.StandardButton.No |
+            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes)
+
+        if reply == QMessageBox.StandardButton.Cancel:
+            return False
+        if reply == QMessageBox.StandardButton.No:
+            self._backup_skipped_this_session = True
+            return True
+
+        # Do backup
+        try:
+            from apps.components.Ai_Workshop.depends.session_manager import SessionManager
+            sm = SessionManager()
+            ok, result = sm.backup_directory(path)
+            if ok:
+                QMessageBox.information(self, "Backup Created", f"Backup saved:\n{result}")
+            else:
+                ret = QMessageBox.warning(
+                    self, "Backup Failed",
+                    f"Backup failed: {result}\n\nProceed anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                return ret == QMessageBox.StandardButton.Yes
+        except Exception as e:
+            QMessageBox.warning(self, "Backup Error", str(e))
+            return False
+        return True
 
     # -----------------------------------------------------------------------
     # Chat logic
@@ -644,7 +1048,9 @@ class AIWorkshop(QWidget):
 
     def _send_message(self):
         text = self.input_box.toPlainText().strip()
-        if not text:
+        attachments = list(self._pending_attachments)
+
+        if not text and not attachments:
             return
         if self.worker and self.worker.isRunning():
             return
@@ -654,16 +1060,40 @@ class AIWorkshop(QWidget):
 
         session = self.sessions[self.current_session_index]
 
-        # Append user message
-        session["messages"].append({"role": "user", "content": text})
-        self._append_bubble("user", text)
+        # Build display text (with attachment names listed)
+        display_text = text
+        if attachments:
+            names = ", ".join(a["name"] for a in attachments)
+            display_text = f"[📎 {names}]\n{text}".strip()
+
+        # Build API content (text + file contents injected)
+        try:
+            from apps.components.Ai_Workshop.depends.file_attachments import build_message_content
+            api_content = build_message_content(text, attachments)
+        except Exception:
+            api_content = display_text
+
+        session["messages"].append({"role": "user", "content": display_text})
+        self._append_bubble("user", display_text)
         self.input_box.clear()
 
-        # Build messages list for API (prepend system prompt)
+        # Clear attachments
+        self._pending_attachments.clear()
+        self._rebuild_attachment_chips()
+
+        # Save session after user message
+        self._save_current_session()
+        self._refresh_session_list()
+
+        # Build API messages
         api_messages = []
         if self.system_prompt.strip():
             api_messages.append({"role": "system", "content": self.system_prompt})
-        api_messages.extend(session["messages"])
+        # History (use display text for history context)
+        for msg in session["messages"][:-1]:
+            api_messages.append({"role": msg["role"], "content": msg["content"]})
+        # Latest message with full attachment content
+        api_messages.append({"role": "user", "content": api_content})
 
         model = self.model_combo.currentText()
         if not model:
@@ -671,14 +1101,12 @@ class AIWorkshop(QWidget):
             return
 
         base_url = self.url_input.text().rstrip("/")
-
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         self.typing_label.setText(f"{model} is thinking…")
 
-        # Placeholder for assistant response
         self._current_response = ""
-        self._append_bubble("assistant", "")   # empty bubble, will fill in
+        self._append_bubble("assistant", "")
 
         self.worker = OllamaWorker(model, api_messages, base_url,
                                    self.temperature, self.max_tokens)
@@ -714,7 +1142,8 @@ class AIWorkshop(QWidget):
         self.send_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.typing_label.setText("")
-        # Don't null out worker here — let it finish naturally, cleanup on next send or close
+        self._save_current_session()
+        self._refresh_session_list()
         if self.worker:
             self.worker.deleteLater()
             self.worker = None
@@ -833,10 +1262,11 @@ class AIWorkshop(QWidget):
     # -----------------------------------------------------------------------
 
     def _show_workshop_settings(self):
+        from PyQt6.QtWidgets import QFileDialog as QFD
         dialog = QDialog(self)
         dialog.setWindowTitle(App_name + " Settings")
-        dialog.setMinimumWidth(500)
-        dialog.setMinimumHeight(400)
+        dialog.setMinimumWidth(560)
+        dialog.setMinimumHeight(480)
 
         layout = QVBoxLayout(dialog)
         tabs = QTabWidget()
@@ -844,7 +1274,6 @@ class AIWorkshop(QWidget):
         # --- Fonts tab ---
         fonts_tab = QWidget()
         fl = QVBoxLayout(fonts_tab)
-
         for label_text, attr in [
             ("Chat Font",   "chat_font"),
             ("Panel Font",  "panel_font"),
@@ -854,13 +1283,12 @@ class AIWorkshop(QWidget):
             gl = QHBoxLayout(g)
             combo = QFontComboBox()
             combo.setCurrentFont(getattr(self, attr))
-            spin = QSpinBox(); spin.setRange(7, 20); spin.setValue(getattr(self, attr).pointSize())
+            spin = QSpinBox(); spin.setRange(7, 20)
+            spin.setValue(getattr(self, attr).pointSize())
             gl.addWidget(combo); gl.addWidget(spin)
             fl.addWidget(g)
-            # store refs so apply can read them
             setattr(dialog, f"_{attr}_combo", combo)
             setattr(dialog, f"_{attr}_spin",  spin)
-
         fl.addStretch()
         tabs.addTab(fonts_tab, "Fonts")
 
@@ -868,10 +1296,63 @@ class AIWorkshop(QWidget):
         gen_tab = QWidget()
         gtl = QFormLayout(gen_tab)
 
-        url_edit = QLineEdit(self.url_input.text())
+        url_edit = QLineEdit(self.url_input.text() if hasattr(self, 'url_input') else OLLAMA_BASE_URL)
         gtl.addRow("Ollama URL:", url_edit)
 
+        # Sessions directory
+        sess_row = QHBoxLayout()
+        sess_edit = QLineEdit(self.sessions_dir)
+        sess_browse = QPushButton("…"); sess_browse.setFixedWidth(30)
+        def _browse_sess():
+            from PyQt6.QtWidgets import QFileDialog
+            d = QFileDialog.getExistingDirectory(dialog, "Sessions Directory", self.sessions_dir)
+            if d:
+                sess_edit.setText(d)
+        sess_browse.clicked.connect(_browse_sess)
+        sess_row.addWidget(sess_edit); sess_row.addWidget(sess_browse)
+        gtl.addRow("Sessions saved to:", sess_row)
+
         tabs.addTab(gen_tab, "General")
+
+        # --- SSH tab ---
+        ssh_tab = QWidget()
+        ssh_layout = QVBoxLayout(ssh_tab)
+
+        try:
+            from apps.components.Ai_Workshop.depends.ssh_file_access import create_ssh_settings_widget
+            ssh_group = create_ssh_settings_widget(dialog, self.ssh_config)
+            ssh_layout.addWidget(ssh_group)
+        except Exception as e:
+            ssh_layout.addWidget(QLabel(f"SSH module error: {e}"))
+            ssh_group = None
+
+        # Test connection button
+        test_btn = QPushButton("Test Connection")
+        def _test_ssh():
+            if not ssh_group:
+                return
+            vals = ssh_group.get_values()
+            try:
+                from apps.components.Ai_Workshop.depends.ssh_file_access import SSHFileAccess
+                ssh = SSHFileAccess()
+                ok, msg = ssh.connect(vals["host"], vals["port"],
+                                       vals["username"], vals["password"], vals["key_path"])
+                if ok:
+                    ssh.disconnect()
+                    QMessageBox.information(dialog, "SSH Test", f"✓ {msg}")
+                else:
+                    QMessageBox.warning(dialog, "SSH Test Failed", msg)
+            except Exception as e:
+                QMessageBox.warning(dialog, "SSH Error", str(e))
+        test_btn.clicked.connect(_test_ssh)
+        ssh_layout.addWidget(test_btn)
+
+        paramiko_note = QLabel("Requires: pip install paramiko --break-system-packages")
+        paramiko_note.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        ssh_layout.addWidget(paramiko_note)
+        ssh_layout.addStretch()
+        tabs.addTab(ssh_tab, "SSH")
+
         layout.addWidget(tabs)
 
         # Buttons
@@ -884,7 +1365,19 @@ class AIWorkshop(QWidget):
                 combo = getattr(dialog, f"_{attr}_combo")
                 spin  = getattr(dialog, f"_{attr}_spin")
                 setattr(self, attr, QFont(combo.currentFont().family(), spin.value()))
-            self.url_input.setText(url_edit.text())
+            if hasattr(self, 'url_input'):
+                self.url_input.setText(url_edit.text())
+            new_dir = sess_edit.text().strip()
+            if new_dir and new_dir != self.sessions_dir:
+                os.makedirs(new_dir, exist_ok=True)
+                self.sessions_dir = new_dir
+            if ssh_group:
+                self.ssh_config = ssh_group.get_values()
+                # Reconnect SSH with new settings
+                if self._ssh:
+                    try: self._ssh.disconnect()
+                    except Exception: pass
+                    self._ssh = None
             self._update_ollama_status()
         apply_btn.clicked.connect(_apply)
         btns.addWidget(apply_btn)
