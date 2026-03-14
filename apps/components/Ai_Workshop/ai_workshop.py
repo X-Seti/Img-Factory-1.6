@@ -211,6 +211,9 @@ class AIWorkshop(QWidget):
         # Chat display options
         self.show_timestamps   = True
         self.show_line_numbers = True
+        self.user_name         = "Me"
+        self.ai_name           = "AI"
+        self.date_format       = "%H:%M:%S"   # strftime format string
 
         # Fonts (mirrors COL Workshop)
         self.title_font   = QFont("Arial", 14)
@@ -1274,8 +1277,8 @@ class AIWorkshop(QWidget):
                 return row_bg
 
         bubble_map = {
-            "user":      (_tint(accent,    0.15), text, accent,    "You"),
-            "assistant": (_tint(success,   0.12), text, success,   "AI"),
+            "user":      (_tint(accent,    0.15), text, accent,    getattr(self, 'user_name', 'Me')),
+            "assistant": (_tint(success,   0.12), text, success,   getattr(self, 'ai_name',   'AI')),
             "error":     (_tint(error_col, 0.20), text, error_col, "Error"),
         }
         return bubble_map.get(role, (row_bg, text, label_col, role.title()))
@@ -1283,11 +1286,13 @@ class AIWorkshop(QWidget):
     def _make_bubble_html(self, role: str, content: str, idx: int,
                            font_size: int, font_family: str,
                            colors: dict, ts: str = "") -> str:
-        """Return the HTML string for a single message bubble."""
+        """Return the HTML string for a single message bubble.
+        Style mirrors the QGroupBox header — label sits in the top border line.
+        """
         bg, fg, label_fg, label = self._bubble_colors(role, idx)
+        border_col = colors.get("border",        "#3a3a3a")
+        bg_base    = colors.get("bg_primary",     "#1e1e1e")
         meta_col   = colors.get("text_secondary", "#888888")
-        border_col = colors.get("border",         "#3a3a3a")
-        bg_base    = colors.get("bg_primary",      "#1e1e1e")
 
         escaped = (content
                    .replace("&", "&amp;")
@@ -1295,33 +1300,68 @@ class AIWorkshop(QWidget):
                    .replace(">", "&gt;")
                    .replace("\n", "<br>"))
 
-        meta_parts = []
+        # Build header label text
+        header_parts = []
         if getattr(self, "show_line_numbers", True):
-            meta_parts.append(f"#{idx + 1}")
-        meta_parts.append(label)
+            header_parts.append(f"#{idx + 1}")
+        header_parts.append(label)
         if getattr(self, "show_timestamps", True) and ts:
-            meta_parts.append(ts)
+            header_parts.append(ts)
+        header_text = " &nbsp;&middot;&nbsp; ".join(header_parts)
 
-        meta_str = " &middot; ".join(meta_parts)
+        label_fs  = max(7, font_size - 2)
+        content_fs = font_size
 
-        # Gap row between bubbles using the page background colour
-        gap = (f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
-               f'<tr><td height="6" bgcolor="{bg_base}"></td></tr></table>')
-
-        # Message row — table layout for reliable Qt HTML rendering
-        row = (
-            f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
-            f' style="border-left:3px solid {label_fg}; background:{bg};">'
-            f'<tr>'
-            f'<td style="padding:5px 14px 2px 14px; font-size:{max(7,font_size-3)}pt;'
-            f' color:{meta_col}; font-family:Arial,sans-serif;">{meta_str}</td>'
-            f'</tr><tr>'
-            f'<td style="padding:2px 14px 8px 14px; border-bottom:1px solid {border_col};'
-            f' font-family:{font_family}; font-size:{font_size}pt; color:{fg};">'
-            f'{escaped}'
-            f'</td></tr></table>'
+        # ── Gap between bubbles ──────────────────────────────────────────
+        gap = (
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+            f'<tr><td height="10" bgcolor="{bg_base}"></td></tr>'
+            f'</table>'
         )
-        return gap + row
+
+        # ── Bubble structure ─────────────────────────────────────────────
+        # Outer table: rounded border look via solid border + background
+        # Header row: label text sits ON the top border (like QGroupBox title)
+        # We achieve this with a 1px top-border on the header cell itself,
+        # and a left accent stripe via a narrow coloured cell.
+        #
+        # Layout:
+        #  ┌─ accent │ [  label · ts  ] ──────────────────────────────────┐
+        #  │  stripe  │                                                    │
+        #  │          │  message content text here                         │
+        #  └──────────┴────────────────────────────────────────────────────┘
+
+        bubble = (
+            f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+            f' style="background:{bg}; border:1px solid {label_fg};">'
+
+            # Header row — label in top-border style
+            f'<tr>'
+            f'<td width="4" bgcolor="{label_fg}" rowspan="2"></td>'
+            f'<td style="'
+            f'padding:3px 10px 3px 10px;'
+            f'font-size:{label_fs}pt;'
+            f'font-family:Arial,sans-serif;'
+            f'font-weight:bold;'
+            f'color:{label_fg};'
+            f'border-bottom:1px solid {border_col};'
+            f'">{header_text}</td>'
+            f'</tr>'
+
+            # Content row
+            f'<tr>'
+            f'<td style="'
+            f'padding:6px 12px 8px 12px;'
+            f'font-family:{font_family};'
+            f'font-size:{content_fs}pt;'
+            f'color:{fg};'
+            f'">{escaped}</td>'
+            f'</tr>'
+
+            f'</table>'
+        )
+
+        return gap + bubble
 
     def _build_full_html(self, messages: list) -> str:
         """Build the complete HTML document for the chat display."""
@@ -1339,15 +1379,15 @@ class AIWorkshop(QWidget):
         return "".join(parts)
 
     def _append_bubble(self, role: str, content: str):
-        """Add a message to the current session and refresh the display."""
+        """Store timestamp metadata for the message then refresh display."""
         from datetime import datetime
-        ts = datetime.now().strftime("%H:%M:%S") if getattr(self, "show_timestamps", True) else ""
+        fmt = getattr(self, 'date_format', '%H:%M:%S')
+        ts  = datetime.now().strftime(fmt) if getattr(self, 'show_timestamps', True) else ""
 
-        # Store timestamp in the message for redraws
         if self.current_session_index >= 0 and self.current_session_index < len(self.sessions):
-            msgs = self.sessions[self.current_session_index].setdefault("messages_meta", {})
+            meta = self.sessions[self.current_session_index].setdefault("messages_meta", {})
             idx  = len(self.sessions[self.current_session_index].get("messages", []))
-            msgs[str(idx)] = ts
+            meta[str(idx)] = ts
 
         self._redraw_chat()
 
@@ -1758,18 +1798,60 @@ class AIWorkshop(QWidget):
         disp_tab = QWidget()
         disp_layout = QVBoxLayout(disp_tab)
 
+        # Names group
+        names_group = QGroupBox("Bubble Labels")
+        names_form  = QFormLayout(names_group)
+
+        user_name_edit = QLineEdit(self.user_name)
+        user_name_edit.setToolTip("Your display name shown in chat bubbles")
+        names_form.addRow("Your name:", user_name_edit)
+
+        ai_name_edit = QLineEdit(self.ai_name)
+        ai_name_edit.setToolTip("AI display name shown in chat bubbles — e.g. the model name")
+        names_form.addRow("AI name:", ai_name_edit)
+
+        disp_layout.addWidget(names_group)
+
+        # Timestamps group
         chat_disp_group = QGroupBox("Chat Message Display")
         chat_disp_layout = QVBoxLayout(chat_disp_group)
 
         ts_chk = QCheckBox("Show timestamp on each message")
         ts_chk.setChecked(self.show_timestamps)
-        ts_chk.setToolTip("Show HH:MM:SS next to each message (not included when copying text)")
+        ts_chk.setToolTip("Timestamp shown in bubble header — not included when copying text")
         chat_disp_layout.addWidget(ts_chk)
 
-        ln_chk = QCheckBox("Show line/message number")
+        ln_chk = QCheckBox("Show message number (#N)")
         ln_chk.setChecked(self.show_line_numbers)
-        ln_chk.setToolTip("Show #N message counter (not included when copying text)")
+        ln_chk.setToolTip("Show #N counter in bubble header — not included when copying text")
         chat_disp_layout.addWidget(ln_chk)
+
+        date_form = QFormLayout()
+        date_fmt_edit = QLineEdit(self.date_format)
+        date_fmt_edit.setToolTip(
+            "Python strftime format — examples:\n"
+            "  %H:%M:%S  →  14:32:07\n"
+            "  %I:%M %p  →  02:32 PM\n"
+            "  %d %b %H:%M  →  14 Mar 14:32"
+        )
+        date_form.addRow("Date format:", date_fmt_edit)
+
+        # Live preview
+        preview_label = QLabel()
+        preview_label.setStyleSheet("color: #888; font-size: 11px; font-style: italic;")
+
+        def _update_preview():
+            from datetime import datetime
+            try:
+                preview_label.setText("Preview: " + datetime.now().strftime(date_fmt_edit.text()))
+            except Exception:
+                preview_label.setText("Preview: (invalid format)")
+
+        date_fmt_edit.textChanged.connect(_update_preview)
+        _update_preview()
+
+        date_form.addRow("", preview_label)
+        chat_disp_layout.addLayout(date_form)
 
         disp_layout.addWidget(chat_disp_group)
         disp_layout.addStretch()
@@ -1802,6 +1884,13 @@ class AIWorkshop(QWidget):
             # Display options
             self.show_timestamps   = ts_chk.isChecked()
             self.show_line_numbers = ln_chk.isChecked()
+            self.user_name         = user_name_edit.text().strip() or "Me"
+            self.ai_name           = ai_name_edit.text().strip()   or "AI"
+            self.date_format       = date_fmt_edit.text().strip()  or "%H:%M:%S"
+            # Update AI name in model combo label if a model is selected
+            if hasattr(self, 'model_combo') and self.model_combo.currentText():
+                if not ai_name_edit.text().strip():
+                    self.ai_name = self.model_combo.currentText().split(':')[0]
             self._redraw_chat()
             self._update_ollama_status()
         apply_btn.clicked.connect(_apply)
