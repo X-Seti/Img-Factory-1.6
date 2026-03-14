@@ -174,30 +174,34 @@ aside {
   padding: 10px 14px;
   border-radius: var(--radius);
   max-width: 90%;
-  font-size: 13px;
+  font-size: var(--chat-font-size, 13px);
+  font-family: var(--chat-font-family, "Courier New", monospace);
   line-height: 1.6;
   word-wrap: break-word;
 }
 .bubble-user {
-  background: #1a3a5c;
-  color: #d0e8ff;
+  background: var(--bubble-user-bg, color-mix(in srgb, var(--accent-primary) 22%, var(--bg-secondary)));
+  color: var(--bubble-user-fg, var(--text-primary));
   align-self: flex-end;
   border-bottom-right-radius: 2px;
+  border-left: 3px solid var(--accent-primary);
 }
 .bubble-assistant {
-  background: #1a3d1a;
-  color: #d0ffd0;
+  background: var(--bubble-ai-bg, color-mix(in srgb, var(--success) 18%, var(--bg-secondary)));
+  color: var(--bubble-ai-fg, var(--text-primary));
   align-self: flex-start;
   border-bottom-left-radius: 2px;
+  border-left: 3px solid var(--success);
 }
 .bubble-error {
-  background: #4a1a1a;
-  color: #ffd0d0;
+  background: var(--bubble-err-bg, color-mix(in srgb, var(--error) 20%, var(--bg-secondary)));
+  color: var(--bubble-err-fg, var(--text-primary));
   align-self: flex-start;
-  border: 1px solid #7a3a3a;
+  border: 1px solid var(--error);
+  border-left: 3px solid var(--error);
 }
 .bubble-role {
-  font-size: 10px;
+  font-size: calc(var(--chat-font-size, 13px) - 3px);
   opacity: 0.6;
   font-weight: 700;
   text-transform: uppercase;
@@ -209,14 +213,14 @@ aside {
   padding: 8px 10px;
   border-radius: 3px;
   overflow-x: auto;
-  font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-family: var(--chat-font-family, "Courier New", monospace);
+  font-size: calc(var(--chat-font-size, 13px) - 1px);
   margin: 6px 0;
   white-space: pre-wrap;
 }
 .bubble code {
-  font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-family: var(--chat-font-family, "Courier New", monospace);
+  font-size: calc(var(--chat-font-size, 13px) - 1px);
   background: rgba(0,0,0,0.25);
   padding: 1px 4px;
   border-radius: 2px;
@@ -598,23 +602,76 @@ select option { background: var(--bg-secondary); }
   background: rgba(0,0,0,0.2);
   border-bottom: 1px solid var(--border);
 }
+/* Code block header row with language label + copy button */
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 8px 2px 10px;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--border);
+}
+.code-copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 1px 7px;
+  transition: all 0.15s;
+}
+.code-copy-btn:hover { background: var(--button-hover); color: var(--text-primary); }
+.code-copy-btn.copied { color: var(--success); border-color: var(--success); }
+
 .code-block pre {
   margin: 0;
   padding: 10px 12px;
   overflow-x: auto;
-  font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-family: var(--chat-font-family, "Courier New", monospace);
+  font-size: calc(var(--chat-font-size, 13px) - 1px);
   line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: pre;
+  word-break: normal;
+  counter-reset: line;
 }
-.bubble code {
-  font-family: "Courier New", monospace;
-  font-size: 12px;
-  background: rgba(0,0,0,0.3);
-  padding: 1px 5px;
-  border-radius: 3px;
+/* Line numbers */
+.code-block.line-numbers pre code {
+  display: block;
 }
+.code-block.line-numbers pre .line {
+  display: block;
+  position: relative;
+  padding-left: 3.5em;
+}
+.code-block.line-numbers pre .line::before {
+  counter-increment: line;
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  width: 2.8em;
+  text-align: right;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  user-select: none;
+  border-right: 1px solid var(--border);
+  margin-right: 0.7em;
+  padding-right: 0.5em;
+  font-size: 0.9em;
+}
+
+/* ── CHAT DISPLAY SETTINGS ───────────────────────────────────── */
+.chat-size-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.chat-size-row label { font-size: 12px; color: var(--text-secondary); min-width: 70px; }
+.chat-size-row input[type=range] { flex: 1; accent-color: var(--accent-primary); }
+.chat-size-row span { font-size: 12px; min-width: 30px; }
+#chat-font-select { font-size: 12px; }
 
 /* ── CONTEXT MENU ────────────────────────────────────────────── */
 .ctx-menu { user-select: none; }
+

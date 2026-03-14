@@ -2,6 +2,11 @@
 // Vanilla JS, no framework — WebSocket streaming, session management, SSH browser
 'use strict';
 
+// Expose functions needed by inline onclick handlers
+// (defined later in file, assigned to window after DOMContentLoaded)
+window.copyCode        = null;
+window.removeAttachment = null;
+
 // ── State ─────────────────────────────────────────────────────
 const state = {
   sessions:        [],
@@ -29,6 +34,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(checkOllamaStatus, 15000);
   bindEvents();
   connectWS();
+
+  // Register inline-callable globals after functions are defined
+  window.copyCode         = copyCode;
+  window.removeAttachment = removeAttachment;
 });
 
 // ── Theme ─────────────────────────────────────────────────────
@@ -67,6 +76,36 @@ function applyThemeColors(colors) {
   for (const [key, cssVar] of Object.entries(map)) {
     if (colors[key]) root.style.setProperty(cssVar, colors[key]);
   }
+
+  // Derive bubble colours from theme by tinting bg_secondary
+  const bgSecondary = colors.bg_secondary || '#252525';
+  const accent      = colors.accent_primary || '#1976d2';
+  const success     = colors.success        || '#4caf50';
+  const error       = colors.error          || '#f44336';
+
+  root.style.setProperty('--bubble-user-bg', tintColor(bgSecondary, accent,  0.25));
+  root.style.setProperty('--bubble-user-fg', colors.text_primary || '#e0e0e0');
+  root.style.setProperty('--bubble-ai-bg',   tintColor(bgSecondary, success, 0.20));
+  root.style.setProperty('--bubble-ai-fg',   colors.text_primary || '#e0e0e0');
+  root.style.setProperty('--bubble-err-bg',  tintColor(bgSecondary, error,   0.22));
+  root.style.setProperty('--bubble-err-fg',  colors.text_primary || '#e0e0e0');
+}
+
+function tintColor(base, tint, factor) {
+  // Mix tint colour into base at factor strength, return hex
+  try {
+    const parse = hex => {
+      const h = hex.replace('#','');
+      return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+    };
+    const toHex = n => n.toString(16).padStart(2,'0');
+    const [br,bg,bb] = parse(base);
+    const [tr,tg,tb] = parse(tint);
+    const r = Math.round(br*(1-factor) + tr*factor);
+    const g = Math.round(bg*(1-factor) + tg*factor);
+    const b = Math.round(bb*(1-factor) + tb*factor);
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  } catch(e) { return base; }
 }
 
 function renderThemeSwatches(colors) {
@@ -455,13 +494,31 @@ function updateLastBubble(content) {
 }
 
 function formatContent(text) {
-  // Render markdown-ish: code blocks, inline code, bold, newlines
+  // Strip leading line numbers from copy-pasted code (e.g. "  1\t" or "123: ")
+  // These appear when copying from editors with line numbers visible
+  const stripped = text.replace(/^[ \t]*\d+[\t: ]+/gm, (match, offset, str) => {
+    // Only strip if it looks like a block of numbered lines (3+ consecutive)
+    return match;
+  });
+
   let html = escHtml(text);
 
   // Fenced code blocks ```lang\n...\n```
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    const langLabel = lang ? `<span class="code-lang">${escHtml(lang)}</span>` : '';
-    return `<div class="code-block">${langLabel}<pre><code>${code}</code></pre></div>`;
+    // Strip leading line numbers from pasted code blocks
+    const cleanCode = stripLineNumbers(code);
+    const langLabel = lang
+      ? `<span class="code-lang">${escHtml(lang)}</span>`
+      : '';
+    const codeId = 'code-' + Math.random().toString(36).substr(2,6);
+    const numbered = addLineNumbers(cleanCode);
+    return `<div class="code-block line-numbers" id="${codeId}">
+      <div class="code-block-header">
+        ${langLabel || '<span class="code-lang">code</span>'}
+        <button class="code-copy-btn" onclick="copyCode('${codeId}')">Copy</button>
+      </div>
+      <pre><code>${numbered}</code></pre>
+    </div>`;
   });
 
   // Inline code `...`
@@ -470,10 +527,54 @@ function formatContent(text) {
   // Bold **...**
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-  // Newlines to <br> (outside pre blocks)
+  // Newlines → <br> but not inside pre blocks (already handled above)
   html = html.replace(/\n/g, '<br>');
 
   return html;
+}
+
+function stripLineNumbers(code) {
+  // Detect if most lines start with a number — if so, strip them
+  const lines = code.split('\n');
+  if (lines.length < 2) return code;
+  const numberedLines = lines.filter(l => /^\s*\d+[\t: |]+/.test(l));
+  if (numberedLines.length / lines.length > 0.6) {
+    return lines.map(l => l.replace(/^\s*\d+[\t: |]+/, '')).join('\n');
+  }
+  return code;
+}
+
+function addLineNumbers(code) {
+  // Wrap each line in a <span class="line"> for CSS counter
+  const lines = code.trimEnd().split('\n');
+  return lines.map(line => `<span class="line">${line || ' '}</span>`).join('\n');
+}
+
+function copyCode(blockId) {
+  const block = document.getElementById(blockId);
+  if (!block) return;
+  const pre = block.querySelector('pre');
+  if (!pre) return;
+  // Get text without the line number pseudo-elements
+  const text = Array.from(pre.querySelectorAll('.line'))
+    .map(l => l.textContent)
+    .join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = block.querySelector('.code-copy-btn');
+    if (btn) {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    }
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  });
 }
 
 function escHtml(str) {
@@ -915,6 +1016,25 @@ function bindEvents() {
   $('btn-reload-theme')?.addEventListener('click', async () => {
     await loadTheme();
   });
+
+  // Chat font size slider
+  const chatSizeSlider = $('chat-size-slider');
+  const chatSizeVal    = $('chat-size-val');
+  if (chatSizeSlider) {
+    chatSizeSlider.addEventListener('input', () => {
+      const size = chatSizeSlider.value;
+      chatSizeVal.textContent = size + 'px';
+      document.documentElement.style.setProperty('--chat-font-size', size + 'px');
+    });
+  }
+
+  // Chat font family
+  const chatFontSel = $('chat-font-select');
+  if (chatFontSel) {
+    chatFontSel.addEventListener('change', () => {
+      document.documentElement.style.setProperty('--chat-font-family', chatFontSel.value);
+    });
+  }
 
   // Temperature slider
   bindTempSlider();
