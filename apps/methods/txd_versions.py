@@ -49,7 +49,7 @@ class TXDPlatform(IntEnum):
     # Mobile ports — not RenderWare device IDs; used internally by IMG Factory
     # to identify mobile texture database files (.pvr.dat / .etc.dat)
     DEVICE_IOS     = 20   # iOS:     PVRTC-compressed mobile texture DB
-    DEVICE_ANDROID = 21   # Android: ETC1-compressed mobile texture DB
+    DEVICE_ANDROID = 21   # Android: ETC1 or DXT-compressed mobile texture DB
 
 class TXDVersion(IntEnum):
     """Known TXD RenderWare versions by platform"""
@@ -73,8 +73,11 @@ class TXDVersion(IntEnum):
     GAMECUBE = 0x35000         # 3.5.0.0
     
     # Android ports
-    GTA3_ANDROID = 0x34005     # 3.4.0.5
+    GTA3_ANDROID  = 0x34005    # 3.4.0.5
     GTAVC_ANDROID = 0x34005    # 3.4.0.5
+    # Liberty City Stories Android — TXDs embedded directly in .img
+    # Different from VC/SA Android which use separate .dat/.toc texture DBs
+    LCS_ANDROID   = 0x1005FFFF # 3.2.0.5 (LCS Android)
 
 class D3DFormat(IntEnum):
     """Direct3D Texture Format Constants"""
@@ -121,39 +124,68 @@ class D3DFormat(IntEnum):
     D3DFMT_DXT4 = 0x34545844    # DXT4 compression (BC3 premultiplied)
     D3DFMT_DXT5 = 0x35545844    # DXT5 compression (BC3)
 
-def detect_txd_version(data: bytes) -> Tuple[int, int, str]: #vers 3
+def detect_txd_version(data: bytes) -> Tuple[int, int, str]: #vers 4
     """
-    Detect TXD version from file data
-    
+    Detect TXD version from file data.
+
     Args:
         data: TXD file bytes (needs at least 28 bytes)
-    
+
     Returns:
         Tuple of (version_id, device_id, version_string)
+
+    Device ID rules
+    ---------------
+    SA and later (version >= 0x1803FFFF):
+        TexDict STRUCT body = u16 tex_count + u16 device_id  → read from data[26:28]
+
+    GTA III / Vice City old format (version < 0x1803FFFF):
+        TexDict STRUCT body = u32 tex_count  → bytes [26:28] are part of tex_count,
+        NOT device_id.  Must read platform_id from the first NativeTexture STRUCT body.
+
+    SA PC NativeTexture body quirk:
+        platform_id field at body[0] = 9 (D3D9 internal sub-id), which collides with
+        TXDPlatform.DEVICE_PSP = 9.  For SA+ (version >= 0x1803FFFF), the authoritative
+        device_id comes from the TexDict STRUCT [26:28], NOT from the NativeTexture body.
     """
     if len(data) < 28:
         return (0, 0, "Invalid - File too small")
-    
+
     try:
-        # Read section header
         section_type = struct.unpack('<I', data[0:4])[0]
-        
-        # Check for Texture Dictionary section (0x16)
         if section_type != 0x16:
             return (0, 0, "Invalid - Not a TXD file")
-        
-        # Version is at offset 8-11
+
         version_id = struct.unpack('<I', data[8:12])[0]
-        
-        # Device ID is at offset 20-21 (in the struct section)
-        # Skip to struct: 12 bytes header + 12 bytes section header = 24
-        device_id = struct.unpack('<H', data[26:28])[0]
-        
-        # Get readable version string
+
+        if version_id >= 0x1803FFFF:
+            # SA format: TexDict STRUCT body = u16 tex_count + u16 device_id
+            device_id = struct.unpack('<H', data[26:28])[0]
+        elif version_id == 0x1005FFFF:
+            # LC Android: TXDs embedded in IMG, NativeTexture body[0] is raster flags
+            # not a standard platform_id. Use device_id=1 (D3D8/mobile marker).
+            device_id = 1
+        else:
+            # Old format: TexDict STRUCT body = u32 tex_count.
+            # Read the TexDict STRUCT size to locate the first NativeTexture.
+            struct_size = struct.unpack('<I', data[16:20])[0]   # STRUCT body size
+            nt_off      = 12 + 12 + struct_size                 # NativeTexture chunk start
+            nt_st_body  = nt_off + 12 + 12                     # NativeTexture STRUCT body
+            if nt_st_body + 4 <= len(data):
+                raw_pid = struct.unpack('<I', data[nt_st_body:nt_st_body + 4])[0]
+                # PS2 FourCC "PS2\0" = 0x00325350
+                if raw_pid == 0x00325350:
+                    device_id = 6   # TXDPlatform.DEVICE_PS2
+                elif raw_pid in (0, 1, 2, 3, 6, 8, 9):
+                    device_id = raw_pid
+                else:
+                    device_id = 0   # unknown — default to PC
+            else:
+                device_id = 0
+
         version_str = get_version_string(version_id, device_id)
-        
         return (version_id, device_id, version_str)
-        
+
     except struct.error:
         return (0, 0, "Invalid - Read error")
 
@@ -209,6 +241,8 @@ def get_version_string(version_id: int, device_id: int = 0) -> str: #vers 3
         (0x35000, 9): "3.5.0.0 (LCS PSP)",
         (0x35002, 9): "3.5.0.2 (VCS PSP)",
         (0x34005, 0): "3.4.0.5 (Android)",
+        (0x1005FFFF, 0): "3.2.0.5 (LCS Android — TXD-in-IMG)",
+        (0x1005FFFF, 1): "3.2.0.5 (LCS Android — TXD-in-IMG)",
     }
     
     # Try with device ID
@@ -246,7 +280,7 @@ def get_platform_name(device_id: int) -> str: #vers 4
         8: "Xbox",
         9: "PSP",
         20: "iOS (PVRTC)",
-        21: "Android (ETC1)",
+        21: "Android (ETC1/DXT)",
     }
     return platforms.get(device_id, f"Unknown ({device_id})")
 
@@ -294,6 +328,8 @@ def get_game_from_version(version_id: int, device_id: int = 0) -> str: #vers 3
         return "Vice City Stories (PSP)"
     elif version_id == 0x34005:
         return "GTA III or Vice City (Android)"
+    elif version_id == 0x1005FFFF:
+        return "Liberty City Stories (Android)"
     elif device_id == TXDPlatform.DEVICE_IOS:
         return "GTA SA or Vice City (iOS)"
     elif device_id == TXDPlatform.DEVICE_ANDROID:
@@ -435,7 +471,7 @@ def get_platform_capabilities(device_id: int) -> Dict[str, any]: #vers 2
             'mobile_db': True,  # uses .txt/.toc/.dat/.tmb quad-file format
         },
         TXDPlatform.DEVICE_ANDROID: {
-            'name': 'Android (ETC1)',
+            'name': 'Android (ETC1/DXT)',
             'compression': ['ETC1'],
             'formats': ['RGBA8888', 'RGB565', 'RGBA4444', 'RGBA5551'],
             'supports_bump': False,
@@ -561,8 +597,13 @@ def validate_txd_format(data: bytes, expected_version: Optional[int] = None) -> 
         if expected_version and version_id != expected_version:
             return (False, f"Version mismatch: found {version_str}, expected 0x{expected_version:08X}")
         
-        # Check texture count
-        texture_count = struct.unpack('<H', data[24:26])[0]
+        # Check texture count — format depends on RW version
+        # SA+ (>= 0x1803FFFF): u16 tex_count + u16 device_id at [24:28]
+        # Old format:           u32 tex_count at [24:28]
+        if version_id >= 0x1803FFFF:
+            texture_count = struct.unpack('<H', data[24:26])[0]
+        else:
+            texture_count = struct.unpack('<I', data[24:28])[0]
         if texture_count > 1000:  # Sanity check
             return (False, f"Unrealistic texture count: {texture_count}")
         
@@ -622,6 +663,7 @@ def get_all_platform_versions() -> List[Dict[str, any]]: #vers 2
         {'game': 'San Andreas', 'platform': 'All', 'version': 0x1803FFFF, 'device': 0},
         {'game': 'State of Liberty', 'platform': 'PC', 'version': 0x1003FFFF, 'device': 0},
         {'game': 'Liberty City Stories', 'platform': 'PSP', 'version': 0x35000, 'device': 9},
+        {'game': 'Liberty City Stories', 'platform': 'Android', 'version': 0x1005FFFF, 'device': 1},
         {'game': 'Vice City Stories', 'platform': 'PSP', 'version': 0x35002, 'device': 9},
         {'game': 'Unknown', 'platform': 'GameCube', 'version': 0x35000, 'device': 3},
     ]
