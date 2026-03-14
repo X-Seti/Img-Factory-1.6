@@ -618,6 +618,17 @@ class AIWorkshop(QWidget):
         self.ollama_status.setFont(QFont("Arial", 9))
         layout.addWidget(self.ollama_status)
 
+        # Settings button — only shown when docked (toolbar is hidden in docked mode)
+        self.docked_settings_btn = QPushButton()
+        self.docked_settings_btn.setFont(self.button_font)
+        self.docked_settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.docked_settings_btn.setText("Settings / Options")
+        self.docked_settings_btn.setIconSize(QSize(18, 18))
+        self.docked_settings_btn.clicked.connect(self._show_workshop_settings)
+        self.docked_settings_btn.setToolTip("AI Workshop Settings")
+        self.docked_settings_btn.setVisible(not self.standalone_mode)
+        layout.addWidget(self.docked_settings_btn)
+
         self._update_ollama_status()
 
         return panel
@@ -1441,11 +1452,15 @@ class AIWorkshop(QWidget):
 
     def _dock_to_main(self):
         self.is_docked = True
+        if hasattr(self, 'docked_settings_btn'):
+            self.docked_settings_btn.setVisible(True)
         self.show(); self.raise_()
 
     def _undock_from_main(self):
         self.setWindowFlags(Qt.WindowType.Window)
         self.is_docked = False
+        if hasattr(self, 'docked_settings_btn'):
+            self.docked_settings_btn.setVisible(False)
         self.resize(1200, 800)
         self.show(); self.raise_()
 
