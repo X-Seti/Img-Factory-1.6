@@ -1,415 +1,939 @@
 // AI Workshop Web UI - app.js - Version: 1
-// X-Seti March 2026
+// Vanilla JS, no framework — WebSocket streaming, session management, SSH browser
+'use strict';
 
+// ── State ─────────────────────────────────────────────────────
 const state = {
-  sessions: [], currentSession: null,
-  model: "", temperature: 0.70, maxTokens: 2048,
-  systemPrompt: document.getElementById('system-prompt-input').value,
-  ollamaUrl: "http://localhost:11434",
-  attachments: [], generating: false,
-  ws: null, sshConnId: null, sshSelectedPath: null,
-  searchQuery: "", _streamBuffer: "",
+  sessions:        [],
+  currentSession:  null,
+  ws:              null,
+  generating:      false,
+  attachments:     [],   // [{name, type, content, mime, source, error}]
+  sshPath:         '/home',
+  sshSelected:     null,
+  config:          {},
+  wsReconnectTimer: null,
 };
 
-// ── INIT ──────────────────────────────────────────────────────────────────
-async function init() {
+// ── DOM helpers ───────────────────────────────────────────────
+const $  = id  => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
+
+// ── Init ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
   await loadTheme();
+  await loadConfig();
   await loadModels();
   await loadSessions();
-  connectWebSocket();
   checkOllamaStatus();
   setInterval(checkOllamaStatus, 15000);
-}
+  bindEvents();
+  connectWS();
+});
 
-// ── THEME ─────────────────────────────────────────────────────────────────
-async function loadTheme(name = null) {
-  const url = name ? `/api/theme?name=${encodeURIComponent(name)}` : '/api/theme';
-  const data = await fetch(url).then(r => r.json()).catch(() => ({ colors: {}, themes: [] }));
-  applyThemeColors(data.colors || {});
-  const sel = document.getElementById('theme-select');
-  if (data.themes && data.themes.length) {
-    sel.innerHTML = data.themes.map(t =>
-      `<option value="${t}" ${t === data.current ? 'selected' : ''}>${t}</option>`
-    ).join('');
+// ── Theme ─────────────────────────────────────────────────────
+async function loadTheme() {
+  try {
+    const r = await fetch('/api/theme');
+    const { colors } = await r.json();
+    applyThemeColors(colors);
+    renderThemeSwatches(colors);
+  } catch (e) {
+    console.warn('Theme load failed, using CSS defaults');
   }
 }
 
 function applyThemeColors(colors) {
+  const root = document.documentElement;
   const map = {
-    bg_primary: '--bg-primary', bg_secondary: '--bg-secondary',
-    bg_tertiary: '--bg-tertiary', panel_bg: '--panel-bg',
-    text_primary: '--text-primary', text_secondary: '--text-secondary',
-    text_accent: '--text-accent', accent_primary: '--accent-primary',
-    accent_secondary: '--accent-secondary', border: '--border',
-    button_normal: '--btn-normal', button_hover: '--btn-hover',
-    selection_background: '--selection-bg', selection_text: '--selection-text',
-    success: '--success', warning: '--warning', error: '--error',
+    bg_primary:           '--bg-primary',
+    bg_secondary:         '--bg-secondary',
+    bg_tertiary:          '--bg-tertiary',
+    panel_bg:             '--panel-bg',
+    text_primary:         '--text-primary',
+    text_secondary:       '--text-secondary',
+    text_accent:          '--text-accent',
+    accent_primary:       '--accent-primary',
+    accent_secondary:     '--accent-secondary',
+    border:               '--border',
+    button_normal:        '--button-normal',
+    button_hover:         '--button-hover',
+    selection_background: '--selection-bg',
+    selection_text:       '--selection-text',
+    success:              '--success',
+    warning:              '--warning',
+    error:                '--error',
   };
-  for (const [k, v] of Object.entries(map))
-    if (colors[k]) document.documentElement.style.setProperty(v, colors[k]);
-}
-
-async function applyTheme(name) {
-  await loadTheme(name);
-  await fetch('/api/theme', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ theme: name })
-  });
-}
-
-// ── OLLAMA STATUS ─────────────────────────────────────────────────────────
-async function checkOllamaStatus() {
-  const data = await fetch('/api/ollama/status').then(r => r.json()).catch(() => ({ running: false }));
-  const on = data.running;
-  document.getElementById('ollama-dot').className = 'dot' + (on ? ' online' : '');
-  document.getElementById('right-ollama-dot').className = 'status-dot' + (on ? ' online' : '');
-  const txt = on ? 'Ollama running' : 'Ollama offline';
-  document.getElementById('ollama-status-text').textContent = txt;
-  document.getElementById('right-ollama-text').textContent = txt;
-}
-
-// ── MODELS ────────────────────────────────────────────────────────────────
-async function loadModels() {
-  const data = await fetch('/api/models').then(r => r.json()).catch(() => ({ models: [] }));
-  const sel = document.getElementById('model-select');
-  if (data.models && data.models.length) {
-    sel.innerHTML = data.models.map(m => `<option value="${m}">${m}</option>`).join('');
-    state.model = data.models[0];
-  } else {
-    sel.innerHTML = '<option value="">No models found — is Ollama running?</option>';
+  for (const [key, cssVar] of Object.entries(map)) {
+    if (colors[key]) root.style.setProperty(cssVar, colors[key]);
   }
 }
 
-// ── SESSIONS ──────────────────────────────────────────────────────────────
-async function loadSessions() {
-  const data = await fetch('/api/sessions').then(r => r.json()).catch(() => ({ sessions: [] }));
-  state.sessions = data.sessions || [];
-  renderSessionList();
-  if (state.sessions.length) await selectSession(state.sessions[0].id);
-  else await newSession();
+function renderThemeSwatches(colors) {
+  const preview = $('theme-preview');
+  if (!preview) return;
+  preview.innerHTML = '';
+  const show = ['bg_primary','bg_secondary','accent_primary','text_primary',
+                 'success','warning','error','border'];
+  for (const key of show) {
+    if (!colors[key]) continue;
+    const d = document.createElement('div');
+    d.className = 'theme-swatch';
+    d.style.background = colors[key];
+    d.style.color = isLight(colors[key]) ? '#000' : '#fff';
+    d.textContent = key.replace(/_/g, ' ');
+    d.title = `${key}: ${colors[key]}`;
+    preview.appendChild(d);
+  }
 }
 
-function renderSessionList() {
-  const q   = state.searchQuery.toLowerCase();
-  const vis = q ? state.sessions.filter(s => s.name.toLowerCase().includes(q)) : state.sessions;
-  document.getElementById('session-list').innerHTML = vis.map(s => `
-    <li class="${s.id === state.currentSession?.id ? 'active' : ''}"
-        onclick="selectSession('${s.id}')">
-      ${s.pinned ? '<span class="pin">⭐</span>' : ''}
-      <span class="name">${esc(s.name)}</span>
-      <span class="count">${s.msg_count}</span>
-    </li>`).join('');
+function isLight(hex) {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substr(0,2), 16);
+  const g = parseInt(c.substr(2,2), 16);
+  const b = parseInt(c.substr(4,2), 16);
+  return (r*299 + g*587 + b*114) / 1000 > 128;
 }
 
-function filterSessions(q) { state.searchQuery = q; renderSessionList(); }
-
-async function selectSession(sid) {
-  const data = await fetch(`/api/sessions/${sid}`).then(r => r.json()).catch(() => null);
-  if (!data) return;
-  state.currentSession = data;
-  renderSessionList();
-  renderMessages(data.messages || []);
-  document.getElementById('session-name-display').textContent = data.name || '—';
-  document.getElementById('msg-count-display').textContent =
-    data.messages?.length ? `${data.messages.length} messages` : '';
+// ── Config ────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config');
+    state.config = await r.json();
+    const c = state.config;
+    if ($('cfg-sessions-dir')) $('cfg-sessions-dir').value = c.sessions_dir || '';
+    if ($('cfg-port'))         $('cfg-port').value         = c.port || 8080;
+    if ($('cfg-ollama-url'))   $('cfg-ollama-url').value   = c.ollama_url || '';
+    if ($('ollama-url'))       $('ollama-url').value       = c.ollama_url || 'http://localhost:11434';
+    const ssh = c.ssh || {};
+    setVal('cfg-ssh-host', ssh.host || '127.0.0.1');
+    setVal('cfg-ssh-port', ssh.port || 22);
+    setVal('cfg-ssh-user', ssh.username || '');
+    setVal('cfg-ssh-key',  ssh.key_path || '');
+    setVal('cfg-ssh-root', ssh.root_path || '/home');
+    state.sshPath = ssh.root_path || '/home';
+  } catch(e) { console.warn('Config load failed:', e); }
 }
 
-async function newSession() {
-  const data = await fetch('/api/sessions', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({})
-  }).then(r => r.json());
-  state.sessions.unshift({ id: data.id, name: data.name, pinned: false, updated_at: data.updated_at, msg_count: 0 });
-  renderSessionList();
-  await selectSession(data.id);
+function setVal(id, val) {
+  const el = $(id);
+  if (el) el.value = val;
 }
 
-async function deleteCurrentSession() {
-  if (!state.currentSession) return;
-  if (!confirm(`Delete session "${state.currentSession.name}"?`)) return;
-  await fetch(`/api/sessions/${state.currentSession.id}`, { method: 'DELETE' });
-  state.sessions = state.sessions.filter(s => s.id !== state.currentSession.id);
-  state.currentSession = null;
-  if (state.sessions.length) await selectSession(state.sessions[0].id);
-  else await newSession();
-}
-
-async function renameCurrentSession() {
-  if (!state.currentSession) return;
-  const name = prompt('Rename session:', state.currentSession.name);
-  if (!name?.trim()) return;
-  state.currentSession.name = name.trim();
-  await fetch(`/api/sessions/${state.currentSession.id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name.trim() })
+async function saveConfig() {
+  const cfg = {
+    sessions_dir: $('cfg-sessions-dir').value.trim(),
+    port:         parseInt($('cfg-port').value) || 8080,
+    ollama_url:   $('cfg-ollama-url').value.trim(),
+    ssh: {
+      host:      $('cfg-ssh-host').value.trim(),
+      port:      parseInt($('cfg-ssh-port').value) || 22,
+      username:  $('cfg-ssh-user').value.trim(),
+      password:  $('cfg-ssh-pass').value,
+      key_path:  $('cfg-ssh-key').value.trim(),
+      root_path: $('cfg-ssh-root').value.trim(),
+    }
+  };
+  await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg)
   });
-  document.getElementById('session-name-display').textContent = name.trim();
-  const s = state.sessions.find(x => x.id === state.currentSession.id);
-  if (s) s.name = name.trim();
+  state.config = cfg;
+  closeModal('modal-settings');
+  checkOllamaStatus();
+}
+
+// ── Models ────────────────────────────────────────────────────
+async function loadModels() {
+  try {
+    const r = await fetch('/api/models');
+    const { models } = await r.json();
+    const sel = $('model-select');
+    sel.innerHTML = models.length
+      ? models.map(m => `<option value="${m}">${m}</option>`).join('')
+      : '<option value="">No models found</option>';
+  } catch(e) {
+    $('model-select').innerHTML = '<option value="">Error loading models</option>';
+  }
+}
+
+// ── Ollama status ─────────────────────────────────────────────
+async function checkOllamaStatus() {
+  try {
+    const r = await fetch('/api/ollama/status');
+    const { running } = await r.json();
+    const dot  = $('ollama-dot');
+    const text = $('ollama-status-text');
+    dot.className = 'status-dot ' + (running ? 'online' : 'offline');
+    dot.title     = running ? 'Ollama running' : 'Ollama offline';
+    if (text) {
+      text.textContent = running ? '● Ollama running' : '● Ollama offline — run: ollama serve';
+      text.style.color = running
+        ? getComputedStyle(document.documentElement).getPropertyValue('--success')
+        : getComputedStyle(document.documentElement).getPropertyValue('--error');
+    }
+  } catch(e) {
+    const dot = $('ollama-dot');
+    if (dot) { dot.className = 'status-dot offline'; dot.title = 'Cannot reach server'; }
+  }
+}
+
+// ── WebSocket ─────────────────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${location.host}/ws/chat`;
+
+  if (state.ws) {
+    try { state.ws.close(); } catch(e) {}
+  }
+
+  state.ws = new WebSocket(wsUrl);
+
+  state.ws.onopen = () => {
+    console.log('WS connected');
+    if (state.wsReconnectTimer) {
+      clearTimeout(state.wsReconnectTimer);
+      state.wsReconnectTimer = null;
+    }
+  };
+
+  state.ws.onmessage = (evt) => {
+    const data = JSON.parse(evt.data);
+    if (data.error) {
+      appendBubble('error', data.error);
+      setGenerating(false);
+      return;
+    }
+    if (data.token) {
+      state._streamBuffer = (state._streamBuffer || '') + data.token;
+      updateLastBubble(state._streamBuffer);
+    }
+    if (data.done) {
+      // Save assistant message to current session locally
+      if (state.currentSession) {
+        state.currentSession.messages.push({
+          role: 'assistant',
+          content: data.full || state._streamBuffer || ''
+        });
+        state._streamBuffer = '';
+        refreshSessionList();
+      }
+      setGenerating(false);
+    }
+  };
+
+  state.ws.onerror = () => setGenerating(false);
+
+  state.ws.onclose = () => {
+    // Auto-reconnect after 3s
+    state.wsReconnectTimer = setTimeout(connectWS, 3000);
+  };
+}
+
+// ── Sessions ──────────────────────────────────────────────────
+async function loadSessions() {
+  try {
+    const r = await fetch('/api/sessions');
+    const { sessions } = await r.json();
+    state.sessions = sessions || [];
+    if (state.sessions.length === 0) {
+      await newSession();
+    } else {
+      renderSessionList();
+      selectSession(state.sessions[0]);
+    }
+  } catch(e) {
+    console.warn('Sessions load failed:', e);
+    await newSession();
+  }
+}
+
+async function newSession(name = '') {
+  try {
+    const r = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const session = await r.json();
+    state.sessions.unshift(session);
+    renderSessionList();
+    selectSession(session);
+    return session;
+  } catch(e) {
+    console.warn('New session failed:', e);
+  }
+}
+
+function selectSession(session) {
+  state.currentSession = session;
   renderSessionList();
+  renderChat();
 }
 
-function exportSession(fmt) {
+function renderSessionList(filter = '') {
+  const list = $('session-list');
+  if (!list) return;
+  const q = filter.toLowerCase();
+  const visible = q
+    ? state.sessions.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.messages || []).some(m => m.content.toLowerCase().includes(q)))
+    : state.sessions;
+
+  list.innerHTML = visible.map(s => {
+    const active  = state.currentSession && s.id === state.currentSession.id ? 'active' : '';
+    const pin     = s.pinned ? 'pinned' : '';
+    const count   = (s.messages || []).length;
+    const name    = escHtml(s.name);
+    return `<li class="${active} ${pin}" data-id="${s.id}" title="${name}">
+      ${name}<span class="session-count">${count}</span>
+    </li>`;
+  }).join('');
+
+  list.querySelectorAll('li').forEach(li => {
+    li.addEventListener('click', () => {
+      const s = state.sessions.find(x => x.id === li.dataset.id);
+      if (s) selectSession(s);
+    });
+    li.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      showSessionMenu(e, li.dataset.id);
+    });
+  });
+}
+
+function refreshSessionList() {
+  renderSessionList($('session-search')?.value || '');
+}
+
+// ── Session context menu ──────────────────────────────────────
+function showSessionMenu(e, sessionId) {
+  document.querySelector('.ctx-menu')?.remove();
+
+  const session = state.sessions.find(s => s.id === sessionId);
+  if (!session) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;
+    background:var(--bg-secondary);border:1px solid var(--border);border-radius:5px;
+    padding:4px 0;z-index:2000;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,0.4);`;
+
+  const items = [
+    { label: 'Rename',          action: () => renameSession(sessionId) },
+    { label: session.pinned ? 'Unpin ⭐' : 'Pin ⭐', action: () => togglePin(sessionId) },
+    { label: '─', separator: true },
+    { label: 'Export as .md',   action: () => exportSession(sessionId, 'md') },
+    { label: 'Export as .txt',  action: () => exportSession(sessionId, 'txt') },
+    { label: '─', separator: true },
+    { label: 'Delete',          action: () => deleteSession(sessionId), danger: true },
+  ];
+
+  items.forEach(item => {
+    if (item.separator) {
+      const hr = document.createElement('div');
+      hr.style.cssText = 'border-top:1px solid var(--border);margin:3px 0;';
+      menu.appendChild(hr);
+      return;
+    }
+    const btn = document.createElement('div');
+    btn.textContent = item.label;
+    btn.style.cssText = `padding:7px 14px;cursor:pointer;font-size:13px;
+      color:${item.danger ? 'var(--error)' : 'var(--text-primary)'};`;
+    btn.addEventListener('mouseenter', () => btn.style.background = 'var(--bg-tertiary)');
+    btn.addEventListener('mouseleave', () => btn.style.background = '');
+    btn.addEventListener('click', () => { menu.remove(); item.action(); });
+    menu.appendChild(btn);
+  });
+
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
+}
+
+async function renameSession(id) {
+  const session = state.sessions.find(s => s.id === id);
+  if (!session) return;
+  const name = prompt('Session name:', session.name);
+  if (!name || !name.trim()) return;
+  session.name = name.trim();
+  await fetch(`/api/sessions/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: session.name })
+  });
+  refreshSessionList();
+}
+
+async function togglePin(id) {
+  const session = state.sessions.find(s => s.id === id);
+  if (!session) return;
+  session.pinned = !session.pinned;
+  await fetch(`/api/sessions/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pinned: session.pinned })
+  });
+  // Re-sort: pinned first
+  state.sessions.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  refreshSessionList();
+}
+
+async function deleteSession(id) {
+  if (state.sessions.length <= 1) {
+    alert('Cannot delete the only session.');
+    return;
+  }
+  if (!confirm('Delete this session?')) return;
+  await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+  state.sessions = state.sessions.filter(s => s.id !== id);
+  if (state.currentSession?.id === id) {
+    selectSession(state.sessions[0]);
+  }
+  refreshSessionList();
+}
+
+async function clearCurrentSession() {
   if (!state.currentSession) return;
-  window.open(`/api/sessions/${state.currentSession.id}/export?fmt=${fmt}`, '_blank');
+  if (!confirm('Clear all messages in this session?')) return;
+  state.currentSession.messages = [];
+  await fetch(`/api/sessions/${state.currentSession.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [] })
+  });
+  renderChat();
+  refreshSessionList();
 }
 
-// ── MESSAGES ──────────────────────────────────────────────────────────────
-function renderMessages(messages) {
-  const el = document.getElementById('chat-messages');
-  el.innerHTML = messages.map(m => buildBubble(m.role, m.content)).join('');
-  scrollToBottom();
+function exportSession(id, fmt) {
+  window.open(`/api/sessions/${id}/export?fmt=${fmt}`, '_blank');
 }
 
-function buildBubble(role, content) {
-  const label = role === 'user' ? 'You' : role === 'assistant' ? 'AI' : role.toUpperCase();
-  return `<div class="bubble ${role}">
-    <div class="role-label">${label}</div>
-    <div class="content">${renderMarkdown(content)}</div>
-  </div>`;
-}
-
-function renderMarkdown(text) {
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-      `<pre><code class="lang-${lang}">${code}</code></pre>`)
-    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br>');
+// ── Chat rendering ────────────────────────────────────────────
+function renderChat() {
+  const container = $('chat-messages');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!state.currentSession) return;
+  for (const msg of (state.currentSession.messages || [])) {
+    appendBubble(msg.role, msg.content);
+  }
 }
 
 function appendBubble(role, content) {
-  const el = document.getElementById('chat-messages');
-  if (role === 'assistant') {
-    const bubbles = el.querySelectorAll('.bubble.assistant');
-    const last = bubbles[bubbles.length - 1];
-    if (last && last.querySelector('.content')?.innerHTML === '') {
-      last.querySelector('.content').innerHTML = renderMarkdown(content);
-      scrollToBottom(); return;
-    }
+  const container = $('chat-messages');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = `bubble bubble-${role}`;
+  div.dataset.role = role;
+
+  const labels = { user: 'You', assistant: 'AI', error: 'Error' };
+  const label = labels[role] || role;
+
+  div.innerHTML = `<div class="bubble-role">${escHtml(label)}</div>`
+                + formatContent(content);
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function updateLastBubble(content) {
+  const container = $('chat-messages');
+  if (!container) return;
+  const bubbles = container.querySelectorAll('.bubble-assistant');
+  if (bubbles.length === 0) {
+    appendBubble('assistant', content);
+    return;
   }
-  el.insertAdjacentHTML('beforeend', buildBubble(role, content));
-  scrollToBottom();
+  const last = bubbles[bubbles.length - 1];
+  last.innerHTML = `<div class="bubble-role">AI</div>` + formatContent(content);
+  container.scrollTop = container.scrollHeight;
 }
 
-function updateLastAssistantBubble(content) {
-  const el = document.getElementById('chat-messages');
-  const last = el.querySelector('.bubble.assistant:last-child');
-  if (last) { last.querySelector('.content').innerHTML = renderMarkdown(content); scrollToBottom(); }
+function formatContent(text) {
+  // Render markdown-ish: code blocks, inline code, bold, newlines
+  let html = escHtml(text);
+
+  // Fenced code blocks ```lang\n...\n```
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const langLabel = lang ? `<span class="code-lang">${escHtml(lang)}</span>` : '';
+    return `<div class="code-block">${langLabel}<pre><code>${code}</code></pre></div>`;
+  });
+
+  // Inline code `...`
+  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  // Bold **...**
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  // Newlines to <br> (outside pre blocks)
+  html = html.replace(/\n/g, '<br>');
+
+  return html;
 }
 
-function scrollToBottom() {
-  const el = document.getElementById('chat-messages');
-  el.scrollTop = el.scrollHeight;
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-// ── WEBSOCKET ─────────────────────────────────────────────────────────────
-function connectWebSocket() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  state.ws = new WebSocket(`${proto}://${location.host}/ws/chat`);
-  state.ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'token') {
-      state._streamBuffer += msg.token;
-      updateLastAssistantBubble(state._streamBuffer);
-    } else if (msg.type === 'done') {
-      finishGeneration(msg.response);
-    } else if (msg.type === 'error') {
-      finishGeneration(null, msg.message);
-    }
-  };
-  state.ws.onclose = () => setTimeout(connectWebSocket, 2000);
-}
-
-// ── SEND ──────────────────────────────────────────────────────────────────
+// ── Send message ──────────────────────────────────────────────
 async function sendMessage() {
-  if (state.generating) return;
-  const input = document.getElementById('message-input');
+  const input = $('chat-input');
   const text  = input.value.trim();
-  if (!text && !state.attachments.length) return;
-  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
-    alert('WebSocket reconnecting, please try again in a moment.'); return;
-  }
-  if (!state.model) { alert('Please select a model first.'); return; }
+  if (!text && state.attachments.length === 0) return;
+  if (state.generating) return;
   if (!state.currentSession) await newSession();
 
-  const displayText = state.attachments.length
-    ? `[📎 ${state.attachments.map(a => a.name).join(', ')}]\n${text}`.trim()
-    : text;
+  // Build display text
+  let displayText = text;
+  if (state.attachments.length > 0) {
+    const names = state.attachments.map(a => a.name).join(', ');
+    displayText = `[📎 ${names}]\n${text}`.trim();
+  }
 
-  state.currentSession.messages = state.currentSession.messages || [];
+  // Add user message locally
   state.currentSession.messages.push({ role: 'user', content: displayText });
   appendBubble('user', displayText);
+  input.value = '';
 
+  // Clear attachments
+  clearAttachments();
+
+  // Save user message to server
   await fetch(`/api/sessions/${state.currentSession.id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages: state.currentSession.messages })
   });
 
-  input.value = '';
+  refreshSessionList();
+
+  // Build API messages
+  const systemPrompt = $('system-prompt')?.value?.trim();
+  const apiMessages = [];
+  if (systemPrompt) apiMessages.push({ role: 'system', content: systemPrompt });
+
+  // Include history + current message with attachment content injected
+  for (const msg of state.currentSession.messages.slice(0, -1)) {
+    apiMessages.push({ role: msg.role, content: msg.content });
+  }
+
+  // Last message: inject attachment content
+  let apiContent = text;
+  if (state.attachments.length > 0) {
+    let injected = '';
+    for (const att of state.attachments) {
+      if (att.error) {
+        injected += `\n[Attachment error: ${att.name}: ${att.error}]\n`;
+      } else if (att.type === 'image') {
+        // Images handled as multimodal — skip text injection
+      } else {
+        const ext = att.name.split('.').pop() || '';
+        injected += `\n### Attached: \`${att.name}\`\n\`\`\`${ext}\n${att.content}\n\`\`\`\n`;
+      }
+    }
+    apiContent = injected + '\n' + text;
+  }
+  apiMessages.push({ role: 'user', content: apiContent });
+
+  // Start generation
+  setGenerating(true);
   state._streamBuffer = '';
   appendBubble('assistant', '');
-  state.generating = true;
-  setGenerating(true);
+
+  const model       = $('model-select')?.value || '';
+  const temperature = parseFloat($('temp-slider')?.value || '0.7');
+  const maxTokens   = parseInt($('max-tokens')?.value || '2048');
+
+  if (!model) {
+    appendBubble('error', 'No model selected. Choose a model in the Settings panel.');
+    setGenerating(false);
+    return;
+  }
+
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+    appendBubble('error', 'WebSocket not connected. Trying to reconnect…');
+    connectWS();
+    setGenerating(false);
+    return;
+  }
 
   state.ws.send(JSON.stringify({
-    model: state.model,
-    messages: state.currentSession.messages,
-    temperature: state.temperature,
-    max_tokens: state.maxTokens,
-    system_prompt: state.systemPrompt,
-    attachments: state.attachments,
+    model,
+    messages:    apiMessages,
+    temperature,
+    max_tokens:  maxTokens,
+    session_id:  state.currentSession.id,
   }));
-
-  clearAttachments();
 }
 
-async function finishGeneration(response, error = null) {
-  state.generating = false;
-  setGenerating(false);
-  document.getElementById('typing-indicator').textContent = '';
-  state._streamBuffer = '';
-
-  if (error) { appendBubble('error', error); return; }
-
-  state.currentSession.messages.push({ role: 'assistant', content: response });
-  await fetch(`/api/sessions/${state.currentSession.id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: state.currentSession.messages })
-  });
-  const s = state.sessions.find(x => x.id === state.currentSession.id);
-  if (s) s.msg_count = state.currentSession.messages.length;
-  document.getElementById('msg-count-display').textContent = `${state.currentSession.messages.length} messages`;
-  renderSessionList();
+function setGenerating(val) {
+  state.generating = val;
+  const sendBtn = $('btn-send');
+  const stopBtn = $('btn-stop');
+  const indicator = $('typing-indicator');
+  if (sendBtn) sendBtn.disabled = val;
+  if (stopBtn) stopBtn.disabled = !val;
+  if (indicator) indicator.classList.toggle('hidden', !val);
+  if (val) {
+    const model = $('model-select')?.value || 'AI';
+    if (indicator) indicator.textContent = `${model} is thinking…`;
+  }
 }
 
 function stopGeneration() {
-  if (state.ws) { state.ws.close(); }
-  state.generating = false;
+  // Close and reopen WS to interrupt stream
+  if (state.ws) {
+    try { state.ws.close(); } catch(e) {}
+  }
   setGenerating(false);
-  document.getElementById('typing-indicator').textContent = '';
-  connectWebSocket();
-}
-
-function setGenerating(on) {
-  document.getElementById('send-btn').disabled = on;
-  document.getElementById('stop-btn').disabled = !on;
-  document.getElementById('typing-indicator').textContent = on ? `${state.model} is thinking…` : '';
-}
-
-function handleInputKey(e) {
-  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); sendMessage(); }
-}
-
-// ── FILE ATTACHMENTS ──────────────────────────────────────────────────────
-function triggerFileUpload() { document.getElementById('file-input').click(); }
-
-async function handleFileUpload(event) {
-  for (const file of event.target.files) {
-    const form = new FormData();
-    form.append('file', file);
-    const data = await fetch('/api/upload', { method: 'POST', body: form }).then(r => r.json());
-    addAttachment(data);
+  // Remove empty last bubble if any
+  const container = $('chat-messages');
+  const bubbles = container?.querySelectorAll('.bubble-assistant');
+  if (bubbles?.length) {
+    const last = bubbles[bubbles.length - 1];
+    if (!last.querySelector('code,pre') && last.textContent.replace('AI','').trim() === '') {
+      last.remove();
+    }
   }
-  event.target.value = '';
+  setTimeout(connectWS, 200);
 }
 
-function addAttachment(att) { state.attachments.push(att); renderAttachmentBar(); }
-function removeAttachment(name) { state.attachments = state.attachments.filter(a => a.name !== name); renderAttachmentBar(); }
-function clearAttachments() { state.attachments = []; renderAttachmentBar(); }
-
-function renderAttachmentBar() {
-  const bar = document.getElementById('attachment-bar');
-  if (!state.attachments.length) { bar.className = ''; bar.innerHTML = ''; return; }
-  bar.className = 'visible';
-  bar.innerHTML = state.attachments.map(a => `
-    <div class="chip ${a.error ? 'error' : ''}">
-      ${a.type === 'image' ? '🖼' : a.type === 'text' ? '📄' : '📦'} ${esc(a.name)}
-      <button class="chip-remove" onclick="removeAttachment('${escAttr(a.name)}')">✕</button>
-    </div>`).join('');
-}
-
-// ── SSH BROWSER ───────────────────────────────────────────────────────────
-function openSSHBrowser() {
-  document.getElementById('ssh-modal').classList.add('open');
-  if (state.sshConnId) {
-    document.getElementById('ssh-connect-form').style.display = 'none';
-    document.getElementById('ssh-browser').style.display = 'block';
-  }
-}
-function closeSSHModal() { document.getElementById('ssh-modal').classList.remove('open'); }
-
-async function sshConnect() {
-  const msg = document.getElementById('ssh-connect-msg');
-  msg.textContent = 'Connecting…'; msg.style.color = '';
-  const data = await fetch('/api/ssh/connect', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      host: document.getElementById('ssh-host').value,
-      port: +document.getElementById('ssh-port').value,
-      username: document.getElementById('ssh-user').value,
-      password: document.getElementById('ssh-pass').value,
-      key_path: document.getElementById('ssh-key').value,
-    })
-  }).then(r => r.json());
-
-  if (data.ok) {
-    state.sshConnId = data.conn_id;
-    msg.textContent = '✓ ' + data.message;
-    document.getElementById('ssh-connect-form').style.display = 'none';
-    document.getElementById('ssh-browser').style.display = 'block';
-    await sshListDir('/home');
-  } else {
-    msg.textContent = '✗ ' + data.message;
-    msg.style.color = 'var(--error)';
+// ── File attachments ──────────────────────────────────────────
+async function attachLocalFiles(files) {
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', body: formData });
+      const att = await r.json();
+      addAttachment(att);
+    } catch(e) {
+      addAttachment({ name: file.name, type: 'binary', error: e.message, content: '' });
+    }
   }
 }
 
-async function sshListDir(path) {
-  const data = await fetch(`/api/ssh/${state.sshConnId}/ls?path=${encodeURIComponent(path)}`).then(r => r.json());
-  document.getElementById('ssh-path').textContent = data.path;
-  state.sshSelectedPath = null;
-  document.getElementById('ssh-attach-btn').disabled = true;
+function addAttachment(att) {
+  state.attachments.push(att);
+  renderAttachments();
+}
 
-  const ul = document.getElementById('ssh-file-list');
-  let html = '';
-  if (data.path !== '/') {
-    const parent = data.path.split('/').slice(0, -1).join('/') || '/';
-    html += `<li onclick="sshListDir('${escAttr(parent)}')"><span class="entry-icon">📁</span><span class="entry-name">..</span></li>`;
+function removeAttachment(index) {
+  state.attachments.splice(index, 1);
+  renderAttachments();
+}
+
+function clearAttachments() {
+  state.attachments = [];
+  renderAttachments();
+}
+
+function renderAttachments() {
+  const bar = $('attachments-bar');
+  if (!bar) return;
+  if (state.attachments.length === 0) {
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
   }
-  html += (data.entries || []).map(e => {
-    const click = e.is_dir ? `sshListDir('${escAttr(e.path)}')` : `sshSelectFile('${escAttr(e.path)}', this)`;
-    const size = !e.is_dir && e.size > 0 ? `<span class="entry-size">${(e.size / 1024).toFixed(1)} KB</span>` : '';
-    return `<li onclick="${click}"><span class="entry-icon">${e.is_dir ? '📁' : '📄'}</span><span class="entry-name">${esc(e.name)}</span>${size}</li>`;
+  bar.classList.remove('hidden');
+  bar.innerHTML = state.attachments.map((att, i) => {
+    const icons = { image: '🖼', text: '📄', project: '🗂', binary: '📦' };
+    const icon  = icons[att.type] || '📎';
+    const cls   = att.error ? 'att-chip error' : 'att-chip';
+    return `<div class="${cls}">
+      ${icon} <span>${escHtml(att.name)}</span>
+      <button onclick="removeAttachment(${i})" title="Remove">✕</button>
+    </div>`;
   }).join('');
-  ul.innerHTML = html;
 }
 
-function sshSelectFile(path, el) {
-  document.querySelectorAll('#ssh-file-list li').forEach(l => l.classList.remove('selected'));
-  el.classList.add('selected');
-  state.sshSelectedPath = path;
-  document.getElementById('ssh-attach-btn').disabled = false;
+// ── SSH file browser ──────────────────────────────────────────
+async function openSSHBrowser() {
+  // Check SSH connected first
+  try {
+    const r = await fetch('/api/ssh/status');
+    const { connected, username } = await r.json();
+    if (!connected) {
+      // Auto-connect
+      const cr = await fetch('/api/ssh/connect', { method: 'POST' });
+      const { ok, message } = await cr.json();
+      if (!ok) {
+        alert(`SSH connection failed:\n${message}\n\nConfigure SSH in Settings → SSH tab.`);
+        return;
+      }
+    }
+  } catch(e) {
+    alert('Cannot reach server SSH endpoint.');
+    return;
+  }
+
+  openModal('modal-ssh');
+  await sshBrowse(state.sshPath);
 }
 
-async function sshAttachSelected() {
-  if (!state.sshSelectedPath || !state.sshConnId) return;
-  const data = await fetch(`/api/ssh/${state.sshConnId}/read?path=${encodeURIComponent(state.sshSelectedPath)}`).then(r => r.json());
-  if (data.ok) { addAttachment({ name: data.name, type: data.type, mime: data.mime || 'text/plain', content: data.content, source: 'ssh' }); closeSSHModal(); }
-  else alert('Could not read file: ' + (data.content || 'Unknown error'));
+async function sshBrowse(path) {
+  state.sshPath = path;
+  state.sshSelected = null;
+  $('btn-ssh-attach').disabled = true;
+  $('ssh-path-bar').textContent = path;
+
+  const list = $('ssh-file-list');
+  list.innerHTML = '<li style="color:var(--text-secondary);padding:8px 14px;">Loading…</li>';
+
+  try {
+    const r = await fetch(`/api/ssh/ls?path=${encodeURIComponent(path)}`);
+    if (!r.ok) throw new Error(await r.text());
+    const { entries } = await r.json();
+
+    list.innerHTML = '';
+
+    // Parent dir
+    if (path !== '/') {
+      const parent = path.split('/').slice(0,-1).join('/') || '/';
+      const li = document.createElement('li');
+      li.innerHTML = '📁 <span>..</span>';
+      li.addEventListener('dblclick', () => sshBrowse(parent));
+      list.appendChild(li);
+    }
+
+    for (const entry of entries) {
+      const li = document.createElement('li');
+      const icon = entry.is_dir ? '📁' : '📄';
+      const size = !entry.is_dir && entry.size > 0
+        ? `<span class="ssh-size">${(entry.size/1024).toFixed(1)} KB</span>` : '';
+      li.innerHTML = `${icon} <span>${escHtml(entry.name)}</span>${size}`;
+      li.dataset.path   = entry.path;
+      li.dataset.is_dir = entry.is_dir;
+
+      if (entry.is_dir) {
+        li.addEventListener('dblclick', () => sshBrowse(entry.path));
+      } else {
+        li.addEventListener('click', () => {
+          list.querySelectorAll('li').forEach(x => x.classList.remove('selected'));
+          li.classList.add('selected');
+          state.sshSelected = entry;
+          $('btn-ssh-attach').disabled = false;
+        });
+        li.addEventListener('dblclick', () => attachSSHFile(entry));
+      }
+      list.appendChild(li);
+    }
+  } catch(e) {
+    list.innerHTML = `<li style="color:var(--error);padding:8px 14px;">Error: ${escHtml(e.message)}</li>`;
+  }
 }
 
-// ── MOBILE ────────────────────────────────────────────────────────────────
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
-function toggleSettings() { document.getElementById('settings-panel').classList.toggle('open'); }
+async function attachSSHFile(entry) {
+  if (!entry) entry = state.sshSelected;
+  if (!entry || entry.is_dir) return;
 
-// ── UTILS ─────────────────────────────────────────────────────────────────
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  try {
+    const r = await fetch(`/api/ssh/read?path=${encodeURIComponent(entry.path)}`);
+    if (!r.ok) throw new Error(await r.text());
+    const att = await r.json();
+    addAttachment(att);
+    closeModal('modal-ssh');
+  } catch(e) {
+    alert(`Failed to read file:\n${e.message}`);
+  }
 }
-function escAttr(s) { return String(s).replace(/'/g, "\\'"); }
 
-// ── START ─────────────────────────────────────────────────────────────────
-init();
+// ── Modal helpers ─────────────────────────────────────────────
+function openModal(id) {
+  const el = $(id);
+  if (el) el.classList.remove('hidden');
+}
+
+function closeModal(id) {
+  const el = $(id);
+  if (el) el.classList.add('hidden');
+}
+
+// ── Tab switching (settings modal) ────────────────────────────
+function switchTab(tabId) {
+  $$('.tab-content').forEach(t => t.classList.add('hidden'));
+  $$('.tab-btn').forEach(b => b.classList.remove('active'));
+  $(tabId)?.classList.remove('hidden');
+  document.querySelector(`[data-tab="${tabId}"]`)?.classList.add('active');
+}
+
+// ── SSH connect test ──────────────────────────────────────────
+async function testSSHConnection() {
+  // Save SSH settings first
+  const cfg = {
+    ssh: {
+      host:      $('cfg-ssh-host').value.trim(),
+      port:      parseInt($('cfg-ssh-port').value) || 22,
+      username:  $('cfg-ssh-user').value.trim(),
+      password:  $('cfg-ssh-pass').value,
+      key_path:  $('cfg-ssh-key').value.trim(),
+      root_path: $('cfg-ssh-root').value.trim(),
+    }
+  };
+  await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg)
+  });
+
+  const statusEl = $('ssh-status-text');
+  if (statusEl) statusEl.textContent = 'Connecting…';
+
+  try {
+    const r = await fetch('/api/ssh/connect', { method: 'POST' });
+    const { ok, message } = await r.json();
+    if (statusEl) {
+      statusEl.textContent = ok ? `✓ ${message}` : `✗ ${message}`;
+      statusEl.style.color = ok
+        ? getComputedStyle(document.documentElement).getPropertyValue('--success')
+        : getComputedStyle(document.documentElement).getPropertyValue('--error');
+    }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = `✗ ${e.message}`;
+  }
+}
+
+// ── Temperature slider live label ─────────────────────────────
+function bindTempSlider() {
+  const slider = $('temp-slider');
+  const label  = $('temp-val');
+  if (!slider || !label) return;
+  slider.addEventListener('input', () => {
+    label.textContent = parseFloat(slider.value).toFixed(2);
+  });
+}
+
+// ── Auto-resize textarea ──────────────────────────────────────
+function bindInputResize() {
+  const input = $('chat-input');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+  });
+}
+
+// ── Mobile panel toggles ──────────────────────────────────────
+function bindMobileToggles() {
+  $('btn-sessions-toggle')?.addEventListener('click', () => {
+    $('sessions-panel').classList.toggle('open');
+    $('settings-panel').classList.remove('open');
+  });
+  $('btn-settings-toggle')?.addEventListener('click', () => {
+    $('settings-panel').classList.toggle('open');
+    $('sessions-panel').classList.remove('open');
+  });
+}
+
+// ── Bind all events ───────────────────────────────────────────
+function bindEvents() {
+  // Send
+  $('btn-send')?.addEventListener('click', sendMessage);
+  $('btn-stop')?.addEventListener('click', stopGeneration);
+
+  // Ctrl+Enter to send
+  $('chat-input')?.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // New session
+  $('btn-new-session')?.addEventListener('click', () => newSession());
+  $('btn-new-session-side')?.addEventListener('click', () => newSession());
+
+  // Clear
+  $('btn-clear')?.addEventListener('click', clearCurrentSession);
+
+  // Session search
+  $('session-search')?.addEventListener('input', e => {
+    renderSessionList(e.target.value);
+  });
+
+  // Settings modal
+  $('btn-settings')?.addEventListener('click', () => openModal('modal-settings'));
+  $('btn-save-settings')?.addEventListener('click', saveConfig);
+
+  // Modal close buttons
+  $$('.modal-close').forEach(btn => {
+    btn.addEventListener('click', () => closeModal(btn.dataset.modal));
+  });
+
+  // Click outside modal to close
+  $$('.modal').forEach(modal => {
+    modal.addEventListener('click', e => {
+      if (e.target === modal) closeModal(modal.id);
+    });
+  });
+
+  // Tab buttons
+  $$('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // File attach
+  $('btn-attach-local')?.addEventListener('click', () => $('file-input')?.click());
+  $('file-input')?.addEventListener('change', e => {
+    if (e.target.files.length) {
+      attachLocalFiles(Array.from(e.target.files));
+      e.target.value = '';
+    }
+  });
+
+  // Drag-and-drop onto chat
+  const chatPanel = $('chat-panel');
+  chatPanel?.addEventListener('dragover', e => { e.preventDefault(); chatPanel.style.outline = '2px dashed var(--accent-primary)'; });
+  chatPanel?.addEventListener('dragleave', () => { chatPanel.style.outline = ''; });
+  chatPanel?.addEventListener('drop', e => {
+    e.preventDefault();
+    chatPanel.style.outline = '';
+    if (e.dataTransfer.files.length) attachLocalFiles(Array.from(e.dataTransfer.files));
+  });
+
+  // SSH attach
+  $('btn-attach-ssh')?.addEventListener('click', openSSHBrowser);
+  $('btn-ssh-attach')?.addEventListener('click', () => attachSSHFile(state.sshSelected));
+
+  // SSH connect test
+  $('btn-ssh-connect')?.addEventListener('click', testSSHConnection);
+
+  // Refresh models
+  $('btn-refresh-models')?.addEventListener('click', loadModels);
+
+  // Reload theme
+  $('btn-reload-theme')?.addEventListener('click', async () => {
+    await loadTheme();
+  });
+
+  // Temperature slider
+  bindTempSlider();
+
+  // Input auto-resize
+  bindInputResize();
+
+  // Mobile
+  bindMobileToggles();
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      $$('.modal:not(.hidden)').forEach(m => closeModal(m.id));
+      document.querySelector('.ctx-menu')?.remove();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      newSession();
+    }
+  });
+}
