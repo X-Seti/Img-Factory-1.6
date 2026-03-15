@@ -54,6 +54,7 @@ class MenuDefinition:
                 MenuAction("open_img", "&Open IMG", "Ctrl+O", "document-open"),
                 MenuAction("open_multiple", "Open &Multiple Files", "Ctrl+Shift+O", "folder-open"),
                 MenuAction("hybrid_load", "Hybrid &Load (IMG + COL)...", "Ctrl+Shift+H", "document-open"),
+                MenuAction("scan_img_folder", "&Scan Folder for IMGs...", "Ctrl+Shift+F", "folder-open"),
 
                 # Recent files will be added dynamically as a submenu
 

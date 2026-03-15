@@ -518,6 +518,7 @@ class IMGFactory(QMainWindow):
             "open_img": self.open_img_file,
             "new_img": self.create_new_img,
             "hybrid_load": self.open_hybrid_load,
+            "scan_img_folder": self.scan_img_folder,
             "exit": self.close,
             "img_validate": self.validate_img,
             "customize_interface": self.show_gui_settings,
@@ -3252,6 +3253,11 @@ class IMGFactory(QMainWindow):
         from apps.core.open_img import open_file_dialog
         return open_file_dialog(self)
 
+
+    def scan_img_folder(self): #vers 1
+        """Recursively scan a folder for IMG files, show results dialog."""
+        from apps.core.scan_img import scan_img_folder as _scan
+        _scan(self)
 
     def open_hybrid_load(self): #vers 2
         """Hybrid Load: open an IMG file and automatically pair each DFF entry
