@@ -1,4 +1,38 @@
-#this belongs in root /ChangeLog.md - Version: 21
+#this belongs in root /ChangeLog.md - Version: 22
+
+## March 15, 2026 (final) — RW Reference rewrite, ChangeLog v22
+
+### RW Reference Dialog — Complete Rewrite (v3)
+
+**Updated**: apps/gui/gui_layout_custom.py `_show_rw_reference` #vers 3
+
+Expanded from 5 tabs to 7 tabs, replacing sparse placeholder content with
+exhaustive human-readable documentation of every format researched during
+IMG Factory development. All content is theme-aware (QPalette colours, no
+hardcoded hex values).
+
+**New tabs:**
+- **IMG Formats** — binary layouts for every supported format with byte offsets,
+  field names, and "how we derived this" annotations (e.g. the GTA3 PS2 hex dump
+  analysis that revealed the 12-byte PS2_V1 format)
+- **RW Versions** — all three encoding styles (plain-int / packed 0xFFFF /
+  non-standard), full version table, RW chunk header layout, how version
+  scanning works in IMG Factory (multi-offset probe at +0/+4/+8)
+- **TXD / Textures** — RwTexDictionary structure tree, D3D9 native header offsets,
+  platform IDs (PS2=4, Xbox=5, iOS/PVRTC=8, Android/ETC1=9), mobile TXD notes
+- **COL Collision** — COLL/COL2/COL3/COL4 magic bytes, COL1 header layout, SA
+  extension summary, COL Workshop notes
+- **DAT / IDE / IPL** — section keywords for IDE (objs/tobj/cars/peds/txdp/2dfx)
+  and IPL (inst/cull/zone/pick/path), key .dat files, DAT Browser integration
+- **Platform Matrix** — full table of all 18 VERSION_ enums with container type,
+  sector size, entry format, and current support status; disambiguation table for
+  PS2_V1 vs Bully vs PS2_VCS; false-positive case studies; rebuild logic diagrams
+- **Troubleshooting** — "file opens as wrong format", "RW version shows Unknown",
+  "export produces wrong content", "rebuild makes file larger", LCS iOS streaming
+  segments, Ctrl+Up/Down reordering, IMG Factory component version matrix
+
+
+---
 
 ## March 15, 2026 (evening) — RW version display, move entries, detection fixes
 

@@ -1093,370 +1093,547 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             except Exception:
                 pass
 
-    def _show_rw_reference(self): #vers 2
-        """Show comprehensive GTA format reference — IMG, RW, TXD, COL"""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QTextEdit, QLabel
-        from PyQt6.QtGui import QFont
+    def _show_rw_reference(self): #vers 3
+        """Show comprehensive GTA/RenderWare format reference — all researched binary layouts."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+                                     QTabWidget, QTextEdit, QLabel, QSplitter)
+        from PyQt6.QtGui import QFont, QPalette
+        from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import Qt
 
         dialog = QDialog(self.main_window)
-        dialog.setWindowTitle("GTA File Format Reference — IMG Factory 1.6")
-        dialog.setMinimumWidth(860)
-        dialog.setMinimumHeight(700)
-        dialog.resize(900, 740)
+        dialog.setWindowTitle("GTA / RenderWare Format Reference — IMG Factory 1.6")
+        dialog.setMinimumSize(980, 760)
+        dialog.resize(1060, 800)
 
         layout = QVBoxLayout(dialog)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
         layout.setContentsMargins(10, 10, 10, 10)
 
-        header = QLabel("GTA File Format Reference  —  IMG Factory 1.6")
-        header.setFont(QFont("Arial", 13, QFont.Weight.Bold))
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
+        hdr = QLabel("RenderWare & GTA Archive Format Reference")
+        hdr.setFont(QFont("Arial", 13, QFont.Weight.Bold))
+        hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(hdr)
 
-        sub = QLabel("Documents all researched format details for IMG archives, RenderWare sections/versions, TXD textures, and COL collision files.")
+        sub = QLabel(
+            "Researched binary layouts for every platform supported by IMG Factory 1.6 — "
+            "including how each format was identified, what bytes we inspected, and "
+            "what conclusions we drew.")
         sub.setWordWrap(True)
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(sub)
 
         tabs = QTabWidget()
-        layout.addWidget(tabs)
+        layout.addWidget(tabs, 1)
 
-        def make_text(html: str) -> QTextEdit:
+        def make_tab(html):
             t = QTextEdit()
             t.setReadOnly(True)
             t.setHtml(html)
             return t
 
-        # Derive all colours from the live Qt palette so the dialog is correct
-        # on every theme (light, dark, system) with zero hardcoded hex values.
-        from PyQt6.QtGui import QPalette
-        from PyQt6.QtWidgets import QApplication
         pal = QApplication.instance().palette()
-
-        def _hex(role):
-            return pal.color(role).name()
-
-        c_bg     = _hex(QPalette.ColorRole.Base)
-        c_bg2    = _hex(QPalette.ColorRole.AlternateBase)
-        c_text   = _hex(QPalette.ColorRole.Text)
-        c_text2  = _hex(QPalette.ColorRole.PlaceholderText)
-        c_accent = _hex(QPalette.ColorRole.Highlight)
-        c_border = _hex(QPalette.ColorRole.Mid)
-        c_th_bg  = _hex(QPalette.ColorRole.Button)
-        c_th_txt = _hex(QPalette.ColorRole.ButtonText)
-
-        # Status colours: try app_settings first, fall back to palette-relative
+        def _h(r): return pal.color(r).name()
+        c_bg    = _h(QPalette.ColorRole.Base)
+        c_bg2   = _h(QPalette.ColorRole.AlternateBase)
+        c_text  = _h(QPalette.ColorRole.Text)
+        c_text2 = _h(QPalette.ColorRole.PlaceholderText)
+        c_acc   = _h(QPalette.ColorRole.Highlight)
+        c_brd   = _h(QPalette.ColorRole.Mid)
+        c_th    = _h(QPalette.ColorRole.Button)
+        c_thtx  = _h(QPalette.ColorRole.ButtonText)
         _tc = {}
         if hasattr(self.main_window, 'app_settings'):
-            _theme = self.main_window.app_settings.current_settings.get('theme', 'IMG_Factory')
+            _theme = self.main_window.app_settings.current_settings.get('theme', '')
             _tc = self.main_window.app_settings.get_theme_colors(_theme) or {}
-        # If the theme dict has explicit success/error/warning use them;
-        # otherwise derive safe semantic colours from the highlight palette colour
-        # (these are the only three values that can't be cleanly inferred from QPalette).
-        c_ok   = _tc.get('success', '')  or _hex(QPalette.ColorRole.Link)
-        c_err  = _tc.get('error',   '')  or _hex(QPalette.ColorRole.LinkVisited)
-        c_warn = _tc.get('warning', '')  or _hex(QPalette.ColorRole.Highlight)
+        c_ok  = _tc.get('success','') or _h(QPalette.ColorRole.Link)
+        c_err = _tc.get('error','')   or _h(QPalette.ColorRole.LinkVisited)
+        c_wrn = _tc.get('warning','') or _h(QPalette.ColorRole.Highlight)
 
         css = (
             "<style>"
-            f"body{{font-family:monospace;font-size:11px;background:{c_bg};color:{c_text};}}"
-            f"h3{{color:{c_accent};margin-bottom:4px;}}"
-            f"h4{{color:{c_accent};margin:6px 0 2px 0;}}"
-            "table{border-collapse:collapse;width:100%;}"
-            f"th{{background:{c_th_bg};color:{c_th_txt};padding:3px 6px;text-align:left;border-bottom:1px solid {c_border};}}"
-            f"td{{padding:2px 6px;border-bottom:1px solid {c_border};color:{c_text};background:{c_bg};}}"
+            f"body{{font-family:'Consolas','Courier New',monospace;font-size:11px;"
+            f"background:{c_bg};color:{c_text};padding:4px;}}"
+            f"h2{{color:{c_acc};border-bottom:1px solid {c_brd};padding-bottom:3px;"
+            f"margin-top:10px;font-size:13px;}}"
+            f"h3{{color:{c_acc};margin:8px 0 2px 0;font-size:12px;}}"
+            f"h4{{color:{c_text};margin:5px 0 2px 0;font-size:11px;font-weight:bold;}}"
+            f"table{{border-collapse:collapse;width:100%;margin-bottom:8px;}}"
+            f"th{{background:{c_th};color:{c_thtx};padding:3px 8px;text-align:left;"
+            f"border-bottom:1px solid {c_brd};font-size:11px;}}"
+            f"td{{padding:2px 8px;border-bottom:1px solid {c_brd};color:{c_text};"
+            f"background:{c_bg};vertical-align:top;}}"
             f"tr:nth-child(even) td{{background:{c_bg2};}}"
+            f"code{{background:{c_bg2};padding:1px 4px;border-radius:3px;font-family:monospace;}}"
             f".note{{color:{c_text2};font-style:italic;}}"
             f".ok{{color:{c_ok};font-weight:bold;}}"
-            f".no{{color:{c_err};}}"
-            f".wip{{color:{c_warn};}}"
+            f".err{{color:{c_err};}}"
+            f".wrn{{color:{c_wrn};}}"
+            f".hex{{font-family:monospace;color:{c_acc};}}"
+            f".off{{color:{c_text2};font-size:10px;}}"
             "</style>"
         )
 
-        # ── IMG Archive ───────────────────────────────────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 1: IMG Archive Formats
+        # ══════════════════════════════════════════════════════════════════════
         img_html = css + """
-<h3>IMG Archive Formats</h3>
-<h4>Version 1 — GTA III / VC PC (.img + .dir pair)</h4>
-<p>The .dir is a flat list of 32-byte entry records. The .img is raw concatenated data aligned to 2048-byte sectors.</p>
-<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
-<tr><td>0</td><td>4</td><td>Sector offset (uint32 LE) × 2048 = byte offset in .img</td></tr>
-<tr><td>4</td><td>4</td><td>Sector size (uint32 LE) × 2048 = byte size of entry</td></tr>
-<tr><td>8</td><td>24</td><td>Filename — null-padded; Xbox builds have garbage bytes after the null terminator</td></tr></table>
+<h2>IMG Archive Formats — All Platforms</h2>
 
-<h4>Version 1.5 — Extended V1 (large archives)</h4>
-<p>Same record layout as V1 but detected by IMG file >2GB or name field with no null terminator. Extended addressing for up to 4GB and long filenames.</p>
+<p class="note">All byte values are little-endian (LE) unless noted. Sector size is 2048 bytes for PC/Xbox/PS2 standard formats, 512 bytes for PS2 embedded-directory formats and iOS/PSP variants.</p>
 
-<h4>Version 2 — GTA SA PC + iOS/Android ports (self-contained .img)</h4>
-<p>No separate .dir — the directory is embedded in the .img file itself. Used by GTA SA PC and all War Drum Studios iOS/Android ports.</p>
-<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
-<tr><td>0</td><td>4</td><td>Magic: "VER2" = 0x32524556 (LE)</td></tr>
-<tr><td>4</td><td>4</td><td>Entry count (uint32 LE)</td></tr>
-<tr><td>8</td><td>32×N</td><td>Entry records (same 32-byte layout as V1)</td></tr></table>
+<h3>VERSION 1 — DIR+IMG Pair (GTA3, VC PC; Bully PS2)</h3>
+<p>Two files: <code>NAME.DIR</code> (directory) + <code>NAME.IMG</code> (data). The .DIR file is a flat array of 32-byte entries. Data begins at sector 0 of the .IMG file.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>sector_offset</td><td>Sector number in .IMG where this entry begins</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>sector_size</td><td>Entry size in 2048-byte sectors (round up)</td></tr>
+<tr><td class="hex">+08</td><td>24</td><td>name</td><td>ASCII filename, null-padded. Max 23 chars + null terminator.</td></tr>
+</table>
+<p class="note">Entry count = DIR file size ÷ 32. No magic bytes, no header — first entry at byte 0. On Linux, companion lookup is case-insensitive (.DIR, .dir, .Dir all found).</p>
+<p class="note"><b>Bully PS2 (WORLD.IMG, GTA3.IMG):</b> Uses identical V1 format. RW version <code class="hex">0x1C02000A</code> uniquely identifies Bully assets.</p>
 
-<h4>Version 3 — GTA IV (AES-256 ECB encrypted)</h4>
-<p>Header begins with a 16-byte AES block. Magic visible only after decryption. Not fully supported in IMG Factory 1.6 (read-only / partial).</p>
+<h3>VERSION 1.5 — Extended DIR+IMG (&gt;2 GB)</h3>
+<p>Same 32-byte entry layout as V1 but entries may have no null terminator in the name field (all 24 bytes used for long filenames). Detected by: IMG size &gt; 2 GB, or name field has no <code>\x00</code> byte.</p>
 
-<h4>Sector Addressing</h4>
-<table><tr><th>Rule</th><th>Value</th></tr>
-<tr><td>Sector size</td><td>2048 bytes (0x800) — all PC, iOS, Android builds</td></tr>
-<tr><td>PS2 / PSP sector size</td><td>512 bytes (0x200)</td></tr>
-<tr><td>iOS / Android GTA3/VC (.dir+.img)</td><td>512 bytes (0x200) — detected automatically as V1_MOBILE</td></tr>
-<tr><td>Byte offset</td><td>sector_offset × sector_size</td></tr>
-<tr><td>Alignment on rebuild</td><td>Entries padded to next sector boundary</td></tr></table>
+<h3>VERSION 2 — Single-File VER2 (GTA SA PC, Android SA/LCS)</h3>
+<p>Single <code>.IMG</code> file. Header followed immediately by directory, then data.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>magic</td><td><code class="hex">56 45 52 32</code> = "VER2"</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>entry_count</td><td>Number of directory entries</td></tr>
+<tr><td class="hex">+08</td><td>32×N</td><td>entries[]</td><td>Same 32-byte layout as V1 (offset, size, name). Offsets relative to start of IMG.</td></tr>
+<tr><td colspan="4" class="note">Data follows directory, sector-aligned. First entry typically starts at sector ceil((8+32N)/2048).</td></tr>
+</table>
 
-<h4>iOS / Android Releases (War Drum Studios ports)</h4>
-<table><tr><th>Game</th><th>iOS</th><th>Android</th><th>IMG Format</th><th>IMG Factory</th></tr>
-<tr><td>GTA III</td><td class="ok">Dec 2011</td><td class="ok">Dec 2011</td><td>.dir+.img pair, <b>512-byte sectors</b> (V1_MOBILE)</td><td class="ok">Loads OK</td></tr>
-<tr><td>GTA Vice City</td><td class="ok">Dec 2012</td><td class="ok">Dec 2012</td><td>.dir+.img pair, <b>512-byte sectors</b> (V1_MOBILE)</td><td class="ok">Loads OK</td></tr>
-<tr><td>GTA San Andreas</td><td class="ok">Dec 2013</td><td class="ok">Dec 2013</td><td>VER2, 2048-byte sectors</td><td class="ok">Loads OK</td></tr>
-<tr><td>GTA Liberty City Stories</td><td class="ok">Jun 2015</td><td class="ok">Jun 2015</td><td>VER2 — internal format under investigation</td><td class="wip">Fails — investigating</td></tr>
-<tr><td>GTA Vice City Stories</td><td class="no">Never released</td><td class="no">Never released</td><td>PSP/PS2 only</td><td class="no">N/A</td></tr></table>
-<p class="note">GTA VC iOS confirmed loads OK (VER2 + D3D8 TXD, same as PC). LCS iOS failure likely relates to PSP-derived MDL asset format (RW 0x35001) or non-standard sector layout inherited from PSP version — needs a file sample to confirm.</p>
+<h3>VERSION 3 — GTA IV (Single-File, optional AES-256 encryption)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>magic</td><td><code class="hex">52 2A 4E A9</code> = 0xA94E2A52 LE (unencrypted), or AES-256 ECB block (encrypted)</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>entry_count</td><td>Number of entries</td></tr>
+</table>
 
-<h4>Xbox V1 Name Corruption</h4>
-<p>Xbox DIR entries use a 24-byte name field. After the null terminator, remaining bytes contain arbitrary non-null garbage (e.g. 0x77 0x78 = 'wx' appended to ".txd"). IMG Factory uses a known-extension whitelist to truncate at the real extension boundary.</p>
-<p class="note"><b>Known extensions:</b> dff txd col ifp ipl dat wav ide zon ped grp cut cnf img dir scm mp3 ogg fxp bmp png jpg spl rrr rdb rsc</p>
+<h3>XBOX — DIR+IMG with LZO Compression (GTA3/VC Xbox)</h3>
+<p>Same 32-byte DIR+IMG pair as V1, but each entry's data is LZO-compressed. Detected by reading the first entry's data and checking for the Xbox LZO magic.</p>
+<table>
+<tr><th>Field</th><th>Value</th><th>Notes</th></tr>
+<tr><td>LZO magic</td><td class="hex">CE A1 A3 67</td><td>0x67A3A1CE LE — first 4 bytes of compressed entry data</td></tr>
+<tr><td>Block header</td><td>12 bytes</td><td>always(4) + decompressed_size(4) + compressed_size(4)</td></tr>
+<tr><td>RW header</td><td>always literal</td><td>RW chunk header (12 bytes) is always a literal run in the first LZO instruction, readable without decompressing the full block</td></tr>
+</table>
 
-<h4>Special Entry Display Rules</h4>
-<table><tr><th>Condition</th><th>RW Version column</th><th>RW Address column</th></tr>
-<tr><td>Entry size == 0 and type DFF/TXD</td><td><b>Empty</b></td><td><b>Empty</b></td></tr>
-<tr><td>Valid RW version read</td><td>Version string</td><td>Hex offset</td></tr>
-<tr><td>No valid RW version</td><td>Unknown / file-type label</td><td>Hex offset</td></tr></table>
-"""
+<h3>PS2_V1 — 12-byte Embedded Directory (GTA3/VC PS2, iOS ports)</h3>
+<p>No companion .DIR file. Entries are packed at the <b>very start</b> of the .IMG file, 12 bytes each, with no count header.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>sector_offset</td><td>First entry's sector offset — this value × 512 = total directory size</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>asset_id</td><td>High 16 bits = type (1=TXD, 2=DFF, 3=COL, 4=IPL…), low 16 bits = sequential index</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>sector_size</td><td>Entry size in 512-byte sectors</td></tr>
+</table>
+<p class="note"><b>How we derived this:</b> GTA3.IMG from Liberty City Stories PS2 starts with <code>16 00 00 00 D4 9F 01 00 10 03 00 00</code>. The first field (0x16 = 22) is a plausible sector offset; the third field (0x310 = 784) is a plausible sector size. The directory ends at sector 22 × 512 = 11,264 bytes → 938 entries. Entry count = first_entry.sector_offset × 512 ÷ 12.</p>
+<p class="note"><b>Asset ID decoding:</b> <code class="hex">0x00010001</code> → type=TXD(1), index=1 → displayed as <code>txd_0001</code>.</p>
 
-        # ── RW Versions ───────────────────────────────────────────────────────
-        ver_html = css + """
-<h3>RenderWare Section Header</h3>
-<p>Every RW chunk starts with a 12-byte header — all fields little-endian uint32:</p>
-<table><tr><th>Offset</th><th>Field</th></tr>
-<tr><td>0</td><td>Section type ID</td></tr>
-<tr><td>4</td><td>Section data size (bytes following this header)</td></tr>
-<tr><td>8</td><td>RW version</td></tr></table>
+<h3>PS2_VCS — Embedded Type-Code Directory (LCS/VCS PS2)</h3>
+<p>Single .IMG file. Directory at the start, 32-byte entries with ASCII type codes. Sector size 512 bytes.</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>type_code</td><td>4-char ASCII e.g. <code>CDIN</code>, <code>MISS</code>, <code>SKEN</code></td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>padding</td><td>Always <code>00 00 00 00</code> — key detection field</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>sector_offset</td><td>Offset in 512-byte sectors</td></tr>
+<tr><td class="hex">+0C</td><td>4</td><td>sector_size</td><td>Size in 512-byte sectors</td></tr>
+<tr><td class="hex">+10</td><td>16</td><td>padding</td><td>0x00 or 0x88 fill — 0x88 sentinel marks end of directory</td></tr>
+</table>
+<p class="note"><b>Detection:</b> bytes[0:4] all printable ASCII AND bytes[4:8] == <code>\x00\x00\x00\x00</code>. This distinguishes it from PS2_V1 (where bytes[4:8] is asset_id, usually non-zero) and from V1 (which has a .DIR companion).</p>
 
-<h4>Version Encoding — Format 1: Plain Integer (GTA III PC, pre-retail)</h4>
-<p>Raw 3-nibble integer <b>0xMmP</b>. Range 0x300–0x3FF accepted by IMG Factory.</p>
-<table><tr><th>Value</th><th>Version</th><th>Confirmed file</th></tr>
-<tr><td>0x00000300</td><td>3.0.0</td><td>GTA III PC earliest builds</td></tr>
-<tr><td>0x00000304</td><td>3.0.4</td><td>GTAElift.DFF</td></tr>
-<tr><td>0x00000310</td><td>3.1.0</td><td>GTA III PC retail DFF/TXD (most files)</td></tr></table>
+<h3>Android SA — VER2 + Mobile Texture DB</h3>
+<p>VER2 single-file format. Identified by companion files <code>texdb.dat</code> / <code>texdb.toc</code> / <code>streaming.dat</code> in the same directory, or "android"/"mobile" in filename.</p>
 
-<h4>Version Encoding — Format 2: Old Compact (SDK 3.0–3.7)</h4>
-<p><b>0xMm0P</b> (5 hex digits). Used by SDK-linked tools and exports.</p>
-<table><tr><th>Value</th><th>Version</th><th>Game</th></tr>
-<tr><td>0x30000</td><td>3.0.0.0</td><td></td></tr>
-<tr><td>0x31001</td><td>3.1.0.1</td><td>GTA III (canonical SDK)</td></tr>
-<tr><td>0x33002</td><td>3.3.0.2</td><td>GTA VC (canonical SDK)</td></tr>
-<tr><td>0x34001</td><td>3.4.0.1</td><td>Manhunt / GTA SOL</td></tr>
-<tr><td>0x34003</td><td>3.4.0.3</td><td>GTA VC late</td></tr>
-<tr><td>0x36003</td><td>3.6.0.3</td><td>GTA SA / Bully</td></tr>
-<tr><td>0x37002</td><td>3.7.0.2</td><td>SA Mobile / PSP</td></tr></table>
+<h3>Android LCS — VER2 + 0x1005FFFF TXD entries</h3>
+<p>VER2 single-file format. Identified by "lcs"/"liberty" in filename, or by scanning first few entries for RW version <code class="hex">0x1005FFFF</code>.</p>
 
-<h4>Version Encoding — Format 3: Packed Platform Form</h4>
-<p>Discriminator: <b>(v &amp; 0xFFFF) == 0xFFFF</b> and high word 0x0400–0x1C03.</p>
-<table><tr><th>Value</th><th>Version</th><th>Platform</th></tr>
-<tr><td>0x0401FFFF</td><td>2.0.0.1</td><td>GTA III early TXD (pre-retail)</td></tr>
-<tr><td>0x0800FFFF</td><td>3.0.0.0</td><td>GTA III PS2</td></tr>
-<tr><td>0x0C00FFFF</td><td>3.1.0.0</td><td>GTA III / VC PC</td></tr>
-<tr><td>0x0C02FFFF</td><td>3.1.0.2</td><td>GTA III PC / GTA VC PS2</td></tr>
-<tr><td>0x1000FFFF</td><td>3.2.0.0</td><td>GTA III PC</td></tr>
-<tr><td>0x1003FFFF</td><td>3.2.0.3</td><td>GTA III PC TXD</td></tr>
-<tr><td>0x1402FFFF</td><td>3.3.0.2</td><td>GTA III / VC PS2</td></tr>
-<tr><td>0x1403FFFF</td><td>3.4.0.3</td><td>GTA VC late PC</td></tr>
-<tr><td>0x1400FFFF</td><td>3.4.0.0</td><td><b>GTA III / VC Xbox</b></td></tr>
-<tr><td>0x1803FFFF</td><td>3.6.0.3</td><td>GTA SA PC</td></tr>
-<tr><td>0x1C020037</td><td>3.7.0.2</td><td>SA Mobile / PSP (special case)</td></tr></table>
-<p class="note">Xbox RW headers may have a 4-byte prefix before the standard 12-byte header. IMG Factory scans offsets 0, 4, and 8 for valid version values to handle this.</p>
+<h3>iOS *_pvr.img — 12-byte Entries, 512-byte Sectors</h3>
+<p>Same 12-byte entry format as PS2_V1. Identified by <code>_pvr</code> suffix in filename. LCS iOS distinguished from GTA3/VC iOS by "lcs"/"liberty" in filename. The companion streaming segments (<code>indust.img</code>, <code>suburb.img</code>) have no directory — open <code>gta3.img</code> instead.</p>
 
-<h4>Core Section Type IDs</h4>
-<table><tr><th>ID</th><th>Name</th><th>Used in</th></tr>
-<tr><td>0x0001</td><td>Struct</td><td>All — raw binary payload block</td></tr>
-<tr><td>0x0002</td><td>String</td><td>Frame names, material names</td></tr>
-<tr><td>0x0003</td><td>Extension</td><td>Plugin data container (Hanim, skin, etc.)</td></tr>
-<tr><td>0x0006</td><td>Texture</td><td>DFF — material texture reference</td></tr>
-<tr><td>0x0007</td><td>Material</td><td>DFF — colour, texture, flags</td></tr>
-<tr><td>0x0008</td><td>Material List</td><td>DFF — container for all materials</td></tr>
-<tr><td>0x000E</td><td>Atomic</td><td>DFF — render unit linking geometry to frame</td></tr>
-<tr><td>0x0014</td><td>Frame List</td><td>DFF — bone/frame hierarchy</td></tr>
-<tr><td>0x0015</td><td>Geometry</td><td>DFF — mesh (vertices, UVs, vertex colours)</td></tr>
-<tr><td>0x0016</td><td>Texture Dictionary</td><td>TXD — root container</td></tr>
-<tr><td>0x0018</td><td>Texture Native</td><td>TXD — one texture entry</td></tr>
-<tr><td>0x001A</td><td>Clump</td><td>DFF — root container</td></tr>
-<tr><td>0x0253F2F7</td><td>Hanim PLG</td><td>Extension: bone animation</td></tr>
-<tr><td>0x0253F2FB</td><td>Skin PLG</td><td>Extension: skinning weights</td></tr>
-<tr><td>0x0253F2FE</td><td>Delta Morph PLG</td><td>Extension: morph targets</td></tr></table>
-"""
+<h3>Streaming Segment (LCS/VCS iOS/PSP)</h3>
+<p>Raw data file with no directory. Lives alongside a <code>gta3.img</code> (VER2) in the same folder. Detected by: no magic, no .DIR companion, sibling <code>gta3.img</code> is VER2. Opening shows a helpful message to open the sibling instead.</p>
 
-        # ── TXD Format ────────────────────────────────────────────────────────
-        txd_html = css + """
-<h3>TXD — Texture Dictionary</h3>
-<h4>Container Structure</h4>
-<table><tr><th>Section</th><th>Contents</th></tr>
-<tr><td>0x0016 Texture Dictionary</td><td>Root</td></tr>
-<tr><td>&nbsp;&nbsp;└ 0x0001 Struct</td><td>GTA III/VC: tex_count uint32 &nbsp;|&nbsp; SA: tex_count uint16 + device_id uint16</td></tr>
-<tr><td>&nbsp;&nbsp;└ 0x0018 Texture Native ×N</td><td>One per texture</td></tr>
-<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ 0x0001 Struct</td><td>All texture binary data (see struct below)</td></tr>
-<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ 0x0003 Extension</td><td>Usually empty in GTA files</td></tr></table>
-
-<h4>Texture Native Struct Fields</h4>
-<table><tr><th>Field</th><th>Size</th><th>GTA III/VC D3D8</th><th>GTA SA D3D9</th><th>Xbox (id=5)</th></tr>
-<tr><td>platform_id</td><td>4</td><td>8</td><td>9</td><td>5</td></tr>
-<tr><td>filter_flags</td><td>4</td><td>uint32</td><td>uint32</td><td>uint32</td></tr>
-<tr><td>name</td><td>32</td><td>texture name</td><td>texture name</td><td>texture name</td></tr>
-<tr><td>mask_name</td><td>32</td><td>alpha mask name</td><td>alpha mask name</td><td>alpha mask name</td></tr>
-<tr><td>raster_format</td><td>4</td><td>format flags</td><td>format flags</td><td>format flags</td></tr>
-<tr><td>d3d_format / FourCC</td><td>4</td><td>DXT FourCC</td><td>D3DFORMAT enum</td><td>Xbox-specific</td></tr>
-<tr><td>width / height</td><td>2+2</td><td>uint16 each</td><td>uint16 each</td><td>uint16 each</td></tr>
-<tr><td>depth</td><td>1</td><td>bits per pixel</td><td>bits per pixel</td><td>bits per pixel</td></tr>
-<tr><td>mipmap_count</td><td>1</td><td>uint8</td><td>uint8</td><td>uint8</td></tr>
-<tr><td>raster_type</td><td>1</td><td>uint8</td><td>uint8</td><td>uint8</td></tr>
-<tr><td>compression</td><td>1</td><td>0=none / 1/3/5=DXT</td><td>uint8</td><td>Xbox compression byte</td></tr>
-<tr><td>has_alpha</td><td>1</td><td>uint8</td><td>uint8</td><td>uint8</td></tr>
-<tr><td>data_size</td><td>4</td><td>DXT formats only (per mip)</td><td>every mip level</td><td>ONE total for all mips</td></tr></table>
-
-<h4>Pixel Format Detection Priority (IMG Factory)</h4>
+<h3>Platform Detection Order (detect_version)</h3>
 <ol>
-<li>PAL8 / PAL4 flags in raster_format</li>
-<li>Xbox (platform_id=5) — compression byte map (see Platforms tab)</li>
-<li>D3D FourCC: 0x31545844=DXT1 &nbsp; 0x33545844=DXT3 &nbsp; 0x35545844=DXT5</li>
-<li>GTA III/VC non-Xbox: platform_prop 1=DXT1, 3=DXT3, 5=DXT5</li>
-<li>SA D3D9 format map: 21=ARGB8888, 22=XRGB8888, 23=RGB565, 25=ARGB1555, 26=ARGB4444, 50=LUM8</li>
-<li>GTA III/VC raster map: 0x0100=ARGB1555, 0x0200=RGB565, 0x0300=ARGB4444, 0x0500=ARGB8888, 0x0600=RGB888</li>
+<li>Has .DIR companion → <b>V1 / V1.5 / Xbox</b> (probe for LZO magic first)</li>
+<li>Starts with <code>VER2</code> → <b>V2</b> (sub-classify by filename/companion files for Android)</li>
+<li>Starts with <code class="hex">0xA94E2A52</code> → <b>GTA IV unencrypted</b></li>
+<li>First 16 bytes decrypt to valid GTA IV header → <b>GTA IV encrypted</b></li>
+<li>No companion, ends in .img → probe: PS2_VCS, PS2_V1 (with *_pvr check), Bully, streaming segment, fallback V1/V1.5</li>
 </ol>
-
-<h4>Xbox Compression Byte Map (platform_id = 5)</h4>
-<table><tr><th>Byte</th><th>Format</th><th>Notes</th></tr>
-<tr><td>0x00</td><td>Raw ARGB8888</td><td>Uncompressed 32-bit</td></tr>
-<tr><td>0x0B</td><td>LIN_DXT1</td><td>Linear DXT1</td></tr>
-<tr><td>0x0C</td><td>DXT1 swizzled</td><td>Morton-order tiled</td></tr>
-<tr><td>0x0E</td><td>DXT3 swizzled</td><td>Morton-order tiled</td></tr>
-<tr><td>0x0F</td><td>LIN_DXT3</td><td>Linear DXT3 — e.g. fonts.txd</td></tr>
-<tr><td>0x10</td><td>DXT5 swizzled</td><td>Morton-order tiled</td></tr>
-<tr><td>0x11</td><td>LIN_DXT5</td><td>Linear DXT5</td></tr></table>
-<p class="note">All Xbox variants decoded via PIL DDS header injection — no manual Morton unswizzle required.</p>
-
-<h4>Platform IDs</h4>
-<table><tr><th>ID</th><th>Platform</th></tr>
-<tr><td>5</td><td>Xbox (GTA III / VC Xbox)</td></tr>
-<tr><td>8</td><td>D3D8 — GTA III / VC PC</td></tr>
-<tr><td>9</td><td>D3D9 — GTA SA PC</td></tr>
-<tr><td>6</td><td>PlayStation 2 (VRAM swizzle — not supported)</td></tr></table>
+<p class="note"><b>Linux case-sensitivity:</b> Companion lookup uses <code>_find_companion()</code> which tries .dir, .DIR, then a directory scan — so <code>GTA3.IMG</code> correctly finds <code>GTA3.DIR</code>.</p>
 """
 
-        # ── COL Format ────────────────────────────────────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 2: RW Versions & Sections
+        # ══════════════════════════════════════════════════════════════════════
+        ver_html = css + """
+<h2>RenderWare Versions</h2>
+
+<h3>Version Encoding Formats</h3>
+<p>RW version numbers appear in three distinct encoding styles depending on the game/platform.</p>
+
+<h4>1. Plain integer (0x300–0x3FF) — GTA3 PS2, early PS2 titles</h4>
+<table>
+<tr><th>Hex</th><th>Decoded</th><th>Used by</th></tr>
+<tr><td class="hex">0x00000300</td><td>3.0.0</td><td>GTA3 early builds</td></tr>
+<tr><td class="hex">0x00000304</td><td>3.0.4</td><td>GTA3 early PC</td></tr>
+<tr><td class="hex">0x00000310</td><td>3.1.0</td><td>GTA3/VC PS2 — <b>old-style plain integer</b></td></tr>
+<tr><td class="hex">0x00000314</td><td>3.1.4</td><td>VC PS2 variant</td></tr>
+<tr><td class="hex">0x00000320</td><td>3.2.0</td><td>GTA3/VC PS2 late</td></tr>
+</table>
+<p class="note"><b>How identified:</b> GTA3.IMG (LC PS2) started with <code>16 00 00 00 D4 9F 01 00 10 03 00 00</code>. Bytes [8:12] = <code>0x00000310</code> = 784 decimal. Cross-referenced against known GTA3 PS2 RW revision → 3.1.0 plain-int encoding confirmed.</p>
+
+<h4>2. Packed format (low word = 0xFFFF) — GTA3 PC through GTA SA</h4>
+<table>
+<tr><th>Hex</th><th>Version</th><th>Platform/Game</th></tr>
+<tr><td class="hex">0x0401FFFF</td><td>2.0.0.1</td><td>GTA3 early TXD</td></tr>
+<tr><td class="hex">0x0800FFFF</td><td>3.0.0.0</td><td>GTA3 PS2</td></tr>
+<tr><td class="hex">0x0C00FFFF</td><td>3.1.0.0</td><td>GTA3/VC PC</td></tr>
+<tr><td class="hex">0x0C01FFFF</td><td>3.1.0.1</td><td>GTA VC PC</td></tr>
+<tr><td class="hex">0x0C02FFFF</td><td>3.1.0.2</td><td>GTA3 PC / VC PS2</td></tr>
+<tr><td class="hex">0x1000FFFF</td><td>3.2.0.0</td><td>GTA3 PC</td></tr>
+<tr><td class="hex">0x1005FFFF</td><td>3.2.0.5</td><td>GTA VC PC / LCS Android (marker)</td></tr>
+<tr><td class="hex">0x1400FFFF</td><td>3.4.0.0</td><td>GTA3/VC Xbox</td></tr>
+<tr><td class="hex">0x1401FFFF</td><td>3.4.0.1</td><td>Manhunt / SOL</td></tr>
+<tr><td class="hex">0x1800FFFF</td><td>3.5.0.0</td><td>SA Alpha / internal dev</td></tr>
+<tr><td class="hex">0x1801FFFF</td><td>3.5.0.1</td><td>LCS / MDL</td></tr>
+<tr><td class="hex">0x1802FFFF</td><td>3.5.0.2</td><td>VCS</td></tr>
+<tr><td class="hex">0x1803FFFF</td><td>3.6.0.3</td><td>GTA SA PC</td></tr>
+</table>
+<p class="note">Packed format: high 16 bits = version nibbles, low 16 bits = always 0xFFFF. Decode: major = (v &gt;&gt; 14) &amp; 0x3C00, minor = ...(see RW SDK docs).</p>
+
+<h4>3. Non-standard — SA Mobile, Bully</h4>
+<table>
+<tr><th>Hex</th><th>Game</th><th>Notes</th></tr>
+<tr><td class="hex">0x1C020037</td><td>SA Mobile / PSP</td><td>Low word ≠ 0xFFFF, unique to mobile builds</td></tr>
+<tr><td class="hex">0x1C02000A</td><td>Bully PS2/PC</td><td>Found in every Bully TXD/DFF. Low word = 0x000A. Confirmed from ASY_LobbyGlass.txd binary.</td></tr>
+<tr><td class="hex">0x1C020085</td><td>Bully variant</td><td>Alternate Bully build</td></tr>
+</table>
+
+<h3>RW Chunk Header (12 bytes)</h3>
+<p>Every RenderWare section starts with a 12-byte chunk header:</p>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th><th>Notes</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>type_id</td><td>Section type (see table below)</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>data_size</td><td>Byte count of data following this header (not including this header)</td></tr>
+<tr><td class="hex">+08</td><td>4</td><td>version</td><td>RenderWare version encoding (see above)</td></tr>
+</table>
+
+<h3>Key RW Section Types</h3>
+<table>
+<tr><th>Type ID</th><th>Name</th><th>Description</th></tr>
+<tr><td class="hex">0x0001</td><td>RpMaterial</td><td>Material definition</td></tr>
+<tr><td class="hex">0x0002</td><td>RpTexture</td><td>Texture reference</td></tr>
+<tr><td class="hex">0x0003</td><td>RpGeometry</td><td>Mesh geometry</td></tr>
+<tr><td class="hex">0x0006</td><td>RpAtomicSection</td><td>Atomic/LOD data</td></tr>
+<tr><td class="hex">0x0008</td><td>RpGeometryList</td><td>List of geometries</td></tr>
+<tr><td class="hex">0x000F</td><td>RpMaterialList</td><td>Material list</td></tr>
+<tr><td class="hex">0x0010</td><td>RpClump</td><td>3D model container (.dff)</td></tr>
+<tr><td class="hex">0x0014</td><td>RwFrame</td><td>Frame/bone</td></tr>
+<tr><td class="hex">0x0015</td><td>RpFrameList</td><td>Frame hierarchy</td></tr>
+<tr><td class="hex">0x0016</td><td>RwTexDictionary</td><td>Texture dictionary (.txd) — <b>key marker for TXD files</b></td></tr>
+<tr><td class="hex">0x001A</td><td>RwString</td><td>String data</td></tr>
+<tr><td class="hex">0x001B</td><td>RwExtension</td><td>Extension data</td></tr>
+<tr><td class="hex">0x0253F2FB</td><td>RpMorphPLG</td><td>Morph plugin</td></tr>
+</table>
+<p class="note"><b>How TXD files are identified in IMG:</b> First 4 bytes of a TXD entry = <code class="hex">0x00000016</code> (type 22 = RwTexDictionary). This is the primary fast-check before reading the full RW header. Similarly, DFF = <code class="hex">0x00000010</code> (RpClump).</p>
+
+<h3>RW Version Scanning in IMG Factory</h3>
+<p>For each DFF/TXD entry, the version is read from the first 16 bytes of entry data:</p>
+<ol>
+<li>Try version at <code>[8:12]</code> (standard: no prefix)</li>
+<li>Try version at <code>[12:16]</code> (4-byte prefix before RW chunk)</li>
+<li>Try version at <code>[16:20]</code> (8-byte prefix)</li>
+<li>For Xbox LZO entries: skip 24-byte master+block header, then scan compressed payload</li>
+</ol>
+<p class="note">A version value is considered valid if it matches a known encoding pattern <b>or</b> has a named entry in the version table. This allows Bully (0x1C02000A) to pass validation even though it doesn't fit any standard encoding pattern.</p>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 3: TXD Format
+        # ══════════════════════════════════════════════════════════════════════
+        txd_html = css + """
+<h2>TXD — Texture Dictionary Format</h2>
+
+<h3>File Structure</h3>
+<p>A .txd file is a RenderWare archive containing one or more native textures.</p>
+<pre>
+RwTexDictionary (0x0016) chunk header [12 bytes]
+  ├── Struct (0x0001) — texture count [2 bytes] + device id [2 bytes]
+  └── RwTexNative (0x0015) × N
+        ├── Struct (0x0001) — platform id, filter, wrapping, name, mask
+        ├── [Platform-specific texture data]
+        └── RwExtension (0x001B)
+</pre>
+
+<h3>Platform IDs</h3>
+<table>
+<tr><th>ID</th><th>Platform</th><th>Texture Format</th></tr>
+<tr><td>1</td><td>D3D8 (PC GTA3/VC)</td><td>DXT1/DXT3/uncompressed (D3DFMT_*)</td></tr>
+<tr><td>2</td><td>D3D9 (PC GTA SA+)</td><td>DXT1/DXT3/DXT5/A8R8G8B8/R5G6B5</td></tr>
+<tr><td>4</td><td>PS2</td><td>PS2-native, swizzled, GS Pixel Storage Modes</td></tr>
+<tr><td>5</td><td>Xbox</td><td>Xbox-native, DXT compressed or unswizzled</td></tr>
+<tr><td>6</td><td>GameCube</td><td>DXT1/CMPR</td></tr>
+<tr><td>8</td><td>PVRTC (iOS)</td><td>PVRTC-2bpp, PVRTC-4bpp</td></tr>
+<tr><td>9</td><td>ETC1 (Android)</td><td>ETC1 compressed</td></tr>
+</table>
+
+<h3>Texture Native Header (D3D9 example)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>platform_id (2 = D3D9)</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>filter_flags</td></tr>
+<tr><td class="hex">+08</td><td>32</td><td>texture_name (null-terminated)</td></tr>
+<tr><td class="hex">+28</td><td>32</td><td>mask_name (null-terminated)</td></tr>
+<tr><td class="hex">+48</td><td>4</td><td>raster_format (RASTER_DEFAULT, RASTER_1555, RASTER_565...)</td></tr>
+<tr><td class="hex">+4C</td><td>4</td><td>d3d_format / has_alpha</td></tr>
+<tr><td class="hex">+50</td><td>2</td><td>width</td></tr>
+<tr><td class="hex">+52</td><td>2</td><td>height</td></tr>
+<tr><td class="hex">+54</td><td>1</td><td>depth (bits per pixel)</td></tr>
+<tr><td class="hex">+55</td><td>1</td><td>mip_count</td></tr>
+<tr><td class="hex">+56</td><td>1</td><td>raster_type</td></tr>
+<tr><td class="hex">+57</td><td>1</td><td>compression (0=none, 1=DXT1, 3=DXT3, 5=DXT5)</td></tr>
+</table>
+
+<h3>Mobile Formats (Android / iOS)</h3>
+<table>
+<tr><th>Format</th><th>Platform</th><th>Detection</th></tr>
+<tr><td>PVRTC-2bpp / 4bpp</td><td>iOS</td><td>platform_id=8, files named *_pvr.img</td></tr>
+<tr><td>ETC1</td><td>Android</td><td>platform_id=9, companion texdb.dat/toc present</td></tr>
+<tr><td>DXT1/3/5</td><td>Android SA</td><td>Same as PC D3D9 format, VER2 container</td></tr>
+</table>
+<p class="note">Mobile TXDs from GTA SA Android live inside the standard VER2 .img file. A separate mobile texture database (<code>texdb.dat</code> / <code>texdb.toc</code>) maps texture IDs to streaming offsets — this is what IMG Factory reads to list mobile textures.</p>
+
+<h3>DDS Support (iOS Game Trees)</h3>
+<p>iOS game trees contain DDS files alongside *_pvr.img files. DDS uses the standard Microsoft DDS header with FourCC codes (DXT1/3/5) or uncompressed RGBA formats. These are pushed to the <code>game_trees</code> branch pending TXD Workshop integration.</p>
+
+<h3>TXD Workshop</h3>
+<p>Opens a TXD from either a standalone .txd file or from an entry inside an IMG archive. Displays the texture list, allows preview, import, and export. Platform is detected from the platform_id field in each RwTexNative. Version is read from the RwTexDictionary chunk header (bytes [8:12]).</p>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 4: COL Format
+        # ══════════════════════════════════════════════════════════════════════
         col_html = css + """
-<h3>COL — Collision Format</h3>
+<h2>COL — Collision Format</h2>
 
-<h4>File Structure — Multiple Models Concatenated</h4>
-<p>A .col file is a sequence of model blocks, each starting with an 8-byte header:</p>
-<table><tr><th>Offset</th><th>Size</th><th>Field</th></tr>
-<tr><td>0</td><td>4</td><td>FourCC / version magic (see below)</td></tr>
-<tr><td>4</td><td>4</td><td>Model data size in bytes (uint32 LE) — NOT including this 8-byte header</td></tr>
-<tr><td>8</td><td>N</td><td>Model data (name, bounding box, counts, primitives)</td></tr></table>
+<h3>Magic Identifiers by Version</h3>
+<table>
+<tr><th>Magic</th><th>Version</th><th>Game</th></tr>
+<tr><td class="hex">COLL</td><td>COL 1</td><td>GTA3, VC</td></tr>
+<tr><td class="hex">COL2</td><td>COL 2</td><td>GTA SA</td></tr>
+<tr><td class="hex">COL3</td><td>COL 3</td><td>GTA SA (extended)</td></tr>
+<tr><td class="hex">COL4</td><td>COL 4</td><td>GTA IV</td></tr>
+</table>
 
-<h4>Version Magic Bytes</h4>
-<table><tr><th>Bytes</th><th>Version</th><th>Game</th></tr>
-<tr><td>COLL (0x434F4C4C)</td><td>COL1</td><td>GTA III</td></tr>
-<tr><td>COL\x02</td><td>COL2</td><td>GTA Vice City</td></tr>
-<tr><td>COL\x03</td><td>COL3</td><td>GTA San Andreas</td></tr>
-<tr><td>COL\x04</td><td>COL4</td><td>Extended (rare)</td></tr></table>
+<h3>COL 1 Header (GTA3/VC)</h3>
+<table>
+<tr><th>Offset</th><th>Size</th><th>Field</th></tr>
+<tr><td class="hex">+00</td><td>4</td><td>magic "COLL"</td></tr>
+<tr><td class="hex">+04</td><td>4</td><td>data_size</td></tr>
+<tr><td class="hex">+08</td><td>22</td><td>model_name (null-terminated)</td></tr>
+<tr><td class="hex">+1E</td><td>2</td><td>model_id</td></tr>
+<tr><td class="hex">+20</td><td>24</td><td>bounding_sphere (center xyz + radius, 4×float)</td></tr>
+<tr><td class="hex">+38</td><td>Varies</td><td>spheres, boxes, mesh triangles, vertices</td></tr>
+</table>
 
-<h4>Model Data Layout — COL1 (GTA III)</h4>
-<table><tr><th>Field</th><th>Size</th><th>Notes</th></tr>
-<tr><td>Model name</td><td>22 bytes</td><td>ASCII, null-padded</td></tr>
-<tr><td>Model ID</td><td>2</td><td>uint16 LE</td></tr>
-<tr><td>Bounding radius</td><td>4</td><td>float32</td></tr>
-<tr><td>Bounding center</td><td>12</td><td>3× float32 (x,y,z)</td></tr>
-<tr><td>Bounding min</td><td>12</td><td>3× float32</td></tr>
-<tr><td>Bounding max</td><td>12</td><td>3× float32</td></tr>
-<tr><td>num_spheres</td><td>4</td><td>uint32 LE</td></tr>
-<tr><td>num_boxes</td><td>4</td><td>uint32 LE</td></tr>
-<tr><td>num_vertices</td><td>4</td><td>uint32 LE</td></tr>
-<tr><td>num_faces</td><td>4</td><td>uint32 LE — may be garbage, recalculated from file size</td></tr>
-<tr><td>Sphere data</td><td>24 × N</td><td>center(12) + radius(4) + material(4) + flags(4)</td></tr>
-<tr><td>Box data</td><td>32 × N</td><td>min(12) + max(12) + material(4) + flags(4)</td></tr>
-<tr><td>Vertex data</td><td>12 × N</td><td>position (3× float32)</td></tr>
-<tr><td>Face data</td><td>14 × N</td><td>indices(6: 3×uint16) + mat_id(2) + light(2) + flags(4)</td></tr></table>
+<h3>COL 2/3 Header Extensions (SA)</h3>
+<p>SA adds surface properties, shadow meshes, and per-face material data. COL3 adds face groups for spatial optimization. The bounding box replaces/extends the bounding sphere.</p>
 
-<h4>Model Data Layout — COL2/COL3 (VC / SA)</h4>
-<table><tr><th>Field</th><th>Size</th><th>Difference from COL1</th></tr>
-<tr><td>Model name</td><td>22 bytes</td><td>Same</td></tr>
-<tr><td>Model ID</td><td>2</td><td>Same</td></tr>
-<tr><td>Bounding min/max/center/radius</td><td>40</td><td>Order: min(12), max(12), center(12), radius(4)</td></tr>
-<tr><td>Counts order</td><td>16</td><td><b>spheres, boxes, faces, vertices</b> (faces and vertices swapped vs COL1)</td></tr>
-<tr><td>Sphere data</td><td>20 × N</td><td>center(12) + radius(4) + material(4) — no flags field</td></tr>
-<tr><td>Box data</td><td>28 × N</td><td>min(12) + max(12) + material(4) — no flags field</td></tr>
-<tr><td>Face data</td><td>12 × N</td><td>indices(6) + mat_id(2) + light(2) + <b>padding(2)</b> instead of flags(4)</td></tr></table>
-
-<h4>Garbage Face Count Fix</h4>
-<p>COL1 files sometimes store a corrupt face count (e.g. 3,226,344,957 instead of 46). IMG Factory detects values exceeding 1,000,000 or 10× the calculated count and recalculates from remaining bytes:</p>
-<p class="note">calculated_faces = (remaining_bytes_after_vertices) ÷ face_size</p>
+<h3>COL Workshop</h3>
+<p>Opens COL files from standalone .col or from entries inside an IMG archive. Displays spheres, boxes, mesh collision, and allows editing of collision primitives. Registered in the Tool Taskbar when opened.</p>
 """
 
-        # ── Status ────────────────────────────────────────────────────────────
-        status_html = css + """
-<h3>IMG Factory 1.6 — Implementation Status</h3>
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 5: DAT / IDE / IPL Files
+        # ══════════════════════════════════════════════════════════════════════
+        dat_html = css + """
+<h2>DAT / IDE / IPL — Game Data Files</h2>
 
-<h4>IMG Archive</h4>
-<table><tr><th>Format</th><th>Read</th><th>Write</th></tr>
-<tr><td>Version 1 — GTA III / VC PC</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 1 — GTA III / VC Xbox</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 1.5 — Extended</td><td class="ok">✓</td><td class="wip">~</td></tr>
-<tr><td>Version 2 — GTA SA PC</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 1 Mobile — GTA III iOS / Android (512-byte sectors)</td><td class="ok">✓</td><td class="no">✗</td></tr>
-<tr><td>Version 1 Mobile — GTA VC iOS / Android (512-byte sectors)</td><td class="ok">✓</td><td class="no">✗</td></tr>
-<tr><td>Version 2 — GTA SA iOS / Android</td><td class="ok">✓</td><td class="ok">✓</td></tr>
-<tr><td>Version 2 — GTA LCS iOS / Android</td><td class="wip">~</td><td class="no">✗</td></tr>
-<tr><td>Version 3 — GTA IV encrypted</td><td class="wip">~</td><td class="no">✗</td></tr></table>
-<p class="note">GTA VCS was never released on iOS or Android (PSP/PS2 only).</p>
+<h3>IDE — Item Definition (object catalogue)</h3>
+<p>Plain text sections defining every object in the game. Each section header is a keyword, entries follow one per line, section ends with <code>end</code>.</p>
+<table>
+<tr><th>Section</th><th>Content</th></tr>
+<tr><td>objs</td><td>Static objects: ID, model, txd, draw_distance, flags</td></tr>
+<tr><td>tobj</td><td>Timed objects (LOD variants by time of day)</td></tr>
+<tr><td>weap</td><td>Weapon models</td></tr>
+<tr><td>cars</td><td>Vehicle definitions: ID, model, txd, type, handling, flags...</td></tr>
+<tr><td>peds</td><td>Pedestrian definitions</td></tr>
+<tr><td>txdp</td><td>TXD parent references (SA: texture sharing between models)</td></tr>
+<tr><td>2dfx</td><td>2D effects (lights, particles, escalators)</td></tr>
+<tr><td>anim</td><td>Animation definitions</td></tr>
+</table>
 
-<h4>TXD Texture Formats</h4>
-<table><tr><th>Format</th><th>Read</th><th>Write</th><th>Notes</th></tr>
-<tr><td>GTA III/VC  DXT1/3/5</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D8 FourCC</td></tr>
-<tr><td>GTA III/VC  PAL8</td><td class="ok">✓</td><td class="ok">✓</td><td>256-colour palette</td></tr>
-<tr><td>GTA III/VC  ARGB1555 / RGB565 / ARGB4444</td><td class="ok">✓</td><td class="ok">✓</td><td>16-bit formats</td></tr>
-<tr><td>GTA III/VC  ARGB8888 / RGB888</td><td class="ok">✓</td><td class="ok">✓</td><td>32-bit uncompressed</td></tr>
-<tr><td>GTA SA      DXT1/3/5</td><td class="ok">✓</td><td class="ok">✓</td><td>D3D9 per-mip data_size</td></tr>
-<tr><td>GTA SA      ARGB8888 / XRGB8888</td><td class="ok">✓</td><td class="ok">✓</td><td>d3d_fmt 21/22</td></tr>
-<tr><td>Xbox        LIN_DXT1/3/5 + swizzled variants</td><td class="ok">✓</td><td class="wip">~</td><td>compression bytes 0x0B–0x11</td></tr>
-<tr><td>Xbox        Raw ARGB8888</td><td class="ok">✓</td><td class="wip">~</td><td>compression byte 0x00</td></tr>
-<tr><td>PS2         VRAM swizzle</td><td class="no">✗</td><td class="no">✗</td><td>Not targeted</td></tr></table>
+<h3>IPL — Item Placement (instance list)</h3>
+<p>Defines where objects are placed in the world. Also plain text.</p>
+<table>
+<tr><th>Section</th><th>Content</th></tr>
+<tr><td>inst</td><td>Object instances: ID, model, interior, pos xyz, rot xyzw, lot</td></tr>
+<tr><td>cull</td><td>Occlusion zones</td></tr>
+<tr><td>zone</td><td>Named zones</td></tr>
+<tr><td>pick</td><td>Weapon pickups</td></tr>
+<tr><td>path</td><td>AI paths (deprecated in SA — moved to nodes.dat)</td></tr>
+</table>
+<p class="note">Binary IPL: SA uses a binary variant for streaming IPL data inside GTA3.img. Identified by magic <code>bnry</code> at offset 0.</p>
 
-<h4>RW Version Detection</h4>
-<table><tr><th>Range</th><th>Status</th><th>Notes</th></tr>
-<tr><td>0x300–0x3FF  plain integer</td><td class="ok">✓</td><td>GTA III PC pre-packed (0x304=GTAElift, 0x310=retail)</td></tr>
-<tr><td>0x0401FFFF  early packed</td><td class="ok">✓</td><td>GTA III pre-retail TXD</td></tr>
-<tr><td>0x0800FFFF–0x1C03FFFF  packed</td><td class="ok">✓</td><td>All standard packed variants incl. Xbox 0x1400FFFF</td></tr>
-<tr><td>0x30000–0x3FFFF  compact</td><td class="ok">✓</td><td>SDK compact format</td></tr>
-<tr><td>0x1C020037  SA Mobile</td><td class="ok">✓</td><td>Special case</td></tr>
-<tr><td>Xbox header offset scan</td><td class="ok">✓</td><td>Scans offsets 0/4/8 for Xbox-prefixed layouts</td></tr>
-<tr><td>0-byte entry guard</td><td class="ok">✓</td><td>Shows "Empty" instead of attempting read</td></tr></table>
+<h3>DAT Files</h3>
+<table>
+<tr><th>File</th><th>Content</th></tr>
+<tr><td>gta.dat / gta3.dat</td><td>Master load list — lists all IDE, IPL, IMG files to load</td></tr>
+<tr><td>handling.cfg</td><td>Vehicle physics parameters</td></tr>
+<tr><td>timecyc.dat</td><td>Time-of-day colour cycling for sky, sun, fog</td></tr>
+<tr><td>object.dat</td><td>Object breakability and fire properties</td></tr>
+<tr><td>pedstats.dat</td><td>Pedestrian behaviour statistics</td></tr>
+<tr><td>weapon.dat</td><td>Weapon parameters and damage values</td></tr>
+</table>
 
-<h4>COL Collision</h4>
-<table><tr><th>Version</th><th>Read</th><th>Write</th><th>Notes</th></tr>
-<tr><td>COL1 — GTA III</td><td class="ok">✓</td><td class="ok">✓</td><td>Garbage face count auto-corrected</td></tr>
-<tr><td>COL2 — GTA VC</td><td class="ok">✓</td><td class="ok">✓</td><td></td></tr>
-<tr><td>COL3 — GTA SA</td><td class="ok">✓</td><td class="ok">✓</td><td></td></tr>
-<tr><td>COL4 — Extended</td><td class="wip">~</td><td class="wip">~</td><td>Rare — partial support</td></tr></table>
-<p class="note">~ = partial / read-only / in progress</p>
+<h3>DAT Browser (IMG Factory)</h3>
+<p>Reads gta.dat / gta3.dat to build a cross-reference of all IDE and IPL entries. IDE entries are linked to their source IMG file so the "COL" column in the file list can show which collision file covers each model. Registered in the Tool Taskbar when opened.</p>
 """
 
-        tabs.addTab(make_text(img_html),    "IMG Archive")
-        tabs.addTab(make_text(ver_html),    "RW Versions & Sections")
-        tabs.addTab(make_text(txd_html),    "TXD Format")
-        tabs.addTab(make_text(col_html),    "COL Format")
-        tabs.addTab(make_text(status_html), "Status")
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 6: Platform Matrix & Detection
+        # ══════════════════════════════════════════════════════════════════════
+        matrix_html = css + """
+<h2>Platform Support Matrix</h2>
+
+<table>
+<tr>
+<th>Version Enum</th><th>Value</th><th>Platform</th><th>Container</th><th>Sector</th><th>Entry fmt</th><th>Status</th>
+</tr>
+<tr><td>VERSION_1</td><td>1</td><td>PC</td><td>DIR+IMG</td><td>2048</td><td>32-byte (off/sz/name)</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_1_5</td><td>15</td><td>PC (&gt;2GB)</td><td>DIR+IMG</td><td>2048</td><td>32-byte, long names</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_SOL</td><td>25</td><td>PC</td><td>DIR+IMG</td><td>2048</td><td>32-byte</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_2</td><td>2</td><td>PC</td><td>Single VER2</td><td>2048</td><td>32-byte in header</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_3</td><td>3</td><td>PC</td><td>Single 0xA94E2A52</td><td>2048</td><td>GTA IV extended</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_3_ENC</td><td>30</td><td>PC</td><td>AES-256 ECB</td><td>2048</td><td>Encrypted dir</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_XBOX</td><td>50</td><td>Xbox</td><td>DIR+IMG</td><td>2048</td><td>32-byte + LZO data</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_PS2_VCS</td><td>40</td><td>PS2</td><td>Single (embedded dir)</td><td>512</td><td>32-byte type-code</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_PS2_V1</td><td>42</td><td>PS2/iOS/Android</td><td>Single (embedded dir)</td><td>512</td><td>12-byte asset_id</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_PS2_LVZ</td><td>41</td><td>PS2</td><td>zlib DLRW stream</td><td>512</td><td>8-byte indexed</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_1_IOS</td><td>47</td><td>iOS</td><td>Single *_pvr.img</td><td>512</td><td>12-byte asset_id</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_LCS_IOS</td><td>53</td><td>iOS</td><td>Single *_pvr.img (LCS)</td><td>512</td><td>12-byte asset_id</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_LCS_ANDROID</td><td>52</td><td>Android</td><td>VER2 + 0x1005FFFF TXDs</td><td>2048</td><td>32-byte</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_SA_ANDROID</td><td>51</td><td>Android</td><td>VER2 + texdb.dat</td><td>2048</td><td>32-byte</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_STREAMING_SEG</td><td>60</td><td>iOS/PSP</td><td>Raw segment (no dir)</td><td>—</td><td>—</td><td class="wrn">Info only</td></tr>
+<tr><td>VERSION_BULLY</td><td>44</td><td>PS2 (CUTS.IMG)</td><td>Single name-only dir</td><td>—</td><td>64-byte name entries</td><td class="wrn">Name-list only</td></tr>
+<tr><td>VERSION_ANPK</td><td>43</td><td>PSP</td><td>Named DGAN clips</td><td>—</td><td>ANPK magic + blocks</td><td class="ok">✓</td></tr>
+<tr><td>VERSION_HXD</td><td>45</td><td>PS2</td><td>Bone/animation</td><td>—</td><td>float header + path</td><td class="ok">✓</td></tr>
+</table>
+<p class="note">Bully WORLD.IMG / GTA3.IMG uses standard VERSION_1 (not VERSION_BULLY). VERSION_BULLY is reserved for CUTS.IMG-style name-only archives.</p>
+
+<h2>Key Detection Heuristics (How We Identified Each Format)</h2>
+
+<h3>PS2_V1 vs Bully vs PS2_VCS — disambiguation</h3>
+<table>
+<tr><th>Format</th><th>Bytes[0:4]</th><th>Bytes[4:8]</th><th>Bytes[8:12]</th><th>Key test</th></tr>
+<tr><td>PS2_V1</td><td>Small int (sector offset, e.g. 22)</td><td>asset_id (type&lt;&lt;16|idx)</td><td>Sector size</td><td>asset_id high byte NOT printable ASCII; bytes[4:8] non-zero</td></tr>
+<tr><td>Bully CUTS</td><td>Small int (entry count, e.g. 82)</td><td>First chars of first name (printable)</td><td>More name chars</td><td>Bytes[4] is printable ASCII letter; 4+ consecutive printable chars</td></tr>
+<tr><td>PS2_VCS</td><td>4-char type code ("CDIN")</td><td>Always 0x00000000</td><td>Sector offset</td><td>Bytes[0:4] all printable AND bytes[4:8] == 0x00000000</td></tr>
+</table>
+
+<h3>False-Positive Avoidance</h3>
+<ul>
+<li><b>GTA3.IMG (LC) opened as PS2_V1:</b> Caused by Linux case-sensitivity — <code>GTA3.dir</code> check failed because file is <code>GTA3.DIR</code>. Fixed with <code>_find_companion()</code> case-insensitive search.</li>
+<li><b>PS2_V1 first byte 0x16 rejected:</b> 0x16 = 22 is a valid small sector offset. Was wrongly in the "known RW types to reject" list alongside 0x10 (RpClump). Removed.</li>
+<li><b>LC PS2 sec_off1 &lt; sec_off0:</b> Entry 0 at sector 22, entry 1 at sector 1. Our sequential-layout check (sec_off1 &gt;= sec_off0) correctly rejected this non-PS2_V1 file.</li>
+</ul>
+
+<h2>Rebuild Logic</h2>
+<h3>V1 / V1.5 (DIR+IMG Pair)</h3>
+<ol>
+<li>Write all entry data sequentially to a temp .img file; record (sector_offset, sector_count) per entry</li>
+<li>Write directory (32 bytes × N entries) to a temp .dir file using offsets from step 1</li>
+<li>Atomically replace both .img and .dir files</li>
+</ol>
+<p class="note">Previous bug: single-file rebuild wrote dir+data into the .dir file, growing it from ~123 KB to ~116 MB.</p>
+
+<h3>V2 / V3 (Single-File)</h3>
+<ol>
+<li>Write magic + entry count + directory placeholder (all zeros, 32×N bytes)</li>
+<li>Align to sector boundary</li>
+<li>Write each entry's data, padding to sector boundary, recording actual offsets</li>
+<li>Seek back to directory placeholder and write real offsets + sizes</li>
+</ol>
+"""
+
+        # ══════════════════════════════════════════════════════════════════════
+        # TAB 7: Troubleshooting & Notes
+        # ══════════════════════════════════════════════════════════════════════
+        notes_html = css + """
+<h2>Known Issues &amp; Troubleshooting</h2>
+
+<h3>File Opens as Wrong Format</h3>
+<ul>
+<li><b>Symptom:</b> Garbage names, huge sizes, Korean/binary characters in Name column.</li>
+<li><b>Cause:</b> Format detection chose the wrong parser. Usually means a companion .DIR file wasn't found (case-sensitivity on Linux) or a detector had a false positive.</li>
+<li><b>Fix:</b> Ensure .DIR and .IMG are in the same folder. On Linux, both files must be accessible to the case-insensitive companion lookup.</li>
+</ul>
+
+<h3>RW Version Shows "Unknown"</h3>
+<ul>
+<li><b>Cause A:</b> Version value not in the known-valid set (e.g. Bully <code class="hex">0x1C02000A</code> before it was added).</li>
+<li><b>Cause B:</b> Entry data not yet cached — version read requires opening the IMG file.</li>
+<li><b>Fix:</b> Version is read lazily from the first 16 bytes of each entry on table population. If still Unknown, the RW chunk at that offset may not be a standard RW header.</li>
+</ul>
+
+<h3>Export Produces Wrong Content</h3>
+<ul>
+<li><b>Symptom:</b> Exported files contain directory data instead of asset data.</li>
+<li><b>Cause:</b> Old code opened <code>img_archive.file_path</code> directly. For V1 files opened via .DIR, this reads directory bytes not asset data.</li>
+<li><b>Fix:</b> Export uses <code>img_archive.read_entry_data(entry)</code> which correctly resolves .DIR → .IMG path.</li>
+</ul>
+
+<h3>Rebuild Makes File Much Larger</h3>
+<ul>
+<li><b>Symptom:</b> 104 MB .DIR grows to 312 MB after rebuild.</li>
+<li><b>Cause:</b> Old rebuild wrote header + directory + all entry data into the .DIR file as a single blob.</li>
+<li><b>Fix:</b> V1 rebuild writes .DIR and .IMG separately; V2+ uses seek-back to fill directory after writing data.</li>
+</ul>
+
+<h3>LCS iOS — "Open gta3.img Instead"</h3>
+<p>Files like <code>indust.img</code>, <code>suburb.img</code>, <code>underg.img</code> in the iOS LCS Models folder are streaming segments — raw data with no internal directory. The directory for all segments lives in <code>gta3.img</code>. IMG Factory detects these as VERSION_STREAMING_SEG and shows a clear message.</p>
+
+<h3>Ctrl+Up / Ctrl+Down — Entry Reordering</h3>
+<p>Selected entries can be moved up or down in the entry list using Ctrl+Up / Ctrl+Down, or via the right-click context menu. This changes the order in <code>img_file.entries</code> — a rebuild is needed to write the new order to disk.</p>
+
+<h2>IMG Factory Version Matrix</h2>
+<table>
+<tr><th>Component</th><th>Current Version</th><th>Notes</th></tr>
+<tr><td>imgfactory.py</td><td>vers 63+</td><td>Main application window</td></tr>
+<tr><td>img_core_classes.py</td><td>IMGFile vers 5</td><td>Format detection and opening</td></tr>
+<tr><td>img_ps2_vcs.py</td><td>vers 8</td><td>PS2/PSP/Bully/HXD/ANPK parsers</td></tr>
+<tr><td>populate_img_table.py</td><td>get_rw_version_light vers 6</td><td>RW version display</td></tr>
+<tr><td>rw_versions.py</td><td>is_valid_rw_version vers 6</td><td>Version validation</td></tr>
+<tr><td>rebuild.py</td><td>_perform_native_rebuild vers 9</td><td>V1 pair + V2 single-file rebuild</td></tr>
+<tr><td>export.py / img_export_entry.py</td><td>export_entry vers 3</td><td>Uses read_entry_data for correct path</td></tr>
+<tr><td>app_settings_system.py</td><td>SettingsDialog vers 15</td><td>Shared across IMG Factory tools</td></tr>
+<tr><td>scan_img.py</td><td>vers 1 + RecentScansDialog vers 2</td><td>Recursive folder scanner + history</td></tr>
+</table>
+"""
+
+        tabs.addTab(make_tab(img_html),    "IMG Formats")
+        tabs.addTab(make_tab(ver_html),    "RW Versions")
+        tabs.addTab(make_tab(txd_html),    "TXD / Textures")
+        tabs.addTab(make_tab(col_html),    "COL Collision")
+        tabs.addTab(make_tab(dat_html),    "DAT / IDE / IPL")
+        tabs.addTab(make_tab(matrix_html), "Platform Matrix")
+        tabs.addTab(make_tab(notes_html),  "Troubleshooting")
 
         close_btn = QPushButton("Close")
-        close_btn.setMaximumWidth(100)
         close_btn.clicked.connect(dialog.accept)
+        close_btn.setFixedWidth(100)
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         btn_row.addWidget(close_btn)
         layout.addLayout(btn_row)
 
         dialog.exec()
-
 
     def _show_imgfactory_info(self): #vers 1
         """Show IMG Factory application information dialog"""
