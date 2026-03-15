@@ -359,8 +359,12 @@ class IMGLoadThread(QThread):
 
             self.progress_updated.emit(30, "Detecting format...")
 
-            # Open and parse file (entries are loaded automatically by open())
+            # Open and parse file (entries are loaded automatically by open()
             if not img_file.open():
+                # Check for streaming segment — give a clear helpful message
+                if hasattr(img_file, '_streaming_segment_error'):
+                    self.loading_error.emit(img_file._streaming_segment_error)
+                    return
                 ver = img_file.version.name if img_file.version else "UNKNOWN"
                 sz = os.path.getsize(self.file_path)
                 self.loading_error.emit(

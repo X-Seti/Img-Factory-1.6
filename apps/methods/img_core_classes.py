@@ -104,7 +104,8 @@ class IMGVersion(Enum):
     VERSION_XBOX        = 50  # Xbox GTA3/VC - DIR+IMG pair, LZO-compressed entries, 2048-byte sectors
     VERSION_SA_ANDROID  = 51  # Android SA - VER2 header, 2048-byte sectors, mobile texture DB
     VERSION_LCS_ANDROID = 52  # Android LCS - VER2 header, TXD version 0x1005FFFF embedded in IMG
-    VERSION_LCS_IOS     = 53  # iOS LCS - 12-byte entries, 512-byte sectors, *_pvr.img suffix
+    VERSION_LCS_IOS        = 53  # iOS LCS - 12-byte entries, 512-byte sectors, *_pvr.img suffix
+    VERSION_STREAMING_SEG  = 60  # Raw streaming segment (LCS/VCS iOS/PSP) - no internal directory
     UNKNOWN       = 0
 
 class IMGPlatform(Enum):
@@ -1576,6 +1577,22 @@ class IMGFile:
                             if detect_bully(self.file_path):
                                 self.version = IMGVersion.VERSION_BULLY
                                 return IMGVersion.VERSION_BULLY
+                            # Check for streaming segment (LCS/VCS iOS/PSP) —
+                            # raw data file with no self-describing header;
+                            # lives alongside a gta3.img in the same directory.
+                            _sibling = os.path.join(
+                                os.path.dirname(self.file_path), 'gta3.img')
+                            if (os.path.exists(_sibling) and
+                                    _sibling != self.file_path):
+                                # sibling gta3.img exists -> this is a segment
+                                try:
+                                    with open(_sibling, 'rb') as _sf:
+                                        _sm = _sf.read(4)
+                                    if _sm == b'VER2':
+                                        self.version = IMGVersion.VERSION_STREAMING_SEG
+                                        return IMGVersion.VERSION_STREAMING_SEG
+                                except Exception:
+                                    pass
                             # No .dir - standalone V1/V1.5, check size
                             sz = os.path.getsize(self.file_path)
                             ver = IMGVersion.VERSION_1_5 if sz > 2 * 1024 * 1024 * 1024 else IMGVersion.VERSION_1
@@ -1617,6 +1634,16 @@ class IMGFile:
             elif self.version in (IMGVersion.VERSION_LCS_ANDROID,
                                   IMGVersion.VERSION_LCS_IOS):
                 success = self._open_lcs()
+            elif self.version == IMGVersion.VERSION_STREAMING_SEG:
+                # Raw streaming segment — no internal directory
+                # Signal to caller with a special error flag
+                self._streaming_segment_error = (
+                    f"{os.path.basename(self.file_path)} is a streaming segment file.\n\n"
+                    "This file contains raw asset data referenced by gta3.img — it has no "
+                    "internal directory and cannot be opened as a standalone archive.\n\n"
+                    "Open gta3.img from the same folder instead."
+                )
+                return False
             elif self.version in (IMGVersion.VERSION_3,
                                   IMGVersion.VERSION_3_ENC):
                 success = self._open_version_3()
