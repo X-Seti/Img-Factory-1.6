@@ -2250,3 +2250,145 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 __all__ = [
     'IMGFactoryGUILayoutCustom', '_create_toolbar', '_show_workshop_settings'
 ]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tool Taskbar
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ToolTaskbar(QWidget):  # vers 1
+    """Compact taskbar showing icons for every open tool/workshop.
+
+    Sits between the titlebar and the file-list window.  Each button shows
+    the tool's icon + a short label.  Clicking raises the tool's window (or
+    re-opens it if it was closed).  Buttons appear when a tool is registered
+    and disappear when it is closed.
+
+    Usage
+    -----
+    bar = ToolTaskbar(main_window, parent_widget)
+    bar.register("txd",   "TXD Workshop", txd_icon, txd_window_or_callable)
+    bar.register("col",   "COL Workshop", col_icon, col_window_or_callable)
+    bar.register("ai",    "AI Workshop",  ai_icon,  ai_window_or_callable)
+    bar.unregister("txd")   # removes button
+    """
+
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
+        self._main_window = main_window
+        self._tools: dict = {}   # key -> {label, icon, target, btn}
+        self.setFixedHeight(32)
+        self.setObjectName("tool_taskbar")
+
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(4, 2, 4, 2)
+        self._layout.setSpacing(3)
+
+        # Separator line feel — small label on the far left
+        self._sep_label = QLabel("Tools:")
+        self._sep_label.setFixedWidth(38)
+        self._sep_label.setStyleSheet(
+            "color: palette(mid); font-size: 10px; font-style: italic;")
+        self._layout.addWidget(self._sep_label)
+
+        self._layout.addStretch()
+
+        # Start hidden — shows itself as soon as the first tool registers
+        self.setVisible(False)
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def register(self, key: str, label: str, icon,
+                 target, tooltip: str = "") -> None:
+        """Add or update a tool button.
+
+        Parameters
+        ----------
+        key     : unique string identifier (e.g. 'txd', 'col', 'ai')
+        label   : short display label (≤10 chars recommended)
+        icon    : QIcon
+        target  : QWidget to raise/show  OR  callable to open
+        tooltip : optional full tooltip text
+        """
+        if key in self._tools:
+            self.unregister(key)
+
+        btn = QPushButton()
+        btn.setIcon(icon)
+        btn.setText(label)
+        btn.setIconSize(QSize(18, 18))
+        btn.setFixedHeight(26)
+        btn.setMaximumWidth(100)
+        btn.setFlat(False)
+        btn.setToolTip(tooltip or label)
+        btn.setStyleSheet("""
+            QPushButton {
+                border-radius: 4px;
+                padding: 1px 6px;
+                font-size: 11px;
+            }
+            QPushButton:hover  { background: palette(highlight); }
+            QPushButton:pressed{ background: palette(dark); }
+        """)
+
+        def _click():
+            t = self._tools.get(key, {}).get("target")
+            if t is None:
+                return
+            if callable(t):
+                t()
+            elif isinstance(t, QWidget):
+                if not t.isVisible():
+                    t.show()
+                t.raise_()
+                t.activateWindow()
+
+        btn.clicked.connect(_click)
+
+        # Insert before the trailing stretch
+        # Find stretch position
+        count = self._layout.count()
+        self._layout.insertWidget(count - 1, btn)
+
+        self._tools[key] = {
+            "label":  label,
+            "icon":   icon,
+            "target": target,
+            "btn":    btn,
+        }
+        self.setVisible(True)
+        self._update_sep_label()
+
+    def unregister(self, key: str) -> None:
+        """Remove a tool button."""
+        if key not in self._tools:
+            return
+        btn = self._tools[key]["btn"]
+        self._layout.removeWidget(btn)
+        btn.deleteLater()
+        del self._tools[key]
+        if not self._tools:
+            self.setVisible(False)
+        self._update_sep_label()
+
+    def update_target(self, key: str, target) -> None:
+        """Update the window/callable for an existing tool button."""
+        if key in self._tools:
+            self._tools[key]["target"] = target
+
+    def is_registered(self, key: str) -> bool:
+        return key in self._tools
+
+    def _update_sep_label(self):
+        self._sep_label.setVisible(bool(self._tools))
+
+    def apply_theme(self, colors: dict) -> None:
+        """Re-style from theme colour dict."""
+        bg   = colors.get("bg_secondary", "#252525")
+        brd  = colors.get("border",       "#3a3a3a")
+        self.setStyleSheet(
+            f"QWidget#tool_taskbar {{"
+            f"  background:{bg};"
+            f"  border-bottom:1px solid {brd};"
+            f"}}")
+

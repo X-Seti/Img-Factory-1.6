@@ -69,6 +69,15 @@ from apps.methods.imgfactory_svg_icons import (
     get_minimize_icon, get_maximize_icon, get_close_icon
 )
 
+def _register_tool_taskbar(main_window, key, label, icon_fn, tooltip=""):
+    """Register a tool in the main window taskbar if it exists."""
+    try:
+        if hasattr(main_window, 'register_tool'):
+            main_window.register_tool(key, label, icon_fn, None, tooltip)
+    except Exception:
+        pass
+
+
 def edit_txd_file(main_window): #vers 5
     """Edit selected TXD file with TXD Workshop - works from IMG table or dir tree"""
     try:
@@ -97,6 +106,7 @@ def edit_txd_file(main_window): #vers 5
                 from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
                 open_txd_workshop(main_window, selected)
             main_window.log_message(f"TXD Workshop opened: {os.path.basename(selected)}")
+            _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop")
             return
 
         # Fall back to IMG table selection
@@ -118,6 +128,7 @@ def edit_txd_file(main_window): #vers 5
         workshop = open_txd_workshop(main_window, img_path)
         if workshop:
             main_window.log_message(f"TXD Workshop opened for: {filename}")
+            _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop")
     except Exception as e:
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
@@ -146,6 +157,7 @@ def edit_col_file(main_window): #vers 3
             from apps.components.Col_Editor.col_workshop import open_col_workshop
             open_col_workshop(main_window, selected)
             main_window.log_message(f"COL Workshop opened: {os.path.basename(selected)}")
+            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop")
             return
 
         # Fall back to IMG table selection
@@ -167,6 +179,7 @@ def edit_col_file(main_window): #vers 3
         workshop = open_col_workshop(main_window, img_path)
         if workshop:
             main_window.log_message(f"COL Workshop opened for: {filename}")
+            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop")
     except Exception as e:
         main_window.log_message(f"Error opening COL Workshop: {e}")
 
@@ -268,7 +281,7 @@ class IMGFactoryGUILayout:
             'edit_txd_file': lambda: edit_txd_file(self.main_window),
             'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
-            'edit_ide_file': lambda: open_ide_editor(self.main_window),
+            'edit_ide_file': lambda: (open_ide_editor(self.main_window),_register_tool_taskbar(self.main_window, 'ide', 'IDE', get_edit_icon, 'IDE Editor — item definition editor'))[-1],
             'edit_ipl_file': lambda: self._open_selected_text_file('.ipl'),
             'edit_dat_file': self._open_dat_browser,
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
@@ -302,6 +315,9 @@ class IMGFactoryGUILayout:
         try:
             from apps.components.Dat_Browser.dat_browser import show_dat_browser
             show_dat_browser(self.main_window)
+            from apps.methods.imgfactory_svg_icons import get_edit_icon
+            _register_tool_taskbar(self.main_window, 'dat', 'DAT',
+                get_edit_icon, 'DAT Browser — game data editor')
         except Exception as e:
             self._log_missing_method('edit_dat_file')
 

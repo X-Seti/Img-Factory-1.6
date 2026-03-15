@@ -2738,7 +2738,14 @@ class IMGFactory(QMainWindow):
                     toolbar = self.gui_layout._create_toolbar()
                     toolbar.setVisible(True)
                     main_layout.addWidget(toolbar)  # Add toolbar at TOP
-                    print("DEBUG: Toolbar added to layout in custom mode")
+
+                    # Tool taskbar — sits between titlebar and file-list window
+                    try:
+                        from apps.gui.gui_layout_custom import ToolTaskbar
+                        self.tool_taskbar = ToolTaskbar(self)
+                        main_layout.addWidget(self.tool_taskbar)
+                    except Exception as _te:
+                        print(f"Tool taskbar creation failed: {_te}")
             except Exception as e:
                 print(f"Toolbar creation failed: {e}")
 
@@ -5149,6 +5156,40 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error opening COL Workshop: {str(e)}")
 
 
+    # ── Tool taskbar helpers ─────────────────────────────────────────────────
+
+    def register_tool(self, key: str, label: str, icon_fn,
+                      target=None, tooltip: str = "") -> None: #vers 2
+        """Register a tool in the taskbar (creates button if custom UI is active).
+
+        target can be:
+          - a QWidget  → raise/show it
+          - a callable → call it
+          - None       → updates label/icon only; use update_target later
+        If the key already exists its button is just refreshed (not duplicated).
+        """
+        if not hasattr(self, 'tool_taskbar'):
+            return
+        try:
+            colors = {}
+            if hasattr(self, 'app_settings'):
+                colors = self.app_settings.get_theme_colors() or {}
+            icon_color = colors.get('text_primary', '#cccccc')
+            icon = icon_fn(20, icon_color) if callable(icon_fn) else icon_fn
+            # If already registered just update the target
+            if self.tool_taskbar.is_registered(key) and target is not None:
+                self.tool_taskbar.update_target(key, target)
+            else:
+                self.tool_taskbar.register(key, label, icon, target, tooltip)
+            self.tool_taskbar.apply_theme(colors)
+        except Exception as e:
+            self.log_message(f"Tool taskbar register error: {e}")
+
+    def unregister_tool(self, key: str) -> None: #vers 1
+        """Remove a tool button from the taskbar."""
+        if hasattr(self, 'tool_taskbar'):
+            self.tool_taskbar.unregister(key)
+
     def open_ai_workshop_docked(self): #vers 1
         """Open AI Workshop embedded as a tab in IMG Factory"""
         try:
@@ -5190,6 +5231,10 @@ class IMGFactory(QMainWindow):
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
             self.log_message("AI Workshop opened (docked)")
+            # Register in tool taskbar
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            self.register_tool("ai", "AI", SVGIconFactory.ai_icon,
+                               tab_container, "AI Workshop — local LLM chat")
             return workshop
 
         except Exception as e:
