@@ -1,4 +1,4 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 6
+#this belongs in core/ img_ps2_vcs.py - Version: 7
 # X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ, ANPK and HXD Support
 """
 PS2/PSP/Bully IMG, LVZ, ANPK, Bully and HXD Support - Read-only parsers.
@@ -57,60 +57,65 @@ def detect_ps2_vcs(path: str) -> bool: #vers 1
         return False
 
 
-def detect_ps2_v1(path: str) -> bool: #vers 1
+def detect_ps2_v1(path: str) -> bool: #vers 3
     """
-    Return True if file is a GTA3/VC/Bully PS2 (or iOS/Android port) IMG.
-    Format: 12-byte entries from byte 0, no magic, no names.
-    First u32 LE = entry count (small number, typically < 5000).
-    Third u32 LE = first entry size in 512-byte sectors (small, typically < 10000).
+    Return True if file is a GTA3/VC PS2 (or iOS/Android port) IMG.
+    Format: 12-byte entries from byte 0, no magic, no names, no count header.
+      [0:4]  sector_offset  (first entry - a small number)
+      [4:8]  asset_id       (type encoded in high 16 bits)
+      [8:12] sector_size    (also small)
+    The directory size = first_entry.sector_offset * 512 bytes.
     """
     try:
         if not path.lower().endswith('.img'):
             return False
         file_size = os.path.getsize(path)
-        if file_size < 24:
+        if file_size < 36:
             return False
         with open(path, 'rb') as f:
             header = f.read(36)
         # Reject known magic formats
-        if header[:4] in (b'VER2', b'DLRW'):
+        if header[:4] in (b'VER2', b'DLRW', b'ANPK'):
             return False
         import struct as _s
+        # Reject GTA IV
         if _s.unpack('<I', header[:4])[0] == 0xA94E2A52:
             return False
-        # Reject PS2 VCS type-code (printable ASCII in first 4 bytes + null pad at [4:8])
+        # Reject PS2 VCS type-code (printable ASCII + null pad at bytes 4-8)
         if all(0x20 <= b < 0x7F or b == 0x00 for b in header[0:4]) and \
            header[0:4].rstrip(b'\x00') != b'' and header[4:8] == b'\x00\x00\x00\x00':
             return False
-        # Reject RW chunk (first u32 is a known RW type like 0x16 TXD)
-        rw_type = _s.unpack('<I', header[:4])[0]
-        if rw_type in (0x16, 0x1, 0x2, 0x3, 0x8, 0xF, 0x10, 0x15):
+        # Reject RW chunk types (TXD=0x16, Clump=0x10, etc.)
+        first_u32 = _s.unpack('<I', header[:4])[0]
+        if first_u32 in (0x1, 0x2, 0x3):  # only reject values that are NEVER valid sector offsets
             return False
-        # PS2_V1: [0:4]=entry_count, then N*12-byte entries
-        # Cross-validate: read first two entries, check offsets are plausible
-        count = _s.unpack('<I', header[0:4])[0]
-        if not (1 <= count < 5000):
+        # Entry 0: sec_off[0:4], asset_id[4:8], sec_sz[8:12]
+        sec_off0 = _s.unpack('<I', header[0:4])[0]
+        asset_id0 = _s.unpack('<I', header[4:8])[0]
+        sec_sz0  = _s.unpack('<I', header[8:12])[0]
+        # Entry 1
+        sec_off1 = _s.unpack('<I', header[12:16])[0]
+        sec_sz1  = _s.unpack('<I', header[20:24])[0]
+        # sec_off must be small (directory fits in first N sectors)
+        if not (1 <= sec_off0 < 5000):
             return False
-        # Read enough for 2 entries (+ 4 byte count header)
-        with open(path, 'rb') as f:
-            f.seek(4)
-            entry_data = f.read(24)
-        if len(entry_data) < 24:
+        # sec_sz must be a plausible sector count
+        if not (0 < sec_sz0 < 65536 and 0 < sec_sz1 < 65536):
             return False
-        sec_off0 = _s.unpack('<I', entry_data[0:4])[0]
-        sec_sz0  = _s.unpack('<I', entry_data[8:12])[0]
-        sec_off1 = _s.unpack('<I', entry_data[12:16])[0]
-        # Both sector sizes must be plausible
-        if not (0 < sec_sz0 < 65536):
+        # asset_id high byte must NOT be printable ASCII (that would be Bully name field)
+        asset_hi = (asset_id0 >> 24) & 0xFF
+        if 0x20 <= asset_hi < 0x7F:
             return False
-        # First entry offset must be beyond the directory
-        dir_sectors = (count * 12 + 511) // 512  # dir rounded up to sector
-        if sec_off0 < dir_sectors:
-            return False
-        # Second entry must start after first entry ends (sequential layout)
+        # Second entry offset >= first (sequential)
         if sec_off1 < sec_off0:
             return False
-        # Byte offsets must be within file
+        # Directory size = sec_off0 * PS2_SECTOR
+        # entry_count = dir_size // 12 (12-byte entries, sector-padded)
+        dir_bytes = sec_off0 * PS2_SECTOR
+        entry_count = dir_bytes // 12
+        if not (1 <= entry_count < 50000):
+            return False
+        # Spot-check: offset must be inside file
         if sec_off0 * PS2_SECTOR >= file_size:
             return False
         return True
@@ -134,14 +139,15 @@ def open_ps2_v1(file_path: str) -> dict: #vers 1
             result['error'] = 'File too small'
             return result
 
-        entry_count = struct.unpack('<I', raw[0:4])[0]
-        # Entry array starts at byte 4 (after the count u32)
-        dir_size    = 4 + entry_count * 12
+        # No count header - header[0:4] is first entry's sector_offset
+        # Directory size = first_entry.sec_off * 512 bytes
+        first_sec_off = struct.unpack('<I', raw[0:4])[0]
+        dir_size = first_sec_off * PS2_SECTOR
+        entry_count = dir_size // 12
 
         with open(file_path, 'rb') as f:
             dir_data = f.read(dir_size)
-        # Skip the 4-byte count at the front
-        dir_data = dir_data[4:]
+        # Entries start at byte 0
 
         entries = []
         for i in range(entry_count):
@@ -153,6 +159,9 @@ def open_ps2_v1(file_path: str) -> dict: #vers 1
             sec_sz   = struct.unpack('<I', dir_data[off+8:off+12])[0]
             byte_off = sec_off * PS2_SECTOR
             byte_sz  = sec_sz  * PS2_SECTOR
+            # Skip null/padding entries
+            if sec_off == 0 and sec_sz == 0:
+                continue
             if byte_off >= file_size:
                 continue
             # Decode asset_id: high 16 bits = type, low 16 bits = sequential index
@@ -379,36 +388,52 @@ def open_anpk(file_path: str) -> dict: #vers 1
 BULLY_ENTRY_SIZE = 64
 
 
-def detect_bully(path: str) -> bool: #vers 1
+def detect_bully(path: str) -> bool: #vers 2
     """
     Return True if file is a Bully PS2 named-entry IMG (CUTS.IMG style).
-    Format: count[4LE] then count*64-byte name-only entries (no offsets stored).
-    Detection: small count, first entry bytes are printable ASCII, no known magic.
+    Format: count[4LE] + count*64-byte ASCII name entries (no offsets stored).
+    Key distinguisher vs PS2_V1: the bytes immediately after the count MUST be
+    valid ASCII text (a filename), NOT a sector_offset integer.
     """
     try:
         if not path.lower().endswith('.img'):
             return False
         with open(path, 'rb') as f:
-            header = f.read(68)
-        if len(header) < 68:
+            header = f.read(72)
+        if len(header) < 72:
             return False
-        # Reject known formats
-        if header[:4] in (b'VER2', b'ANPK'):
+        # Reject known magic formats
+        if header[:4] in (b'VER2', b'ANPK', b'DLRW'):
             return False
         import struct as _s
         if _s.unpack('<I', header[:4])[0] == 0xA94E2A52:
             return False
-        # Reject LCS/VCS type-code (printable + null pad at [4:8])
+        # Reject PS2 VCS type-code
         if all(0x20 <= b < 0x7F or b == 0x00 for b in header[0:4]) and \
            header[0:4].rstrip(b'\x00') != b'' and header[4:8] == b'\x00\x00\x00\x00':
             return False
         count = _s.unpack('<I', header[0:4])[0]
-        if not (0 < count < 1000):
+        if not (1 <= count < 500):
             return False
-        # First entry at offset 4 must start with printable ASCII name
-        name_start = header[4:20]
-        printable = sum(1 for b in name_start if 0x20 <= b < 0x7F or b == 0x00)
-        return printable >= 4 and name_start[0:1] != b'\x00'
+        # First name entry starts at byte 4 and must be printable ASCII
+        # Require at least 4 consecutive printable chars from the very start
+        first_name = header[4:68]
+        # First byte must be printable (A-Z a-z 0-9 _ etc.) - NOT a null or control char
+        if first_name[0] < 0x20 or first_name[0] >= 0x7F:
+            return False
+        # Count consecutive printable chars at start of name
+        consecutive = 0
+        for b in first_name:
+            if 0x20 <= b < 0x7F:
+                consecutive += 1
+            else:
+                break
+        if consecutive < 4:
+            return False
+        # The name must end with a null terminator within 64 bytes
+        if b'\x00' not in first_name:
+            return False
+        return True
     except Exception:
         return False
 
