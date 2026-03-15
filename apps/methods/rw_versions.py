@@ -123,9 +123,11 @@ class MDLVersion(Enum):
 def get_rw_version_name(version_value: int) -> str:  # vers 11
     rw_versions = {
         # ---- Canonical SDK versions ----
-        0x00000300: "3.0.0 (GTA3 PC early)",
-        0x00000304: "3.0.4 (GTA3 PC early)",
-        0x00000310: "3.1.0 (GTA3 PC)",
+        0x00000300: "3.0.0 (GTA3 early — plain-int)",
+        0x00000304: "3.0.4 (GTA3 early — plain-int)",
+        0x00000310: "3.1.0 (GTA3/VC PS2 — plain-int)",
+        0x00000314: "3.1.4 (VC PS2 — plain-int)",
+        0x00000320: "3.2.0 (GTA III/VC PS2 — plain-int)",
         0x20001: "2.0.0.1 (GTA3) Radar Tex",
         0x30000: "3.0.0.0",
         0x31000: "3.1.0.0",

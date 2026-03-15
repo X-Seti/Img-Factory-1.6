@@ -1,4 +1,4 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 5
+#this belongs in core/ img_ps2_vcs.py - Version: 6
 # X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ, ANPK and HXD Support
 """
 PS2/PSP/Bully IMG, LVZ, ANPK, Bully and HXD Support - Read-only parsers.
@@ -67,25 +67,53 @@ def detect_ps2_v1(path: str) -> bool: #vers 1
     try:
         if not path.lower().endswith('.img'):
             return False
-        with open(path, 'rb') as f:
-            header = f.read(16)
-        if len(header) < 16:
+        file_size = os.path.getsize(path)
+        if file_size < 24:
             return False
+        with open(path, 'rb') as f:
+            header = f.read(36)
         # Reject known magic formats
-        if header[:4] in (b'VER2',):
+        if header[:4] in (b'VER2', b'DLRW'):
             return False
         import struct as _s
         if _s.unpack('<I', header[:4])[0] == 0xA94E2A52:
             return False
-        # Reject PS2 VCS type-code format (printable ASCII + null pad)
-        type_bytes = header[0:4]
-        if all(0x20 <= b < 0x7F or b == 0x00 for b in type_bytes) and \
-           type_bytes.rstrip(b'\x00') != b'' and header[4:8] == b'\x00\x00\x00\x00':
+        # Reject PS2 VCS type-code (printable ASCII in first 4 bytes + null pad at [4:8])
+        if all(0x20 <= b < 0x7F or b == 0x00 for b in header[0:4]) and \
+           header[0:4].rstrip(b'\x00') != b'' and header[4:8] == b'\x00\x00\x00\x00':
             return False
-        # PS2 V1: first u32 = entry count (< 5000), third u32 = sector size (< 10000)
-        count   = _s.unpack('<I', header[0:4])[0]
-        sec_sz  = _s.unpack('<I', header[8:12])[0]
-        return 0 < count < 5000 and 0 < sec_sz < 10000
+        # Reject RW chunk (first u32 is a known RW type like 0x16 TXD)
+        rw_type = _s.unpack('<I', header[:4])[0]
+        if rw_type in (0x16, 0x1, 0x2, 0x3, 0x8, 0xF, 0x10, 0x15):
+            return False
+        # PS2_V1: [0:4]=entry_count, then N*12-byte entries
+        # Cross-validate: read first two entries, check offsets are plausible
+        count = _s.unpack('<I', header[0:4])[0]
+        if not (1 <= count < 5000):
+            return False
+        # Read enough for 2 entries (+ 4 byte count header)
+        with open(path, 'rb') as f:
+            f.seek(4)
+            entry_data = f.read(24)
+        if len(entry_data) < 24:
+            return False
+        sec_off0 = _s.unpack('<I', entry_data[0:4])[0]
+        sec_sz0  = _s.unpack('<I', entry_data[8:12])[0]
+        sec_off1 = _s.unpack('<I', entry_data[12:16])[0]
+        # Both sector sizes must be plausible
+        if not (0 < sec_sz0 < 65536):
+            return False
+        # First entry offset must be beyond the directory
+        dir_sectors = (count * 12 + 511) // 512  # dir rounded up to sector
+        if sec_off0 < dir_sectors:
+            return False
+        # Second entry must start after first entry ends (sequential layout)
+        if sec_off1 < sec_off0:
+            return False
+        # Byte offsets must be within file
+        if sec_off0 * PS2_SECTOR >= file_size:
+            return False
+        return True
     except Exception:
         return False
 
@@ -107,10 +135,13 @@ def open_ps2_v1(file_path: str) -> dict: #vers 1
             return result
 
         entry_count = struct.unpack('<I', raw[0:4])[0]
-        dir_size    = entry_count * 12
+        # Entry array starts at byte 4 (after the count u32)
+        dir_size    = 4 + entry_count * 12
 
         with open(file_path, 'rb') as f:
             dir_data = f.read(dir_size)
+        # Skip the 4-byte count at the front
+        dir_data = dir_data[4:]
 
         entries = []
         for i in range(entry_count):
@@ -124,8 +155,18 @@ def open_ps2_v1(file_path: str) -> dict: #vers 1
             byte_sz  = sec_sz  * PS2_SECTOR
             if byte_off >= file_size:
                 continue
+            # Decode asset_id: high 16 bits = type, low 16 bits = sequential index
+            _type_map = {
+                0x0001: 'txd', 0x0002: 'dff', 0x0003: 'col',
+                0x0004: 'ipl', 0x0005: 'dat', 0x0006: 'wtd',
+                0x0007: 'scr', 0x0008: 'scm', 0x0009: 'wav',
+            }
+            _aid_type  = (asset_id >> 16) & 0xFFFF
+            _aid_idx   = asset_id & 0xFFFF
+            _ext       = _type_map.get(_aid_type, 'bin')
+            _name      = f'{_ext}_{_aid_idx:04d}' if _aid_type else f'entry_{i}'
             entries.append({
-                'name':     f'entry_{i}',
+                'name':     _name,
                 'offset':   byte_off,
                 'size':     byte_sz,
                 'asset_id': asset_id,
@@ -148,45 +189,62 @@ def detect_lvz(path: str) -> bool: #vers 1
         return False
 
 
-def open_ps2_vcs(file_path: str) -> dict: #vers 1
+def open_ps2_vcs(file_path: str) -> dict: #vers 2
     """
-    Parse a GTA3PS2.IMG file.
+    Parse a GTA3PS2.IMG (LCS/VCS PS2) file.
+    Format: embedded directory of 32-byte entries, 512-byte sectors.
+      [0:8]  type_code  — ASCII, right-padded with 0x00
+      [8:12] offset     — sector offset LE
+      [12:16]size       — sector count LE
+      [16:32]padding    — 0x00 or 0x88 fill
+    Directory ends at first fully-zero or 0x88-filled chunk.
     Returns dict: { 'version': 'PS2_VCS', 'entries': [...], 'error': None }
-    Each entry: { 'name': str, 'type_code': str, 'offset': int, 'size': int, 'index': int }
     """
     result = {'version': 'PS2_VCS', 'entries': [], 'error': None}
     try:
         file_size = os.path.getsize(file_path)
+        # Find directory end: scan up to the first data sector offset
+        # The first entry's offset tells us where data starts, so the
+        # directory occupies bytes 0..(first_offset*512 - 1).
+        # Read up to 64 KB to cover any realistic directory.
+        scan_limit = min(file_size, 65536)
         with open(file_path, 'rb') as f:
-            # Read first 64 bytes - scan for valid entries before padding (0x88 fill)
-            header_block = f.read(256)
+            scan_buf = f.read(scan_limit)
 
         entries = []
         idx = 0
-        offset = 0
-        while offset + 32 <= len(header_block):
-            chunk = header_block[offset:offset + 32]
-            # Stop at padding (0x88 or 0x00 fill with no valid type)
-            if chunk[0] == 0x88 or (chunk[0] == 0x00 and chunk[8] == 0x00 and chunk[12] == 0x00):
+        pos = 0
+        while pos + 32 <= len(scan_buf):
+            chunk = scan_buf[pos:pos + 32]
+            # Stop at padding sentinel (0x88 fill or all-zero with zero offset)
+            if chunk[0] == 0x88:
+                break
+            if chunk[:16] == b'\x00' * 16:
                 break
             type_bytes = chunk[0:8].rstrip(b'\x00')
-            # Type must be printable ASCII
             if not type_bytes or not all(0x20 <= b < 0x7F for b in type_bytes):
                 break
             type_code  = type_bytes.decode('ascii', errors='replace')
             entry_off  = struct.unpack('<I', chunk[8:12])[0] * PS2_SECTOR
             entry_size = struct.unpack('<I', chunk[12:16])[0] * PS2_SECTOR
+            # Sanity: offset must be inside the file
+            if entry_off == 0 and entry_size == 0:
+                break
             if entry_off >= file_size:
+                break
+            # First valid entry tells us where the directory ends
+            # once we've passed it, we should stop scanning
+            if entries and entry_off < entries[0]['offset']:
                 break
             entries.append({
                 'name':      f'{type_code}_{idx}',
                 'type_code': type_code,
                 'offset':    entry_off,
-                'size':      entry_size,
+                'size':      min(entry_size, file_size - entry_off),
                 'index':     idx,
             })
-            idx    += 1
-            offset += 32
+            idx += 1
+            pos += 32
 
         result['entries'] = entries
     except Exception as e:
