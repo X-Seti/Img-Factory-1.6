@@ -268,6 +268,8 @@ class IMGFactoryGUILayout:
             'select_inverse': lambda: self.select_inverse(),
             'show_search_dialog': lambda: self.show_search_dialog(),
             'sort_entries': lambda: self.sort_entries(),
+            'move_entry_up':   lambda: getattr(self.main_window, '_move_entries_up',   lambda: None)(),
+            'move_entry_down': lambda: getattr(self.main_window, '_move_entries_down', lambda: None)(),
 
             # Removed, TODO need to choose the ide file, to sort with.
             #'sort_entries_to_match_ide': lambda: self.sort_entries_to_match_ide(),
@@ -1521,6 +1523,15 @@ class IMGFactoryGUILayout:
 
         self._apply_file_list_window_theme_styling()
         self._setup_tearoff_button_for_tabs()
+
+        # Ctrl+Up / Ctrl+Down to reorder entries
+        from PyQt6.QtGui import QKeySequence, QShortcut
+        _sc_up = QShortcut(QKeySequence("Ctrl+Up"), file_window)
+        _sc_up.activated.connect(
+            lambda: getattr(self.main_window, '_move_entries_up', lambda: None)())
+        _sc_dn = QShortcut(QKeySequence("Ctrl+Down"), file_window)
+        _sc_dn.activated.connect(
+            lambda: getattr(self.main_window, '_move_entries_down', lambda: None)())
 
         return file_window
 

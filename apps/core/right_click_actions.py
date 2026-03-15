@@ -1,4 +1,4 @@
-#this belongs in core/right_click_actions.py - Version: 4
+#this belongs in core/right_click_actions.py - Version: 5
 # X-Seti - August07 2025 - IMG Factory 1.5 - Complete Right-Click Actions
 # Combined: Basic copying + Advanced file operations + Extraction functionality
 
@@ -204,13 +204,23 @@ def show_context_menu(main_window, position): #vers 4 Fixed
             rename_action.triggered.connect(main_window.rename_entry)
             menu.addAction(rename_action)
 
-        # MOVE OPERATION
+        # MOVE OPERATION (file move to folder - legacy)
         if hasattr(main_window, 'move_selected_file'):
             selected_items = table.selectedItems()
             if selected_items:
-                move_action = QAction("Move", menu_parent)
+                move_action = QAction("Move to Folder", menu_parent)
                 move_action.triggered.connect(main_window.move_selected_file)
                 menu.addAction(move_action)
+
+        # REORDER OPERATIONS — move entry up/down in list (Ctrl+Up / Ctrl+Down)
+        if table.selectedItems() and hasattr(main_window, '_move_entries_up'):
+            menu.addSeparator()
+            up_action = QAction("Move Up  (Ctrl+Up)", menu_parent)
+            up_action.triggered.connect(main_window._move_entries_up)
+            menu.addAction(up_action)
+            dn_action = QAction("Move Down  (Ctrl+Down)", menu_parent)
+            dn_action.triggered.connect(main_window._move_entries_down)
+            menu.addAction(dn_action)
 
         # ANALYZE FILE OPERATION
         if hasattr(main_window, 'analyze_selected_file'):

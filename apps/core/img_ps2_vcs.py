@@ -1,4 +1,4 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 7
+#this belongs in core/ img_ps2_vcs.py - Version: 8
 # X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ, ANPK and HXD Support
 """
 PS2/PSP/Bully IMG, LVZ, ANPK, Bully and HXD Support - Read-only parsers.
@@ -438,40 +438,54 @@ def detect_bully(path: str) -> bool: #vers 2
         return False
 
 
-def open_bully(file_path: str) -> dict: #vers 1
+def open_bully(file_path: str) -> dict: #vers 2
     """
     Parse a Bully PS2 CUTS.IMG style archive.
-    Format: count[4] + count*64-byte name entries (name[64], no offsets).
-    Data follows directory as sequential HXD blocks (self-describing).
-    Returns dict: { 'version': 'BULLY', 'entries': [...], 'error': None }
-    Each entry: { 'name': str, 'offset': int, 'size': int, 'index': int }
-    offset/size are 0 - sequential HXD blocks require separate scanning.
+
+    Format: count[4LE] + count*64-byte name-only entries.
+    Data follows the directory as self-describing HXD blocks.
+    offsets/sizes are not stored — entries are listed by name only.
+
+    Note: Bully WORLD.IMG / GTA3.IMG are standard V1 DIR+IMG pairs and
+    should be opened via _open_version_1, not this function.  This function
+    handles CUTS.IMG and similar name-directory archives.
     """
     result = {'version': 'BULLY', 'entries': [], 'error': None}
     try:
+        file_size = os.path.getsize(file_path)
         with open(file_path, 'rb') as f:
-            count_data = f.read(4)
-            if len(count_data) < 4:
+            count_raw = f.read(4)
+            if len(count_raw) < 4:
                 result['error'] = 'File too small'
                 return result
-            count = struct.unpack('<I', count_data)[0]
+            count = struct.unpack('<I', count_raw)[0]
+            if count == 0 or count > 10000:
+                result['error'] = f'Implausible entry count: {count}'
+                return result
             dir_data = f.read(count * BULLY_ENTRY_SIZE)
+
+        if len(dir_data) < count * BULLY_ENTRY_SIZE:
+            result['error'] = 'Directory truncated'
+            return result
+
+        # Data block starts after the directory
+        data_start = 4 + count * BULLY_ENTRY_SIZE
 
         entries = []
         for i in range(count):
             off = i * BULLY_ENTRY_SIZE
-            if off + BULLY_ENTRY_SIZE > len(dir_data):
-                break
             raw_name = dir_data[off:off + BULLY_ENTRY_SIZE].split(b'\x00')[0]
             name = raw_name.decode('ascii', errors='replace') if raw_name else f'entry_{i}'
             entries.append({
                 'name':   name,
-                'offset': 0,
-                'size':   0,
+                'offset': data_start,   # approximate — HXD blocks follow sequentially
+                'size':   0,            # unknown until HXD block scanned
                 'index':  i,
             })
 
         result['entries'] = entries
+        result['note'] = ('Name-only directory — offsets are approximate. '
+                          'Extract individual HXD blocks to get true sizes.')
     except Exception as e:
         result['error'] = str(e)
     return result

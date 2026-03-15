@@ -1,4 +1,59 @@
-#this belongs in root /ChangeLog.md - Version: 20
+#this belongs in root /ChangeLog.md - Version: 21
+
+## March 15, 2026 (evening) — RW version display, move entries, detection fixes
+
+### RW Version Column Fixed
+
+**Updated**: apps/methods/rw_versions.py, apps/methods/populate_img_table.py,
+apps/methods/img_core_classes.py
+
+**Problem**: TXD/DFF files from Bully PS2 showed "Unknown" in the RW Version column.
+
+**Root causes (3):**
+
+1. `is_valid_rw_version()` v5 didn't recognise `0x1C02000A` (Bully) or PS2 plain-int
+   versions (`0x310` etc). Fixed in v6: adds Bully entries, PS2 plain-ints, and a
+   fallback that checks `get_rw_version_name()` — so any future named version
+   automatically validates without updating this function.
+
+2. `_is_valid_rw_version()` in `img_core_classes.py` was a local duplicate that also
+   missed Bully. Fixed to delegate to the canonical `rw_versions.is_valid_rw_version()`.
+
+3. `get_rw_version_light()` v5 only read from `entry._cached_data` (often empty for
+   lazy-loaded entries). Fixed in v6: when no cached data, reads the first 16 bytes
+   directly from the IMG file (resolving `.dir` → `.img` via `_find_companion`).
+
+---
+
+### Move Entries Up / Down
+
+**New**: `_move_entries()`, `_move_entries_up()`, `_move_entries_down()` in
+apps/components/Img_Factory/imgfactory.py
+
+**Keyboard**: `Ctrl+Up` / `Ctrl+Down` in the file list window.
+
+**Context menu**: Right-click → "Move Up" / "Move Down" (appears when entries selected).
+
+Moves selected entries one position in `img_file.entries` list, refreshes the table,
+and restores the selection on the new positions. Aborts silently if any selected row
+would go out of bounds. Multi-selection moves all selected rows together.
+
+---
+
+### Bully PS2 Format — open_bully v2
+
+**Updated**: apps/core/img_ps2_vcs.py v8
+
+`open_bully()` updated with correct format understanding:
+- Bully WORLD.IMG / GTA3.IMG: standard V1 DIR+IMG pair — handled by `_open_version_1`
+- CUTS.IMG: count[4] + N*64-byte name-only entries (no offsets) — handled here
+- Added sanity check on count (1–10000), data_start approximation, and note about
+  HXD block scanning needed for accurate sizes.
+
+---
+
+
+---
 
 ## March 15, 2026 (late) — PS2 format deep-dive, case-sensitivity fix, Bully analysis
 

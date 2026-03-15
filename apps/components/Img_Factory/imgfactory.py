@@ -2103,6 +2103,76 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error in remove_selected_entries: {str(e)}")
             QMessageBox.critical(self, "Remove Error", f"Failed to remove entries:\n{str(e)}")
 
+    def _move_entries(self, direction: int): #vers 1
+        """Move selected entries up (-1) or down (+1) in the IMG entry list."""
+        try:
+            from apps.methods.export_shared import get_active_table
+            table = get_active_table(self)
+            if table is None:
+                return
+
+            try:
+                from apps.methods.tab_system import get_current_file_from_active_tab
+                img_file, _ = get_current_file_from_active_tab(self)
+            except Exception:
+                img_file = getattr(self, 'current_img', None)
+
+            if not img_file or not img_file.entries:
+                return
+
+            selected_rows = sorted(
+                {item.row() for item in table.selectedItems()},
+                reverse=(direction > 0)
+            )
+            if not selected_rows:
+                return
+
+            entries = img_file.entries
+            n = len(entries)
+
+            # Check bounds
+            for row in selected_rows:
+                if row + direction < 0 or row + direction >= n:
+                    return
+
+            # Swap each selected entry with its neighbour
+            moved = set()
+            for row in selected_rows:
+                target = row + direction
+                if target not in moved:
+                    entries[row], entries[target] = entries[target], entries[row]
+                    moved.add(row)
+
+            # Refresh table
+            if hasattr(self, '_populate_real_img_table'):
+                self._populate_real_img_table(img_file, table=table)
+            elif hasattr(self, 'refresh_table'):
+                self.refresh_table()
+
+            # Restore selection on moved rows
+            table.clearSelection()
+            for row in selected_rows:
+                new_row = row + direction
+                for col in range(table.columnCount()):
+                    item = table.item(new_row, col)
+                    if item:
+                        item.setSelected(True)
+
+            self.log_message(
+                f"Moved {len(selected_rows)} entr{'y' if len(selected_rows)==1 else 'ies'} "
+                f"{'up' if direction < 0 else 'down'}"
+            )
+        except Exception as e:
+            self.log_message(f"Move entries error: {e}")
+
+    def _move_entries_up(self): #vers 1
+        """Move selected entries up one position (Ctrl+Up)."""
+        self._move_entries(-1)
+
+    def _move_entries_down(self): #vers 1
+        """Move selected entries down one position (Ctrl+Down)."""
+        self._move_entries(1)
+
     def _select_inverse_entries(self):
         """Invert the current selection"""
         try:
