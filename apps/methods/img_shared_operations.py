@@ -241,10 +241,11 @@ def get_entry_data_safely(entry, img_file, main_window=None) -> Optional[bytes]:
                 # Resolve .img path for DIR+IMG pairs
                 fp = img_file.file_path
                 if fp.lower().endswith('.dir'):
-                    img_path = fp[:-4] + '.img'
-                    if not os.path.exists(img_path):
-                        img_path = fp[:-4] + '.IMG'
-                    fp = img_path
+                    _img_companion = fp[:-4] + '.img'
+                    if not os.path.exists(_img_companion):
+                        _img_companion = fp[:-4] + '.IMG'
+                    if os.path.exists(_img_companion):
+                        fp = _img_companion
                 with open(fp, 'rb') as f:
                     f.seek(entry.offset)
                     return f.read(entry.size)

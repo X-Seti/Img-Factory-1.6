@@ -162,14 +162,12 @@ def _rebuild_v1_pair(img_file, entries, progress_callback, main_window) -> bool:
         # Resolve canonical paths (.dir and .img)
         if fp.lower().endswith('.dir'):
             dir_path = fp
-            img_path = fp[:-4] + '.img'
-            if not os.path.exists(img_path):
-                img_path = fp[:-4] + '.IMG'
+            _c = fp[:-4] + '.img'
+            img_path = _c if os.path.exists(_c) else fp[:-4] + '.IMG'
         else:
             img_path = fp
-            dir_path = fp[:-4] + '.dir'
-            if not os.path.exists(dir_path):
-                dir_path = fp[:-4] + '.DIR'
+            _c = fp[:-4] + '.dir'
+            dir_path = _c if os.path.exists(_c) else fp[:-4] + '.DIR'
 
         temp_dir  = dir_path  + '.rebuild_tmp'
         temp_img  = img_path  + '.rebuild_tmp'

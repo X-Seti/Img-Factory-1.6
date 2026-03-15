@@ -22,6 +22,29 @@ from apps.methods.rw_versions import get_rw_version_name, parse_rw_version, get_
 from apps.debug.debug_functions import img_debugger
 from apps.methods.populate_img_table import DragSelectTableWidget
 
+def _find_companion(base_path: str, new_ext: str) -> str:
+    """Find a companion file (.dir/.img) case-insensitively.
+    
+    Returns the path that exists, preferring lowercase, then uppercase,
+    then a directory scan for any case variant.  Returns '' if not found.
+    """
+    stem = base_path[:-4]  # strip existing extension
+    for ext in (new_ext.lower(), new_ext.upper()):
+        p = stem + ext
+        if os.path.exists(p):
+            return p
+    # Slow path: scan directory for any case variant
+    try:
+        parent = os.path.dirname(base_path)
+        target = os.path.basename(stem) + new_ext.lower()
+        for name in os.listdir(parent):
+            if name.lower() == target:
+                return os.path.join(parent, name)
+    except Exception:
+        pass
+    return ''
+
+
 
 ##Methods list -
 # create_entries_table_panel
@@ -660,8 +683,8 @@ class IMGEntry:
                                            IMGVersion.VERSION_1_5,
                                            IMGVersion.VERSION_SOL)
                     and file_path.lower().endswith('.dir')):
-                img_path = file_path[:-4] + '.img'
-                if not os.path.exists(img_path):
+                img_path = _find_companion(file_path, '.img')
+                if not img_path:
                     return None
                 file_path = img_path
 
@@ -804,9 +827,7 @@ def _detect_xbox_by_content(file_path: str) -> bool:
         path_lower = file_path.lower()
 
         if path_lower.endswith('.dir'):
-            img_path = file_path[:-4] + '.img'
-            if not os.path.exists(img_path):
-                img_path = file_path[:-4] + '.IMG'
+            img_path = _find_companion(file_path, '.img')
             if not os.path.exists(img_path):
                 return False
             with open(file_path, 'rb') as df:
@@ -819,9 +840,7 @@ def _detect_xbox_by_content(file_path: str) -> bool:
                 magic_bytes = f.read(4)
 
         elif path_lower.endswith('.img'):
-            dir_path = file_path[:-4] + '.dir'
-            if not os.path.exists(dir_path):
-                dir_path = file_path[:-4] + '.DIR'
+            dir_path = _find_companion(file_path, '.dir')
             if os.path.exists(dir_path):
                 with open(dir_path, 'rb') as df:
                     entry = df.read(32)
@@ -1479,10 +1498,8 @@ class IMGFile:
 
             # Check if it's a .dir file (Version 1 or 1.5 or Xbox)
             if self.file_path.lower().endswith('.dir'):
-                img_path = self.file_path[:-4] + '.img'
-                if not os.path.exists(img_path):
-                    img_path = self.file_path[:-4] + '.IMG'
-                if os.path.exists(img_path):
+                img_path = _find_companion(self.file_path, '.img')
+                if img_path:
                     # Xbox check first — same DIR+IMG structure but entries are LZO-compressed
                     if _detect_xbox_by_content(self.file_path):
                         self.version  = IMGVersion.VERSION_XBOX
@@ -1550,8 +1567,8 @@ class IMGFile:
                         if _is_v3_encrypted(first16):
                             self.version = IMGVersion.VERSION_3_ENC
                             return IMGVersion.VERSION_3_ENC
-                        dir_path = self.file_path[:-4] + '.dir'
-                        if os.path.exists(dir_path):
+                        dir_path = _find_companion(self.file_path, '.dir')
+                        if dir_path:
                             v = _detect_v1_or_v1_5(dir_path, self.file_path)
                             ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                         else:
@@ -1752,8 +1769,8 @@ class IMGFile:
 
     def _open_version_1(self) -> bool: #vers 6
         """Open IMG version 1/1.5/1_MOBILE (DIR/IMG pair, or standalone embedded directory)"""
-        dir_path = self.file_path[:-4] + '.dir'
-        if not os.path.exists(dir_path):
+        dir_path = _find_companion(self.file_path, '.dir')
+        if not dir_path:
             # Standalone IMG - try reading embedded directory from start of file
             return self._open_version_1_standalone()
 
@@ -2011,9 +2028,9 @@ class IMGFile:
                 # Resolve .img path from whatever we were opened with (.dir or .img)
                 fp = self.file_path
                 if fp.lower().endswith('.dir'):
-                    img_path = fp[:-4] + '.img'
-                    if not os.path.exists(img_path):
-                        img_path = fp[:-4] + '.IMG'
+                    img_path = _find_companion(fp, '.img')
+                    if not img_path:
+                        img_path = fp  # fallback (will likely fail)
                 else:
                     img_path = fp
                 with open(img_path, 'rb') as f:
@@ -2045,9 +2062,9 @@ class IMGFile:
                                 IMGVersion.VERSION_XBOX):
                 fp = self.file_path
                 if fp.lower().endswith('.dir'):
-                    img_path = fp[:-4] + '.img'
-                    if not os.path.exists(img_path):
-                        img_path = fp[:-4] + '.IMG'
+                    img_path = _find_companion(fp, '.img')
+                    if not img_path:
+                        img_path = fp  # fallback (will likely fail)
                 else:
                     img_path = fp
                 with open(img_path, 'r+b') as f:
