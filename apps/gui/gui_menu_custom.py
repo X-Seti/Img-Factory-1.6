@@ -124,6 +124,11 @@ class CustomMenuManager:
         scan_action.triggered.connect(self._scan_img_folder)
         menu.addAction(scan_action)
 
+        recent_scans_action = QAction(SVGIconFactory.folder_icon(), "Recent Scans...", self.main_window)
+        recent_scans_action.setShortcut(QKeySequence("Ctrl+Shift+R"))
+        recent_scans_action.triggered.connect(self._recent_scans)
+        menu.addAction(recent_scans_action)
+
         # Recent Files submenu
         recent_menu = menu.addMenu(SVGIconFactory.folder_icon(), "Recent Files")
         if self.recent_files:
@@ -360,6 +365,14 @@ class CustomMenuManager:
         else:
             from apps.core.scan_img import scan_img_folder
             scan_img_folder(self.main_window)
+
+    def _recent_scans(self): #vers 1
+        """Show recent scans dialog"""
+        if hasattr(self.main_window, 'scan_img_recent'):
+            self.main_window.scan_img_recent()
+        else:
+            from apps.core.scan_img import scan_img_recent
+            scan_img_recent(self.main_window)
 
     def _save_as_img(self): #vers 1
         """Save current IMG as new file"""

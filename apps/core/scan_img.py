@@ -37,6 +37,61 @@ from PyQt6.QtGui import QFont, QColor
 
 # ── Extensions we care about ──────────────────────────────────────────────────
 
+SCAN_CACHE_PATH = os.path.expanduser("~/.config/imgfactory/scan_cache.json")
+MAX_CACHED_SCANS = 20   # keep last N scan folders
+
+# ── Cache helpers ─────────────────────────────────────────────────────────────
+
+def _save_scan_cache(folder: str, results: list, scan_date: str = "") -> None:
+    """Persist scan results for a folder to the cache file."""
+    import json
+    from datetime import datetime
+    try:
+        cache = _load_scan_cache()
+        cache[folder] = {
+            "folder":     folder,
+            "date":       scan_date or datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "count":      len(results),
+            "results":    results,
+        }
+        # Trim to MAX_CACHED_SCANS most-recent entries
+        if len(cache) > MAX_CACHED_SCANS:
+            # Sort by date descending, keep newest
+            items = sorted(cache.items(),
+                           key=lambda x: x[1].get("date", ""), reverse=True)
+            cache = dict(items[:MAX_CACHED_SCANS])
+        os.makedirs(os.path.dirname(SCAN_CACHE_PATH), exist_ok=True)
+        with open(SCAN_CACHE_PATH, "w") as f:
+            json.dump(cache, f, indent=2)
+    except Exception as e:
+        print(f"[scan_img] Cache save error: {e}")
+
+
+def _load_scan_cache() -> dict:
+    """Return cached scan results dict keyed by folder path."""
+    import json
+    try:
+        if os.path.exists(SCAN_CACHE_PATH):
+            with open(SCAN_CACHE_PATH) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _delete_scan_cache_entry(folder: str) -> None:
+    """Remove one folder from the cache."""
+    import json
+    try:
+        cache = _load_scan_cache()
+        cache.pop(folder, None)
+        os.makedirs(os.path.dirname(SCAN_CACHE_PATH), exist_ok=True)
+        with open(SCAN_CACHE_PATH, "w") as f:
+            json.dump(cache, f, indent=2)
+    except Exception as e:
+        print(f"[scan_img] Cache delete error: {e}")
+
+
 SCAN_EXTENSIONS = {
     '.img', '.dir', '.lvz', '.hxd', '.mxd', '.agr'
 }
@@ -231,7 +286,7 @@ class ScanThread(QThread):  # vers 1
 class ScanResultsDialog(QDialog):  # vers 1
     """Shows scan results and lets the user open selected IMG files."""
 
-    def __init__(self, parent=None, root_path: str = ''):
+    def __init__(self, parent=None, root_path: str = '', cached_results: list = None):
         super().__init__(parent)
         self.root_path   = root_path
         self._results    = []   # list of result dicts
@@ -240,7 +295,11 @@ class ScanResultsDialog(QDialog):  # vers 1
         self.setWindowTitle(f'IMG Scan — {os.path.basename(root_path) or root_path}')
         self.setMinimumSize(900, 580)
         self._build_ui()
-        self._start_scan()
+        if cached_results is not None:
+            # Restore from cache — no scan needed
+            self._load_cached(cached_results)
+        else:
+            self._start_scan()
 
     # ── UI ──────────────────────────────────────────────────────────────────
 
@@ -315,6 +374,11 @@ class ScanResultsDialog(QDialog):  # vers 1
 
         bot.addStretch()
 
+        self._rescan_btn = QPushButton('Rescan')
+        self._rescan_btn.setToolTip('Discard results and scan this folder again')
+        self._rescan_btn.clicked.connect(self._rescan)
+        bot.addWidget(self._rescan_btn)
+
         self._stop_btn = QPushButton('Stop Scan')
         self._stop_btn.clicked.connect(self._stop_scan)
         bot.addWidget(self._stop_btn)
@@ -333,6 +397,19 @@ class ScanResultsDialog(QDialog):  # vers 1
         self._tree.itemSelectionChanged.connect(self._update_count)
 
     # ── Scan ────────────────────────────────────────────────────────────────
+
+    def _load_cached(self, results: list):
+        """Restore previously saved scan results instantly."""
+        self._progress.setFixedHeight(0)
+        self._stop_btn.setEnabled(False)
+        for r in results:
+            self._results.append(r)
+            self._add_tree_item(r)
+        self._status.setText(
+            f'Restored {len(results)} cached results from {self.root_path}'
+        )
+        self._apply_filter()
+        self._update_count()
 
     def _start_scan(self):
         self._thread = ScanThread(self.root_path)
@@ -361,6 +438,9 @@ class ScanResultsDialog(QDialog):  # vers 1
         self._stop_btn.setEnabled(False)
         self._status.setText(f'Scan complete — {total} file{"s" if total != 1 else ""} found in {self.root_path}')
         self._update_count()
+        # Auto-save to cache after scan completes
+        if self._results:
+            _save_scan_cache(self.root_path, self._get_results_for_cache())
 
     # ── Tree population ──────────────────────────────────────────────────────
 
@@ -488,17 +568,215 @@ class ScanResultsDialog(QDialog):  # vers 1
                 if hasattr(mw, 'log_message'):
                     mw.log_message(f'Error opening {r["name"]}: {e}')
 
+    def _rescan(self):
+        """Discard current results and scan the same folder again."""
+        self._stop_scan()
+        if self._thread:
+            self._thread.wait(500)
+        self._results.clear()
+        self._tree.clear()
+        self._progress.setMaximum(0)
+        self._progress.setFixedHeight(4)
+        self._stop_btn.setEnabled(True)
+        self._status.setText("Rescanning…")
+        self._start_scan()
+
+    def _get_results_for_cache(self) -> list:
+        """Serialise current results to a JSON-safe list."""
+        return [
+            {k: r[k] for k in ("path","name","dir","size","size_str","version","platform","ext")}
+            for r in self._results
+        ]
+
     def closeEvent(self, event):
         self._stop_scan()
         if self._thread:
             self._thread.wait(1000)
+        # Persist results to cache
+        if self._results:
+            _save_scan_cache(self.root_path, self._get_results_for_cache())
         super().closeEvent(event)
 
 
-# ── Public entry point ────────────────────────────────────────────────────────
+# ── Recent Scans dialog ──────────────────────────────────────────────────────
 
-def scan_img_folder(main_window):  # vers 1
-    """Open a folder picker then launch the scan results dialog."""
+class RecentScansDialog(QDialog):  # vers 1
+    """Lists previous scan results so the user can reopen them without rescanning."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._main_win = parent
+        self.setWindowTitle("Recent IMG Scans")
+        self.setMinimumSize(720, 400)
+        self._cache = _load_scan_cache()
+        self._build_ui()
+        self._populate()
+
+    # ── UI ──────────────────────────────────────────────────────────────────
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+
+        info = QLabel("Previously scanned folders — open results instantly without rescanning.")
+        info.setStyleSheet("color: palette(mid); font-size: 11px;")
+        layout.addWidget(info)
+
+        self._tree = QTreeWidget()
+        self._tree.setColumnCount(4)
+        self._tree.setHeaderLabels(["Folder", "Files Found", "Scan Date", "Path"])
+        self._tree.setSortingEnabled(True)
+        self._tree.sortByColumn(2, Qt.SortOrder.DescendingOrder)
+        self._tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._tree.setAlternatingRowColors(True)
+        hdr = self._tree.header()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self._tree.setColumnWidth(0, 250)
+        self._tree.itemDoubleClicked.connect(self._open_selected)
+        layout.addWidget(self._tree)
+
+        bot = QHBoxLayout()
+
+        self._open_btn = QPushButton("Open Results")
+        self._open_btn.setDefault(True)
+        self._open_btn.setEnabled(False)
+        self._open_btn.clicked.connect(self._open_selected)
+        bot.addWidget(self._open_btn)
+
+        self._rescan_btn = QPushButton("Rescan Folder")
+        self._rescan_btn.setEnabled(False)
+        self._rescan_btn.setToolTip("Run a fresh scan on the selected folder")
+        self._rescan_btn.clicked.connect(self._rescan_selected)
+        bot.addWidget(self._rescan_btn)
+
+        self._del_btn = QPushButton("Remove Entry")
+        self._del_btn.setEnabled(False)
+        self._del_btn.clicked.connect(self._delete_selected)
+        bot.addWidget(self._del_btn)
+
+        bot.addStretch()
+
+        new_btn = QPushButton("New Scan…")
+        new_btn.setToolTip("Pick a new folder to scan")
+        new_btn.clicked.connect(self._new_scan)
+        bot.addWidget(new_btn)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.reject)
+        bot.addWidget(close_btn)
+
+        layout.addLayout(bot)
+
+        self._tree.itemSelectionChanged.connect(self._on_select)
+
+    def _populate(self):
+        self._tree.clear()
+        if not self._cache:
+            empty = QTreeWidgetItem(["No recent scans", "", "", ""])
+            empty.setFlags(Qt.ItemFlag.NoItemFlags)
+            self._tree.addTopLevelItem(empty)
+            return
+
+        for folder, entry in self._cache.items():
+            name = os.path.basename(folder) or folder
+            item = QTreeWidgetItem([
+                name,
+                str(entry.get("count", "?")),
+                entry.get("date", ""),
+                folder,
+            ])
+            item.setData(0, Qt.ItemDataRole.UserRole, entry)
+            # Grey out missing folders
+            if not os.path.exists(folder):
+                for c in range(4):
+                    item.setForeground(c, QColor("#888888"))
+                item.setToolTip(0, "Folder no longer exists")
+            self._tree.addTopLevelItem(item)
+
+    def _on_select(self):
+        sel = self._tree.selectedItems()
+        has = bool(sel and sel[0].data(0, Qt.ItemDataRole.UserRole))
+        self._open_btn.setEnabled(has)
+        self._rescan_btn.setEnabled(has)
+        self._del_btn.setEnabled(has)
+
+    def _selected_entry(self):
+        sel = self._tree.selectedItems()
+        if sel:
+            return sel[0].data(0, Qt.ItemDataRole.UserRole)
+        return None
+
+    # ── Actions ──────────────────────────────────────────────────────────────
+
+    def _open_selected(self):
+        entry = self._selected_entry()
+        if not entry:
+            return
+        folder  = entry.get("folder", "")
+        results = entry.get("results", [])
+        if not results:
+            QMessageBox.warning(self, "No Data", "This scan has no saved results.")
+            return
+        self.accept()
+        dlg = ScanResultsDialog(self._main_win, folder, cached_results=results)
+        dlg.exec()
+
+    def _rescan_selected(self):
+        entry = self._selected_entry()
+        if not entry:
+            return
+        folder = entry.get("folder", "")
+        if not os.path.exists(folder):
+            QMessageBox.warning(self, "Folder Missing",
+                f"The folder no longer exists:\n{folder}")
+            return
+        self.accept()
+        dlg = ScanResultsDialog(self._main_win, folder)
+        dlg.exec()
+
+    def _delete_selected(self):
+        entry = self._selected_entry()
+        if not entry:
+            return
+        folder = entry.get("folder", "")
+        if QMessageBox.question(
+                self, "Remove Entry",
+                f"Remove this scan from history?\n{folder}",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) == QMessageBox.StandardButton.Yes:
+            _delete_scan_cache_entry(folder)
+            self._cache = _load_scan_cache()
+            self._populate()
+
+    def _new_scan(self):
+        self.accept()
+        scan_img_folder(self._main_win)
+
+
+# ── Public entry points ───────────────────────────────────────────────────────
+
+def scan_img_folder(main_window):  # vers 2
+    """Show Recent Scans first if cache exists, otherwise go straight to folder picker."""
+    cache = _load_scan_cache()
+    if cache:
+        dlg = RecentScansDialog(main_window)
+        dlg.exec()
+        return
+
+    # No cache yet — go straight to folder picker
+    _pick_and_scan(main_window)
+
+
+def scan_img_recent(main_window):  # vers 1
+    """Open the Recent Scans dialog directly."""
+    dlg = RecentScansDialog(main_window)
+    dlg.exec()
+
+
+def _pick_and_scan(main_window):  # vers 1
+    """Open a folder picker then launch a fresh scan."""
     folder = QFileDialog.getExistingDirectory(
         main_window,
         'Select Folder to Scan for IMG Files',
@@ -506,13 +784,11 @@ def scan_img_folder(main_window):  # vers 1
     )
     if not folder:
         return
-
-    # Remember for next time
     if hasattr(main_window, 'last_open_dir'):
         main_window.last_open_dir = folder
-
     dlg = ScanResultsDialog(main_window, folder)
     dlg.exec()
 
 
-__all__ = ['scan_img_folder', 'ScanResultsDialog', 'ScanThread']
+__all__ = ['scan_img_folder', 'scan_img_recent', 'ScanResultsDialog',
+           'RecentScansDialog', 'ScanThread']
