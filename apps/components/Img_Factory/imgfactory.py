@@ -342,62 +342,57 @@ def debug_img_entries(self): #vers 2
 
 class IMGLoadThread(QThread):
     """Background thread for loading IMG files"""
-    progress_updated = pyqtSignal(int, str)  # progress, status
-    loading_finished = pyqtSignal(object)    # IMGFile object
-    loading_error = pyqtSignal(str)          # error message
+    progress_updated = pyqtSignal(int, str)     # progress, status
+    loading_finished = pyqtSignal(object, int)  # IMGFile object, tab_index
+    loading_error    = pyqtSignal(str, int)     # error message, tab_index
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, tab_index: int = -1):
         super().__init__()
         self.file_path = file_path
+        self.tab_index = tab_index  # target tab — set before start()
 
-    def run(self): #vers 1
+    def run(self): #vers 2
         try:
             self.progress_updated.emit(10, "Opening file...")
 
-            # Create IMG file instance
             img_file = IMGFile(self.file_path)
 
             self.progress_updated.emit(30, "Detecting format...")
 
-            # Open and parse file (entries are loaded automatically by open()
             if not img_file.open():
-                # Check for streaming segment — give a clear helpful message
                 if hasattr(img_file, '_streaming_segment_error'):
-                    self.loading_error.emit(img_file._streaming_segment_error)
+                    self.loading_error.emit(img_file._streaming_segment_error, self.tab_index)
                     return
                 ver = img_file.version.name if img_file.version else "UNKNOWN"
-                sz = os.path.getsize(self.file_path)
+                sz  = os.path.getsize(self.file_path)
                 self.loading_error.emit(
                     f"Failed to open IMG file: {self.file_path}\n"
-                    f"Detected version: {ver}  Size: {sz/1024/1024:.1f} MB")
+                    f"Detected version: {ver}  Size: {sz/1024/1024:.1f} MB",
+                    self.tab_index)
                 return
 
             self.progress_updated.emit(60, "Reading entries...")
 
-            # Check if entries were loaded
             if not img_file.entries:
-                self.loading_error.emit(f"No entries found in IMG file: {self.file_path}")
+                self.loading_error.emit(
+                    f"No entries found in IMG file: {self.file_path}",
+                    self.tab_index)
                 return
 
             self.progress_updated.emit(80, "Validating...")
 
-            # Validate the loaded file if validator exists
             try:
                 validation = IMGValidator.validate_img_file(img_file)
                 if not validation.is_valid:
-                    # Just warn but don't fail - some IMG files might have minor issues
                     print(f"IMG validation warnings: {validation.get_summary()}")
-            except:
-                # If validator fails, just continue - validation is optional
+            except Exception:
                 pass
 
             self.progress_updated.emit(100, "Complete")
-
-            # Return the loaded IMG file
-            self.loading_finished.emit(img_file)
+            self.loading_finished.emit(img_file, self.tab_index)
 
         except Exception as e:
-            self.loading_error.emit(f"Error loading IMG file: {str(e)}")
+            self.loading_error.emit(f"Error loading IMG file: {str(e)}", self.tab_index)
 
 
 class IMGFactory(QMainWindow):
@@ -3531,37 +3526,36 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()  # Debug info
             return False
 
-    def _load_img_file_in_new_tab(self, file_path): #vers 2
-        """Load IMG file in new tab using create_tab then thread"""
+    def _load_img_file_in_new_tab(self, file_path): #vers 3
+        """Load IMG file in a new tab.
+
+        Each file gets its own IMGLoadThread carrying the target tab_index so
+        multiple concurrent loads never clobber each other's tab.
+        """
         try:
             from apps.methods.tab_system import create_tab
 
-            # Create tab first, store index for use when thread completes
-            self._loading_img_tab_index = create_tab(self, file_path=file_path, file_type='IMG', file_object=None)
-
-            if self._loading_img_tab_index is None:
-                self.log_message("Failed to create IMG tab")
+            # Create the tab first — get back the index for THIS file
+            tab_index = create_tab(self, file_path=file_path,
+                                   file_type='IMG', file_object=None)
+            if tab_index is None:
+                self.log_message(f"Failed to create tab for {os.path.basename(file_path)}")
                 return
 
-            # Wait for any running load thread
-            if hasattr(self, 'load_thread') and self.load_thread and self.load_thread.isRunning():
-                self.load_thread.wait()
+            # Each thread is independent — no shared self._loading_img_tab_index
+            thread = IMGLoadThread(file_path, tab_index=tab_index)
+            thread.progress_updated.connect(self._on_img_load_progress)
+            thread.loading_finished.connect(self._on_img_loaded)
+            thread.loading_error.connect(self._on_img_load_error)
+            thread.start()
 
-            self.load_thread = IMGLoadThread(file_path)
-            self.load_thread.progress_updated.connect(self._on_img_load_progress)
-            self.load_thread.loading_finished.connect(self._on_img_loaded)
-            self.load_thread.loading_error.connect(self._on_img_load_error)
-            self.load_thread.start()
-
-        except Exception as e:
-            self.log_message(f"Error loading IMG in new tab: {str(e)}")
-
-            # Create and start new thread for this file
-            self.load_thread = IMGLoadThread(file_path)
-            self.load_thread.progress_updated.connect(self._on_img_load_progress)
-            self.load_thread.loading_finished.connect(self._on_img_loaded)
-            self.load_thread.loading_error.connect(self._on_img_load_error)
-            self.load_thread.start()
+            # Keep reference so it isn't garbage-collected before finishing
+            if not hasattr(self, '_img_load_threads'):
+                self._img_load_threads = []
+            self._img_load_threads.append(thread)
+            # Clean up finished threads from the list
+            self._img_load_threads = [t for t in self._img_load_threads
+                                       if t.isRunning()]
 
         except Exception as e:
             self.log_message(f"Error loading IMG in new tab: {str(e)}")
@@ -3791,9 +3785,16 @@ class IMGFactory(QMainWindow):
                 if hasattr(button, 'setEnabled'):
                     button.setEnabled(False)
 
-    def _on_img_load_error(self, error_message: str): #vers 4
-        """Handle IMG loading error - UPDATED: Uses unified progress system"""
+    def _on_img_load_error(self, error_message: str, tab_index: int = -1): #vers 5
+        """Handle IMG loading error — close the empty tab that was created."""
         self.log_message(f" {error_message}")
+        # Remove the empty tab that was pre-created for this file
+        if tab_index >= 0 and hasattr(self, 'main_tab_widget'):
+            try:
+                if tab_index < self.main_tab_widget.count():
+                    self.main_tab_widget.removeTab(tab_index)
+            except Exception:
+                pass
 
         # Hide progress using unified system
         try:
@@ -4241,17 +4242,17 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Progress: {progress}% - {status}")
 
 
-    def _on_img_loaded(self, img_file): #vers 4
-        """Handle IMG loading completion"""
+    def _on_img_loaded(self, img_file, tab_index: int = -1): #vers 5
+        """Handle IMG loading completion — tab_index comes from the thread signal."""
         try:
             self.current_img = img_file
 
-            # Store on current tab widget
-            tab_index = getattr(self, '_loading_img_tab_index', None)
-            current_index = self.main_tab_widget.currentIndex()
-            tab_widget = self.main_tab_widget.widget(current_index)
-
-            if tab_index is None:
+            # Use the tab_index carried by the thread signal.
+            # Fall back to the current tab only if no index was provided
+            # (e.g. legacy callers that still use the old signal signature).
+            if tab_index < 0:
+                tab_index = getattr(self, '_loading_img_tab_index', None)
+            if tab_index is None or tab_index < 0:
                 tab_index = self.main_tab_widget.currentIndex()
 
             tab_widget = self.main_tab_widget.widget(tab_index)
