@@ -4726,15 +4726,17 @@ class SettingsDialog(QDialog): #vers 15
 
         # IMG Files panel
         img_files_tab = self._create_button_panel_editor("img_files", [
-            ("Open", "open"),
-            ("Close", "close"),
-            ("Close All", "close_all"),
-            ("Rebuild", "rebuild"),
-            ("Save Entry", "save_entry"),
-            ("Rebuild All", "rebuild_all"),
-            ("Merge", "merge"),
-            ("Split", "split"),
-            ("Convert", "convert")
+            ("Open",         "open"),
+            ("Hybrid Load",  "hybrid_load"),
+            ("Scan Folder",  "scan_folder"),
+            ("Close",        "close"),
+            ("Close All",    "close_all"),
+            ("Rebuild",      "rebuild"),
+            ("Save Entry",   "save_entry"),
+            ("Rebuild All",  "rebuild_all"),
+            ("Merge",        "merge"),
+            ("Split",        "split"),
+            ("Convert",      "convert")
         ])
         self.button_panels_tabs.addTab(img_files_tab, "IMG Files Buttons")
 

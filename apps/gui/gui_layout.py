@@ -214,6 +214,9 @@ class IMGFactoryGUILayout:
             # IMG/COL Operations
             'create_new_img': lambda: create_new_img(self.main_window),
             'open_img_file': lambda: open_file_dialog(self.main_window),
+            'open_multiple_files': lambda: open_file_dialog(self.main_window),
+            'hybrid_load': lambda: getattr(self.main_window, 'open_hybrid_load', lambda: None)(),
+            'scan_img_folder': lambda: getattr(self.main_window, 'scan_img_folder', lambda: None)(),
             'reload_table': lambda: reload_current_file(self.main_window),
             'encrypt_img': lambda: getattr(self.main_window, 'encrypt_img', lambda: None)(),
             'close_img_file': lambda: close_img_file(self.main_window),
@@ -453,22 +456,24 @@ class IMGFactoryGUILayout:
         ]
 
 
-    def _get_img_buttons_data(self): #vers 3
+    def _get_img_buttons_data(self): #vers 4
         """Get IMG buttons data with theme colors"""
         colors = self._get_button_theme_template()
         return [
-            ("Create", "new", "document-new", colors['create_action'], "create_new_img"),
-            ("Open", "open", "document-open", colors['open_action'], "open_img_file"),
-            ("Reload", "reload", "document-reload", colors['reload_action'], "reload_table"),
-            ("Encrypt", "encrypt", "encrypt", colors['build_action'], "encrypt_img"),
-            ("Close", "close", "window-close", colors['close_action'], "close_img_file"),
-            ("Close All", "close_all", "window-close-all", colors['close_action'], "close_all_img"),
-            ("Rebuild", "rebuild", "view-rebuild", colors['build_action'], "rebuild_img"),
-            ("Rebuild All", "rebuild_all", "rebuild-all", colors['build_action'], "rebuild_all_img"),
-            ("Save Entry", "save_entry", "document-save-entry", colors['save_action'], "save_img_entry"),
-            ("Merge", "merge", "merge", colors['merge_action'], "merge_img"),
-            ("Split via", "split", "split", colors['split_action'], "split_img_via"),
-            ("Convert", "convert", "convert", colors['convert_action'], "convert_img_format"),
+            ("Create",       "new",          "document-new",    colors['create_action'],  "create_new_img"),
+            ("Open",         "open",         "document-open",   colors['open_action'],    "open_img_file"),
+            ("Hybrid Load",  "hybrid_load",  "document-open",   colors['open_action'],    "hybrid_load"),
+            ("Scan Folder",  "scan_folder",  "folder-open",     colors['open_action'],    "scan_img_folder"),
+            ("Reload",       "reload",       "document-reload", colors['reload_action'],  "reload_table"),
+            ("Encrypt",      "encrypt",      "encrypt",         colors['build_action'],   "encrypt_img"),
+            ("Close",        "close",        "window-close",    colors['close_action'],   "close_img_file"),
+            ("Close All",    "close_all",    "window-close-all",colors['close_action'],   "close_all_img"),
+            ("Rebuild",      "rebuild",      "view-rebuild",    colors['build_action'],   "rebuild_img"),
+            ("Rebuild All",  "rebuild_all",  "rebuild-all",     colors['build_action'],   "rebuild_all_img"),
+            ("Save Entry",   "save_entry",   "document-save-entry", colors['save_action'],"save_img_entry"),
+            ("Merge",        "merge",        "merge",           colors['merge_action'],   "merge_img"),
+            ("Split via",    "split",        "split",           colors['split_action'],   "split_img_via"),
+            ("Convert",      "convert",      "convert",         colors['convert_action'], "convert_img_format"),
         ]
 
 
