@@ -1,4 +1,138 @@
-#this belongs in root /ChangeLog.md - Version: 17
+#this belongs in root /ChangeLog.md - Version: 18
+
+## March 15, 2026 — IMG Format Audit, Folder Scanner, Layout Fixes
+
+### IMG Format Audit — New Version Enums and Detection
+
+**Updated**: apps/methods/img_core_classes.py
+
+Added missing `IMGVersion` enum values covering all known GTA platforms:
+
+- `VERSION_XBOX = 50` — GTA3/VC Xbox, DIR+IMG pair with LZO-compressed entries
+- `VERSION_SA_ANDROID = 51` — GTA SA Android, VER2 header + mobile texture DB
+- `VERSION_LCS_ANDROID = 52` — LCS Android, VER2 header with 0x1005FFFF TXDs embedded
+- `VERSION_LCS_IOS = 53` — LCS iOS, 12-byte entries, 512-byte sectors, `*_pvr.img`
+- `VERSION_STREAMING_SEG = 60` — Raw streaming segment (LCS/VCS iOS/PSP), no internal directory
+
+**`detect_version()` v5** — new detection paths:
+- `.dir` files: Xbox LZO magic probed before falling back to V1/V1.5
+- VER2 files: LCS Android detected by filename (`lcs`/`liberty`); SA Android by mobile DB sibling files (`texdb.dat`, `texdb.toc`, `streaming.dat`)
+- `*_pvr.img` files: LCS iOS distinguished from GTA3/VC iOS by filename
+- Standalone `.img` with no header and sibling `gta3.img` (VER2) → `VERSION_STREAMING_SEG`
+
+**`detect_img_platform()` v3** — content-based probes:
+1. Xbox LZO magic in first entry (95% confidence)
+2. Mobile texture DB files alongside (Android, 90% confidence)
+3. `*_pvr` suffix → iOS (85% confidence)
+4. Filename keywords as fallback
+
+**`open()` dispatch** — new branches for all new versions:
+- `VERSION_XBOX` → `_open_xbox()` (reuses V1 dir parser, tags entries as LZO)
+- `VERSION_SA_ANDROID` → `_open_version_2()` (same as PC SA, correct sector size)
+- `VERSION_LCS_ANDROID` → `_open_lcs()` (VER2 path)
+- `VERSION_LCS_IOS` → `_open_lcs()` (12-byte PS2_V1 path)
+- `VERSION_STREAMING_SEG` → sets `_streaming_segment_error`, returns `False`
+
+**New methods**:
+- `_open_xbox()` v1 — reuses `_open_version_1()`, sets platform=XBOX, marks entries as LZO
+- `_open_lcs()` v1 — VER2 for Android, PS2_V1 12-byte for iOS
+- `read_entry_data()` v3 — correctly resolves `.img` from `.dir` for all DIR+IMG variants (V1, V1.5, SOL, Xbox)
+
+**Removed**: 368-line duplicate block (second `IMGEntry` class + duplicate `_scan_rw_version`, `detect_img_platform`, `detect_img_platform_inline`, `get_platform_specific_specs`). Python was running the old broken v1 versions of everything because last-definition-wins.
+
+**Added**: `detect_lcs_android()` in `apps/core/img_ps2_vcs.py` — probes VER2 files for 0x1005FFFF TXD entries
+
+---
+
+### LCS iOS Streaming Segment Handling
+
+**Updated**: apps/components/Img_Factory/imgfactory.py
+
+`indust.img`, `suburb.img`, `underg.img`, `commer.img` in LCS iOS `Models/` are **raw streaming segment files** — they contain asset data but have no internal directory. The directory for all segments lives in `gta3.img`. These files cannot be opened as standalone archives.
+
+- Previously: generic "Failed to open IMG file: VERSION_1" error
+- Now: clear message — _"X.img is a streaming segment file. Open gta3.img from the same folder instead."_
+- `VERSION_STREAMING_SEG` detected when: no magic header, no `.dir`, but sibling `gta3.img` (VER2) exists in same directory
+
+`gta3.img` itself opens correctly as VER2 — the ~497,000 entries are real (LCS streams the whole game from one master archive split across segment files).
+
+---
+
+### Recursive IMG Folder Scanner
+
+**New file**: apps/core/scan_img.py
+
+**File → Scan Folder for IMGs…** (`Ctrl+Shift+F`) — recursively scans any folder for IMG-compatible files.
+
+- Background `ScanThread` walks entire tree, results appear live as found
+- Shows: Name, Version (V1/V2/Xbox/SA Android/LCS iOS/etc.), Platform, Size, Path
+- Subtle background tint per version family for at-a-glance identification
+- Filter bar — narrow by name, version, or platform as you type
+- Platform dropdown — PC / Xbox / PS2 / Android / iOS / PSP
+- Select by Platform button
+- Double-click or **Open Selected** to open files in new tabs
+- Warns before opening more than 10 files at once
+- `ScanResultsDialog` and `ScanThread` exported for reuse
+
+**Updated**: apps/gui/gui_menu.py — `MenuAction("scan_img_folder", ...)` added to File menu
+
+**Updated**: apps/components/Img_Factory/imgfactory.py — `scan_img_folder()` method wired to menu
+
+---
+
+### Hybrid Load + Scan Folder added to toolbar and Settings
+
+**Updated**: apps/gui/gui_layout.py `_get_img_buttons_data()` v4
+
+- **Hybrid Load** button added to IMG Files toolbar panel
+- **Scan Folder** button added to IMG Files toolbar panel
+- Both added to `_create_method_mappings()` so they fire correctly
+
+**Updated**: apps/utils/app_settings_system.py `_create_buttons_tab()`
+
+- Hybrid Load and Scan Folder added to **Settings → Buttons → IMG Files Buttons** colour editor
+
+---
+
+### Settings Colors Tab Layout Fix
+
+**Updated**: apps/utils/app_settings_system.py  
+**Updated**: App-Settings-System repo (github.com/X-Seti/App-Settings-System)
+
+Three bugs fixed in the Colors tab:
+
+1. **Colour list not stretching** — `right_layout.addWidget(scroll_area)` had no stretch factor. Changed to `addWidget(scroll_area, 1)` so the colour list expands when the window grows; sliders and action buttons stay at natural height.
+
+2. **`QHBoxLayout(self)` corrupting dialog layout** — `theme_layout = QHBoxLayout(self)` passed the dialog as parent, silently replacing its top-level layout. Changed to `QHBoxLayout()`.
+
+3. **Left panel not resizable** — replaced the `QHBoxLayout` containing left/right panels with a `QSplitter(Horizontal)`. Left panel has `min=220, max=400`, right panel gets `setStretchFactor(1, 1)`. User can now drag the divider.
+
+---
+
+### Version Matrix (complete as of March 15, 2026)
+
+| Version | Value | Platform | Format | Status |
+|---------|-------|----------|--------|--------|
+| VERSION_1 | 1 | PC | DIR+IMG 32-byte entries 2048-byte sectors | ✅ |
+| VERSION_1_5 | 15 | PC | DIR+IMG extended >2GB | ✅ |
+| VERSION_SOL | 25 | PC | DIR+IMG (SOL) | ✅ |
+| VERSION_2 | 2 | PC | VER2 single file | ✅ |
+| VERSION_3 | 3 | PC | GTA IV unencrypted | ✅ |
+| VERSION_3_ENC | 30 | PC | GTA IV AES-256 ECB | ✅ |
+| VERSION_XBOX | 50 | Xbox | DIR+IMG LZO-compressed | ✅ |
+| VERSION_SA_ANDROID | 51 | Android | VER2 + mobile texture DB | ✅ |
+| VERSION_LCS_ANDROID | 52 | Android | VER2 + 0x1005FFFF TXDs | ✅ |
+| VERSION_PS2_VCS | 40 | PS2 | Embedded-dir 512-byte sectors | ✅ |
+| VERSION_PS2_LVZ | 41 | PS2 | zlib DLRW streaming | ✅ |
+| VERSION_PS2_V1 | 42 | PS2/Android | 12-byte entries 512-byte sectors | ✅ |
+| VERSION_1_IOS | 47 | iOS | 12-byte entries *_pvr.img | ✅ |
+| VERSION_LCS_IOS | 53 | iOS | 12-byte entries LCS variant | ✅ |
+| VERSION_STREAMING_SEG | 60 | iOS/PSP | Raw segment, no directory | ℹ️ (shows info, open gta3.img) |
+| VERSION_ANPK | 43 | PSP | Named DGAN clips | ✅ |
+| VERSION_BULLY | 44 | PS2 | Named 64-byte entries | ✅ |
+| VERSION_HXD | 45 | PS2 | Bone/animation data | ✅ |
+
+---
 
 ## March 10, 2026 (evening) — Hybrid Load, COL column, DAT Browser xref improvements
 
