@@ -2744,6 +2744,10 @@ class IMGFactory(QMainWindow):
                         from apps.gui.gui_layout_custom import ToolTaskbar
                         self.tool_taskbar = ToolTaskbar(self)
                         main_layout.addWidget(self.tool_taskbar)
+                        # Apply initial theme so colours are right from the start
+                        if hasattr(self, 'app_settings'):
+                            _tb_colors = self.app_settings.get_theme_colors() or {}
+                            self.tool_taskbar.apply_theme(_tb_colors)
                     except Exception as _te:
                         print(f"Tool taskbar creation failed: {_te}")
             except Exception as e:
@@ -5558,6 +5562,13 @@ class IMGFactory(QMainWindow):
                 apply_theme_to_app(QApplication.instance(), self.app_settings)
                 if hasattr(self.gui_layout, 'apply_table_theme'):
                     self.gui_layout.apply_table_theme()
+                # Refresh titlebar icons and tool taskbar with new theme colour
+                colors = self.app_settings.get_theme_colors() or {}
+                icon_color = colors.get('text_primary', '#cccccc')
+                if hasattr(self.gui_layout, 'refresh_icons'):
+                    self.gui_layout.refresh_icons(icon_color)
+                if hasattr(self, 'tool_taskbar'):
+                    self.tool_taskbar.apply_theme(colors)
                 self.log_message("Settings updated")
         except Exception as e:
             print(f"Settings error: {e}")

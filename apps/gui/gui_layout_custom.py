@@ -419,8 +419,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.ai_btn.setIcon(SVGIconFactory.ai_icon(24, icon_color))
         self.ai_btn.setText("AI")
         self.ai_btn.setIconSize(QSize(24, 24))
-        self.ai_btn.setMinimumWidth(55)
-        self.ai_btn.setMaximumWidth(55)
+        self.ai_btn.setMinimumWidth(64)
+        self.ai_btn.setMaximumWidth(64)
         self.ai_btn.setMinimumHeight(30)
         self.ai_btn.setToolTip("AI Workshop – Local LLM chat via Ollama\nLeft-click: dock into tab\nRight-click: open standalone")
         self.ai_btn.clicked.connect(lambda: self.main_window.open_ai_workshop_docked())
@@ -2215,7 +2215,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             self.main_window.showMaximized()
 
 
-    def refresh_icons(self, color: str): #vers 1
+    def refresh_icons(self, color: str): #vers 2
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
         try:
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -2223,19 +2223,28 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 self.menu_btn.setIcon(SVGIconFactory.menu_m_icon(20, color))
             if hasattr(self, 'settings_btn'):
                 self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, color))
+            if hasattr(self, 'rw_ref_btn'):
+                self.rw_ref_btn.setIcon(SVGIconFactory.info_icon(20, color))
             if hasattr(self, 'undo_btn'):
                 self.undo_btn.setIcon(SVGIconFactory.undo_icon(20, color))
             if hasattr(self, 'info_btn'):
                 self.info_btn.setIcon(SVGIconFactory.info_icon(20, color))
             if hasattr(self, 'properties_btn'):
                 self.properties_btn.setIcon(SVGIconFactory.properties_icon(24, color))
+            if hasattr(self, 'ai_btn'):
+                self.ai_btn.setIcon(SVGIconFactory.ai_icon(24, color))
             if hasattr(self, 'minimize_btn'):
                 self.minimize_btn.setIcon(SVGIconFactory.minimize_icon(20, color))
             if hasattr(self, 'maximize_btn'):
                 self.maximize_btn.setIcon(SVGIconFactory.maximize_icon(20, color))
             if hasattr(self, 'close_btn'):
                 self.close_btn.setIcon(SVGIconFactory.close_icon(20, color))
-            print(f"Custom toolbar icons refreshed with color: {color}")
+            # Refresh tool taskbar theme
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'tool_taskbar'):
+                colors = {}
+                if hasattr(self.main_window, 'app_settings'):
+                    colors = self.main_window.app_settings.get_theme_colors() or {}
+                self.main_window.tool_taskbar.apply_theme(colors)
         except Exception as e:
             print(f"refresh_icons failed: {e}")
 
