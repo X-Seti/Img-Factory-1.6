@@ -161,6 +161,8 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
         0x1802FFFF: "3.5.0.2", #Internal Dev (VCS)
         0x1803FFFF: "3.6.0.3", #GTA SA (PC)
         0x1C020037: "3.7.0.2", #San Andreas Mobile / PSP
+        0x1C02000A: "3.7.0.2-Bully (PS2/PC)",  #Bully / Canis Canem Edit
+        0x1C020085: "3.7.0.2-Bully variant",   #Bully alternate build
     }
 
 

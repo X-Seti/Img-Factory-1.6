@@ -1,4 +1,63 @@
-#this belongs in root /ChangeLog.md - Version: 19
+#this belongs in root /ChangeLog.md - Version: 20
+
+## March 15, 2026 (late) — PS2 format deep-dive, case-sensitivity fix, Bully analysis
+
+### Critical Fix: Case-Sensitive .dir/.img Extension on Linux
+
+**Updated**: apps/methods/img_core_classes.py
+
+Root cause of GTA3 PS2 (LC) showing garbage entries: opening `GTA3.IMG` directly on
+Linux checked for `GTA3.dir` (lowercase) which doesn't exist — the companion is `GTA3.DIR`.
+`os.path.exists()` is case-sensitive on Linux. The check failed silently, fell through
+all format checks, and `detect_ps2_v1` matched the raw TXD data at offset 0 as a PS2_V1
+directory — producing 938 garbage "entries" with Korean/binary decoded names.
+
+**Fix**: Added `_find_companion(base_path, ext)` helper that tries lowercase, uppercase,
+then does a case-insensitive directory scan as last resort. Applied to every `.dir`/`.img`
+companion lookup throughout `img_core_classes.py`, `img_shared_operations.py`, and
+`rebuild.py`.
+
+---
+
+### Bully PS2 Format (WORLD.IMG / GTA3.IMG)
+
+**Analysis of actual Bully PS2 binary** (WORLD.DIR + WORLD.IMG, 275 MB):
+
+Bully Canis Canem Edit PS2 uses **standard V1 DIR+IMG format** — identical to GTA3/VC PC:
+- `.DIR`: 32-byte entries (`offset[4] size[4] name[24]`)
+- `.IMG`: 2048-byte sectors, data starts at sector 0
+- 10,680 entries (WORLD.IMG), named `ASY_Building.txd`, `ASY_Lobby.dff` etc.
+- RW version: `0x1C02000A` (Bully-specific, added to rw_versions.py)
+
+Previous `VERSION_BULLY` (value 44) was based on incorrect format assumptions
+(64-byte name-only entries with no offsets). The actual files load correctly as
+`VERSION_1` once `_find_companion` handles the uppercase `.DIR` extension on Linux.
+
+`rw_versions.py` updated with Bully entries:
+- `0x1C02000A` → `"3.7.0.2-Bully (PS2/PC)"`
+- `0x1C020085` → `"3.7.0.2-Bully variant"`
+
+---
+
+### PS2 Detection Fixes (continued from previous entries)
+
+`detect_ps2_v1` v3 — confirmed working on actual GTA3 PS2 (LC) files:
+- Rejects files that have a `.DIR` companion (handled by `_find_companion` → VERSION_1)
+- Correctly handles standalone PS2_V1 files (12-byte entries, no count header)
+
+`detect_bully` v2 — Bully files don't need special detection:
+- Bully WORLD.IMG has a `.DIR` companion → detected as VERSION_1 (correct)
+- `VERSION_BULLY` / `open_bully` retained for CUTS.IMG variant (different format)
+
+---
+
+### Outstanding PS2 Work
+
+- LCS PS2 / VCS PS2: `detect_ps2_vcs` logic to be verified with actual files
+- `VERSION_BULLY` open_bully: may need revision if CUTS.IMG format differs from assumptions
+
+
+---
 
 ## March 15, 2026 (evening) — Export fix, Rebuild rewrite, PS2 detection fixes
 
