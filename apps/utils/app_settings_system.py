@@ -3387,12 +3387,18 @@ class SettingsDialog(QDialog): #vers 15
     def _create_color_picker_tab(self): #vers 7
         """Create color picker and theme editor tab - Final layout with logical flow"""
         tab = QWidget()
-        main_layout = QHBoxLayout(tab)
+        _outer = QHBoxLayout(tab)
+        _outer.setContentsMargins(0, 0, 0, 0)
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_splitter.setChildrenCollapsible(False)
+        _outer.addWidget(main_splitter)
+        main_layout = main_splitter  # addWidget below works on splitter
 
         # ========== LEFT PANEL ==========
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
-        left_panel.setMaximumWidth(350)
+        left_panel.setMinimumWidth(220)
+        left_panel.setMaximumWidth(400)
 
         # Screen Color Picker Group
         picker_group = QGroupBox("Color Picker")
@@ -3820,7 +3826,7 @@ class SettingsDialog(QDialog): #vers 15
 
         scroll_layout.addStretch()
         scroll_area.setWidget(scroll_widget)
-        right_layout.addWidget(scroll_area)
+        right_layout.addWidget(scroll_area, 1)  # stretch=1 so it fills available space
 
         # GLOBAL THEME SLIDERS - MOVED TO RIGHT PANEL BOTTOM (above Theme Actions)
         global_sliders_group = QGroupBox("Global Theme Sliders")
@@ -3888,7 +3894,7 @@ class SettingsDialog(QDialog): #vers 15
         right_layout.addWidget(global_sliders_group)
 
         # THEME ACTIONS GROUP - AT BOTTOM OF RIGHT PANEL
-        theme_layout = QHBoxLayout(self)
+        theme_layout = QHBoxLayout()  # was QHBoxLayout(self) which corrupted dialog layout
         theme_actions_group = QGroupBox("Theme Actions")
 
         # Use horizontal layout instead of vertical
@@ -3915,8 +3921,10 @@ class SettingsDialog(QDialog): #vers 15
         right_layout.addWidget(theme_actions_group)
 
         # Add panels to main layout
-        main_layout.addWidget(left_panel)
-        main_layout.addWidget(right_panel, 1)
+        main_splitter.addWidget(left_panel)
+        main_splitter.addWidget(right_panel)
+        main_splitter.setStretchFactor(0, 0)  # left: fixed
+        main_splitter.setStretchFactor(1, 1)  # right: stretches
 
         # IMPORTANT: Connect sliders AFTER all widgets are created
         self.global_hue_slider.valueChanged.connect(self._on_global_hue_changed)
