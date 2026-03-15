@@ -225,11 +225,27 @@ def get_entry_data_safely(entry, img_file, main_window=None) -> Optional[bytes]:
             except Exception:
                 pass
         
-        # Method 3: Read from IMG file directly
-        if (hasattr(entry, 'offset') and hasattr(entry, 'size') and 
-            hasattr(img_file, 'file_path')):
+        # Method 3: Use read_entry_data which handles DIR+IMG, LZO, all formats
+        if hasattr(img_file, 'read_entry_data'):
             try:
-                with open(img_file.file_path, 'rb') as f:
+                data = img_file.read_entry_data(entry)
+                if data is not None:
+                    return data
+            except Exception:
+                pass
+
+        # Method 3b: Direct read fallback (single-file formats only)
+        if (hasattr(entry, 'offset') and hasattr(entry, 'size') and
+                hasattr(img_file, 'file_path')):
+            try:
+                # Resolve .img path for DIR+IMG pairs
+                fp = img_file.file_path
+                if fp.lower().endswith('.dir'):
+                    img_path = fp[:-4] + '.img'
+                    if not os.path.exists(img_path):
+                        img_path = fp[:-4] + '.IMG'
+                    fp = img_path
+                with open(fp, 'rb') as f:
                     f.seek(entry.offset)
                     return f.read(entry.size)
             except Exception:

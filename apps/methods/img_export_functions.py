@@ -1,4 +1,4 @@
-#this belongs in methods/ img_export_functions.py - Version: 1
+#this belongs in methods/ img_export_functions.py - Version: 2
 # X-Seti - November16 2025 - IMG Factory 1.5 - IMG Export Functions
 
 """
@@ -211,46 +211,51 @@ def _export_img_entries(main_window, img_file, entries: List, export_dir: str,
         return False
 
 
-def _get_selected_img_entries(main_window, img_file) -> List: #vers 1
-    """Get selected entries from current tab's table
-    
-    Args:
-        main_window: Main application window
-        img_file: IMG file object
-        
-    Returns:
-        List of selected entry objects
+def _get_selected_img_entries(main_window, img_file) -> List: #vers 2
+    """Get selected entries from the active tab's table.
+
+    Uses the active tab table so multi-tab usage works correctly.
+    Maps via the Name column (col 0) to match entries by name, so sorting
+    and filtering don't cause row/index mismatches.
     """
     try:
-        selected_entries = []
-        
-        # Try multiple methods to get the table
-        table = None
-        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
-            table = main_window.gui_layout.table
-        elif hasattr(main_window, 'entries_table'):
-            table = main_window.entries_table
-        elif hasattr(main_window, 'table'):
-            table = main_window.table
-        
-        if not table:
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+
+        if table is None:
             if hasattr(main_window, 'log_message'):
-                main_window.log_message("No table found for entry selection")
-            return selected_entries
-        
-        # Get selected rows
-        selected_rows = set()
-        for item in table.selectedItems():
-            selected_rows.add(item.row())
-        
-        # Get entries for selected rows
-        if hasattr(img_file, 'entries'):
-            for row in sorted(selected_rows):
-                if row < len(img_file.entries):
-                    selected_entries.append(img_file.entries[row])
-        
+                main_window.log_message("No active table found for entry selection")
+            return []
+
+        # Collect selected rows (deduplicated)
+        selected_rows = sorted({item.row() for item in table.selectedItems()})
+        if not selected_rows:
+            return []
+
+        entries = getattr(img_file, 'entries', [])
+        if not entries:
+            return []
+
+        # Build a name->entry map for reliable lookup regardless of sort order
+        name_map = {}
+        for e in entries:
+            name_map.setdefault(getattr(e, 'name', ''), e)
+
+        selected_entries = []
+        for row in selected_rows:
+            name_item = table.item(row, 0)
+            if not name_item:
+                continue
+            name = name_item.text().strip()
+            entry = name_map.get(name)
+            if entry is not None:
+                selected_entries.append(entry)
+            elif row < len(entries):
+                # Fallback: row index (only correct for unsorted tables)
+                selected_entries.append(entries[row])
+
         return selected_entries
-        
+
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Error getting selected entries: {str(e)}")

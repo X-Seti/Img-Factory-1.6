@@ -1,4 +1,4 @@
-#this belongs in methods/img_export_entry.py - Version: 2
+#this belongs in methods/img_export_entry.py - Version: 3
 # X-Seti - November19 2025 - IMG Factory 1.5 - IMG Export Entry Helper
 """
 IMG Export Entry Helper - Single entry export function
@@ -37,18 +37,24 @@ def export_entry(img_archive, entry, output_path: Optional[str] = None, output_d
             if img_debugger:
                 img_debugger.debug(f"Exporting new/modified entry from memory: {entry.name}")
             data_to_write = entry.data
+        elif hasattr(entry, 'data') and entry.data:
+            data_to_write = entry.data
         else:
-            # Read entry data from file using CORRECT attributes: offset and size
-            if not hasattr(entry, 'data') or not entry.data:
+            # Use img_archive.read_entry_data() which handles DIR+IMG path
+            # resolution, Xbox LZO decompression, and all format variants
+            if hasattr(img_archive, 'read_entry_data'):
                 if img_debugger:
-                    img_debugger.debug(f"Reading entry data from file: {entry.name}")
-                with open(img_archive.file_path, 'rb') as f:
-                    # ✅ FIXED: Use entry.offset, not actual_offset
-                    f.seek(entry.offset)
-                    # ✅ FIXED: Use entry.size, not actual_size
-                    data_to_write = f.read(entry.size)
+                    img_debugger.debug(f"Reading via read_entry_data: {entry.name}")
+                data_to_write = img_archive.read_entry_data(entry)
+                if data_to_write is None:
+                    raise ValueError(f"read_entry_data returned None for {entry.name}")
             else:
-                data_to_write = entry.data
+                # Legacy fallback: direct read (only correct for single-file formats)
+                if img_debugger:
+                    img_debugger.debug(f"Legacy direct read: {entry.name}")
+                with open(img_archive.file_path, 'rb') as f:
+                    f.seek(entry.offset)
+                    data_to_write = f.read(entry.size)
         # Write data to output file
         with open(output_path, 'wb') as f:
             f.write(data_to_write)

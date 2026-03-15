@@ -1,4 +1,67 @@
-#this belongs in root /ChangeLog.md - Version: 18
+#this belongs in root /ChangeLog.md - Version: 19
+
+## March 15, 2026 (evening) — Export fix, Rebuild rewrite, PS2 detection fixes
+
+### Export Bug Fixed — entries exported individually
+
+**Updated**: apps/methods/img_export_entry.py v3, apps/methods/img_export_functions.py v2
+
+**Bug**: Exporting 7 selected entries produced 7 files but with wrong content — all reading
+from `img_archive.file_path` directly. For DIR+IMG pairs (V1) this opened the `.dir` file
+and read raw directory bytes as entry data.
+
+**Fix**: `export_entry()` now calls `img_archive.read_entry_data(entry)` which correctly
+resolves `.dir` → `.img` path, handles Xbox LZO decompression, and covers all format variants.
+
+**Fix**: `_get_selected_img_entries()` now uses `get_active_table()` (active tab's table,
+not the shared `gui_layout.table`) and maps by entry name instead of row index, so sorting
+and filtering don't cause row/index mismatches.
+
+---
+
+### Rebuild Size Growth Fixed — V1 DIR+IMG now rebuilt as pair
+
+**Updated**: apps/core/rebuild.py, apps/methods/img_shared_operations.py
+
+**Bug**: Rebuilding a V1 (DIR+IMG pair) file grew from 104 MB → 312 MB. The rebuild wrote
+header + directory + all entry data into a single temp file then replaced the `.dir` file
+with it. The `.dir` became a full IMG file (116 MB) while the original `.img` was untouched.
+
+**Fix**: `_perform_native_rebuild` now detects V1/V1.5/SOL formats and routes to
+`_rebuild_v1_pair()` which:
+1. Writes all entry data sequentially into a `.img` temp file, recording each entry's
+   sector offset as it goes
+2. Writes a proper `.dir` temp file (32 bytes × N entries, offsets from step 1)
+3. Atomically replaces both `.dir` and `.img` files
+
+V2/V3 single-file formats use `_rebuild_single_file()` which writes data first then seeks
+back to fill in the directory with correct offsets (no more placeholder pass).
+
+`get_entry_data_safely()` also fixed — now calls `read_entry_data()` first, then falls back
+to a corrected direct read that resolves `.dir` → `.img` path.
+
+---
+
+### PS2 IMG Detection Fixes (continued)
+
+**Updated**: apps/core/img_ps2_vcs.py v7
+
+`detect_ps2_v1` v3 — complete rewrite based on actual format understanding:
+- Format has NO count header — entries start at byte 0 (sec_off / asset_id / sec_sz)
+- Entry count derived from `first_entry.sec_off * 512 / 12`
+- Removed `0x16` from RW type rejection list (22 = valid sector offset)
+- Cross-validates: asset_id high byte must not be printable ASCII (rules out Bully names)
+
+`detect_bully` v2 — requires first byte of name field (byte 4) to be printable ASCII with
+4+ consecutive printable chars; rejects non-ASCII first bytes that PS2_V1 asset_ids produce.
+
+`open_ps2_v1` — removed erroneous `dir_data = dir_data[4:]` offset shift; now correctly
+skips null/zero-size padding entries.
+
+---
+
+
+---
 
 ## March 15, 2026 — IMG Format Audit, Folder Scanner, Layout Fixes
 
