@@ -135,7 +135,7 @@ class OllamaWorker(QThread):
 def _fetch_models(base_url: str = OLLAMA_BASE_URL) -> list:
     """Return list of locally installed model names."""
     try:
-        r = requests.get(f"{base_url}/api/tags", timeout=5)
+        r = requests.get(f"{base_url}/api/tags", timeout=1)
         r.raise_for_status()
         return [m["name"] for m in r.json().get("models", [])]
     except Exception:
@@ -144,7 +144,7 @@ def _fetch_models(base_url: str = OLLAMA_BASE_URL) -> list:
 
 def _ollama_running(base_url: str = OLLAMA_BASE_URL) -> bool:
     try:
-        requests.get(f"{base_url}/api/tags", timeout=3)
+        requests.get(f"{base_url}/api/tags", timeout=1)
         return True
     except Exception:
         return False
@@ -277,7 +277,9 @@ class AIWorkshop(QWidget):
         self._load_session(self.current_session_index)
         self._setup_hotkeys()
         self._apply_theme()
-        self._refresh_model_list()
+        # Defer Ollama network calls so UI appears immediately — not blocking on startup
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(300, self._refresh_model_list)
 
     # -----------------------------------------------------------------------
     # UI construction

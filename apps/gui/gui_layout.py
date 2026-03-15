@@ -70,11 +70,11 @@ from apps.methods.imgfactory_svg_icons import (
     get_minimize_icon, get_maximize_icon, get_close_icon
 )
 
-def _register_tool_taskbar(main_window, key, label, icon_fn, tooltip=""):
+def _register_tool_taskbar(main_window, key, label, icon_fn, tooltip="", target=None):
     """Register a tool in the main window taskbar if it exists."""
     try:
         if hasattr(main_window, 'register_tool'):
-            main_window.register_tool(key, label, icon_fn, None, tooltip)
+            main_window.register_tool(key, label, icon_fn, target, tooltip)
     except Exception:
         pass
 
@@ -103,11 +103,12 @@ def edit_txd_file(main_window): #vers 5
         if selected and selected.lower().endswith('.txd'):
             if hasattr(main_window, '_load_txd_file_in_new_tab'):
                 main_window._load_txd_file_in_new_tab(selected)
+                _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop")
             else:
                 from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
-                open_txd_workshop(main_window, selected)
+                w = open_txd_workshop(main_window, selected)
+                _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", w)
             main_window.log_message(f"TXD Workshop opened: {os.path.basename(selected)}")
-            _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop")
             return
 
         # Fall back to IMG table selection
@@ -129,7 +130,7 @@ def edit_txd_file(main_window): #vers 5
         workshop = open_txd_workshop(main_window, img_path)
         if workshop:
             main_window.log_message(f"TXD Workshop opened for: {filename}")
-            _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop")
+            _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", workshop)
     except Exception as e:
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
@@ -156,9 +157,9 @@ def edit_col_file(main_window): #vers 3
 
         if selected and selected.lower().endswith('.col'):
             from apps.components.Col_Editor.col_workshop import open_col_workshop
-            open_col_workshop(main_window, selected)
+            w = open_col_workshop(main_window, selected)
             main_window.log_message(f"COL Workshop opened: {os.path.basename(selected)}")
-            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop")
+            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)
             return
 
         # Fall back to IMG table selection
@@ -180,7 +181,7 @@ def edit_col_file(main_window): #vers 3
         workshop = open_col_workshop(main_window, img_path)
         if workshop:
             main_window.log_message(f"COL Workshop opened for: {filename}")
-            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop")
+            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", workshop)
     except Exception as e:
         main_window.log_message(f"Error opening COL Workshop: {e}")
 

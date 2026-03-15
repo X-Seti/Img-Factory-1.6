@@ -2321,15 +2321,15 @@ class ToolTaskbar(QWidget):  # vers 1
         btn.setMaximumWidth(100)
         btn.setFlat(False)
         btn.setToolTip(tooltip or label)
-        btn.setStyleSheet("""
-            QPushButton {
-                border-radius: 4px;
-                padding: 1px 6px;
-                font-size: 11px;
-            }
-            QPushButton:hover  { background: palette(highlight); }
-            QPushButton:pressed{ background: palette(dark); }
-        """)
+        # Button style applied after theme known — placeholder, refreshed in apply_theme
+        btn.setObjectName(f"taskbar_btn_{key}")
+        btn.setStyleSheet(
+            "QPushButton { border-radius:3px; padding:1px 6px; "
+            "font-size:11px; border:1px solid transparent; }"
+            "QPushButton:hover { border:1px solid palette(highlight); "
+            "background: palette(highlight); color: palette(highlighted-text); }"
+            "QPushButton:pressed { background: palette(dark); }"
+        )
 
         def _click():
             t = self._tools.get(key, {}).get("target")
@@ -2384,11 +2384,21 @@ class ToolTaskbar(QWidget):  # vers 1
 
     def apply_theme(self, colors: dict) -> None:
         """Re-style from theme colour dict."""
-        bg   = colors.get("bg_secondary", "#252525")
+        # Use bg_tertiary (darkest panel) or panel_bg to stand out from
+        # the titlebar above and file-list below
+        bg   = colors.get("bg_tertiary",  colors.get("panel_bg", "#1a1a2e"))
         brd  = colors.get("border",       "#3a3a3a")
+        acc  = colors.get("accent_primary", "#1976d2")
+        txt  = colors.get("text_secondary", "#aaaaaa")
         self.setStyleSheet(
             f"QWidget#tool_taskbar {{"
             f"  background:{bg};"
-            f"  border-bottom:1px solid {brd};"
-            f"}}")
+            f"  border-top:1px solid {brd};"
+            f"  border-bottom:2px solid {acc};"
+            f"}}"
+            f"QLabel {{"
+            f"  color:{txt};"
+            f"  background:transparent;"
+            f"}}"
+        )
 

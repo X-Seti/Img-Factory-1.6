@@ -5181,7 +5181,11 @@ class IMGFactory(QMainWindow):
                 self.tool_taskbar.update_target(key, target)
             else:
                 self.tool_taskbar.register(key, label, icon, target, tooltip)
+            # Always re-apply theme so new buttons pick up correct colours
             self.tool_taskbar.apply_theme(colors)
+            # Show the taskbar if it was hidden (first tool registered)
+            if not self.tool_taskbar.isVisible():
+                self.tool_taskbar.setVisible(True)
         except Exception as e:
             self.log_message(f"Tool taskbar register error: {e}")
 
