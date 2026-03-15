@@ -101,6 +101,10 @@ class IMGVersion(Enum):
     VERSION_BULLY   = 44  # Bully PS2 named-entry archive - 64-byte name-only directory
     VERSION_HXD     = 45  # Bully HXD/MXD/AGR bone+animation data - float header + path
     VERSION_1_IOS   = 47  # iOS GTA3/VC (*_pvr.img) - 12-byte entries, 512-byte sectors, no names
+    VERSION_XBOX        = 50  # Xbox GTA3/VC - DIR+IMG pair, LZO-compressed entries, 2048-byte sectors
+    VERSION_SA_ANDROID  = 51  # Android SA - VER2 header, 2048-byte sectors, mobile texture DB
+    VERSION_LCS_ANDROID = 52  # Android LCS - VER2 header, TXD version 0x1005FFFF embedded in IMG
+    VERSION_LCS_IOS     = 53  # iOS LCS - 12-byte entries, 512-byte sectors, *_pvr.img suffix
     UNKNOWN       = 0
 
 class IMGPlatform(Enum):
@@ -847,27 +851,47 @@ def _detect_xbox_by_content(file_path: str) -> bool:
         return False
 
 
-def detect_img_platform(file_path: str): #vers 2
-    """Detect IMG platform — content-based first, filename as secondary hint.
+def detect_img_platform(file_path: str): #vers 3
+    """Detect IMG platform — content-based probes first, filename as fallback.
 
-    Xbox detection probes the first entry data bytes for the LZO magic
-    (0x67A3A1CE) so gta3.img from Xbox is correctly distinguished from PC.
+    Priority order:
+      1. Xbox LZO magic in first entry data bytes (95% confidence)
+      2. Mobile texture DB alongside VER2 file → Android (90% confidence)
+      3. iOS *_pvr.img suffix → iOS (85% confidence)
+      4. Filename keywords → lower confidence
+      5. Default PC
     """
     try:
+        # 1. Xbox — probe entry data for LZO magic
         if _detect_xbox_by_content(file_path):
             return IMGPlatform.XBOX, {'confidence': 95, 'indicators': ['lzo_magic']}
 
-        filename = os.path.basename(file_path).lower()
-        if any(keyword in filename for keyword in ['ps2', 'playstation']):
-            return IMGPlatform.PS2, {'confidence': 70, 'indicators': ['ps2_filename']}
-        elif any(keyword in filename for keyword in ['xbox']):
-            return IMGPlatform.XBOX, {'confidence': 80, 'indicators': ['xbox_filename']}
-        elif any(keyword in filename for keyword in ['android', 'mobile']):
+        filename  = os.path.basename(file_path).lower()
+        directory = os.path.dirname(file_path)
+
+        # 2. Android — mobile texture DB alongside (SA Android, LCS Android)
+        _mobile_dbs = ('texdb.dat', 'texdb.toc', 'streaming.dat',
+                       'cdimages', 'models.img')
+        if any(os.path.exists(os.path.join(directory, db)) for db in _mobile_dbs[:3]):
+            return IMGPlatform.ANDROID, {'confidence': 90, 'indicators': ['mobile_db']}
+
+        # 3. iOS — *_pvr.img suffix
+        if '_pvr' in filename and filename.endswith('.img'):
+            return IMGPlatform.IOS, {'confidence': 85, 'indicators': ['pvr_suffix']}
+
+        # 4. Filename keyword fallbacks
+        if any(k in filename for k in ('ps2', 'playstation')):
+            return IMGPlatform.PS2,     {'confidence': 70, 'indicators': ['ps2_filename']}
+        if any(k in filename for k in ('xbox',)):
+            return IMGPlatform.XBOX,    {'confidence': 80, 'indicators': ['xbox_filename']}
+        if any(k in filename for k in ('android', 'mobile')):
             return IMGPlatform.ANDROID, {'confidence': 70, 'indicators': ['android_filename']}
-        elif any(keyword in filename for keyword in ['psp', 'stories']):
-            return IMGPlatform.PSP, {'confidence': 70, 'indicators': ['psp_filename']}
-        else:
-            return IMGPlatform.PC, {'confidence': 50, 'indicators': ['default_pc']}
+        if any(k in filename for k in ('psp', 'stories')):
+            return IMGPlatform.PSP,     {'confidence': 70, 'indicators': ['psp_filename']}
+        if any(k in filename for k in ('ios', '_pvr')):
+            return IMGPlatform.IOS,     {'confidence': 70, 'indicators': ['ios_filename']}
+
+        return IMGPlatform.PC, {'confidence': 50, 'indicators': ['default_pc']}
 
     except Exception:
         return IMGPlatform.UNKNOWN, {'confidence': 0, 'indicators': ['error']}
@@ -979,374 +1003,6 @@ def _is_valid_rw_version(v: int) -> bool:
     if v == 0x1C020037:       # SA Mobile
         return True
     return False
-
-def _scan_rw_version(data: bytes):
-    """Scan first 64 bytes of a file for a valid RW version.
-
-    RW chunk layout: type(4) + size(4) + version(4).
-    Handles plain RW files and Xbox variants with a 4/8-byte prefix.
-    Returns (version_int, byte_offset) or (None, -1).
-    """
-    # Check standard offset first (bytes 8-11), then prefixed variants
-    for base_offset in (0, 4, 8):
-        off = base_offset + 8
-        if len(data) >= off + 4:
-            v = struct.unpack_from('<I', data, off)[0]
-            if _is_valid_rw_version(v):
-                return v, off
-    return None, -1
-
-
-class IMGEntry:
-    """Represents a single file entry within an IMG archive - FIXED WITH RW VERSION DETECTION"""
-    
-    def __init__(self): #vers 4
-        self.name: str = ""
-        self.extension: str = ""
-        self.offset: int = 0          # Offset in bytes
-        self.size: int = 0            # Size in bytes
-        self.uncompressed_size: int = 0
-        self.file_type: FileType = FileType.UNKNOWN
-        self.compression_type: CompressionType = CompressionType.NONE
-        self.rw_version: int = 0      # RenderWare version
-        self.rw_version_name: str = "" # ADDED: Human readable version name
-        self.is_encrypted: bool = False
-        self.encryption_type: EncryptionType = EncryptionType.NONE
-        self.is_new_entry: bool = False
-        self.is_replaced: bool = False
-        self.is_readonly: bool = False
-        self.flags: int = 0
-        self.compression_level = 0
-
-        # Internal data cache
-        self._cached_data: Optional[bytes] = None
-        self._img_file: Optional['IMGFile'] = None
-        self._version_detected: bool = False # ADDED: Track if version was detected
-    
-    def set_img_file(self, img_file: 'IMGFile'): #vers 1
-        """Set reference to parent IMG file"""
-        self._img_file = img_file
-
-    def detect_file_type_and_version(self): #vers 4
-        """Detect file type and RW version. Robust against garbage bytes after the null
-        terminator or after the extension in DIR entry name fields."""
-        try:
-            # Re-sanitize name using the same robust helper used during directory parsing.
-            # This catches cases where the name was stored as a raw string with embedded
-            # garbage bytes that got past the initial decode (e.g. non-null junk after ext).
-            self.name = _parse_entry_name(self.name.encode('ascii', errors='replace'))
-
-            if '.' in self.name:
-                self.extension = self.name.split('.')[-1].upper()
-                self.extension = ''.join(c for c in self.extension if c.isalpha())
-            else:
-                self.extension = "NO_EXT"
-            
-            # Set file type based on extension
-            ext_lower = self.extension.lower()
-            if ext_lower == 'dff':
-                self.file_type = FileType.DFF
-            elif ext_lower == 'txd':
-                self.file_type = FileType.TXD
-            elif ext_lower == 'col':
-                self.file_type = FileType.COL
-            elif ext_lower == 'ifp':
-                self.file_type = FileType.IFP
-            elif ext_lower == 'ipl':
-                self.file_type = FileType.IPL
-            elif ext_lower == 'dat':
-                self.file_type = FileType.DAT
-            elif ext_lower == 'wav':
-                self.file_type = FileType.WAV
-            else:
-                self.file_type = FileType.UNKNOWN
-
-            # Detect RW version for RenderWare files
-            if self.extension in ['DFF', 'TXD'] and not self._version_detected:
-                self._detect_rw_version()
-                
-        except Exception as e:
-            img_debugger.error(f"Error detecting file type for {self.name}: {e}")
-
-    def _detect_rw_version(self): #vers 2
-        """Detect RenderWare version from file header - scans for valid version across known offsets"""
-        try:
-            if not self._img_file or not self._img_file.file_path:
-                return
-
-            # Read enough bytes to cover standard + prefixed layouts
-            file_data = self._read_header_data(64)
-            if not file_data or len(file_data) < 12:
-                return
-
-            version_value, found_offset = _scan_rw_version(file_data)
-            if version_value:
-                version_name = get_rw_version_name(version_value)
-                self.rw_version = version_value
-                self.rw_version_name = version_name
-                self._version_detected = True
-                img_debugger.success(f"Detected RW version {version_name} (0x{version_value:X}) for {self.name}")
-
-        except Exception as e:
-            img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
-
-    def detect_rw_version(self, data: bytes = None) -> bool: #vers 2
-        """Detect RenderWare version from provided data - validates version range"""
-        try:
-            if data is None:
-                if self._img_file:
-                    data = self.get_data()
-                else:
-                    return False
-
-            if not data or len(data) < 12:
-                return False
-
-            version_value, _ = _scan_rw_version(data[:64])
-            if version_value:
-                version_name = get_rw_version_name(version_value)
-                self.rw_version = version_value
-                self.rw_version_name = version_name
-                self._version_detected = True
-                if hasattr(img_debugger, 'success'):
-                    img_debugger.success(f"Detected RW version {version_name} (0x{version_value:X}) for {self.name}")
-                return True
-
-            return False
-
-        except Exception as e:
-            if hasattr(img_debugger, 'error'):
-                img_debugger.error(f"Error detecting RW version for {self.name}: {e}")
-            return False
-
-    def _read_header_data(self, bytes_to_read: int) -> Optional[bytes]: #vers 2
-        """Read file header data from the data portion of the IMG archive."""
-        try:
-            if not self._img_file or not self._img_file.file_path:
-                return None
-
-            file_path = self._img_file.file_path
-
-            # V1-family opened via .dir: data lives in the companion .img file
-            if (self._img_file.version in (IMGVersion.VERSION_1,
-                                           IMGVersion.VERSION_1_5,
-                                           IMGVersion.VERSION_SOL)
-                    and file_path.lower().endswith('.dir')):
-                img_path = file_path[:-4] + '.img'
-                if not os.path.exists(img_path):
-                    return None
-                file_path = img_path
-
-            with open(file_path, 'rb') as f:
-                f.seek(self.offset)
-                return f.read(min(self.size, bytes_to_read))
-
-        except Exception as e:
-            img_debugger.error(f"Error reading header data for {self.name}: {e}")
-            return None
-
-    def _get_file_type_from_extension(self) -> FileType: #vers 1
-        """Get file type from extension"""
-        ext_lower = self.extension.lower()
-        try:
-            return FileType(ext_lower)
-        except ValueError:
-            return FileType.UNKNOWN
-
-    def get_version_text(self) -> str: #vers 3
-        """Get human-readable version text"""
-        try:
-            if self.extension in ['DFF', 'TXD']:
-                if self.size == 0:
-                    return "Empty"
-                if self.rw_version > 0 and self.rw_version_name:
-                    return f"RW {self.rw_version_name}"
-                elif self.rw_version > 0:
-                    return f"RW 0x{self.rw_version:X}"
-                else:
-                    return "RW Unknown"
-            elif self.extension == 'COL':
-                return "COL"
-            elif self.extension == 'IFP':
-                return "IFP"
-            elif self.extension == 'IPL':
-                return "IPL"
-            elif self.extension in ['WAV', 'MP3']:
-                return "Audio"
-            else:
-                return "Unknown"
-        except:
-            return "Unknown"
-    
-    def get_offset_in_sectors(self) -> int: #vers 1
-        """Get offset in 2048-byte sectors"""
-        return self.offset // 2048
-    
-    def get_size_in_sectors(self) -> int: #vers 1
-        """Get size in 2048-byte sectors (rounded up)"""
-        return (self.size + 2047) // 2048
-    
-    def get_file_type(self) -> FileType: #vers 1
-        """Get file type based on extension"""
-        if not self.extension:
-            return FileType.UNKNOWN
-        
-        ext_lower = self.extension.lower().lstrip('.')
-        try:
-            return FileType(ext_lower)
-        except ValueError:
-            return FileType.UNKNOWN
-    
-    def is_renderware_file(self) -> bool: #vers 1
-        """Check if file is a RenderWare format"""
-        return self.extension.upper() in ['DFF', 'TXD']
-    
-    def validate(self) -> ValidationResult: #vers 1
-        """Validate entry data"""
-        result = ValidationResult()
-        
-        try:
-            # Check basic attributes
-            if not self.name:
-                result.add_error("Entry has no name")
-            
-            if self.size < 0:
-                result.add_error("Entry has negative size")
-            
-            if self.offset < 0:
-                result.add_error("Entry has negative offset")
-            
-            # Check name validity
-            if len(self.name) > 24:
-                result.add_warning("Entry name longer than 24 characters")
-            
-            invalid_chars = set('\x00\xff\xcd')
-            if any(char in self.name for char in invalid_chars):
-                result.add_error("Entry name contains invalid characters")
-            
-            # Validate data if available
-            if self._img_file:
-                try:
-                    data = self.get_data()
-                    if len(data) != self.size:
-                        result.add_warning(f"Entry {self.name} actual size differs from header")
-                except Exception as e:
-                    result.add_error(f"Cannot read data for {self.name}: {str(e)}")
-
-        except Exception as e:
-            result.add_error(f"Validation error for {self.name}: {str(e)}")
-
-        return result
-    
-    def get_data(self) -> bytes: #vers 1
-        """Read entry data from IMG file"""
-        if not self._img_file:
-            raise ValueError("No IMG file reference set")
-        
-        return self._img_file.read_entry_data(self)
-    
-    def set_data(self, data: bytes): #vers 1
-        """Write entry data to IMG file"""
-        if not self._img_file:
-            raise ValueError("No IMG file reference set")
-        
-        self._img_file.write_entry_data(self, data)
-
-# INLINE PLATFORM DETECTION FUNCTIONS - to replace the circular import
-def detect_img_platform(file_path: str): #vers 1
-    """INLINE: Simple platform detection to avoid circular import"""
-    try:
-        filename = os.path.basename(file_path).lower()
-        
-        # Simple platform detection based on filename/path
-        if any(keyword in filename for keyword in ['ps2', 'playstation']):
-            return IMGPlatform.PS2, {'confidence': 70, 'indicators': ['ps2_filename']}
-        elif any(keyword in filename for keyword in ['xbox']):
-            return IMGPlatform.XBOX, {'confidence': 70, 'indicators': ['xbox_filename']}
-        elif any(keyword in filename for keyword in ['android', 'mobile']):
-            return IMGPlatform.ANDROID, {'confidence': 70, 'indicators': ['android_filename']}
-        elif any(keyword in filename for keyword in ['psp', 'stories']):
-            return IMGPlatform.PSP, {'confidence': 70, 'indicators': ['psp_filename']}
-        else:
-            return IMGPlatform.PC, {'confidence': 50, 'indicators': ['default_pc']}
-            
-    except Exception:
-        return IMGPlatform.UNKNOWN, {'confidence': 0, 'indicators': ['error']}
-
-def detect_img_platform_inline(file_path: str) -> IMGPlatform: #vers 1
-    """MOVED: Simple platform detection to avoid circular import"""
-    try:
-        filename = os.path.basename(file_path).lower()
-
-        # Simple platform detection based on filename/path
-        if any(keyword in filename for keyword in ['ps2', 'playstation']):
-            return IMGPlatform.PS2
-        elif any(keyword in filename for keyword in ['xbox']):
-            return IMGPlatform.XBOX
-        elif any(keyword in filename for keyword in ['android', 'mobile']):
-            return IMGPlatform.ANDROID
-        elif any(keyword in filename for keyword in ['psp', 'stories']):
-            return IMGPlatform.PSP
-        else:
-            return IMGPlatform.PC
-
-    except Exception:
-        return IMGPlatform.UNKNOWN
-
-
-def get_platform_specific_specs(platform: IMGPlatform) -> Dict[str, Any]: #vers 1
-    """INLINE: Get platform-specific specifications"""
-    specs = {
-        IMGPlatform.PC: {
-            'sector_size': 2048,
-            'entry_size': 32,
-            'name_length': 24,
-            'endianness': 'little',
-            'supports_compression': True,
-            'max_entries': 65535
-        },
-        IMGPlatform.PS2: {
-            'sector_size': 2048,
-            'entry_size': 32,
-            'name_length': 24,
-            'endianness': 'little',
-            'supports_compression': False,
-            'max_entries': 16000,
-            'special_alignment': True
-        },
-        IMGPlatform.ANDROID: {
-            'sector_size': 2048,
-            'entry_size': 32,
-            'name_length': 24,
-            'endianness': 'little',
-            'supports_compression': True,
-            'max_entries': 32000,
-            'mobile_optimized': True
-        },
-        IMGPlatform.PSP: {
-            'sector_size': 2048,
-            'entry_size': 32,
-            'name_length': 24,
-            'endianness': 'little',
-            'supports_compression': False,
-            'max_entries': 8000,
-            'stories_format': True
-        }
-    }
-    return specs.get(platform, specs[IMGPlatform.PC])
-
-def get_img_platform_info(file_path: str) -> Dict[str, Any]: #vers 1
-    """Get platform information for IMG file"""
-    platform, detection_info = detect_img_platform(file_path)
-    return {
-        'platform': platform.value,
-        'detected_from': 'filename_analysis',
-        'supported_features': {
-            'compression': platform in [IMGPlatform.PC, IMGPlatform.ANDROID],
-            'encryption': False,
-            'large_files': platform != IMGPlatform.PSP
-        }
-    }
 
 class IMGFile:
     """Main IMG archive file handler - FIXED WITH PLATFORM SUPPORT"""
@@ -1820,10 +1476,17 @@ class IMGFile:
             self.platform_specs = get_platform_specific_specs(detected_platform)
             
 
-            # Check if it's a .dir file (Version 1 or 1.5)
+            # Check if it's a .dir file (Version 1 or 1.5 or Xbox)
             if self.file_path.lower().endswith('.dir'):
                 img_path = self.file_path[:-4] + '.img'
+                if not os.path.exists(img_path):
+                    img_path = self.file_path[:-4] + '.IMG'
                 if os.path.exists(img_path):
+                    # Xbox check first — same DIR+IMG structure but entries are LZO-compressed
+                    if _detect_xbox_by_content(self.file_path):
+                        self.version  = IMGVersion.VERSION_XBOX
+                        self.platform = IMGPlatform.XBOX
+                        return IMGVersion.VERSION_XBOX
                     v = _detect_v1_or_v1_5(self.file_path, img_path)
                     ver = IMGVersion.VERSION_1_5 if v == 'V1_5' else IMGVersion.VERSION_1
                     self.version = ver
@@ -1856,6 +1519,22 @@ class IMGFile:
                     with open(self.file_path, 'rb') as f:
                         header = f.read(4)
                         if header == b'VER2':
+                            # VER2 — distinguish PC SA, Android SA, Android LCS
+                            # Android SA: filename pattern OR mobile texture DB alongside
+                            _bn = os.path.basename(self.file_path).lower()
+                            _dir = os.path.dirname(self.file_path)
+                            _has_mobile_db = any(
+                                os.path.exists(os.path.join(_dir, db))
+                                for db in ('texdb.dat', 'texdb.toc', 'streaming.dat')
+                            )
+                            if 'lcs' in _bn or 'liberty' in _bn:
+                                self.version  = IMGVersion.VERSION_LCS_ANDROID
+                                self.platform = IMGPlatform.ANDROID
+                                return IMGVersion.VERSION_LCS_ANDROID
+                            if _has_mobile_db or 'android' in _bn or 'mobile' in _bn:
+                                self.version  = IMGVersion.VERSION_SA_ANDROID
+                                self.platform = IMGPlatform.ANDROID
+                                return IMGVersion.VERSION_SA_ANDROID
                             self.version = IMGVersion.VERSION_2
                             return IMGVersion.VERSION_2
                         # GTA IV unencrypted magic: 0xA94E2A52 (little-endian)
@@ -1880,10 +1559,16 @@ class IMGFile:
                             if detect_ps2_vcs(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_VCS
                                 return IMGVersion.VERSION_PS2_VCS
-                            # iOS GTA3/VC: *_pvr.img suffix, same 12-byte format as PS2_V1
+                            # iOS *_pvr.img: distinguish LCS iOS from GTA3/VC iOS
                             _fname = os.path.basename(self.file_path).lower()
                             if '_pvr' in _fname and detect_ps2_v1(self.file_path):
-                                self.version = IMGVersion.VERSION_1_IOS
+                                # LCS iOS uses same 12-byte format but different TXD version
+                                if 'lcs' in _fname or 'liberty' in _fname:
+                                    self.version  = IMGVersion.VERSION_LCS_IOS
+                                    self.platform = IMGPlatform.IOS
+                                    return IMGVersion.VERSION_LCS_IOS
+                                self.version  = IMGVersion.VERSION_1_IOS
+                                self.platform = IMGPlatform.IOS
                                 return IMGVersion.VERSION_1_IOS
                             if detect_ps2_v1(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_V1
@@ -1924,8 +1609,14 @@ class IMGFile:
                                 IMGVersion.VERSION_1_5,
                                 IMGVersion.VERSION_SOL):
                 success = self._open_version_1()
-            elif self.version == IMGVersion.VERSION_2:
+            elif self.version == IMGVersion.VERSION_XBOX:
+                success = self._open_xbox()
+            elif self.version in (IMGVersion.VERSION_2,
+                                  IMGVersion.VERSION_SA_ANDROID):
                 success = self._open_version_2()
+            elif self.version in (IMGVersion.VERSION_LCS_ANDROID,
+                                  IMGVersion.VERSION_LCS_IOS):
+                success = self._open_lcs()
             elif self.version in (IMGVersion.VERSION_3,
                                   IMGVersion.VERSION_3_ENC):
                 success = self._open_version_3()
@@ -2162,6 +1853,57 @@ class IMGFile:
         except Exception:
             return False
 
+    def _open_xbox(self) -> bool: #vers 1
+        """Open Xbox GTA3/VC IMG — DIR+IMG pair, LZO-compressed entries.
+
+        The directory format is identical to PC Version 1 (32-byte entries,
+        2048-byte sectors).  Entry data is LZO-compressed; read_entry_data()
+        handles decompression transparently via _xbox_lzo_decompress_entry().
+        """
+        # Reuse the V1 directory parser — structure is identical
+        ok = self._open_version_1()
+        if ok:
+            self.platform = IMGPlatform.XBOX
+            # Mark all entries as potentially LZO-compressed
+            for entry in self.entries:
+                entry.compression_type = CompressionType.LZO
+        return ok
+
+    def _open_lcs(self) -> bool: #vers 1
+        """Open LCS Android / LCS iOS IMG.
+
+        LCS Android: VER2 header, 2048-byte sectors, TXD entries use RW
+          version 0x1005FFFF embedded directly in the IMG (no separate
+          mobile texture DB).  Parsed as VER2 with platform tag.
+
+        LCS iOS: 12-byte directory entries, 512-byte sectors, *_pvr.img
+          suffix.  Same binary layout as PS2_V1 / VERSION_1_IOS.
+        """
+        if self.version == IMGVersion.VERSION_LCS_IOS:
+            # Same 12-byte format as PS2_V1 / VERSION_1_IOS
+            try:
+                from apps.core.img_ps2_vcs import open_ps2_v1
+                result = open_ps2_v1(self.file_path)
+                if result.get('error'):
+                    return False
+                for e in result['entries']:
+                    entry = IMGEntry()
+                    entry.name        = e['name']
+                    entry.offset      = e['offset']
+                    entry.size        = e['size']
+                    entry.is_readonly = True
+                    self.entries.append(entry)
+                self.platform = IMGPlatform.IOS
+                return True
+            except Exception:
+                return False
+
+        # LCS Android — VER2 layout
+        ok = self._open_version_2()
+        if ok:
+            self.platform = IMGPlatform.ANDROID
+        return ok
+
     def _open_ps2(self) -> bool: #vers 5
         """Open PS2/PSP/iOS/Android/Bully/HXD archive - read-only."""
         try:
@@ -2231,11 +1973,22 @@ class IMGFile:
         except Exception:
             return False
 
-    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 2
+    def read_entry_data(self, entry: IMGEntry) -> bytes: #vers 3
         """Read data for a specific entry, transparently decompressing Xbox LZO if needed."""
         try:
-            if self.version == IMGVersion.VERSION_1:
-                img_path = self.file_path.replace('.dir', '.img')
+            # DIR+IMG pair formats: V1, V1_5, SOL, Xbox all use .dir + .img
+            if self.version in (IMGVersion.VERSION_1,
+                                IMGVersion.VERSION_1_5,
+                                IMGVersion.VERSION_SOL,
+                                IMGVersion.VERSION_XBOX):
+                # Resolve .img path from whatever we were opened with (.dir or .img)
+                fp = self.file_path
+                if fp.lower().endswith('.dir'):
+                    img_path = fp[:-4] + '.img'
+                    if not os.path.exists(img_path):
+                        img_path = fp[:-4] + '.IMG'
+                else:
+                    img_path = fp
                 with open(img_path, 'rb') as f:
                     f.seek(entry.offset)
                     data = f.read(entry.size)
@@ -2256,12 +2009,20 @@ class IMGFile:
         except Exception as e:
             raise RuntimeError(f"Failed to read entry data: {e}")
 
-    def write_entry_data(self, entry: IMGEntry, data: bytes): #vers 1
+    def write_entry_data(self, entry: IMGEntry, data: bytes): #vers 2
         """Write data for a specific entry"""
         try:
-            if self.version == IMGVersion.VERSION_1:
-                # Write to .img file
-                img_path = self.file_path.replace('.dir', '.img')
+            if self.version in (IMGVersion.VERSION_1,
+                                IMGVersion.VERSION_1_5,
+                                IMGVersion.VERSION_SOL,
+                                IMGVersion.VERSION_XBOX):
+                fp = self.file_path
+                if fp.lower().endswith('.dir'):
+                    img_path = fp[:-4] + '.img'
+                    if not os.path.exists(img_path):
+                        img_path = fp[:-4] + '.IMG'
+                else:
+                    img_path = fp
                 with open(img_path, 'r+b') as f:
                     f.seek(entry.offset)
                     f.write(data)

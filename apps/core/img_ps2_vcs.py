@@ -448,3 +448,53 @@ def open_hxd(file_path: str) -> dict: #vers 1
     except Exception as e:
         result['error'] = str(e)
     return result
+
+
+# ---------------------------------------------------------------------------
+# LCS Android detection helper
+# ---------------------------------------------------------------------------
+
+def detect_lcs_android(path: str) -> bool:  # vers 1
+    """Return True if file is an LCS Android IMG (VER2 header, TXD 0x1005FFFF).
+
+    Primary indicator: VER2 magic AND filename contains 'lcs' or 'liberty'.
+    Secondary: scan first few TXD entries for RW version 0x1005FFFF.
+    """
+    try:
+        if not path.lower().endswith('.img'):
+            return False
+        with open(path, 'rb') as f:
+            magic = f.read(4)
+        if magic != b'VER2':
+            return False
+        bn = os.path.basename(path).lower()
+        # Filename hint — fastest check
+        if any(k in bn for k in ('lcs', 'liberty')):
+            return True
+        # Scan first TXD entry for 0x1005FFFF RW version
+        with open(path, 'rb') as f:
+            f.seek(4)
+            entry_count = struct.unpack('<I', f.read(4))[0]
+            if entry_count < 1 or entry_count > 65535:
+                return False
+            for i in range(min(entry_count, 20)):
+                entry_data = f.read(32)
+                if len(entry_data) < 32:
+                    break
+                sec_off, sec_sz = struct.unpack('<II', entry_data[:8])
+                name_raw = entry_data[8:32]
+                name = name_raw.rstrip(b'\x00').decode('latin-1', errors='replace').lower()
+                if not name.endswith('.txd'):
+                    continue
+                byte_off = sec_off * 2048
+                f.seek(byte_off)
+                txd_hdr = f.read(8)
+                if len(txd_hdr) < 8:
+                    break
+                rw_ver = struct.unpack('<I', txd_hdr[4:8])[0]
+                if rw_ver == 0x1005FFFF:
+                    return True
+                f.seek(4 + (i + 1) * 32)  # back to directory
+    except Exception:
+        pass
+    return False
