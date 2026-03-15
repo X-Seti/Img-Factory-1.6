@@ -309,23 +309,23 @@ class IMGTablePopulator:
         except Exception:
             return "0 B"
 
-    def get_rw_address_light(self, entry: Any) -> str: #vers 3
-        """Get RW address - LIGHT processing, no file reading"""
+    def get_rw_address_light(self, entry: Any) -> str: #vers 4
+        """Get RW address — shows the raw RW version value as a hex address."""
         try:
+            from apps.methods.rw_versions import is_valid_rw_version
             entry_type = self.get_img_entry_type_simple(entry)
             if entry_type in ['DFF', 'TXD'] and hasattr(entry, 'size') and entry.size == 0:
                 return "Empty"
-            if hasattr(entry, 'rw_version') and entry.rw_version > 0:
-                return f"0x{entry.rw_version:08X}"
-            else:
-                if entry_type in ['DFF', 'TXD']:
-                    return "RW File"
-                else:
-                    return "N/A"
+            v = getattr(entry, 'rw_version', 0)
+            if v and is_valid_rw_version(v):
+                return f"0x{v:08X}"
+            if entry_type in ['DFF', 'TXD']:
+                return "N/A"
+            return "N/A"
         except Exception:
             return "N/A"
 
-    def get_rw_version_light(self, entry: Any) -> str: #vers 5
+    def get_rw_version_light(self, entry: Any) -> str: #vers 6
         """Get RW version - validates version is in known RW range before accepting"""
         try:
             from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version, parse_rw_version
@@ -339,10 +339,27 @@ class IMGTablePopulator:
                 if hasattr(entry, 'rw_version_name') and entry.rw_version_name not in ["Unknown", "", "N/A", "Error"]:
                     return entry.rw_version_name
                 return get_rw_version_name(entry.rw_version)
-            # Try to detect from cached data with multi-offset scan
+            # Try to detect from cached data or read first 16 bytes from IMG
             if entry_type in ['DFF', 'TXD']:
-                if hasattr(entry, '_cached_data') and entry._cached_data:
-                    data = entry._cached_data
+                data = getattr(entry, '_cached_data', None)
+                if not data and hasattr(entry, 'offset') and entry.size >= 12:
+                    try:
+                        import os as _os
+                        img_file = getattr(entry, '_img_file', None)
+                        # Resolve the actual data file (handles .dir -> .img)
+                        fp = getattr(img_file, 'file_path', None) if img_file else None
+                        if fp:
+                            if fp.lower().endswith('.dir'):
+                                for _ext in ('.img', '.IMG'):
+                                    _c = fp[:-4] + _ext
+                                    if _os.path.exists(_c):
+                                        fp = _c; break
+                            with open(fp, 'rb') as _f:
+                                _f.seek(entry.offset)
+                                data = _f.read(16)
+                    except Exception:
+                        pass
+                if data and len(data) >= 12:
                     for base in (0, 4, 8):
                         off = base + 8
                         if len(data) >= off + 4:

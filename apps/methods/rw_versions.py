@@ -168,11 +168,11 @@ def get_rw_version_name(version_value: int) -> str:  # vers 11
 
     return rw_versions.get(version_value, f"Unknown (0x{version_value:X})")
 
-def is_valid_rw_version(version_value: int) -> bool: #vers 5
+def is_valid_rw_version(version_value: int) -> bool: #vers 6
     """Check if value is a plausible RenderWare version number."""
     if not version_value:
         return False
-    # Plain early format: 0x300..0x3FF (GTA3 PC pre-packed, e.g. 0x304=3.0.4, 0x310=3.1.0)
+    # Plain early format: 0x300..0x3FF (GTA3 PS2 old-style, e.g. 0x310=3.1.0)
     if 0x300 <= version_value <= 0x3FF:
         return True
     # Old compact format: 3.0.0 .. 3.7.x (0x30000 - 0x3FFFF)
@@ -182,10 +182,20 @@ def is_valid_rw_version(version_value: int) -> bool: #vers 5
     # Covers 0x0401FFFF (early GTA3 TXD) through 0x1C03FFFF
     if (version_value & 0xFFFF) == 0xFFFF and 0x0400 <= (version_value >> 16) <= 0x1C03:
         return True
-    # SA Mobile special case
-    if version_value == 0x1C020037:
+    # Known named non-standard versions (SA mobile, Bully, etc.)
+    # Check against the get_rw_version_name dict directly
+    _named = {
+        0x1C020037,  # SA Mobile / PSP
+        0x1C02000A,  # Bully PS2/PC
+        0x1C020085,  # Bully variant
+        0x00000310, 0x00000300, 0x00000304,  # GTA3 PS2 plain-int
+        0x00000314, 0x00000320,              # VC PS2 plain-int
+    }
+    if version_value in _named:
         return True
-    return False
+    # Fallback: any version that has a named entry in rw_versions dict
+    # (covers future additions without needing to update this function)
+    return f"Unknown" not in get_rw_version_name(version_value)
 
 def get_default_version_for_game(game: str) -> int: #vers 2
     game_versions = {
