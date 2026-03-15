@@ -23,7 +23,9 @@ from apps.methods.imgfactory_svg_icons import (
     get_rebuild_icon, get_rebuild_all_icon, get_merge_icon, get_split_icon, get_convert_icon,
     get_import_via_icon, get_export_via_icon, get_dump_icon,
     get_remove_via_icon, get_select_all_icon, get_select_inverse_icon,
-    get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon
+    get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon,
+    get_hybrid_load_icon, get_scan_folder_icon,
+    get_recent_scans_icon, get_tba_icon
 )
 from apps.locals.localization import tr_button
 from typing import Optional, Dict, Any, List, Callable
@@ -463,9 +465,9 @@ class IMGFactoryGUILayout:
         return [
             ("Create",       "new",          "document-new",    colors['create_action'],  "create_new_img"),
             ("Open",         "open",         "document-open",   colors['open_action'],    "open_img_file"),
-            ("Hybrid Load",  "hybrid_load",  "document-open",   colors['open_action'],    "hybrid_load"),
-            ("Scan Folder",  "scan_folder",  "folder-open",     colors['open_action'],    "scan_img_folder"),
-            ("Recent Scans", "recent_scans", "folder-open",     colors['open_action'],    "scan_img_recent"),
+            ("Hybrid Load",  "hybrid_load",  "hybrid-load",     colors['open_action'],    "hybrid_load"),
+            ("Scan Folder",  "scan_folder",  "scan-folder",     colors['open_action'],    "scan_img_folder"),
+            ("Recent Scans", "recent_scans", "recent-scans",    colors['open_action'],    "scan_img_recent"),
             ("Reload",       "reload",       "document-reload", colors['reload_action'],  "reload_table"),
             ("Encrypt",      "encrypt",      "encrypt",         colors['build_action'],   "encrypt_img"),
             ("Close",        "close",        "window-close",    colors['close_action'],   "close_img_file"),
@@ -1262,26 +1264,30 @@ class IMGFactoryGUILayout:
             # Workshop editors
             "col-edit": get_col_workshop_icon,
             "txd-edit": get_txd_workshop_icon,
+            "hybrid-load": get_hybrid_load_icon,
+            "scan-folder": get_scan_folder_icon,
+            "recent-scans": get_recent_scans_icon,
+            "tba": get_tba_icon,
 
-            # Other editor buttons - generic
-            "dff-edit": get_edit_icon,      "ipf-edit": get_edit_icon,
+            # Other editor buttons - TBA where not yet implemented
+            "dff-edit": get_tba_icon,       "ipf-edit": get_tba_icon,
             "ide-edit": get_edit_icon,      "ipl-edit": get_edit_icon,
             "dat-edit": get_edit_icon,
-            "zones-cull": get_edit_icon,
-            "weap-edit": get_edit_icon,
-            "vehi-edit": get_edit_icon,
-            "peds-edit": get_edit_icon,
-            "radar-map": get_view_icon,
-            "paths-map": get_view_icon,
-            "timecyc": get_edit_icon,
-            "handling": get_edit_icon,
-            "ojs-breakble": get_edit_icon,
-            "scm-code": get_edit_icon,
-            "gxt-font": get_edit_icon,
-            "menu-font": get_edit_icon,
+            "zones-cull": get_tba_icon,
+            "weap-edit": get_tba_icon,
+            "vehi-edit": get_tba_icon,
+            "peds-edit": get_tba_icon,
+            "radar-map": get_tba_icon,
+            "paths-map": get_tba_icon,
+            "timecyc": get_tba_icon,
+            "handling": get_tba_icon,
+            "ojs-breakble": get_tba_icon,
+            "scm-code": get_tba_icon,
+            "gxt-font": get_tba_icon,
+            "menu-font": get_tba_icon,
         }
 
-        fn = icon_map.get(icon_name, get_edit_icon)
+        fn = icon_map.get(icon_name, get_tba_icon)
         if fn is None:
             return QIcon()
         stroke_color = "#222222" if not is_dark_theme else "#dddddd"

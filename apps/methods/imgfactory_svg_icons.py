@@ -3345,3 +3345,66 @@ def get_txd_workshop_icon(size: int = 24, color: str = None, bg_color: str = Non
         <path d="M6 6h2v2H6z" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.4"/>
         <path d="M16 16h2v2h-2z" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.4"/>
     </svg>''', size, color, bg_color)
+
+def get_hybrid_load_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Hybrid Load — IMG archive merged with COL shield, two overlapping documents"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Back document (COL) -->
+        <path d="M8 4h8l4 4v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"
+              stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-linecap="round" stroke-opacity="0.5"/>
+        <!-- Front document (IMG) -->
+        <path d="M4 7h8l3 3v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z"
+              stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <!-- Link/merge arrow -->
+        <path d="M13 12l2 2-2 2" stroke="currentColor" stroke-width="2"
+              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7 14h8" stroke="currentColor" stroke-width="2"
+              fill="none" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_scan_folder_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Scan Folder — folder with magnifying glass"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Folder body -->
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+              stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- Magnifying glass circle -->
+        <circle cx="14" cy="14" r="3.5" stroke="currentColor" stroke-width="2" fill="none"/>
+        <!-- Magnifying glass handle -->
+        <line x1="16.5" y1="16.5" x2="19.5" y2="19.5"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_recent_scans_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Recent Scans — folder with clock overlay"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Folder -->
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h3a2 2 0 0 1 2 2v2"
+              stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M3 9v9a2 2 0 0 0 2 2h7"
+              stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- Clock face -->
+        <circle cx="17" cy="17" r="5" stroke="currentColor" stroke-width="2" fill="none"/>
+        <!-- Clock hands -->
+        <path d="M17 14v3.5l2 1.5" stroke="currentColor" stroke-width="2"
+              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """TBA / Not Yet Implemented — dashed box with question mark"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Dashed border box -->
+        <rect x="3" y="3" width="18" height="18" rx="3"
+              stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-dasharray="3 2" opacity="0.55"/>
+        <!-- Question mark -->
+        <path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3.5"
+              stroke="currentColor" stroke-width="2.2" fill="none"
+              stroke-linecap="round"/>
+        <circle cx="12" cy="17" r="1.2" fill="currentColor" opacity="0.7"/>
+    </svg>''', size, color, bg_color)
+

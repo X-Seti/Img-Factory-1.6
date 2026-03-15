@@ -4260,13 +4260,12 @@ class IMGFactory(QMainWindow):
             if tab_widget:
                 tab_widget.file_object = img_file
                 tab_widget.file_type = 'IMG'
-                self.log_message(f"IMG stored on tab {current_index}")
+                self.log_message(f"IMG stored on tab {tab_index}")
 
-            # Get this tab's table
+            # Get this tab's table widget
             from PyQt6.QtWidgets import QTableWidget
 
-            table = getattr(tab_widget, 'table_ref', None) # create an error
-            # IMGFactory._populate_real_img_table() got an unexpected keyword argument 'table'
+            table = getattr(tab_widget, 'table_ref', None)
 
             if table is None and tab_widget:
                 tables = tab_widget.findChildren(QTableWidget)
@@ -4342,15 +4341,8 @@ class IMGFactory(QMainWindow):
             if hasattr(self.gui_layout, 'hide_progress'):
                 self.gui_layout.hide_progress()
 
-            self._loading_img_tab_index = None
-
         except Exception as e:
             self.log_message(f"Error in _on_img_loaded: {str(e)}")
-
-            if hasattr(self, '_on_img_load_error'):
-                self._on_img_load_error(str(e))
-                #import traceback
-                #traceback.print_exc()
 
 
     def _populate_img_table_widget(self, table, img_file): #vers 1
