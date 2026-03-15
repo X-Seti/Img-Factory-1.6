@@ -25,7 +25,8 @@ from apps.methods.imgfactory_svg_icons import (
     get_remove_via_icon, get_select_all_icon, get_select_inverse_icon,
     get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon,
     get_hybrid_load_icon, get_scan_folder_icon,
-    get_recent_scans_icon, get_tba_icon
+    get_recent_scans_icon, get_tba_icon,
+    get_dat_browser_icon, get_ide_editor_icon
 )
 from apps.locals.localization import tr_button
 from typing import Optional, Dict, Any, List, Callable
@@ -281,7 +282,7 @@ class IMGFactoryGUILayout:
             'edit_txd_file': lambda: edit_txd_file(self.main_window),
             'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
-            'edit_ide_file': lambda: (open_ide_editor(self.main_window),_register_tool_taskbar(self.main_window, 'ide', 'IDE', get_edit_icon, 'IDE Editor — item definition editor'))[-1],
+            'edit_ide_file': lambda: (open_ide_editor(self.main_window),_register_tool_taskbar(self.main_window, 'ide', 'IDE', get_ide_editor_icon, 'IDE Editor — item definition editor'))[-1],
             'edit_ipl_file': lambda: self._open_selected_text_file('.ipl'),
             'edit_dat_file': self._open_dat_browser,
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
@@ -317,7 +318,7 @@ class IMGFactoryGUILayout:
             show_dat_browser(self.main_window)
             from apps.methods.imgfactory_svg_icons import get_edit_icon
             _register_tool_taskbar(self.main_window, 'dat', 'DAT',
-                get_edit_icon, 'DAT Browser — game data editor')
+                get_dat_browser_icon, 'DAT Browser — game data editor')
         except Exception as e:
             self._log_missing_method('edit_dat_file')
 
@@ -1284,6 +1285,8 @@ class IMGFactoryGUILayout:
             "scan-folder": get_scan_folder_icon,
             "recent-scans": get_recent_scans_icon,
             "tba": get_tba_icon,
+            "dat-browser": get_dat_browser_icon,
+            "ide-editor": get_ide_editor_icon,
 
             # Other editor buttons - TBA where not yet implemented
             "dff-edit": get_tba_icon,       "ipf-edit": get_tba_icon,

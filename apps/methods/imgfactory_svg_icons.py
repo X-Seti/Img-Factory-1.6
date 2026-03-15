@@ -3408,3 +3408,43 @@ def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIc
         <circle cx="12" cy="17" r="1.2" fill="currentColor" opacity="0.7"/>
     </svg>''', size, color, bg_color)
 
+
+def get_dat_browser_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """DAT Browser — database table with rows"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Table outline -->
+        <rect x="3" y="4" width="18" height="16" rx="2"
+              stroke="currentColor" stroke-width="2" fill="none"/>
+        <!-- Header row divider -->
+        <line x1="3" y1="9" x2="21" y2="9"
+              stroke="currentColor" stroke-width="2"/>
+        <!-- Column divider -->
+        <line x1="10" y1="4" x2="10" y2="20"
+              stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+        <!-- Data rows -->
+        <line x1="3" y1="13" x2="21" y2="13"
+              stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+        <line x1="3" y1="17" x2="21" y2="17"
+              stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+        <!-- Header fill hint -->
+        <rect x="3" y="4" width="18" height="5" rx="2"
+              fill="currentColor" fill-opacity="0.12"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_ide_editor_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """IDE Editor — code file with tag brackets"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Document -->
+        <path d="M6 3h8l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+              stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- Fold corner -->
+        <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.8"
+              fill="none" stroke-linecap="round"/>
+        <!-- Code brackets  < > -->
+        <path d="M9 11l-2.5 2.5 2.5 2.5" stroke="currentColor" stroke-width="2"
+              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M15 11l2.5 2.5-2.5 2.5" stroke="currentColor" stroke-width="2"
+              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
