@@ -651,3 +651,126 @@ def detect_lcs_android(path: str) -> bool:  # vers 1
     except Exception:
         pass
     return False
+
+
+# ── iOS LVZ parser ────────────────────────────────────────────────────────────
+
+def detect_ios_lvz(path: str) -> bool:  #vers 1
+    """Return True if file is an iOS LCS/VCS LVZ (zlib-compressed, DLRW outer magic)."""
+    try:
+        if not path.lower().endswith('.lvz'):
+            return False
+        with open(path, 'rb') as f:
+            magic = f.read(2)
+        return magic[0] == 0x78 and magic[1] in (0xDA, 0x9C, 0x01, 0x5E)
+    except Exception:
+        return False
+
+
+def open_ios_lvz(file_path: str) -> dict:  #vers 1
+    """Parse iOS LCS/VCS LVZ streaming archive.
+
+    iOS LVZ structure (decompressed):
+      OUTER DLRW header [0x28 bytes]:
+        [00] "DLRW" magic
+        [08] total blob size
+        [0C] abs ptr to relocation table (array of offsets to L1 blocks)
+        [14] entry_count (outer world grid cells)
+
+      CELL TABLE at 0x28 (entry_count * 8 bytes):
+        [+0] L1_blob_offset — abs offset of Level-1 DLRW block (0=empty)
+        [+4] float_value (LOD/position hint)
+
+      LEVEL-1 DLRW block per non-empty grid cell:
+        [00] "DLRW"
+        [08] block_total_size
+        [14] sub_record_count
+
+      L2 RECORDS at L1+0x28 (sub_record_count * 0x20 bytes each):
+        [00..0B] geometry data ptrs (abs in blob)
+        [0C]     sector_count — number of 2048-byte sectors in companion .img
+        [10]     img_byte_offset — absolute byte position in companion .img
+        [14]     0
+        [18]     0x57524C44 "DLRW" sentinel (validates record)
+        [1C]     0
+
+    Returns same dict format as open_lvz().
+    """
+    import os, struct, zlib as _zlib
+
+    result = {"entries": [], "error": None, "format": "ios_lvz"}
+
+    try:
+        with open(file_path, 'rb') as f:
+            raw = f.read()
+        blob = _zlib.decompress(raw)
+    except Exception as e:
+        result["error"] = f"Decompress failed: {e}"
+        return result
+
+    if blob[:4] != b'DLRW':
+        result["error"] = f"Not DLRW: {blob[:4].hex()}"
+        return result
+
+    entry_count = struct.unpack_from('<I', blob, 0x14)[0]
+    if entry_count == 0 or entry_count > 100000:
+        result["error"] = f"Implausible entry_count {entry_count}"
+        return result
+
+    # Find companion .img
+    stem = os.path.splitext(file_path)[0]
+    companion_img = stem + '.img'
+    if not os.path.exists(companion_img):
+        companion_img = stem + '.IMG'
+    img_size = os.path.getsize(companion_img) if os.path.exists(companion_img) else 0
+    img_name = os.path.basename(companion_img)
+
+    SENTINEL = 0x57524C44  # "DLRW"
+    entries = []
+
+    for i in range(entry_count):
+        cell_off = 0x28 + i * 8
+        l1_ptr = struct.unpack_from('<I', blob, cell_off)[0]
+
+        if l1_ptr == 0 or l1_ptr + 0x28 >= len(blob):
+            continue
+        if blob[l1_ptr:l1_ptr+4] != b'DLRW':
+            continue
+
+        sub_count = struct.unpack_from('<I', blob, l1_ptr + 0x14)[0]
+        if sub_count == 0 or sub_count > 2000:
+            continue
+
+        for j in range(sub_count):
+            rec = l1_ptr + 0x28 + j * 0x20
+            if rec + 0x20 > len(blob):
+                break
+
+            sector_count = struct.unpack_from('<I', blob, rec + 0x0C)[0]
+            img_off      = struct.unpack_from('<I', blob, rec + 0x10)[0]
+            sentinel     = struct.unpack_from('<I', blob, rec + 0x18)[0]
+
+            if sentinel != SENTINEL:
+                continue
+            if img_off == 0 or (img_size and img_off >= img_size):
+                continue
+            if sector_count == 0 or sector_count > 8192:
+                continue
+
+            idx = len(entries)
+            entries.append({
+                "name":       f"stream_{idx:04d}.strm",
+                "offset":     img_off,
+                "size":       sector_count * 2048,
+                "cd_sector":  img_off // 2048,
+                "_source_ref": f"{img_name} @ sector {img_off // 2048}",
+                "_source_img": companion_img,
+                "_cell":      i,
+                "_sub":       j,
+            })
+
+    result["entries"] = entries
+    if not entries:
+        result["error"] = "No valid stream entries found"
+    return result
+
