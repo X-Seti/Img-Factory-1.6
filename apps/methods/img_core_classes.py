@@ -23,23 +23,34 @@ from apps.debug.debug_functions import img_debugger
 from apps.methods.populate_img_table import DragSelectTableWidget
 
 def _find_companion(base_path: str, new_ext: str) -> str:
-    """Find a companion file (.dir/.img) case-insensitively.
-    
-    Returns the path that exists, preferring lowercase, then uppercase,
-    then a directory scan for any case variant.  Returns '' if not found.
-    """
-    stem = base_path[:-4]  # strip existing extension
+    # Find companion file case-insensitively.
+    # Also handles LCS PS2: GTA3PS2.IMG <-> GTA3.DIR cross-stem pairs.
+    stem = base_path[:-4]
     for ext in (new_ext.lower(), new_ext.upper()):
         p = stem + ext
         if os.path.exists(p):
             return p
-    # Slow path: scan directory for any case variant
     try:
-        parent = os.path.dirname(base_path)
-        target = os.path.basename(stem) + new_ext.lower()
-        for name in os.listdir(parent):
+        parent  = os.path.dirname(base_path)
+        target  = (os.path.basename(stem) + new_ext).lower()
+        entries = os.listdir(parent)
+        for name in entries:
             if name.lower() == target:
                 return os.path.join(parent, name)
+        # Cross-stem: GTA3PS2.IMG <-> GTA3.DIR etc.
+        bn  = os.path.basename(base_path).lower()
+        exl = new_ext.lower()
+        CROSS = {
+            ('gta3ps2.img', '.dir'): 'gta3.dir',
+            ('gta3.img',    '.dir'): 'gta3ps2.dir',
+            ('gta3ps2.dir', '.img'): 'gta3.img',
+            ('gta3.dir',    '.img'): 'gta3ps2.img',
+        }
+        alt = CROSS.get((bn, exl))
+        if alt:
+            for name in entries:
+                if name.lower() == alt:
+                    return os.path.join(parent, name)
     except Exception:
         pass
     return ''

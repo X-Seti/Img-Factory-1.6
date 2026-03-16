@@ -356,9 +356,8 @@ def open_lvz(file_path: str) -> dict: #vers 2
             stream_idx += 1
 
         result['entries'] = entries
-        result['data_area_start']  = data_area_start
+        result['data_area_start']   = data_area_start
         result['nested_area_start'] = nested_area_start
-        result['cell_count'] = cell_count
 
     except zlib.error as e:
         result['error'] = f'zlib decompress failed: {e}'
