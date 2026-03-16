@@ -293,12 +293,44 @@ def _build_streaming_dir(blob: bytes, game: str) -> list:
     return entries
 
 
-def _build_mocap_dir(blob: bytes) -> list:
-    """Parse MOCAPPS2.DIR / cuts.dir from the blob."""
+def _build_mocap_dir(blob: bytes, dtz_path: str = '', game: str = 'VCS') -> list:
+    """Parse MOCAPPS2.DIR (VCS) or CUTS.DIR (LCS) from the blob.
+
+    VCS: MOCAPPS2.DIR data is in the blob, companion IMG at ./PS2/MOCAPPS2.IMG
+    LCS: CUTS.DIR data is in the blob, companion IMG at ./ANIM/CUTS.IMG
+    """
     entries = []
     dir_foff = _rptr(blob, RI_MOCAP_DIR)
     if not dir_foff or dir_foff >= len(blob):
         return entries
+
+    # Find the companion IMG file based on game and DTZ location
+    companion_img = ''
+    if dtz_path:
+        dtz_dir = os.path.dirname(dtz_path)
+        if game == 'LCS':
+            # LCS: CHK/PS2/GAME.DTZ → ANIM/CUTS.IMG (go up two levels)
+            disc_root = os.path.dirname(os.path.dirname(dtz_dir))
+            for candidate in ['ANIM/CUTS.IMG', 'anim/cuts.img', 'ANIM/CUTS.img']:
+                p = os.path.join(disc_root, candidate.replace('/', os.sep))
+                if os.path.exists(p):
+                    companion_img = p
+                    break
+        else:
+            # VCS: GAME.DTZ → PS2/MOCAPPS2.IMG (one level up is disc root)
+            disc_root = os.path.dirname(dtz_dir)
+            for candidate in ['PS2/MOCAPPS2.IMG', 'ps2/mocapps2.img']:
+                p = os.path.join(disc_root, candidate.replace('/', os.sep))
+                if os.path.exists(p):
+                    companion_img = p
+                    break
+            # Also try same folder
+            if not companion_img:
+                for name in ['MOCAPPS2.IMG', 'mocapps2.img']:
+                    p = os.path.join(dtz_dir, name)
+                    if os.path.exists(p):
+                        companion_img = p
+                        break
 
     idx = 0
     pos = dir_foff
@@ -312,13 +344,17 @@ def _build_mocap_dir(blob: bytes) -> list:
         name = name_raw.decode('ascii', errors='replace')
         if b'.' not in name_raw:
             break
-        entries.append({
-            'name':      name,
-            'offset':    sec_off * DIR_SECTOR_SZ,
-            'size':      sec_sz  * DIR_SECTOR_SZ,
-            'index':     idx,
-            'file_type': name.rsplit('.', 1)[-1].lower() if '.' in name else 'bin',
-        })
+        e = {
+            'name':        name,
+            'offset':      sec_off * DIR_SECTOR_SZ,
+            'size':        sec_sz  * DIR_SECTOR_SZ,
+            'index':       idx,
+            'file_type':   name.rsplit('.', 1)[-1].lower() if '.' in name else 'bin',
+            '_source_ref': f'{os.path.basename(companion_img)} @ sector {sec_off}' if companion_img else '',
+        }
+        if companion_img:
+            e['_source_img'] = companion_img
+        entries.append(e)
         idx += 1
         pos += 32
 
@@ -360,14 +396,25 @@ def open_dtz(path: str) -> dict:  #vers 4
         result['error'] = f'Unexpected magic {blob[:4].hex()} (expected GTAG)'
         return result
 
-    lower            = os.path.basename(path).lower()
+    lower              = os.path.basename(path).lower()
     result['platform'] = 'PSP' if 'psp' in lower else 'PS2'
-    game             = 'VCS'   # TODO: distinguish LCS when sample available
-    result['game']   = game
+
+    # Detect LCS vs VCS using disc layout helper
+    try:
+        from apps.core.lcs_vcs_disc_layout import find_disc_root
+        _disc_root, game = find_disc_root(path)
+        if not game:
+            _pp = path.replace('\\', '/').lower().split('/')
+            game = 'LCS' if 'chk' in _pp else 'VCS'
+    except Exception:
+        _pp = path.replace('\\', '/').lower().split('/')
+        game = 'LCS' if 'chk' in _pp else 'VCS'
+
+    result['game']    = game
     result['version'] = f'DTZ_{game}'
 
     result['entries']       = _build_streaming_dir(blob, game)
-    result['mocap_entries'] = _build_mocap_dir(blob)
+    result['mocap_entries'] = _build_mocap_dir(blob, path, game)
 
     if not result['entries'] and not result['mocap_entries']:
         result['error'] = 'No entries found in GAME.DTZ'

@@ -165,6 +165,7 @@ class FileType(Enum):
     DAT = "dat"         # Data files
     WAV = "wav"         # Audio files
     STRM = "strm"       # PS2/PSP LVZ streaming cell (raw geometry)
+    CHK  = "chk"        # LCS PS2 texture archive (same format as XTX)
     UNKNOWN = "unknown"
         # Aliases for backwards compatibility
     dff = DFF           # Lowercase alias
@@ -175,6 +176,7 @@ class FileType(Enum):
     dat = DAT           # Lowercase alias
     wav = WAV           # Lowercase alias
     strm = STRM         # Lowercase alias
+    chk  = CHK          # Lowercase alias
     unknown = UNKNOWN   # Lowercase alias
 
     # Legacy alias
@@ -621,6 +623,8 @@ class IMGEntry:
                 self.file_type = FileType.WAV
             elif ext_lower in ('strm',):
                 self.file_type = FileType.STRM
+            elif ext_lower in ('chk',):
+                self.file_type = FileType.CHK
             else:
                 self.file_type = FileType.UNKNOWN
 
