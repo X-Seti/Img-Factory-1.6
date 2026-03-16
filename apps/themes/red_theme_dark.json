@@ -1,7 +1,7 @@
 {
   "name": "red_theme_dark",
   "description": "Custom theme created from Red_Theme_dark",
-  "category": "🎭 Custom",
+  "category": "\ud83c\udfad Custom",
   "author": "User",
   "version": "1.0",
   "colors": {
@@ -9,8 +9,8 @@
     "bg_secondary": "#240001",
     "bg_tertiary": "#1f0001",
     "panel_bg": "#330001",
-    "accent_primary": "#4b1635",
-    "accent_secondary": "#60243e",
+    "accent_primary": "#c0392b",
+    "accent_secondary": "#a93226",
     "text_primary": "#bcdcc2",
     "text_secondary": "#946767",
     "text_accent": "#eb0000",
