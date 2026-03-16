@@ -5538,10 +5538,16 @@ class IMGFactory(QMainWindow):
             hover = colors.get('button_hover',   '#e0e0e0')
             brd   = colors.get('border',         '#cccccc')
 
-            # Apply to tabBar() directly — wins over global QApplication QSS
-            tab_bar = self.main_tab_widget.tabBar()
-            tab_bar.setStyleSheet(f"""
-                QTabBar::tab {{
+            # Single stylesheet on QTabWidget — includes both tab bar AND pane rules.
+            # Must be ONE call; a second setStyleSheet() call resets the first.
+            # Using QTabWidget QTabBar::tab (child selector) keeps specificity
+            # high enough to beat the global QApplication stylesheet.
+            self.main_tab_widget.setStyleSheet(f"""
+                QTabWidget::pane {{
+                    border-top: 1px solid {brd};
+                    margin-top: 0px;
+                }}
+                QTabWidget > QTabBar::tab {{
                     background-color: {bg_s};
                     border: 1px solid {brd};
                     border-bottom: 3px solid transparent;
@@ -5550,23 +5556,16 @@ class IMGFactory(QMainWindow):
                     margin-bottom: 0px;
                     margin-right: 2px;
                 }}
-                QTabBar::tab:selected {{
+                QTabWidget > QTabBar::tab:selected {{
                     background-color: {bg_p};
                     color: {txt_p};
                     border-bottom: 3px solid {acc};
                     font-weight: bold;
                 }}
-                QTabBar::tab:hover:!selected {{
+                QTabWidget > QTabBar::tab:hover:!selected {{
                     background-color: {hover};
                     color: {txt_p};
                     border-bottom: 3px solid {acc2};
-                }}
-            """)
-            # Pane border on the QTabWidget itself
-            self.main_tab_widget.setStyleSheet(f"""
-                QTabWidget::pane {{
-                    border-top: 1px solid {brd};
-                    margin-top: 0px;
                 }}
             """)
             self._apply_tab_content_mode()

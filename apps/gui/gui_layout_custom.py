@@ -258,80 +258,136 @@ class ToolTaskbar(QWidget):  # vers 2
             btn.setIconSize(QSize(16, 16))
             btn.setText(info["label"])
 
-    def _context_menu(self, key: str, pos) -> None:
-        """Right-click context menu for a taskbar button."""
+    def _close_tool(self, key: str) -> None:
+        """Close a tool and unregister its taskbar button."""
+        mw = self._main_window
+        t  = self._tools.get(key, {}).get("target")
+        if key == "dirtree":
+            gl = getattr(mw, "gui_layout", None)
+            splitter = getattr(gl, "content_splitter", None) if gl else None
+            if splitter and splitter.count() >= 2:
+                total = sum(splitter.sizes()) or 10000
+                splitter.setSizes([total, 0])
+            if hasattr(mw, '_dirtree_state'):
+                mw._dirtree_state = 0
+        elif isinstance(t, QWidget):
+            try:
+                _ = t.isVisible()
+                tw = getattr(mw, "main_tab_widget", None)
+                if tw:
+                    for i in range(tw.count()):
+                        try:
+                            if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                                tw.removeTab(i)
+                                break
+                        except RuntimeError:
+                            continue
+                    else:
+                        t.close()
+                else:
+                    t.close()
+            except RuntimeError:
+                pass
+        self.unregister(key)
+
+    def _show_submenu(self, key: str, parent_menu) -> 'QMenu':
+        """Build the Show (icon/text/both) submenu for any button."""
         from PyQt6.QtWidgets import QMenu
-        from PyQt6.QtGui import QAction, QIcon
+        from PyQt6.QtGui import QAction
+        show_menu = QMenu("Show", parent_menu)
+        current = self._tools.get(key, {}).get("display_mode", "both")
+        for mk, ml in (("both","Icons and Text"),("icon","Icons Only"),("text","Text Only")):
+            a = QAction(ml, show_menu)
+            a.setCheckable(True)
+            a.setChecked(current == mk)
+            a.triggered.connect(lambda _=False, k=key, m=mk: self._set_display_mode(k, m))
+            show_menu.addAction(a)
+        return show_menu
+
+    def _context_menu(self, key: str, pos) -> None:
+        """Per-tool right-click context menu."""
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction
         info = self._tools.get(key)
         if not info:
             return
-
+        mw  = self._main_window
+        lbl = info["label"]
         menu = QMenu(self)
-        menu.setTitle(info["label"])
 
-        # ── Open ──────────────────────────────────────────────────────────────
-        open_act = QAction(f"Open  {info['label']}", menu)
-        open_act.triggered.connect(
-            lambda checked=False, k=key: self._open_tool(k))
-        menu.addAction(open_act)
+        def _act(text, fn):
+            a = QAction(text, menu)
+            a.triggered.connect(lambda _=False: fn())
+            menu.addAction(a)
 
-        menu.addSeparator()
+        # ── DAT: Close, Show ──────────────────────────────────────────────────
+        if key == "dat":
+            _act(f"Show  {lbl}", lambda k=key: self._open_tool(k))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        # ── Show submenu ──────────────────────────────────────────────────────
-        show_menu = QMenu("Show", menu)
-        current_mode = info.get("display_mode", "both")
+        # ── Dir tree: Close, Show ─────────────────────────────────────────────
+        elif key == "dirtree":
+            _act(f"Show  {lbl}", lambda k=key: self._open_tool(k))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        for mode_key, mode_label in (("both", "Icons and Text"),
-                                      ("icon", "Icons Only"),
-                                      ("text", "Text Only")):
-            act = QAction(mode_label, show_menu)
-            act.setCheckable(True)
-            act.setChecked(current_mode == mode_key)
-            act.triggered.connect(
-                lambda checked=False, k=key, m=mode_key: self._set_display_mode(k, m))
-            show_menu.addAction(act)
+        # ── TXD: Open, Save, Close, Show ─────────────────────────────────────
+        elif key == "txd":
+            _act("Open TXD Workshop", lambda: getattr(mw,'open_txd_workshop_docked',lambda:None)())
+            _act("Save", lambda: self._tool_action(key, 'save'))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        menu.addMenu(show_menu)
+        # ── COL: Open in Filelist, Open in Workshop, Save, Close, Show ───────
+        elif key == "col":
+            _act("Open in file list", lambda: self._tool_action(key, 'open_in_filelist'))
+            _act("Open in COL Workshop", lambda: getattr(mw,'open_col_workshop_docked',lambda:None)())
+            _act("Save", lambda: self._tool_action(key, 'save'))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        menu.addSeparator()
-
-        # ── Close ─────────────────────────────────────────────────────────────
-        close_act = QAction(f"Close  {info['label']}", menu)
-        def _close(k=key):
-            t = self._tools.get(k, {}).get("target")
-            if k == "dirtree":
-                mw = self._main_window
-                gl = getattr(mw, "gui_layout", None)
-                splitter = getattr(gl, "content_splitter", None) if gl else None
-                if splitter and splitter.count() >= 2:
-                    total = sum(splitter.sizes()) or 10000
-                    splitter.setSizes([total, 0])
-                if hasattr(mw, '_dirtree_state'):
-                    mw._dirtree_state = 0
-            elif isinstance(t, QWidget):
-                try:
-                    _ = t.isVisible()
-                    mw = self._main_window
-                    tw = getattr(mw, "main_tab_widget", None)
-                    if tw:
-                        for i in range(tw.count()):
-                            try:
-                                if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
-                                    tw.removeTab(i)
-                                    break
-                            except RuntimeError:
-                                continue
-                        else:
-                            t.close()
-                    else:
-                        t.close()
-                except RuntimeError:
-                    pass
-            self.unregister(k)
-        close_act.triggered.connect(_close)
-        menu.addAction(close_act)
+        # ── Default: generic Open, Show, Close ───────────────────────────────
+        else:
+            _act(f"Open  {lbl}", lambda k=key: self._open_tool(k))
+            menu.addMenu(self._show_submenu(key, menu))
+            menu.addSeparator()
+            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
         menu.exec(self.mapToGlobal(pos))
+
+    def _tool_action(self, key: str, action: str) -> None:
+        """Dispatch tool-specific actions like save/open_in_filelist."""
+        mw = self._main_window
+        t  = self._tools.get(key, {}).get("target")
+        if action == 'save':
+            # Try common save method names on the target widget
+            for name in ('save_file', 'save', '_save_file', 'save_current'):
+                if t and hasattr(t, name):
+                    getattr(t, name)()
+                    return
+            # Try on child workshops
+            if t:
+                for child in t.findChildren(QWidget):
+                    for name in ('save_file', 'save', '_save_file'):
+                        if hasattr(child, name):
+                            getattr(child, name)()
+                            return
+        elif action == 'open_in_filelist':
+            # For COL — switch main_tab_widget to show the COL file list tab
+            tw = getattr(mw, 'main_tab_widget', None)
+            if tw and t:
+                for i in range(tw.count()):
+                    try:
+                        if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                            tw.setCurrentIndex(i)
+                            return
+                    except RuntimeError:
+                        continue
 
     # ── Public API ────────────────────────────────────────────────────────────
 

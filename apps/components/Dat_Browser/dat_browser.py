@@ -81,7 +81,10 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── UI construction ────────────────────────────────────────────────────
 
-    def _setup_ui(self): #vers 1
+    def _setup_ui(self): #vers 2
+        # Ensure opaque background so tab contents don't bleed through
+        self.setAutoFillBackground(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
