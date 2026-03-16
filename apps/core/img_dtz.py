@@ -1,203 +1,196 @@
-#this belongs in apps/core/img_dtz.py - Version: 1
+#this belongs in apps/core/img_dtz.py - Version: 2
 # X-Seti - March 2026 - IMG Factory 1.6 - GAME.DTZ support for LCS/VCS PS2/PSP
 """
-GAME.DTZ parser for GTA Liberty City Stories and Vice City Stories (PS2/PSP).
+GAME.DTZ (DaTa Zlib) parser for GTA Liberty City Stories and Vice City Stories.
 
-GAME.DTZ (DaTa Zlib) is the main compressed data container for LCS/VCS.
-It contains the CDImage directory (GTA3PS2.DIR), textures, models, IDE, IPL etc.
+GAME.DTZ is the main compressed data container on PS2/PSP.
+It is zlib-compressed and contains:
+  - IDE, IPL, handling, weapons, pedestrian and particle data
+  - MOCAPPS2.DIR — cutscene animation directory (147 entries)
+  - Binary game data (reloc'd pointers, compiled tables)
 
-Format:
-  - Entire file is zlib-compressed (deflate, max compression)
-  - Decompressed blob starts with a Relocatable Chunk header (sChunkHeader, 28 bytes)
-  - VCS PS2 header layout documented at:
-    https://gtamods.com/wiki/Game.dtz
+It does NOT contain the main streaming assets (GTA3.IMG/BEACH.IMG etc).
+Those are in separate files: GTA3.DIR+GTA3.IMG (LCS) or BEACH/MAINLA/MALL+.LVZ (VCS).
+
+Blob structure:
+  - 'GATG' magic at byte 0 (both LCS and VCS PS2)
+  - sChunkHeader (28 bytes): ident, shrink, fileEnd, dataEnd, relocTab, numRelocs,
+    globalTab, numClasses, numFuncs
+  - ALL pointer values in the header are VIRTUAL ADDRESSES = file_offset + load_base
+  - header[0xCC] → MOCAPPS2.DIR (147 cutscene entries, verified against standalone file)
+  - The load_base = header[0xCC] - actual_blob_offset_of_mocapps2_dir
+
+What to show in IMG Factory:
+  - Present GAME.DTZ as a read-only archive with the MOCAPPS2 entries
+  - Each entry maps to MOCAPPS2.IMG (not to the DTZ itself)
 
 References:
-  guard3/g3DTZ  — extraction utility (C++, MIT)
-  GTAMods wiki  — format documentation
-  GTAForums thread #908702 — guard3's workshop
-
-Methods:
-  detect_dtz(path)        → bool
-  open_dtz(path)          → dict  { version, game, platform, entries, raw_dir, error }
-  decompress_dtz(path)    → bytes | None   (raw decompressed blob)
+  guard3/g3DTZ — C++ extraction utility (MIT)
+  GTAMods wiki  — https://gtamods.com/wiki/Game.dtz
+  Sample analysis — March 2026, GAME.DTZ from VCS PS2 disc
 """
 
 import os
 import struct
 import zlib
 
-DTZ_SECTOR   = 2048   # CDImage sector size (same as PC .img)
-PS2_SECTOR   = 2048   # same thing, but DTZ uses 2048-byte sectors for its DIR
+# DTZ blob magic
+GATG_MAGIC = b'GATG'     # Both LCS and VCS PS2
 
-# Relocatable Chunk header - same for LCS and VCS
-# struct base::sChunkHeader { uint32[9], uint16, uint16 }  = 28 bytes + padding to 32
-CHUNK_HEADER_SIZE = 28
+# sChunkHeader offsets (all LE)
+HDR_IDENT    = 0x00   # uint32 'GATG'
+HDR_SHRINK   = 0x04   # uint32 1 = reloc applied
+HDR_FILE_END = 0x08   # uint32 virtual address of file end
+HDR_DATA_END = 0x0C   # uint32 virtual address of data end
+HDR_RELOC    = 0x10   # uint32 virtual address of reloc table
+HDR_NRELOCS  = 0x14   # uint32 number of relocs
+HDR_GLOBAL   = 0x18   # uint32 virtual address of global table
+HDR_NCLASSES = 0x1C   # uint16 number of classes
+HDR_NFUNCS   = 0x1E   # uint16 number of functions
 
-# VCS PS2 decompressed header offsets (all LE uint32 unless noted)
-VCS_OFF_DIR          = 0x7C   # offset to GTA3PS2.DIR data inside decompressed blob
-VCS_OFF_MOCAP_DIR    = 0xCC   # offset to MOCAPPS2.DIR
-VCS_OFF_CUTSCENE_DIR = 0x7C   # same offset — guard3 confirms cutscene DIR at 0x7C
-VCS_OFF_IDE_COUNT    = 0x38   # number of entries in IDE table
-VCS_OFF_IDE_TABLE    = 0x3C   # offset to IDE offset table
+# Pointer to MOCAPPS2.DIR inside the blob (virtual address, needs base subtraction)
+HDR_MOCAP_DIR_PTR = 0xCC   # confirmed from sample analysis
 
-# LCS decompressed header offset for DIR (empirical — wiki stub, verified via g3DTZ source)
-LCS_OFF_DIR = 0x68            # guard3's g3DTZ uses offset 0x68 for LCS DIR
-
-# GTA3PS2.DIR entry: 4b offset_sectors + 4b size_sectors + 24b name
-DIR_ENTRY_SIZE = 32
+# DIR entry format: same as V1 PC/PS2 (2048-byte sectors)
+DIR_ENTRY_SIZE  = 32
+DIR_SECTOR_SIZE = 2048   # MOCAPPS2 uses 2048-byte sectors (verified: 15827*2048 = file size)
 
 
-def detect_dtz(path: str) -> bool:  #vers 1
-    """Return True if the file is a GAME.DTZ (zlib-compressed LCS/VCS container)."""
+def detect_dtz(path: str) -> bool:  #vers 2
+    """Return True if file is a GAME.DTZ (zlib-compressed LCS/VCS container)."""
     try:
         if not path.lower().endswith('.dtz'):
             return False
-        if os.path.getsize(path) < 8:
+        if os.path.getsize(path) < 16:
             return False
         with open(path, 'rb') as f:
-            magic = f.read(2)
-        # zlib deflate magic bytes: 0x78 0xDA (best compression, used by DTZ)
-        # Also accept 0x78 0x9C (default) and 0x78 0x01 (low compression)
-        return magic[0] == 0x78 and magic[1] in (0xDA, 0x9C, 0x01, 0x5E)
+            magic2 = f.read(2)
+        # zlib deflate magic bytes
+        return magic2[0] == 0x78 and magic2[1] in (0xDA, 0x9C, 0x01, 0x5E)
     except Exception:
         return False
 
 
-def decompress_dtz(path: str) -> bytes | None:  #vers 1
-    """Decompress GAME.DTZ and return the raw decompressed blob, or None on error."""
+def decompress_dtz(path: str) -> bytes | None:  #vers 2
+    """Decompress GAME.DTZ and return the raw blob, or None on error."""
     try:
         with open(path, 'rb') as f:
-            compressed = f.read()
-        return zlib.decompress(compressed)
+            data = f.read()
+        return zlib.decompress(data)
     except zlib.error:
-        # Try with wbits=-15 (raw deflate, no header)
         try:
             with open(path, 'rb') as f:
-                compressed = f.read()
-            return zlib.decompress(compressed, -15)
+                data = f.read()
+            return zlib.decompress(data, -15)
         except Exception:
             return None
     except Exception:
         return None
 
 
-def _parse_dir_entries(blob: bytes, dir_offset: int, file_label: str = '') -> list:
-    """Parse a GTA3PS2.DIR block from the decompressed DTZ blob.
+def _find_mocap_dir(blob: bytes) -> tuple[int, int] | tuple[None, None]:
+    """Locate MOCAPPS2.DIR in the blob.
 
-    DIR entries are 32 bytes each:
-      [0:4]  sector offset (multiply by DTZ_SECTOR for byte offset into DTZ data)
-      [4:8]  sector size
-      [8:32] null-terminated filename
+    The header at offset 0xCC holds the VIRTUAL ADDRESS of the dir data.
+    Virtual address = blob_offset + load_base.
+    We find load_base by scanning for the actual dir data, then back-compute.
+
+    Returns (blob_offset, load_base) or (None, None).
     """
+    if len(blob) < HDR_MOCAP_DIR_PTR + 4:
+        return None, None
+
+    vptr = struct.unpack_from('<I', blob, HDR_MOCAP_DIR_PTR)[0]
+    if vptr == 0:
+        return None, None
+
+    # Scan blob for a contiguous run of valid DIR entries (min 10)
+    # DIR entry: sec_off[4] + sec_sz[4] + name[24] (printable ASCII + null-padded)
+    best_pos = None
+    best_count = 0
+
+    pos = 0
+    while pos + 320 <= len(blob):
+        count = 0
+        p = pos
+        while p + DIR_ENTRY_SIZE <= len(blob):
+            chunk = blob[p:p + DIR_ENTRY_SIZE]
+            sec_off = struct.unpack_from('<I', chunk, 0)[0]
+            sec_sz  = struct.unpack_from('<I', chunk, 4)[0]
+            name_raw = chunk[8:32].split(b'\x00')[0]
+            if (name_raw and len(name_raw) >= 4 and
+                    all(0x20 <= b < 0x7F for b in name_raw) and
+                    b'.' in name_raw and 0 < sec_sz < 50000):
+                count += 1
+                p += DIR_ENTRY_SIZE
+            else:
+                break
+        if count > best_count:
+            best_count = count
+            best_pos = pos
+        pos += 4
+
+    if best_pos is None or best_count < 5:
+        return None, None
+
+    load_base = vptr - best_pos
+    return best_pos, load_base
+
+
+def _parse_dir(blob: bytes, dir_offset: int, count_hint: int = 0) -> list:
+    """Parse DIR entries from the blob at dir_offset."""
     entries = []
     pos = dir_offset
     idx = 0
-    blob_len = len(blob)
-
-    while pos + DIR_ENTRY_SIZE <= blob_len:
+    while pos + DIR_ENTRY_SIZE <= len(blob):
         chunk = blob[pos:pos + DIR_ENTRY_SIZE]
-
-        # Stop at all-zero sentinel
         if chunk == b'\x00' * DIR_ENTRY_SIZE:
             break
-
-        sec_off  = struct.unpack_from('<I', chunk, 0)[0]
-        sec_sz   = struct.unpack_from('<I', chunk, 4)[0]
-
-        # Null-terminated name in bytes 8..31
-        name_raw = chunk[8:32]
-        name = name_raw.split(b'\x00')[0].decode('ascii', errors='replace').strip()
-
-        # Sanity checks
-        if not name or sec_off == 0 and sec_sz == 0:
-            pos += DIR_ENTRY_SIZE
-            idx += 1
-            continue
-        # Name must be printable ASCII
-        if not all(0x20 <= ord(c) < 0x7F for c in name):
+        sec_off = struct.unpack_from('<I', chunk, 0)[0]
+        sec_sz  = struct.unpack_from('<I', chunk, 4)[0]
+        name_raw = chunk[8:32].split(b'\x00')[0]
+        if not name_raw or not all(0x20 <= b < 0x7F for b in name_raw):
             break
-
-        byte_off = sec_off * DTZ_SECTOR
-        byte_sz  = sec_sz  * DTZ_SECTOR
-
+        name = name_raw.decode('ascii', errors='replace')
         entries.append({
             'name':   name,
-            'offset': byte_off,
-            'size':   byte_sz,
+            'offset': sec_off * DIR_SECTOR_SIZE,
+            'size':   sec_sz  * DIR_SECTOR_SIZE,
             'index':  idx,
+            'source': 'MOCAPPS2.IMG',   # entries reference MOCAPPS2.IMG
         })
-        idx  += 1
-        pos  += DIR_ENTRY_SIZE
-
+        idx += 1
+        pos += DIR_ENTRY_SIZE
+        if count_hint and idx >= count_hint:
+            break
     return entries
 
 
-def _detect_game_from_blob(blob: bytes) -> str:
-    """Heuristically identify LCS vs VCS from the decompressed blob."""
-    # VCS has font data pointer at 0xF4; LCS does not (stub in wiki)
-    # More reliable: check ident field of sChunkHeader
-    # ident values are game-specific magic numbers
-    if len(blob) < 8:
-        return 'UNKNOWN'
-    ident = struct.unpack_from('<I', blob, 0)[0]
-    # Known ident values from g3DTZ configurations:
-    #   LCS PS2:  0x4C435332  ('LCS2' or similar)
-    #   VCS PS2:  0x56435332  ('VCS2' or similar)
-    # Fallback: use header offsets to probe for valid data
-    if len(blob) > VCS_OFF_DIR + 4:
-        vcs_dir_off = struct.unpack_from('<I', blob, VCS_OFF_DIR)[0]
-        if 0 < vcs_dir_off < len(blob) - DIR_ENTRY_SIZE:
-            # Check if there's a valid-looking DIR entry at that offset
-            test = blob[vcs_dir_off:vcs_dir_off + DIR_ENTRY_SIZE]
-            if len(test) == DIR_ENTRY_SIZE:
-                name_raw = test[8:32].split(b'\x00')[0]
-                if name_raw and all(0x20 <= b < 0x7F for b in name_raw):
-                    return 'VCS'
-    # Try LCS offset
-    if len(blob) > LCS_OFF_DIR + 4:
-        lcs_dir_off = struct.unpack_from('<I', blob, LCS_OFF_DIR)[0]
-        if 0 < lcs_dir_off < len(blob) - DIR_ENTRY_SIZE:
-            test = blob[lcs_dir_off:lcs_dir_off + DIR_ENTRY_SIZE]
-            if len(test) == DIR_ENTRY_SIZE:
-                name_raw = test[8:32].split(b'\x00')[0]
-                if name_raw and all(0x20 <= b < 0x7F for b in name_raw):
-                    return 'LCS'
-    return 'UNKNOWN'
-
-
-def _detect_platform_from_blob(blob: bytes, path: str) -> str:
-    """Detect PS2 vs PSP from filename and/or blob content."""
-    lower = os.path.basename(path).lower()
-    if 'psp' in lower:
-        return 'PSP'
-    # PSP builds have SFX.SDT data; no reliable header-level distinction
-    # Default to PS2 — user can correct in the UI if needed
-    return 'PS2'
-
-
-def open_dtz(path: str) -> dict:  #vers 1
+def open_dtz(path: str) -> dict:  #vers 2
     """Decompress and parse a GAME.DTZ file.
+
+    Returns entries from MOCAPPS2.DIR (cutscene animations).
+    Each entry's offset/size refers to MOCAPPS2.IMG in the same directory.
 
     Returns:
       {
-        'version':  'DTZ_VCS' | 'DTZ_LCS' | 'DTZ_UNKNOWN',
-        'game':     'VCS' | 'LCS' | 'UNKNOWN',
-        'platform': 'PS2' | 'PSP',
-        'entries':  [ { name, offset, size, index }, ... ],
-        'raw_dir':  bytes | None,   # raw GTA3PS2.DIR bytes from blob
-        'blob':     bytes | None,   # full decompressed blob (may be large)
-        'error':    str | None,
+        'version':   'DTZ_VCS' | 'DTZ_LCS' | 'DTZ_UNKNOWN',
+        'game':      'VCS' | 'LCS' | 'UNKNOWN',
+        'platform':  'PS2' | 'PSP',
+        'entries':   [ {name, offset, size, index, source}, ... ],
+        'blob':      bytes | None,
+        'load_base': int | None,
+        'error':     str | None,
       }
     """
     result = {
-        'version':  'DTZ_UNKNOWN',
-        'game':     'UNKNOWN',
-        'platform': 'PS2',
-        'entries':  [],
-        'raw_dir':  None,
-        'blob':     None,
-        'error':    None,
+        'version':   'DTZ_UNKNOWN',
+        'game':      'UNKNOWN',
+        'platform':  'PS2',
+        'entries':   [],
+        'blob':      None,
+        'load_base': None,
+        'error':     None,
     }
 
     blob = decompress_dtz(path)
@@ -206,36 +199,40 @@ def open_dtz(path: str) -> dict:  #vers 1
         return result
 
     result['blob'] = blob
-    blob_len = len(blob)
 
-    # Detect game (VCS or LCS)
-    game = _detect_game_from_blob(blob)
-    result['game']     = game
-    result['platform'] = _detect_platform_from_blob(blob, path)
-    result['version']  = f'DTZ_{game}'
-
-    # Find the CDImage directory offset
-    dir_header_off = VCS_OFF_DIR if game == 'VCS' else LCS_OFF_DIR
-
-    if blob_len <= dir_header_off + 4:
-        result['error'] = f'Blob too small for {game} header ({blob_len} bytes)'
+    # Verify GATG magic
+    if blob[:4] != GATG_MAGIC:
+        result['error'] = f'Unexpected magic {blob[:4].hex()} (expected GATG/47415447)'
         return result
 
-    dir_data_off = struct.unpack_from('<I', blob, dir_header_off)[0]
+    # Game detection — both LCS and VCS use GATG, differentiate by ident value
+    ident = struct.unpack_from('<I', blob, 0)[0]
+    # 0x47544147 = 'GATG' in both; we'll use 'UNKNOWN' for now until we find
+    # a reliable LCS vs VCS discriminator in the header
+    result['game'] = 'UNKNOWN'
+    result['version'] = 'DTZ_UNKNOWN'
 
-    if dir_data_off == 0 or dir_data_off >= blob_len:
-        result['error'] = f'Invalid DIR offset 0x{dir_data_off:X} in {game} header'
+    # Platform from filename
+    lower = os.path.basename(path).lower()
+    result['platform'] = 'PSP' if 'psp' in lower else 'PS2'
+
+    # Locate MOCAPPS2.DIR
+    dir_offset, load_base = _find_mocap_dir(blob)
+    if dir_offset is None:
+        result['error'] = 'Could not locate MOCAPPS2.DIR in blob'
         return result
 
-    # Extract raw DIR bytes (up to 64 KB should cover any realistic directory)
-    dir_raw_limit = min(blob_len - dir_data_off, 65536)
-    result['raw_dir'] = blob[dir_data_off:dir_data_off + dir_raw_limit]
+    result['load_base'] = load_base
 
     # Parse entries
-    entries = _parse_dir_entries(blob, dir_data_off)
+    entries = _parse_dir(blob, dir_offset)
     if not entries:
-        result['error'] = f'No DIR entries found at blob offset 0x{dir_data_off:X}'
+        result['error'] = 'No entries found in MOCAPPS2.DIR'
+        return result
+
     result['entries'] = entries
+    result['version'] = 'DTZ_VCS'   # default; refine when LCS discriminator found
+    result['game']    = 'VCS'
 
     return result
 

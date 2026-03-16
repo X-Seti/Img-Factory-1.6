@@ -1618,6 +1618,20 @@ class IMGFile:
                                 self.version  = IMGVersion.VERSION_1_IOS
                                 self.platform = IMGPlatform.IOS
                                 return IMGVersion.VERSION_1_IOS
+                            # Before treating as PS2_V1, check if a companion .lvz
+                            # exists — if so this is a streaming segment (BEACH.IMG etc.)
+                            # paired with a DLRW .LVZ index, not a standalone archive
+                            _companion_lvz = _find_companion(self.file_path, '.lvz')
+                            if _companion_lvz:
+                                self._streaming_segment_error = (
+                                    f"{os.path.basename(self.file_path)} is a streaming data file.\n\n"
+                                    "This file is raw streaming asset data indexed by a companion\n"
+                                    f"{os.path.basename(_companion_lvz)} file — it has no internal\n"
+                                    "directory and cannot be opened as a standalone archive.\n\n"
+                                    f"Open {os.path.basename(_companion_lvz)} instead."
+                                )
+                                self.version = IMGVersion.VERSION_STREAMING_SEG
+                                return IMGVersion.VERSION_STREAMING_SEG
                             if detect_ps2_v1(self.file_path):
                                 self.version = IMGVersion.VERSION_PS2_V1
                                 return IMGVersion.VERSION_PS2_V1
@@ -1690,13 +1704,24 @@ class IMGFile:
                 success = self._open_lcs()
             elif self.version == IMGVersion.VERSION_STREAMING_SEG:
                 # Raw streaming segment — no internal directory
-                # Signal to caller with a special error flag
-                self._streaming_segment_error = (
-                    f"{os.path.basename(self.file_path)} is a streaming segment file.\n\n"
-                    "This file contains raw asset data referenced by gta3.img — it has no "
-                    "internal directory and cannot be opened as a standalone archive.\n\n"
-                    "Open gta3.img from the same folder instead."
-                )
+                # Message was already set during detection (LVZ companion case)
+                # or set the default message here
+                if not hasattr(self, '_streaming_segment_error'):
+                    _lvz = _find_companion(self.file_path, '.lvz')
+                    if _lvz:
+                        self._streaming_segment_error = (
+                            f"{os.path.basename(self.file_path)} is a streaming data file.\n\n"
+                            "This file is raw streaming asset data indexed by the companion\n"
+                            f"{os.path.basename(_lvz)}.\n\n"
+                            f"Open {os.path.basename(_lvz)} instead to browse the streaming archive."
+                        )
+                    else:
+                        self._streaming_segment_error = (
+                            f"{os.path.basename(self.file_path)} is a streaming segment file.\n\n"
+                            "This file contains raw asset data referenced by gta3.img — it has no "
+                            "internal directory and cannot be opened as a standalone archive.\n\n"
+                            "Open gta3.img from the same folder instead."
+                        )
                 return False
             elif self.version in (IMGVersion.VERSION_3,
                                   IMGVersion.VERSION_3_ENC):
@@ -2001,13 +2026,12 @@ class IMGFile:
             self.platform = IMGPlatform.ANDROID
         return ok
 
-    def _open_dtz(self) -> bool: #vers 1
+    def _open_dtz(self) -> bool: #vers 2
         """Open a GAME.DTZ (LCS/VCS PS2/PSP) zlib-compressed data container.
 
-        Decompresses the blob, locates the GTA3PS2.DIR inside, parses 32-byte
-        entries (offset_sectors[4] + size_sectors[4] + name[24]).
-        Entries give direct byte offsets into the *decompressed* blob — the
-        blob is cached on self._dtz_blob so entry data can be extracted later.
+        GAME.DTZ contains MOCAPPS2.DIR (cutscene animations) and compiled game data.
+        Entries from MOCAPPS2.DIR reference MOCAPPS2.IMG in the same directory.
+        The main asset archives (GTA3.IMG, BEACH/MAINLA/MALL.IMG) are separate files.
         """
         try:
             from apps.core.img_dtz import open_dtz
@@ -2017,15 +2041,23 @@ class IMGFile:
             entries_raw = result.get('entries', [])
             if not entries_raw:
                 return False
-            # Cache the decompressed blob for later extraction
+            # Cache the decompressed blob
             self._dtz_blob = result.get('blob')
             self.platform  = IMGPlatform.PS2
+            # Find companion MOCAPPS2.IMG for source annotation
+            dtz_dir = os.path.dirname(self.file_path)
+            mocap_img = os.path.join(dtz_dir, 'MOCAPPS2.IMG')
+            if not os.path.exists(mocap_img):
+                mocap_img = os.path.join(dtz_dir, 'mocapps2.img')
             for e in entries_raw:
                 entry          = IMGEntry()
                 entry.name     = e['name']
                 entry.offset   = e['offset']
                 entry.size     = e['size']
                 entry.is_readonly = True
+                # Store source IMG path for later extraction
+                if os.path.exists(mocap_img):
+                    entry._source_img = mocap_img
                 self.entries.append(entry)
             return True
         except Exception:
