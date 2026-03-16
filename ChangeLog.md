@@ -1,4 +1,156 @@
-#this belongs in root /ChangeLog.md - Version: 25
+#this belongs in root /ChangeLog.md - Version: 26
+
+## March 16, 2026 (3) — PS2/LCS/VCS/iOS formats, COL Workshop integration, theme dialogs
+
+### Build 62 — RW Reference dialog: theme-aware code boxes
+**Updated**: apps/gui/gui_layout_custom.py
+
+Colour variables now read from the app theme dict (`_tc`) first, with QPalette only as
+last-resort fallback. `<code>` and `<pre>` boxes use `panel_filter` (e.g. `#ffe7e5`)
+instead of `QPalette.AlternateBase` which returned dark system colours on custom themes.
+Table `<td>` backgrounds use `bg_primary`, even rows use `panel_entries`, headers use
+`button_normal`. Added `c_code` variable specifically for inline code boxes. Fonts
+improved to Segoe UI/Arial. `apply_dialog_theme()` applied to the dialog frame.
+
+---
+
+### Build 61 — theme_utils.py v2: real theme colour keys
+**New/Updated**: apps/core/theme_utils.py
+
+Replaced `_dark_defaults()` (hardcoded `#1e1e1e` etc.) with `_default_colors()` using
+the same keys as `app_settings_system.get_theme_colors()`: `bg_primary`, `panel_entries`,
+`panel_filter`, `button_normal/hover/pressed`, `table_row_even/odd`, `selection_background`,
+`text_primary` etc. `panel_entries` used for list/tree backgrounds, `panel_filter` for
+input/filter backgrounds. Dark background in ScanDialog and themed dialogs eliminated.
+
+---
+
+### Build 60 — custom File menu parity + theme-aware dialogs
+**Updated**: apps/gui/gui_menu_custom.py, apps/core/scan_img.py, apps/core/theme_utils.py,
+apps/core/create.py, apps/core/img_merger.py, apps/core/img_split.py,
+apps/core/rebuild_all.py, apps/core/extract.py, apps/core/gui_search.py
+
+Custom hamburger menu (frameless/custom UI mode) was missing "Open COL in COL Workshop"
+(`Ctrl+Shift+L`). Added with matching shortcut — both menu systems now have identical
+File menu entries.
+
+`apps/core/theme_utils.py` created as shared module with `get_theme_colors(widget)`,
+`build_dialog_stylesheet(colors)`, and `apply_dialog_theme(dialog)`. Walks widget parent
+chain to find `app_settings.get_theme_colors()`. `apply_dialog_theme(self)` added to:
+`ScanResultsDialog`, `RecentScansDialog`, `NewIMGDialog`, `IMGMergeDialog`, `SplitDialog`,
+`BatchRebuildDialog`, `ExtractDialog`, `ASearchDialog`.
+
+---
+
+### Build 59 — COL Workshop open integration
+**Updated**: apps/components/Col_Editor/col_workshop.py, apps/gui/gui_layout.py,
+apps/gui/gui_menu.py, apps/components/Img_Factory/imgfactory.py,
+apps/components/Img_Factory/depends/comprehensive.py
+
+Four ways to open a COL file in COL Workshop:
+
+1. **Filelist right-click → "Open in COL Workshop"** — now extracts the actual entry
+   bytes from the IMG to a temp file and opens directly (was ignoring the clicked row
+   and using dir tree priority).
+2. **File menu → "Open COL in COL Workshop..."** `Ctrl+Shift+L` — new item in both
+   standard and custom File menus, opens a file dialog for standalone `.col` files.
+3. **COL Workshop toolbar → "From IMG" button** — new button that shows a picker dialog
+   listing all `.col` entries in the currently loaded IMG; double-click to load.
+4. **Col Edit toolbar / taskbar COL button** — `edit_col_file` Priority 2 now extracts
+   entry data to temp file instead of passing just the IMG path (browse mode).
+
+Collision list right-click context menu — three TODO stubs implemented:
+- **Rename Model** — `QInputDialog`, updates table, marks file modified
+- **Export Model as COL** — saves single model as standalone `.col`
+- **Replace with COL file** — loads external `.col`, picks model if multiple, swaps in
+
+---
+
+### Build 58 — iOS LCS/VCS LVZ support
+**Updated**: apps/core/img_ps2_vcs.py, apps/methods/img_core_classes.py
+
+iOS LVZ uses a completely different two-level DLRW tree vs PS2:
+- Outer cells at 0x28: `[L1_blob_offset(4), float_LOD(4)]`
+- Level-1 DLRW blocks per grid cell with sub_record_count
+- L2 records (0x20 bytes): geometry ptr, sector_count, img_byte_offset, `0x57524C44` sentinel
+- 8412 stream entries extracted from `commer.lvz`
+
+`open_ios_lvz()` added. `_open_ps2()` now tries iOS parser first (strict DLRW sentinel),
+falls back to PS2 parser. `VERSION_IOS_LVZ = 45` added.
+
+No GAME.DTZ on iOS — uses standard `gta3.dir` + `gta3.img` (VERSION_1, already works).
+
+---
+
+### Build 58b — iOS disc layout, game_trees reference directory
+**New**: apps/core/lcs_vcs_disc_layout.py (iOS_LCS entry), apps/game_trees/
+
+`iOS_LCS` added to `DISC_LAYOUTS`: no DTZ, streaming in `Models/`, textures as individual
+`.pvr` files in `Textures_PVR/`. `apps/game_trees/` created with:
+- `ios_lcs_texture_mapping.csv` — 4549 PVR→TXD name mappings
+- `tree_ios_lcs.txt` — full iOS LCS file tree
+- `TODO_txd_workshop.md` — TXD Workshop iOS texture features TODO
+
+---
+
+### Build 57 — LCS/VCS disc layout reference
+**New**: apps/core/lcs_vcs_disc_layout.py
+
+Disc layout reference for LCS and VCS PS2 with helper functions:
+- `find_disc_root(path)` — walks up from any file to find disc root and game type
+- `find_game_dtz(disc_root, game)` — locates GAME.DTZ
+- `find_cutscene_img(disc_root, game)` — finds CUTS.DIR+IMG (LCS) or MOCAPPS2 (VCS)
+
+Key structural differences encoded:
+- VCS: `GAME.DTZ` at disc root; streaming areas in root; `PS2/MOCAPPS2.DIR+IMG`; `.XTX` textures
+- LCS: `CHK/PS2/GAME.DTZ`; streaming areas in `MODELS/`; `ANIM/CUTS.DIR+IMG`; `.CHK` textures
+
+`CHK` added to `FileType` enum for LCS PS2 texture format. `_build_mocap_dir()` updated
+to find correct companion file per game. `open_dtz()` uses `find_disc_root()` for LCS/VCS detection.
+
+---
+
+### Build 56 — GAME.DTZ v4: all four name sources working
+**Updated**: apps/core/img_dtz.py, apps/methods/img_core_classes.py,
+apps/components/Img_Factory/imgfactory.py
+
+All four name sources now read directly from the decompressed GAME.DTZ blob:
+
+1. **MDL** — `CBaseModelInfo.m_hashname` (CRC32) resolved via `lcs_vcs_names.py`
+2. **TEX** — `CPool<TexListDef>.m_entries[i].m_name` (plain ASCII) at `texListPool` `blob[0x60]`
+3. **COL** — `CPool<ColDef>.m_entries[i].m_name` at `colPool` `blob[0x68]`
+4. **ANIM** — `CAnimBlock.m_name` array at `blob[0x323DD0]`, 48 bytes/entry, 90 streaming blocks
+
+Source column (col 9) added — visible only for LVZ/DTZ versions, shows companion IMG file
+and sector/byte offset. LVZ entries: `AREA.IMG @ 0xOFFSET`. DTZ entries: `GTA3PS2.IMG @ sector N`.
+
+---
+
+### Builds 41–55 — PS2/LCS/VCS format research and UI fixes
+
+**Summary** (see session 5 transcript for full detail):
+
+**UI fixes (Builds 41–45):**
+- DAT button `_open_dat_browser` passes correct `target=widget`
+- IMG tabs: `QTabWidget > QTabBar::tab` selector fixes tab styling
+- DAT bleed-through: `WA_OpaquePaintEvent` removed, `setAutoFillBackground(True)` added
+- Per-tool taskbar context menus: DAT/Dir (Show/Close), TXD (Open/Save/Close),
+  COL (Open in COL Workshop/Save/Close)
+- Filelist right-click: `.col` → "Open in COL Workshop"; `.txd` → "Open in TXD Workshop"
+
+**PS2/LCS/VCS format research (Builds 46–55):**
+- `GAME.DTZ`: zlib-compressed blob, magic `GTAG`, contains streaming directory for all models/textures/col/anim
+- `apps/core/img_dtz.py` v3: GAME.DTZ parser; 1580 entries (654 mdl + 823 xtx + 16 col2 + 87 anim)
+- `apps/core/lcs_vcs_names.py`: CRC32→name lookup, 3658 LCS + 4033 VCS entries from g3DTZ v2.1 (MIT)
+- LVZ streaming structure: outer DLRW cells → nested DLRW → `IMG @ sector` offsets; scan stops at `0xAAAAAAAA`; 46 real cells in UNDERG.LVZ
+- `VERSION_DTZ_VCS = 46`, `VERSION_DTZ_LCS = 47`, `VERSION_IRX = 48`, `FileType.STRM`
+- Build 48: streaming IMG detection — `BEACH.IMG` falsely detected as PS2_V1; companion `.lvz` check added
+- Build 49: MALL/COMMER fallback also checks for `.lvz` companion
+- Build 50: `open_lvz` IMG byte offset fixed (was storing nested DLRW blob offset, not `DLRW[0x18]`)
+- Build 52: scan-based cell parsing (count field was slot count not cell count); stops at `0xAAAAAAAA`
+- Build 54: stale `cell_count` variable fixed; `_find_companion` handles `GTA3PS2.IMG ↔ GTA3.DIR` cross-stem
+- Build 55: `.strm` extension for LVZ stream entries; `STRM` added to `FileType`
+
 
 ## March 16, 2026 (2) — DLRW parser rewrite, tab status bar, LVZ chain fix
 
