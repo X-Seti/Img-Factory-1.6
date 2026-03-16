@@ -438,12 +438,27 @@ class IMGStatusWidget(QWidget):
             if hasattr(img_file, 'version'):
                 from apps.methods.img_core_classes import IMGVersion
                 _vmap = {
-                    IMGVersion.VERSION_1:   "Version 1",
-                    IMGVersion.VERSION_1_5: "Version 1.5",
-                    IMGVersion.VERSION_2:   "Version 2",
-                    IMGVersion.VERSION_SOL: "Version SOL",
+                    IMGVersion.VERSION_1:          "V1 (GTA3/VC PC)",
+                    IMGVersion.VERSION_1_5:        "V1.5 (Extended)",
+                    IMGVersion.VERSION_2:          "V2 (SA PC)",
+                    IMGVersion.VERSION_3:          "V3 (GTA IV)",
+                    IMGVersion.VERSION_3_ENC:      "V3 Encrypted",
+                    IMGVersion.VERSION_SOL:        "V1 (SOL)",
+                    IMGVersion.VERSION_XBOX:       "Xbox (LZO)",
+                    IMGVersion.VERSION_PS2_VCS:    "PS2 VCS/LCS",
+                    IMGVersion.VERSION_PS2_V1:     "PS2 V1",
+                    IMGVersion.VERSION_PS2_LVZ:    "PS2 LVZ/DLRW",
+                    IMGVersion.VERSION_1_IOS:      "iOS GTA3/VC",
+                    IMGVersion.VERSION_LCS_IOS:    "iOS LCS",
+                    IMGVersion.VERSION_LCS_ANDROID:"Android LCS",
+                    IMGVersion.VERSION_SA_ANDROID: "Android SA",
+                    IMGVersion.VERSION_BULLY:      "Bully PS2",
+                    IMGVersion.VERSION_ANPK:       "PSP ANPK",
+                    IMGVersion.VERSION_HXD:        "Bully HXD",
+                    IMGVersion.VERSION_STREAMING_SEG: "Streaming Seg",
                 }
-                version = _vmap.get(img_file.version, str(getattr(img_file.version, 'name', img_file.version)))
+                version = _vmap.get(img_file.version,
+                    str(getattr(img_file.version, 'name', img_file.version)).replace('VERSION_',''))
             else:
                 version = "Unknown"
         

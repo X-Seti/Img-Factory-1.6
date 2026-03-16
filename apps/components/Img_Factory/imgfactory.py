@@ -2809,6 +2809,17 @@ class IMGFactory(QMainWindow):
                     toolbar.setVisible(True)
                     main_layout.addWidget(toolbar)  # Add toolbar at TOP
 
+                    # Apply correct theme colour to titlebar icons immediately
+                    # (avoids black-on-dark invisible icons at startup)
+                    try:
+                        if hasattr(self, 'app_settings'):
+                            _init_colors = self.app_settings.get_theme_colors() or {}
+                            _icon_color = _init_colors.get('text_primary', '#cccccc')
+                            if hasattr(self.gui_layout, 'refresh_icons'):
+                                self.gui_layout.refresh_icons(_icon_color)
+                    except Exception as _re:
+                        print(f"Initial icon refresh failed: {_re}")
+
                     # Tool taskbar — sits between titlebar and file-list window
                     try:
                         from apps.gui.gui_layout_custom import ToolTaskbar
@@ -3017,7 +3028,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 7
+    def _on_tab_changed(self, index): #vers 8
         """Handle tab switching - DIR Tree, IMG, COL, TXD tabs"""
         try:
             current_tab = self.main_tab_widget.widget(index)
@@ -3033,6 +3044,12 @@ class IMGFactory(QMainWindow):
             tab_table = getattr(current_tab, 'table_ref', None)
             if tab_table and hasattr(self, 'gui_layout'):
                 self.gui_layout.table = tab_table
+
+            # Update selection count for the newly active table immediately
+            if tab_table and hasattr(self, 'selection_status_widget'):
+                sel = len(set(i.row() for i in tab_table.selectedItems()))
+                total = tab_table.rowCount()
+                self.selection_status_widget.update_selection(sel, total)
 
             # Check if this tab contains an embedded TXD Workshop
             from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
@@ -3082,20 +3099,30 @@ class IMGFactory(QMainWindow):
                     col_count = len(file_object.models) if hasattr(file_object, 'models') and file_object.models else 0
                     fp = getattr(file_object, 'file_path', '')
                     self.update_img_status(filename=fp, entry_count=col_count, version='COL')
+                if hasattr(self, 'selection_status_widget'):
+                    self.selection_status_widget.update_selection(0, 0)
                 self.log_message(f"→ {tab_name} (COL)")
             elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
                 self.current_col = None
+                # Repopulate table only if not already shown (avoids double-load)
+                if hasattr(self, '_populate_real_img_table'):
+                    self._populate_real_img_table(file_object, table=tab_table)
+                # Update status bar AFTER populate so entry count is accurate
                 if hasattr(self, 'update_img_status'):
                     self.update_img_status(img_file=file_object)
-                if hasattr(self, '_populate_real_img_table'):
-                    self._populate_real_img_table(file_object)
+                # Update selection count for this tab
+                if tab_table and hasattr(self, 'selection_status_widget'):
+                    sel = len(set(i.row() for i in tab_table.selectedItems()))
+                    self.selection_status_widget.update_selection(sel, tab_table.rowCount())
                 self.log_message(f"→ {tab_name}")
             else:
                 self.current_img = None
                 self.current_col = None
                 if hasattr(self, 'update_img_status'):
-                    self.update_img_status()
+                    self.update_img_status(filename="", entry_count=0, file_size=0, version="—")
+                if hasattr(self, 'selection_status_widget'):
+                    self.selection_status_widget.update_selection(0, 0)
                 self.log_message(f"→ {tab_name}")
 
         except Exception as e:

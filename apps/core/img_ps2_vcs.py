@@ -1,4 +1,4 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 8
+#this belongs in core/ img_ps2_vcs.py - Version: 9
 # X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ, ANPK and HXD Support
 """
 PS2/PSP/Bully IMG, LVZ, ANPK, Bully and HXD Support - Read-only parsers.
@@ -193,7 +193,7 @@ def detect_lvz(path: str) -> bool: #vers 1
     try:
         with open(path, 'rb') as f:
             magic = f.read(2)
-        return magic == b'\x78\xda' or magic == b'\x78\x9c' or magic == b'\x78\x01'
+        return magic[0] == 0x78 and magic[1] in (0xDA, 0x9C, 0x01)
     except Exception:
         return False
 

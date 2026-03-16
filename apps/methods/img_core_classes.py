@@ -1601,6 +1601,13 @@ class IMGFile:
                                         return IMGVersion.VERSION_STREAMING_SEG
                                 except Exception:
                                     pass
+                            # Check for VCS .LVZ streaming companion before V1 fallback
+                            _lvz = _find_companion(self.file_path, '.lvz')
+                            if _lvz:
+                                from apps.core.img_ps2_vcs import detect_lvz
+                                if detect_lvz(_lvz):
+                                    self.version = IMGVersion.VERSION_PS2_LVZ
+                                    return IMGVersion.VERSION_PS2_LVZ
                             # No .dir - standalone V1/V1.5, check size
                             sz = os.path.getsize(self.file_path)
                             ver = IMGVersion.VERSION_1_5 if sz > 2 * 1024 * 1024 * 1024 else IMGVersion.VERSION_1

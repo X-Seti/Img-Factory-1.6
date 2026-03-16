@@ -79,13 +79,17 @@ def _register_tool_taskbar(main_window, key, label, icon_fn, tooltip="", target=
         pass
 
 
-def edit_txd_file(main_window): #vers 5
-    """Edit selected TXD file with TXD Workshop - works from IMG table or dir tree"""
+def edit_txd_file(main_window): #vers 6
+    """Open TXD Workshop.
+    
+    If a .txd entry is selected in the table or dir tree, open that file.
+    If nothing is selected (or selection is not a TXD), open the workshop
+    against the current IMG so the user can browse all TXDs inside it.
+    """
     try:
-        # Priority: dir tree selection
+        # Priority 1: dir tree selection
         selected = getattr(main_window, '_dir_tree_selected_file', None)
         if not selected:
-            # Try currentItem from tree
             if hasattr(main_window, 'directory_tree'):
                 tree = main_window.directory_tree
                 for attr in ('tree', '_second_tree'):
@@ -111,11 +115,41 @@ def edit_txd_file(main_window): #vers 5
             main_window.log_message(f"TXD Workshop opened: {os.path.basename(selected)}")
             return
 
-        # Fall back to IMG table selection
+        # Priority 2: IMG table selection (if it's a TXD entry)
         from apps.methods.export_shared import get_active_table
         entries_table = get_active_table(main_window)
-        selected_items = entries_table.selectedItems()
-        if not selected_items:
+        selected_items = entries_table.selectedItems() if entries_table else []
+        if selected_items:
+            row = selected_items[0].row()
+            item0 = entries_table.item(row, 0)
+            filename = item0.text() if item0 else ""
+            if filename.lower().endswith('.txd'):
+                # Open workshop with the current IMG, auto-select this TXD
+                img_path = None
+                if hasattr(main_window, 'current_img') and main_window.current_img:
+                    img_path = main_window.current_img.file_path
+                from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                w = open_txd_workshop(main_window, img_path)
+                _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", w)
+                main_window.log_message(f"TXD Workshop opened for: {filename}")
+                return
+
+        # Priority 3: Nothing selected — open workshop against current IMG
+        # so the user can browse its textures without needing to select one first
+        from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+        img_path = None
+        if hasattr(main_window, 'current_img') and main_window.current_img:
+            img_path = main_window.current_img.file_path
+        w = open_txd_workshop(main_window, img_path)
+        _register_tool_taskbar(main_window, "txd", "TXD", get_txd_workshop_icon, "TXD Workshop", w)
+        if img_path:
+            main_window.log_message(f"TXD Workshop opened (browse mode): {os.path.basename(img_path)}")
+        else:
+            main_window.log_message("TXD Workshop opened (no file loaded)")
+        return
+
+        # (dead code kept for reference — was the old "nothing selected" error)
+        if False:
             main_window.log_message("No TXD file selected")
             return
         row = selected_items[0].row()

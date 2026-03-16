@@ -1,4 +1,76 @@
-#this belongs in root /ChangeLog.md - Version: 23
+#this belongs in root /ChangeLog.md - Version: 24
+
+## March 16, 2026 — Bug fixes: MALL.IMG detection, TXD Workshop, taskbar icons, status bar
+
+### MALL.IMG (VCS PS2 LVZ) now detects correctly
+
+**Updated**: apps/methods/img_core_classes.py, apps/core/img_ps2_vcs.py
+
+**Problem**: MALL.IMG (all-zeros header) fell through to VERSION_1 fallback instead
+of VERSION_PS2_LVZ, causing a failed load.
+
+**Root cause 1**: `detect_lvz` used escaped string literals `b'\x78\xda'` which
+were being matched as literal text rather than byte values. Fixed to use
+`magic[0] == 0x78 and magic[1] in (0xDA, 0x9C, 0x01)`.
+
+**Root cause 2**: `detect_version` never checked for a `.LVZ` companion file before
+the standalone V1 fallback. Added `_find_companion(path, '.lvz')` check before
+the final size-based V1/V1.5 decision — if a valid LVZ companion exists the file
+is detected as VERSION_PS2_LVZ.
+
+---
+
+### TXD Workshop opens without requiring a selection
+
+**Updated**: apps/gui/gui_layout.py `edit_txd_file` v6
+
+New priority order:
+1. Dir tree .txd selection → open that file
+2. IMG table .txd entry highlighted → open workshop with that file
+3. **No selection** → open workshop in browse mode against current IMG
+4. No IMG loaded → open workshop empty (was: "No TXD file selected" error)
+
+---
+
+### Taskbar icons visible at startup
+
+**Updated**: apps/components/Img_Factory/imgfactory.py
+
+`refresh_icons(icon_color)` is now called immediately after `_create_toolbar()`
+at startup, using `text_primary` from the active theme. Fixes black-on-dark
+invisible icons caused by the hardcoded `"#000000"` default colour that was
+baked in during toolbar construction.
+
+---
+
+### Status bar updates correctly on tab switch
+
+**Updated**: apps/components/Img_Factory/imgfactory.py `_on_tab_changed` v8,
+apps/gui/status_bar.py `update_img_status` v2
+
+**Fixes:**
+- `update_img_status` now called *after* `_populate_real_img_table` so entry
+  count is accurate (was called before, getting a stale zero)
+- Selection count widget (`"N of M selected"`) updated in every branch of
+  `_on_tab_changed` (IMG, COL, TXD workshop, empty tab)
+- COL branch also resets selection to 0/0 on switch
+- Empty/unknown tab branch resets both status bar and selection count
+
+### Status bar version labels expanded
+
+**Updated**: apps/gui/status_bar.py
+
+`_vmap` in `IMGStatusWidget.update_img_status` now covers all 18 `VERSION_`
+enum values with human-readable names, e.g.:
+- VERSION_PS2_LVZ → "PS2 LVZ/DLRW"
+- VERSION_XBOX → "Xbox (LZO)"
+- VERSION_SA_ANDROID → "Android SA"
+
+Previously only V1, V1.5, V2, SOL were named; everything else showed the raw
+enum name.
+
+
+---
 
 ## March 16, 2026 — VCS PC format research, XTX texture decoder, LVZ/DLRW analysis
 
