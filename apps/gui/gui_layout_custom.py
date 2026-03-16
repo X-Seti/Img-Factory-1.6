@@ -91,62 +91,54 @@ class ToolTaskbar(QWidget):  # vers 2
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
-    def _make_btn_style(self, active: bool,
-                        acc:  str = "#1976d2",
-                        txt:  str = "#cccccc",
-                        btn_normal: str = "",
-                        btn_hover:  str = "",
-                        acc2: str = "") -> str:
-        """Build button stylesheet from theme colour keys.
+    def _make_btn_style(self, active: bool) -> str:
+        """Build button stylesheet purely from stored theme attrs.
 
-        Uses the same keys as the app_settings_system tab bar:
-          acc  = accent_primary   (active underline + active bg tint)
-          acc2 = accent_secondary (hover underline)
-          btn_normal = button_normal  (inactive bg)
-          btn_hover  = button_hover   (hover bg)
-          txt  = text_primary    (text colour)
+        Color sources (set by apply_theme):
+          _txt        = text_primary    — icon/text colour (same as all SVGs)
+          _bg2        = bg_secondary    — selected button bg
+          _bg3        = bg_tertiary     — hover bg
+          _acc        = accent_primary  — active underline
+          _acc2       = accent_secondary— hover underline preview
+          _brd        = border          — button border
 
-        border-radius:0 required — Qt drops border-bottom otherwise.
+        border-radius:0 required — Qt drops border-bottom when set.
         """
-        _bn = btn_normal or f"{txt}28"
-        _bh = btn_hover  or f"{txt}44"
-        _a2 = acc2       or f"{acc}88"
         if active:
             return (
                 f"QPushButton {{"
-                f"  background: {acc}55;"
-                f"  color: {txt};"
+                f"  background: {self._bg2};"
+                f"  color: {self._txt};"
                 f"  font-size: 11px;"
                 f"  font-weight: bold;"
                 f"  padding: 2px 10px;"
-                f"  border-left: 1px solid {acc}66;"
-                f"  border-right: 1px solid {acc}66;"
-                f"  border-top: 1px solid {acc}66;"
-                f"  border-bottom: 3px solid {acc};"
+                f"  border: 1px solid {self._brd};"
+                f"  border-bottom: 3px solid {self._acc};"
                 f"  border-radius: 0px;"
                 f"}}"
-                f"QPushButton:hover {{ background: {acc}77; }}"
-                f"QPushButton:pressed {{ background: {acc}99; }}"
+                f"QPushButton:hover {{"
+                f"  background: {self._bg3};"
+                f"  border-bottom: 3px solid {self._acc};"
+                f"}}"
+                f"QPushButton:pressed {{ background: {self._bg3}; }}"
             )
         else:
             return (
                 f"QPushButton {{"
-                f"  background: {_bn};"
-                f"  color: {txt}bb;"
+                f"  background: transparent;"
+                f"  color: {self._txt}cc;"
                 f"  font-size: 11px;"
                 f"  padding: 2px 10px;"
-                f"  border-left: 1px solid {txt}40;"
-                f"  border-right: 1px solid {txt}40;"
-                f"  border-top: 1px solid {txt}40;"
+                f"  border: 1px solid transparent;"
                 f"  border-bottom: 3px solid transparent;"
                 f"  border-radius: 0px;"
                 f"}}"
                 f"QPushButton:hover {{"
-                f"  background: {_bh};"
-                f"  color: {txt};"
-                f"  border-bottom: 3px solid {_a2};"
+                f"  background: {self._bg3};"
+                f"  color: {self._txt};"
+                f"  border-bottom: 3px solid {self._acc2};"
                 f"}}"
-                f"QPushButton:pressed {{ background: {acc}44; }}"
+                f"QPushButton:pressed {{ background: {self._bg2}; }}"
             )
 
     def _raise_target(self, key: str) -> None:
@@ -330,7 +322,7 @@ class ToolTaskbar(QWidget):  # vers 2
         btn.setFlat(False)
         btn.setToolTip(tooltip or label)
         btn.setObjectName("tbtn")
-        btn.setStyleSheet(self._make_btn_style(False))
+        btn.setStyleSheet(self._make_btn_style(False))  # themed in apply_theme()
 
         btn.clicked.connect(lambda _=False, k=key: self._raise_target(k))
 
@@ -369,12 +361,7 @@ class ToolTaskbar(QWidget):  # vers 2
         if key not in self._tools:
             return
         self._tools[key]["active"] = active
-        self._tools[key]["btn"].setStyleSheet(
-            self._make_btn_style(active,
-                acc=self._acc, txt=self._txt,
-                btn_normal=self._btn_normal,
-                btn_hover=self._btn_hover,
-                acc2=self._acc2))
+        self._tools[key]["btn"].setStyleSheet(self._make_btn_style(active))
 
     def _set_exclusive_active(self, key: str) -> None:
         """Mark key as active, clear underline on all others."""
@@ -385,35 +372,40 @@ class ToolTaskbar(QWidget):  # vers 2
         return key in self._tools
 
     def apply_theme(self, colors: dict) -> None:
-        """Re-style all buttons using the same theme keys as app_settings_system tabs."""
-        self._acc  = colors.get("accent_primary",   "#1976d2")
-        self._acc2 = colors.get("accent_secondary",  "#1565c0")
-        self._txt  = colors.get("text_primary",      "#cccccc")
-        self._btn_normal = colors.get("button_normal", "")
-        self._btn_hover  = colors.get("button_hover",  "")
-        self._bg   = colors.get("bg_tertiary",
-                     colors.get("bg_secondary", "#1a1a2e"))
-        # Tray background via QPalette — no setStyleSheet cascade
+        """Store theme color attrs then re-style all buttons.
+
+        Exact keys used:
+          text_primary    → _txt  (icon + text colour, same as all SVGs/buttons)
+          bg_secondary    → _bg2  (selected button background)
+          bg_tertiary     → _bg3  (hover background)
+          accent_primary  → _acc  (active underline)
+          accent_secondary→ _acc2 (hover underline preview)
+          border          → _brd  (button border)
+        """
+        self._txt  = colors.get("text_primary",    "#cccccc")
+        self._bg2  = colors.get("bg_secondary",    "#182030")
+        self._bg3  = colors.get("bg_tertiary",     "#151d2b")
+        self._acc  = colors.get("accent_primary",  "#1976d2")
+        self._acc2 = colors.get("accent_secondary","#1565c0")
+        self._brd  = colors.get("border",          "#3a3a3a")
+        # Tray bg via QPalette — no stylesheet cascade to child buttons
         self.setAutoFillBackground(True)
         from PyQt6.QtGui import QPalette, QColor
         pal = self.palette()
-        c = QColor(self._bg)
-        c.setAlpha(80)
+        c = QColor(self._bg3)
+        c.setAlpha(60)
         pal.setColor(QPalette.ColorRole.Window, c)
         self.setPalette(pal)
         for key, info in self._tools.items():
-            info["btn"].setStyleSheet(
-                self._make_btn_style(info["active"],
-                    self._acc, self._txt,
-                    self._btn_normal, self._btn_hover, self._acc2))
+            info["btn"].setStyleSheet(self._make_btn_style(info["active"]))
 
     # seed defaults so apply_theme isn't required before first use
-    _acc        = "#1976d2"
-    _acc2       = "#1565c0"
-    _txt        = "#cccccc"
-    _btn_normal = ""
-    _btn_hover  = ""
-    _bg         = "transparent"
+    _txt  = "#cccccc"
+    _bg2  = "#182030"
+    _bg3  = "#151d2b"
+    _acc  = "#1976d2"
+    _acc2 = "#1565c0"
+    _brd  = "#3a3a3a"
 
 
 

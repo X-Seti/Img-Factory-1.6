@@ -2724,6 +2724,7 @@ class IMGFactory(QMainWindow):
                         self.gui_layout.apply_table_theme()
                     if hasattr(self, 'tool_taskbar'):
                         self.tool_taskbar.apply_theme(colors)
+                    self._apply_tab_theme()
                     self.log_message(f"Theme applied: {theme_key}")
                 except Exception as _e:
                     self.log_message(f"Live theme error: {_e}")
@@ -2873,9 +2874,9 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
-        # Tab style driven entirely by app_settings theme — matches app_settings_system
-        # Colors applied dynamically in apply_table_theme() via get_theme_colors()
-        # This block just sets geometry; colours come from the app-level stylesheet
+        # Tab stylesheet — identical to app_settings_system so they look the same.
+        # Colors injected from live theme via _apply_tab_theme().
+        # Geometry only here; colors set separately so theme switches work live.
         self.main_tab_widget.setStyleSheet("""
             QTabBar::tab {
                 margin-top: 2px;
@@ -2888,14 +2889,7 @@ class IMGFactory(QMainWindow):
                 margin-top: 0px;
             }
         """)
-        # Force a theme refresh so tab colours pick up from the loaded theme
-        try:
-            from PyQt6.QtWidgets import QApplication
-            from apps.utils.app_settings_system import apply_theme_to_app
-            if hasattr(self, 'app_settings'):
-                apply_theme_to_app(QApplication.instance(), self.app_settings)
-        except Exception:
-            pass
+        self._apply_tab_theme()
         self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
 
         # Panel toggle button - left corner of tab bar, outside tabs
@@ -5523,6 +5517,50 @@ class IMGFactory(QMainWindow):
                 self.log_message("→ Dir Tree (hidden)")
         except Exception as e:
             self.log_message(f"Dir tree toggle error: {e}")
+
+    def _apply_tab_theme(self): #vers 1
+        """Apply theme colours to main_tab_widget — identical to app_settings_system tabs."""
+        if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+            return
+        try:
+            colors = self.app_settings.get_theme_colors() or {} if hasattr(self, 'app_settings') else {}
+            bg_primary   = colors.get('bg_primary',   '#ffffff')
+            bg_secondary = colors.get('bg_secondary',  '#f5f5f5')
+            text_primary = colors.get('text_primary',  '#000000')
+            text_secondary = colors.get('text_secondary', '#666666')
+            accent       = colors.get('accent_primary', '#1976d2')
+            accent2      = colors.get('accent_secondary','#1565c0')
+            btn_hover    = colors.get('button_hover',  '#e0e0e0')
+            border       = colors.get('border',        '#cccccc')
+
+            self.main_tab_widget.setStyleSheet(f"""
+                QTabBar::tab {{
+                    background-color: {bg_secondary};
+                    border: 1px solid {border};
+                    border-bottom: 3px solid transparent;
+                    padding: 5px 14px;
+                    color: {text_secondary};
+                    margin-bottom: 0px;
+                    margin-right: 2px;
+                }}
+                QTabBar::tab:selected {{
+                    background-color: {bg_primary};
+                    color: {text_primary};
+                    border-bottom: 3px solid {accent};
+                    font-weight: bold;
+                }}
+                QTabBar::tab:hover:!selected {{
+                    background-color: {btn_hover};
+                    color: {text_primary};
+                    border-bottom: 3px solid {accent2};
+                }}
+                QTabWidget::pane {{
+                    border-top: 1px solid {border};
+                    margin-top: 0px;
+                }}
+            """)
+        except Exception as e:
+            self.log_message(f"Tab theme error: {e}")
 
     def open_ide_editor(self): #vers 2
         """Open IDE Editor — docked by default, standalone on right-click."""
