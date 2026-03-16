@@ -1,4 +1,4 @@
-#this belongs in apps/core/theme_utils.py - Version: 1
+#this belongs in apps/core/theme_utils.py - Version: 2
 # X-Seti - March 2026 - IMG Factory 1.6
 # Shared theme utilities — makes QDialogs and QWidgets theme-aware.
 """
@@ -13,70 +13,139 @@ Usage:
 from __future__ import annotations
 
 
-# ── Theme helper ──────────────────────────────────────────────────────────────
-
-def get_theme_colors(parent) -> dict:
-    """Return theme colour dict from parent window's app_settings, or dark defaults."""
+def get_theme_colors(widget) -> dict:
+    """Walk up the widget tree to find app_settings.get_theme_colors().
+    Falls back to light IMG Factory defaults if none found.
+    """
     try:
-        win = parent
-        while win is not None:
-            if hasattr(win, 'app_settings') and win.app_settings:
-                return win.app_settings.get_theme_colors()
-            win = win.parent() if hasattr(win, 'parent') and callable(win.parent) else None
+        node = widget
+        while node is not None:
+            if hasattr(node, "app_settings") and node.app_settings:
+                return node.app_settings.get_theme_colors()
+            parent = node.parent() if callable(getattr(node, "parent", None)) else None
+            if parent is node or parent is None:
+                break
+            node = parent
     except Exception:
         pass
+    return _default_colors()
+
+
+def _default_colors() -> dict:
+    """Light IMG-Factory defaults — matches the app_settings_system fallback values."""
     return {
-        'bg_primary':    '#1e1e1e',
-        'bg_secondary':  '#2b2b2b',
-        'bg_tertiary':   '#3a3a3a',
-        'text_primary':  '#e0e0e0',
-        'text_secondary':'#a0a0a0',
-        'accent_primary':'#0078d4',
-        'border':        '#3d3d3d',
-        'success':       '#28a745',
-        'warning':       '#ffc107',
-        'error':         '#dc3545',
+        "bg_primary":           "#ffffff",
+        "bg_secondary":         "#f5f5f5",
+        "bg_tertiary":          "#e9ecef",
+        "panel_bg":             "#f0f0f0",
+        "text_primary":         "#000000",
+        "text_secondary":       "#666666",
+        "text_accent":          "#0066cc",
+        "accent_primary":       "#0078d4",
+        "accent_secondary":     "#0A7Ad4",
+        "border":               "#cccccc",
+        "button_normal":        "#e0e0e0",
+        "button_hover":         "#d0d0d0",
+        "button_pressed":       "#b1b1b1",
+        "selection_background": "#0188c4",
+        "selection_text":       "#ffffff",
+        "table_row_even":       "#fcfcfc",
+        "table_row_odd":        "#f1f1f1",
+        "alternate_row":        "#fefefe",
+        "grid":                 "#e0e0e0",
+        "panel_entries":        "#f0fdf4",
+        "panel_filter":         "#fefce8",
+        "toolbar_bg":           "#fafafa",
+        "success":              "#4caf50",
+        "warning":              "#ff9800",
+        "error":                "#f44336",
     }
 
 
+# Alias for backwards compat with scan_img.py private-name calls
+_get_theme_colors = get_theme_colors
+
+
 def build_dialog_stylesheet(colors: dict) -> str:
-    """Return a QSS string that themes a QDialog and its child widgets."""
-    bg    = colors.get('bg_primary',    '#1e1e1e')
-    bg2   = colors.get('bg_secondary',  '#2b2b2b')
-    bg3   = colors.get('bg_tertiary',   '#3a3a3a')
-    fg    = colors.get('text_primary',  '#e0e0e0')
-    fg2   = colors.get('text_secondary','#a0a0a0')
-    acc   = colors.get('accent_primary','#0078d4')
-    brd   = colors.get('border',        '#3d3d3d')
-    ok    = colors.get('success',       '#28a745')
+    """Return a QSS string that themes a QDialog using the real app theme colours.
+
+    Uses panel_entries for list/tree backgrounds, panel_filter for toolbar area,
+    bg_primary for the dialog window, table_row_even/odd for alternating rows,
+    button_normal/hover/pressed for buttons, selection_background/text for
+    selections — all taken directly from the loaded theme.
+    """
+    bg       = colors.get("bg_primary",           "#ffffff")
+    bg2      = colors.get("bg_secondary",          "#f5f5f5")
+    bg3      = colors.get("bg_tertiary",           "#e9ecef")
+    panel    = colors.get("panel_bg",              "#f0f0f0")
+    entries  = colors.get("panel_entries",         "#f5feec")  # list / tree background
+    filt_bg  = colors.get("panel_filter",          "#ffe7e5")  # toolbar / filter row
+    toolbar  = colors.get("toolbar_bg",            bg2)
+    fg       = colors.get("text_primary",          "#000000")
+    fg2      = colors.get("text_secondary",        "#666666")
+    fg_acc   = colors.get("text_accent",           "#0066cc")
+    acc      = colors.get("accent_primary",        "#0078d4")
+    brd      = colors.get("border",                "#cccccc")
+    btn_n    = colors.get("button_normal",         "#e0e0e0")
+    btn_h    = colors.get("button_hover",          "#d0d0d0")
+    btn_p    = colors.get("button_pressed",        "#b1b1b1")
+    sel_bg   = colors.get("selection_background",  "#0188c4")
+    sel_fg   = colors.get("selection_text",        "#ffffff")
+    row_even = colors.get("table_row_even",        "#fcfcfc")
+    row_odd  = colors.get("table_row_odd",         entries)
+    grid     = colors.get("grid",                  "#e0e0e0")
 
     return f"""
         QDialog, QWidget {{
             background-color: {bg};
             color: {fg};
         }}
-        QTreeWidget, QTreeView, QListWidget, QListView {{
+
+        /* ── List / Tree / Table ────────────────────────────────────── */
+        QTreeWidget, QTreeView,
+        QListWidget, QListView,
+        QTableWidget, QTableView {{
+            background-color: {entries};
+            color: {fg};
+            border: 1px solid {brd};
+            alternate-background-color: {row_odd};
+            gridline-color: {grid};
+        }}
+        QTreeWidget::item, QListWidget::item, QTableWidget::item {{
+            padding: 2px;
+            color: {fg};
+            background-color: transparent;
+        }}
+        QTreeWidget::item:alternate, QListWidget::item:alternate,
+        QTableWidget::item:alternate {{
+            background-color: {row_odd};
+        }}
+        QTreeWidget::item:selected, QListWidget::item:selected,
+        QTableWidget::item:selected {{
+            background-color: {sel_bg};
+            color: {sel_fg};
+        }}
+        QTreeWidget::item:hover, QListWidget::item:hover,
+        QTableWidget::item:hover {{
+            background-color: {btn_h};
+            color: {fg};
+        }}
+
+        /* ── Header ─────────────────────────────────────────────────── */
+        QHeaderView::section {{
             background-color: {bg2};
             color: {fg};
             border: 1px solid {brd};
-            alternate-background-color: {bg3};
-            gridline-color: {brd};
-        }}
-        QTreeWidget::item:selected, QListWidget::item:selected {{
-            background-color: {acc};
-            color: #ffffff;
-        }}
-        QTreeWidget::item:hover, QListWidget::item:hover {{
-            background-color: {bg3};
-        }}
-        QHeaderView::section {{
-            background-color: {bg3};
-            color: {fg};
-            border: 1px solid {brd};
             padding: 3px 6px;
+            font-weight: normal;
         }}
+        QHeaderView::section:hover {{
+            background-color: {btn_h};
+        }}
+
+        /* ── Buttons ─────────────────────────────────────────────────── */
         QPushButton {{
-            background-color: {bg3};
+            background-color: {btn_n};
             color: {fg};
             border: 1px solid {brd};
             border-radius: 4px;
@@ -84,42 +153,67 @@ def build_dialog_stylesheet(colors: dict) -> str:
             min-height: 24px;
         }}
         QPushButton:hover {{
-            background-color: {acc};
-            color: #ffffff;
-            border-color: {acc};
+            background-color: {btn_h};
+            color: {fg};
         }}
         QPushButton:pressed {{
-            background-color: {acc};
-            color: #ffffff;
+            background-color: {btn_p};
         }}
         QPushButton:disabled {{
             color: {fg2};
-            border-color: {brd};
         }}
         QPushButton:default {{
             border: 2px solid {acc};
         }}
-        QLineEdit, QComboBox {{
-            background-color: {bg2};
+
+        /* ── Inputs ──────────────────────────────────────────────────── */
+        QLineEdit, QTextEdit, QPlainTextEdit {{
+            background-color: {filt_bg};
+            color: {fg};
+            border: 1px solid {brd};
+            border-radius: 3px;
+            padding: 3px 6px;
+            selection-background-color: {sel_bg};
+            selection-color: {sel_fg};
+        }}
+        QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{
+            border-color: {acc};
+        }}
+
+        /* ── ComboBox ────────────────────────────────────────────────── */
+        QComboBox {{
+            background-color: {filt_bg};
             color: {fg};
             border: 1px solid {brd};
             border-radius: 3px;
             padding: 3px 6px;
             min-height: 22px;
         }}
-        QLineEdit:focus, QComboBox:focus {{
-            border-color: {acc};
-        }}
+        QComboBox:focus {{ border-color: {acc}; }}
         QComboBox::drop-down {{
             border: none;
-            background-color: {bg3};
+            background-color: {btn_n};
+            width: 18px;
         }}
         QComboBox QAbstractItemView {{
-            background-color: {bg2};
+            background-color: {entries};
             color: {fg};
             border: 1px solid {brd};
-            selection-background-color: {acc};
+            selection-background-color: {sel_bg};
+            selection-color: {sel_fg};
         }}
+
+        /* ── SpinBox ─────────────────────────────────────────────────── */
+        QSpinBox, QDoubleSpinBox {{
+            background-color: {filt_bg};
+            color: {fg};
+            border: 1px solid {brd};
+            border-radius: 3px;
+            padding: 2px 4px;
+        }}
+        QSpinBox:focus, QDoubleSpinBox:focus {{ border-color: {acc}; }}
+
+        /* ── ProgressBar ─────────────────────────────────────────────── */
         QProgressBar {{
             background-color: {bg2};
             border: 1px solid {brd};
@@ -130,78 +224,109 @@ def build_dialog_stylesheet(colors: dict) -> str:
             background-color: {acc};
             border-radius: 2px;
         }}
+
+        /* ── Labels ──────────────────────────────────────────────────── */
         QLabel {{
             color: {fg};
             background: transparent;
         }}
-        QSplitter::handle {{
-            background-color: {brd};
-        }}
-        QScrollBar:vertical {{
-            background: {bg2};
-            width: 10px;
-            border: none;
-        }}
-        QScrollBar::handle:vertical {{
-            background: {bg3};
-            border-radius: 4px;
-            min-height: 20px;
-        }}
-        QScrollBar::handle:vertical:hover {{
-            background: {acc};
-        }}
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-            height: 0px;
-        }}
-        QScrollBar:horizontal {{
-            background: {bg2};
-            height: 10px;
-            border: none;
-        }}
-        QScrollBar::handle:horizontal {{
-            background: {bg3};
-            border-radius: 4px;
-            min-width: 20px;
-        }}
-        QScrollBar::handle:horizontal:hover {{
-            background: {acc};
-        }}
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
-            width: 0px;
-        }}
+
+        /* ── GroupBox ────────────────────────────────────────────────── */
         QGroupBox {{
             color: {fg};
             border: 1px solid {brd};
             border-radius: 4px;
             margin-top: 8px;
             padding-top: 4px;
+            background-color: {panel};
         }}
         QGroupBox::title {{
-            color: {fg};
+            color: {fg_acc};
             subcontrol-origin: margin;
             left: 8px;
             padding: 0 3px;
         }}
-        QCheckBox {{
+
+        /* ── CheckBox / RadioButton ───────────────────────────────────── */
+        QCheckBox, QRadioButton {{
             color: {fg};
             spacing: 6px;
+            background: transparent;
         }}
-        QCheckBox::indicator {{
+        QCheckBox::indicator, QRadioButton::indicator {{
             width: 14px;
             height: 14px;
             border: 1px solid {brd};
-            border-radius: 2px;
             background: {bg2};
         }}
-        QCheckBox::indicator:checked {{
+        QCheckBox::indicator {{ border-radius: 2px; }}
+        QRadioButton::indicator {{ border-radius: 7px; }}
+        QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
             background: {acc};
             border-color: {acc};
+        }}
+
+        /* ── Tabs ────────────────────────────────────────────────────── */
+        QTabWidget::pane {{
+            border: 1px solid {brd};
+            background-color: {bg};
+        }}
+        QTabBar::tab {{
+            background-color: {bg2};
+            color: {fg2};
+            border: 1px solid {brd};
+            padding: 4px 12px;
+            border-bottom: none;
+        }}
+        QTabBar::tab:selected {{
+            background-color: {bg};
+            color: {fg};
+        }}
+        QTabBar::tab:hover {{
+            background-color: {btn_h};
+            color: {fg};
+        }}
+
+        /* ── Splitter ────────────────────────────────────────────────── */
+        QSplitter::handle {{
+            background-color: {brd};
         }}
         QSplitter::handle:hover {{
             background-color: {acc};
         }}
+
+        /* ── Scrollbars ──────────────────────────────────────────────── */
+        QScrollBar:vertical {{
+            background: {bg2};
+            width: 10px;
+            border: none;
+        }}
+        QScrollBar::handle:vertical {{
+            background: {btn_n};
+            border-radius: 4px;
+            min-height: 20px;
+        }}
+        QScrollBar::handle:vertical:hover {{ background: {acc}; }}
+        QScrollBar::add-line:vertical,
+        QScrollBar::sub-line:vertical {{ height: 0; }}
+        QScrollBar:horizontal {{
+            background: {bg2};
+            height: 10px;
+            border: none;
+        }}
+        QScrollBar::handle:horizontal {{
+            background: {btn_n};
+            border-radius: 4px;
+            min-width: 20px;
+        }}
+        QScrollBar::handle:horizontal:hover {{ background: {acc}; }}
+        QScrollBar::add-line:horizontal,
+        QScrollBar::sub-line:horizontal {{ width: 0; }}
     """
 
+
+# Alias kept for scan_img.py backwards compat
+_build_dialog_stylesheet = build_dialog_stylesheet
 
 
 def apply_dialog_theme(dialog, parent=None) -> None:
