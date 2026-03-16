@@ -320,6 +320,7 @@ class IMGFactoryGUILayout:
             'sort_entries': lambda: self.sort_entries(),
             'move_entry_up':   lambda: getattr(self.main_window, '_move_entries_up',   lambda: None)(),
             'open_ide_editor': lambda: getattr(self.main_window, 'open_ide_editor',    lambda: None)(),
+            'toggle_dir_tree': lambda: getattr(self.main_window, 'toggle_dir_tree',    lambda: None)(),
             'move_entry_down': lambda: getattr(self.main_window, '_move_entries_down', lambda: None)(),
 
             # Removed, TODO need to choose the ide file, to sort with.
@@ -579,6 +580,7 @@ class IMGFactoryGUILayout:
         """Get Options buttons data with theme colors"""
         colors = self._get_button_theme_template()
         return [
+            ("Dir Tree", "dir_tree", "dir-tree", colors['editor_data'], "toggle_dir_tree"),
             ("Col Edit", "col_edit", "col-edit", colors['editor_col'], "edit_col_file"),
             ("Txd Edit", "txd_edit", "txd-edit", colors['editor_txd'], "edit_txd_file"),
             ("Dff Edit", "dff_edit", "dff-edit", colors['editor_dff'], "edit_dff_file"),

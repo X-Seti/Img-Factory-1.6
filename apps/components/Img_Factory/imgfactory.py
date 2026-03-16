@@ -876,7 +876,7 @@ class IMGFactory(QMainWindow):
                 from apps.methods.imgfactory_svg_icons import SVGIconFactory
                 _icon = SVGIconFactory.info_icon(16, '#cccccc')
                 if hasattr(mw, 'register_tool'):
-                    mw.register_tool("dirtree", "Browser", lambda sz, col: SVGIconFactory.info_icon(sz, col),
+                    mw.register_tool("dirtree", "Dir", lambda sz, col: SVGIconFactory.info_icon(sz, col),
                                      tree, "Directory Tree Browser")
             except Exception:
                 pass
@@ -5428,6 +5428,60 @@ class IMGFactory(QMainWindow):
     def open_ipl_editor(self): #vers 1
         """Open IPL item placement editor"""
         self.log_message("IPL editor functionality coming soon")
+
+    def toggle_dir_tree(self): #vers 1
+        """Toggle the directory tree panel open/closed via the content splitter."""
+        try:
+            gl = getattr(self, 'gui_layout', None)
+            splitter = getattr(gl, 'content_splitter', None) if gl else None
+
+            # Set up dir tree if not done yet
+            if not hasattr(self, 'directory_tree') or not self.directory_tree:
+                from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+                if not integrate_directory_tree_browser(self):
+                    self.log_message("Failed to load Directory Tree")
+                    return
+                if splitter:
+                    already = any(splitter.widget(i) is self.directory_tree
+                                  for i in range(splitter.count()))
+                    if not already:
+                        splitter.addWidget(self.directory_tree)
+                root = getattr(self, 'game_root', None)
+                if root and hasattr(self.directory_tree, 'browse_directory'):
+                    self.directory_tree.browse_directory(root)
+                self._dirtree_setup_complete = True
+
+                # Register in taskbar
+                try:
+                    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                    self.register_tool("dirtree", "Dir",
+                        lambda sz, col: SVGIconFactory.info_icon(sz, col),
+                        self.directory_tree, "Directory Tree Browser")
+                except Exception:
+                    pass
+
+            if not splitter or splitter.count() < 2:
+                self.log_message("Dir tree not in splitter yet")
+                return
+
+            sizes = splitter.sizes()
+            total = sum(sizes) or 10000
+            if sizes[-1] < total * 0.1:
+                # Hidden — show 50/50
+                splitter.setSizes([total // 2, total // 2])
+                self._dirtree_state = 1
+                if hasattr(self, 'tool_taskbar'):
+                    self.tool_taskbar._set_exclusive_active("dirtree")
+                self.log_message("→ Dir Tree open")
+            else:
+                # Visible — hide
+                splitter.setSizes([total, 0])
+                self._dirtree_state = 0
+                if hasattr(self, 'tool_taskbar'):
+                    self.tool_taskbar.set_active("dirtree", False)
+                self.log_message("→ Dir Tree closed")
+        except Exception as e:
+            self.log_message(f"Dir tree toggle error: {e}")
 
     def open_ide_editor(self): #vers 2
         """Open IDE Editor — docked by default, standalone on right-click."""

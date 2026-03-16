@@ -145,23 +145,12 @@ class ToolTaskbar(QWidget):  # vers 2
         if t is None:
             return
 
-        # Dir tree button: toggle the content splitter
+        # Dir tree button: delegate to toggle_dir_tree on main window
         if key == "dirtree":
             mw = self._main_window
-            gl = getattr(mw, "gui_layout", None)
-            splitter = getattr(gl, "content_splitter", None) if gl else None
-            if splitter and splitter.count() >= 2:
-                sizes = splitter.sizes()
-                total = sum(sizes) or 10000
-                # If tree is hidden or very small, show it in split mode
-                if sizes[-1] < total * 0.1:
-                    splitter.setSizes([total // 2, total // 2])
-                    self._set_exclusive_active(key)
-                else:
-                    # Tree visible — hide it
-                    splitter.setSizes([total, 0])
-                    self.set_active(key, False)
-                return
+            if hasattr(mw, 'toggle_dir_tree'):
+                mw.toggle_dir_tree()
+            return
 
         if callable(t):
             t()
@@ -206,13 +195,15 @@ class ToolTaskbar(QWidget):  # vers 2
         def _close():
             t = self._tools.get(key, {}).get("target")
             if key == "dirtree":
-                # Hide the splitter panel rather than closing the widget
+                # Close = hide the splitter panel
                 mw = self._main_window
                 gl = getattr(mw, "gui_layout", None)
                 splitter = getattr(gl, "content_splitter", None) if gl else None
                 if splitter and splitter.count() >= 2:
                     total = sum(splitter.sizes()) or 10000
                     splitter.setSizes([total, 0])
+                if hasattr(mw, '_dirtree_state'):
+                    mw._dirtree_state = 0
             elif isinstance(t, QWidget):
                 mw = self._main_window
                 tw = getattr(mw, "main_tab_widget", None)
@@ -989,7 +980,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                 from apps.methods.imgfactory_svg_icons import SVGIconFactory
                 _icon = SVGIconFactory.info_icon() if not hasattr(SVGIconFactory,'folder_icon') else SVGIconFactory.folder_icon()
                 if hasattr(mw, 'register_tool'):
-                    mw.register_tool("dirtree", "Browser", _icon,
+                    mw.register_tool("dirtree", "Dir", _icon,
                                      mw.directory_tree, "Directory Tree Browser")
             except Exception:
                 pass
