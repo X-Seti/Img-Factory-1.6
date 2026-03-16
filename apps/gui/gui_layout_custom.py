@@ -93,20 +93,50 @@ class ToolTaskbar(QWidget):  # vers 2
 
     def _make_btn_style(self, active: bool, acc: str = "#1976d2",
                         txt: str = "#cccccc", bg: str = "transparent") -> str:
-        underline = (
-            f"border-bottom: 2px solid {acc}; border-radius:0px;"
-        ) if active else "border-bottom: 2px solid transparent; border-radius:3px;"
-        return (
-            f"QPushButton#tbtn {{"
-            f"  background:{bg}; color:{txt}; font-size:11px;"
-            f"  padding:2px 6px; border:1px solid transparent; {underline}"
-            f"}}"
-            f"QPushButton#tbtn:hover {{"
-            f"  background:{acc}33; border:1px solid {acc}; border-radius:3px;"
-            f"  border-bottom: 2px solid {acc};"
-            f"}}"
-            f"QPushButton#tbtn:pressed {{ background:{acc}66; }}"
-        )
+        # Active: bright tinted background + 3px accent bottom line + full brightness text
+        # Inactive: transparent, dimmer text
+        # The border shorthand must NOT come after border-bottom, or it resets it —
+        # so we set all four sides explicitly.
+        if active:
+            return (
+                f"QPushButton#tbtn {{"
+                f"  background: {acc}44;"       # visible tint
+                f"  color: {txt};"
+                f"  font-size: 11px;"
+                f"  font-weight: bold;"
+                f"  padding: 2px 8px 0px 8px;"  # less bottom padding so line sits at edge
+                f"  border-top: 1px solid transparent;"
+                f"  border-left: 1px solid transparent;"
+                f"  border-right: 1px solid transparent;"
+                f"  border-bottom: 3px solid {acc};"
+                f"  border-radius: 3px 3px 0px 0px;"  # square bottom corners for tab feel
+                f"}}"
+                f"QPushButton#tbtn:hover {{"
+                f"  background: {acc}66;"
+                f"  border-bottom: 3px solid {acc};"
+                f"}}"
+                f"QPushButton#tbtn:pressed {{ background: {acc}88; }}"
+            )
+        else:
+            return (
+                f"QPushButton#tbtn {{"
+                f"  background: transparent;"
+                f"  color: {txt}aa;"            # slightly dimmer when inactive
+                f"  font-size: 11px;"
+                f"  padding: 2px 8px;"
+                f"  border-top: 1px solid transparent;"
+                f"  border-left: 1px solid transparent;"
+                f"  border-right: 1px solid transparent;"
+                f"  border-bottom: 3px solid transparent;"
+                f"  border-radius: 3px;"
+                f"}}"
+                f"QPushButton#tbtn:hover {{"
+                f"  background: {acc}22;"
+                f"  color: {txt};"
+                f"  border-bottom: 3px solid {acc}66;"
+                f"}}"
+                f"QPushButton#tbtn:pressed {{ background: {acc}44; }}"
+            )
 
     def _raise_target(self, key: str) -> None:
         """Raise / show the tool's widget or call its opener."""
@@ -275,9 +305,16 @@ class ToolTaskbar(QWidget):  # vers 2
         """Re-style all buttons from the live theme palette."""
         self._acc = colors.get("accent_primary", "#1976d2")
         self._txt = colors.get("text_primary",   "#cccccc")
-        self._bg  = colors.get("bg_secondary",   "transparent")
+        self._bg  = colors.get("bg_tertiary",
+                    colors.get("bg_secondary", "#1a1a2e"))
+        # Give the taskbar a subtle background so it visually separates
+        # from the rest of the titlebar row — like a pill/tray
         self.setStyleSheet(
-            f"QWidget#tool_taskbar {{ background: transparent; }}"
+            f"QWidget#tool_taskbar {{"
+            f"  background: {self._bg}88;"     # semi-transparent tint
+            f"  border-radius: 4px;"
+            f"  padding: 1px 2px;"
+            f"}}"
         )
         for key, info in self._tools.items():
             info["btn"].setStyleSheet(
