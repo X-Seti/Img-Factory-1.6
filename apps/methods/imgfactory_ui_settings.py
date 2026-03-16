@@ -33,17 +33,25 @@ from apps.methods.img_factory_settings import IMGFactorySettings
 # _save_and_close
 # _save_settings
 
-class IMGFactorySettingsDialog(QDialog): #vers 1
-    """IMG Factory-specific settings dialog with 4 tabs"""
+class IMGFactorySettingsDialog(QDialog): #vers 2
+    """IMG Factory-specific settings dialog — non-modal standalone window."""
 
-    def __init__(self, main_window, parent=None): #vers 1
-        super().__init__(parent)
+    def __init__(self, main_window, parent=None): #vers 2
+        # Use no parent so dialog is a true top-level window (movable anywhere)
+        super().__init__(None)
         self.main_window = main_window
         self.img_settings = getattr(main_window, 'img_settings', None) or IMGFactorySettings()
 
         self.setWindowTitle("IMG Factory Settings")
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(400)
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowCloseButtonHint |
+            Qt.WindowType.WindowMinimizeButtonHint |
+            Qt.WindowType.WindowMaximizeButtonHint
+        )
+        self.setMinimumWidth(540)
+        self.setMinimumHeight(440)
+        self.resize(580, 520)
 
         self._create_ui()
 
@@ -754,11 +762,25 @@ class IMGFactorySettingsDialog(QDialog): #vers 1
             show_imgfactory_settings_dialog(self.main_window)
 
 
-def show_imgfactory_settings_dialog(main_window): #vers 1
-    """Show IMG Factory settings dialog - main entry point"""
+def show_imgfactory_settings_dialog(main_window): #vers 2
+    """Show IMG Factory settings dialog — non-modal, movable, reused if open."""
     try:
+        # Reuse existing instance if already open
+        existing = getattr(main_window, '_imgfactory_settings_dialog', None)
+        if existing is not None:
+            try:
+                if existing.isVisible():
+                    existing.raise_()
+                    existing.activateWindow()
+                    return
+            except RuntimeError:
+                pass  # C++ object deleted
+
         dialog = IMGFactorySettingsDialog(main_window)
-        dialog.exec()
+        main_window._imgfactory_settings_dialog = dialog
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+        dialog.show()
+        dialog.raise_()
     except Exception as e:
         QMessageBox.warning(
             main_window,

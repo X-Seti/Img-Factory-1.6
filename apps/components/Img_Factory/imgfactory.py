@@ -2708,8 +2708,27 @@ class IMGFactory(QMainWindow):
         """Show GUI settings dialog"""
         self.log_message("GUI settings requested")
         try:
-            from apps.utils.app_settings_system import SettingsDialog
+            from apps.utils.app_settings_system import SettingsDialog, apply_theme_to_app
+            from PyQt6.QtWidgets import QApplication
             dialog = SettingsDialog(self.app_settings, self)
+
+            def _live_theme(theme_key):
+                """Apply theme live as user picks it — no restart needed."""
+                try:
+                    apply_theme_to_app(QApplication.instance(), self.app_settings)
+                    colors = self.app_settings.get_theme_colors() or {}
+                    icon_color = colors.get('text_primary', '#cccccc')
+                    if hasattr(self.gui_layout, 'refresh_icons'):
+                        self.gui_layout.refresh_icons(icon_color)
+                    if hasattr(self.gui_layout, 'apply_table_theme'):
+                        self.gui_layout.apply_table_theme()
+                    if hasattr(self, 'tool_taskbar'):
+                        self.tool_taskbar.apply_theme(colors)
+                    self.log_message(f"Theme applied: {theme_key}")
+                except Exception as _e:
+                    self.log_message(f"Live theme error: {_e}")
+
+            dialog.themeChanged.connect(_live_theme)
             dialog.exec()
         except Exception as e:
             self.log_message(f"Settings dialog error: {str(e)}")

@@ -3787,7 +3787,26 @@ class SettingsDialog(QDialog): #vers 15
         theme_selector_layout = QHBoxLayout()
         theme_selector_layout.addWidget(QLabel(""))
 
-        self.instant_apply_check = QCheckBox("Apply Theme")
+        self.instant_apply_check = QCheckBox("✓ Apply Theme")
+        self.instant_apply_check.setChecked(True)
+        self.instant_apply_check.setStyleSheet("""
+            QCheckBox {
+                font-weight: bold;
+                font-size: 11px;
+                padding: 3px 8px;
+                border: 2px solid palette(highlight);
+                border-radius: 4px;
+                color: palette(highlighted-text);
+                background: palette(highlight);
+                spacing: 4px;
+            }
+            QCheckBox:unchecked {
+                background: palette(button);
+                color: palette(button-text);
+                border: 2px solid palette(mid);
+            }
+            QCheckBox::indicator { width: 0; height: 0; }
+        """)
         theme_selector_layout.addWidget(self.instant_apply_check)
 
         self.theme_selector_combo = QComboBox()
@@ -3931,6 +3950,9 @@ class SettingsDialog(QDialog): #vers 15
         main_splitter.addWidget(right_panel)
         main_splitter.setStretchFactor(0, 0)  # left: fixed
         main_splitter.setStretchFactor(1, 1)  # right: stretches
+        # Set initial sizes: left ~280px, right takes the rest
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: main_splitter.setSizes([280, 10000]))
 
         # IMPORTANT: Connect sliders AFTER all widgets are created
         self.global_hue_slider.valueChanged.connect(self._on_global_hue_changed)
@@ -7027,28 +7049,63 @@ Ready for operations..."""
 
     # ===== THEME MANAGEMENT =====
 
-    def _on_theme_changed(self, theme_name): #vers 2
-        """Handle theme selection change"""
+    def _on_theme_changed(self, theme_name): #vers 3
+        """Handle theme selection change — applies live to entire app when checked."""
         theme_key = None
         for key, data in self.app_settings.themes.items():
             if data.get("name", key) == theme_name:
                 theme_key = key
                 break
 
-        if theme_key:
-            self._load_theme_colors(theme_key)
+        if not theme_key:
+            return
 
-            # Apply instantly if checkbox is enabled (copied from _apply_demo_theme)
-            if hasattr(self, 'instant_apply_check') and self.instant_apply_check.isChecked():
-                # Update settings temporarily
-                self.app_settings.current_settings["theme"] = theme_key
+        self._load_theme_colors(theme_key)
 
-                # Get and apply stylesheet
+        if hasattr(self, 'instant_apply_check') and self.instant_apply_check.isChecked():
+            # Persist the choice
+            self.app_settings.current_settings["theme"] = theme_key
+
+            # Apply full stylesheet to the app
+            try:
+                from PyQt6.QtWidgets import QApplication
+                stylesheet = self.app_settings.get_stylesheet()
+                QApplication.instance().setStyleSheet(stylesheet)
+            except Exception:
+                pass
+
+            # Apply to this dialog too
+            try:
                 stylesheet = self.app_settings.get_stylesheet()
                 self.setStyleSheet(stylesheet)
+            except Exception:
+                pass
 
-                # Emit signal to parent
-                self.themeChanged.emit(theme_key)
+            # Refresh IMG Factory-specific widgets (taskbar, table, icons)
+            try:
+                mw = self.parent()
+                if mw is None:
+                    # Non-modal — find main window via QApplication
+                    from PyQt6.QtWidgets import QApplication
+                    for w in QApplication.topLevelWidgets():
+                        if hasattr(w, 'app_settings') and hasattr(w, 'gui_layout'):
+                            mw = w
+                            break
+                if mw and hasattr(mw, 'app_settings'):
+                    colors = mw.app_settings.get_theme_colors() or {}
+                    icon_color = colors.get('text_primary', '#cccccc')
+                    if hasattr(mw, 'gui_layout'):
+                        if hasattr(mw.gui_layout, 'refresh_icons'):
+                            mw.gui_layout.refresh_icons(icon_color)
+                        if hasattr(mw.gui_layout, 'apply_table_theme'):
+                            mw.gui_layout.apply_table_theme()
+                    if hasattr(mw, 'tool_taskbar'):
+                        mw.tool_taskbar.apply_theme(colors)
+            except Exception:
+                pass
+
+            # Emit signal
+            self.themeChanged.emit(theme_key)
 
     def _load_theme_colors(self, theme_key): #vers 1
         """Load colors for selected theme into editors"""

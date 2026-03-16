@@ -2280,11 +2280,28 @@ RwTexDictionary (0x0016) chunk header [12 bytes]
 
 
     def _launch_theme_settings(self): #vers 1
-        """Launch theme settings dialog"""
+        """Launch theme settings dialog with live theme apply."""
         try:
             if hasattr(self.main_window, 'app_settings'):
-                from apps.utils.app_settings_system import SettingsDialog
+                from apps.utils.app_settings_system import SettingsDialog, apply_theme_to_app
+                from PyQt6.QtWidgets import QApplication
                 dialog = SettingsDialog(self.main_window.app_settings, self.main_window)
+
+                def _live(theme_key, mw=self.main_window):
+                    try:
+                        apply_theme_to_app(QApplication.instance(), mw.app_settings)
+                        colors = mw.app_settings.get_theme_colors() or {}
+                        icon_color = colors.get('text_primary', '#cccccc')
+                        if hasattr(mw.gui_layout, 'refresh_icons'):
+                            mw.gui_layout.refresh_icons(icon_color)
+                        if hasattr(mw.gui_layout, 'apply_table_theme'):
+                            mw.gui_layout.apply_table_theme()
+                        if hasattr(mw, 'tool_taskbar'):
+                            mw.tool_taskbar.apply_theme(colors)
+                    except Exception:
+                        pass
+
+                dialog.themeChanged.connect(_live)
                 dialog.exec()
             else:
                 from PyQt6.QtWidgets import QMessageBox
