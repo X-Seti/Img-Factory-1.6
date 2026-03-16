@@ -1657,11 +1657,18 @@ class IMGFile:
                             # Check for VCS .LVZ streaming companion before V1 fallback
                             _lvz = _find_companion(self.file_path, '.lvz')
                             if _lvz:
-                                from apps.core.img_ps2_vcs import detect_lvz
-                                if detect_lvz(_lvz):
-                                    self.version = IMGVersion.VERSION_PS2_LVZ
-                                    return IMGVersion.VERSION_PS2_LVZ
-                            # No .dir - standalone V1/V1.5, check size
+                                # .lvz companion exists → this IMG is a raw streaming
+                                # segment (COMMER/BEACH/MALL etc.) — block it with a
+                                # helpful message, suggest opening the .lvz instead
+                                self._streaming_segment_error = (
+                                    f"{os.path.basename(self.file_path)} is a raw streaming data file.\n\n"
+                                    "This file has no internal directory — it is asset data\n"
+                                    f"indexed by the companion {os.path.basename(_lvz)}.\n\n"
+                                    f"Open {os.path.basename(_lvz)} instead to browse this archive."
+                                )
+                                self.version = IMGVersion.VERSION_STREAMING_SEG
+                                return IMGVersion.VERSION_STREAMING_SEG
+                            # No .dir and no .lvz - standalone V1/V1.5, check size
                             sz = os.path.getsize(self.file_path)
                             ver = IMGVersion.VERSION_1_5 if sz > 2 * 1024 * 1024 * 1024 else IMGVersion.VERSION_1
                         self.version = ver
