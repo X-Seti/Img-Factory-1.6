@@ -5764,6 +5764,20 @@ Ready for operations..."""
         mode_map = {"both": 0, "icons": 1, "text": 2}
         self.button_display_combo.setCurrentIndex(mode_map.get(current_mode, 0))
 
+        # Tab content mode
+        try:
+            tab_mode_row = QHBoxLayout()
+            tab_mode_row.addWidget(QLabel("Tab content:"))
+            self.tab_content_mode_combo = QComboBox()
+            self.tab_content_mode_combo.addItems(["Icon + Text", "Icon Only", "Text Only"])
+            tab_mode_rev = {"both": 0, "icon": 1, "text": 2}
+            _tab_mode = self.app_settings.current_settings.get("tab_content_mode", "both")
+            self.tab_content_mode_combo.setCurrentIndex(tab_mode_rev.get(_tab_mode, 0))
+            tab_mode_row.addWidget(self.tab_content_mode_combo)
+            tab_mode_row.addStretch()
+        except Exception:
+            self.tab_content_mode_combo = None
+
         button_display_layout.addWidget(self.button_display_combo)
 
         hint_label = QLabel("Controls how toolbar buttons are displayed")
@@ -7303,6 +7317,12 @@ Ready for operations..."""
             mode_index = self.button_display_combo.currentIndex()
             mode_map = {0: "both", 1: "icons", 2: "text"}
             settings["button_display_mode"] = mode_map.get(mode_index, "both")
+
+        # Tab content mode
+        if hasattr(self, 'tab_content_mode_combo') and self.tab_content_mode_combo:
+            tab_map = {0: "both", 1: "icon", 2: "text"}
+            settings["tab_content_mode"] = tab_map.get(
+                self.tab_content_mode_combo.currentIndex(), "both")
 
         # Window controls
         if hasattr(self, 'custom_gadgets_check'):

@@ -5518,20 +5518,21 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Dir tree toggle error: {e}")
 
-    def _apply_tab_theme(self): #vers 1
-        """Apply theme colours to main_tab_widget — identical to app_settings_system tabs."""
+    def _apply_tab_theme(self): #vers 2
+        """Apply theme colours + content mode to main_tab_widget.
+        Identical CSS to app_settings_system tabs."""
         if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
             return
         try:
             colors = self.app_settings.get_theme_colors() or {} if hasattr(self, 'app_settings') else {}
-            bg_primary   = colors.get('bg_primary',   '#ffffff')
-            bg_secondary = colors.get('bg_secondary',  '#f5f5f5')
-            text_primary = colors.get('text_primary',  '#000000')
-            text_secondary = colors.get('text_secondary', '#666666')
-            accent       = colors.get('accent_primary', '#1976d2')
-            accent2      = colors.get('accent_secondary','#1565c0')
-            btn_hover    = colors.get('button_hover',  '#e0e0e0')
-            border       = colors.get('border',        '#cccccc')
+            bg_primary    = colors.get('bg_primary',    '#ffffff')
+            bg_secondary  = colors.get('bg_secondary',  '#f5f5f5')
+            text_primary  = colors.get('text_primary',  '#000000')
+            text_secondary= colors.get('text_secondary','#666666')
+            accent        = colors.get('accent_primary','#1976d2')
+            accent2       = colors.get('accent_secondary','#1565c0')
+            btn_hover     = colors.get('button_hover',  '#e0e0e0')
+            border        = colors.get('border',        '#cccccc')
 
             self.main_tab_widget.setStyleSheet(f"""
                 QTabBar::tab {{
@@ -5559,8 +5560,40 @@ class IMGFactory(QMainWindow):
                     margin-top: 0px;
                 }}
             """)
+
+            # Apply tab content display mode
+            self._apply_tab_content_mode()
         except Exception as e:
             self.log_message(f"Tab theme error: {e}")
+
+    def _apply_tab_content_mode(self): #vers 1
+        """Set tabs to show icon+text, icon only, or text only."""
+        if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+            return
+        try:
+            mode = "both"
+            if hasattr(self, 'img_settings'):
+                mode = self.img_settings.get("tab_content_mode", "both")
+            tw = self.main_tab_widget
+            from PyQt6.QtWidgets import QTabBar
+            tb = tw.tabBar()
+            for i in range(tw.count()):
+                icon = tw.tabIcon(i)
+                text = tw.tabText(i)
+                has_icon = not icon.isNull()
+                if mode == "icon" and has_icon:
+                    tw.setTabText(i, "")
+                    tw.setTabToolTip(i, text)
+                elif mode == "text":
+                    from PyQt6.QtGui import QIcon
+                    tw.setTabIcon(i, QIcon())
+                    if not text:
+                        tw.setTabText(i, tw.tabToolTip(i) or f"Tab {i}")
+                else:  # both
+                    if not text and tw.tabToolTip(i):
+                        tw.setTabText(i, tw.tabToolTip(i))
+        except Exception as e:
+            self.log_message(f"Tab content mode error: {e}")
 
     def open_ide_editor(self): #vers 2
         """Open IDE Editor — docked by default, standalone on right-click."""

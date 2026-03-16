@@ -249,6 +249,18 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         tab_style_layout.addStretch()
         tab_layout.addLayout(tab_style_layout)
 
+        # Tab content display mode
+        tab_content_layout = QHBoxLayout()
+        tab_content_layout.addWidget(QLabel("Tab content:"))
+        self.tab_content_combo = QComboBox()
+        self.tab_content_combo.addItems(["Icon + Text", "Icon Only", "Text Only"])
+        mode_map = {"both": 0, "icon": 1, "text": 2}
+        self.tab_content_combo.setCurrentIndex(
+            mode_map.get(self.img_settings.get("tab_content_mode", "both"), 0))
+        tab_content_layout.addWidget(self.tab_content_combo)
+        tab_content_layout.addStretch()
+        tab_layout.addLayout(tab_content_layout)
+
         tab_pos_layout = QHBoxLayout()
         tab_pos_layout.addWidget(QLabel("Tab position:"))
         self.tab_position_combo = QComboBox()
@@ -681,6 +693,9 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.img_settings.set("tab_height", self.tab_height_spin.value())
         self.img_settings.set("tab_min_width", self.tab_min_width_spin.value())
         self.img_settings.set("tab_style", self.tab_style_combo.currentText())
+        mode_rev = {0: "both", 1: "icon", 2: "text"}
+        self.img_settings.set("tab_content_mode",
+            mode_rev.get(self.tab_content_combo.currentIndex(), "both"))
         self.img_settings.set("tab_position", self.tab_position_combo.currentText())
 
         # Advanced tab

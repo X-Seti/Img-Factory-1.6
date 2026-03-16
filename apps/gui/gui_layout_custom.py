@@ -203,10 +203,19 @@ class ToolTaskbar(QWidget):  # vers 2
             return
 
         if key == "dat":
-            # _open_dat_browser lives on gui_layout, not main_window
-            gl = getattr(mw, 'gui_layout', None)
-            if gl and hasattr(gl, '_open_dat_browser'):
-                gl._open_dat_browser()
+            # show_dat_browser switches to the existing tab or creates it
+            try:
+                from apps.components.Dat_Browser.dat_browser import show_dat_browser
+                show_dat_browser(mw)
+                # Update target to the actual widget so raise works next time
+                widget = getattr(mw, 'dat_browser', None)
+                if widget and 'dat' in self._tools:
+                    self._tools['dat']['target'] = widget
+                self._set_exclusive_active('dat')
+            except Exception:
+                gl = getattr(mw, 'gui_layout', None)
+                if gl and hasattr(gl, '_open_dat_browser'):
+                    gl._open_dat_browser()
             return
 
         # For COL/TXD/IDE/AI use the docked opener on main_window
