@@ -203,19 +203,26 @@ class ToolTaskbar(QWidget):  # vers 2
             return
 
         if key == "dat":
-            # show_dat_browser switches to the existing tab or creates it
             try:
                 from apps.components.Dat_Browser.dat_browser import show_dat_browser
                 show_dat_browser(mw)
-                # Update target to the actual widget so raise works next time
+                # Always update target after open so raise_target works
                 widget = getattr(mw, 'dat_browser', None)
-                if widget and 'dat' in self._tools:
-                    self._tools['dat']['target'] = widget
+                if widget:
+                    if 'dat' in self._tools:
+                        self._tools['dat']['target'] = widget
+                    else:
+                        # Re-register with widget target
+                        try:
+                            from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
+                            icon_color = self._txt
+                            icon = get_dat_browser_icon(16, icon_color)
+                            self.register('dat', 'DAT', icon, widget, 'DAT Browser')
+                        except Exception:
+                            pass
                 self._set_exclusive_active('dat')
-            except Exception:
-                gl = getattr(mw, 'gui_layout', None)
-                if gl and hasattr(gl, '_open_dat_browser'):
-                    gl._open_dat_browser()
+            except Exception as _e:
+                print(f"DAT open error: {_e}")
             return
 
         # For COL/TXD/IDE/AI use the docked opener on main_window

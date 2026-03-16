@@ -366,14 +366,16 @@ class IMGFactoryGUILayout:
         else:
             print(f"Method '{method_name}' not yet implemented")
 
-    def _open_dat_browser(self): #vers 1
+    def _open_dat_browser(self): #vers 2
         """Open (or re-open) the DAT Browser tab — wired to the 'Dat Edit' button."""
         try:
             from apps.components.Dat_Browser.dat_browser import show_dat_browser
             show_dat_browser(self.main_window)
-            from apps.methods.imgfactory_svg_icons import get_edit_icon
+            # Register with the actual widget as target so taskbar can raise it
+            widget = getattr(self.main_window, 'dat_browser', None)
             _register_tool_taskbar(self.main_window, 'dat', 'DAT',
-                get_dat_browser_icon, 'DAT Browser — game data editor')
+                get_dat_browser_icon, 'DAT Browser — game data editor',
+                target=widget)
         except Exception as e:
             self._log_missing_method('edit_dat_file')
 

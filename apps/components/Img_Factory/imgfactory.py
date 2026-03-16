@@ -5518,50 +5518,57 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Dir tree toggle error: {e}")
 
-    def _apply_tab_theme(self): #vers 2
-        """Apply theme colours + content mode to main_tab_widget.
-        Identical CSS to app_settings_system tabs."""
+    def _apply_tab_theme(self): #vers 3
+        """Apply theme colours to main_tab_widget tab bar.
+
+        Sets the stylesheet directly on tabBar() (not the QTabWidget) so it
+        wins over the global QApplication stylesheet from apply_theme_to_app.
+        Identical visual to app_settings_system tabs.
+        """
         if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
             return
         try:
             colors = self.app_settings.get_theme_colors() or {} if hasattr(self, 'app_settings') else {}
-            bg_primary    = colors.get('bg_primary',    '#ffffff')
-            bg_secondary  = colors.get('bg_secondary',  '#f5f5f5')
-            text_primary  = colors.get('text_primary',  '#000000')
-            text_secondary= colors.get('text_secondary','#666666')
-            accent        = colors.get('accent_primary','#1976d2')
-            accent2       = colors.get('accent_secondary','#1565c0')
-            btn_hover     = colors.get('button_hover',  '#e0e0e0')
-            border        = colors.get('border',        '#cccccc')
+            bg_p  = colors.get('bg_primary',     '#ffffff')
+            bg_s  = colors.get('bg_secondary',   '#f5f5f5')
+            txt_p = colors.get('text_primary',   '#000000')
+            txt_s = colors.get('text_secondary', '#666666')
+            acc   = colors.get('accent_primary', '#1976d2')
+            acc2  = colors.get('accent_secondary','#1565c0')
+            hover = colors.get('button_hover',   '#e0e0e0')
+            brd   = colors.get('border',         '#cccccc')
 
-            self.main_tab_widget.setStyleSheet(f"""
+            # Apply to tabBar() directly — wins over global QApplication QSS
+            tab_bar = self.main_tab_widget.tabBar()
+            tab_bar.setStyleSheet(f"""
                 QTabBar::tab {{
-                    background-color: {bg_secondary};
-                    border: 1px solid {border};
+                    background-color: {bg_s};
+                    border: 1px solid {brd};
                     border-bottom: 3px solid transparent;
                     padding: 5px 14px;
-                    color: {text_secondary};
+                    color: {txt_s};
                     margin-bottom: 0px;
                     margin-right: 2px;
                 }}
                 QTabBar::tab:selected {{
-                    background-color: {bg_primary};
-                    color: {text_primary};
-                    border-bottom: 3px solid {accent};
+                    background-color: {bg_p};
+                    color: {txt_p};
+                    border-bottom: 3px solid {acc};
                     font-weight: bold;
                 }}
                 QTabBar::tab:hover:!selected {{
-                    background-color: {btn_hover};
-                    color: {text_primary};
-                    border-bottom: 3px solid {accent2};
+                    background-color: {hover};
+                    color: {txt_p};
+                    border-bottom: 3px solid {acc2};
                 }}
+            """)
+            # Pane border on the QTabWidget itself
+            self.main_tab_widget.setStyleSheet(f"""
                 QTabWidget::pane {{
-                    border-top: 1px solid {border};
+                    border-top: 1px solid {brd};
                     margin-top: 0px;
                 }}
             """)
-
-            # Apply tab content display mode
             self._apply_tab_content_mode()
         except Exception as e:
             self.log_message(f"Tab theme error: {e}")
