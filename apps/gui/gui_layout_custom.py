@@ -342,10 +342,9 @@ class ToolTaskbar(QWidget):  # vers 2
             menu.addSeparator()
             _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        # ── COL: Open in Filelist, Open in Workshop, Save, Close, Show ───────
+        # ── COL: Open in COL Workshop (from selection), Save, Show, Close ──────
         elif key == "col":
-            _act("Open in file list", lambda: self._tool_action(key, 'open_in_filelist'))
-            _act("Open in COL Workshop", lambda: getattr(mw,'open_col_workshop_docked',lambda:None)())
+            _act("Open in COL Workshop", lambda: self._col_open_from_selection())
             _act("Save", lambda: self._tool_action(key, 'save'))
             menu.addMenu(self._show_submenu(key, menu))
             menu.addSeparator()
@@ -359,6 +358,16 @@ class ToolTaskbar(QWidget):  # vers 2
             _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
         menu.exec(self.mapToGlobal(pos))
+
+    def _col_open_from_selection(self) -> None:
+        """Open selected COL entry from filelist in COL Workshop."""
+        mw = self._main_window
+        try:
+            from apps.gui.gui_layout import edit_col_file
+            edit_col_file(mw)
+        except Exception as e:
+            if hasattr(mw, 'open_col_workshop_docked'):
+                mw.open_col_workshop_docked()
 
     def _tool_action(self, key: str, action: str) -> None:
         """Dispatch tool-specific actions like save/open_in_filelist."""

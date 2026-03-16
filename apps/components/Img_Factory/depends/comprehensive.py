@@ -584,7 +584,36 @@ def add_requested_file_operations(main_window, menu, row=None):
             model_action = QAction("Show DFF Model in Viewer", menu)
             model_action.triggered.connect(lambda: show_dff_model_viewer(main_window, row, entry_info))
             menu.addAction(model_action)
-        
+
+        # Open in COL Workshop (if COL file)
+        if entry_info and entry_info['is_col']:
+            menu.addSeparator()
+            col_action = QAction("Open in COL Workshop", menu)
+            def _open_col(checked=False, e=entry_info):
+                try:
+                    from apps.gui.gui_layout import edit_col_file
+                    edit_col_file(main_window)
+                except Exception:
+                    if hasattr(main_window, 'open_col_workshop_docked'):
+                        main_window.open_col_workshop_docked(
+                            col_name=e['name'])
+            col_action.triggered.connect(_open_col)
+            menu.addAction(col_action)
+
+        # Open in TXD Workshop (if TXD file)
+        if entry_info and entry_info['is_txd']:
+            menu.addSeparator()
+            txd_action = QAction("Open in TXD Workshop", menu)
+            def _open_txd(checked=False, e=entry_info):
+                try:
+                    if hasattr(main_window, 'open_txd_workshop_docked'):
+                        main_window.open_txd_workshop_docked(
+                            txd_name=e['name'])
+                except Exception:
+                    pass
+            txd_action.triggered.connect(_open_txd)
+            menu.addAction(txd_action)
+
         menu.addSeparator()
         
     except Exception as e:

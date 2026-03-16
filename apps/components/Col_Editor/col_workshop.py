@@ -3849,28 +3849,46 @@ class COLWorkshop(QWidget): #vers 3
             traceback.print_exc()
 
 
-    def _show_collision_context_menu(self, position): #vers 1
-        """Show context menu for collision list"""
+    def _show_collision_context_menu(self, position): #vers 2
+        """Show context menu for collision list.
+        TODO: add export model, import replacement, rename model entries.
+        """
         item = self.collision_list.itemAt(position)
         if not item:
             return
 
         menu = QMenu(self)
 
-        # Get model index
         row = self.collision_list.row(item)
         if row < 0 or not self.current_col_file:
             return
 
         model = self.current_col_file.models[row]
 
-        # Show Details action
-        details_action = menu.addAction("📋 Show Details")
+        # ── View ──────────────────────────────────────────────────────────────
+        details_action = menu.addAction("Show Details")
         details_action.triggered.connect(lambda: self._show_model_details(model, row))
 
-        # Copy Info action
         copy_action = menu.addAction("Copy Info to Clipboard")
         copy_action.triggered.connect(lambda: self._copy_model_info(model, row))
+
+        menu.addSeparator()
+
+        # ── Edit (TODO: implement these) ──────────────────────────────────────
+        rename_action = menu.addAction("Rename Model")
+        rename_action.setEnabled(False)   # TODO
+        rename_action.setToolTip("TODO: rename collision model entry")
+
+        menu.addSeparator()
+
+        # ── Import / Export (TODO) ─────────────────────────────────────────────
+        export_action = menu.addAction("Export Model...")
+        export_action.setEnabled(False)   # TODO
+        export_action.setToolTip("TODO: export single collision model")
+
+        import_action = menu.addAction("Replace with Import...")
+        import_action.setEnabled(False)   # TODO
+        import_action.setToolTip("TODO: replace collision model from file")
 
         menu.exec(self.collision_list.mapToGlobal(position))
 
