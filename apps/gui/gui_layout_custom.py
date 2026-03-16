@@ -550,7 +550,12 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         layout.addStretch()
 
         # App title in center
-        self.title_label = QLabel(App_name)
+        try:
+            from apps.app_info import App_build_num as _bnum
+            _title_text = f"{App_name}  —  {_bnum}"
+        except ImportError:
+            _title_text = App_name
+        self.title_label = QLabel(_title_text)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.title_label)

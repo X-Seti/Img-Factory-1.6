@@ -144,7 +144,7 @@ from apps.methods.imgfactory_svg_icons import (
 
 
 # App metadata - imported from app_info.py to avoid circular imports
-from apps.app_info import App_name, App_build, App_auth
+from apps.app_info import App_name, App_build, App_auth, App_build_num
 
 ##Methods list -
 
@@ -431,7 +431,7 @@ class IMGFactory(QMainWindow):
 
         # Window setup
         branch = get_current_git_branch()
-        self.setWindowTitle(App_name + " - " + App_auth + " - " + App_build + " " + branch)
+        self.setWindowTitle(f"{App_name}  —  {App_build_num}  ({App_auth})")
         self.setGeometry(100, 100, 1200, 800)
 
         # Set default fonts
@@ -3853,7 +3853,7 @@ class IMGFactory(QMainWindow):
         self.current_txd = None
 
         # Update window title
-        self.setWindowTitle(App_name + " - " + App_auth + " - " + App_build)
+        self.setWindowTitle(f"{App_name}  —  {App_build_num}  ({App_auth})")
 
         # Clear table if it exists
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
