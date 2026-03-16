@@ -311,36 +311,49 @@ def open_lvz(file_path: str) -> dict: #vers 2
         nested_area_start = struct.unpack_from('<I', data, 0x24)[0]
 
         # Cell records at 0x28, 8 bytes each:
-        #   sub_entry_count(4) + nested_dlrw_byte_offset(4)
+        #   unknown(4) + nested_dlrw_byte_offset(4)
         # Each nested DLRW at nested_off contains:
+        #   [0x04] magic check ('DLRW')
         #   [0x0C] = data size in companion .IMG
         #   [0x18] = byte offset into companion .IMG
+        #
+        # entry_count is the TOTAL world grid slot count (padded with 0xAAAAAAAA).
+        # We scan until we hit a non-DLRW entry and only keep cells with size > 0.
         entries = []
-        cell_count = max(0, entry_count - 1)  # first record is the header record
-        for i in range(cell_count):
+        scan_limit = min(len(data), index_offset)
+        cell_idx = 0
+        stream_idx = 0
+        for i in range(0, (scan_limit - 0x28) // 8):
             pos = 0x28 + i * 8
-            if pos + 8 > min(len(data), index_offset):
+            if pos + 8 > scan_limit:
                 break
-            sub_count  = struct.unpack_from('<I', data, pos)[0]
             nested_off = struct.unpack_from('<I', data, pos + 4)[0]
 
-            # Read IMG offset and size from nested DLRW header
-            img_offset = 0
-            img_size   = 0
-            if nested_off and nested_off + 0x1C <= len(data):
-                n_magic = data[nested_off:nested_off+4]
-                if n_magic == DLRW_MAGIC:
-                    img_size   = struct.unpack_from('<I', data, nested_off + 0x0C)[0]
-                    img_offset = struct.unpack_from('<I', data, nested_off + 0x18)[0]
+            # Stop at uninitialized sentinel (0xAAAAAAAA or clearly out of range)
+            if nested_off > len(data) - 4:
+                break
+            if nested_off == 0:
+                continue
+
+            # Validate nested DLRW magic
+            if data[nested_off:nested_off + 4] != DLRW_MAGIC:
+                break
+
+            img_size   = struct.unpack_from('<I', data, nested_off + 0x0C)[0]
+            img_offset = struct.unpack_from('<I', data, nested_off + 0x18)[0]
+
+            # Skip empty slots
+            if img_size == 0:
+                continue
 
             entries.append({
-                'name':       f'stream_{i:04d}',
-                'offset':     img_offset,   # byte offset into companion .IMG
-                'size':       img_size,     # byte size in companion .IMG
-                'lvz_offset': nested_off,   # offset of nested DLRW in decompressed LVZ
-                'sub_count':  sub_count,
-                'index':      i,
+                'name':       f'stream_{stream_idx:04d}',
+                'offset':     img_offset,
+                'size':       img_size,
+                'lvz_offset': nested_off,
+                'index':      stream_idx,
             })
+            stream_idx += 1
 
         result['entries'] = entries
         result['data_area_start']  = data_area_start
