@@ -123,6 +123,8 @@ class IMGVersion(Enum):
     VERSION_ANPK    = 43  # PSP ANPK animation package - named DGAN clip blocks
     VERSION_BULLY   = 44  # Bully PS2 named-entry archive - 64-byte name-only directory
     VERSION_HXD     = 45  # Bully HXD/MXD/AGR bone+animation data - float header + path
+    VERSION_DTZ_VCS = 46  # GAME.DTZ VCS PS2/PSP — zlib blob with Relocatable Chunk header
+    VERSION_DTZ_LCS = 47  # GAME.DTZ LCS PS2/PSP — zlib blob with Relocatable Chunk header
     VERSION_1_IOS   = 47  # iOS GTA3/VC (*_pvr.img) - 12-byte entries, 512-byte sectors, no names
     VERSION_XBOX        = 50  # Xbox GTA3/VC - DIR+IMG pair, LZO-compressed entries, 2048-byte sectors
     VERSION_SA_ANDROID  = 51  # Android SA - VER2 header, 2048-byte sectors, mobile texture DB
@@ -1501,6 +1503,30 @@ class IMGFile:
                     self.version = ver
                     return ver
 
+            # Check for GAME.DTZ (LCS/VCS PS2/PSP zlib data container)
+            if self.file_path.lower().endswith('.dtz'):
+                from apps.core.img_dtz import detect_dtz, open_dtz
+                if detect_dtz(self.file_path):
+                    # Open immediately to determine LCS vs VCS
+                    try:
+                        _dtz = open_dtz(self.file_path)
+                        _game = _dtz.get('game', 'UNKNOWN')
+                        if _game == 'VCS':
+                            self.version  = IMGVersion.VERSION_DTZ_VCS
+                            self.platform = IMGPlatform.PS2
+                            return IMGVersion.VERSION_DTZ_VCS
+                        elif _game == 'LCS':
+                            self.version  = IMGVersion.VERSION_DTZ_LCS
+                            self.platform = IMGPlatform.PS2
+                            return IMGVersion.VERSION_DTZ_LCS
+                        else:
+                            # Unknown game — default to VCS structure
+                            self.version  = IMGVersion.VERSION_DTZ_VCS
+                            self.platform = IMGPlatform.PS2
+                            return IMGVersion.VERSION_DTZ_VCS
+                    except Exception:
+                        pass
+
             # Check for LVZ (PS2 VCS zlib streaming archive)
             if self.file_path.lower().endswith('.lvz'):
                 from apps.core.img_ps2_vcs import detect_lvz
@@ -1662,6 +1688,9 @@ class IMGFile:
             elif self.version in (IMGVersion.VERSION_3,
                                   IMGVersion.VERSION_3_ENC):
                 success = self._open_version_3()
+            elif self.version in (IMGVersion.VERSION_DTZ_VCS,
+                                  IMGVersion.VERSION_DTZ_LCS):
+                success = self._open_dtz()
             elif self.version in (IMGVersion.VERSION_PS2_VCS,
                                   IMGVersion.VERSION_PS2_LVZ,
                                   IMGVersion.VERSION_PS2_V1,
@@ -1945,6 +1974,36 @@ class IMGFile:
         if ok:
             self.platform = IMGPlatform.ANDROID
         return ok
+
+    def _open_dtz(self) -> bool: #vers 1
+        """Open a GAME.DTZ (LCS/VCS PS2/PSP) zlib-compressed data container.
+
+        Decompresses the blob, locates the GTA3PS2.DIR inside, parses 32-byte
+        entries (offset_sectors[4] + size_sectors[4] + name[24]).
+        Entries give direct byte offsets into the *decompressed* blob — the
+        blob is cached on self._dtz_blob so entry data can be extracted later.
+        """
+        try:
+            from apps.core.img_dtz import open_dtz
+            result = open_dtz(self.file_path)
+            if result.get('error'):
+                return False
+            entries_raw = result.get('entries', [])
+            if not entries_raw:
+                return False
+            # Cache the decompressed blob for later extraction
+            self._dtz_blob = result.get('blob')
+            self.platform  = IMGPlatform.PS2
+            for e in entries_raw:
+                entry          = IMGEntry()
+                entry.name     = e['name']
+                entry.offset   = e['offset']
+                entry.size     = e['size']
+                entry.is_readonly = True
+                self.entries.append(entry)
+            return True
+        except Exception:
+            return False
 
     def _open_ps2(self) -> bool: #vers 5
         """Open PS2/PSP/iOS/Android/Bully/HXD archive - read-only."""

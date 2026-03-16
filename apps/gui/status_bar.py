@@ -455,6 +455,8 @@ class IMGStatusWidget(QWidget):
                     IMGVersion.VERSION_BULLY:      "Bully PS2",
                     IMGVersion.VERSION_ANPK:       "PSP ANPK",
                     IMGVersion.VERSION_HXD:        "Bully HXD",
+                    IMGVersion.VERSION_DTZ_VCS:    "VCS DTZ (PS2/PSP)",
+                    IMGVersion.VERSION_DTZ_LCS:    "LCS DTZ (PS2/PSP)",
                     IMGVersion.VERSION_STREAMING_SEG: "Streaming Seg",
                 }
                 version = _vmap.get(img_file.version,
