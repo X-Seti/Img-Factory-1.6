@@ -169,11 +169,17 @@ def edit_txd_file(main_window): #vers 6
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
 
-def edit_col_file(main_window): #vers 3
-    """Edit selected COL file - works from dir tree or IMG table"""
+def edit_col_file(main_window): #vers 4
+    """Open COL Workshop.
+
+    Priority 1: dir tree .col selection  → open that file directly.
+    Priority 2: IMG table .col entry highlighted → open workshop with that file.
+    Priority 3: Nothing selected → open workshop against current IMG (browse mode).
+    """
     try:
         import os
-        # Priority: dir tree selection
+
+        # Priority 1: dir tree selection
         selected = getattr(main_window, '_dir_tree_selected_file', None)
         if not selected:
             if hasattr(main_window, 'directory_tree'):
@@ -192,30 +198,40 @@ def edit_col_file(main_window): #vers 3
         if selected and selected.lower().endswith('.col'):
             from apps.components.Col_Editor.col_workshop import open_col_workshop
             w = open_col_workshop(main_window, selected)
-            main_window.log_message(f"COL Workshop opened: {os.path.basename(selected)}")
             _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)
+            main_window.log_message(f"COL Workshop opened: {os.path.basename(selected)}")
             return
 
-        # Fall back to IMG table selection
+        # Priority 2: IMG table .col entry highlighted
         from apps.methods.export_shared import get_active_table
         entries_table = get_active_table(main_window)
-        selected_items = entries_table.selectedItems()
-        if not selected_items:
-            main_window.log_message("No COL file selected")
-            return
-        row = selected_items[0].row()
-        filename = entries_table.item(row, 0).text()
-        if not filename.lower().endswith('.col'):
-            main_window.log_message("Selected file is not a COL file")
-            return
+        selected_items = entries_table.selectedItems() if entries_table else []
+        if selected_items:
+            row = selected_items[0].row()
+            item0 = entries_table.item(row, 0)
+            filename = item0.text() if item0 else ""
+            if filename.lower().endswith('.col'):
+                img_path = None
+                if hasattr(main_window, 'current_img') and main_window.current_img:
+                    img_path = main_window.current_img.file_path
+                from apps.components.Col_Editor.col_workshop import open_col_workshop
+                w = open_col_workshop(main_window, img_path)
+                _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)
+                main_window.log_message(f"COL Workshop opened for: {filename}")
+                return
+
+        # Priority 3: Nothing selected — open against current IMG (browse mode)
+        from apps.components.Col_Editor.col_workshop import open_col_workshop
         img_path = None
         if hasattr(main_window, 'current_img') and main_window.current_img:
             img_path = main_window.current_img.file_path
-        from apps.components.Col_Editor.col_workshop import open_col_workshop
-        workshop = open_col_workshop(main_window, img_path)
-        if workshop:
-            main_window.log_message(f"COL Workshop opened for: {filename}")
-            _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", workshop)
+        w = open_col_workshop(main_window, img_path)
+        _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)
+        if img_path:
+            main_window.log_message(f"COL Workshop opened (browse mode): {os.path.basename(img_path)}")
+        else:
+            main_window.log_message("COL Workshop opened (no file loaded)")
+
     except Exception as e:
         main_window.log_message(f"Error opening COL Workshop: {e}")
 
