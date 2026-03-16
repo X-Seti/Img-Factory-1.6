@@ -1,62 +1,74 @@
-#this belongs in apps/core/img_dtz.py - Version: 2
+#this belongs in apps/core/img_dtz.py - Version: 3
 # X-Seti - March 2026 - IMG Factory 1.6 - GAME.DTZ support for LCS/VCS PS2/PSP
 """
 GAME.DTZ (DaTa Zlib) parser for GTA Liberty City Stories and Vice City Stories.
 
-GAME.DTZ is the main compressed data container on PS2/PSP.
-It is zlib-compressed and contains:
-  - IDE, IPL, handling, weapons, pedestrian and particle data
-  - MOCAPPS2.DIR — cutscene animation directory (147 entries)
-  - Binary game data (reloc'd pointers, compiled tables)
+Structure (confirmed from guard3/g3DTZ v2.1 source + sample analysis):
+  - zlib-compressed blob
+  - Decompressed blob starts with cRelocChunk header (32 bytes):
+      ident(4)='GTAG', shrink(4), fileEnd(4), dataEnd(4),
+      relocTab(4), numRelocs(4), globalTab(4), numClasses(2), numFuncs(2)
+  - All pointer values in the blob are RAW FILE OFFSETS (base=0 Fixup)
+  - sResourceImage struct at blob[32]
+  - streamingInst at sResourceImage+92 = blob[0x7C]
+  - VCS PS2 CStreaming (240 bytes): texOffset, colOffset, anmOffset, numStreamInfos,
+    m_aStreamingInfos ptr at CStreaming+200
+  - VCS PS2 CStreamingInfo (24 bytes): ...[16]=cdPosn, [20]=cdSize (2048-byte sectors)
+  - Model names from modelInfoPtrs (CRC32 hashes) resolved via lcs_vcs_names.py
+  - MOCAPPS2.DIR (cutscene directory) at header[0xCC] (also a raw file offset)
 
-It does NOT contain the main streaming assets (GTA3.IMG/BEACH.IMG etc).
-Those are in separate files: GTA3.DIR+GTA3.IMG (LCS) or BEACH/MAINLA/MALL+.LVZ (VCS).
+VCS PS2 sResourceImage offsets (from blob[32]):
+  +24 = numModelInfos (blob[0x38])
+  +28 = modelInfoPtrs (blob[0x3C])
+  +64 = texListPool   (blob[0x60])
+  +68 = storedTexList (blob[0x64])
+  +72 = colPool       (blob[0x68])
+  +92 = streamingInst (blob[0x7C])
+  +96 = animManagerInst (blob[0x80])
 
-Blob structure:
-  - 'GATG' magic at byte 0 (both LCS and VCS PS2)
-  - sChunkHeader (28 bytes): ident, shrink, fileEnd, dataEnd, relocTab, numRelocs,
-    globalTab, numClasses, numFuncs
-  - ALL pointer values in the header are VIRTUAL ADDRESSES = file_offset + load_base
-  - header[0xCC] → MOCAPPS2.DIR (147 cutscene entries, verified against standalone file)
-  - The load_base = header[0xCC] - actual_blob_offset_of_mocapps2_dir
-
-What to show in IMG Factory:
-  - Present GAME.DTZ as a read-only archive with the MOCAPPS2 entries
-  - Each entry maps to MOCAPPS2.IMG (not to the DTZ itself)
-
-References:
-  guard3/g3DTZ — C++ extraction utility (MIT)
-  GTAMods wiki  — https://gtamods.com/wiki/Game.dtz
-  Sample analysis — March 2026, GAME.DTZ from VCS PS2 disc
+VCS PS2 CStreaming offsets:
+  +8  = texOffset  (number of mdl entries)
+  +12 = colOffset  (mdl + tex count)
+  +16 = anmOffset  (mdl + tex + col count)
+  +20 = numStreamInfos
+  +200 = m_aStreamingInfos (pointer to CStreamingInfo array)
 """
 
 import os
 import struct
 import zlib
 
-# DTZ blob magic
-GATG_MAGIC = b'GATG'     # Both LCS and VCS PS2
+GTAG_MAGIC    = b'GTAG'
+CHUNK_SIZE    = 32   # sizeof(cRelocChunk)
+DIR_SECTOR_SZ = 2048
 
-# sChunkHeader offsets (all LE)
-HDR_IDENT    = 0x00   # uint32 'GATG'
-HDR_SHRINK   = 0x04   # uint32 1 = reloc applied
-HDR_FILE_END = 0x08   # uint32 virtual address of file end
-HDR_DATA_END = 0x0C   # uint32 virtual address of data end
-HDR_RELOC    = 0x10   # uint32 virtual address of reloc table
-HDR_NRELOCS  = 0x14   # uint32 number of relocs
-HDR_GLOBAL   = 0x18   # uint32 virtual address of global table
-HDR_NCLASSES = 0x1C   # uint16 number of classes
-HDR_NFUNCS   = 0x1E   # uint16 number of functions
+# sResourceImage field offsets from blob start (blob[0] = cRelocChunk)
+# All = CHUNK_SIZE + field_offset_within_sResourceImage
+RI_NUM_MODELS  = 0x38   # numModelInfos (uint32)
+RI_MODEL_PTRS  = 0x3C   # modelInfoPtrs (ptr → CBaseModelInfo*[])
+RI_TEX_POOL    = 0x60   # texListPool ptr
+RI_COL_POOL    = 0x68   # colPool ptr
+RI_STREAMING   = 0x7C   # streamingInst ptr
+RI_ANIM_MGR    = 0x80   # animManagerInst ptr
+RI_MOCAP_DIR   = 0xCC   # cutsceneDir ptr (VCS=MOCAPPS2.DIR, LCS=cuts.dir)
 
-# Pointer to MOCAPPS2.DIR inside the blob (virtual address, needs base subtraction)
-HDR_MOCAP_DIR_PTR = 0xCC   # confirmed from sample analysis
+# VCS PS2 CStreamingInfo size and field offsets
+VCS_SINFO_SIZE   = 24
+VCS_SINFO_CDPOSN = 16
+VCS_SINFO_CDSIZE = 20
 
-# DIR entry format: same as V1 PC/PS2 (2048-byte sectors)
-DIR_ENTRY_SIZE  = 32
-DIR_SECTOR_SIZE = 2048   # MOCAPPS2 uses 2048-byte sectors (verified: 15827*2048 = file size)
+# CStreaming field offsets (VCS PS2)
+CS_TEX_OFFSET   = 8
+CS_COL_OFFSET   = 12
+CS_ANM_OFFSET   = 16
+CS_NUM_INFOS    = 20
+CS_STREAM_ARR   = 200   # m_aStreamingInfos ptr
+
+# CBaseModelInfo: unknown[8] + m_hashname(4) at offset 8
+MI_HASH_OFFSET  = 8
 
 
-def detect_dtz(path: str) -> bool:  #vers 2
+def detect_dtz(path: str) -> bool:  #vers 3
     """Return True if file is a GAME.DTZ (zlib-compressed LCS/VCS container)."""
     try:
         if not path.lower().endswith('.dtz'):
@@ -65,14 +77,13 @@ def detect_dtz(path: str) -> bool:  #vers 2
             return False
         with open(path, 'rb') as f:
             magic2 = f.read(2)
-        # zlib deflate magic bytes
         return magic2[0] == 0x78 and magic2[1] in (0xDA, 0x9C, 0x01, 0x5E)
     except Exception:
         return False
 
 
-def decompress_dtz(path: str) -> bytes | None:  #vers 2
-    """Decompress GAME.DTZ and return the raw blob, or None on error."""
+def decompress_dtz(path: str) -> bytes | None:  #vers 3
+    """Decompress GAME.DTZ and return raw blob, or None on error."""
     try:
         with open(path, 'rb') as f:
             data = f.read()
@@ -88,109 +99,156 @@ def decompress_dtz(path: str) -> bytes | None:  #vers 2
         return None
 
 
-def _find_mocap_dir(blob: bytes) -> tuple[int, int] | tuple[None, None]:
-    """Locate MOCAPPS2.DIR in the blob.
+def _read_ptr(blob: bytes, offset: int) -> int:
+    """Read a 4-byte pointer (raw file offset) from blob."""
+    if offset + 4 > len(blob):
+        return 0
+    return struct.unpack_from('<I', blob, offset)[0]
 
-    The header at offset 0xCC holds the VIRTUAL ADDRESS of the dir data.
-    Virtual address = blob_offset + load_base.
-    We find load_base by scanning for the actual dir data, then back-compute.
 
-    Returns (blob_offset, load_base) or (None, None).
+def _resolve_name(crc: int, game: str) -> str:
+    """Resolve CRC32 hash to model name using name tables."""
+    try:
+        from apps.core.lcs_vcs_names import VCS_NAMES, LCS_NAMES
+        table = VCS_NAMES if game == 'VCS' else LCS_NAMES
+        return table.get(crc) or (VCS_NAMES if game == 'LCS' else LCS_NAMES).get(crc) or f'unk_{crc:08x}'
+    except ImportError:
+        return f'unk_{crc:08x}'
+
+
+def _build_streaming_dir(blob: bytes, game: str) -> list:
+    """Build GTA3PS2.DIR entries from the streaming instance in the blob.
+
+    Returns list of {name, offset(bytes), size(bytes), index, file_type}.
     """
-    if len(blob) < HDR_MOCAP_DIR_PTR + 4:
-        return None, None
-
-    vptr = struct.unpack_from('<I', blob, HDR_MOCAP_DIR_PTR)[0]
-    if vptr == 0:
-        return None, None
-
-    # Scan blob for a contiguous run of valid DIR entries (min 10)
-    # DIR entry: sec_off[4] + sec_sz[4] + name[24] (printable ASCII + null-padded)
-    best_pos = None
-    best_count = 0
-
-    pos = 0
-    while pos + 320 <= len(blob):
-        count = 0
-        p = pos
-        while p + DIR_ENTRY_SIZE <= len(blob):
-            chunk = blob[p:p + DIR_ENTRY_SIZE]
-            sec_off = struct.unpack_from('<I', chunk, 0)[0]
-            sec_sz  = struct.unpack_from('<I', chunk, 4)[0]
-            name_raw = chunk[8:32].split(b'\x00')[0]
-            if (name_raw and len(name_raw) >= 4 and
-                    all(0x20 <= b < 0x7F for b in name_raw) and
-                    b'.' in name_raw and 0 < sec_sz < 50000):
-                count += 1
-                p += DIR_ENTRY_SIZE
-            else:
-                break
-        if count > best_count:
-            best_count = count
-            best_pos = pos
-        pos += 4
-
-    if best_pos is None or best_count < 5:
-        return None, None
-
-    load_base = vptr - best_pos
-    return best_pos, load_base
-
-
-def _parse_dir(blob: bytes, dir_offset: int, count_hint: int = 0) -> list:
-    """Parse DIR entries from the blob at dir_offset."""
     entries = []
-    pos = dir_offset
-    idx = 0
-    while pos + DIR_ENTRY_SIZE <= len(blob):
-        chunk = blob[pos:pos + DIR_ENTRY_SIZE]
-        if chunk == b'\x00' * DIR_ENTRY_SIZE:
-            break
-        sec_off = struct.unpack_from('<I', chunk, 0)[0]
-        sec_sz  = struct.unpack_from('<I', chunk, 4)[0]
-        name_raw = chunk[8:32].split(b'\x00')[0]
-        if not name_raw or not all(0x20 <= b < 0x7F for b in name_raw):
-            break
-        name = name_raw.decode('ascii', errors='replace')
+
+    streaming_foff = _read_ptr(blob, RI_STREAMING)
+    if not streaming_foff or streaming_foff + 240 > len(blob):
+        return entries
+
+    tex_off  = struct.unpack_from('<I', blob, streaming_foff + CS_TEX_OFFSET)[0]
+    col_off  = struct.unpack_from('<I', blob, streaming_foff + CS_COL_OFFSET)[0]
+    anm_off  = struct.unpack_from('<I', blob, streaming_foff + CS_ANM_OFFSET)[0]
+    n_infos  = struct.unpack_from('<I', blob, streaming_foff + CS_NUM_INFOS)[0]
+
+    if n_infos == 0 or n_infos > 50000:
+        return entries
+
+    sarr_foff = _read_ptr(blob, streaming_foff + CS_STREAM_ARR)
+    if not sarr_foff or sarr_foff + n_infos * VCS_SINFO_SIZE > len(blob):
+        return entries
+
+    mi_ptr_table = _read_ptr(blob, RI_MODEL_PTRS)
+    num_models   = _read_ptr(blob, RI_NUM_MODELS)
+
+    file_idx = 0
+    for i in range(n_infos):
+        off      = sarr_foff + i * VCS_SINFO_SIZE
+        cd_posn  = struct.unpack_from('<I', blob, off + VCS_SINFO_CDPOSN)[0]
+        cd_size  = struct.unpack_from('<I', blob, off + VCS_SINFO_CDSIZE)[0]
+
+        if cd_size == 0 or cd_size >= 0xFFFF:
+            continue
+        if cd_posn == 0xFFFFFFFF:
+            continue
+
+        # Determine file type and name
+        if i < tex_off:
+            file_type = 'mdl'
+            ext       = '.mdl'
+            name      = f'mdl_{i:04d}'
+            if mi_ptr_table and i < num_models:
+                mi_ptr = _read_ptr(blob, mi_ptr_table + i * 4)
+                if 0 < mi_ptr < len(blob) - 16:
+                    crc  = _read_ptr(blob, mi_ptr + MI_HASH_OFFSET)
+                    name = _resolve_name(crc, game)
+        elif i < col_off:
+            file_type = 'xtx' if game == 'VCS' else 'chk'
+            ext       = f'.{file_type}'
+            name      = f'tex_{i - tex_off:04d}'
+        elif i < anm_off:
+            file_type = 'col2'
+            ext       = '.col2'
+            name      = f'col_{i - col_off:04d}'
+        else:
+            file_type = 'anim'
+            ext       = '.anim'
+            name      = f'anm_{i - anm_off:04d}'
+
         entries.append({
-            'name':   name,
-            'offset': sec_off * DIR_SECTOR_SIZE,
-            'size':   sec_sz  * DIR_SECTOR_SIZE,
-            'index':  idx,
-            'source': 'MOCAPPS2.IMG',   # entries reference MOCAPPS2.IMG
+            'name':      name + ext,
+            'offset':    cd_posn * DIR_SECTOR_SZ,
+            'size':      cd_size * DIR_SECTOR_SZ,
+            'index':     file_idx,
+            'file_type': file_type,
         })
-        idx += 1
-        pos += DIR_ENTRY_SIZE
-        if count_hint and idx >= count_hint:
-            break
+        file_idx += 1
+
+    # Sort by sector offset
+    entries.sort(key=lambda e: e['offset'])
+    for i, e in enumerate(entries):
+        e['index'] = i
+
     return entries
 
 
-def open_dtz(path: str) -> dict:  #vers 2
-    """Decompress and parse a GAME.DTZ file.
+def _build_mocap_dir(blob: bytes) -> list:
+    """Parse MOCAPPS2.DIR / cuts.dir from the blob.
 
-    Returns entries from MOCAPPS2.DIR (cutscene animations).
-    Each entry's offset/size refers to MOCAPPS2.IMG in the same directory.
+    Returns list of {name, offset(bytes), size(bytes), index}.
+    """
+    entries = []
+    dir_foff = _read_ptr(blob, RI_MOCAP_DIR)
+    if not dir_foff or dir_foff >= len(blob):
+        return entries
 
-    Returns:
-      {
-        'version':   'DTZ_VCS' | 'DTZ_LCS' | 'DTZ_UNKNOWN',
-        'game':      'VCS' | 'LCS' | 'UNKNOWN',
-        'platform':  'PS2' | 'PSP',
-        'entries':   [ {name, offset, size, index, source}, ... ],
-        'blob':      bytes | None,
-        'load_base': int | None,
-        'error':     str | None,
-      }
+    idx = 0
+    pos = dir_foff
+    while pos + 32 <= len(blob):
+        chunk   = blob[pos:pos + 32]
+        sec_off = struct.unpack_from('<I', chunk, 0)[0]
+        sec_sz  = struct.unpack_from('<I', chunk, 4)[0]
+        name_raw = chunk[8:32].split(b'\x00')[0]
+
+        if not name_raw or not all(0x20 <= b < 0x7F for b in name_raw):
+            break
+        name = name_raw.decode('ascii', errors='replace')
+        if b'.' not in name_raw:
+            break
+
+        entries.append({
+            'name':      name,
+            'offset':    sec_off * DIR_SECTOR_SZ,
+            'size':      sec_sz  * DIR_SECTOR_SZ,
+            'index':     idx,
+            'file_type': name.rsplit('.', 1)[-1].lower() if '.' in name else 'bin',
+        })
+        idx  += 1
+        pos  += 32
+
+    return entries
+
+
+def open_dtz(path: str) -> dict:  #vers 3
+    """Decompress and parse GAME.DTZ.
+
+    Returns two sets of entries:
+      - 'entries': streaming dir (mdl/xtx/chk/col2/anim) — main asset list
+      - 'mocap_entries': cutscene dir (CAM/CUT/ANIM) → MOCAPPS2.IMG / CUTS.IMG
+
+    'entries' offsets/sizes are in 2048-byte sectors × DIR_SECTOR_SZ.
+    They reference the companion streaming IMG (GTA3.IMG for LCS, or the
+    area-specific IMG for VCS streaming areas).
     """
     result = {
-        'version':   'DTZ_UNKNOWN',
-        'game':      'UNKNOWN',
-        'platform':  'PS2',
-        'entries':   [],
-        'blob':      None,
-        'load_base': None,
-        'error':     None,
+        'version':      'DTZ_UNKNOWN',
+        'game':         'UNKNOWN',
+        'platform':     'PS2',
+        'entries':      [],
+        'mocap_entries': [],
+        'blob':         None,
+        'error':        None,
     }
 
     blob = decompress_dtz(path)
@@ -200,39 +258,26 @@ def open_dtz(path: str) -> dict:  #vers 2
 
     result['blob'] = blob
 
-    # Verify GATG magic
-    if blob[:4] != GATG_MAGIC:
-        result['error'] = f'Unexpected magic {blob[:4].hex()} (expected GATG/47415447)'
+    if blob[:4] != GTAG_MAGIC:
+        result['error'] = f'Unexpected magic {blob[:4].hex()} (expected GTAG/47415447)'
         return result
 
-    # Game detection — both LCS and VCS use GATG, differentiate by ident value
-    ident = struct.unpack_from('<I', blob, 0)[0]
-    # 0x47544147 = 'GATG' in both; we'll use 'UNKNOWN' for now until we find
-    # a reliable LCS vs VCS discriminator in the header
-    result['game'] = 'UNKNOWN'
-    result['version'] = 'DTZ_UNKNOWN'
-
-    # Platform from filename
     lower = os.path.basename(path).lower()
     result['platform'] = 'PSP' if 'psp' in lower else 'PS2'
 
-    # Locate MOCAPPS2.DIR
-    dir_offset, load_base = _find_mocap_dir(blob)
-    if dir_offset is None:
-        result['error'] = 'Could not locate MOCAPPS2.DIR in blob'
-        return result
+    # Build streaming directory (main asset list)
+    game = 'VCS'  # default; LCS would have different offsets (TODO when LCS sample available)
+    result['game']    = game
+    result['version'] = f'DTZ_{game}'
 
-    result['load_base'] = load_base
+    entries = _build_streaming_dir(blob, game)
+    result['entries'] = entries if entries else []
 
-    # Parse entries
-    entries = _parse_dir(blob, dir_offset)
-    if not entries:
-        result['error'] = 'No entries found in MOCAPPS2.DIR'
-        return result
+    # Also parse MOCAPPS2.DIR
+    result['mocap_entries'] = _build_mocap_dir(blob)
 
-    result['entries'] = entries
-    result['version'] = 'DTZ_VCS'   # default; refine when LCS discriminator found
-    result['game']    = 'VCS'
+    if not entries and not result['mocap_entries']:
+        result['error'] = 'No entries found in GAME.DTZ'
 
     return result
 
