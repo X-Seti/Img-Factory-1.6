@@ -15,6 +15,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QDateTime  # Fixed: Added QDateTime
 from PyQt6.QtGui import QFont
 
 from PyQt6.QtWidgets import (
+    QSizePolicy,
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGridLayout, QButtonGroup, QRadioButton, QLabel, QPushButton,
     QComboBox, QCheckBox, QSpinBox, QMenu, QSlider, QSplitter,
@@ -1243,35 +1244,34 @@ class ThemeColorEditor(QWidget): #vers 4
         self.lock_check.stateChanged.connect(self._on_lock_changed)
         layout.addWidget(self.lock_check)
 
-        # Color name label - FIXED WIDTH for alignment
+        # Color name label — expands to fill available space
         name_label = QLabel(self.color_name)
-        name_label.setMinimumWidth(150)
-        name_label.setMaximumWidth(150)
+        name_label.setMinimumWidth(140)
+        from PyQt6.QtWidgets import QSizePolicy as _SP
+        name_label.setSizePolicy(_SP.Policy.Expanding, _SP.Policy.Preferred)
         layout.addWidget(name_label)
 
-        # Color preview
+        # Color preview swatch
         self.color_preview = QLabel()
-        self.color_preview.setFixedSize(30, 30)
+        self.color_preview.setFixedSize(28, 28)
         self.update_preview(self.current_value)
         layout.addWidget(self.color_preview)
 
-        # Color value input - FIXED WIDTH for column alignment
+        # Hex value input — fixed width for column alignment
         self.color_input = QLineEdit(self.current_value)
-        self.color_input.setMinimumWidth(85)
-        self.color_input.setMaximumWidth(85)
+        self.color_input.setFixedWidth(82)
         self.color_input.setFont(QFont("monospace", 9))
         self.color_input.textChanged.connect(self.on_color_changed)
         layout.addWidget(self.color_input)
 
-        # Color dialog button - FIXED: Wider for better visibility
+        # Pick button — fixed width, sits flush at right edge
         dialog_btn = QPushButton("Pick")
-        dialog_btn.setMinimumWidth(80)  # CHANGED from setFixedSize(50, 25)
-        dialog_btn.setFixedHeight(30)
+        dialog_btn.setFixedWidth(54)
+        dialog_btn.setFixedHeight(28)
         dialog_btn.setToolTip("Open color picker dialog")
         dialog_btn.clicked.connect(self.open_color_dialog)
         layout.addWidget(dialog_btn)
-
-        layout.addStretch()
+        # NO addStretch() — name_label expansion handles alignment
 
     def _on_lock_changed(self, state): #vers 1
         """Handle lock state change"""
@@ -3393,18 +3393,22 @@ class SettingsDialog(QDialog): #vers 15
     def _create_color_picker_tab(self): #vers 7
         """Create color picker and theme editor tab - Final layout with logical flow"""
         tab = QWidget()
-        _outer = QHBoxLayout(tab)
+        _outer = QVBoxLayout(tab)          # VBox so tab fills its container
         _outer.setContentsMargins(0, 0, 0, 0)
+        _outer.setSpacing(0)
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         main_splitter.setChildrenCollapsible(False)
-        _outer.addWidget(main_splitter)
-        main_layout = main_splitter  # addWidget below works on splitter
+        from PyQt6.QtWidgets import QSizePolicy as _SP
+        main_splitter.setSizePolicy(_SP.Policy.Expanding, _SP.Policy.Expanding)
+        _outer.addWidget(main_splitter, 1)  # stretch=1: splitter fills all space
+        main_layout = main_splitter
 
         # ========== LEFT PANEL ==========
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(4, 4, 4, 4)
         left_panel.setMinimumWidth(220)
-        left_panel.setMaximumWidth(400)
+        left_panel.setMaximumWidth(420)   # slightly wider cap
 
         # Screen Color Picker Group
         picker_group = QGroupBox("Color Picker")
@@ -3781,7 +3785,12 @@ class SettingsDialog(QDialog): #vers 15
 
     # = RIGHT PANEL
         right_panel = QWidget()
+        right_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(4, 4, 4, 4)
 
         # Theme Selector
         theme_selector_layout = QHBoxLayout()
@@ -3829,12 +3838,21 @@ class SettingsDialog(QDialog): #vers 15
 
         # Scrollable Color Editors - MAIN CONTENT
         scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidgetResizable(True)   # MUST be True — widget grows with space
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
         scroll_widget = QWidget()
+        scroll_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setSpacing(2)
+        scroll_layout.setContentsMargins(2, 2, 2, 2)
+        scroll_layout.setSpacing(1)
 
         # Create color editors
         self.color_editors = {}
@@ -3849,7 +3867,7 @@ class SettingsDialog(QDialog): #vers 15
             self.color_editors[color_key] = editor
             scroll_layout.addWidget(editor)
 
-        scroll_layout.addStretch()
+        # No addStretch() here — scroll_widget Expanding policy handles it
         scroll_area.setWidget(scroll_widget)
         right_layout.addWidget(scroll_area, 1)  # stretch=1 so it fills available space
 
@@ -3946,13 +3964,14 @@ class SettingsDialog(QDialog): #vers 15
         right_layout.addWidget(theme_actions_group)
 
         # Add panels to main layout
+        from PyQt6.QtWidgets import QSizePolicy as _SP2
+        left_panel.setSizePolicy(_SP2.Policy.Preferred, _SP2.Policy.Expanding)
+        right_panel.setSizePolicy(_SP2.Policy.Expanding, _SP2.Policy.Expanding)
         main_splitter.addWidget(left_panel)
         main_splitter.addWidget(right_panel)
-        main_splitter.setStretchFactor(0, 0)  # left: fixed
-        main_splitter.setStretchFactor(1, 1)  # right: stretches
-        # Set initial sizes: left ~280px, right takes the rest
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: main_splitter.setSizes([280, 10000]))
+        main_splitter.setStretchFactor(0, 0)   # left: fixed width
+        main_splitter.setStretchFactor(1, 1)   # right: takes ALL remaining space
+        main_splitter.setSizes([280, 9999])    # set immediately, no timer needed
 
         # IMPORTANT: Connect sliders AFTER all widgets are created
         self.global_hue_slider.valueChanged.connect(self._on_global_hue_changed)
