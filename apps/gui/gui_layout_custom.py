@@ -3,7 +3,7 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QTabWidget, QFrame,
-    QGroupBox, QPushButton, QLabel, QCheckBox
+    QGroupBox, QPushButton, QLabel, QCheckBox, QSizePolicy, QMenu
 )
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import QIcon
@@ -56,6 +56,206 @@ try:
 except ImportError:
     APPSETTINGS_AVAILABLE = False
     print("Warning: AppSettings not available")
+
+
+class ToolTaskbar(QWidget):  # vers 2
+    """Tool taskbar — lives INSIDE the titlebar row between the title and undo.
+
+    Each button:
+      - Left-click  : raise / show the associated workshop window or tab
+      - Right-click : context menu with Open / Close options
+      - Active underline shown when the target widget is visible/raised
+
+    register(key, label, icon, target, tooltip)
+    unregister(key)
+    update_target(key, target)
+    set_active(key, bool)   — draw underline on the button
+    """
+
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
+        self._main_window = main_window
+        self._tools: dict = {}   # key → {label, icon, target, btn, active}
+        self.setObjectName("tool_taskbar")
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
+
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(2, 0, 2, 0)
+        self._layout.setSpacing(2)
+
+        # Start hidden — shown as soon as the first tool registers
+        self.setVisible(False)
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _make_btn_style(self, active: bool, acc: str = "#1976d2",
+                        txt: str = "#cccccc", bg: str = "transparent") -> str:
+        underline = (
+            f"border-bottom: 2px solid {acc}; border-radius:0px;"
+        ) if active else "border-bottom: 2px solid transparent; border-radius:3px;"
+        return (
+            f"QPushButton#tbtn {{"
+            f"  background:{bg}; color:{txt}; font-size:11px;"
+            f"  padding:2px 6px; border:1px solid transparent; {underline}"
+            f"}}"
+            f"QPushButton#tbtn:hover {{"
+            f"  background:{acc}33; border:1px solid {acc}; border-radius:3px;"
+            f"  border-bottom: 2px solid {acc};"
+            f"}}"
+            f"QPushButton#tbtn:pressed {{ background:{acc}66; }}"
+        )
+
+    def _raise_target(self, key: str) -> None:
+        """Raise / show the tool's widget or call its opener."""
+        info = self._tools.get(key)
+        if not info:
+            return
+        t = info["target"]
+        if t is None:
+            return
+        if callable(t):
+            t()
+        elif isinstance(t, QWidget):
+            # If it's a tab, switch to it; otherwise raise as a window
+            mw = self._main_window
+            tw = getattr(mw, "main_tab_widget", None)
+            if tw:
+                for i in range(tw.count()):
+                    if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                        tw.setCurrentIndex(i)
+                        self.set_active(key, True)
+                        return
+            if not t.isVisible():
+                t.show()
+            t.raise_()
+            t.activateWindow()
+            self.set_active(key, True)
+
+    def _context_menu(self, key: str, pos) -> None:
+        """Right-click context menu for a taskbar button."""
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction
+        info = self._tools.get(key)
+        if not info:
+            return
+
+        menu = QMenu(self)
+        menu.setTitle(info["label"])
+
+        open_act = QAction(f"Open  {info['label']}", menu)
+        open_act.triggered.connect(lambda: self._raise_target(key))
+        menu.addAction(open_act)
+
+        menu.addSeparator()
+
+        close_act = QAction(f"Close  {info['label']}", menu)
+        def _close():
+            t = self._tools.get(key, {}).get("target")
+            if isinstance(t, QWidget):
+                # If docked in a tab, close that tab
+                mw = self._main_window
+                tw = getattr(mw, "main_tab_widget", None)
+                if tw:
+                    for i in range(tw.count()):
+                        if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                            tw.removeTab(i)
+                            break
+                    else:
+                        t.close()
+                else:
+                    t.close()
+            self.unregister(key)
+        close_act.triggered.connect(_close)
+        menu.addAction(close_act)
+
+        menu.exec(self.mapToGlobal(pos))
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def register(self, key: str, label: str, icon,
+                 target, tooltip: str = "") -> None:
+        """Add or update a tool button."""
+        if key in self._tools:
+            self.unregister(key)
+
+        btn = QPushButton()
+        btn.setIcon(icon)
+        btn.setText(label)
+        btn.setIconSize(QSize(16, 16))
+        btn.setFixedHeight(28)
+        btn.setMinimumWidth(52)
+        btn.setMaximumWidth(110)
+        btn.setFlat(False)
+        btn.setToolTip(tooltip or label)
+        btn.setObjectName("tbtn")
+        btn.setStyleSheet(self._make_btn_style(False))
+
+        btn.clicked.connect(lambda _=False, k=key: self._raise_target(k))
+
+        btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        btn.customContextMenuRequested.connect(
+            lambda pos, k=key: self._context_menu(k, pos))
+
+        self._layout.addWidget(btn)
+
+        self._tools[key] = {
+            "label":  label,
+            "icon":   icon,
+            "target": target,
+            "btn":    btn,
+            "active": False,
+        }
+        self.setVisible(True)
+
+    def unregister(self, key: str) -> None:
+        """Remove a tool button."""
+        if key not in self._tools:
+            return
+        btn = self._tools[key]["btn"]
+        self._layout.removeWidget(btn)
+        btn.deleteLater()
+        del self._tools[key]
+        if not self._tools:
+            self.setVisible(False)
+
+    def update_target(self, key: str, target) -> None:
+        if key in self._tools:
+            self._tools[key]["target"] = target
+
+    def set_active(self, key: str, active: bool) -> None:
+        """Draw / remove the active underline on a button."""
+        if key not in self._tools:
+            return
+        self._tools[key]["active"] = active
+        self._tools[key]["btn"].setStyleSheet(
+            self._make_btn_style(active,
+                acc=self._acc, txt=self._txt))
+
+    def is_registered(self, key: str) -> bool:
+        return key in self._tools
+
+    def apply_theme(self, colors: dict) -> None:
+        """Re-style all buttons from the live theme palette."""
+        self._acc = colors.get("accent_primary", "#1976d2")
+        self._txt = colors.get("text_primary",   "#cccccc")
+        self._bg  = colors.get("bg_secondary",   "transparent")
+        self.setStyleSheet(
+            f"QWidget#tool_taskbar {{ background: transparent; }}"
+        )
+        for key, info in self._tools.items():
+            info["btn"].setStyleSheet(
+                self._make_btn_style(info["active"], self._acc, self._txt))
+
+    # seed defaults so apply_theme isn't required before first use
+    _acc = "#1976d2"
+    _txt = "#cccccc"
+    _bg  = "transparent"
+
+
+
 
 
 class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
@@ -373,8 +573,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # ── Tool Taskbar — embedded inline between title and undo ──────────────
         # Populated by register_tool() whenever a workshop opens.
         # Hidden until first tool registers; sits flush in the titlebar row.
-        from apps.gui.gui_layout_custom import ToolTaskbar as _TT
-        self._inline_taskbar = _TT(self.main_window, self.titlebar)
+        # ToolTaskbar is defined earlier in this file — instantiate directly.
+        self._inline_taskbar = ToolTaskbar(self.main_window, self.titlebar)
         self._inline_taskbar.setVisible(False)
         layout.addWidget(self._inline_taskbar)
         # Expose on main_window so register_tool finds it immediately
@@ -2451,201 +2651,3 @@ __all__ = [
 # ─────────────────────────────────────────────────────────────────────────────
 # Tool Taskbar
 # ─────────────────────────────────────────────────────────────────────────────
-
-class ToolTaskbar(QWidget):  # vers 2
-    """Tool taskbar — lives INSIDE the titlebar row between the title and undo.
-
-    Each button:
-      - Left-click  : raise / show the associated workshop window or tab
-      - Right-click : context menu with Open / Close options
-      - Active underline shown when the target widget is visible/raised
-
-    register(key, label, icon, target, tooltip)
-    unregister(key)
-    update_target(key, target)
-    set_active(key, bool)   — draw underline on the button
-    """
-
-    def __init__(self, main_window, parent=None):
-        super().__init__(parent)
-        self._main_window = main_window
-        self._tools: dict = {}   # key → {label, icon, target, btn, active}
-        self.setObjectName("tool_taskbar")
-        self.setSizePolicy(
-            QSizePolicy.Policy.Preferred,
-            QSizePolicy.Policy.Fixed,
-        )
-
-        self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(2, 0, 2, 0)
-        self._layout.setSpacing(2)
-
-        # Start hidden — shown as soon as the first tool registers
-        self.setVisible(False)
-
-    # ── helpers ───────────────────────────────────────────────────────────────
-
-    def _make_btn_style(self, active: bool, acc: str = "#1976d2",
-                        txt: str = "#cccccc", bg: str = "transparent") -> str:
-        underline = (
-            f"border-bottom: 2px solid {acc}; border-radius:0px;"
-        ) if active else "border-bottom: 2px solid transparent; border-radius:3px;"
-        return (
-            f"QPushButton#tbtn {{"
-            f"  background:{bg}; color:{txt}; font-size:11px;"
-            f"  padding:2px 6px; border:1px solid transparent; {underline}"
-            f"}}"
-            f"QPushButton#tbtn:hover {{"
-            f"  background:{acc}33; border:1px solid {acc}; border-radius:3px;"
-            f"  border-bottom: 2px solid {acc};"
-            f"}}"
-            f"QPushButton#tbtn:pressed {{ background:{acc}66; }}"
-        )
-
-    def _raise_target(self, key: str) -> None:
-        """Raise / show the tool's widget or call its opener."""
-        info = self._tools.get(key)
-        if not info:
-            return
-        t = info["target"]
-        if t is None:
-            return
-        if callable(t):
-            t()
-        elif isinstance(t, QWidget):
-            # If it's a tab, switch to it; otherwise raise as a window
-            mw = self._main_window
-            tw = getattr(mw, "main_tab_widget", None)
-            if tw:
-                for i in range(tw.count()):
-                    if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
-                        tw.setCurrentIndex(i)
-                        self.set_active(key, True)
-                        return
-            if not t.isVisible():
-                t.show()
-            t.raise_()
-            t.activateWindow()
-            self.set_active(key, True)
-
-    def _context_menu(self, key: str, pos) -> None:
-        """Right-click context menu for a taskbar button."""
-        from PyQt6.QtWidgets import QMenu
-        from PyQt6.QtGui import QAction
-        info = self._tools.get(key)
-        if not info:
-            return
-
-        menu = QMenu(self)
-        menu.setTitle(info["label"])
-
-        open_act = QAction(f"Open  {info['label']}", menu)
-        open_act.triggered.connect(lambda: self._raise_target(key))
-        menu.addAction(open_act)
-
-        menu.addSeparator()
-
-        close_act = QAction(f"Close  {info['label']}", menu)
-        def _close():
-            t = self._tools.get(key, {}).get("target")
-            if isinstance(t, QWidget):
-                # If docked in a tab, close that tab
-                mw = self._main_window
-                tw = getattr(mw, "main_tab_widget", None)
-                if tw:
-                    for i in range(tw.count()):
-                        if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
-                            tw.removeTab(i)
-                            break
-                    else:
-                        t.close()
-                else:
-                    t.close()
-            self.unregister(key)
-        close_act.triggered.connect(_close)
-        menu.addAction(close_act)
-
-        menu.exec(self.mapToGlobal(pos))
-
-    # ── Public API ────────────────────────────────────────────────────────────
-
-    def register(self, key: str, label: str, icon,
-                 target, tooltip: str = "") -> None:
-        """Add or update a tool button."""
-        if key in self._tools:
-            self.unregister(key)
-
-        btn = QPushButton()
-        btn.setIcon(icon)
-        btn.setText(label)
-        btn.setIconSize(QSize(16, 16))
-        btn.setFixedHeight(28)
-        btn.setMinimumWidth(52)
-        btn.setMaximumWidth(110)
-        btn.setFlat(False)
-        btn.setToolTip(tooltip or label)
-        btn.setObjectName("tbtn")
-        btn.setStyleSheet(self._make_btn_style(False))
-
-        btn.clicked.connect(lambda _=False, k=key: self._raise_target(k))
-
-        btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        btn.customContextMenuRequested.connect(
-            lambda pos, k=key: self._context_menu(k, pos))
-
-        self._layout.addWidget(btn)
-
-        self._tools[key] = {
-            "label":  label,
-            "icon":   icon,
-            "target": target,
-            "btn":    btn,
-            "active": False,
-        }
-        self.setVisible(True)
-
-    def unregister(self, key: str) -> None:
-        """Remove a tool button."""
-        if key not in self._tools:
-            return
-        btn = self._tools[key]["btn"]
-        self._layout.removeWidget(btn)
-        btn.deleteLater()
-        del self._tools[key]
-        if not self._tools:
-            self.setVisible(False)
-
-    def update_target(self, key: str, target) -> None:
-        if key in self._tools:
-            self._tools[key]["target"] = target
-
-    def set_active(self, key: str, active: bool) -> None:
-        """Draw / remove the active underline on a button."""
-        if key not in self._tools:
-            return
-        self._tools[key]["active"] = active
-        self._tools[key]["btn"].setStyleSheet(
-            self._make_btn_style(active,
-                acc=self._acc, txt=self._txt))
-
-    def is_registered(self, key: str) -> bool:
-        return key in self._tools
-
-    def apply_theme(self, colors: dict) -> None:
-        """Re-style all buttons from the live theme palette."""
-        self._acc = colors.get("accent_primary", "#1976d2")
-        self._txt = colors.get("text_primary",   "#cccccc")
-        self._bg  = colors.get("bg_secondary",   "transparent")
-        self.setStyleSheet(
-            f"QWidget#tool_taskbar {{ background: transparent; }}"
-        )
-        for key, info in self._tools.items():
-            info["btn"].setStyleSheet(
-                self._make_btn_style(info["active"], self._acc, self._txt))
-
-    # seed defaults so apply_theme isn't required before first use
-    _acc = "#1976d2"
-    _txt = "#cccccc"
-    _bg  = "transparent"
-
-
