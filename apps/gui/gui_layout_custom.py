@@ -116,23 +116,46 @@ class ToolTaskbar(QWidget):  # vers 2
         t = info["target"]
         if t is None:
             return
+
+        # Dir tree button: toggle the content splitter
+        if key == "dirtree":
+            mw = self._main_window
+            gl = getattr(mw, "gui_layout", None)
+            splitter = getattr(gl, "content_splitter", None) if gl else None
+            if splitter and splitter.count() >= 2:
+                sizes = splitter.sizes()
+                total = sum(sizes) or 10000
+                # If tree is hidden or very small, show it in split mode
+                if sizes[-1] < total * 0.1:
+                    splitter.setSizes([total // 2, total // 2])
+                    self._set_exclusive_active(key)
+                else:
+                    # Tree visible — hide it
+                    splitter.setSizes([total, 0])
+                    self.set_active(key, False)
+                return
+
         if callable(t):
             t()
-        elif isinstance(t, QWidget):
-            # If it's a tab, switch to it; otherwise raise as a window
+            self._set_exclusive_active(key)
+            return
+        if isinstance(t, QWidget):
+            # If it's a docked tab, switch to it
             mw = self._main_window
             tw = getattr(mw, "main_tab_widget", None)
             if tw:
                 for i in range(tw.count()):
-                    if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                    w = tw.widget(i)
+                    if w is t or (w and t in w.findChildren(QWidget)):
                         tw.setCurrentIndex(i)
-                        self.set_active(key, True)
+                        self._set_exclusive_active(key)
                         return
+            # Floating window
             if not t.isVisible():
                 t.show()
             t.raise_()
             t.activateWindow()
-            self.set_active(key, True)
+            self._set_exclusive_active(key)
 
     def _context_menu(self, key: str, pos) -> None:
         """Right-click context menu for a taskbar button."""
@@ -154,8 +177,15 @@ class ToolTaskbar(QWidget):  # vers 2
         close_act = QAction(f"Close  {info['label']}", menu)
         def _close():
             t = self._tools.get(key, {}).get("target")
-            if isinstance(t, QWidget):
-                # If docked in a tab, close that tab
+            if key == "dirtree":
+                # Hide the splitter panel rather than closing the widget
+                mw = self._main_window
+                gl = getattr(mw, "gui_layout", None)
+                splitter = getattr(gl, "content_splitter", None) if gl else None
+                if splitter and splitter.count() >= 2:
+                    total = sum(splitter.sizes()) or 10000
+                    splitter.setSizes([total, 0])
+            elif isinstance(t, QWidget):
                 mw = self._main_window
                 tw = getattr(mw, "main_tab_widget", None)
                 if tw:
@@ -231,8 +261,12 @@ class ToolTaskbar(QWidget):  # vers 2
             return
         self._tools[key]["active"] = active
         self._tools[key]["btn"].setStyleSheet(
-            self._make_btn_style(active,
-                acc=self._acc, txt=self._txt))
+            self._make_btn_style(active, acc=self._acc, txt=self._txt))
+
+    def _set_exclusive_active(self, key: str) -> None:
+        """Mark key as active, clear underline on all others."""
+        for k in self._tools:
+            self.set_active(k, k == key)
 
     def is_registered(self, key: str) -> bool:
         return key in self._tools
@@ -580,6 +614,14 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Expose on main_window so register_tool finds it immediately
         self.main_window.tool_taskbar = self._inline_taskbar
 
+        # Thin vertical separator between taskbar and undo button
+        _sep = QFrame()
+        _sep.setFrameShape(QFrame.Shape.VLine)
+        _sep.setFrameShadow(QFrame.Shadow.Sunken)
+        _sep.setFixedWidth(8)
+        _sep.setStyleSheet("color: palette(mid);")
+        layout.addWidget(_sep)
+
         # Undo button - CONNECTED
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
@@ -901,6 +943,18 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
             # Mark setup as complete BEFORE showing
             self.main_window._dirtree_setup_complete = True
+            self.main_window._dirtree_state = 0  # start hidden
+
+            # Register dir tree in tool taskbar
+            try:
+                mw = self.main_window
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                _icon = SVGIconFactory.info_icon() if not hasattr(SVGIconFactory,'folder_icon') else SVGIconFactory.folder_icon()
+                if hasattr(mw, 'register_tool'):
+                    mw.register_tool("dirtree", "Browser", _icon,
+                                     mw.directory_tree, "Directory Tree Browser")
+            except Exception:
+                pass
 
             # Show directory tree, hide table
             if hasattr(self.main_window.gui_layout, 'table'):
