@@ -164,6 +164,7 @@ class FileType(Enum):
     IPL = "ipl"         # Item Placement
     DAT = "dat"         # Data files
     WAV = "wav"         # Audio files
+    STRM = "strm"       # PS2/PSP LVZ streaming cell (raw geometry)
     UNKNOWN = "unknown"
         # Aliases for backwards compatibility
     dff = DFF           # Lowercase alias
@@ -173,6 +174,7 @@ class FileType(Enum):
     ipl = IPL           # Lowercase alias
     dat = DAT           # Lowercase alias
     wav = WAV           # Lowercase alias
+    strm = STRM         # Lowercase alias
     unknown = UNKNOWN   # Lowercase alias
 
     # Legacy alias
@@ -617,6 +619,8 @@ class IMGEntry:
                 self.file_type = FileType.DAT
             elif ext_lower == 'wav':
                 self.file_type = FileType.WAV
+            elif ext_lower in ('strm',):
+                self.file_type = FileType.STRM
             else:
                 self.file_type = FileType.UNKNOWN
 

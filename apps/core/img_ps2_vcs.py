@@ -347,7 +347,7 @@ def open_lvz(file_path: str) -> dict: #vers 2
                 continue
 
             entries.append({
-                'name':       f'stream_{stream_idx:04d}',
+                'name':       f'stream_{stream_idx:04d}.strm',
                 'offset':     img_offset,
                 'size':       img_size,
                 'lvz_offset': nested_off,
