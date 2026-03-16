@@ -97,31 +97,33 @@ class ToolTaskbar(QWidget):  # vers 2
         # Inactive: transparent, dimmer text
         # The border shorthand must NOT come after border-bottom, or it resets it —
         # so we set all four sides explicitly.
+        # Use bare QPushButton selector — button has its OWN setStyleSheet so
+        # the selector only needs to match "this button", not a named widget.
         if active:
             return (
-                f"QPushButton#tbtn {{"
-                f"  background: {acc}44;"       # visible tint
+                f"QPushButton {{"
+                f"  background: {acc}44;"
                 f"  color: {txt};"
                 f"  font-size: 11px;"
                 f"  font-weight: bold;"
-                f"  padding: 2px 8px 0px 8px;"  # less bottom padding so line sits at edge
+                f"  padding: 2px 8px 0px 8px;"
                 f"  border-top: 1px solid transparent;"
                 f"  border-left: 1px solid transparent;"
                 f"  border-right: 1px solid transparent;"
                 f"  border-bottom: 3px solid {acc};"
-                f"  border-radius: 3px 3px 0px 0px;"  # square bottom corners for tab feel
+                f"  border-radius: 3px 3px 0px 0px;"
                 f"}}"
-                f"QPushButton#tbtn:hover {{"
+                f"QPushButton:hover {{"
                 f"  background: {acc}66;"
                 f"  border-bottom: 3px solid {acc};"
                 f"}}"
-                f"QPushButton#tbtn:pressed {{ background: {acc}88; }}"
+                f"QPushButton:pressed {{ background: {acc}88; }}"
             )
         else:
             return (
-                f"QPushButton#tbtn {{"
+                f"QPushButton {{"
                 f"  background: transparent;"
-                f"  color: {txt}aa;"            # slightly dimmer when inactive
+                f"  color: {txt}99;"
                 f"  font-size: 11px;"
                 f"  padding: 2px 8px;"
                 f"  border-top: 1px solid transparent;"
@@ -130,12 +132,12 @@ class ToolTaskbar(QWidget):  # vers 2
                 f"  border-bottom: 3px solid transparent;"
                 f"  border-radius: 3px;"
                 f"}}"
-                f"QPushButton#tbtn:hover {{"
+                f"QPushButton:hover {{"
                 f"  background: {acc}22;"
                 f"  color: {txt};"
                 f"  border-bottom: 3px solid {acc}66;"
                 f"}}"
-                f"QPushButton#tbtn:pressed {{ background: {acc}44; }}"
+                f"QPushButton:pressed {{ background: {acc}44; }}"
             )
 
     def _raise_target(self, key: str) -> None:
@@ -307,15 +309,19 @@ class ToolTaskbar(QWidget):  # vers 2
         self._txt = colors.get("text_primary",   "#cccccc")
         self._bg  = colors.get("bg_tertiary",
                     colors.get("bg_secondary", "#1a1a2e"))
-        # Give the taskbar a subtle background so it visually separates
-        # from the rest of the titlebar row — like a pill/tray
-        self.setStyleSheet(
-            f"QWidget#tool_taskbar {{"
-            f"  background: {self._bg}88;"     # semi-transparent tint
-            f"  border-radius: 4px;"
-            f"  padding: 1px 2px;"
-            f"}}"
-        )
+        # IMPORTANT: Do NOT call self.setStyleSheet() here — it cascades to
+        # child buttons and overrides their individual stylesheets in Qt.
+        # Apply the tray background directly via the widget's own property,
+        # and keep button styles on the buttons themselves.
+        # We use setObjectName + inline style on the widget to avoid cascade.
+        self.setAutoFillBackground(True)
+        from PyQt6.QtGui import QPalette, QColor
+        pal = self.palette()
+        c = QColor(self._bg)
+        c.setAlpha(100)   # ~40% opacity tint
+        pal.setColor(QPalette.ColorRole.Window, c)
+        self.setPalette(pal)
+        # Now update each button's individual stylesheet — no cascade issue
         for key, info in self._tools.items():
             info["btn"].setStyleSheet(
                 self._make_btn_style(info["active"], self._acc, self._txt))
