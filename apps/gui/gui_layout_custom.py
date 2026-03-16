@@ -1581,6 +1581,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         dialog.setWindowTitle("GTA / RenderWare Format Reference — IMG Factory 1.6")
         dialog.setMinimumSize(980, 760)
         dialog.resize(1060, 800)
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(dialog, self.main_window)
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(6)
@@ -1608,45 +1610,65 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             t.setHtml(html)
             return t
 
-        pal = QApplication.instance().palette()
-        def _h(r): return pal.color(r).name()
-        c_bg    = _h(QPalette.ColorRole.Base)
-        c_bg2   = _h(QPalette.ColorRole.AlternateBase)
-        c_text  = _h(QPalette.ColorRole.Text)
-        c_text2 = _h(QPalette.ColorRole.PlaceholderText)
-        c_acc   = _h(QPalette.ColorRole.Highlight)
-        c_brd   = _h(QPalette.ColorRole.Mid)
-        c_th    = _h(QPalette.ColorRole.Button)
-        c_thtx  = _h(QPalette.ColorRole.ButtonText)
+        # Use app theme colours — QPalette is unreliable when the app uses a custom theme
         _tc = {}
         if hasattr(self.main_window, 'app_settings'):
             _theme = self.main_window.app_settings.current_settings.get('theme', '')
             _tc = self.main_window.app_settings.get_theme_colors(_theme) or {}
-        c_ok  = _tc.get('success','') or _h(QPalette.ColorRole.Link)
-        c_err = _tc.get('error','')   or _h(QPalette.ColorRole.LinkVisited)
-        c_wrn = _tc.get('warning','') or _h(QPalette.ColorRole.Highlight)
+
+        pal = QApplication.instance().palette()
+        def _h(r): return pal.color(r).name()
+
+        # All colours from theme dict first, QPalette as last-resort fallback only
+        c_bg    = _tc.get('bg_primary',           _h(QPalette.ColorRole.Base))
+        c_bg2   = _tc.get('panel_entries',         _tc.get('bg_secondary', _h(QPalette.ColorRole.AlternateBase)))
+        c_bg3   = _tc.get('bg_tertiary',           _tc.get('bg_secondary', c_bg2))
+        c_text  = _tc.get('text_primary',          _h(QPalette.ColorRole.Text))
+        c_text2 = _tc.get('text_secondary',        _h(QPalette.ColorRole.PlaceholderText))
+        c_acc   = _tc.get('accent_primary',        _h(QPalette.ColorRole.Highlight))
+        c_brd   = _tc.get('border',                _h(QPalette.ColorRole.Mid))
+        c_th    = _tc.get('button_normal',         _h(QPalette.ColorRole.Button))
+        c_thtx  = _tc.get('text_primary',          _h(QPalette.ColorRole.ButtonText))
+        c_code  = _tc.get('panel_filter',          _tc.get('bg_tertiary', c_bg2))   # inline <code> boxes
+        c_sel   = _tc.get('selection_background',  _h(QPalette.ColorRole.Highlight))
+        c_ok    = _tc.get('success',               _h(QPalette.ColorRole.Link))
+        c_err   = _tc.get('error',                 _h(QPalette.ColorRole.LinkVisited))
+        c_wrn   = _tc.get('warning',               _h(QPalette.ColorRole.Highlight))
 
         css = (
             "<style>"
-            f"body{{font-family:'Consolas','Courier New',monospace;font-size:11px;"
-            f"background:{c_bg};color:{c_text};padding:4px;}}"
-            f"h2{{color:{c_acc};border-bottom:1px solid {c_brd};padding-bottom:3px;"
-            f"margin-top:10px;font-size:13px;}}"
-            f"h3{{color:{c_acc};margin:8px 0 2px 0;font-size:12px;}}"
-            f"h4{{color:{c_text};margin:5px 0 2px 0;font-size:11px;font-weight:bold;}}"
-            f"table{{border-collapse:collapse;width:100%;margin-bottom:8px;}}"
-            f"th{{background:{c_th};color:{c_thtx};padding:3px 8px;text-align:left;"
-            f"border-bottom:1px solid {c_brd};font-size:11px;}}"
-            f"td{{padding:2px 8px;border-bottom:1px solid {c_brd};color:{c_text};"
-            f"background:{c_bg};vertical-align:top;}}"
+            f"body{{font-family:'Segoe UI','Arial',sans-serif;font-size:12px;"
+            f"background:{c_bg};color:{c_text};padding:8px;margin:0;}}"
+            f"h2{{color:{c_acc};border-bottom:2px solid {c_brd};padding-bottom:4px;"
+            f"margin-top:14px;margin-bottom:4px;font-size:14px;}}"
+            f"h3{{color:{c_acc};margin:10px 0 3px 0;font-size:13px;font-weight:bold;}}"
+            f"h4{{color:{c_text};margin:6px 0 2px 0;font-size:12px;font-weight:bold;}}"
+            f"p{{margin:4px 0 6px 0;line-height:1.5;}}"
+            f"table{{border-collapse:collapse;width:100%;margin-bottom:10px;"
+            f"border:1px solid {c_brd};}}"
+            f"th{{background:{c_th};color:{c_thtx};padding:4px 10px;text-align:left;"
+            f"border:1px solid {c_brd};font-size:11px;font-weight:bold;}}"
+            f"td{{padding:3px 10px;border:1px solid {c_brd};color:{c_text};"
+            f"background:{c_bg};vertical-align:top;font-size:11px;}}"
             f"tr:nth-child(even) td{{background:{c_bg2};}}"
-            f"code{{background:{c_bg2};padding:1px 4px;border-radius:3px;font-family:monospace;}}"
-            f".note{{color:{c_text2};font-style:italic;}}"
+            f"tr:hover td{{background:{c_bg3};}}"
+            # code boxes: use panel_filter colour so they stand out but stay on-theme
+            f"code{{background:{c_code};color:{c_text};padding:1px 5px;"
+            f"border-radius:3px;font-family:'Consolas','Courier New',monospace;"
+            f"font-size:11px;border:1px solid {c_brd};}}"
+            f"pre{{background:{c_code};color:{c_text};padding:8px 10px;"
+            f"border-radius:4px;font-family:'Consolas','Courier New',monospace;"
+            f"font-size:11px;border:1px solid {c_brd};white-space:pre-wrap;"
+            f"margin:4px 0;}}"
+            f".note{{color:{c_text2};font-style:italic;margin:3px 0;}}"
             f".ok{{color:{c_ok};font-weight:bold;}}"
-            f".err{{color:{c_err};}}"
-            f".wrn{{color:{c_wrn};}}"
-            f".hex{{font-family:monospace;color:{c_acc};}}"
+            f".err{{color:{c_err};font-weight:bold;}}"
+            f".wrn{{color:{c_wrn};font-weight:bold;}}"
+            f".hex{{font-family:'Consolas','Courier New',monospace;color:{c_acc};"
+            f"background:{c_code};padding:1px 4px;border-radius:2px;"
+            f"border:1px solid {c_brd};font-size:11px;}}"
             f".off{{color:{c_text2};font-size:10px;}}"
+            f"b{{color:{c_text};}}"
             "</style>"
         )
 
