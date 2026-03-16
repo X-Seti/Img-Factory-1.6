@@ -126,7 +126,7 @@ class ToolTaskbar(QWidget):  # vers 2
             return (
                 f"QPushButton {{"
                 f"  background: transparent;"
-                f"  color: {self._txt}cc;"
+                f"  color: {self._txt};"
                 f"  font-size: 11px;"
                 f"  padding: 2px 10px;"
                 f"  border: 1px solid transparent;"
@@ -193,22 +193,35 @@ class ToolTaskbar(QWidget):  # vers 2
                 self.unregister(key)
 
     def _open_tool(self, key: str) -> None:
-        """Open or re-open a tool — tries its opener callable first, then raise."""
+        """Open or re-open a tool — uses the correct opener for each key."""
         mw = self._main_window
-        # For COL/TXD/IDE/AI try the docked opener on main_window first
+
+        # dirtree and dat need special routing
+        if key == "dirtree":
+            if hasattr(mw, 'toggle_dir_tree'):
+                mw.toggle_dir_tree()
+            return
+
+        if key == "dat":
+            # _open_dat_browser lives on gui_layout, not main_window
+            gl = getattr(mw, 'gui_layout', None)
+            if gl and hasattr(gl, '_open_dat_browser'):
+                gl._open_dat_browser()
+            return
+
+        # For COL/TXD/IDE/AI use the docked opener on main_window
         openers = {
-            "col":     "open_col_workshop_docked",
-            "txd":     "open_txd_workshop_docked",
-            "ide":     "open_ide_editor_docked",
-            "ai":      "open_ai_workshop_docked",
-            "dat":     "_open_dat_browser",
-            "dirtree": "toggle_dir_tree",
+            "col": "open_col_workshop_docked",
+            "txd": "open_txd_workshop_docked",
+            "ide": "open_ide_editor_docked",
+            "ai":  "open_ai_workshop_docked",
         }
         opener_name = openers.get(key)
         if opener_name and hasattr(mw, opener_name):
             getattr(mw, opener_name)()
             return
-        # Fallback: just raise whatever is registered
+
+        # Fallback: raise whatever target is registered
         self._raise_target(key)
 
     def _set_display_mode(self, key: str, mode: str) -> None:
