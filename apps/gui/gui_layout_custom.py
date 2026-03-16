@@ -117,13 +117,13 @@ class ToolTaskbar(QWidget):  # vers 2
             # Pill bg = txt colour at ~12% opacity — visible on both dark and light
             return (
                 f"QPushButton {{"
-                f"  background: {txt}1e;"
-                f"  color: {txt}99;"
+                f"  background: {txt}28;"
+                f"  color: {txt}bb;"
                 f"  font-size: 11px;"
                 f"  padding: 2px 10px;"
-                f"  border-left: 1px solid {txt}30;"
-                f"  border-right: 1px solid {txt}30;"
-                f"  border-top: 1px solid {txt}30;"
+                f"  border-left: 1px solid {txt}40;"
+                f"  border-right: 1px solid {txt}40;"
+                f"  border-top: 1px solid {txt}40;"
                 f"  border-bottom: 3px solid transparent;"
                 f"  border-radius: 0px;"
                 f"}}"
