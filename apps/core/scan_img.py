@@ -283,6 +283,9 @@ class ScanThread(QThread):  # vers 1
 
 # ── Results dialog ─────────────────────────────────────────────────────────────
 
+
+from apps.core.theme_utils import get_theme_colors as _get_theme_colors, build_dialog_stylesheet as _build_dialog_stylesheet
+
 class ScanResultsDialog(QDialog):  # vers 1
     """Shows scan results and lets the user open selected IMG files."""
 
@@ -295,6 +298,7 @@ class ScanResultsDialog(QDialog):  # vers 1
         self.setWindowTitle(f'IMG Scan — {os.path.basename(root_path) or root_path}')
         self.setMinimumSize(900, 580)
         self._build_ui()
+        self.setStyleSheet(_build_dialog_stylesheet(_get_theme_colors(parent)))
         if cached_results is not None:
             # Restore from cache — no scan needed
             self._load_cached(cached_results)
@@ -616,6 +620,7 @@ class RecentScansDialog(QDialog):  # vers 2
         self.setWindowTitle("IMG Scan — History & Results")
         self.setMinimumSize(1100, 600)
         self._build_ui()
+        self.setStyleSheet(_build_dialog_stylesheet(_get_theme_colors(parent)))
         self._populate_history()
         # Auto-select most recent entry and show its results
         if self._history_tree.topLevelItemCount() > 0:

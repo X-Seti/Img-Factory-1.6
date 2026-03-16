@@ -178,6 +178,8 @@ class SplitDialog(QDialog): #vers 2 Fixed
         self.setModal(True)
         self.setFixedSize(480, 300)
         self._build_ui()
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(self)
 
     def _build_ui(self): #vers 1
         layout = QVBoxLayout(self)

@@ -169,6 +169,13 @@ class CustomMenuManager:
 
         menu.addSeparator()
 
+        open_col_ws_action = QAction(SVGIconFactory.get_open_icon(), "Open COL in COL Workshop...", self.main_window)
+        open_col_ws_action.setShortcut(QKeySequence("Ctrl+Shift+L"))
+        open_col_ws_action.triggered.connect(self._open_col_in_workshop)
+        menu.addAction(open_col_ws_action)
+
+        menu.addSeparator()
+
         game_path_action = QAction(SVGIconFactory.folder_icon(), "Set Game Path...", self.main_window)
         game_path_action.setShortcut(QKeySequence("Ctrl+Shift+G"))
         game_path_action.triggered.connect(self._set_game_root)
@@ -357,6 +364,11 @@ class CustomMenuManager:
         """Hybrid load IMG + COL"""
         if hasattr(self.main_window, 'open_hybrid_load'):
             self.main_window.open_hybrid_load()
+
+    def _open_col_in_workshop(self): #vers 1
+        """File menu → Open COL in COL Workshop."""
+        if hasattr(self.main_window, '_open_col_file_in_workshop'):
+            self.main_window._open_col_file_in_workshop()
 
     def _scan_img_folder(self): #vers 1
         """Scan folder for IMG files"""

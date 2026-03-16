@@ -424,6 +424,9 @@ class ASearchDialog(QDialog):
         self.resize(400, 300)
         self._setup_ui()
     
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(self)
+
     def _setup_ui(self):
         """Setup dialog UI"""
         layout = QVBoxLayout(self)

@@ -218,6 +218,8 @@ class IMGMergeDialog(QDialog): #vers 4 Fixed
         self.setFixedSize(600, 480)
         self.merge_thread = None
         self._build_ui()
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(self)
         self._on_method_changed()
 
     def _build_ui(self): #vers 1

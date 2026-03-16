@@ -158,6 +158,9 @@ class ExtractDialog(QDialog):
         
         self.setup_ui()
         
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(self)
+
     def setup_ui(self):
         """Setup the extraction dialog UI"""
         layout = QVBoxLayout(self)

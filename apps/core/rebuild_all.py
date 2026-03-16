@@ -115,6 +115,9 @@ class BatchRebuildDialog(QDialog):
 
         self._create_ui()
 
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(self)
+
     def _create_ui(self):
         """Create the dialog UI"""
         layout = QVBoxLayout(self)

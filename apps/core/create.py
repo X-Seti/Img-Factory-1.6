@@ -46,6 +46,8 @@ class NewIMGDialog(QDialog): #vers 11
         self.setFixedSize(420, 160)
         self.output_path = ""
         self._build_ui()
+        from apps.core.theme_utils import apply_dialog_theme
+        apply_dialog_theme(self)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
