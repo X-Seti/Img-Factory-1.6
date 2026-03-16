@@ -3070,6 +3070,7 @@ class IMGFactory(QMainWindow):
                             self.selection_status_widget.update_selection(0, tex_count)
                     from PyQt6.QtCore import QTimer
                     QTimer.singleShot(0, _txd_status)
+                self._sync_taskbar_active("txd")
                 self.log_message(f"→ {tab_name} (TXD Workshop)")
                 return
 
@@ -3091,6 +3092,7 @@ class IMGFactory(QMainWindow):
                                            entry_count=col_count,
                                            file_size=file_size,
                                            version='COL')
+                self._sync_taskbar_active("col")
                 self.log_message(f"→ {tab_name} (COL Workshop)")
                 return
 
@@ -3103,6 +3105,7 @@ class IMGFactory(QMainWindow):
                     self.update_img_status(filename=fp, entry_count=col_count, version='COL')
                 if hasattr(self, 'selection_status_widget'):
                     self.selection_status_widget.update_selection(0, 0)
+                self._sync_taskbar_active("col")
                 self.log_message(f"→ {tab_name} (COL)")
             elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
@@ -3120,6 +3123,7 @@ class IMGFactory(QMainWindow):
                         self.selection_status_widget.update_selection(sel, tt.rowCount())
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(0, _update_after_populate)
+                self._sync_taskbar_active("")
                 self.log_message(f"→ {tab_name}")
             else:
                 self.current_img = None
@@ -3128,6 +3132,16 @@ class IMGFactory(QMainWindow):
                     self.update_img_status(filename="", entry_count=0, file_size=0, version="—")
                 if hasattr(self, 'selection_status_widget'):
                     self.selection_status_widget.update_selection(0, 0)
+                # Check if this is an IDE tab
+                tab_name_lower = tab_name.lower()
+                if 'ide' in tab_name_lower:
+                    self._sync_taskbar_active("ide")
+                elif 'ai' in tab_name_lower:
+                    self._sync_taskbar_active("ai")
+                elif 'dat' in tab_name_lower:
+                    self._sync_taskbar_active("dat")
+                else:
+                    self._sync_taskbar_active("")
                 self.log_message(f"→ {tab_name}")
 
         except Exception as e:
@@ -5294,6 +5308,20 @@ class IMGFactory(QMainWindow):
                 self.tool_taskbar.setVisible(True)
         except Exception as e:
             self.log_message(f"Tool taskbar register error: {e}")
+
+    def _sync_taskbar_active(self, active_key: str = "") -> None: #vers 1
+        """Light up the taskbar button matching active_key; dim all others."""
+        if not hasattr(self, 'tool_taskbar'):
+            return
+        try:
+            if active_key:
+                self.tool_taskbar._set_exclusive_active(active_key)
+            else:
+                # No active tool — clear all underlines
+                for k in list(self.tool_taskbar._tools.keys()):
+                    self.tool_taskbar.set_active(k, False)
+        except Exception:
+            pass
 
     def unregister_tool(self, key: str) -> None: #vers 1
         """Remove a tool button from the taskbar."""

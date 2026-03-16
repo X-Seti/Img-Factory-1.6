@@ -619,13 +619,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         # Expose on main_window so register_tool finds it immediately
         self.main_window.tool_taskbar = self._inline_taskbar
 
-        # Thin vertical separator between taskbar and undo button
-        _sep = QFrame()
-        _sep.setFrameShape(QFrame.Shape.VLine)
-        _sep.setFrameShadow(QFrame.Shadow.Sunken)
-        _sep.setFixedWidth(8)
-        _sep.setStyleSheet("color: palette(mid);")
-        layout.addWidget(_sep)
+        layout.addStretch()
 
         # Undo button - CONNECTED
         self.undo_btn = QPushButton()
