@@ -93,42 +93,47 @@ class ToolTaskbar(QWidget):  # vers 2
 
     def _make_btn_style(self, active: bool, acc: str = "#1976d2",
                         txt: str = "#cccccc", bg: str = "transparent") -> str:
-        # border-radius + border-bottom is unreliable in Qt CSS.
-        # Fix: border-radius: 0 so Qt renders the bottom line correctly.
-        # Active:   visible accent tint + full text + accent bottom line
-        # Inactive: very subtle tint so buttons are visible but not dominant
+        # Inactive: always a visible dark-pill background regardless of accent colour
+        # Active:   accent-tinted bg + full-brightness bold text + 3px solid accent bottom line
+        # border-radius: 0 required — Qt drops border-bottom when border-radius is set
+        _pill = "rgba(255,255,255,18)"   # subtle white-tint pill, theme-neutral
+        _pill_h = "rgba(255,255,255,35)" # hover
         if active:
             return (
                 f"QPushButton {{"
-                f"  background: {acc}55;"
+                f"  background: {acc}66;"
                 f"  color: {txt};"
                 f"  font-size: 11px;"
                 f"  font-weight: bold;"
-                f"  padding: 2px 8px;"
-                f"  border: 1px solid {acc}66;"
+                f"  padding: 2px 10px;"
+                f"  border-left: 1px solid {acc}55;"
+                f"  border-right: 1px solid {acc}55;"
+                f"  border-top: 1px solid {acc}55;"
                 f"  border-bottom: 3px solid {acc};"
                 f"  border-radius: 0px;"
                 f"}}"
-                f"QPushButton:hover {{ background: {acc}77; }}"
-                f"QPushButton:pressed {{ background: {acc}99; }}"
+                f"QPushButton:hover {{ background: {acc}88; }}"
+                f"QPushButton:pressed {{ background: {acc}aa; }}"
             )
         else:
             return (
                 f"QPushButton {{"
-                f"  background: {acc}18;"
-                f"  color: {txt}88;"
+                f"  background: {_pill};"
+                f"  color: {txt}99;"
                 f"  font-size: 11px;"
-                f"  padding: 2px 8px;"
-                f"  border: 1px solid {acc}22;"
+                f"  padding: 2px 10px;"
+                f"  border-left: 1px solid rgba(255,255,255,25);"
+                f"  border-right: 1px solid rgba(255,255,255,25);"
+                f"  border-top: 1px solid rgba(255,255,255,25);"
                 f"  border-bottom: 3px solid transparent;"
                 f"  border-radius: 0px;"
                 f"}}"
                 f"QPushButton:hover {{"
-                f"  background: {acc}33;"
+                f"  background: {_pill_h};"
                 f"  color: {txt};"
-                f"  border-bottom: 3px solid {acc}55;"
+                f"  border-bottom: 3px solid {acc}77;"
                 f"}}"
-                f"QPushButton:pressed {{ background: {acc}44; }}"
+                f"QPushButton:pressed {{ background: rgba(255,255,255,50); }}"
             )
 
     def _raise_target(self, key: str) -> None:

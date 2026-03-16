@@ -865,12 +865,21 @@ class IMGFactory(QMainWindow):
             if hasattr(tree, 'browse_directory'):
                 tree.browse_directory(root)
 
-            # Show tree full width (state 2), user can split with button
+            # Start hidden — user opens via taskbar "Browser" button
             total = sum(splitter.sizes()) or 10000
-            splitter.setSizes([0, total])
-            tree.show()
+            splitter.setSizes([total, 0])
             mw._dirtree_setup_complete = True
-            mw._dirtree_state = 2
+            mw._dirtree_state = 0
+
+            # Register in taskbar so user can toggle it
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                _icon = SVGIconFactory.info_icon(16, '#cccccc')
+                if hasattr(mw, 'register_tool'):
+                    mw.register_tool("dirtree", "Browser", lambda sz, col: SVGIconFactory.info_icon(sz, col),
+                                     tree, "Directory Tree Browser")
+            except Exception:
+                pass
 
         except Exception as e:
             self.log_message(f"Dir tree autoload error: {e}")
