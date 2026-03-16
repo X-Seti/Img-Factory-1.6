@@ -125,6 +125,7 @@ class IMGVersion(Enum):
     VERSION_HXD     = 45  # Bully HXD/MXD/AGR bone+animation data - float header + path
     VERSION_DTZ_VCS = 46  # GAME.DTZ VCS PS2/PSP — zlib blob with Relocatable Chunk header
     VERSION_DTZ_LCS = 47  # GAME.DTZ LCS PS2/PSP — zlib blob with Relocatable Chunk header
+    VERSION_IRX     = 48  # PS2 IOP MIPS ELF module (.irx) — read-only system file
     VERSION_1_IOS   = 47  # iOS GTA3/VC (*_pvr.img) - 12-byte entries, 512-byte sectors, no names
     VERSION_XBOX        = 50  # Xbox GTA3/VC - DIR+IMG pair, LZO-compressed entries, 2048-byte sectors
     VERSION_SA_ANDROID  = 51  # Android SA - VER2 header, 2048-byte sectors, mobile texture DB
@@ -1503,6 +1504,18 @@ class IMGFile:
                     self.version = ver
                     return ver
 
+            # Check for PS2 IRX (IOP MIPS ELF modules - CDSTREAM.IRX etc.)
+            if self.file_path.lower().endswith('.irx'):
+                try:
+                    with open(self.file_path, 'rb') as _f:
+                        _irx_magic = _f.read(4)
+                    if _irx_magic == b'\x7fELF':
+                        self.version  = IMGVersion.VERSION_IRX
+                        self.platform = IMGPlatform.PS2
+                        return IMGVersion.VERSION_IRX
+                except Exception:
+                    pass
+
             # Check for GAME.DTZ (LCS/VCS PS2/PSP zlib data container)
             if self.file_path.lower().endswith('.dtz'):
                 from apps.core.img_dtz import detect_dtz, open_dtz
@@ -1691,6 +1704,19 @@ class IMGFile:
             elif self.version in (IMGVersion.VERSION_DTZ_VCS,
                                   IMGVersion.VERSION_DTZ_LCS):
                 success = self._open_dtz()
+            elif self.version == IMGVersion.VERSION_IRX:
+                # IRX = single ELF module, show as one entry
+                try:
+                    sz = os.path.getsize(self.file_path)
+                    e = IMGEntry()
+                    e.name = os.path.basename(self.file_path)
+                    e.offset = 0
+                    e.size = sz
+                    e.is_readonly = True
+                    self.entries.append(e)
+                    success = True
+                except Exception:
+                    success = False
             elif self.version in (IMGVersion.VERSION_PS2_VCS,
                                   IMGVersion.VERSION_PS2_LVZ,
                                   IMGVersion.VERSION_PS2_V1,
