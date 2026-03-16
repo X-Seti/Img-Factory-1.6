@@ -83,8 +83,8 @@ class DATBrowserWidget(QWidget): #vers 2
 
     def _setup_ui(self): #vers 2
         # Ensure opaque background so tab contents don't bleed through
+        # setAutoFillBackground(True) is enough — WA_OpaquePaintEvent causes black bg
         self.setAutoFillBackground(True)
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
