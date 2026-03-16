@@ -93,49 +93,40 @@ class ToolTaskbar(QWidget):  # vers 2
 
     def _make_btn_style(self, active: bool, acc: str = "#1976d2",
                         txt: str = "#cccccc", bg: str = "transparent") -> str:
-        # Active: bright tinted background + 3px accent bottom line + full brightness text
-        # Inactive: transparent, dimmer text
-        # The border shorthand must NOT come after border-bottom, or it resets it —
-        # so we set all four sides explicitly.
-        # Use bare QPushButton selector — button has its OWN setStyleSheet so
-        # the selector only needs to match "this button", not a named widget.
+        # border-radius + border-bottom is unreliable in Qt CSS.
+        # Fix: border-radius: 0 so Qt renders the bottom line correctly.
+        # Active:   visible accent tint + full text + accent bottom line
+        # Inactive: very subtle tint so buttons are visible but not dominant
         if active:
             return (
                 f"QPushButton {{"
-                f"  background: {acc}44;"
+                f"  background: {acc}55;"
                 f"  color: {txt};"
                 f"  font-size: 11px;"
                 f"  font-weight: bold;"
-                f"  padding: 2px 8px 0px 8px;"
-                f"  border-top: 1px solid transparent;"
-                f"  border-left: 1px solid transparent;"
-                f"  border-right: 1px solid transparent;"
+                f"  padding: 2px 8px;"
+                f"  border: 1px solid {acc}66;"
                 f"  border-bottom: 3px solid {acc};"
-                f"  border-radius: 3px 3px 0px 0px;"
+                f"  border-radius: 0px;"
                 f"}}"
-                f"QPushButton:hover {{"
-                f"  background: {acc}66;"
-                f"  border-bottom: 3px solid {acc};"
-                f"}}"
-                f"QPushButton:pressed {{ background: {acc}88; }}"
+                f"QPushButton:hover {{ background: {acc}77; }}"
+                f"QPushButton:pressed {{ background: {acc}99; }}"
             )
         else:
             return (
                 f"QPushButton {{"
-                f"  background: transparent;"
-                f"  color: {txt}99;"
+                f"  background: {acc}18;"
+                f"  color: {txt}88;"
                 f"  font-size: 11px;"
                 f"  padding: 2px 8px;"
-                f"  border-top: 1px solid transparent;"
-                f"  border-left: 1px solid transparent;"
-                f"  border-right: 1px solid transparent;"
+                f"  border: 1px solid {acc}22;"
                 f"  border-bottom: 3px solid transparent;"
-                f"  border-radius: 3px;"
+                f"  border-radius: 0px;"
                 f"}}"
                 f"QPushButton:hover {{"
-                f"  background: {acc}22;"
+                f"  background: {acc}33;"
                 f"  color: {txt};"
-                f"  border-bottom: 3px solid {acc}66;"
+                f"  border-bottom: 3px solid {acc}55;"
                 f"}}"
                 f"QPushButton:pressed {{ background: {acc}44; }}"
             )
