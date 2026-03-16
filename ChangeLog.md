@@ -1,4 +1,78 @@
-#this belongs in root /ChangeLog.md - Version: 22
+#this belongs in root /ChangeLog.md - Version: 23
+
+## March 16, 2026 — VCS PC format research, XTX texture decoder, LVZ/DLRW analysis
+
+### XTX Texture Format — Fully Decoded
+
+**New file**: apps/methods/xtx_reader.py  
+**Updated**: apps/components/Txd_Editor/txd_workshop.py
+
+VCS PS2/PC splash screen textures (.XTX) researched from binary analysis of
+actual VCS PC files (LOADSC*.XTX, SPLASH*.XTX, SCEE*.XTX, MEMCARD.XTX).
+
+**Format discovered:**
+- Magic: `"xet\x00"` (bytes 0x78 0x65 0x74 0x00)
+- Header: 1228 bytes total
+- CLUT (256-entry RGBA palette): at offset 0xCC (204)
+- Pixel data (1 byte/pixel, palette-indexed): at offset 0x4CC (1228)
+- Dimensions derived from formula: `file_size = width × height + 1228`
+  - 512×512 → 263,372 bytes (LOADSC*, SCEE* logos)
+  - 512×256 → 132,300 bytes (MEMCARD, SPLASH1)
+  - 256×256 → 66,764 bytes (SPLASH2–10)
+- Pixel format field [20:24] = 7 (PS2 PSMT8 — 8-bit indexed)
+- 0xCC fill padding (PS2 SDK uninitialised memory marker)
+- Alpha: PS2 range 0–128, scale ×2 for standard 0–255
+- No pixel tile-swizzle (linear row-major)
+- Colour order: RGBA (standard)
+
+**TXD Workshop changes:**
+- Open file filter now includes `*.xtx`
+- `.xtx` files routed to `_open_xtx_file()` before TXD parser
+- `_open_xtx_file()`: reads XTX, decodes to QImage, shows in workshop
+- `_display_xtx_texture()`: populates texture list item, preview, info labels
+- Title bar shows: `[XTX — VCS PS2 Palettized 512×512]`
+
+**xtx_reader.py exports:**
+- `is_xtx(path)` — magic check
+- `read_xtx(path)` → dict with clut, pixels, rgba_data, width, height
+- `xtx_dimensions(file_size)` → (width, height)
+- `xtx_to_qimage(path)` → QImage (RGBA8888)
+- `xtx_to_qpixmap(path, max_size)` → scaled QPixmap
+
+---
+
+### VCS PC Streaming Format Research
+
+Analysed BEACH.IMG, MAINLA.IMG, MALL.IMG and their companion .LVZ files.
+
+**BEACH/MAINLA/MALL.IMG:**
+- Custom VCS PC streaming format, magic 0x54 at offset 0
+- NOT a standard GTA IMG — does not contain a readable directory
+- Companion .LVZ is the compressed index
+
+**BEACH/MAINLA/MALL.LVZ:**
+- zlib-compressed (0x78DA deflate header)
+- Decompresses to DLRW format
+- DLRW structure: `magic(4) "DLRW"` + 8-byte (offset, size) entry pairs
+- Offsets point within the decompressed blob itself
+- The blob IS the streaming data; the .IMG contains bulk asset data
+- Beach: 5.1 MB decompressed → 219 MB .IMG (44× larger)
+- STATUS: Read-only detection added; full DLRW index parsing TODO
+
+**VCS_FILES_OF_INTEREST:**
+- `.IRX` = PS2 IOP processor MIPS ELF modules (system files, not GTA archives)
+- `IOPRP300.IMG` = PS2 IOP kernel replacement image (NOT a GTA IMG)
+
+---
+
+### RW Version Labels Added
+
+apps/methods/rw_versions.py:
+- `0x35002000` → `"3.5.0.2 (VCS PS2/PSP)"`
+- `0x35001000` → `"3.5.0.1 (LCS PS2/PSP)"`
+
+
+---
 
 ## March 15, 2026 (final) — RW Reference rewrite, ChangeLog v22
 

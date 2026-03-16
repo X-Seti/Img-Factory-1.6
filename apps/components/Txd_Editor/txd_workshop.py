@@ -8573,7 +8573,7 @@ class TXDWorkshop(QWidget): #vers 3
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save TXD File",
             initial_path,
-            "TXD Files (*.txd);;All Files (*)"
+            "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
         )
 
         if not file_path:
@@ -8683,7 +8683,7 @@ class TXDWorkshop(QWidget): #vers 3
 
             file_path, _ = QFileDialog.getSaveFileName(
                 self, "Save TXD File", default_path,
-                "TXD Files (*.txd);;All Files (*)"
+                "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
             )
 
             if not file_path:
@@ -9059,7 +9059,7 @@ class TXDWorkshop(QWidget): #vers 3
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save TXD File",
             initial_path,
-            "TXD Files (*.txd);;All Files (*)"
+            "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
         )
 
         if not file_path:
@@ -9309,7 +9309,7 @@ class TXDWorkshop(QWidget): #vers 3
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save TXD File",
             initial_path,
-            "TXD Files (*.txd);;All Files (*)"
+            "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
         )
 
         if not file_path:
@@ -9771,7 +9771,7 @@ class TXDWorkshop(QWidget): #vers 3
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save TXD File",
             initial_path,  # Use full path instead of just filename
-            "TXD Files (*.txd);;All Files (*)"
+            "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
         )
 
         if not file_path:
@@ -12030,7 +12030,7 @@ class TXDWorkshop(QWidget): #vers 3
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
                     self, "Open TXD File", "",
-                    "TXD Files (*.txd);;All Files (*)"
+                    "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
                 )
             if file_path:
                 self.current_txd_path = file_path  # Store the full path
@@ -12038,6 +12038,11 @@ class TXDWorkshop(QWidget): #vers 3
 
 
             if file_path:
+                # Route .xtx files to XTX reader
+                if file_path.lower().endswith('.xtx'):
+                    self._open_xtx_file(file_path)
+                    return
+
                 with open(file_path, 'rb') as f:
                     txd_data = f.read()
 
@@ -12058,6 +12063,85 @@ class TXDWorkshop(QWidget): #vers 3
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open TXD: {str(e)}")
+
+
+
+    def _open_xtx_file(self, file_path: str): #vers 1
+        """Open a VCS PS2/PC XTX palettized texture and display it in the workshop."""
+        try:
+            from apps.methods.xtx_reader import read_xtx, xtx_to_qimage
+            info = read_xtx(file_path)
+            if info['error']:
+                QMessageBox.warning(self, "XTX Error",
+                    f"Failed to read XTX file:\n{info['error']}")
+                return
+
+            name = os.path.basename(file_path)
+            w, h = info['width'], info['height']
+
+            # Build a fake texture list entry compatible with the existing display
+            qimg = xtx_to_qimage(file_path)
+            if qimg is None:
+                QMessageBox.warning(self, "XTX Error", "Could not decode XTX texture")
+                return
+
+            from PyQt6.QtGui import QPixmap
+            from PyQt6.QtCore import Qt
+            pixmap = QPixmap.fromImage(qimg)
+
+            # Display in the texture preview
+            self._display_xtx_texture(name, pixmap, info)
+
+            self.current_txd_path = file_path
+            self.current_txd_name = name
+            self.setWindowTitle(f"TXD Workshop: {name} [XTX — VCS PS2 Palettized {w}×{h}]")
+            self.log_message(f"Opened XTX: {name} ({w}×{h}, 256-colour indexed)")
+
+        except Exception as e:
+            QMessageBox.critical(self, "XTX Error", f"Failed to open XTX:\n{str(e)}")
+
+    def _display_xtx_texture(self, name: str, pixmap, info: dict): #vers 1
+        """Show an XTX texture in the workshop preview area."""
+        try:
+            w, h = info['width'], info['height']
+
+            # Clear existing texture list and add XTX entry
+            if hasattr(self, 'txd_list_widget'):
+                self.txd_list_widget.clear()
+                item = QListWidgetItem(
+                    f"{name}  [{w}×{h}]  XTX/PSMT8-256col"
+                )
+                self.txd_list_widget.addItem(item)
+                self.txd_list_widget.setCurrentRow(0)
+
+            # Show in preview
+            if hasattr(self, 'texture_preview'):
+                scaled = pixmap.scaled(
+                    self.texture_preview.width(),
+                    self.texture_preview.height(),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self.texture_preview.setPixmap(scaled)
+
+            # Update info labels if present
+            for attr, val in [
+                ('texture_name_label',   name),
+                ('texture_size_label',   f"{w} × {h} pixels"),
+                ('texture_format_label', "PSMT8 (8-bit palette-indexed)"),
+                ('texture_depth_label',  "8 bpp → 256 colours"),
+                ('texture_alpha_label',  "Yes (PS2 alpha 0–128 range)"),
+            ]:
+                lbl = getattr(self, attr, None)
+                if lbl and hasattr(lbl, 'setText'):
+                    lbl.setText(val)
+
+            # Store for potential export
+            self._xtx_pixmap = pixmap
+            self._xtx_info   = info
+
+        except Exception as e:
+            self.log_message(f"XTX display error: {e}")
 
 
     def _import_textures(self): #vers 6
