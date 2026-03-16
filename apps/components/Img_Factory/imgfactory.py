@@ -5429,7 +5429,7 @@ class IMGFactory(QMainWindow):
         """Open IPL item placement editor"""
         self.log_message("IPL editor functionality coming soon")
 
-    def toggle_dir_tree(self): #vers 1
+    def toggle_dir_tree(self): #vers 2
         """Toggle the directory tree panel open/closed via the content splitter."""
         try:
             gl = getattr(self, 'gui_layout', None)
@@ -5466,20 +5466,31 @@ class IMGFactory(QMainWindow):
 
             sizes = splitter.sizes()
             total = sum(sizes) or 10000
-            if sizes[-1] < total * 0.1:
-                # Hidden — show 50/50
-                splitter.setSizes([total // 2, total // 2])
+            tree_size = sizes[-1] if len(sizes) > 1 else 0
+            state = getattr(self, '_dirtree_state', 0)
+
+            # Cycle: 0=hidden → 1=full-front → 2=split → 0=hidden
+            if tree_size < total * 0.1:
+                # Currently hidden — show full front
+                splitter.setSizes([0, total])
                 self._dirtree_state = 1
                 if hasattr(self, 'tool_taskbar'):
                     self.tool_taskbar._set_exclusive_active("dirtree")
-                self.log_message("→ Dir Tree open")
+                self.log_message("→ Dir Tree (full)")
+            elif tree_size > total * 0.9:
+                # Currently full — switch to split view
+                splitter.setSizes([total // 2, total // 2])
+                self._dirtree_state = 2
+                if hasattr(self, 'tool_taskbar'):
+                    self.tool_taskbar._set_exclusive_active("dirtree")
+                self.log_message("→ Dir Tree (split)")
             else:
-                # Visible — hide
+                # Currently split — hide
                 splitter.setSizes([total, 0])
                 self._dirtree_state = 0
                 if hasattr(self, 'tool_taskbar'):
                     self.tool_taskbar.set_active("dirtree", False)
-                self.log_message("→ Dir Tree closed")
+                self.log_message("→ Dir Tree (hidden)")
         except Exception as e:
             self.log_message(f"Dir tree toggle error: {e}")
 
