@@ -93,47 +93,46 @@ class ToolTaskbar(QWidget):  # vers 2
 
     def _make_btn_style(self, active: bool, acc: str = "#1976d2",
                         txt: str = "#cccccc", bg: str = "transparent") -> str:
-        # Inactive: always a visible dark-pill background regardless of accent colour
-        # Active:   accent-tinted bg + full-brightness bold text + 3px solid accent bottom line
-        # border-radius: 0 required — Qt drops border-bottom when border-radius is set
-        _pill = "rgba(255,255,255,18)"   # subtle white-tint pill, theme-neutral
-        _pill_h = "rgba(255,255,255,35)" # hover
+        # Use txt colour (from theme text_primary) to derive pill bg and borders
+        # so it works on BOTH dark and light themes.
+        # border-radius: 0 required — Qt drops border-bottom when border-radius is set.
         if active:
             return (
                 f"QPushButton {{"
-                f"  background: {acc}66;"
+                f"  background: {acc}55;"
                 f"  color: {txt};"
                 f"  font-size: 11px;"
                 f"  font-weight: bold;"
                 f"  padding: 2px 10px;"
-                f"  border-left: 1px solid {acc}55;"
-                f"  border-right: 1px solid {acc}55;"
-                f"  border-top: 1px solid {acc}55;"
+                f"  border-left: 1px solid {acc}66;"
+                f"  border-right: 1px solid {acc}66;"
+                f"  border-top: 1px solid {acc}66;"
                 f"  border-bottom: 3px solid {acc};"
                 f"  border-radius: 0px;"
                 f"}}"
-                f"QPushButton:hover {{ background: {acc}88; }}"
-                f"QPushButton:pressed {{ background: {acc}aa; }}"
+                f"QPushButton:hover {{ background: {acc}77; }}"
+                f"QPushButton:pressed {{ background: {acc}99; }}"
             )
         else:
+            # Pill bg = txt colour at ~12% opacity — visible on both dark and light
             return (
                 f"QPushButton {{"
-                f"  background: {_pill};"
+                f"  background: {txt}1e;"
                 f"  color: {txt}99;"
                 f"  font-size: 11px;"
                 f"  padding: 2px 10px;"
-                f"  border-left: 1px solid rgba(255,255,255,25);"
-                f"  border-right: 1px solid rgba(255,255,255,25);"
-                f"  border-top: 1px solid rgba(255,255,255,25);"
+                f"  border-left: 1px solid {txt}30;"
+                f"  border-right: 1px solid {txt}30;"
+                f"  border-top: 1px solid {txt}30;"
                 f"  border-bottom: 3px solid transparent;"
                 f"  border-radius: 0px;"
                 f"}}"
                 f"QPushButton:hover {{"
-                f"  background: {_pill_h};"
+                f"  background: {txt}33;"
                 f"  color: {txt};"
-                f"  border-bottom: 3px solid {acc}77;"
+                f"  border-bottom: 3px solid {acc}88;"
                 f"}}"
-                f"QPushButton:pressed {{ background: rgba(255,255,255,50); }}"
+                f"QPushButton:pressed {{ background: {txt}44; }}"
             )
 
     def _raise_target(self, key: str) -> None:
@@ -157,22 +156,35 @@ class ToolTaskbar(QWidget):  # vers 2
             self._set_exclusive_active(key)
             return
         if isinstance(t, QWidget):
+            # Guard: the C++ object may have been deleted (e.g. workshop closed)
+            try:
+                _ = t.isVisible()  # will raise RuntimeError if deleted
+            except RuntimeError:
+                # Widget deleted — remove stale registration and bail
+                self.unregister(key)
+                return
             # If it's a docked tab, switch to it
             mw = self._main_window
             tw = getattr(mw, "main_tab_widget", None)
             if tw:
                 for i in range(tw.count()):
-                    w = tw.widget(i)
-                    if w is t or (w and t in w.findChildren(QWidget)):
-                        tw.setCurrentIndex(i)
-                        self._set_exclusive_active(key)
-                        return
+                    try:
+                        w = tw.widget(i)
+                        if w is t or (w and t in w.findChildren(QWidget)):
+                            tw.setCurrentIndex(i)
+                            self._set_exclusive_active(key)
+                            return
+                    except RuntimeError:
+                        continue
             # Floating window
-            if not t.isVisible():
-                t.show()
-            t.raise_()
-            t.activateWindow()
-            self._set_exclusive_active(key)
+            try:
+                if not t.isVisible():
+                    t.show()
+                t.raise_()
+                t.activateWindow()
+                self._set_exclusive_active(key)
+            except RuntimeError:
+                self.unregister(key)
 
     def _context_menu(self, key: str, pos) -> None:
         """Right-click context menu for a taskbar button."""
@@ -186,7 +198,8 @@ class ToolTaskbar(QWidget):  # vers 2
         menu.setTitle(info["label"])
 
         open_act = QAction(f"Open  {info['label']}", menu)
-        open_act.triggered.connect(lambda: self._raise_target(key))
+        # Capture key by value to avoid closure issue
+        open_act.triggered.connect(lambda checked=False, k=key: self._raise_target(k))
         menu.addAction(open_act)
 
         menu.addSeparator()
@@ -205,17 +218,24 @@ class ToolTaskbar(QWidget):  # vers 2
                 if hasattr(mw, '_dirtree_state'):
                     mw._dirtree_state = 0
             elif isinstance(t, QWidget):
-                mw = self._main_window
-                tw = getattr(mw, "main_tab_widget", None)
-                if tw:
-                    for i in range(tw.count()):
-                        if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
-                            tw.removeTab(i)
-                            break
+                try:
+                    _ = t.isVisible()  # raises if deleted
+                    mw = self._main_window
+                    tw = getattr(mw, "main_tab_widget", None)
+                    if tw:
+                        for i in range(tw.count()):
+                            try:
+                                if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
+                                    tw.removeTab(i)
+                                    break
+                            except RuntimeError:
+                                continue
+                        else:
+                            t.close()
                     else:
                         t.close()
-                else:
-                    t.close()
+                except RuntimeError:
+                    pass  # already deleted — just unregister below
             self.unregister(key)
         close_act.triggered.connect(_close)
         menu.addAction(close_act)
