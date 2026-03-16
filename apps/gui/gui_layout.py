@@ -319,6 +319,7 @@ class IMGFactoryGUILayout:
             'show_search_dialog': lambda: self.show_search_dialog(),
             'sort_entries': lambda: self.sort_entries(),
             'move_entry_up':   lambda: getattr(self.main_window, '_move_entries_up',   lambda: None)(),
+            'open_ide_editor': lambda: getattr(self.main_window, 'open_ide_editor',    lambda: None)(),
             'move_entry_down': lambda: getattr(self.main_window, '_move_entries_down', lambda: None)(),
 
             # Removed, TODO need to choose the ide file, to sort with.
@@ -335,7 +336,7 @@ class IMGFactoryGUILayout:
             'edit_txd_file': lambda: edit_txd_file(self.main_window),
             'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
-            'edit_ide_file': lambda: (open_ide_editor(self.main_window),_register_tool_taskbar(self.main_window, 'ide', 'IDE', get_ide_editor_icon, 'IDE Editor — item definition editor'))[-1],
+            'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
             'edit_ipl_file': lambda: self._open_selected_text_file('.ipl'),
             'edit_dat_file': self._open_dat_browser,
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
