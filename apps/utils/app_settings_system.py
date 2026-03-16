@@ -1796,18 +1796,24 @@ class AppSettings:
         QTabBar::tab {{
             background-color: {bg_secondary};
             border: 1px solid {border};
-            padding: 8px 16px;
-            color: {text_primary};
-            margin-bottom: 2px;
+            border-bottom: 3px solid transparent;
+            padding: 6px 16px;
+            color: {text_secondary};
+            margin-bottom: 0px;
+            margin-right: 2px;
         }}
 
         QTabBar::tab:selected {{
-            background-color: {accent_primary};
-            color: white;
+            background-color: {bg_primary};
+            color: {text_primary};
+            border-bottom: 3px solid {accent_primary};
+            font-weight: bold;
         }}
 
-        QTabBar::tab:hover {{
+        QTabBar::tab:hover:!selected {{
             background-color: {button_hover};
+            color: {text_primary};
+            border-bottom: 3px solid {accent_secondary};
         }}
 
         QComboBox {{

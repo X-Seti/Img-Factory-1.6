@@ -2847,13 +2847,14 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.setMovable(True)
         self.main_tab_widget.setStyleSheet("""
             QTabBar::tab {
-                margin-top: 3px;
-                margin-bottom: 2px;
+                margin-top: 2px;
+                margin-bottom: 0px;
                 margin-right: 2px;
-                padding: 4px 12px;
+                padding: 5px 14px;
             }
             QTabWidget::pane {
-                margin-top: 2px;
+                border-top: 1px solid palette(mid);
+                margin-top: 0px;
             }
         """)
         self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
