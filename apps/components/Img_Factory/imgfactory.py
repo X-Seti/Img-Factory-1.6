@@ -2873,6 +2873,9 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
         self.main_tab_widget.setTabsClosable(True)
         self.main_tab_widget.setMovable(True)
+        # Tab style driven entirely by app_settings theme — matches app_settings_system
+        # Colors applied dynamically in apply_table_theme() via get_theme_colors()
+        # This block just sets geometry; colours come from the app-level stylesheet
         self.main_tab_widget.setStyleSheet("""
             QTabBar::tab {
                 margin-top: 2px;
@@ -2885,6 +2888,14 @@ class IMGFactory(QMainWindow):
                 margin-top: 0px;
             }
         """)
+        # Force a theme refresh so tab colours pick up from the loaded theme
+        try:
+            from PyQt6.QtWidgets import QApplication
+            from apps.utils.app_settings_system import apply_theme_to_app
+            if hasattr(self, 'app_settings'):
+                apply_theme_to_app(QApplication.instance(), self.app_settings)
+        except Exception:
+            pass
         self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
 
         # Panel toggle button - left corner of tab bar, outside tabs

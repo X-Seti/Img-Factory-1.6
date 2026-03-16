@@ -91,11 +91,26 @@ class ToolTaskbar(QWidget):  # vers 2
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
-    def _make_btn_style(self, active: bool, acc: str = "#1976d2",
-                        txt: str = "#cccccc", bg: str = "transparent") -> str:
-        # Use txt colour (from theme text_primary) to derive pill bg and borders
-        # so it works on BOTH dark and light themes.
-        # border-radius: 0 required — Qt drops border-bottom when border-radius is set.
+    def _make_btn_style(self, active: bool,
+                        acc:  str = "#1976d2",
+                        txt:  str = "#cccccc",
+                        btn_normal: str = "",
+                        btn_hover:  str = "",
+                        acc2: str = "") -> str:
+        """Build button stylesheet from theme colour keys.
+
+        Uses the same keys as the app_settings_system tab bar:
+          acc  = accent_primary   (active underline + active bg tint)
+          acc2 = accent_secondary (hover underline)
+          btn_normal = button_normal  (inactive bg)
+          btn_hover  = button_hover   (hover bg)
+          txt  = text_primary    (text colour)
+
+        border-radius:0 required — Qt drops border-bottom otherwise.
+        """
+        _bn = btn_normal or f"{txt}28"
+        _bh = btn_hover  or f"{txt}44"
+        _a2 = acc2       or f"{acc}88"
         if active:
             return (
                 f"QPushButton {{"
@@ -114,10 +129,9 @@ class ToolTaskbar(QWidget):  # vers 2
                 f"QPushButton:pressed {{ background: {acc}99; }}"
             )
         else:
-            # Pill bg = txt colour at ~12% opacity — visible on both dark and light
             return (
                 f"QPushButton {{"
-                f"  background: {txt}28;"
+                f"  background: {_bn};"
                 f"  color: {txt}bb;"
                 f"  font-size: 11px;"
                 f"  padding: 2px 10px;"
@@ -128,11 +142,11 @@ class ToolTaskbar(QWidget):  # vers 2
                 f"  border-radius: 0px;"
                 f"}}"
                 f"QPushButton:hover {{"
-                f"  background: {txt}33;"
+                f"  background: {_bh};"
                 f"  color: {txt};"
-                f"  border-bottom: 3px solid {acc}88;"
+                f"  border-bottom: 3px solid {_a2};"
                 f"}}"
-                f"QPushButton:pressed {{ background: {txt}44; }}"
+                f"QPushButton:pressed {{ background: {acc}44; }}"
             )
 
     def _raise_target(self, key: str) -> None:
@@ -186,10 +200,47 @@ class ToolTaskbar(QWidget):  # vers 2
             except RuntimeError:
                 self.unregister(key)
 
+    def _open_tool(self, key: str) -> None:
+        """Open or re-open a tool — tries its opener callable first, then raise."""
+        mw = self._main_window
+        # For COL/TXD/IDE/AI try the docked opener on main_window first
+        openers = {
+            "col":     "open_col_workshop_docked",
+            "txd":     "open_txd_workshop_docked",
+            "ide":     "open_ide_editor_docked",
+            "ai":      "open_ai_workshop_docked",
+            "dat":     "_open_dat_browser",
+            "dirtree": "toggle_dir_tree",
+        }
+        opener_name = openers.get(key)
+        if opener_name and hasattr(mw, opener_name):
+            getattr(mw, opener_name)()
+            return
+        # Fallback: just raise whatever is registered
+        self._raise_target(key)
+
+    def _set_display_mode(self, key: str, mode: str) -> None:
+        """Set button display mode: 'both' | 'icon' | 'text'."""
+        info = self._tools.get(key)
+        if not info:
+            return
+        info["display_mode"] = mode
+        btn = info["btn"]
+        if mode == "icon":
+            btn.setText("")
+            btn.setIconSize(QSize(18, 18))
+        elif mode == "text":
+            btn.setIcon(QIcon())
+            btn.setText(info["label"])
+        else:  # both
+            btn.setIcon(info["icon"])
+            btn.setIconSize(QSize(16, 16))
+            btn.setText(info["label"])
+
     def _context_menu(self, key: str, pos) -> None:
         """Right-click context menu for a taskbar button."""
         from PyQt6.QtWidgets import QMenu
-        from PyQt6.QtGui import QAction
+        from PyQt6.QtGui import QAction, QIcon
         info = self._tools.get(key)
         if not info:
             return
@@ -197,18 +248,37 @@ class ToolTaskbar(QWidget):  # vers 2
         menu = QMenu(self)
         menu.setTitle(info["label"])
 
+        # ── Open ──────────────────────────────────────────────────────────────
         open_act = QAction(f"Open  {info['label']}", menu)
-        # Capture key by value to avoid closure issue
-        open_act.triggered.connect(lambda checked=False, k=key: self._raise_target(k))
+        open_act.triggered.connect(
+            lambda checked=False, k=key: self._open_tool(k))
         menu.addAction(open_act)
 
         menu.addSeparator()
 
+        # ── Show submenu ──────────────────────────────────────────────────────
+        show_menu = QMenu("Show", menu)
+        current_mode = info.get("display_mode", "both")
+
+        for mode_key, mode_label in (("both", "Icons and Text"),
+                                      ("icon", "Icons Only"),
+                                      ("text", "Text Only")):
+            act = QAction(mode_label, show_menu)
+            act.setCheckable(True)
+            act.setChecked(current_mode == mode_key)
+            act.triggered.connect(
+                lambda checked=False, k=key, m=mode_key: self._set_display_mode(k, m))
+            show_menu.addAction(act)
+
+        menu.addMenu(show_menu)
+
+        menu.addSeparator()
+
+        # ── Close ─────────────────────────────────────────────────────────────
         close_act = QAction(f"Close  {info['label']}", menu)
-        def _close():
-            t = self._tools.get(key, {}).get("target")
-            if key == "dirtree":
-                # Close = hide the splitter panel
+        def _close(k=key):
+            t = self._tools.get(k, {}).get("target")
+            if k == "dirtree":
                 mw = self._main_window
                 gl = getattr(mw, "gui_layout", None)
                 splitter = getattr(gl, "content_splitter", None) if gl else None
@@ -219,7 +289,7 @@ class ToolTaskbar(QWidget):  # vers 2
                     mw._dirtree_state = 0
             elif isinstance(t, QWidget):
                 try:
-                    _ = t.isVisible()  # raises if deleted
+                    _ = t.isVisible()
                     mw = self._main_window
                     tw = getattr(mw, "main_tab_widget", None)
                     if tw:
@@ -235,8 +305,8 @@ class ToolTaskbar(QWidget):  # vers 2
                     else:
                         t.close()
                 except RuntimeError:
-                    pass  # already deleted — just unregister below
-            self.unregister(key)
+                    pass
+            self.unregister(k)
         close_act.triggered.connect(_close)
         menu.addAction(close_act)
 
@@ -300,7 +370,11 @@ class ToolTaskbar(QWidget):  # vers 2
             return
         self._tools[key]["active"] = active
         self._tools[key]["btn"].setStyleSheet(
-            self._make_btn_style(active, acc=self._acc, txt=self._txt))
+            self._make_btn_style(active,
+                acc=self._acc, txt=self._txt,
+                btn_normal=self._btn_normal,
+                btn_hover=self._btn_hover,
+                acc2=self._acc2))
 
     def _set_exclusive_active(self, key: str) -> None:
         """Mark key as active, clear underline on all others."""
@@ -311,32 +385,35 @@ class ToolTaskbar(QWidget):  # vers 2
         return key in self._tools
 
     def apply_theme(self, colors: dict) -> None:
-        """Re-style all buttons from the live theme palette."""
-        self._acc = colors.get("accent_primary", "#1976d2")
-        self._txt = colors.get("text_primary",   "#cccccc")
-        self._bg  = colors.get("bg_tertiary",
-                    colors.get("bg_secondary", "#1a1a2e"))
-        # IMPORTANT: Do NOT call self.setStyleSheet() here — it cascades to
-        # child buttons and overrides their individual stylesheets in Qt.
-        # Apply the tray background directly via the widget's own property,
-        # and keep button styles on the buttons themselves.
-        # We use setObjectName + inline style on the widget to avoid cascade.
+        """Re-style all buttons using the same theme keys as app_settings_system tabs."""
+        self._acc  = colors.get("accent_primary",   "#1976d2")
+        self._acc2 = colors.get("accent_secondary",  "#1565c0")
+        self._txt  = colors.get("text_primary",      "#cccccc")
+        self._btn_normal = colors.get("button_normal", "")
+        self._btn_hover  = colors.get("button_hover",  "")
+        self._bg   = colors.get("bg_tertiary",
+                     colors.get("bg_secondary", "#1a1a2e"))
+        # Tray background via QPalette — no setStyleSheet cascade
         self.setAutoFillBackground(True)
         from PyQt6.QtGui import QPalette, QColor
         pal = self.palette()
         c = QColor(self._bg)
-        c.setAlpha(100)   # ~40% opacity tint
+        c.setAlpha(80)
         pal.setColor(QPalette.ColorRole.Window, c)
         self.setPalette(pal)
-        # Now update each button's individual stylesheet — no cascade issue
         for key, info in self._tools.items():
             info["btn"].setStyleSheet(
-                self._make_btn_style(info["active"], self._acc, self._txt))
+                self._make_btn_style(info["active"],
+                    self._acc, self._txt,
+                    self._btn_normal, self._btn_hover, self._acc2))
 
     # seed defaults so apply_theme isn't required before first use
-    _acc = "#1976d2"
-    _txt = "#cccccc"
-    _bg  = "transparent"
+    _acc        = "#1976d2"
+    _acc2       = "#1565c0"
+    _txt        = "#cccccc"
+    _btn_normal = ""
+    _btn_hover  = ""
+    _bg         = "transparent"
 
 
 
