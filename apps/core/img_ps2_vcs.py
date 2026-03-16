@@ -1,4 +1,4 @@
-#this belongs in core/ img_ps2_vcs.py - Version: 9
+#this belongs in core/ img_ps2_vcs.py - Version: 10
 # X-Seti - March04 2026 - IMG Factory 1.6 - PS2/PSP/Bully IMG, LVZ, ANPK and HXD Support
 """
 PS2/PSP/Bully IMG, LVZ, ANPK, Bully and HXD Support - Read-only parsers.
@@ -261,21 +261,38 @@ def open_ps2_vcs(file_path: str) -> dict: #vers 2
     return result
 
 
-def open_lvz(file_path: str) -> dict: #vers 1
+def open_lvz(file_path: str) -> dict: #vers 2
     """
-    Decompress and parse a VCS .LVZ archive.
-    Returns dict: { 'version': 'PS2_LVZ', 'entries': [...], 'error': None, 'data': bytes }
-    Each entry: { 'name': str, 'offset': int, 'size': int, 'index': int }
-    offset/size are byte offsets into the decompressed data blob.
+    Decompress and parse a VCS .LVZ (DLRW) streaming archive.
+
+    DLRW binary layout (all LE):
+      [0x00]  "DLRW" magic
+      [0x04]  0 (reserved)
+      [0x08]  total decompressed size
+      [0x0C]  index table offset (= end of entry header area)
+      [0x10]  index table offset (duplicate)
+      [0x14]  entry_count  (number of streaming cells)
+      [0x18]  0 (padding)
+      [0x1C]  0 (padding)
+      [0x20]  header record: data_start_ptr(4) + nested_dlrw_start_ptr(4)
+      [0x28 + i*8]  cell i: sub_entry_count(4) + nested_dlrw_offset(4)
+      [index_table]  entry_count × 4-byte back-pointers (for lookup)
+
+    Each cell contains a nested DLRW block of audio/visual stream chunks.
     """
     result = {'version': 'PS2_LVZ', 'entries': [], 'error': None, 'data': None}
     try:
         with open(file_path, 'rb') as f:
             raw = f.read()
-        data = zlib.decompress(raw)
+
+        # Decompress - try standard zlib, fall back to raw deflate
+        try:
+            data = zlib.decompress(raw)
+        except zlib.error:
+            data = zlib.decompress(raw, -15)
         result['data'] = data
 
-        if len(data) < 32:
+        if len(data) < 0x28:
             result['error'] = 'LVZ too small after decompress'
             return result
 
@@ -284,25 +301,46 @@ def open_lvz(file_path: str) -> dict: #vers 1
             result['error'] = f'Bad DLRW magic: {magic!r}'
             return result
 
-        entry_count = struct.unpack('<I', data[0x14:0x18])[0]
+        # Parse header
+        total_size   = struct.unpack_from('<I', data, 0x08)[0]
+        index_offset = struct.unpack_from('<I', data, 0x0C)[0]
+        entry_count  = struct.unpack_from('<I', data, 0x14)[0]
 
-        # Entries start at 0x28: byte_offset[4LE] size_sectors[4LE]
+        # Header record at 0x20: pointers to data area and nested DLRW area
+        data_area_start  = struct.unpack_from('<I', data, 0x20)[0]
+        nested_area_start = struct.unpack_from('<I', data, 0x24)[0]
+
+        # Cell records at 0x28, 8 bytes each:
+        #   sub_entry_count(4) + nested_dlrw_byte_offset(4)
         entries = []
-        entry_base = 0x28
-        for i in range(entry_count):
-            pos = entry_base + i * 8
-            if pos + 8 > len(data):
+        cell_count = max(0, entry_count - 1)  # first record is the header record
+        for i in range(cell_count):
+            pos = 0x28 + i * 8
+            if pos + 8 > min(len(data), index_offset):
                 break
-            off = struct.unpack('<I', data[pos:pos + 4])[0]
-            sz  = struct.unpack('<I', data[pos + 4:pos + 8])[0] * PS2_SECTOR
+            sub_count  = struct.unpack_from('<I', data, pos)[0]
+            nested_off = struct.unpack_from('<I', data, pos + 4)[0]
+
+            # Approximate size: distance to next cell's nested block
+            if i + 1 < cell_count:
+                next_nested = struct.unpack_from('<I', data, pos + 8 + 4)[0]
+                cell_size = next_nested - nested_off
+            else:
+                cell_size = total_size - nested_off
+
             entries.append({
-                'name':   f'cell_{i}',
-                'offset': off,
-                'size':   sz,
-                'index':  i,
+                'name':      f'cell_{i:04d}',
+                'offset':    nested_off,
+                'size':      cell_size,
+                'sub_count': sub_count,
+                'index':     i,
             })
 
         result['entries'] = entries
+        result['data_area_start']  = data_area_start
+        result['nested_area_start'] = nested_area_start
+        result['cell_count'] = cell_count
+
     except zlib.error as e:
         result['error'] = f'zlib decompress failed: {e}'
     except Exception as e:

@@ -1,4 +1,68 @@
-#this belongs in root /ChangeLog.md - Version: 24
+#this belongs in root /ChangeLog.md - Version: 25
+
+## March 16, 2026 (2) — DLRW parser rewrite, tab status bar, LVZ chain fix
+
+### open_lvz v2 — correct DLRW binary layout
+
+**Updated**: apps/core/img_ps2_vcs.py v10
+
+Previous `open_lvz` read `entry_count` from offset 0x14 (= 3128 for BEACH)
+then immediately iterated 3128 * 8 bytes from 0x28 reading random data as
+entries — producing rows like "bin_3928 = 2,096,776 MB".
+
+**Correct DLRW layout (researched from BEACH/MALL/MAINLA.LVZ):**
+```
+[0x00]  "DLRW" magic
+[0x04]  0 reserved
+[0x08]  total decompressed size
+[0x0C]  index table offset  (= end of entry header area)
+[0x10]  index table offset  (duplicate)
+[0x14]  entry_count         (number of streaming cells)
+[0x18]  0 padding
+[0x1C]  0 padding
+[0x20]  header record: data_area_start(4) + nested_dlrw_area_start(4)
+[0x28 + i*8]  cell i: sub_entry_count(4) + nested_dlrw_byte_offset(4)
+[index_table] entry_count × 4-byte back-pointers
+```
+
+Each cell points to a nested DLRW containing audio/visual stream chunks.
+MALL.LVZ now parses to 918 cells, BEACH.LVZ to 3127 cells.
+
+`open_lvz` now returns correct `cell_NNNN` entries with:
+- `offset`: byte offset of nested DLRW within decompressed blob
+- `size`: approximate byte size (next_cell_offset − this_cell_offset)
+- `sub_count`: number of stream chunks within the nested DLRW
+
+---
+
+### LVZ open resolves .img → .lvz companion path
+
+**Updated**: apps/methods/img_core_classes.py
+
+When `VERSION_PS2_LVZ` is opened and `file_path` ends in `.img`, the code now
+calls `_find_companion(file_path, '.lvz')` to locate the real archive.
+Previously it called `open_lvz(self.file_path)` on the `.IMG` file which
+decompresses to nothing useful.
+
+---
+
+### Status bar updates correctly after tab switch
+
+**Updated**: apps/components/Img_Factory/imgfactory.py `_on_tab_changed` v9
+
+`update_img_status` and `selection_status_widget.update_selection` are now
+deferred via `QTimer.singleShot(0, ...)` so they run *after* Qt has finished
+processing the table population. Previously the status update fired before
+the table rows were committed, reading a stale entry count.
+
+IMG branch also skips `_populate_real_img_table` if the table already has
+rows (first-visit-only population), preventing redundant reloads on every
+tab switch.
+
+TXD Workshop status update also deferred the same way.
+
+
+---
 
 ## March 16, 2026 — Bug fixes: MALL.IMG detection, TXD Workshop, taskbar icons, status bar
 

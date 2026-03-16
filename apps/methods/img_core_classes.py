@@ -1962,6 +1962,15 @@ class IMGFile:
                 result = open_bully(self.file_path)
             elif self.version == IMGVersion.VERSION_HXD:
                 result = open_hxd(self.file_path)
+            elif self.version == IMGVersion.VERSION_PS2_LVZ:
+                # The .LVZ is the archive — either we opened the .LVZ directly,
+                # or we opened the companion .IMG and need to find the .LVZ
+                lvz_path = self.file_path
+                if not lvz_path.lower().endswith('.lvz'):
+                    lvz_path = _find_companion(self.file_path, '.lvz')
+                if not lvz_path:
+                    return False
+                result = open_lvz(lvz_path)
             else:
                 result = open_lvz(self.file_path)
             if result.get("error"):

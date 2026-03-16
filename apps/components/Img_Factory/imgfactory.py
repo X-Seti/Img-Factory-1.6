@@ -3028,7 +3028,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 8
+    def _on_tab_changed(self, index): #vers 9
         """Handle tab switching - DIR Tree, IMG, COL, TXD tabs"""
         try:
             current_tab = self.main_tab_widget.widget(index)
@@ -3045,12 +3045,6 @@ class IMGFactory(QMainWindow):
             if tab_table and hasattr(self, 'gui_layout'):
                 self.gui_layout.table = tab_table
 
-            # Update selection count for the newly active table immediately
-            if tab_table and hasattr(self, 'selection_status_widget'):
-                sel = len(set(i.row() for i in tab_table.selectedItems()))
-                total = tab_table.rowCount()
-                self.selection_status_widget.update_selection(sel, total)
-
             # Check if this tab contains an embedded TXD Workshop
             from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
             workshops = current_tab.findChildren(TXDWorkshop)
@@ -3059,15 +3053,23 @@ class IMGFactory(QMainWindow):
                 self.current_img = None
                 self.current_col = None
                 if hasattr(self, 'update_img_status'):
-                    tex_count = len(workshop.texture_list) if hasattr(workshop, 'texture_list') else 0
-                    txd_name = getattr(workshop, 'current_txd_name', None) or tab_name
-                    txd_path = getattr(workshop, 'current_txd_path', '') or ''
                     import os
-                    file_size = os.path.getsize(txd_path) if txd_path and os.path.isfile(txd_path) else 0
-                    self.update_img_status(filename=txd_path or txd_name,
-                                           entry_count=tex_count,
-                                           file_size=file_size,
-                                           version='TXD')
+                    ws = workshop
+                    tn2 = tab_name
+                    def _txd_status(w=ws, t=tn2):
+                        tex_count = len(w.texture_list) if hasattr(w, 'texture_list') else 0
+                        txd_name  = getattr(w, 'current_txd_name', None) or t
+                        txd_path  = getattr(w, 'current_txd_path', '') or ''
+                        file_size = os.path.getsize(txd_path) if txd_path and os.path.isfile(txd_path) else 0
+                        if hasattr(self, 'update_img_status'):
+                            self.update_img_status(filename=txd_path or txd_name,
+                                                   entry_count=tex_count,
+                                                   file_size=file_size,
+                                                   version='TXD')
+                        if hasattr(self, 'selection_status_widget'):
+                            self.selection_status_widget.update_selection(0, tex_count)
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, _txd_status)
                 self.log_message(f"→ {tab_name} (TXD Workshop)")
                 return
 
@@ -3105,16 +3107,19 @@ class IMGFactory(QMainWindow):
             elif file_type == 'IMG' and file_object is not None:
                 self.current_img = file_object
                 self.current_col = None
-                # Repopulate table only if not already shown (avoids double-load)
-                if hasattr(self, '_populate_real_img_table'):
-                    self._populate_real_img_table(file_object, table=tab_table)
-                # Update status bar AFTER populate so entry count is accurate
-                if hasattr(self, 'update_img_status'):
-                    self.update_img_status(img_file=file_object)
-                # Update selection count for this tab
-                if tab_table and hasattr(self, 'selection_status_widget'):
-                    sel = len(set(i.row() for i in tab_table.selectedItems()))
-                    self.selection_status_widget.update_selection(sel, tab_table.rowCount())
+                # Populate only if table is empty (first visit to this tab)
+                if tab_table and tab_table.rowCount() == 0:
+                    if hasattr(self, '_populate_real_img_table'):
+                        self._populate_real_img_table(file_object, table=tab_table)
+                # Defer status + selection update to after Qt processes the table
+                def _update_after_populate(fo=file_object, tt=tab_table, tn=tab_name):
+                    if hasattr(self, 'update_img_status'):
+                        self.update_img_status(img_file=fo)
+                    if tt and hasattr(self, 'selection_status_widget'):
+                        sel = len(set(i.row() for i in tt.selectedItems()))
+                        self.selection_status_widget.update_selection(sel, tt.rowCount())
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, _update_after_populate)
                 self.log_message(f"→ {tab_name}")
             else:
                 self.current_img = None
