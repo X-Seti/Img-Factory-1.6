@@ -202,7 +202,7 @@ def edit_col_file(main_window): #vers 4
             main_window.log_message(f"COL Workshop opened: {os.path.basename(selected)}")
             return
 
-        # Priority 2: IMG table .col entry highlighted
+        # Priority 2: IMG table .col entry highlighted — extract and open directly
         from apps.methods.export_shared import get_active_table
         entries_table = get_active_table(main_window)
         selected_items = entries_table.selectedItems() if entries_table else []
@@ -211,9 +211,28 @@ def edit_col_file(main_window): #vers 4
             item0 = entries_table.item(row, 0)
             filename = item0.text() if item0 else ""
             if filename.lower().endswith('.col'):
-                img_path = None
-                if hasattr(main_window, 'current_img') and main_window.current_img:
-                    img_path = main_window.current_img.file_path
+                img = getattr(main_window, 'current_img', None)
+                if img and hasattr(img, 'entries') and 0 <= row < len(img.entries):
+                    entry = img.entries[row]
+                    try:
+                        import tempfile
+                        data = img.read_entry_data(entry)
+                        if data:
+                            tmp = tempfile.NamedTemporaryFile(
+                                delete=False, suffix='.col',
+                                prefix=os.path.splitext(filename)[0] + '_')
+                            tmp.write(data)
+                            tmp.close()
+                            from apps.components.Col_Editor.col_workshop import open_col_workshop
+                            w = open_col_workshop(main_window, tmp.name)
+                            _register_tool_taskbar(main_window, "col", "COL",
+                                get_col_workshop_icon, "COL Workshop", w)
+                            main_window.log_message(f"COL Workshop: {filename}")
+                            return
+                    except Exception:
+                        pass
+                # Fallback: browse mode with IMG path
+                img_path = img.file_path if img else None
                 from apps.components.Col_Editor.col_workshop import open_col_workshop
                 w = open_col_workshop(main_window, img_path)
                 _register_tool_taskbar(main_window, "col", "COL", get_col_workshop_icon, "COL Workshop", w)

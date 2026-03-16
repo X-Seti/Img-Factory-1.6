@@ -1472,7 +1472,17 @@ class COLWorkshop(QWidget): #vers 3
             self.open_img_btn.setIcon(self.icon_factory.folder_icon())
             self.open_img_btn.setIconSize(QSize(20, 20))
             self.open_img_btn.clicked.connect(self.open_img_archive)
+            self.open_img_btn.setToolTip("Open an IMG archive and browse its COL entries")
             layout.addWidget(self.open_img_btn)
+
+            # "From IMG" — pick a COL entry from the currently loaded IMG in IMG Factory
+            self.from_img_btn = QPushButton("From IMG")
+            self.from_img_btn.setFont(self.button_font)
+            self.from_img_btn.setIcon(self.icon_factory.open_icon())
+            self.from_img_btn.setIconSize(QSize(20, 20))
+            self.from_img_btn.clicked.connect(self._pick_col_from_current_img)
+            self.from_img_btn.setToolTip("Pick a COL entry from the currently loaded IMG")
+            layout.addWidget(self.from_img_btn)
 
         # Open button
         self.open_btn = QPushButton()
@@ -3676,6 +3686,86 @@ class COLWorkshop(QWidget): #vers 3
             return False
 
 
+    def _pick_col_from_current_img(self): #vers 1
+        """Pick a COL entry from the IMG currently loaded in IMG Factory and open it."""
+        try:
+            # Get the main IMG Factory window and its loaded IMG
+            mw = self.main_window
+            img = getattr(mw, 'current_img', None) if mw else None
+
+            if not img or not getattr(img, 'entries', None):
+                QMessageBox.information(self, "No IMG Loaded",
+                    "No IMG archive is currently open in IMG Factory.\n"
+                    "Open an IMG file first, then use From IMG.")
+                return
+
+            col_entries = [e for e in img.entries
+                           if getattr(e, 'name', '').lower().endswith('.col')]
+
+            if not col_entries:
+                QMessageBox.information(self, "No COL Entries",
+                    f"No .col entries found in {os.path.basename(img.file_path)}.")
+                return
+
+            # Show a picker dialog
+            from PyQt6.QtWidgets import QDialog, QListWidget, QDialogButtonBox, QVBoxLayout, QLabel
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"Pick COL — {os.path.basename(img.file_path)}")
+            dlg.setMinimumSize(320, 400)
+            v = QVBoxLayout(dlg)
+            v.addWidget(QLabel(f"{len(col_entries)} COL entries in {os.path.basename(img.file_path)}:"))
+            lst = QListWidget()
+            for e in col_entries:
+                lst.addItem(e.name)
+            lst.setCurrentRow(0)
+            v.addWidget(lst)
+            btns = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Open |
+                QDialogButtonBox.StandardButton.Cancel)
+            btns.accepted.connect(dlg.accept)
+            btns.rejected.connect(dlg.reject)
+            v.addWidget(btns)
+            lst.doubleClicked.connect(dlg.accept)
+
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            row = lst.currentRow()
+            if row < 0:
+                return
+
+            entry = col_entries[row]
+            self._open_col_from_img_entry(img, entry)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to pick COL from IMG:\n{e}")
+
+    def _open_col_from_img_entry(self, img, entry): #vers 1
+        """Extract a COL entry from an IMGFile and load it into the workshop."""
+        try:
+            import tempfile
+            data = img.read_entry_data(entry)
+            if not data:
+                QMessageBox.warning(self, "Extract Failed",
+                    f"Could not extract {entry.name} from IMG.")
+                return
+
+            stem = os.path.splitext(entry.name)[0]
+            tmp = tempfile.NamedTemporaryFile(
+                delete=False, suffix='.col', prefix=stem + '_')
+            tmp.write(data)
+            tmp.close()
+
+            self.open_col_file(tmp.name)
+            # Retitle with original name
+            self.setWindowTitle(
+                f"COL Workshop — {entry.name} (from {os.path.basename(img.file_path)})")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"COL Workshop: opened {entry.name} from {os.path.basename(img.file_path)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open {entry.name}:\n{e}")
+
     def open_img_archive(self): #vers 1
         """Open file dialog to select an IMG archive and load COL entries from it"""
         try:
@@ -3849,21 +3939,22 @@ class COLWorkshop(QWidget): #vers 3
             traceback.print_exc()
 
 
-    def _show_collision_context_menu(self, position): #vers 2
-        """Show context menu for collision list.
-        TODO: add export model, import replacement, rename model entries.
-        """
+    def _show_collision_context_menu(self, position): #vers 3
+        """Right-click context menu for the collision model list."""
         item = self.collision_list.itemAt(position)
         if not item:
             return
-
-        menu = QMenu(self)
 
         row = self.collision_list.row(item)
         if row < 0 or not self.current_col_file:
             return
 
-        model = self.current_col_file.models[row]
+        models = getattr(self.current_col_file, 'models', [])
+        if row >= len(models):
+            return
+        model = models[row]
+
+        menu = QMenu(self)
 
         # ── View ──────────────────────────────────────────────────────────────
         details_action = menu.addAction("Show Details")
@@ -3874,23 +3965,140 @@ class COLWorkshop(QWidget): #vers 3
 
         menu.addSeparator()
 
-        # ── Edit (TODO: implement these) ──────────────────────────────────────
-        rename_action = menu.addAction("Rename Model")
-        rename_action.setEnabled(False)   # TODO
-        rename_action.setToolTip("TODO: rename collision model entry")
+        # ── Rename ────────────────────────────────────────────────────────────
+        rename_action = menu.addAction("Rename Model...")
+        rename_action.triggered.connect(lambda: self._rename_col_model(model, row))
 
         menu.addSeparator()
 
-        # ── Import / Export (TODO) ─────────────────────────────────────────────
-        export_action = menu.addAction("Export Model...")
-        export_action.setEnabled(False)   # TODO
-        export_action.setToolTip("TODO: export single collision model")
+        # ── Export ────────────────────────────────────────────────────────────
+        export_action = menu.addAction("Export Model as COL...")
+        export_action.triggered.connect(lambda: self._export_col_model(model, row))
 
-        import_action = menu.addAction("Replace with Import...")
-        import_action.setEnabled(False)   # TODO
-        import_action.setToolTip("TODO: replace collision model from file")
+        # ── Import / Replace ──────────────────────────────────────────────────
+        import_action = menu.addAction("Replace with COL file...")
+        import_action.triggered.connect(lambda: self._import_replace_col_model(row))
 
         menu.exec(self.collision_list.mapToGlobal(position))
+
+    def _rename_col_model(self, model, row): #vers 1
+        """Rename a collision model entry in the list."""
+        try:
+            from PyQt6.QtWidgets import QInputDialog
+            old_name = getattr(model, 'name', f'Model_{row}')
+            new_name, ok = QInputDialog.getText(
+                self, "Rename Model", "New model name:", text=old_name)
+            if not ok or not new_name.strip():
+                return
+            new_name = new_name.strip()
+            model.name = new_name
+            # Update table cell
+            name_item = self.collision_list.item(row, 0)
+            if name_item:
+                name_item.setText(new_name)
+            # Mark file as modified
+            if hasattr(self, 'save_btn'):
+                self.save_btn.setEnabled(True)
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Renamed model {row}: '{old_name}' → '{new_name}'")
+        except Exception as e:
+            QMessageBox.critical(self, "Rename Error", str(e))
+
+    def _export_col_model(self, model, row): #vers 1
+        """Export a single collision model as a standalone COL file."""
+        try:
+            model_name = getattr(model, 'name', f'model_{row}')
+            default_name = model_name.lower().replace(' ', '_') + '.col'
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Export COL Model",
+                default_name, "COL Files (*.col);;All Files (*)")
+            if not file_path:
+                return
+
+            # Build a minimal COL file containing just this model
+            from apps.methods.col_workshop_loader import COLFile
+            out = COLFile()
+            out.models = [model]
+            if hasattr(out, 'save'):
+                if not out.save(file_path):
+                    QMessageBox.warning(self, "Export Failed",
+                        "Could not save COL model — save() returned False.")
+                    return
+            else:
+                # Fallback: write the raw bytes of the model
+                raw = getattr(model, '_raw_bytes', None)
+                if raw:
+                    with open(file_path, 'wb') as f:
+                        f.write(raw)
+                else:
+                    QMessageBox.warning(self, "Export Failed",
+                        "No serialisation method available for this model.")
+                    return
+
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Exported model '{model_name}' → {os.path.basename(file_path)}")
+            QMessageBox.information(self, "Export OK",
+                f"Model '{model_name}' exported to:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _import_replace_col_model(self, row): #vers 1
+        """Replace a collision model entry from an external COL file."""
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Import COL to Replace Model",
+                "", "COL Files (*.col);;All Files (*)")
+            if not file_path:
+                return
+
+            from apps.methods.col_workshop_loader import COLFile
+            new_col = COLFile()
+            if not new_col.load(file_path):
+                QMessageBox.warning(self, "Import Failed",
+                    f"Could not load {os.path.basename(file_path)}")
+                return
+
+            new_models = getattr(new_col, 'models', [])
+            if not new_models:
+                QMessageBox.warning(self, "No Models",
+                    f"No collision models found in {os.path.basename(file_path)}")
+                return
+
+            # If multiple models in the source, ask which one to use
+            src_model = new_models[0]
+            if len(new_models) > 1:
+                from PyQt6.QtWidgets import QInputDialog
+                names = [f"[{i}] {getattr(m,'name',f'Model_{i}')}"
+                         for i, m in enumerate(new_models)]
+                choice, ok = QInputDialog.getItem(
+                    self, "Choose Model",
+                    f"{len(new_models)} models in file — pick one to import:",
+                    names, 0, False)
+                if not ok:
+                    return
+                idx = names.index(choice)
+                src_model = new_models[idx]
+
+            old_name = getattr(
+                self.current_col_file.models[row], 'name', f'Model_{row}')
+            src_model.name = old_name  # preserve existing name
+            self.current_col_file.models[row] = src_model
+
+            # Refresh the table row
+            from apps.methods.populate_col_table import populate_col_table
+            populate_col_table(self, self.current_col_file)
+            self.collision_list.selectRow(row)
+
+            if hasattr(self, 'save_btn'):
+                self.save_btn.setEnabled(True)
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Replaced model {row} ('{old_name}') from "
+                    f"{os.path.basename(file_path)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
 
 
     def _show_model_details(self, model, index): #vers 1

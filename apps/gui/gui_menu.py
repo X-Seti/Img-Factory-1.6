@@ -70,6 +70,10 @@ class MenuDefinition:
                 MenuAction("save_as_img", "Save &As...", "Ctrl+Shift+S"),
                 MenuAction("sep3", ""),
 
+                # Open tools directly from File menu
+                MenuAction("open_col_in_workshop", "Open COL in COL Workshop...", "Ctrl+Shift+L", "col-edit"),
+                MenuAction("sep_col", ""),
+
                 # NEW: Game path setting
                 MenuAction("set_game_path", "Set &Game Path...", "Ctrl+Shift+G"),
                 MenuAction("sep4", ""),

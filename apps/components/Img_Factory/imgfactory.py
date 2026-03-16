@@ -522,6 +522,7 @@ class IMGFactory(QMainWindow):
             "exit": self.close,
             "img_validate": self.validate_img,
             "customize_interface": self.show_gui_settings,
+            "open_col_in_workshop": self._open_col_file_in_workshop,
         }
         self.menu_bar_system.set_callbacks(callbacks)
         integrate_drag_drop_system(self)
@@ -5296,6 +5297,29 @@ class IMGFactory(QMainWindow):
 
 
     # COL and editor functions
+    def _open_col_file_in_workshop(self): #vers 1
+        """File menu → Open COL in COL Workshop.
+        Shows a file dialog to pick a standalone .col file, then opens it
+        directly in the COL Workshop panel.
+        """
+        try:
+            from PyQt6.QtWidgets import QFileDialog
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            from apps.gui.gui_layout import _register_tool_taskbar, get_col_workshop_icon
+
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Open COL File in COL Workshop",
+                "", "COL Files (*.col *.COL);;All Files (*)")
+            if not file_path:
+                return
+            w = open_col_workshop(self, file_path)
+            _register_tool_taskbar(self, "col", "COL",
+                get_col_workshop_icon, "COL Workshop", w)
+            import os
+            self.log_message(f"COL Workshop: {os.path.basename(file_path)}")
+        except Exception as e:
+            self.log_message(f"Error opening COL Workshop: {e}")
+
     def open_col_editor(self): #vers 4
         """Open COL Workshop with current COL data and selected entry"""
         try:

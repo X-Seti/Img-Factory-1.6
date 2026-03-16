@@ -591,12 +591,31 @@ def add_requested_file_operations(main_window, menu, row=None):
             col_action = QAction("Open in COL Workshop", menu)
             def _open_col(checked=False, e=entry_info):
                 try:
-                    from apps.gui.gui_layout import edit_col_file
-                    edit_col_file(main_window)
-                except Exception:
-                    if hasattr(main_window, 'open_col_workshop_docked'):
-                        main_window.open_col_workshop_docked(
-                            col_name=e['name'])
+                    from apps.components.Col_Editor.col_workshop import open_col_workshop
+                    from apps.gui.gui_layout import _register_tool_taskbar, get_col_workshop_icon
+                    # Extract the COL entry data from the IMG and write to a temp file
+                    import tempfile, os
+                    entry = e.get('entry')
+                    img = getattr(main_window, 'current_img', None)
+                    if entry and img and hasattr(img, 'extract_entry_data'):
+                        data = img.extract_entry_data(entry)
+                        if data:
+                            tmp = tempfile.NamedTemporaryFile(
+                                delete=False, suffix='.col',
+                                prefix=os.path.splitext(e['name'])[0] + '_')
+                            tmp.write(data)
+                            tmp.close()
+                            w = open_col_workshop(main_window, tmp.name)
+                            _register_tool_taskbar(main_window, "col", "COL",
+                                get_col_workshop_icon, "COL Workshop", w)
+                            return
+                    # Fallback: open workshop with IMG path (browse mode)
+                    img_path = img.file_path if img else None
+                    w = open_col_workshop(main_window, img_path)
+                    _register_tool_taskbar(main_window, "col", "COL",
+                        get_col_workshop_icon, "COL Workshop", w)
+                except Exception as ex:
+                    main_window.log_message(f"COL Workshop error: {ex}")
             col_action.triggered.connect(_open_col)
             menu.addAction(col_action)
 
