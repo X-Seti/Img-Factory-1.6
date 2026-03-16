@@ -82,9 +82,20 @@ class DATBrowserWidget(QWidget): #vers 2
     # ── UI construction ────────────────────────────────────────────────────
 
     def _setup_ui(self): #vers 2
-        # Ensure opaque background so tab contents don't bleed through
-        # setAutoFillBackground(True) is enough — WA_OpaquePaintEvent causes black bg
+        # Ensure opaque background using panel_bg from theme
         self.setAutoFillBackground(True)
+        try:
+            mw = main_window
+            if mw and hasattr(mw, 'app_settings'):
+                colors = mw.app_settings.get_theme_colors() or {}
+                bg = colors.get('panel_bg', colors.get('bg_primary', ''))
+                if bg:
+                    from PyQt6.QtGui import QPalette, QColor
+                    pal = self.palette()
+                    pal.setColor(QPalette.ColorRole.Window, QColor(bg))
+                    self.setPalette(pal)
+        except Exception:
+            pass
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
