@@ -312,6 +312,9 @@ def open_lvz(file_path: str) -> dict: #vers 2
 
         # Cell records at 0x28, 8 bytes each:
         #   sub_entry_count(4) + nested_dlrw_byte_offset(4)
+        # Each nested DLRW at nested_off contains:
+        #   [0x0C] = data size in companion .IMG
+        #   [0x18] = byte offset into companion .IMG
         entries = []
         cell_count = max(0, entry_count - 1)  # first record is the header record
         for i in range(cell_count):
@@ -321,19 +324,22 @@ def open_lvz(file_path: str) -> dict: #vers 2
             sub_count  = struct.unpack_from('<I', data, pos)[0]
             nested_off = struct.unpack_from('<I', data, pos + 4)[0]
 
-            # Approximate size: distance to next cell's nested block
-            if i + 1 < cell_count:
-                next_nested = struct.unpack_from('<I', data, pos + 8 + 4)[0]
-                cell_size = next_nested - nested_off
-            else:
-                cell_size = total_size - nested_off
+            # Read IMG offset and size from nested DLRW header
+            img_offset = 0
+            img_size   = 0
+            if nested_off and nested_off + 0x1C <= len(data):
+                n_magic = data[nested_off:nested_off+4]
+                if n_magic == DLRW_MAGIC:
+                    img_size   = struct.unpack_from('<I', data, nested_off + 0x0C)[0]
+                    img_offset = struct.unpack_from('<I', data, nested_off + 0x18)[0]
 
             entries.append({
-                'name':      f'cell_{i:04d}',
-                'offset':    nested_off,
-                'size':      cell_size,
-                'sub_count': sub_count,
-                'index':     i,
+                'name':       f'stream_{i:04d}',
+                'offset':     img_offset,   # byte offset into companion .IMG
+                'size':       img_size,     # byte size in companion .IMG
+                'lvz_offset': nested_off,   # offset of nested DLRW in decompressed LVZ
+                'sub_count':  sub_count,
+                'index':      i,
             })
 
         result['entries'] = entries
