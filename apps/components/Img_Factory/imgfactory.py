@@ -4524,9 +4524,19 @@ class IMGFactory(QMainWindow):
             table = self.gui_layout.table
         entries = img_file.entries
 
-        # Set up 9 columns: Name, Type, Date, Size, Offset, RW Address, RW Version, Compression, Status
-        table.setColumnCount(9) #Date seems to mess up the table
-        table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"])
+        # Set up columns: 9 standard + optional Source column for LVZ/DTZ
+        from apps.methods.img_core_classes import IMGVersion
+        _is_stream_fmt = (hasattr(img_file, 'version') and img_file.version in (
+            IMGVersion.VERSION_PS2_LVZ,
+            IMGVersion.VERSION_DTZ_VCS,
+            IMGVersion.VERSION_DTZ_LCS,
+        ))
+        _ncols = 10 if _is_stream_fmt else 9
+        table.setColumnCount(_ncols)
+        if _is_stream_fmt:
+            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "Source"])
+        else:
+            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"])
 
         # Clear existing data (including sample entries)
         table.setRowCount(0)
@@ -4670,6 +4680,26 @@ class IMGFactory(QMainWindow):
                 except:
                     status_text = "Ready"
                 table.setItem(row, 8, QTableWidgetItem(status_text))
+
+                # Source - column 9 (only for LVZ/DTZ streaming formats)
+                if _is_stream_fmt:
+                    try:
+                        source_text = getattr(entry, '_source_ref', '')
+                        if not source_text:
+                            # Build source reference from file path + offset
+                            _src_file = getattr(entry, '_source_img',
+                                        os.path.basename(img_file.file_path) if hasattr(img_file, 'file_path') else '')
+                            _src_name = os.path.basename(_src_file) if _src_file else ''
+                            cd_sec = getattr(entry, 'cd_sector', None)
+                            if cd_sec is not None:
+                                source_text = f'{_src_name} @ sector {cd_sec}'
+                            elif entry.offset:
+                                source_text = f'{_src_name} @ 0x{int(entry.offset):X}'
+                            else:
+                                source_text = _src_name
+                    except Exception:
+                        source_text = ''
+                    table.setItem(row, 9, QTableWidgetItem(source_text))
 
                 # Apply row colour for new/replaced/pinned entries
                 is_new = hasattr(entry, 'is_new_entry') and entry.is_new_entry

@@ -2072,12 +2072,15 @@ class IMGFile:
             if not os.path.exists(mocap_img):
                 mocap_img = os.path.join(dtz_dir, 'mocapps2.img')
             for e in entries_raw:
-                entry          = IMGEntry()
-                entry.name     = e['name']
-                entry.offset   = e['offset']
-                entry.size     = e['size']
+                entry             = IMGEntry()
+                entry.name        = e['name']
+                entry.offset      = e['offset']
+                entry.size        = e['size']
                 entry.is_readonly = True
-                # Store source IMG path for later extraction
+                # Store sector position for Source column
+                entry.cd_sector   = e.get('cd_sector', e['offset'] // 2048)
+                # Build source reference string
+                entry._source_ref = f"GTA3PS2.IMG @ sector {entry.cd_sector}"
                 if os.path.exists(mocap_img):
                     entry._source_img = mocap_img
                 self.entries.append(entry)
@@ -2114,12 +2117,17 @@ class IMGFile:
                 result = open_lvz(self.file_path)
             if result.get("error"):
                 return False
+            # Find companion .img for source reference
+            _lvz_basename = os.path.basename(self.file_path)
+            _img_companion = _find_companion(self.file_path, '.img') or ''
+            _img_name = os.path.basename(_img_companion) if _img_companion else _lvz_basename.replace('.lvz','').replace('.LVZ','') + '.IMG'
             for e in result["entries"]:
-                entry = IMGEntry()
+                entry             = IMGEntry()
                 entry.name        = e["name"]
                 entry.offset      = e["offset"]
                 entry.size        = e["size"]
                 entry.is_readonly = True
+                entry._source_ref = f"{_img_name} @ 0x{int(e['offset']):X}"
                 self.entries.append(entry)
             return True
         except Exception:
