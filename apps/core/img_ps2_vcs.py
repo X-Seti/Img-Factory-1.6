@@ -667,7 +667,41 @@ def detect_ios_lvz(path: str) -> bool:  #vers 1
         return False
 
 
-def open_ios_lvz(file_path: str) -> dict:  #vers 1
+def _is_ios_lvz(blob: bytes) -> bool:
+    """Return True if this decompressed LVZ blob is iOS format (not PS2).
+
+    Distinguishing features:
+    - PS2 LVZ: cell table contains 0xAAAAAAAA sentinels to mark unused slots.
+    - iOS LVZ: no 0xAAAAAAAA values; cells are [L1_blob_ptr(4), float_lod(4)];
+               L1_ptr values point to DLRW sub-blocks; blob[0x08] == len(blob).
+    """
+    import struct as _s
+    if len(blob) < 0x40:
+        return False
+    if blob[:4] != b'DLRW':
+        return False
+    # PS2 check: scan first 200 cell slots for 0xAAAAAAAA sentinel
+    entry_count = _s.unpack_from('<I', blob, 0x14)[0]
+    scan = min(entry_count, 200)
+    for i in range(scan):
+        v0 = _s.unpack_from('<I', blob, 0x28 + i * 8)[0]
+        v1 = _s.unpack_from('<I', blob, 0x28 + i * 8 + 4)[0]
+        if v0 == 0xAAAAAAAA or v1 == 0xAAAAAAAA:
+            return False   # PS2 format
+    # iOS check: blob[0x08] == total blob size (self-referential size field)
+    blob_size_field = _s.unpack_from('<I', blob, 0x08)[0]
+    if blob_size_field == len(blob):
+        return True
+    # Secondary iOS check: at least one cell's L1_ptr points to a DLRW block
+    for i in range(min(scan, 20)):
+        l1_ptr = _s.unpack_from('<I', blob, 0x28 + i * 8)[0]
+        if 0 < l1_ptr < len(blob) - 4:
+            if blob[l1_ptr:l1_ptr+4] == b'DLRW':
+                return True
+    return False
+
+
+def open_ios_lvz(file_path: str) -> dict:  #vers 2
     """Parse iOS LCS/VCS LVZ streaming archive.
 
     iOS LVZ structure (decompressed):
@@ -710,6 +744,11 @@ def open_ios_lvz(file_path: str) -> dict:  #vers 1
 
     if blob[:4] != b'DLRW':
         result["error"] = f"Not DLRW: {blob[:4].hex()}"
+        return result
+
+    # Reject PS2 LVZ files — they share the DLRW magic but have a different layout
+    if not _is_ios_lvz(blob):
+        result["error"] = "Not iOS LVZ format (PS2 LVZ detected by 0xAAAAAAAA sentinels)"
         return result
 
     entry_count = struct.unpack_from('<I', blob, 0x14)[0]
