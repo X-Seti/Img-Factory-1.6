@@ -191,15 +191,11 @@ class COLFile: #vers 1
             return False
 
 
-    def load_from_file(self, file_path: str) -> bool:
-        """Load COL file from disk
-
-        Args:
-            file_path: Path to COL file
-
-        Returns:
-            True if successful
-        """
+    def load_from_file(self, file_path: str = None) -> bool: #vers 2
+        """Load COL file from disk — guards against None/bool file_path."""
+        if not file_path or not isinstance(file_path, str):
+            self.load_error = f"Invalid file path: {file_path!r}"
+            return False
         try:
             self.file_path = file_path
             self.models = []

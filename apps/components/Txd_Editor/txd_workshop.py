@@ -4208,18 +4208,17 @@ class TXDWorkshop(QWidget): #vers 3
 
 # - Marker 7
 
-    def _enable_txd_features_after_load(self): #vers 1
-        """Enable TXD features after successful texture load"""
+    def _enable_txd_features_after_load(self): #vers 2
+        """Enable TXD features after successful texture load."""
         if self.texture_list:
-            self.save_txd_btn.setEnabled(False)
-            self.import_btn.setEnabled(True)
+            self.save_txd_btn.setEnabled(True)
             self.export_all_btn.setEnabled(True)
-
+            if hasattr(self, 'import_btn'):
+                self.import_btn.setEnabled(True)
             if hasattr(self, 'new_texture_btn'):
                 self.new_texture_btn.setEnabled(True)
             if hasattr(self, 'stats_btn'):
                 self.stats_btn.setEnabled(True)
-
             self._update_status_indicators()
 
 
@@ -6993,31 +6992,6 @@ class TXDWorkshop(QWidget): #vers 3
         dialog.exec()
 
 
-    def _load_img_txd_list(self): #vers 1
-        """Load TXD files from IMG archive"""
-        try:
-            self.txd_list_widget.clear()
-            self.txd_list = []
-
-            if not self.current_img:
-                return
-
-            for entry in self.current_img.entries:
-                if entry.name.lower().endswith('.txd'):
-                    self.txd_list.append(entry)
-                    item = QListWidgetItem(entry.name)
-                    item.setData(Qt.ItemDataRole.UserRole, entry)
-                    size_kb = entry.size / 1024
-                    item.setToolTip(f"{entry.name}\nSize: {size_kb:.1f} KB")
-                    self.txd_list_widget.addItem(item)
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Found {len(self.txd_list)} TXD files")
-        except Exception as e:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error loading TXD list: {str(e)}")
-
-
     def _on_txd_selected(self, item): #vers 2
         """Handle TXD file selection"""
         try:
@@ -7794,37 +7768,73 @@ class TXDWorkshop(QWidget): #vers 3
             QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
 
 
-    def export_all_textures(self): #vers 1
-        """Export all textures in current TXD"""
+    def export_all_textures(self): #vers 2
+        """Export all textures from the current TXD as PNG files."""
         if not self.texture_list:
-            QMessageBox.warning(self, "No Textures", "No textures to export")
+            QMessageBox.warning(self, "No Textures", "No textures loaded to export.")
             return
 
-        # Ask for output directory
-        output_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "Select Folder for PNG Export")
         if not output_dir:
             return
 
+        exported = 0
+        skipped = 0
+        errors = []
+
         try:
-            exported = 0
-            for texture in self.texture_list:
-                name = texture.get('name', f'texture_{exported}')
+            for i, texture in enumerate(self.texture_list):
+                name = texture.get('name', f'texture_{i}').strip('\x00')
+                if not name:
+                    name = f'texture_{i}'
+
+                # Resolve RGBA data — try rgba_data first, then mip levels
                 rgba_data = texture.get('rgba_data')
-                width = texture.get('width', 0)
+                width  = texture.get('width', 0)
                 height = texture.get('height', 0)
 
-                if rgba_data and width > 0:
-                    file_path = os.path.join(output_dir, f"{name}.png")
-                    self._save_texture_png(rgba_data, width, height, file_path)
+                if not rgba_data or width == 0 or height == 0:
+                    # Try first mip level
+                    levels = texture.get('mip_levels', [])
+                    if levels:
+                        lv = levels[0]
+                        rgba_data = lv.get('rgba_data')
+                        width  = lv.get('width', width)
+                        height = lv.get('height', height)
+
+                if not rgba_data or width == 0 or height == 0:
+                    skipped += 1
+                    continue
+
+                try:
+                    out_path = os.path.join(output_dir, f"{name}.png")
+                    self._save_texture_png(rgba_data, width, height, out_path)
                     exported += 1
+                except Exception as e:
+                    errors.append(f"{name}: {e}")
+
+            msg = f"Exported {exported} of {len(self.texture_list)} texture(s) to:\n{output_dir}"
+            if skipped:
+                msg += f"\n\nSkipped {skipped} (no decoded pixel data available)."
+            if errors:
+                msg += f"\n\nErrors ({len(errors)}):\n" + "\n".join(errors[:5])
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Exported {exported} textures to {output_dir}")
+                self.main_window.log_message(
+                    f"TXD export: {exported} PNG(s) → {output_dir}"
+                    + (f" ({skipped} skipped)" if skipped else ""))
 
-            QMessageBox.information(self, "Success", f"Exported {exported} textures successfully!")
+            if exported:
+                QMessageBox.information(self, "Export Complete", msg)
+            else:
+                QMessageBox.warning(self, "Nothing Exported",
+                    "No textures could be exported.\n"
+                    "The textures may not have decoded pixel data available.\n\n"
+                    "Try opening and viewing a texture first, then export.")
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
+            QMessageBox.critical(self, "Export Failed", str(e))
 
 
     def _extract_alpha_channel(self, rgba_data): #vers 1
@@ -9687,79 +9697,6 @@ class TXDWorkshop(QWidget): #vers 3
             return None
 
 
-    def _rebuild_txd_data(self): #vers 4
-        """Rebuild TXD data - DEBUG VERSION"""
-        print("DEBUG: _rebuild_txd_data() called")
-
-        try:
-            if not self.current_txd_data:
-                print("DEBUG: WARNING - current_txd_data is None, creating new TXD")
-                # If no original data, we need to create from scratch
-                # This is normal for new TXDs
-            else:
-                img_debugger.debug(f"Have original TXD data: {len(self.current_txd_data)} bytes")
-
-            if not self.texture_list:
-                print("DEBUG: ERROR - texture_list is empty in _rebuild_txd_data!")
-                return None
-
-            img_debugger.debug(f"Rebuilding with {len(self.texture_list)} textures")
-
-            # Try to use serializer
-            print("DEBUG: Attempting to use serializer...")
-
-            try:
-                from apps.methods.txd_serializer import serialize_txd_file
-                print("DEBUG: Using methods/txd_serializer")
-            except ImportError:
-                print("DEBUG: methods/txd_serializer not found, trying depends/")
-                try:
-                    from apps.methods.txd_serializer import serialize_txd_file
-                    print("DEBUG: Using depends/txd_serializer")
-                except ImportError:
-                    print("DEBUG: ERROR - No serializer found!")
-                    if self.main_window and hasattr(self.main_window, 'log_message'):
-                        self.main_window.log_message("ERROR: txd_serializer not found!")
-                    return None
-
-            # Get version info
-            target_version = self.txd_version_id if self.txd_version_id else 0x1803FFFF
-            target_device = self.txd_device_id if self.txd_device_id else 0x08
-
-            img_debugger.debug(f"Target version: 0x{target_version:08X}, device: 0x{target_device:02X}")
-
-            # Serialize
-            print("DEBUG: Calling serialize_txd_file()...")
-            result = serialize_txd_file(self.texture_list, target_version, target_device)
-
-            if result:
-                img_debugger.debug(f"Serializer returned {len(result)} bytes")
-
-                # Verify result has TXD header
-                if len(result) >= 12:
-                    import struct
-                    section_type, section_size, version = struct.unpack('<III', result[:12])
-                    img_debugger.debug(f"TXD header - type: 0x{section_type:02X}, size: {section_size}, version: 0x{version:08X}")
-
-                    if section_type != 0x16:
-                        img_debugger.debug(f"WARNING - Expected section type 0x16, got 0x{section_type:02X}")
-                else:
-                    print("DEBUG: WARNING - Result too small to have valid header")
-
-                return result
-            else:
-                print("DEBUG: ERROR - Serializer returned None!")
-                return None
-
-        except Exception as e:
-            img_debugger.debug(f"EXCEPTION in _rebuild_txd_data: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rebuild error: {str(e)}")
-            return None
-
-
     def _build_texture_dictionary_manual(self, texture_sections, texture_count): #vers 2
         """Manual TXD dictionary builder for serializer - add to TXDSerializer class"""
         import struct
@@ -9872,67 +9809,6 @@ class TXDWorkshop(QWidget): #vers 3
         platform = platform_map.get(self.export_target_platform, "PC")
 
         return get_recommended_version_for_game(game, platform)
-
-
-    def _save_as_txd_file(self): #vers 3
-        """Save as standalone TXD file - with correct directory"""
-        import os
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
-
-        # Determine default path
-        if self.current_txd_name:
-            default_name = self.current_txd_name
-        else:
-            default_name = "untitled.txd"
-
-        # Get the directory from the original file path if available
-        initial_path = default_name
-        if hasattr(self, 'current_txd_path') and self.current_txd_path:
-            # Use the original file's directory
-            initial_path = self.current_txd_path
-        elif hasattr(self.current_img, 'file_path') and self.current_img.file_path:
-            # Use IMG file's directory
-            img_dir = os.path.dirname(self.current_img.file_path)
-            initial_path = os.path.join(img_dir, default_name)
-
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save TXD File",
-            initial_path,  # Use full path instead of just filename
-            "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
-        )
-
-        if not file_path:
-            return
-
-        try:
-            # Rebuild TXD data
-            modified_txd_data = self._rebuild_txd_data()
-
-            if not modified_txd_data:
-                QMessageBox.critical(self, "Error", "Failed to rebuild TXD data")
-                return
-
-            # Write to file
-            with open(file_path, 'wb') as f:
-                f.write(modified_txd_data)
-
-            # Store the path for next time
-            self.current_txd_path = file_path
-            self.current_txd_name = os.path.basename(file_path)
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Saved TXD file: {file_path}")
-
-            QMessageBox.information(self, "Success", f"TXD saved successfully!\n\n{file_path}")
-
-            # Clear modified state
-            self.save_txd_btn.setEnabled(False)
-            self.save_txd_btn.setStyleSheet("")
-            title = self.windowTitle().replace("*", "")
-            self.setWindowTitle(title)
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save TXD:\n\n{str(e)}")
 
 
     def _create_new_txd_data(self): #vers 2
@@ -13399,15 +13275,6 @@ class TXDWorkshop(QWidget): #vers 3
             self.main_window.log_message(f"✅ Imported {imported}/{len(self.texture_list)} textures")
 
 
-    def _open_paint_editor(self): #vers 1
-        """Open paint editor for texture"""
-        if not self.selected_texture:
-            return
-
-        QMessageBox.information(self, "Paint Editor",
-            "Paint editor functionality coming soon")
-
-
     def _add_texture_to_table(self, texture): #vers 3
         """Add texture to table with file size and warning icon"""
         row = self.texture_table.rowCount()
@@ -14031,45 +13898,6 @@ class TXDWorkshop(QWidget): #vers 3
         return self._svg_to_icon(svg_data, size=20)
 
 
-    def _create_upscale_icon(self): #vers 3
-        """Create AI upscale icon - sparkle/magic AI style"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <!-- Large sparkle -->
-            <path d="M12 2 L13 8 L12 14 L11 8 Z M8 12 L2 11 L8 10 L14 11 Z"
-                fill="currentColor"/>
-
-            <!-- Small sparkles -->
-            <circle cx="18" cy="6" r="1.5" fill="currentColor"/>
-            <circle cx="6" cy="18" r="1.5" fill="currentColor"/>
-            <circle cx="19" cy="16" r="1" fill="currentColor"/>
-
-            <!-- Upward arrow -->
-            <path d="M16 20 L20 20 M18 18 L18 22"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-
-    def _create_upscale_icon(self): #vers 3
-        """Create AI upscale icon - neural network style"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <!-- Neural network nodes -->
-            <circle cx="6" cy="6" r="2" fill="currentColor"/>
-            <circle cx="18" cy="6" r="2" fill="currentColor"/>
-            <circle cx="6" cy="18" r="2" fill="currentColor"/>
-            <circle cx="18" cy="18" r="2" fill="currentColor"/>
-            <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
-
-            <!-- Connecting lines -->
-            <path d="M7.5 7.5 L10.5 10.5 M13.5 10.5 L16.5 7.5 M7.5 16.5 L10.5 13.5 M13.5 13.5 L16.5 16.5"
-                stroke="currentColor" stroke-width="1.5" fill="none"/>
-
-            <!-- Upward arrow overlay -->
-            <path d="M12 3 L12 9 M9 6 L12 3 L15 6"
-                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
     def _create_manage_icon(self): #vers 1
         """Create manage/settings icon for bumpmap manager"""
         svg_data = b'''<svg viewBox="0 0 24 24">
@@ -14380,33 +14208,7 @@ class TXDWorkshop(QWidget): #vers 3
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_add_icon(self): #vers 1
-        """Add/plus icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
     def _create_trash_icon(self): #vers 1
-        """Delete/trash icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 5h14M8 5V3h4v2M6 5v11a1 1 0 001 1h6a1 1 0 001-1V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_filter_icon(self): #vers 1
-        """Filter/sliders icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="6" cy="4" r="2" fill="currentColor"/>
-            <rect x="5" y="8" width="2" height="8" fill="currentColor"/>
-            <circle cx="14" cy="12" r="2" fill="currentColor"/>
-            <rect x="13" y="4" width="2" height="6" fill="currentColor"/>
-            <circle cx="10" cy="8" r="2" fill="currentColor"/>
-            <rect x="9" y="12" width="2" height="4" fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_delete_icon(self): #vers 1
         """Delete/trash icon"""
         svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M3 5h14M8 5V3h4v2M6 5v11a1 1 0 001 1h6a1 1 0 001-1V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -14428,18 +14230,6 @@ class TXDWorkshop(QWidget): #vers 3
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_filter_icon(self): #vers 1
-        """Filter/sliders icon"""
-        svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="6" cy="4" r="2" fill="currentColor"/>
-            <rect x="5" y="8" width="2" height="8" fill="currentColor"/>
-            <circle cx="14" cy="12" r="2" fill="currentColor"/>
-            <rect x="13" y="4" width="2" height="6" fill="currentColor"/>
-            <circle cx="10" cy="8" r="2" fill="currentColor"/>
-            <rect x="9" y="12" width="2" height="4" fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
     def _create_pencil_icon(self): #vers 1
         """Edit - Pencil icon"""
         svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -14447,13 +14237,6 @@ class TXDWorkshop(QWidget): #vers 3
         </svg>'''
         return self._svg_to_icon(svg_data)
 
-
-    def _create_trash_icon(self): #vers 1
-        """Delete - Trash icon"""
-        svg_data = b'''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data)
 
     def _create_check_icon(self): #vers 2
         """Create check/verify icon - document with checkmark"""
@@ -14517,90 +14300,6 @@ class TXDWorkshop(QWidget): #vers 3
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
-    def _create_minimize_icon(self): #vers 1
-        """Minimize - Horizontal line icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <line x1="5" y1="12" x2="19" y2="12"
-                stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_maximize_icon(self): #vers 1
-        """Maximize - Square icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <rect x="5" y="5" width="14" height="14"
-                stroke="currentColor" stroke-width="2"
-                fill="none" rx="2"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_close_icon(self): #vers 1
-        """Close - X icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <line x1="6" y1="6" x2="18" y2="18"
-                stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-            <line x1="18" y1="6" x2="6" y2="18"
-                stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_add_icon(self): #vers 1
-        """Add - Plus icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <line x1="12" y1="5" x2="12" y2="19"
-                stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-            <line x1="5" y1="12" x2="19" y2="12"
-                stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_delete_icon(self): #vers 1
-        """Delete - Trash icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <polyline points="3 6 5 6 21 6"
-                    stroke="currentColor" stroke-width="2"
-                    fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                stroke="currentColor" stroke-width="2"
-                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_import_icon(self): #vers 1
-        """Import - Download arrow icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
-                stroke="currentColor" stroke-width="2"
-                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline points="7 10 12 15 17 10"
-                    stroke="currentColor" stroke-width="2"
-                    fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="12" y1="15" x2="12" y2="3"
-                stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_export_icon(self): #vers 1
-        """Export - Upload arrow icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
-                stroke="currentColor" stroke-width="2"
-                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline points="17 8 12 3 7 8"
-                    stroke="currentColor" stroke-width="2"
-                    fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="12" y1="3" x2="12" y2="15"
-                stroke="currentColor" stroke-width="2"
-                stroke-linecap="round"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
     def _create_checkerboard_icon(self): #vers 1
         """Create checkerboard pattern icon"""
         svg_data = b'''<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -14612,15 +14311,6 @@ class TXDWorkshop(QWidget): #vers 3
             <rect x="5" y="15" width="5" height="5" fill="currentColor"/>
             <rect x="10" y="10" width="5" height="5" fill="currentColor"/>
             <rect x="15" y="15" width="5" height="5" fill="currentColor"/>
-        </svg>'''
-        return self._svg_to_icon(svg_data, size=20)
-
-    def _create_undo_icon(self): #vers 2
-        """Undo - Curved arrow icon"""
-        svg_data = b'''<svg viewBox="0 0 24 24">
-            <path d="M3 7v6h6M3 13a9 9 0 1018 0 9 9 0 00-18 0z"
-                stroke="currentColor" stroke-width="2" fill="none"
-                stroke-linecap="round" stroke-linejoin="round"/>
         </svg>'''
         return self._svg_to_icon(svg_data, size=20)
 
@@ -14868,85 +14558,6 @@ class BumpmapManagerWindow(QWidget): #vers 1
         layout.addWidget(preview_label)
         return panel
 
-
-    def _create_middle_panel(self): #vers 1
-        """Create middle panel with bumpmap controls"""
-        from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QGroupBox, QLabel
-
-        panel = QGroupBox("Controls    .")
-        # Match your styling
-        panel.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                border: 1px solid #3a3a3a;
-                border-radius: 1px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: #2b2b2b;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top right;
-                right: 20px;
-                padding: 0 5px;
-                color: #e0e0e0;
-            }
-        """)
-
-        layout = QVBoxLayout(panel)
-        layout.setSpacing(10)
-
-        # Info text
-        info_label = QLabel(
-            "Bumpmaps add surface detail.\n"
-            "Generate from texture or import."
-        )
-        info_label.setFont(self.panel_font)
-        info_label.setStyleSheet("color: #888; line-height: 1.4;")
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
-
-        # Generate button (F9)
-        generate_btn = QPushButton("Generate from Texture (F9)")
-        generate_btn.setFont(self.button_font)
-        generate_btn.clicked.connect(self._generate_bumpmap)
-        layout.addWidget(generate_btn)
-
-        # Import button (F10)
-        import_btn = QPushButton("Import from File (F10)")
-        import_btn.setFont(self.button_font)
-        import_btn.clicked.connect(self._import_bumpmap)
-        layout.addWidget(import_btn)
-
-        # Export button
-        export_btn = QPushButton("Export to File")
-        export_btn.setFont(self.button_font)
-        export_btn.clicked.connect(self._export_bumpmap)
-        export_btn.setEnabled(self._has_bumpmap())
-        layout.addWidget(export_btn)
-
-        # Delete button (F11)
-        delete_btn = QPushButton("Delete Bumpmap (F11)")
-        delete_btn.setFont(self.button_font)
-        delete_btn.clicked.connect(self._delete_bumpmap)
-        delete_btn.setEnabled(self._has_bumpmap())
-        layout.addWidget(delete_btn)
-
-        layout.addStretch()
-
-        # Type info
-        type_info = QLabel(
-            "Types:\n"
-            "• Grayscale Height Map\n"
-            "• RGB Normal Map\n"
-            "• Both (Height + Normal)"
-        )
-        type_info.setFont(self.panel_font)
-        type_info.setStyleSheet("color: #aaa; font-size: 9pt;")
-        type_info.setWordWrap(True)
-        layout.addWidget(type_info)
-        return panel
 
 
     def _create_right_panel(self): #vers 6
@@ -18515,4 +18126,3 @@ if __name__ == "__main__":
         img_debugger.error(f"{e}")
         traceback.print_exc()
         sys.exit(1)
-
