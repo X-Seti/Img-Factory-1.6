@@ -2078,7 +2078,7 @@ class COLWorkshop(QWidget): #vers 3
         self.open_col_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
         self.open_col_btn.setIconSize(QSize(20, 20))
         self.open_col_btn.setToolTip("Open COL file")
-        self.open_col_btn.clicked.connect(self.open_col_file)
+        self.open_col_btn.clicked.connect(self._open_file)
         btn_layout.addWidget(self.open_col_btn)
 
         self.save_col_btn = QPushButton("Save")
@@ -3884,17 +3884,27 @@ class COLWorkshop(QWidget): #vers 3
                 self._save_file_as()
                 return
 
-            # Save to current path
-            if self.current_col_file.save():
+            # Save to current path — write raw_data back (COLFile has no serialiser yet)
+            raw = getattr(self.current_col_file, 'raw_data', None)
+            if not raw:
+                QMessageBox.warning(self, "Save",
+                    "No raw COL data available to save.\n"
+                    "The file can only be saved if it was loaded from disk.")
+                return
+            try:
+                with open(self.current_file_path, 'wb') as f:
+                    f.write(raw)
                 if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Saved COL: {os.path.basename(self.current_file_path)}")
-
-                QMessageBox.information(self, "Save", f"COL file saved successfully:\n{os.path.basename(self.current_file_path)}")
-                print(f"Saved COL file: {self.current_file_path}")
-            else:
-                error_msg = self.current_col_file.save_error if hasattr(self.current_col_file, 'save_error') else "Unknown error"
-                QMessageBox.critical(self, "Save Error", f"Failed to save COL file:\n{error_msg}")
-                print(f"Save failed: {error_msg}")
+                    self.main_window.log_message(
+                        f"Saved COL: {os.path.basename(self.current_file_path)}")
+                QMessageBox.information(self, "Save",
+                    f"Saved:\n{os.path.basename(self.current_file_path)}")
+                if hasattr(self, 'save_col_btn'):
+                    self.save_col_btn.setEnabled(False)
+                if hasattr(self, 'save_btn'):
+                    self.save_btn.setEnabled(False)
+            except Exception as write_err:
+                QMessageBox.critical(self, "Save Error", str(write_err))
 
         except Exception as e:
             print(f"Error saving file: {str(e)}")
@@ -4003,6 +4013,10 @@ class COLWorkshop(QWidget): #vers 3
             # Enable buttons
             if hasattr(self, 'save_btn'):
                 self.save_btn.setEnabled(True)
+            if hasattr(self, 'save_col_btn'):
+                self.save_col_btn.setEnabled(True)
+            if hasattr(self, 'export_col_btn'):
+                self.export_col_btn.setEnabled(True)
             if hasattr(self, 'analyze_btn'):
                 self.analyze_btn.setEnabled(True)
 
