@@ -123,6 +123,12 @@ class SVGIconFactory: #vers 7
         """Set cached theme color for icons"""
         SVGIconFactory._cached_color = color
 
+    @staticmethod
+    def clear_cache():
+        """Clear the cached theme color so next icon call re-reads from theme."""
+        if hasattr(SVGIconFactory, '_cached_color'):
+            del SVGIconFactory._cached_color
+
 
     @staticmethod
     def _createicon(svg_data: str, size: int = 20, color: str = None) -> QIcon: #vers 7
@@ -1476,6 +1482,51 @@ class SVGIconFactory: #vers 7
             <path fill="currentColor" d="M11,4V2H13V4H11M13,21V19H11V21H13M4,12V10H20V12H4Z"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def wireframe_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Wireframe display mode — grid/mesh outline."""
+        svg = (
+            '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+            '<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'
+            'M10 6h4M6 10v4M18 10v4M10 18h4" '
+            'stroke="currentColor" stroke-width="1.8" fill="none" '
+            'stroke-linecap="round" stroke-linejoin="round"/>'
+            '</svg>'
+        )
+        return SVGIconFactory._create_icon(svg, size, color)
+
+    @staticmethod
+    def bounds_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Bounding box display — dashed outer box."""
+        svg = (
+            '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+            '<rect x="3" y="3" width="18" height="18" rx="1" '
+            'stroke="currentColor" stroke-width="1.8" fill="none" '
+            'stroke-dasharray="4 2"/>'
+            '<circle cx="3" cy="3" r="1.5" fill="currentColor"/>'
+            '<circle cx="21" cy="3" r="1.5" fill="currentColor"/>'
+            '<circle cx="3" cy="21" r="1.5" fill="currentColor"/>'
+            '<circle cx="21" cy="21" r="1.5" fill="currentColor"/>'
+            '</svg>'
+        )
+        return SVGIconFactory._create_icon(svg, size, color)
+
+    @staticmethod
+    def reset_view_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Reset view / home — house or target crosshair."""
+        svg = (
+            '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+            '<circle cx="12" cy="12" r="3" stroke="currentColor" '
+            'stroke-width="1.8" fill="none"/>'
+            '<path d="M12 2v4M12 18v4M2 12h4M18 12h4" '
+            'stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            '<path d="M12 7v2M12 15v2M7 12h2M15 12h2" '
+            'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
+            'opacity="0.6"/>'
+            '</svg>'
+        )
+        return SVGIconFactory._create_icon(svg, size, color)
 
     @staticmethod
     def compress_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
