@@ -2070,7 +2070,7 @@ class COLWorkshop(QWidget): #vers 3
         self.export_col_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
         self.export_col_btn.setIconSize(QSize(20, 20))
         self.export_col_btn.setToolTip("Export all COL models")
-        self.export_col_btn.clicked.connect(self.export_all_textures)
+        self.export_col_btn.clicked.connect(self._export_col_data)
         self.export_col_btn.setEnabled(False)
         btn_row.addWidget(self.export_col_btn)
 
