@@ -3693,6 +3693,89 @@ class COLWorkshop(QWidget): #vers 3
             QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
 
 
+
+    def _toggle_col_view(self): #vers 1
+        """Toggle between detail table and compact thumbnail+name list."""
+        if self._col_view_mode == 'list':
+            self._col_view_mode = 'detail'
+            self.collision_list.setVisible(False)
+            self.col_compact_list.setVisible(True)
+            self.col_view_toggle_btn.setText("[=]")
+            self.col_view_toggle_btn.setToolTip("Switch to detail table view")
+            if (self.col_compact_list.rowCount() == 0
+                    and self.collision_list.rowCount() > 0
+                    and self.current_col_file):
+                self._populate_compact_col_list()
+        else:
+            self._col_view_mode = 'list'
+            self.col_compact_list.setVisible(False)
+            self.collision_list.setVisible(True)
+            self.col_view_toggle_btn.setText("[T]")
+            self.col_view_toggle_btn.setToolTip("Switch to compact thumbnail view")
+
+    def _populate_compact_col_list(self): #vers 1
+        """Fill compact two-column list (icon + name/version/counts)."""
+        try:
+            self.col_compact_list.setRowCount(0)
+            models = getattr(self.current_col_file, 'models', [])
+            for i, model in enumerate(models):
+                self.col_compact_list.insertRow(i)
+
+                # Col 0: bounding-box wire icon
+                from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen
+                icon_item = QTableWidgetItem()
+                pm = QPixmap(64, 64)
+                pm.fill(QColor(0, 0, 0, 0))
+                painter = QPainter(pm)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                pen = QPen(QColor(100, 180, 100))
+                pen.setWidth(2)
+                painter.setPen(pen)
+                painter.drawRect(8, 8, 48, 48)
+                painter.setPen(QPen(QColor(100, 180, 100, 80)))
+                painter.drawLine(8, 8, 56, 56)
+                painter.drawLine(56, 8, 8, 56)
+                painter.end()
+                icon_item.setData(Qt.ItemDataRole.DecorationRole, pm)
+                self.col_compact_list.setItem(i, 0, icon_item)
+
+                # Col 1: name + stats
+                name = getattr(model, 'name', '') or f'model_{i}'
+                ver  = getattr(model, 'version', None)
+                ver_str = ver.name if hasattr(ver, 'name') else str(ver) if ver else '?'
+                spheres = len(getattr(model, 'spheres',  []))
+                boxes   = len(getattr(model, 'boxes',    []))
+                verts   = len(getattr(model, 'vertices', []))
+                faces   = len(getattr(model, 'faces',    []))
+
+                line1 = name
+                line2 = "Version: " + ver_str
+                line3 = "Spheres: " + str(spheres) + "  Boxes: " + str(boxes)
+                line4 = "Verts: "   + str(verts)   + "  Faces: " + str(faces)
+                details = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4
+
+                det_item = QTableWidgetItem(details)
+                det_item.setToolTip(details)
+                self.col_compact_list.setItem(i, 1, det_item)
+                self.col_compact_list.setRowHeight(i, 72)
+
+            self.col_compact_list.setColumnWidth(0, 72)
+        except Exception as e:
+            print("_populate_compact_col_list error: " + str(e))
+
+    def _on_compact_col_selected(self): #vers 1
+        """Sync compact list selection to detail table."""
+        try:
+            rows = self.col_compact_list.selectionModel().selectedRows()
+            if not rows:
+                return
+            row = rows[0].row()
+            if row < self.collision_list.rowCount():
+                self.collision_list.selectRow(row)
+            self._on_collision_selected()
+        except Exception as e:
+            print("_on_compact_col_selected error: " + str(e))
+
     def _undo_last_action(self): #vers 1
         """Undo the last change to the COL file."""
         try:
