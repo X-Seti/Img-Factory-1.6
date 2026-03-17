@@ -1685,6 +1685,7 @@ class COLWorkshop(QWidget): #vers 3
     #Left side vertical panel
     def _create_transform_icon_panel(self): #vers 12
         """Create transform panel with icons - aligned with text panel"""
+        icon_color = self._get_icon_color()
         self.transform_icon_panel = QFrame()
         self.transform_icon_panel.setFrameStyle(QFrame.Shape.StyledPanel)
         self.transform_icon_panel.setMinimumWidth(45)
@@ -2117,6 +2118,7 @@ class COLWorkshop(QWidget): #vers 3
 
     def _create_right_panel(self): #vers 11
         """Create right panel with editing controls - compact layout"""
+        icon_color = self._get_icon_color()
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
@@ -2292,6 +2294,7 @@ class COLWorkshop(QWidget): #vers 3
 
 
     def _create_preview_controls(self): #vers 5
+        icon_color = self._get_icon_color()
         """Create preview control buttons - vertical layout on right"""
         controls_frame = QFrame()
         controls_frame.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -5512,6 +5515,7 @@ class COLEditorDialog(QDialog): #vers 3
 
 
     def _create_viewport_controls(self): #vers 1
+        icon_color = self._get_icon_color()
         """Create 3D viewport controls - 3DS Max style toolbar at bottom"""
         if not VIEWPORT_AVAILABLE:
             return QWidget()
