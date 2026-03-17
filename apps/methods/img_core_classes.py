@@ -1770,6 +1770,7 @@ class IMGFile:
                     success = False
             elif self.version in (IMGVersion.VERSION_PS2_VCS,
                                   IMGVersion.VERSION_PS2_LVZ,
+                                  IMGVersion.VERSION_IOS_LVZ,
                                   IMGVersion.VERSION_PS2_V1,
                                   IMGVersion.VERSION_1_IOS,
                                   IMGVersion.VERSION_ANPK,
@@ -2140,7 +2141,10 @@ class IMGFile:
                 entry._source_ref = e.get("_source_ref", f"{_img_name} @ 0x{int(e['offset']):X}")
                 self.entries.append(entry)
             return True
-        except Exception:
+        except Exception as _e:
+            import traceback
+            print(f"[_open_ps2] Exception: {_e}")
+            traceback.print_exc()
             return False
 
     def _open_version_1_standalone(self) -> bool: #vers 1
@@ -2197,6 +2201,20 @@ class IMGFile:
                         img_path = fp  # fallback (will likely fail)
                 else:
                     img_path = fp
+                with open(img_path, 'rb') as f:
+                    f.seek(entry.offset)
+                    data = f.read(entry.size)
+            elif self.version in (IMGVersion.VERSION_PS2_LVZ,
+                                    IMGVersion.VERSION_IOS_LVZ,
+                                    IMGVersion.VERSION_DTZ_VCS,
+                                    IMGVersion.VERSION_DTZ_LCS):
+                # LVZ/DTZ entries: offset is a byte position in the companion .img
+                # Use _source_img attr if set, otherwise find the companion
+                img_path = getattr(entry, '_source_img', None)
+                if not img_path:
+                    img_path = _find_companion(self.file_path, '.img')
+                if not img_path:
+                    raise RuntimeError("No companion .img found for LVZ/DTZ entry")
                 with open(img_path, 'rb') as f:
                     f.seek(entry.offset)
                     data = f.read(entry.size)
