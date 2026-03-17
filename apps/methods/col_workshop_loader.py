@@ -405,46 +405,43 @@ class COLFile: #vers 1
             return False
 
 
-    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 1
-        """
-        Parse all models from data
-        COL files have no header - models stored linearly
-        """
+    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 2
+        """Parse all COL models from data — supports COL1, COL2, COL3, COL4."""
+        import struct as _s
         models = []
         offset = 0
-        
-        while offset < len(data):
+        VALID_FOURCCS = {b'COLL', b'COL2', b'COL3', b'COL4'}
+
+        while offset < len(data) - 8:
+            fourcc = data[offset:offset+4]
+            if fourcc not in VALID_FOURCCS:
+                if self.debug:
+                    print(f"_parse_all_models: unexpected bytes at 0x{offset:X}: {fourcc.hex()}")
+                break
+
+            # Read the size field so we can safely skip on failure
+            block_size = _s.unpack_from('<I', data, offset + 4)[0]
+            next_offset = offset + 8 + block_size   # fourcc(4)+size(4)+payload
+
             try:
-                # Check if we have enough data for a header
-                if len(data) < offset + 8:
-                    break
-                
-                # Peek at FourCC to validate
-                fourcc = data[offset:offset+4]
-                if fourcc not in [b'COLL', b'COL2', b'COL3', b'COL4']:
-                    if self.debug:
-                        print(f"Invalid FourCC at offset {offset}: {fourcc}")
-                    break
-                
-                # Parse model (COL1 only for now)
-                if fourcc == b'COLL':
-                    model, new_offset = self.parser.parse_col1_model(data, offset)
+                model, parsed_offset = self.parser.parse_model(data, offset)
+                if model is not None:
                     models.append(model)
-                    
-                    # Move to next model
-                    # Size in header is from after size field, so add 8 for fourcc+size
-                    offset = new_offset  # Use parser returned offset
-                else:
-                    # COL2/3/4 not implemented yet
                     if self.debug:
-                        print(f"COL2/3/4 parsing not implemented yet")
-                    break
-                    
+                        name = getattr(model, 'name', '?')
+                        ver  = getattr(model, 'version', '?')
+                        print(f"  model[{len(models)-1}]: {name!r}  version={ver}")
+                    # Advance by parsed amount, but never go backward
+                    offset = max(parsed_offset, next_offset)
+                else:
+                    if self.debug:
+                        print(f"  parse_model returned None at 0x{offset:X}, skipping block")
+                    offset = next_offset
             except Exception as e:
                 if self.debug:
-                    print(f"Error parsing model at offset {offset}: {e}")
-                break
-        
+                    print(f"  exception at 0x{offset:X}: {e}")
+                offset = next_offset   # skip the block and try the next
+
         return models
     
 

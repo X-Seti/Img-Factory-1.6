@@ -275,19 +275,27 @@ def populate_col_table(main_window, col_file): #vers 3
 
         for row, model in enumerate(models):
             try:
-                # Model Name
-                model_name = getattr(model, 'name', f'Model_{row+1}')
+                # Model Name — try model.name first, then model.header.name
+                model_name = getattr(model, 'name', None)
+                if not model_name and hasattr(model, 'header'):
+                    model_name = getattr(model.header, 'name', None)
+                if not model_name:
+                    model_name = f'Model_{row+1}'
                 table.setItem(row, 0, QTableWidgetItem(str(model_name)))
 
                 # Type
                 table.setItem(row, 1, QTableWidgetItem("COL"))
 
-                # Version
-                version = getattr(model, 'version', 'Unknown')
-                if hasattr(version, 'value'):
+                # Version — try model.version, then model.header.version
+                version = getattr(model, 'version', None)
+                if version is None and hasattr(model, 'header'):
+                    version = getattr(model.header, 'version', None)
+                if version is not None and hasattr(version, 'name'):
+                    version_text = version.name   # e.g. "COL_1", "COL_2"
+                elif version is not None and hasattr(version, 'value'):
                     version_text = f"COL{version.value}"
                 else:
-                    version_text = str(version)
+                    version_text = str(version) if version else 'Unknown'
                 table.setItem(row, 2, QTableWidgetItem(version_text))
 
                 # Size - USE ACTUAL MODEL SIZE NOT ESTIMATED

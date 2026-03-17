@@ -8,6 +8,7 @@ Based on GTA Wiki specification
 
 import struct
 from typing import Tuple, List, Optional
+from apps.debug.debug_functions import img_debugger
 from apps.methods.col_workshop_classes import (
     COLHeader, COLBounds, COLSphere, COLBox, 
     COLVertex, COLFace, COLModel, COLVersion
@@ -601,74 +602,63 @@ class COLParser: #vers 1
             raise ValueError(f"Faces parse error: {str(e)}")
 
 
-    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 1
-        """Parse complete COL model
-
-        Returns: (model, new_offset) or (None, offset) on error
+    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 2
+        """Parse complete COL model (COL1/2/3/4).
+        Returns: (COLModel, new_offset) or (None, offset) on error.
         """
+        start_offset = offset
         try:
-            model = COLModel()
-            start_offset = offset
-
-            # Parse header (32 bytes)
+            # Parse header (32 bytes: fourcc+size+name+model_id)
             header, offset = self.parse_header(data, offset)
-            model_name = header.name
-            model_id = header.model_id
             version = header.version
-            model.name = model_name
-            model.model_id = model_id
-            model.version = version
 
             # Parse bounds
-            model.bounding_box, offset = self.parse_bounds(data, offset, version)
+            bounds, offset = self.parse_bounds(data, offset, version)
 
             # Parse counts
-            num_spheres, num_boxes, num_vertices, num_faces, offset = self.parse_counts(data, offset, version)
+            num_spheres, num_boxes, num_vertices, num_faces, offset =                 self.parse_counts(data, offset, version)
 
-            # Sanity check counts - reject obviously corrupt data
-            if num_spheres > 10000:
+            # Sanity checks
+            if num_spheres > 10000 or num_boxes > 10000                     or num_vertices > 100000 or num_faces > 100000:
                 if self.debug:
-                    img_debugger.error(f"Invalid sphere count: {num_spheres} (max 10000)")
-                return None, offset
+                    print(f"parse_model: implausible counts S={num_spheres} "
+                          f"B={num_boxes} V={num_vertices} F={num_faces}")
+                return None, start_offset
 
-            if num_boxes > 10000:
-                if self.debug:
-                    img_debugger.error(f"Invalid box count: {num_boxes} (max 10000)")
-                return None, offset
+            # Parse geometry — spheres/boxes don't take version, vertices/faces do
+            spheres,  offset = self.parse_spheres(data, offset, num_spheres)
+            boxes,    offset = self.parse_boxes(data, offset, num_boxes)
+            vertices, offset = self.parse_vertices(data, offset, num_vertices, version)
+            faces,    offset = self.parse_faces(data, offset, num_faces, version)
 
-            if num_vertices > 100000:
-                if self.debug:
-                    img_debugger.error(f"Invalid vertex count: {num_vertices} (max 100000)")
-                return None, offset
+            # Build the dataclass — all 6 fields required
+            model = COLModel(
+                header=header,
+                bounds=bounds,
+                spheres=spheres,
+                boxes=boxes,
+                vertices=vertices,
+                faces=faces,
+            )
+            # Convenience attrs used by various callers
+            model.name     = header.name
+            model.version  = header.version
+            model.model_id = header.model_id
 
-            if num_faces > 100000:
-                if self.debug:
-                    img_debugger.error(f"Invalid face count: {num_faces} (max 100000)")
-                return None, offset
-
-            # Parse collision elements
-            model.spheres, offset = self.parse_spheres(data, offset, num_spheres, version)
-            model.boxes, offset = self.parse_boxes(data, offset, num_boxes, version)
-            model.vertices, offset = self.parse_vertices(data, offset, num_vertices, version)
-
-
-            model.faces, offset = self.parse_faces(data, offset, num_faces, version)
-
-            # Update flags
-            model.update_flags()
-
-            bytes_read = offset - start_offset
             if self.debug:
-                img_debugger.success(f"Model parsed: {bytes_read} bytes, {model.get_stats()}")
+                print(f"parse_model OK: '{header.name}' {version.name} "
+                      f"S={len(spheres)} B={len(boxes)} "
+                      f"V={len(vertices)} F={len(faces)} "
+                      f"({offset-start_offset} bytes)")
 
             return model, offset
 
         except Exception as e:
             import traceback
             if self.debug:
-                img_debugger.error(f"Model parse failed: {str(e)}")
-                img_debugger.error(traceback.format_exc())
-            return None, offset
+                print(f"parse_model FAILED at 0x{start_offset:X}: {e}")
+                traceback.print_exc()
+            return None, start_offset
 
 
     def parse_counts(self, data: bytes, offset: int, version: COLVersion) -> Tuple[int, int, int, int, int]: #vers 2
