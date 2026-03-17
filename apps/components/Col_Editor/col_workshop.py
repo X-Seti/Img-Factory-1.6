@@ -416,6 +416,11 @@ class COLWorkshop(QWidget): #vers 3
 
 # - Settings Reusable
 
+        # Sync mini toolbar visibility with current dock state
+        if hasattr(self, '_middle_btn_row'):
+            self._middle_btn_row.setVisible(
+                self.is_docked and not self.standalone_mode)
+
     def _show_workshop_settings(self): #vers 1
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -1036,6 +1041,8 @@ class COLWorkshop(QWidget): #vers 3
             # Update dock state
             self.is_docked = True
             self._update_dock_button_visibility()
+            if hasattr(self, '_middle_btn_row'):
+                self._middle_btn_row.setVisible(True)
 
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"{App_name} docked to main window")
@@ -1066,6 +1073,8 @@ class COLWorkshop(QWidget): #vers 3
                 
             self.is_docked = False
             self._update_dock_button_visibility()
+            if hasattr(self, '_middle_btn_row'):
+                self._middle_btn_row.setVisible(False)
 
             self.show()
             self.raise_()
@@ -2044,10 +2053,14 @@ class COLWorkshop(QWidget): #vers 3
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         layout.addWidget(header)
 
-        # ── Mini toolbar: Open / Save / Extract / Undo ────────────────────
+        # ── Mini toolbar: Open / Save / Extract / Undo ──────────────────
+        # Wrapped in a QFrame so it can be shown/hidden as one unit.
+        # Only visible when docked — the full toolbar covers these in standalone.
         icon_color = self._get_icon_color()
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(3)
+        self._middle_btn_row = QFrame()
+        btn_layout = QHBoxLayout(self._middle_btn_row)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(3)
 
         self.open_col_btn = QPushButton("Open")
         self.open_col_btn.setFont(self.button_font)
@@ -2055,7 +2068,7 @@ class COLWorkshop(QWidget): #vers 3
         self.open_col_btn.setIconSize(QSize(20, 20))
         self.open_col_btn.setToolTip("Open COL file")
         self.open_col_btn.clicked.connect(self.open_col_file)
-        btn_row.addWidget(self.open_col_btn)
+        btn_layout.addWidget(self.open_col_btn)
 
         self.save_col_btn = QPushButton("Save")
         self.save_col_btn.setFont(self.button_font)
@@ -2064,7 +2077,7 @@ class COLWorkshop(QWidget): #vers 3
         self.save_col_btn.setToolTip("Save COL file")
         self.save_col_btn.clicked.connect(self._save_file)
         self.save_col_btn.setEnabled(False)
-        btn_row.addWidget(self.save_col_btn)
+        btn_layout.addWidget(self.save_col_btn)
 
         self.export_col_btn = QPushButton("Extract")
         self.export_col_btn.setFont(self.button_font)
@@ -2073,7 +2086,7 @@ class COLWorkshop(QWidget): #vers 3
         self.export_col_btn.setToolTip("Export all COL models")
         self.export_col_btn.clicked.connect(self._export_col_data)
         self.export_col_btn.setEnabled(False)
-        btn_row.addWidget(self.export_col_btn)
+        btn_layout.addWidget(self.export_col_btn)
 
         self.undo_col_btn = QPushButton()
         self.undo_col_btn.setFont(self.button_font)
@@ -2082,10 +2095,13 @@ class COLWorkshop(QWidget): #vers 3
         self.undo_col_btn.setToolTip("Undo last change")
         self.undo_col_btn.clicked.connect(self._undo_last_action)
         self.undo_col_btn.setEnabled(False)
-        btn_row.addWidget(self.undo_col_btn)
+        btn_layout.addWidget(self.undo_col_btn)
 
-        btn_row.addStretch()
-        layout.addLayout(btn_row)
+        btn_layout.addStretch()
+        layout.addWidget(self._middle_btn_row)
+
+        # Hidden in standalone — toolbar already has Open/Save/Extract/Undo
+        self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
 
         # ── Model table ───────────────────────────────────────────────────
         self.collision_list = QTableWidget()
