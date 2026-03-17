@@ -449,6 +449,8 @@ class TXDWorkshop(QWidget): #vers 3
             self.app_settings = main_window.app_settings
         else:
             self.app_settings = None
+        if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
+            self.app_settings.theme_changed.connect(self._refresh_icons)
 
         self.current_img = None
         self.current_txd_data = None
@@ -631,6 +633,9 @@ class TXDWorkshop(QWidget): #vers 3
             main_splitter.setStretchFactor(1, 1)
 
         main_layout.addWidget(main_splitter)
+
+        # Apply themed icons now UI is fully built
+        self._refresh_icons()
 
         # Connect signals AFTER texture_table is created
         self._connect_texture_table_signals()
@@ -1379,6 +1384,8 @@ class TXDWorkshop(QWidget): #vers 3
             # Update dock state
             self.is_docked = True
             self._update_dock_button_visibility()
+            if hasattr(self, '_middle_btn_row'):
+                self._middle_btn_row.setVisible(True)
 
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"{App_name} docked to main window")
@@ -1409,6 +1416,8 @@ class TXDWorkshop(QWidget): #vers 3
 
             self.is_docked = False
             self._update_dock_button_visibility()
+            if hasattr(self, '_middle_btn_row'):
+                self._middle_btn_row.setVisible(False)
 
             self.show()
             self.raise_()
@@ -2416,30 +2425,86 @@ class TXDWorkshop(QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 3
-        """Create middle panel - Texture list with context menu"""
+    def _create_middle_panel(self): #vers 5
+        """Create middle panel - Texture list with mini toolbar shown in docked mode."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(250)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(4)
 
+        # Header label
         header = QLabel("Textures")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         layout.addWidget(header)
 
+        # ── Mini toolbar: 4 icon buttons — only shown when docked ─────────
+        # (toolbar has these too; in docked mode the toolbar is hidden)
+        icon_color = self._get_icon_color()
+        self._middle_btn_row = QFrame()
+        btn_layout = QHBoxLayout(self._middle_btn_row)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(3)
+
+        self.open_txd_btn = QPushButton("Open")
+        self.open_txd_btn.setFont(self.button_font)
+        self.open_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.open_txd_btn.setIconSize(QSize(20, 20))
+        self.open_txd_btn.setToolTip("Open TXD file (Ctrl+O)")
+        self.open_txd_btn.clicked.connect(self.open_txd_file)
+        btn_layout.addWidget(self.open_txd_btn)
+
+        self.save_txd_btn = QPushButton("Save")
+        self.save_txd_btn.setFont(self.button_font)
+        self.save_txd_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
+        self.save_txd_btn.setIconSize(QSize(20, 20))
+        self.save_txd_btn.setToolTip("Save TXD file (Ctrl+S)")
+        self.save_txd_btn.clicked.connect(self.save_txd_file)
+        self.save_txd_btn.setEnabled(False)
+        btn_layout.addWidget(self.save_txd_btn)
+
+        self.export_all_btn = QPushButton("Extract")
+        self.export_all_btn.setFont(self.button_font)
+        self.export_all_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+        self.export_all_btn.setIconSize(QSize(20, 20))
+        self.export_all_btn.setToolTip("Export all textures")
+        self.export_all_btn.clicked.connect(self.export_all_textures)
+        self.export_all_btn.setEnabled(False)
+        btn_layout.addWidget(self.export_all_btn)
+
+        self.undo_btn = QPushButton()
+        self.undo_btn.setFont(self.button_font)
+        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
+        self.undo_btn.setIconSize(QSize(20, 20))
+        self.undo_btn.setToolTip("Undo last change")
+        self.undo_btn.clicked.connect(self._undo_last_action)
+        self.undo_btn.setEnabled(False)
+        btn_layout.addWidget(self.undo_btn)
+
+        btn_layout.addStretch()
+        layout.addWidget(self._middle_btn_row)
+
+        # Only show mini toolbar when docked (standalone toolbar already has these)
+        self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
+
+        # ── Texture table ─────────────────────────────────────────────────
         self.texture_table = QTableWidget()
         self.texture_table.setColumnCount(2)
         self.texture_table.setHorizontalHeaderLabels(["Preview", "Details"])
         self.texture_table.horizontalHeader().setStretchLastSection(True)
-        self.texture_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.texture_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.texture_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        self.texture_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection)
         self.texture_table.setAlternatingRowColors(True)
         self.texture_table.itemSelectionChanged.connect(self._on_texture_selected)
         self.texture_table.setIconSize(QSize(64, 64))
-        self.texture_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.texture_table.customContextMenuRequested.connect(self._show_texture_context_menu)
+        self.texture_table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.texture_table.customContextMenuRequested.connect(
+            self._show_texture_context_menu)
         layout.addWidget(self.texture_table)
 
         return panel
@@ -3943,13 +4008,75 @@ class TXDWorkshop(QWidget): #vers 3
         menu.exec(self.mapToGlobal(pos))
 
 
-    def _get_icon_color(self): #vers 1
-        """Get icon color from current theme"""
+    def _get_icon_color(self): #vers 2
+        """Get icon colour from current theme — returns text_primary."""
         if APPSETTINGS_AVAILABLE and self.app_settings:
             colors = self.app_settings.get_theme_colors()
-            return colors.get('text_primary', '#ffffff')
-        return '#ffffff'
+            return colors.get('text_primary', '#000000')
+        return '#000000'
 
+    def _refresh_icons(self): #vers 1
+        """Refresh all button icons after theme change."""
+        SVGIconFactory.clear_cache()
+        c = self._get_icon_color()
+        SVGIconFactory.set_theme_color(c)
+
+        _icon_map = [
+            # Toolbar buttons
+            ('open_btn',       'open_icon'),
+            ('save_btn',       'save_icon'),
+            ('saveall_btn',    'saveas_icon'),
+            ('export_all_btn', 'package_icon'),
+            ('undo_btn',       'undo_icon'),
+            ('info_btn',       'info_icon'),
+            ('settings_btn',   'settings_icon'),
+            ('minimize_btn',   'minimize_icon'),
+            ('maximize_btn',   'maximize_icon'),
+            ('close_btn',      'close_icon'),
+            ('open_img_btn',   'folder_icon'),
+            # Middle panel mini toolbar (docked mode)
+            ('open_txd_btn',   'open_icon'),
+            ('save_txd_btn',   'save_icon'),
+            ('export_all_btn', 'package_icon'),
+            ('undo_btn',       'undo_icon'),
+            # Transform / edit panel
+            ('flip_vert_btn',      'flip_vert_icon'),
+            ('flip_horz_btn',      'flip_horz_icon'),
+            ('rotate_cw_btn',      'rotate_cw_icon'),
+            ('rotate_ccw_btn',     'rotate_ccw_icon'),
+            ('analyze_btn',        'analyze_icon'),
+            ('copy_btn',           'copy_icon'),
+            ('paste_btn',          'paste_icon'),
+            ('create_surface_btn', 'add_icon'),
+            ('delete_surface_btn', 'remove_icon'),
+            ('import_btn',         'import_icon'),
+            ('export_btn',         'export_icon'),
+            ('switch_btn',         'flip_vert_icon'),
+            ('convert_btn',        'convert_icon'),
+            ('properties_btn',     'settings_icon'),
+            ('invert_btn',         'build_icon'),
+            ('gen_alpha_btn',      'paint_icon'),
+            ('props_btn',          'properties_icon'),
+        ]
+        for attr, method in _icon_map:
+            btn = getattr(self, attr, None)
+            if btn is None:
+                continue
+            fn = getattr(self.icon_factory, method, None)
+            if fn is None:
+                continue
+            try:
+                btn.setIcon(fn(color=c))
+            except TypeError:
+                try:
+                    btn.setIcon(fn())
+                except Exception:
+                    pass
+
+        # Update middle btn row visibility (may have changed docked state)
+        if hasattr(self, '_middle_btn_row'):
+            self._middle_btn_row.setVisible(
+                self.is_docked and not self.standalone_mode)
 
     def _apply_fonts_to_widgets(self): #vers 1
         """Apply fonts from AppSettings to all widgets"""
@@ -10932,7 +11059,7 @@ class TXDWorkshop(QWidget): #vers 3
 
         # Invert Alpha
         self.invert_btn = QPushButton()
-        self.invert_btn.setIcon(self.icon_factory.build_icon())
+        self.invert_btn.setIcon(self.icon_factory.build_icon(color=self._get_icon_color()))
         self.invert_btn.setIconSize(icon_size)
         self.invert_btn.setFixedHeight(btn_height)
         self.invert_btn.setMinimumWidth(btn_width)
@@ -10945,7 +11072,7 @@ class TXDWorkshop(QWidget): #vers 3
 
         # Generate Alpha
         self.gen_alpha_btn = QPushButton()
-        self.gen_alpha_btn.setIcon(self.icon_factory.paint_icon())
+        self.gen_alpha_btn.setIcon(self.icon_factory.paint_icon(color=self._get_icon_color()))
         self.gen_alpha_btn.setIconSize(icon_size)
         self.gen_alpha_btn.setFixedHeight(btn_height)
         self.gen_alpha_btn.setMinimumWidth(btn_width)
@@ -10957,7 +11084,7 @@ class TXDWorkshop(QWidget): #vers 3
 
         # Properties
         self.props_btn = QPushButton()
-        self.props_btn.setIcon(self.icon_factory.properties_icon())
+        self.props_btn.setIcon(self.icon_factory.properties_icon(color=self._get_icon_color()))
         self.props_btn.setIconSize(icon_size)
         self.props_btn.setFixedHeight(btn_height)
         self.props_btn.setMinimumWidth(btn_width)
