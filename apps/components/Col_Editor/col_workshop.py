@@ -293,6 +293,9 @@ class COLWorkshop(QWidget): #vers 3
                 status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
 
+        # Apply theme colours to all icons now that UI is fully built
+        self._refresh_icons()
+
 
     def _enable_name_edit(self, event, is_alpha): #vers 1
         """Enable name editing on click"""
@@ -352,9 +355,63 @@ class COLWorkshop(QWidget): #vers 3
 
         return status_bar
 
-    def _refresh_icons(self): #vers 1
-        """Refresh all icons after theme change"""
+    def _refresh_icons(self): #vers 2
+        """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
+        c = self._get_icon_color()
+        SVGIconFactory.set_theme_color(c)
+
+        # Map: attribute name → icon factory method
+        _icon_map = [
+            # Toolbar
+            ('settings_btn',       'settings_icon'),
+            ('open_btn',           'open_icon'),
+            ('save_btn',           'save_icon'),
+            ('saveall_btn',        'saveas_icon'),
+            ('export_all_btn',     'package_icon'),
+            ('undo_btn',           'undo_icon'),
+            ('info_btn',           'info_icon'),
+            ('minimize_btn',       'minimize_icon'),
+            ('maximize_btn',       'maximize_icon'),
+            ('close_btn',          'close_icon'),
+            ('open_img_btn',       'folder_icon'),
+            ('from_img_btn',       'open_icon'),
+            # Middle panel mini-toolbar
+            ('open_col_btn',       'open_icon'),
+            ('save_col_btn',       'save_icon'),
+            ('export_col_btn',     'package_icon'),
+            ('undo_col_btn',       'undo_icon'),
+            # Transform icon panel
+            ('flip_vert_btn',      'flip_vert_icon'),
+            ('flip_horz_btn',      'flip_horz_icon'),
+            ('rotate_cw_btn',      'rotate_cw_icon'),
+            ('rotate_ccw_btn',     'rotate_ccw_icon'),
+            ('analyze_btn',        'analyze_icon'),
+            ('copy_btn',           'copy_icon'),
+            ('paste_btn',          'paste_icon'),
+            ('create_surface_btn', 'add_icon'),
+            ('delete_surface_btn', 'remove_icon'),
+            ('import_btn',         'import_icon'),
+            ('export_btn',         'export_icon'),
+            # Right panel toolbar buttons
+            ('switch_btn',         'flip_vert_icon'),
+            ('convert_btn',        'convert_icon'),
+            ('properties_btn',     'settings_icon'),
+        ]
+        for attr, method in _icon_map:
+            btn = getattr(self, attr, None)
+            if btn is None:
+                continue
+            fn = getattr(self.icon_factory, method, None)
+            if fn is None:
+                continue
+            try:
+                btn.setIcon(fn(color=c))
+            except TypeError:
+                try:
+                    btn.setIcon(fn())
+                except Exception:
+                    pass
 
 
 # - Settings Reusable
@@ -1447,7 +1504,7 @@ class COLWorkshop(QWidget): #vers 3
         # Settings button
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.settings_btn.setIcon(self.icon_factory.settings_icon(color=icon_color))
         self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(20, 20))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
@@ -1469,7 +1526,7 @@ class COLWorkshop(QWidget): #vers 3
         if not self.standalone_mode:
             self.open_img_btn = QPushButton("OpenIMG")
             self.open_img_btn.setFont(self.button_font)
-            self.open_img_btn.setIcon(self.icon_factory.folder_icon())
+            self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=icon_color))
             self.open_img_btn.setIconSize(QSize(20, 20))
             self.open_img_btn.clicked.connect(self.open_img_archive)
             self.open_img_btn.setToolTip("Open an IMG archive and browse its COL entries")
@@ -1478,7 +1535,7 @@ class COLWorkshop(QWidget): #vers 3
             # "From IMG" — pick a COL entry from the currently loaded IMG in IMG Factory
             self.from_img_btn = QPushButton("From IMG")
             self.from_img_btn.setFont(self.button_font)
-            self.from_img_btn.setIcon(self.icon_factory.open_icon())
+            self.from_img_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
             self.from_img_btn.setIconSize(QSize(20, 20))
             self.from_img_btn.clicked.connect(self._pick_col_from_current_img)
             self.from_img_btn.setToolTip("Pick a COL entry from the currently loaded IMG")
@@ -1487,7 +1544,7 @@ class COLWorkshop(QWidget): #vers 3
         # Open button
         self.open_btn = QPushButton()
         self.open_btn.setFont(self.button_font)
-        self.open_btn.setIcon(self.icon_factory.open_icon())
+        self.open_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
         self.open_btn.setText("Open")
         self.open_btn.setIconSize(QSize(20, 20))
         self.open_btn.setShortcut("Ctrl+O")
@@ -1500,7 +1557,7 @@ class COLWorkshop(QWidget): #vers 3
         # Save button
         self.save_btn = QPushButton()
         self.save_btn.setFont(self.button_font)
-        self.save_btn.setIcon(self.icon_factory.save_icon())
+        self.save_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
         self.save_btn.setText("Save")
         self.save_btn.setIconSize(QSize(20, 20))
         self.save_btn.setShortcut("Ctrl+S")
@@ -1514,7 +1571,7 @@ class COLWorkshop(QWidget): #vers 3
         # Save button
         self.saveall_btn = QPushButton()
         self.saveall_btn.setFont(self.button_font)
-        self.saveall_btn.setIcon(self.icon_factory.saveas_icon())
+        self.saveall_btn.setIcon(self.icon_factory.saveas_icon(color=icon_color))
         self.saveall_btn.setText("Save All")
         self.saveall_btn.setIconSize(QSize(20, 20))
         self.saveall_btn.setShortcut("Ctrl+S")
@@ -1527,7 +1584,7 @@ class COLWorkshop(QWidget): #vers 3
 
         self.export_all_btn = QPushButton("Extract")
         self.export_all_btn.setFont(self.button_font)
-        self.export_all_btn.setIcon(self.icon_factory.package_icon())
+        self.export_all_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
         self.export_all_btn.setIconSize(QSize(20, 20))
         self.export_all_btn.setToolTip("Export all as col, cst or 3ds files")
         #self.export_all_btn.clicked.connect(self.export_all)
@@ -1536,7 +1593,7 @@ class COLWorkshop(QWidget): #vers 3
 
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
-        self.undo_btn.setIcon(self.icon_factory.undo_icon())
+        self.undo_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
         self.undo_btn.setText("Undo")
         self.undo_btn.setIconSize(QSize(20, 20))
         #self.undo_btn.clicked.connect(self._undo_last_action)
@@ -1547,7 +1604,7 @@ class COLWorkshop(QWidget): #vers 3
         # Info button
         self.info_btn = QPushButton("")
         self.info_btn.setText("")  # CHANGED from "Info"
-        self.info_btn.setIcon(self.icon_factory.info_icon())
+        self.info_btn.setIcon(self.icon_factory.info_icon(color=icon_color))
         self.info_btn.setMinimumWidth(40)
         self.info_btn.setMaximumWidth(40)
         self.info_btn.setMinimumHeight(30)
@@ -1594,7 +1651,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Window controls
         self.minimize_btn = QPushButton()
-        self.minimize_btn.setIcon(self.icon_factory.minimize_icon())
+        self.minimize_btn.setIcon(self.icon_factory.minimize_icon(color=icon_color))
         self.minimize_btn.setIconSize(QSize(20, 20))
         self.minimize_btn.setMinimumWidth(40)
         self.minimize_btn.setMaximumWidth(40)
@@ -1604,7 +1661,7 @@ class COLWorkshop(QWidget): #vers 3
         layout.addWidget(self.minimize_btn)
 
         self.maximize_btn = QPushButton()
-        self.maximize_btn.setIcon(self.icon_factory.maximize_icon())
+        self.maximize_btn.setIcon(self.icon_factory.maximize_icon(color=icon_color))
         self.maximize_btn.setIconSize(QSize(20, 20))
         self.maximize_btn.setMinimumWidth(40)
         self.maximize_btn.setMaximumWidth(40)
@@ -1614,7 +1671,7 @@ class COLWorkshop(QWidget): #vers 3
         layout.addWidget(self.maximize_btn)
 
         self.close_btn = QPushButton()
-        self.close_btn.setIcon(self.icon_factory.close_icon())
+        self.close_btn.setIcon(self.icon_factory.close_icon(color=icon_color))
         self.close_btn.setIconSize(QSize(20, 20))
         self.close_btn.setMinimumWidth(40)
         self.close_btn.setMaximumWidth(40)
@@ -1646,7 +1703,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Flip Vertical
         self.flip_vert_btn = QPushButton()
-        self.flip_vert_btn.setIcon(self.icon_factory.flip_vert_icon())
+        self.flip_vert_btn.setIcon(self.icon_factory.flip_vert_icon(color=icon_color))
         self.flip_vert_btn.setIconSize(icon_size)
         self.flip_vert_btn.setFixedHeight(btn_height)
         self.flip_vert_btn.setMinimumWidth(btn_width)
@@ -1657,7 +1714,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Flip Horizontal
         self.flip_horz_btn = QPushButton()
-        self.flip_horz_btn.setIcon(self.icon_factory.flip_horz_icon())
+        self.flip_horz_btn.setIcon(self.icon_factory.flip_horz_icon(color=icon_color))
         self.flip_horz_btn.setIconSize(icon_size)
         self.flip_horz_btn.setFixedHeight(btn_height)
         self.flip_horz_btn.setMinimumWidth(btn_width)
@@ -1668,7 +1725,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Rotate Clockwise
         self.rotate_cw_btn = QPushButton()
-        self.rotate_cw_btn.setIcon(self.icon_factory.rotate_cw_icon())
+        self.rotate_cw_btn.setIcon(self.icon_factory.rotate_cw_icon(color=icon_color))
         self.rotate_cw_btn.setIconSize(icon_size)
         self.rotate_cw_btn.setFixedHeight(btn_height)
         self.rotate_cw_btn.setMinimumWidth(btn_width)
@@ -1679,7 +1736,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Rotate Counter-Clockwise
         self.rotate_ccw_btn = QPushButton()
-        self.rotate_ccw_btn.setIcon(self.icon_factory.rotate_ccw_icon())
+        self.rotate_ccw_btn.setIcon(self.icon_factory.rotate_ccw_icon(color=icon_color))
         self.rotate_ccw_btn.setIconSize(icon_size)
         self.rotate_ccw_btn.setFixedHeight(btn_height)
         self.rotate_ccw_btn.setMinimumWidth(btn_width)
@@ -1690,7 +1747,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Analyze
         self.analyze_btn = QPushButton()
-        self.analyze_btn.setIcon(self.icon_factory.analyze_icon())
+        self.analyze_btn.setIcon(self.icon_factory.analyze_icon(color=icon_color))
         self.analyze_btn.setIconSize(icon_size)
         self.analyze_btn.setFixedHeight(btn_height)
         self.analyze_btn.setMinimumWidth(btn_width)
@@ -1702,7 +1759,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Copy
         self.copy_btn = QPushButton()
-        self.copy_btn.setIcon(self.icon_factory.copy_icon())
+        self.copy_btn.setIcon(self.icon_factory.copy_icon(color=icon_color))
         self.copy_btn.setIconSize(icon_size)
         self.copy_btn.setFixedHeight(btn_height)
         self.copy_btn.setMinimumWidth(btn_width)
@@ -1713,7 +1770,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Paste
         self.paste_btn = QPushButton()
-        self.paste_btn.setIcon(self.icon_factory.paste_icon())
+        self.paste_btn.setIcon(self.icon_factory.paste_icon(color=icon_color))
         self.paste_btn.setIconSize(icon_size)
         self.paste_btn.setFixedHeight(btn_height)
         self.paste_btn.setMinimumWidth(btn_width)
@@ -1724,7 +1781,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Create
         self.create_surface_btn = QPushButton()
-        self.create_surface_btn.setIcon(self.icon_factory.add_icon())
+        self.create_surface_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
         self.create_surface_btn.setIconSize(icon_size)
         self.create_surface_btn.setFixedHeight(btn_height)
         self.create_surface_btn.setMinimumWidth(btn_width)
@@ -1734,7 +1791,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Delete
         self.delete_surface_btn = QPushButton()
-        self.delete_surface_btn.setIcon(self.icon_factory.delete_icon())
+        self.delete_surface_btn.setIcon(self.icon_factory.delete_icon(color=icon_color))
         self.delete_surface_btn.setIconSize(icon_size)
         self.delete_surface_btn.setFixedHeight(btn_height)
         self.delete_surface_btn.setMinimumWidth(btn_width)
@@ -1745,7 +1802,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Duplicate
         self.duplicate_surface_btn = QPushButton()
-        self.duplicate_surface_btn.setIcon(self.icon_factory.duplicate_icon())
+        self.duplicate_surface_btn.setIcon(self.icon_factory.duplicate_icon(color=icon_color))
         self.duplicate_surface_btn.setIconSize(icon_size)
         self.duplicate_surface_btn.setFixedHeight(btn_height)
         self.duplicate_surface_btn.setMinimumWidth(btn_width)
@@ -1756,7 +1813,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Paint
         self.paint_btn = QPushButton()
-        self.paint_btn.setIcon(self.icon_factory.paint_icon())
+        self.paint_btn.setIcon(self.icon_factory.paint_icon(color=icon_color))
         self.paint_btn.setIconSize(icon_size)
         self.paint_btn.setFixedHeight(btn_height)
         self.paint_btn.setMinimumWidth(btn_width)
@@ -1767,7 +1824,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Surface Type
         self.surface_type_btn = QPushButton()
-        self.surface_type_btn.setIcon(self.icon_factory.checkerboard_icon())
+        self.surface_type_btn.setIcon(self.icon_factory.checkerboard_icon(color=icon_color))
         self.surface_type_btn.setIconSize(icon_size)
         self.surface_type_btn.setFixedHeight(btn_height)
         self.surface_type_btn.setMinimumWidth(btn_width)
@@ -1777,7 +1834,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Surface Edit
         self.surface_edit_btn = QPushButton()
-        self.surface_edit_btn.setIcon(self.icon_factory.surfaceedit_icon())
+        self.surface_edit_btn.setIcon(self.icon_factory.surfaceedit_icon(color=icon_color))
         self.surface_edit_btn.setIconSize(icon_size)
         self.surface_edit_btn.setFixedHeight(btn_height)
         self.surface_edit_btn.setMinimumWidth(btn_width)
@@ -1787,7 +1844,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Build from TXD
         self.build_from_txd_btn = QPushButton()
-        self.build_from_txd_btn.setIcon(self.icon_factory.build_icon())
+        self.build_from_txd_btn.setIcon(self.icon_factory.build_icon(color=icon_color))
         self.build_from_txd_btn.setIconSize(icon_size)
         self.build_from_txd_btn.setFixedHeight(btn_height)
         self.build_from_txd_btn.setMinimumWidth(btn_width)
@@ -1971,41 +2028,90 @@ class COLWorkshop(QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 4
+    def _create_middle_panel(self): #vers 5
         """Create middle panel with COL models table - theme-aware"""
-        panel = QGroupBox("COL Models")
-
-        # Get theme colors
-        if self.app_settings:
-            colors = self.app_settings.get_theme_colors()
-            bg_color = colors.get('panel_bg', '#2b2b2b')
-            border_color = colors.get('border', '#3a3a3a')
-            text_color = colors.get('text_primary', '#e0e0e0')
-        else:
-            bg_color = '#2b2b2b'
-            border_color = '#3a3a3a'
-            text_color = '#e0e0e0'
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(250)
 
         layout = QVBoxLayout(panel)
-        layout.setSpacing(5)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(4)
 
-        # Model table widget (like TXD Workshop texture_table)
+        # Header label (instead of QGroupBox title so we can control font)
+        header = QLabel("COL Models")
+        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        layout.addWidget(header)
+
+        # ── Mini toolbar: Open / Save / Extract / Undo ────────────────────
+        icon_color = self._get_icon_color()
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(3)
+
+        self.open_col_btn = QPushButton("Open")
+        self.open_col_btn.setFont(self.button_font)
+        self.open_col_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.open_col_btn.setIconSize(QSize(20, 20))
+        self.open_col_btn.setToolTip("Open COL file")
+        self.open_col_btn.clicked.connect(self.open_col_file)
+        btn_row.addWidget(self.open_col_btn)
+
+        self.save_col_btn = QPushButton("Save")
+        self.save_col_btn.setFont(self.button_font)
+        self.save_col_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
+        self.save_col_btn.setIconSize(QSize(20, 20))
+        self.save_col_btn.setToolTip("Save COL file")
+        self.save_col_btn.clicked.connect(self._save_file)
+        self.save_col_btn.setEnabled(False)
+        btn_row.addWidget(self.save_col_btn)
+
+        self.export_col_btn = QPushButton("Extract")
+        self.export_col_btn.setFont(self.button_font)
+        self.export_col_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+        self.export_col_btn.setIconSize(QSize(20, 20))
+        self.export_col_btn.setToolTip("Export all COL models")
+        self.export_col_btn.clicked.connect(self.export_all_textures)
+        self.export_col_btn.setEnabled(False)
+        btn_row.addWidget(self.export_col_btn)
+
+        self.undo_col_btn = QPushButton()
+        self.undo_col_btn.setFont(self.button_font)
+        self.undo_col_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
+        self.undo_col_btn.setIconSize(QSize(20, 20))
+        self.undo_col_btn.setToolTip("Undo last change")
+        self.undo_col_btn.clicked.connect(self._undo_last_action)
+        self.undo_col_btn.setEnabled(False)
+        btn_row.addWidget(self.undo_col_btn)
+
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        # ── Model table ───────────────────────────────────────────────────
         self.collision_list = QTableWidget()
-        # Compatibility for table functions
+
+        # Compatibility shim so table functions that use gui_layout.table work
         class _GuiLayout:
             def __init__(self, table):
                 self.table = table
         self.gui_layout = _GuiLayout(self.collision_list)
+
         self.collision_list.setColumnCount(8)
-        self.collision_list.setHorizontalHeaderLabels(["Model Name", "Type", "Version", "Size", "Spheres", "Boxes", "Vertices", "Faces"])
-        self.collision_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.collision_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.collision_list.setHorizontalHeaderLabels([
+            "Model Name", "Type", "Version", "Size",
+            "Spheres", "Boxes", "Vertices", "Faces"])
+        self.collision_list.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        self.collision_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection)
         self.collision_list.setAlternatingRowColors(True)
         self.collision_list.itemSelectionChanged.connect(self._on_collision_selected)
-        self.collision_list.horizontalHeader().setStretchLastSection(True)  # Details column stretches
+        self.collision_list.horizontalHeader().setStretchLastSection(True)
+        self.collision_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.collision_list.customContextMenuRequested.connect(
+            self._show_collision_context_menu)
         layout.addWidget(self.collision_list)
-        self.collision_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.collision_list.customContextMenuRequested.connect(self._show_collision_context_menu)
+
         return panel
 
 
@@ -2085,7 +2191,7 @@ class COLWorkshop(QWidget): #vers 3
             # Switch button
             self.switch_btn = QPushButton("Mesh")
             self.switch_btn.setFont(self.button_font)
-            self.switch_btn.setIcon(self.icon_factory.flip_vert_icon())
+            self.switch_btn.setIcon(self.icon_factory.flip_vert_icon(color=icon_color))
             self.switch_btn.setIconSize(QSize(20, 20))
             #self.switch_btn.clicked.connect(self.switch_surface_view)
             self.switch_btn.setEnabled(False)
@@ -2095,7 +2201,7 @@ class COLWorkshop(QWidget): #vers 3
             # Convert
             self.convert_btn = QPushButton("Convert")
             self.convert_btn.setFont(self.button_font)
-            self.convert_btn.setIcon(self.icon_factory.convert_icon())
+            self.convert_btn.setIcon(self.icon_factory.convert_icon(color=icon_color))
             self.convert_btn.setIconSize(QSize(20, 20))
             self.convert_btn.setToolTip("Convert Collision format")
             #self.convert_btn.clicked.connect(self._convert_surface)
@@ -2113,7 +2219,7 @@ class COLWorkshop(QWidget): #vers 3
 
             self.show_shadow_btn = QPushButton("View")
             self.show_shadow_btn.setFont(self.button_font)
-            self.show_shadow_btn.setIcon(self.icon_factory.view_icon())
+            self.show_shadow_btn.setIcon(self.icon_factory.view_icon(color=icon_color))
             self.show_shadow_btn.setIconSize(QSize(20, 20))
             self.show_shadow_btn.setToolTip("View all levels")
             #self.show_shadow_btn.clicked.connect(self._open_mipmap_manager)
@@ -2122,7 +2228,7 @@ class COLWorkshop(QWidget): #vers 3
 
             self.create_shadow_btn = QPushButton("Create")
             self.create_shadow_btn.setFont(self.button_font)
-            self.create_shadow_btn.setIcon(self.icon_factory.add_icon())
+            self.create_shadow_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
             self.create_shadow_btn.setIconSize(QSize(20, 20))
             self.create_shadow_btn.setToolTip("Generate Shadow Mesh")
             #self.create_shadow_btn.clicked.connect(self.shadow_dialog)
@@ -2131,7 +2237,7 @@ class COLWorkshop(QWidget): #vers 3
 
             self.remove_shadow_btn = QPushButton("Remove")
             self.remove_shadow_btn.setFont(self.button_font)
-            self.remove_shadow_btn.setIcon(self.icon_factory.delete_icon())
+            self.remove_shadow_btn.setIcon(self.icon_factory.delete_icon(color=icon_color))
             self.remove_shadow_btn.setIconSize(QSize(20, 20))
             self.remove_shadow_btn.setToolTip("Remove Shodow Mesh")
             #self.remove_shadow_btn.clicked.connect(self._remove_shadow)
@@ -2143,7 +2249,7 @@ class COLWorkshop(QWidget): #vers 3
 
             self.compress_btn = QPushButton("Compress")
             self.compress_btn.setFont(self.button_font)
-            self.compress_btn.setIcon(self.icon_factory.compress_icon())
+            self.compress_btn.setIcon(self.icon_factory.compress_icon(color=icon_color))
             self.compress_btn.setIconSize(QSize(20, 20))
             self.compress_btn.setToolTip("Compress Collision")
             #self.compress_btn.clicked.connect(self._compress_surface)
@@ -2152,7 +2258,7 @@ class COLWorkshop(QWidget): #vers 3
 
             self.uncompress_btn = QPushButton("Uncompress")
             self.uncompress_btn.setFont(self.button_font)
-            self.uncompress_btn.setIcon(self.icon_factory.uncompress_icon())
+            self.uncompress_btn.setIcon(self.icon_factory.uncompress_icon(color=icon_color))
             self.uncompress_btn.setIconSize(QSize(20, 20))
             self.uncompress_btn.setToolTip("Uncompress Collision")
             #self.uncompress_btn.clicked.connect(self._uncompress_surface)
@@ -2161,7 +2267,7 @@ class COLWorkshop(QWidget): #vers 3
 
             self.import_btn = QPushButton("Import")
             self.import_btn.setFont(self.button_font)
-            self.import_btn.setIcon(self.icon_factory.import_icon())
+            self.import_btn.setIcon(self.icon_factory.import_icon(color=icon_color))
             self.import_btn.setIconSize(QSize(20, 20))
             self.import_btn.setToolTip("Import col, cst, 3ds files")
             #self.import_btn.clicked.connect(self._import_selected)
@@ -2170,7 +2276,7 @@ class COLWorkshop(QWidget): #vers 3
 
             self.export_btn = QPushButton("Export")
             self.export_btn.setFont(self.button_font)
-            self.export_btn.setIcon(self.icon_factory.export_icon())
+            self.export_btn.setIcon(self.icon_factory.export_icon(color=icon_color))
             self.export_btn.setIconSize(QSize(20, 20))
             self.export_btn.setToolTip("Export col, cst, 3ds files")
             #self.export_btn.clicked.connect(self.export_selected)
@@ -2199,7 +2305,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Zoom In
         zoom_in_btn = QPushButton()
-        zoom_in_btn.setIcon(self.icon_factory.zoom_in_icon())
+        zoom_in_btn.setIcon(self.icon_factory.zoom_in_icon(color=icon_color))
         zoom_in_btn.setIconSize(QSize(20, 20))
         zoom_in_btn.setFixedSize(40, 40)
         zoom_in_btn.setToolTip("Zoom In")
@@ -2208,7 +2314,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Zoom Out
         zoom_out_btn = QPushButton()
-        zoom_out_btn.setIcon(self.icon_factory.zoom_out_icon())
+        zoom_out_btn.setIcon(self.icon_factory.zoom_out_icon(color=icon_color))
         zoom_out_btn.setIconSize(QSize(20, 20))
         zoom_out_btn.setFixedSize(40, 40)
         zoom_out_btn.setToolTip("Zoom Out")
@@ -2217,7 +2323,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Reset
         reset_btn = QPushButton()
-        reset_btn.setIcon(self.icon_factory.reset_icon())
+        reset_btn.setIcon(self.icon_factory.reset_icon(color=icon_color))
         reset_btn.setIconSize(QSize(20, 20))
         reset_btn.setFixedSize(40, 40)
         reset_btn.setToolTip("Reset View")
@@ -2226,7 +2332,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Fit
         fit_btn = QPushButton()
-        fit_btn.setIcon(self.icon_factory.fit_icon())
+        fit_btn.setIcon(self.icon_factory.fit_icon(color=icon_color))
         fit_btn.setIconSize(QSize(20, 20))
         fit_btn.setFixedSize(40, 40)
         fit_btn.setToolTip("Fit to Window")
@@ -2237,7 +2343,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Pan Up
         pan_up_btn = QPushButton()
-        pan_up_btn.setIcon(self.icon_factory.arrow_up_icon())
+        pan_up_btn.setIcon(self.icon_factory.arrow_up_icon(color=icon_color))
         pan_up_btn.setIconSize(QSize(20, 20))
         pan_up_btn.setFixedSize(40, 40)
         pan_up_btn.setToolTip("Pan Up")
@@ -2246,7 +2352,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Pan Down
         pan_down_btn = QPushButton()
-        pan_down_btn.setIcon(self.icon_factory.arrow_down_icon())
+        pan_down_btn.setIcon(self.icon_factory.arrow_down_icon(color=icon_color))
         pan_down_btn.setIconSize(QSize(20, 20))
         pan_down_btn.setFixedSize(40, 40)
         pan_down_btn.setToolTip("Pan Down")
@@ -2255,7 +2361,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Pan Left
         pan_left_btn = QPushButton()
-        pan_left_btn.setIcon(self.icon_factory.arrow_left_icon())
+        pan_left_btn.setIcon(self.icon_factory.arrow_left_icon(color=icon_color))
         pan_left_btn.setIconSize(QSize(20, 20))
         pan_left_btn.setFixedSize(40, 40)
         pan_left_btn.setToolTip("Pan Left")
@@ -2264,7 +2370,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Pan Right
         pan_right_btn = QPushButton()
-        pan_right_btn.setIcon(self.icon_factory.arrow_right_icon())
+        pan_right_btn.setIcon(self.icon_factory.arrow_right_icon(color=icon_color))
         pan_right_btn.setIconSize(QSize(20, 20))
         pan_right_btn.setFixedSize(40, 40)
         pan_right_btn.setToolTip("Pan Right")
@@ -2273,7 +2379,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Color picker
         bg_custom_btn = QPushButton()
-        bg_custom_btn.setIcon(self.icon_factory.color_picker_icon())
+        bg_custom_btn.setIcon(self.icon_factory.color_picker_icon(color=icon_color))
         bg_custom_btn.setIconSize(QSize(20, 20))
         bg_custom_btn.setFixedSize(40, 40)
         bg_custom_btn.setToolTip("Pick Background Color")
@@ -2284,7 +2390,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # View Spheres toggle
         self.view_spheres_btn = QPushButton()
-        self.view_spheres_btn.setIcon(self.icon_factory.sphere_icon())
+        self.view_spheres_btn.setIcon(self.icon_factory.sphere_icon(color=icon_color))
         self.view_spheres_btn.setIconSize(QSize(20, 20))
         self.view_spheres_btn.setFixedSize(40, 40)
         self.view_spheres_btn.setCheckable(True)
@@ -2295,7 +2401,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # View Boxes toggle
         self.view_boxes_btn = QPushButton()
-        self.view_boxes_btn.setIcon(self.icon_factory.box_icon())
+        self.view_boxes_btn.setIcon(self.icon_factory.box_icon(color=icon_color))
         self.view_boxes_btn.setIconSize(QSize(20, 20))
         self.view_boxes_btn.setFixedSize(40, 40)
         self.view_boxes_btn.setCheckable(True)
@@ -2306,7 +2412,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # View Mesh toggle
         self.view_mesh_btn = QPushButton()
-        self.view_mesh_btn.setIcon(self.icon_factory.mesh_icon())
+        self.view_mesh_btn.setIcon(self.icon_factory.mesh_icon(color=icon_color))
         self.view_mesh_btn.setIconSize(QSize(20, 20))
         self.view_mesh_btn.setFixedSize(40, 40)
         self.view_mesh_btn.setCheckable(True)
@@ -2318,7 +2424,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Icon label
         self.backface_btn = QPushButton()
-        self.backface_btn.setIcon(self.icon_factory.backface_icon())
+        self.backface_btn.setIcon(self.icon_factory.backface_icon(color=icon_color))
         self.backface_btn.setIconSize(QSize(20, 20))
         self.backface_btn.setFixedSize(40, 40)
         self.backface_btn.setCheckable(True)
@@ -3392,12 +3498,12 @@ class COLWorkshop(QWidget): #vers 3
         menu.exec(self.mapToGlobal(pos))
 
 
-    def _get_icon_color(self): #vers 1
-        """Get icon color from current theme"""
+    def _get_icon_color(self): #vers 2
+        """Get icon colour from current theme — returns text_primary."""
         if APPSETTINGS_AVAILABLE and self.app_settings:
             colors = self.app_settings.get_theme_colors()
-            return colors.get('text_primary', '#ffffff')
-        return '#ffffff'
+            return colors.get('text_primary', '#000000')
+        return '#000000'
 
 
     def _apply_fonts_to_widgets(self): #vers 1
@@ -5350,7 +5456,7 @@ class COLEditorDialog(QDialog): #vers 3
 
         # View mode buttons
         btn_spheres = QPushButton()
-        btn_spheres.setIcon(self.icon_factory.sphere_icon())
+        btn_spheres.setIcon(self.icon_factory.sphere_icon(color=icon_color))
         btn_spheres.setCheckable(True)
         btn_spheres.setChecked(True)
         btn_spheres.setToolTip("Toggle Spheres")
@@ -5359,7 +5465,7 @@ class COLEditorDialog(QDialog): #vers 3
         )
 
         btn_boxes = QPushButton()
-        btn_boxes.setIcon(self.icon_factory.box_icon())
+        btn_boxes.setIcon(self.icon_factory.box_icon(color=icon_color))
         btn_boxes.setCheckable(True)
         btn_boxes.setChecked(True)
         btn_boxes.setToolTip("Toggle Boxes")
@@ -5368,7 +5474,7 @@ class COLEditorDialog(QDialog): #vers 3
         )
 
         btn_mesh = QPushButton()
-        btn_mesh.setIcon(self.icon_factory.mesh_icon())
+        btn_mesh.setIcon(self.icon_factory.mesh_icon(color=icon_color))
         btn_mesh.setCheckable(True)
         btn_mesh.setChecked(True)
         btn_mesh.setToolTip("Toggle Mesh")
@@ -5377,7 +5483,7 @@ class COLEditorDialog(QDialog): #vers 3
         )
 
         btn_wireframe = QPushButton()
-        btn_wireframe.setIcon(self.icon_factory.wireframe_icon())
+        btn_wireframe.setIcon(self.icon_factory.wireframe_icon(color=icon_color))
         btn_wireframe.setCheckable(True)
         btn_wireframe.setChecked(True)
         btn_wireframe.setToolTip("Toggle Wireframe")
@@ -5386,7 +5492,7 @@ class COLEditorDialog(QDialog): #vers 3
         )
 
         btn_bounds = QPushButton()
-        btn_bounds.setIcon(self.icon_factory.bounds_icon())
+        btn_bounds.setIcon(self.icon_factory.bounds_icon(color=icon_color))
         btn_bounds.setCheckable(True)
         btn_bounds.setChecked(True)
         btn_bounds.setToolTip("Toggle Bounding Box")
@@ -5402,7 +5508,7 @@ class COLEditorDialog(QDialog): #vers 3
 
         # Camera controls
         btn_reset = QPushButton()
-        btn_reset.setIcon(self.icon_factory.reset_view_icon())
+        btn_reset.setIcon(self.icon_factory.reset_view_icon(color=icon_color))
         btn_reset.setToolTip("Reset View")
         btn_reset.clicked.connect(self.viewer_3d.reset_view)
 
