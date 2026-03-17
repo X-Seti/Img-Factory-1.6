@@ -134,10 +134,11 @@ class IMGVersion(Enum):
     VERSION_ANPK    = 43  # PSP ANPK animation package - named DGAN clip blocks
     VERSION_BULLY   = 44  # Bully PS2 named-entry archive - 64-byte name-only directory
     VERSION_HXD     = 45  # Bully HXD/MXD/AGR bone+animation data - float header + path
+    VERSION_IOS_LVZ = 49  # iOS LCS/VCS LVZ — two-level DLRW tree (no 0xAAAAAAAA sentinels)
     VERSION_DTZ_VCS = 46  # GAME.DTZ VCS PS2/PSP — zlib blob with Relocatable Chunk header
     VERSION_DTZ_LCS = 47  # GAME.DTZ LCS PS2/PSP — zlib blob with Relocatable Chunk header
     VERSION_IRX     = 48  # PS2 IOP MIPS ELF module (.irx) — read-only system file
-    VERSION_1_IOS   = 47  # iOS GTA3/VC (*_pvr.img) - 12-byte entries, 512-byte sectors, no names
+    VERSION_1_IOS   = 54  # iOS GTA3/VC (*_pvr.img) - 12-byte entries, 512-byte sectors, no names
     VERSION_XBOX        = 50  # Xbox GTA3/VC - DIR+IMG pair, LZO-compressed entries, 2048-byte sectors
     VERSION_SA_ANDROID  = 51  # Android SA - VER2 header, 2048-byte sectors, mobile texture DB
     VERSION_LCS_ANDROID = 52  # Android LCS - VER2 header, TXD version 0x1005FFFF embedded in IMG
@@ -1786,6 +1787,9 @@ class IMGFile:
             return success
 
         except Exception as e:
+            import traceback
+            print(f"[IMGFile.open] Exception for {self.file_path}: {e}")
+            traceback.print_exc()
             return False
 
     def _parse_all_entries(self): #vers 2
