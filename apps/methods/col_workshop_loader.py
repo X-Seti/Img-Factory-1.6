@@ -31,24 +31,28 @@ from apps.debug.debug_functions import img_debugger
 class COLFile: #vers 1
     """High-level COL file interface"""
     
-    def __init__(self, debug: bool = False): #vers 1
-        """Initialize COL file handler"""
+    def __init__(self, file_path: Optional[str] = None, debug: bool = False): #vers 2
+        """Initialize COL file handler.
+        file_path: optional path — stored so load() can be called with no args.
+        debug: enable debug output.
+        """
         self.parser = COLParser(debug=debug)
         self.debug = debug
         self.models: List[COLModel] = []
         self.is_loaded = False
         self.load_error = ""
-        self.file_path: Optional[str] = None
+        self.file_path: Optional[str] = file_path
         self.raw_data: Optional[bytes] = None
     
 
-    def load(self, file_path: str) -> bool: #vers 1
-        """
-        Load COL file from disk
-        
-        Returns: True if successful
-        """
+    def load(self, file_path: str = None) -> bool: #vers 2
+        """Load COL file from disk. Uses self.file_path if no arg given."""
         try:
+            if file_path is None:
+                file_path = self.file_path
+            if not file_path or not isinstance(file_path, str):
+                self.load_error = f"Invalid file path: {file_path!r}"
+                return False
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"COL file not found: {file_path}")
             

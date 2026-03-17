@@ -2038,8 +2038,8 @@ class COLWorkshop(QWidget): #vers 3
         return panel
 
 
-    def _create_middle_panel(self): #vers 5
-        """Create middle panel with COL models table - theme-aware"""
+    def _create_middle_panel(self): #vers 6
+        """Create middle panel with COL models table — mini toolbar + view toggle."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(250)
@@ -2048,14 +2048,25 @@ class COLWorkshop(QWidget): #vers 3
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(4)
 
-        # Header label (instead of QGroupBox title so we can control font)
+        # ── Header row: title + [T] view-toggle ──────────────────────────
+        hdr_row = QHBoxLayout()
         header = QLabel("COL Models")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        hdr_row.addWidget(header)
+        hdr_row.addStretch()
 
-        # ── Mini toolbar: Open / Save / Extract / Undo ──────────────────
-        # Wrapped in a QFrame so it can be shown/hidden as one unit.
-        # Only visible when docked — the full toolbar covers these in standalone.
+        self._col_view_mode = 'list'   # 'list' | 'detail'
+        self.col_view_toggle_btn = QPushButton("[T]")
+        self.col_view_toggle_btn.setFont(self.button_font)
+        self.col_view_toggle_btn.setFixedWidth(32)
+        self.col_view_toggle_btn.setFixedHeight(22)
+        self.col_view_toggle_btn.setToolTip(
+            "Toggle view: compact list ↔ full details table")
+        self.col_view_toggle_btn.clicked.connect(self._toggle_col_view)
+        hdr_row.addWidget(self.col_view_toggle_btn)
+        layout.addLayout(hdr_row)
+
+        # ── Mini toolbar: Open / Save / Extract / Undo ───────────────────
         icon_color = self._get_icon_color()
         self._middle_btn_row = QFrame()
         btn_layout = QHBoxLayout(self._middle_btn_row)
@@ -2099,14 +2110,11 @@ class COLWorkshop(QWidget): #vers 3
 
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
-
-        # Hidden in standalone — toolbar already has Open/Save/Extract/Undo
         self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
 
-        # ── Model table ───────────────────────────────────────────────────
+        # ── Model table (detail view) ────────────────────────────────────
         self.collision_list = QTableWidget()
 
-        # Compatibility shim so table functions that use gui_layout.table work
         class _GuiLayout:
             def __init__(self, table):
                 self.table = table
@@ -2128,6 +2136,26 @@ class COLWorkshop(QWidget): #vers 3
         self.collision_list.customContextMenuRequested.connect(
             self._show_collision_context_menu)
         layout.addWidget(self.collision_list)
+
+        # ── Compact list (thumbnail + name/version/counts, single row) ───
+        self.col_compact_list = QTableWidget()
+        self.col_compact_list.setColumnCount(2)
+        self.col_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
+        self.col_compact_list.horizontalHeader().setStretchLastSection(True)
+        self.col_compact_list.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        self.col_compact_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection)
+        self.col_compact_list.setAlternatingRowColors(True)
+        self.col_compact_list.setIconSize(QSize(64, 64))
+        self.col_compact_list.itemSelectionChanged.connect(
+            self._on_compact_col_selected)
+        self.col_compact_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.col_compact_list.customContextMenuRequested.connect(
+            self._show_collision_context_menu)
+        self.col_compact_list.setVisible(False)   # hidden until [T] pressed
+        layout.addWidget(self.col_compact_list)
 
         return panel
 
