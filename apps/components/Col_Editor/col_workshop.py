@@ -3646,6 +3646,102 @@ class COLWorkshop(QWidget): #vers 3
             QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
 
 
+    def _undo_last_action(self): #vers 1
+        """Undo the last change to the COL file."""
+        try:
+            if not self.undo_stack:
+                return
+            self.undo_stack.pop()
+            if hasattr(self, 'undo_col_btn'):
+                self.undo_col_btn.setEnabled(len(self.undo_stack) > 0)
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message("Undo: reverted last change")
+        except Exception as e:
+            print(f"Undo error: {e}")
+
+    def _export_col_data(self): #vers 1
+        """Export selected COL models (or all if none selected) to individual .col files."""
+        try:
+            if not self.current_col_file:
+                QMessageBox.warning(self, "Export", "No COL file loaded.")
+                return
+
+            models = getattr(self.current_col_file, 'models', [])
+            if not models:
+                QMessageBox.warning(self, "Export", "No collision models to export.")
+                return
+
+            # Determine which rows to export
+            selected_rows = self.collision_list.selectionModel().selectedRows()
+            if selected_rows:
+                indices = [r.row() for r in selected_rows if r.row() < len(models)]
+            else:
+                indices = list(range(len(models)))
+
+            if not indices:
+                return
+
+            # Single model — save directly
+            if len(indices) == 1:
+                model = models[indices[0]]
+                name = getattr(model, 'name', f'model_{indices[0]}')
+                default = name.lower().replace(' ', '_') + '.col'
+                path, _ = QFileDialog.getSaveFileName(
+                    self, "Export COL Model", default,
+                    "COL Files (*.col);;All Files (*)")
+                if not path:
+                    return
+                paths = [(indices[0], path)]
+            else:
+                # Multiple — ask for a folder
+                from PyQt6.QtWidgets import QFileDialog as _QFD
+                folder = _QFD.getExistingDirectory(
+                    self, f"Export {len(indices)} COL Models to Folder")
+                if not folder:
+                    return
+                import os
+                paths = []
+                for i in indices:
+                    name = getattr(models[i], 'name', f'model_{i}')
+                    fname = name.lower().replace(' ', '_') + '.col'
+                    paths.append((i, os.path.join(folder, fname)))
+
+            # Write each model
+            import os
+            from apps.methods.col_workshop_loader import COLFile
+            ok = 0
+            for idx, out_path in paths:
+                try:
+                    model = models[idx]
+                    out_col = COLFile()
+                    out_col.models = [model]
+                    raw = getattr(model, '_raw_bytes', None)
+                    if hasattr(out_col, 'save') and out_col.save(out_path):
+                        ok += 1
+                    elif raw:
+                        with open(out_path, 'wb') as f:
+                            f.write(raw)
+                        ok += 1
+                    else:
+                        print(f"Could not serialise model {idx} ({getattr(model,'name','')})")
+                except Exception as e:
+                    print(f"Export model {idx} failed: {e}")
+
+            msg = (f"Exported {ok} of {len(paths)} model(s)."
+                   if len(paths) > 1 else
+                   f"Exported {os.path.basename(paths[0][1])}")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(msg)
+            if ok:
+                QMessageBox.information(self, "Export Complete", msg)
+            else:
+                QMessageBox.warning(self, "Export Failed",
+                    "No models could be serialised.\n"
+                    "Export from right-click → Export Model for individual models.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
     def _save_file(self): #vers 1
         """Save current COL file"""
         try:
