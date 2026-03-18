@@ -615,6 +615,25 @@ def integrate_right_click_actions(main_window): #vers 3
         return False
 
 # Additional functions needed for context menu
+def _xref_for_img(main_window, img) -> object: #vers 1
+    """Return the best-matching GTAWorldXRef for the given IMG file.
+    Checks xref_by_root first (keyed by game root), falls back to main_window.xref.
+    """
+    if not main_window:
+        return None
+    xref_by_root = getattr(main_window, 'xref_by_root', {})
+    if xref_by_root and img:
+        img_path = getattr(img, 'file_path', '') or getattr(img, 'path', '')
+        if img_path:
+            import os as _os
+            img_dir = _os.path.dirname(_os.path.abspath(img_path))
+            # Walk up from IMG dir to find matching game root
+            for game_root, xref in xref_by_root.items():
+                if img_dir.startswith(game_root) or game_root.startswith(img_dir[:len(game_root)]):
+                    return xref
+    return getattr(main_window, 'xref', None)
+
+
 def show_dff_texture_list(main_window, row): #vers 3
     """Extract DFF from IMG and show texture list dialog with TXD checker.
     Cross-references DAT Browser xref to find the IDE-declared TXD name.
@@ -633,9 +652,9 @@ def show_dff_texture_list(main_window, row): #vers 3
                 main_window.log_message(f"Could not read {entry.name}")
             return
 
-        # Look up IDE-declared TXD name from DAT Browser xref
+        # Look up IDE-declared TXD name — pick xref matching the IMG's game root
         ide_txd_name = None
-        xref = getattr(main_window, 'xref', None)
+        xref = _xref_for_img(main_window, img)
         if xref and hasattr(xref, 'model_map'):
             stem = entry.name.rsplit('.', 1)[0].lower()
             ide_obj = xref.model_map.get(stem)

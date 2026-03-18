@@ -427,6 +427,7 @@ class DATBrowserWidget(QWidget): #vers 2
             try:
                 game_root = getattr(self._thread, "game_root", "")
                 self.xref = build_xref(self.loader, game_root)
+                self.xref.game_root = game_root   # tag xref with its game root
                 self.xref_ready.emit(self.xref)
             except Exception as e:
                 if img_debugger:
@@ -770,9 +771,14 @@ def _wire_xref_signal(widget, main_window): #vers 2
     """Connect widget.xref_ready to apply tooltips on ALL open IMG tabs."""
     def _on_xref_ready(xref):
         try:
-            # Store xref on main_window so other components can use it
+            # Store xref on main_window keyed by game_root, plus a 'last' slot
             if main_window:
-                main_window.xref = xref
+                main_window.xref = xref   # most recently loaded xref
+                if not hasattr(main_window, 'xref_by_root'):
+                    main_window.xref_by_root = {}
+                gr = getattr(xref, 'game_root', '')
+                if gr:
+                    main_window.xref_by_root[gr] = xref
             from apps.methods.populate_img_table import apply_xref_tooltips
             tw = getattr(main_window, "main_tab_widget", None)
             if not tw:

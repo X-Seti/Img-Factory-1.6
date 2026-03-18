@@ -173,7 +173,17 @@ def find_missing_txds(main_window) -> list: #vers 1
     if not img or not hasattr(img, 'entries'):
         return results
 
+    # Pick xref matching this IMG's game root if multiple are loaded
+    xref_by_root = getattr(main_window, 'xref_by_root', {})
     xref = getattr(main_window, 'xref', None)
+    if xref_by_root and img:
+        img_path = getattr(img, 'file_path', '') or getattr(img, 'path', '')
+        if img_path:
+            img_dir = os.path.dirname(os.path.abspath(img_path))
+            for game_root, candidate in xref_by_root.items():
+                if img_dir.startswith(game_root) or game_root.startswith(img_dir[:len(game_root)]):
+                    xref = candidate
+                    break
     model_map = xref.model_map if xref and hasattr(xref, 'model_map') else {}
 
     # Build set of txd stems in the IMG for fast lookup

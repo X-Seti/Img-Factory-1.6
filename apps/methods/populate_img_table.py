@@ -212,11 +212,26 @@ class IMGTablePopulator:
                 self.populate_table_row_minimal(table, row, entry)
             img_debugger.info(f"Table populated with {len(entries)} entries")
 
-            # Apply DAT cross-reference tooltips if a DAT browser xref is available
+            # Apply DAT cross-reference tooltips — pick xref matching this IMG's game root
             try:
                 mw = self.main_window
-                dat_browser = getattr(mw, "dat_browser", None)
-                xref = getattr(dat_browser, "xref", None) if dat_browser else None
+                xref = None
+                # Try per-root lookup first, then dat_browser.xref, then main_window.xref
+                xref_by_root = getattr(mw, 'xref_by_root', {})
+                if xref_by_root and self.img_file:
+                    import os as _os
+                    img_path = getattr(self.img_file, 'file_path', '') or getattr(self.img_file, 'path', '')
+                    if img_path:
+                        img_dir = _os.path.dirname(_os.path.abspath(img_path))
+                        for game_root, candidate in xref_by_root.items():
+                            if img_dir.startswith(game_root) or game_root.startswith(img_dir[:len(game_root)]):
+                                xref = candidate
+                                break
+                if not xref:
+                    dat_browser = getattr(mw, "dat_browser", None)
+                    xref = getattr(dat_browser, "xref", None) if dat_browser else None
+                if not xref:
+                    xref = getattr(mw, 'xref', None)
                 if xref:
                     from apps.methods.populate_img_table import apply_xref_tooltips
                     hits = apply_xref_tooltips(table, xref)
