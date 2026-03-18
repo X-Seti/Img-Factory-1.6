@@ -222,11 +222,19 @@ class IMGTablePopulator:
                     import os as _os
                     img_path = getattr(self.img_file, 'file_path', '') or getattr(self.img_file, 'path', '')
                     if img_path:
-                        img_dir = _os.path.dirname(_os.path.abspath(img_path))
-                        for game_root, candidate in xref_by_root.items():
-                            if img_dir.startswith(game_root) or game_root.startswith(img_dir[:len(game_root)]):
-                                xref = candidate
-                                break
+                        img_abs = _os.path.abspath(img_path)
+                        best_root, best_len = None, 0
+                        for game_root in xref_by_root:
+                            gr = _os.path.normcase(_os.path.abspath(game_root))
+                            ip = _os.path.normcase(img_abs)
+                            try:
+                                common = _os.path.commonpath([gr, ip])
+                                if _os.path.normcase(common) == gr and len(gr) > best_len:
+                                    best_root, best_len = game_root, len(gr)
+                            except ValueError:
+                                pass
+                        if best_root:
+                            xref = xref_by_root[best_root]
                 if not xref:
                     dat_browser = getattr(mw, "dat_browser", None)
                     xref = getattr(dat_browser, "xref", None) if dat_browser else None

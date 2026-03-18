@@ -615,9 +615,10 @@ def integrate_right_click_actions(main_window): #vers 3
         return False
 
 # Additional functions needed for context menu
-def _xref_for_img(main_window, img) -> object: #vers 1
+def _xref_for_img(main_window, img) -> object: #vers 2
     """Return the best-matching GTAWorldXRef for the given IMG file.
-    Checks xref_by_root first (keyed by game root), falls back to main_window.xref.
+    Matches by checking if the img path is under the xref's game_root.
+    Falls back to main_window.xref (most recently loaded).
     """
     if not main_window:
         return None
@@ -626,11 +627,23 @@ def _xref_for_img(main_window, img) -> object: #vers 1
         img_path = getattr(img, 'file_path', '') or getattr(img, 'path', '')
         if img_path:
             import os as _os
-            img_dir = _os.path.dirname(_os.path.abspath(img_path))
-            # Walk up from IMG dir to find matching game root
-            for game_root, xref in xref_by_root.items():
-                if img_dir.startswith(game_root) or game_root.startswith(img_dir[:len(game_root)]):
-                    return xref
+            img_abs = _os.path.abspath(img_path)
+            # Check if img is under any known game root
+            best_root = None
+            best_len  = 0
+            for game_root in xref_by_root:
+                gr = _os.path.normcase(_os.path.abspath(game_root))
+                ip = _os.path.normcase(img_abs)
+                # Use os.path.commonpath for reliable prefix matching
+                try:
+                    common = _os.path.commonpath([gr, ip])
+                    if _os.path.normcase(common) == gr and len(gr) > best_len:
+                        best_root = game_root
+                        best_len  = len(gr)
+                except ValueError:
+                    pass  # different drives on Windows
+            if best_root:
+                return xref_by_root[best_root]
     return getattr(main_window, 'xref', None)
 
 
