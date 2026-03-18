@@ -140,3 +140,57 @@ def get_dff_texture_report(data: bytes, img_entries=None, search_dirs=None) -> d
     in_img  = check_txd_in_img(names, img_entries or [])
     on_disk = check_txd_on_disk(names, search_dirs or [])
     return {'textures': names, 'in_img': in_img, 'on_disk': on_disk}
+
+
+def find_missing_txds(main_window) -> list: #vers 1
+    """Scan all DFF entries in the loaded IMG.
+    For each DFF, use xref to get IDE-declared TXD name.
+    Returns list of dicts:
+      {dff, ide_txd, in_img, textures_in_dff, textures_missing}
+    """
+    results = []
+    img = getattr(main_window, 'current_img', None)
+    if not img or not hasattr(img, 'entries'):
+        return results
+
+    xref = getattr(main_window, 'xref', None)
+    model_map = xref.model_map if xref and hasattr(xref, 'model_map') else {}
+
+    # Build set of txd stems in the IMG for fast lookup
+    txd_in_img = set()
+    for e in img.entries:
+        n = getattr(e, 'name', '')
+        if n.lower().endswith('.txd'):
+            txd_in_img.add(os.path.splitext(n.lower())[0])
+
+    dff_entries = [e for e in img.entries if getattr(e,'name','').lower().endswith('.dff')]
+
+    for entry in dff_entries:
+        stem = entry.name.rsplit('.', 1)[0].lower()
+        ide_obj = model_map.get(stem)
+        ide_txd = ide_obj.txd_name if ide_obj and getattr(ide_obj,'txd_name',None) else None
+
+        # Only flag if IDE says there should be a TXD and it's not in the IMG
+        txd_found = (ide_txd.lower() in txd_in_img) if ide_txd else None
+
+        # Read DFF textures — skip if TXD exists (no problem)
+        tex_in_dff = []
+        tex_missing = []
+        if ide_txd and not txd_found:
+            try:
+                data = img.read_entry_data(entry)
+                if data:
+                    tex_in_dff = parse_dff_textures(data)
+                    tex_missing = [t for t in tex_in_dff if t.lower() not in txd_in_img]
+            except Exception:
+                pass
+
+        results.append({
+            'dff':              entry.name,
+            'ide_txd':          ide_txd,
+            'in_img':           txd_found,
+            'textures_in_dff':  tex_in_dff,
+            'textures_missing': tex_missing,
+        })
+
+    return results
