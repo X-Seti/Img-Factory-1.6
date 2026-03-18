@@ -770,6 +770,9 @@ def _wire_xref_signal(widget, main_window): #vers 2
     """Connect widget.xref_ready to apply tooltips on ALL open IMG tabs."""
     def _on_xref_ready(xref):
         try:
+            # Store xref on main_window so other components can use it
+            if main_window:
+                main_window.xref = xref
             from apps.methods.populate_img_table import apply_xref_tooltips
             tw = getattr(main_window, "main_tab_widget", None)
             if not tw:

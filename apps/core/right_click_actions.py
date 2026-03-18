@@ -615,8 +615,10 @@ def integrate_right_click_actions(main_window): #vers 3
         return False
 
 # Additional functions needed for context menu
-def show_dff_texture_list(main_window, row): #vers 2
-    """Extract DFF from IMG and show texture list dialog with TXD checker."""
+def show_dff_texture_list(main_window, row): #vers 3
+    """Extract DFF from IMG and show texture list dialog with TXD checker.
+    Cross-references DAT Browser xref to find the IDE-declared TXD name.
+    """
     try:
         img = getattr(main_window, 'current_img', None)
         if not img or not img.entries or not (0 <= row < len(img.entries)):
@@ -631,8 +633,18 @@ def show_dff_texture_list(main_window, row): #vers 2
                 main_window.log_message(f"Could not read {entry.name}")
             return
 
+        # Look up IDE-declared TXD name from DAT Browser xref
+        ide_txd_name = None
+        xref = getattr(main_window, 'xref', None)
+        if xref and hasattr(xref, 'model_map'):
+            stem = entry.name.rsplit('.', 1)[0].lower()
+            ide_obj = xref.model_map.get(stem)
+            if ide_obj and getattr(ide_obj, 'txd_name', None):
+                ide_txd_name = ide_obj.txd_name
+
         from apps.gui.dff_texlist_dialog import show_dff_texlist_dialog
-        show_dff_texlist_dialog(main_window, entry.name, dff_data)
+        show_dff_texlist_dialog(main_window, entry.name, dff_data,
+                                ide_txd_name=ide_txd_name)
 
     except Exception as e:
         if hasattr(main_window, 'log_message'):

@@ -45,6 +45,20 @@ class DFFTexListDialog(QDialog): #vers 1
     def _build_ui(self): #vers 1
         layout = QVBoxLayout(self)
 
+        # IDE TXD label — from DAT Browser xref
+        ide_txd = self.report.get('ide_txd_name')
+        if ide_txd:
+            in_img = any(
+                getattr(e, 'name', '').lower() == ide_txd.lower() + '.txd'
+                for e in (self.img_entries or [])
+            )
+            status = "found in IMG" if in_img else "NOT in IMG"
+            color  = "#00a000" if in_img else "#b00000"
+            ide_label = QLabel(
+                f"IDE TXD: <b>{ide_txd}.txd</b> — <span style='color:{color}'>{status}</span>")
+            ide_label.setTextFormat(Qt.TextFormat.RichText)
+            layout.addWidget(ide_label)
+
         # Summary label
         tex_count = len(self.report.get('textures', []))
         self._summary = QLabel(f"{tex_count} texture(s) referenced in {self.dff_name}")
@@ -172,14 +186,15 @@ class DFFTexListDialog(QDialog): #vers 1
                 f"Could not open TXD Workshop:\n{e}")
 
 
-def show_dff_texlist_dialog(main_window, dff_name: str, dff_data: bytes): #vers 1
+def show_dff_texlist_dialog(main_window, dff_name: str, dff_data: bytes,
+                            ide_txd_name: str = None): #vers 2
     """Extract textures from dff_data and show the dialog.
-    main_window: IMG Factory main window (for IMG entries + game root).
+    ide_txd_name: TXD name from IDE cross-reference (DAT Browser xref).
     """
     from apps.core.dff_texlist import get_dff_texture_report
 
-    img_entries  = []
-    search_dirs  = []
+    img_entries = []
+    search_dirs = []
 
     if main_window:
         img = getattr(main_window, 'current_img', None)
@@ -194,6 +209,7 @@ def show_dff_texlist_dialog(main_window, dff_name: str, dff_data: bytes): #vers 
             ]
 
     report = get_dff_texture_report(dff_data, img_entries, search_dirs)
+    report['ide_txd_name'] = ide_txd_name  # may be None if DAT Browser not loaded
 
     dlg = DFFTexListDialog(main_window, dff_name, report,
                            img_entries=img_entries, main_window=main_window)
