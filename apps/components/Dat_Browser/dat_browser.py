@@ -314,13 +314,15 @@ class DATBrowserWidget(QWidget): #vers 2
         self._load_btn.setVisible(False)
 
         mw = self.main_window
-        dt = getattr(mw, "directory_tree", None)
-        root = (getattr(dt, "current_path", None) if dt else None) \
-            or getattr(mw, "game_root", None)
+        # Project manager game_root takes priority over Dir Tree's last-browsed path
+        root = getattr(mw, "game_root", None)
+        if not root or not os.path.isdir(root):
+            dt = getattr(mw, "directory_tree", None)
+            root = getattr(dt, "current_path", None) if dt else None
 
         if not root or not os.path.isdir(root):
             self._status_lbl.setText(
-                "No path set in Dir Tree — browse there first.")
+                "No game root set — set it in the project manager or browse.")
             # Restore buttons so the user isn't stuck
             self._browse_btn.setVisible(True)
             self._load_btn.setVisible(True)
@@ -852,12 +854,11 @@ def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers
         if widget._path_edit.text().strip():
             return
 
-        game_root = None
-        dt = getattr(main_window, "directory_tree", None)
-        if dt:
-            game_root = getattr(dt, "current_path", None)
-        if not game_root:
-            game_root = getattr(main_window, "game_root", None)
+        # Project manager game_root takes priority over Dir Tree last-browsed path
+        game_root = getattr(main_window, "game_root", None)
+        if not game_root or not os.path.isdir(game_root):
+            dt = getattr(main_window, "directory_tree", None)
+            game_root = getattr(dt, "current_path", None) if dt else None
         if not game_root or not os.path.isdir(game_root):
             return
 
@@ -888,13 +889,11 @@ def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
                 main_window.log_message("DAT Browser not open — open it first")
             return False
 
-        # Pull path from directory tree
-        game_root = None
-        dt = getattr(main_window, "directory_tree", None)
-        if dt and getattr(dt, "current_path", None):
-            game_root = dt.current_path
+        # Project manager game_root takes priority over Dir Tree last-browsed path
+        game_root = getattr(main_window, "game_root", None)
         if not game_root:
-            game_root = getattr(main_window, "game_root", None)
+            dt = getattr(main_window, "directory_tree", None)
+            game_root = getattr(dt, "current_path", None) if dt else None
         if not game_root:
             if hasattr(main_window, "log_message"):
                 main_window.log_message("No game root set in directory tree")
