@@ -635,6 +635,37 @@ class IMGFactoryMenuBar:
         find_corrupt_action.triggered.connect(self._find_corruption)
         tools_menu.addAction(find_corrupt_action)
 
+        # IDE/COL/TXD cross-reference find submenu
+        tools_menu.addSeparator()
+        find_menu = tools_menu.addMenu("&Find in IDE/COL")
+
+        a = QAction("Not in IDE (DFF / TXD)", self.main_window)
+        a.setStatusTip("Find DFF and TXD entries not present in any IDE file")
+        a.triggered.connect(lambda: self._find_ide("not_in_ide"))
+        find_menu.addAction(a)
+
+        a = QAction("Orphan TXD", self.main_window)
+        a.setStatusTip("Find TXD entries not referenced by any IDE object")
+        a.triggered.connect(lambda: self._find_ide("orphan_txd"))
+        find_menu.addAction(a)
+
+        a = QAction("Not in COLFILE", self.main_window)
+        a.setStatusTip("Find COL entries not listed in any COLFILE directive")
+        a.triggered.connect(lambda: self._find_ide("orphan_col"))
+        find_menu.addAction(a)
+
+        find_menu.addSeparator()
+
+        a = QAction("All COL entries", self.main_window)
+        a.setStatusTip("List all COL entries with COLFILE status")
+        a.triggered.connect(lambda: self._find_ide("all_col"))
+        find_menu.addAction(a)
+
+        a = QAction("All DFF entries", self.main_window)
+        a.setStatusTip("List all DFF entries with IDE status")
+        a.triggered.connect(lambda: self._find_ide("all_dff"))
+        find_menu.addAction(a)
+
         # Move action
         move_action = QAction("Move Selected", self.main_window)
         if row is not None and entry_info:
@@ -681,6 +712,28 @@ class IMGFactoryMenuBar:
         else:
             QMessageBox.information(self.main_window, "Validate IMG", "IMG validation functionality not available")
 
+
+    def _find_ide(self, mode: str): #vers 1
+        """Dispatch to img_ide_find functions."""
+        try:
+            from apps.core.img_ide_find import (
+                find_not_in_ide, find_orphan_txd, find_orphan_col,
+                find_all_col, find_all_dff_in_ide
+            )
+            dispatch = {
+                'not_in_ide':  find_not_in_ide,
+                'orphan_txd':  find_orphan_txd,
+                'orphan_col':  find_orphan_col,
+                'all_col':     find_all_col,
+                'all_dff':     find_all_dff_in_ide,
+            }
+            fn = dispatch.get(mode)
+            if fn:
+                fn(self.main_window)
+            else:
+                QMessageBox.information(self.main_window, "Find", f"Unknown mode: {mode}")
+        except Exception as e:
+            QMessageBox.warning(self.main_window, "Find Error", str(e))
 
     def _find_duplicates(self):
         """Find duplicate entries in IMG"""

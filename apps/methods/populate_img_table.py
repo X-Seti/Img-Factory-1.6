@@ -633,6 +633,84 @@ def populate_col_column(table, paired: list) -> int: #vers 1
     return hits
 
 
+
+def apply_xref_status(table, xref) -> int: #vers 1
+    """Update the Status column (col 7) with IDE/COLFILE membership info.
+    Called after xref loads so entries show In IDE / Not in IDE / Orphan TXD etc.
+    Returns number of rows updated.
+    """
+    if not table or not xref:
+        return 0
+
+    from PyQt6.QtGui import QColor, QBrush
+    model_map  = getattr(xref, 'model_map',  {})
+    txd_stems  = getattr(xref, 'txd_stems',  set())
+    col_stems  = getattr(xref, 'col_stems',  set())
+
+    green  = QColor(0, 160, 0)
+    red    = QColor(180, 0, 0)
+    grey   = QColor(120, 120, 120)
+    STATUS = 7
+
+    updated = 0
+    for row in range(table.rowCount()):
+        name_item = table.item(row, 0)
+        if not name_item:
+            continue
+        name = name_item.text()
+        if '.' not in name:
+            continue
+        stem = name.rsplit('.', 1)[0].lower()
+        ext  = name.rsplit('.', 1)[1].lower()
+
+        if ext == 'dff':
+            obj = model_map.get(stem)
+            if obj:
+                txd  = getattr(obj, 'txd_name', '')
+                text = 'In IDE' + (f' — {txd}' if txd and txd.lower() != 'null' else '')
+                color = green
+            else:
+                text  = 'Not in IDE'
+                color = red
+
+        elif ext == 'txd':
+            if stem in txd_stems:
+                text  = 'In IDE'
+                color = green
+            else:
+                text  = 'Orphan TXD'
+                color = grey
+
+        elif ext == 'col':
+            if stem in col_stems:
+                text  = 'In COLFILE'
+                color = green
+            else:
+                text  = 'Not in COLFILE'
+                color = red
+
+        else:
+            continue
+
+        status_item = table.item(row, STATUS)
+        if status_item is None:
+            from PyQt6.QtWidgets import QTableWidgetItem
+            status_item = QTableWidgetItem()
+            table.setItem(row, STATUS, status_item)
+
+        # Preserve any existing prefix (Imported / Replaced / Original)
+        existing = status_item.text()
+        prefix = ''
+        for tag in ('Imported', 'Replaced', 'Original', 'Pinned'):
+            if tag in existing:
+                prefix = tag + ' • '
+                break
+        status_item.setText(prefix + text)
+        status_item.setForeground(QBrush(color))
+        updated += 1
+
+    return updated
+
 def apply_xref_tooltips(table, xref) -> int: #vers 2
     """Apply DAT cross-reference tooltips to every row in an IMG table.
 
@@ -671,6 +749,7 @@ __all__ = [
     'clear_img_table',
     'install_img_table_populator',
     'update_img_table_selection_info',
+    'apply_xref_status',
     'apply_xref_tooltips',
     'populate_col_column',
 ]
