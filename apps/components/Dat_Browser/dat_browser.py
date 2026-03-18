@@ -795,10 +795,10 @@ def _wire_xref_signal(widget, main_window): #vers 2
                     total_tips   += apply_xref_tooltips(table, xref)
                     total_status += apply_xref_status(table, xref)
                     # Unhide IDE Model and IDE TXD columns now that xref is loaded
-                    if table.columnCount() > 9:
-                        table.setColumnHidden(9, False)
-                    if table.columnCount() > 10:
-                        table.setColumnHidden(10, False)
+                    for c in range(table.columnCount()):
+                        h = table.horizontalHeaderItem(c)
+                        if h and h.text() in ('IDE Model', 'IDE TXD'):
+                            table.setColumnHidden(c, False)
             if hasattr(main_window, "log_message"):
                 main_window.log_message(
                     f"XRef: {total_tips} tooltips, "

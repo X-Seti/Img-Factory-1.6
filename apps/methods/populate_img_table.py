@@ -653,9 +653,10 @@ def _set_cell(table, row: int, col: int, text: str): #vers 1
     item.setText(str(text))
 
 
-def apply_xref_status(table, xref) -> int: #vers 1
-    """Update the Status column (col 7) with IDE/COLFILE membership info.
-    Called after xref loads so entries show In IDE / Not in IDE / Orphan TXD etc.
+def apply_xref_status(table, xref) -> int: #vers 2
+    """Update the Status column with IDE/COLFILE membership info.
+    Detects Status column by header name — works for both table layouts
+    (with or without Date column).
     Returns number of rows updated.
     """
     if not table or not xref:
@@ -669,7 +670,23 @@ def apply_xref_status(table, xref) -> int: #vers 1
     green  = QColor(0, 160, 0)
     red    = QColor(180, 0, 0)
     grey   = QColor(120, 120, 120)
-    STATUS = 7
+
+    # Detect column indices by header name — robust to layout differences
+    STATUS = IDE_MODEL = IDE_TXD = -1
+    for c in range(table.columnCount()):
+        h = table.horizontalHeaderItem(c)
+        if not h:
+            continue
+        t = h.text()
+        if t == 'Status':
+            STATUS = c
+        elif t == 'IDE Model':
+            IDE_MODEL = c
+        elif t == 'IDE TXD':
+            IDE_TXD = c
+
+    if STATUS < 0:
+        return 0
 
     updated = 0
     for row in range(table.rowCount()):
@@ -689,8 +706,8 @@ def apply_xref_status(table, xref) -> int: #vers 1
                 text = 'In IDE' + (f' — {txd}' if txd and txd.lower() != 'null' else '')
                 color = green
                 # Fill hidden IDE columns
-                _set_cell(table, row, 9,  getattr(obj, 'model_name', stem))
-                _set_cell(table, row, 10, txd if txd and txd.lower() != 'null' else '')
+                if IDE_MODEL >= 0: _set_cell(table, row, IDE_MODEL, getattr(obj, 'model_name', stem))
+                if IDE_TXD >= 0:   _set_cell(table, row, IDE_TXD,   txd if txd and txd.lower() != 'null' else '')
             else:
                 text  = 'Not in IDE'
                 color = red
@@ -699,8 +716,8 @@ def apply_xref_status(table, xref) -> int: #vers 1
             if stem in txd_stems:
                 text  = 'In IDE'
                 color = green
-                _set_cell(table, row, 9,  stem)
-                _set_cell(table, row, 10, stem)  # TXD is its own entry
+                if IDE_MODEL >= 0: _set_cell(table, row, IDE_MODEL, stem)
+                if IDE_TXD >= 0:   _set_cell(table, row, IDE_TXD,   stem)
             else:
                 text  = 'Orphan TXD'
                 color = grey
