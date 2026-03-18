@@ -143,8 +143,9 @@ def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 4
     hybrid load reveals it via table.setColumnHidden(8, False).
     """
     try:
-        img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "COL"]
-        table.setColumnCount(9)
+        img_headers = ["Name", "Type", "Size", "Offset", "RW Address", "RW Version",
+                       "Encoding", "Status", "COL", "IDE Model", "IDE TXD"]
+        table.setColumnCount(11)
         table.setHorizontalHeaderLabels(img_headers)
         table.setColumnWidth(0, 190)  # Name
         table.setColumnWidth(1, 60)   # Type
@@ -155,11 +156,15 @@ def setup_table_for_img_data(table: QTableWidget) -> bool: #vers 4
         table.setColumnWidth(6, 110)  # Encoding
         table.setColumnWidth(7, 110)  # Status
         table.setColumnWidth(8, 160)  # COL
-        table.setColumnHidden(8, True)  # hidden until hybrid load
+        table.setColumnWidth(9, 160)  # IDE Model
+        table.setColumnWidth(10, 120) # IDE TXD
+        table.setColumnHidden(8, True)   # hidden until hybrid load
+        table.setColumnHidden(9, True)   # hidden until xref loads
+        table.setColumnHidden(10, True)  # hidden until xref loads
         header = table.horizontalHeader()
         header.setSectionsMovable(True)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for col in range(1, 9):
+        for col in range(1, 11):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
         table.setSortingEnabled(True)
         img_debugger.debug("Table structure setup for IMG data")
@@ -183,9 +188,10 @@ class IMGTablePopulator:
             if not table:
                 img_debugger.error("No table found for IMG population")
                 return False
-            table.setColumnCount(9)
+            table.setColumnCount(11)
             table.setHorizontalHeaderLabels([
-                "Name", "Type", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "COL"
+                "Name", "Type", "Size", "Offset", "RW Address", "RW Version",
+                "Encoding", "Status", "COL", "IDE Model", "IDE TXD"
             ])
             table.setColumnWidth(0, 190)
             table.setColumnWidth(1, 60)
@@ -200,7 +206,7 @@ class IMGTablePopulator:
             header = table.horizontalHeader()
             header.setSectionsMovable(True)
             header.setStretchLastSection(True)
-            for col in range(8):
+            for col in range(10):
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             entries = img_file.entries
             if not entries:
@@ -634,6 +640,16 @@ def populate_col_column(table, paired: list) -> int: #vers 1
 
 
 
+def _set_cell(table, row: int, col: int, text: str): #vers 1
+    """Set text in a table cell, creating the item if needed."""
+    from PyQt6.QtWidgets import QTableWidgetItem
+    item = table.item(row, col)
+    if item is None:
+        item = QTableWidgetItem()
+        table.setItem(row, col, item)
+    item.setText(str(text))
+
+
 def apply_xref_status(table, xref) -> int: #vers 1
     """Update the Status column (col 7) with IDE/COLFILE membership info.
     Called after xref loads so entries show In IDE / Not in IDE / Orphan TXD etc.
@@ -669,6 +685,9 @@ def apply_xref_status(table, xref) -> int: #vers 1
                 txd  = getattr(obj, 'txd_name', '')
                 text = 'In IDE' + (f' — {txd}' if txd and txd.lower() != 'null' else '')
                 color = green
+                # Fill hidden IDE columns
+                _set_cell(table, row, 9,  getattr(obj, 'model_name', stem))
+                _set_cell(table, row, 10, txd if txd and txd.lower() != 'null' else '')
             else:
                 text  = 'Not in IDE'
                 color = red
@@ -677,6 +696,8 @@ def apply_xref_status(table, xref) -> int: #vers 1
             if stem in txd_stems:
                 text  = 'In IDE'
                 color = green
+                _set_cell(table, row, 9,  stem)
+                _set_cell(table, row, 10, stem)  # TXD is its own entry
             else:
                 text  = 'Orphan TXD'
                 color = grey
