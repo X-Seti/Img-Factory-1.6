@@ -12,9 +12,12 @@ import struct
 from typing import List, Dict, Optional
 
 ##Methods list -
+# _build_txd_set
 # check_txd_in_img
 # check_txd_on_disk
+# find_missing_txds
 # get_dff_texture_report
+# ide_txd_in_img
 # parse_dff_textures
 
 RW_STRING  = 0x0002
@@ -107,14 +110,31 @@ def _fallback_string_scan(data: bytes) -> List[str]: #vers 1
     return list(dict.fromkeys(names))
 
 
-def check_txd_in_img(tex_names: List[str], img_entries) -> Dict[str, bool]: #vers 1
-    """Check which texture names have a matching .txd in the loaded IMG entries."""
-    txd_set = set()
+def check_txd_in_img(tex_names: List[str], img_entries) -> Dict[str, bool]: #vers 2
+    """Check which texture names have a matching .txd stem in the IMG entries.
+    Note: GTA uses shared TXDs — a texture name is unlikely to match a TXD stem.
+    Use ide_txd_in_img() to check the IDE-declared TXD instead.
+    """
+    txd_set = _build_txd_set(img_entries)
+    return {name: name.lower() in txd_set for name in tex_names}
+
+
+def ide_txd_in_img(ide_txd_name: str, img_entries) -> bool: #vers 1
+    """Check if the IDE-declared TXD name exists as a .txd entry in the IMG."""
+    if not ide_txd_name:
+        return False
+    txd_set = _build_txd_set(img_entries)
+    return ide_txd_name.lower() in txd_set
+
+
+def _build_txd_set(img_entries) -> set: #vers 1
+    """Build a set of lowercase TXD stems from IMG entries."""
+    result = set()
     for entry in (img_entries or []):
         n = getattr(entry, 'name', '')
         if n.lower().endswith('.txd'):
-            txd_set.add(os.path.splitext(n.lower())[0])
-    return {name: name.lower() in txd_set for name in tex_names}
+            result.add(os.path.splitext(n.lower())[0])
+    return result
 
 
 def check_txd_on_disk(tex_names: List[str], search_dirs: List[str]) -> Dict[str, Optional[str]]: #vers 1
@@ -134,7 +154,7 @@ def check_txd_on_disk(tex_names: List[str], search_dirs: List[str]) -> Dict[str,
     return result
 
 
-def get_dff_texture_report(data: bytes, img_entries=None, search_dirs=None) -> dict: #vers 1
+def get_dff_texture_report(data: bytes, img_entries=None, search_dirs=None) -> dict: #vers 2
     """Full report: texture names + IMG check + disk check."""
     names   = parse_dff_textures(data)
     in_img  = check_txd_in_img(names, img_entries or [])
@@ -157,11 +177,7 @@ def find_missing_txds(main_window) -> list: #vers 1
     model_map = xref.model_map if xref and hasattr(xref, 'model_map') else {}
 
     # Build set of txd stems in the IMG for fast lookup
-    txd_in_img = set()
-    for e in img.entries:
-        n = getattr(e, 'name', '')
-        if n.lower().endswith('.txd'):
-            txd_in_img.add(os.path.splitext(n.lower())[0])
+    txd_in_img = _build_txd_set(img.entries)
 
     dff_entries = [e for e in img.entries if getattr(e,'name','').lower().endswith('.dff')]
 

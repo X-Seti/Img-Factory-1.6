@@ -58,10 +58,8 @@ class DFFTexListDialog(QDialog): #vers 1
         # IDE TXD label — from DAT Browser xref
         ide_txd = self.report.get('ide_txd_name')
         if ide_txd:
-            in_img = any(
-                os.path.splitext(getattr(e, 'name', '').lower())[0] == ide_txd.lower()
-                for e in (self.img_entries or [])
-            )
+            from apps.core.dff_texlist import ide_txd_in_img
+            in_img = ide_txd_in_img(ide_txd, self.img_entries)
             status = "found in IMG" if in_img else "NOT in IMG"
             color  = "#00a000" if in_img else "#b00000"
             ide_label = QLabel(
@@ -78,7 +76,7 @@ class DFFTexListDialog(QDialog): #vers 1
         # Table: Name | In IMG | On Disk
         self.table = QTableWidget()
         self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Texture Name", "In IMG", "On Disk"])
+        self.table.setHorizontalHeaderLabels(["Texture Name", "In DFF Textures", "On Disk"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
@@ -143,10 +141,8 @@ class DFFTexListDialog(QDialog): #vers 1
         # Highlight Build TXD button if IDE TXD is missing from IMG
         ide_txd = self.report.get('ide_txd_name')
         if ide_txd:
-            ide_in_img = any(
-                os.path.splitext(getattr(e, 'name', '').lower())[0] == ide_txd.lower()
-                for e in (self.img_entries or [])
-            )
+            from apps.core.dff_texlist import ide_txd_in_img
+            ide_in_img = ide_txd_in_img(ide_txd, self.img_entries)
             if not ide_in_img:
                 self.build_txd_btn.setStyleSheet(
                     "background-color: #8b0000; color: white; font-weight: bold;")
