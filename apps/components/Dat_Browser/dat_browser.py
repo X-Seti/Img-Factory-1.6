@@ -314,15 +314,14 @@ class DATBrowserWidget(QWidget): #vers 2
         self._load_btn.setVisible(False)
 
         mw = self.main_window
-        # Project manager game_root takes priority over Dir Tree's last-browsed path
+        # Use project manager game_root only; fall back to home folder
         root = getattr(mw, "game_root", None)
         if not root or not os.path.isdir(root):
-            dt = getattr(mw, "directory_tree", None)
-            root = getattr(dt, "current_path", None) if dt else None
+            root = os.path.expanduser("~")
 
         if not root or not os.path.isdir(root):
             self._status_lbl.setText(
-                "No game root set — set it in the project manager or browse.")
+                "No game root set — browse to find the game folder.")
             # Restore buttons so the user isn't stuck
             self._browse_btn.setVisible(True)
             self._load_btn.setVisible(True)
@@ -854,11 +853,10 @@ def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers
         if widget._path_edit.text().strip():
             return
 
-        # Project manager game_root takes priority over Dir Tree last-browsed path
+        # Use project manager game_root only; fall back to home folder
         game_root = getattr(main_window, "game_root", None)
         if not game_root or not os.path.isdir(game_root):
-            dt = getattr(main_window, "directory_tree", None)
-            game_root = getattr(dt, "current_path", None) if dt else None
+            game_root = os.path.expanduser("~")
         if not game_root or not os.path.isdir(game_root):
             return
 
