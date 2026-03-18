@@ -784,6 +784,13 @@ def _wire_xref_signal(widget, main_window): #vers 2
             tw = getattr(main_window, "main_tab_widget", None)
             if not tw:
                 return
+            # Diagnostic: log xref size and sample entries
+            if hasattr(main_window, "log_message"):
+                sample = list(xref.model_map.keys())[:3]
+                main_window.log_message(
+                    f"XRef built: {len(xref.model_map)} models, "
+                    f"game_root={getattr(xref,'game_root','')} "
+                    f"sample={sample}")
             total_hits = 0
             for i in range(tw.count()):
                 tab = tw.widget(i)
@@ -791,8 +798,18 @@ def _wire_xref_signal(widget, main_window): #vers 2
                     continue
                 table = getattr(tab, "table_ref", None)
                 if table:
-                    total_hits += apply_xref_tooltips(table, xref)
-            if total_hits and hasattr(main_window, "log_message"):
+                    hits = apply_xref_tooltips(table, xref)
+                    total_hits += hits
+                    if hasattr(main_window, "log_message") and table.rowCount():
+                        # Sample: first entry name vs xref lookup
+                        first = table.item(0, 0)
+                        if first:
+                            tip = xref.tooltip_for(first.text())
+                            main_window.log_message(
+                                f"  tab {i}: {table.rowCount()} rows, "
+                                f"hits={hits}, "
+                                f"first={first.text()!r} -> {tip[:60]!r}")
+            if hasattr(main_window, "log_message"):
                 main_window.log_message(f"XRef: {total_hits} entries cross-referenced across all tabs")
         except Exception as e:
             if hasattr(main_window, "log_message"):
