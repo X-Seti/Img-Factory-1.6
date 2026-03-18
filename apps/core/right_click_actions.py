@@ -63,10 +63,19 @@ def setup_table_context_menu(main_window): #vers 3
         main_window.log_message(f"Error setting up context menu: {str(e)}")
         return False
 
-def show_context_menu(main_window, position): #vers 5
+def show_context_menu(main_window, position): #vers 6
     """Right-click context menu — grouped by function with submenus per file type."""
     try:
         from apps.methods.export_shared import get_active_table
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        icons = SVGIconFactory()
+
+        # Get theme colour for icons
+        icon_color = '#e0e0e0'
+        if hasattr(main_window, 'app_settings') and main_window.app_settings:
+            colors = main_window.app_settings.get_theme_colors()
+            icon_color = colors.get('text_primary', icon_color)
+
         table = get_active_table(main_window) or main_window.gui_layout.table
         item  = table.itemAt(position)
         if not item:
@@ -96,67 +105,72 @@ def show_context_menu(main_window, position): #vers 5
 
         # ── 1. FILE-TYPE SUBMENUS ─────────────────────────────────────
         if entry_type == 'DFF':
-            dff_menu = menu.addMenu("DFF")
-            a = QAction("Model Info", menu_parent)
+            from apps.methods.imgfactory_svg_icons import get_txd_workshop_icon
+            dff_menu = menu.addMenu("DFF Model")
+            dff_menu.setIcon(icons.info_icon(color=icon_color))
+            a = QAction(icons.info_icon(color=icon_color), "Model Info", menu_parent)
             a.triggered.connect(lambda: show_dff_info(main_window, row))
             dff_menu.addAction(a)
-            a = QAction("Texture List", menu_parent)
+            a = QAction(icons.search_icon(color=icon_color), "Texture List", menu_parent)
             a.triggered.connect(lambda: show_dff_texture_list(main_window, row))
             dff_menu.addAction(a)
             a = QAction("View in Model Workshop", menu_parent)
-            a.setEnabled(False)   # TODO: Model Workshop
+            a.setEnabled(False)
             dff_menu.addAction(a)
+            menu.addSeparator()
 
         elif entry_type == 'TXD':
-            txd_menu = menu.addMenu("TXD")
-            a = QAction("View Textures", menu_parent)
-            a.triggered.connect(lambda: view_txd_textures(main_window, row))
-            txd_menu.addAction(a)
-            a = QAction("Open in TXD Workshop", menu_parent)
+            from apps.methods.imgfactory_svg_icons import get_txd_workshop_icon
+            txd_menu = menu.addMenu("TXD Textures")
+            txd_menu.setIcon(get_txd_workshop_icon(color=icon_color))
+            a = QAction(get_txd_workshop_icon(color=icon_color), "Open in TXD Workshop", menu_parent)
             if hasattr(main_window, 'open_txd_workshop_for_entry'):
                 a.triggered.connect(lambda: main_window.open_txd_workshop_for_entry(row))
             else:
                 a.setEnabled(False)
             txd_menu.addAction(a)
+            a = QAction(icons.search_icon(color=icon_color), "View Textures", menu_parent)
+            a.triggered.connect(lambda: view_txd_textures(main_window, row))
+            txd_menu.addAction(a)
+            menu.addSeparator()
 
         elif entry_type == 'COL':
-            col_menu = menu.addMenu("COL")
-            a = QAction("Open in COL Workshop", menu_parent)
+            from apps.methods.imgfactory_svg_icons import get_col_workshop_icon
+            col_menu = menu.addMenu("COL Collision")
+            col_menu.setIcon(get_col_workshop_icon(color=icon_color))
+            a = QAction(get_col_workshop_icon(color=icon_color), "Open in COL Workshop", menu_parent)
             a.triggered.connect(lambda: edit_col_from_table(main_window, row))
             col_menu.addAction(a)
-            a = QAction("Analyze", menu_parent)
+            a = QAction(icons.info_icon(color=icon_color), "Analyze", menu_parent)
             a.triggered.connect(lambda: analyze_col_from_table(main_window, row))
             col_menu.addAction(a)
+            menu.addSeparator()
 
         elif entry_type == 'IDE':
-            ide_menu = menu.addMenu("IDE")
-            a = QAction("View Definitions", menu_parent)
+            from apps.methods.imgfactory_svg_icons import get_ide_editor_icon
+            ide_menu = menu.addMenu("IDE Definitions")
+            ide_menu.setIcon(get_ide_editor_icon(color=icon_color))
+            a = QAction(icons.search_icon(color=icon_color), "View Definitions", menu_parent)
             a.triggered.connect(lambda: view_ide_definitions(main_window, row))
             ide_menu.addAction(a)
-            a = QAction("Edit File", menu_parent)
+            a = QAction(icons.edit_icon(color=icon_color), "Edit File", menu_parent)
             a.triggered.connect(lambda: edit_ide_file(main_window, row))
             ide_menu.addAction(a)
-
-        if entry_type:
             menu.addSeparator()
 
         # ── 2. EXTRACT / EXPORT ───────────────────────────────────────
         if has_selection and hasattr(main_window, 'extract_selected_files'):
-            a = QAction("Extract Selected", menu_parent)
+            a = QAction(icons.open_icon(color=icon_color), "Extract Selected", menu_parent)
             a.triggered.connect(main_window.extract_selected_files)
             menu.addAction(a)
-            if hasattr(table, '_explicit_start_drag'):
-                a = QAction("Drag to Folder...", menu_parent)
-                a.triggered.connect(table._explicit_start_drag)
-                menu.addAction(a)
 
         if hasattr(main_window, 'extract_all_files'):
-            a = QAction("Extract All", menu_parent)
+            a = QAction(icons.package_icon(color=icon_color), "Extract All", menu_parent)
             a.triggered.connect(main_window.extract_all_files)
             menu.addAction(a)
 
         if hasattr(main_window, 'export_selected'):
-            a = QAction("Export", menu_parent)
+            a = QAction(icons.save_icon(color=icon_color), "Export", menu_parent)
             a.triggered.connect(main_window.export_selected)
             menu.addAction(a)
 
@@ -164,133 +178,87 @@ def show_context_menu(main_window, position): #vers 5
 
         # ── 3. ENTRY OPERATIONS ───────────────────────────────────────
         if has_selection and hasattr(main_window, 'rename_entry'):
-            a = QAction("Rename        F2", menu_parent)
+            a = QAction(icons.edit_icon(color=icon_color), "Rename", menu_parent)
+            a.setShortcut("F2")
             a.triggered.connect(main_window.rename_entry)
             menu.addAction(a)
 
         if has_selection:
             if hasattr(main_window, 'remove_selected_function'):
-                a = QAction("Remove        Del", menu_parent)
+                a = QAction(icons.trash_icon(color=icon_color), "Remove", menu_parent)
+                a.setShortcut("Del")
                 a.triggered.connect(main_window.remove_selected_function)
                 menu.addAction(a)
             elif hasattr(main_window, 'remove_selected'):
-                a = QAction("Remove        Del", menu_parent)
+                a = QAction(icons.trash_icon(color=icon_color), "Remove", menu_parent)
+                a.setShortcut("Del")
                 a.triggered.connect(main_window.remove_selected)
                 menu.addAction(a)
 
         if has_selection and hasattr(main_window, '_move_entries_up'):
-            a = QAction("Move Up       Ctrl+Up", menu_parent)
+            a = QAction("Move Up", menu_parent)
+            a.setShortcut("Ctrl+Up")
             a.triggered.connect(main_window._move_entries_up)
             menu.addAction(a)
-            a = QAction("Move Down     Ctrl+Down", menu_parent)
+            a = QAction("Move Down", menu_parent)
+            a.setShortcut("Ctrl+Down")
             a.triggered.connect(main_window._move_entries_down)
             menu.addAction(a)
 
         if has_selection and hasattr(main_window, 'move_selected_file'):
-            a = QAction("Move to Folder", menu_parent)
+            a = QAction(icons.folder_icon(color=icon_color), "Move to Folder", menu_parent)
             a.triggered.connect(main_window.move_selected_file)
-            menu.addAction(a)
-
-        if has_selection and hasattr(main_window, 'toggle_pinned_entries'):
-            a = QAction("Toggle Pin", menu_parent)
-            a.triggered.connect(main_window.toggle_pinned_entries)
             menu.addAction(a)
 
         menu.addSeparator()
 
-        # ── 4. TOOLS ─────────────────────────────────────────────────
+        # ── 4. CLIPBOARD ─────────────────────────────────────────────
+        copy_menu = menu.addMenu("Copy")
+        copy_menu.setIcon(icons.copy_icon(color=icon_color))
+        a = QAction(f"Cell ({column_name})", menu_parent)
+        a.triggered.connect(lambda: copy_table_cell(main_window, row, col))
+        copy_menu.addAction(a)
+        a = QAction("Row", menu_parent)
+        a.triggered.connect(lambda: copy_table_row(main_window, row))
+        copy_menu.addAction(a)
+        a = QAction("Name", menu_parent)
+        a.triggered.connect(lambda: copy_entry_name(main_window, row))
+        copy_menu.addAction(a)
+        a = QAction("Info", menu_parent)
+        a.triggered.connect(lambda: copy_entry_info(main_window, row))
+        copy_menu.addAction(a)
+        if len(table.selectedItems()) > 1:
+            a = QAction(f"Selection ({len(table.selectedItems())} items)", menu_parent)
+            a.triggered.connect(lambda: copy_table_selection(main_window))
+            copy_menu.addAction(a)
+
+        menu.addSeparator()
+
+        # ── 5. TOOLS ─────────────────────────────────────────────────
         if has_selection and hasattr(main_window, 'analyze_selected_file'):
-            a = QAction("Analyze File", menu_parent)
+            a = QAction(icons.rw_scan_icon(color=icon_color), "Analyze File", menu_parent)
             a.triggered.connect(main_window.analyze_selected_file)
             menu.addAction(a)
 
         if has_selection and hasattr(main_window, 'show_hex_editor_selected'):
-            a = QAction("Hex Editor", menu_parent)
+            a = QAction(icons.editer_icon(color=icon_color), "Hex Editor", menu_parent)
             a.triggered.connect(main_window.show_hex_editor_selected)
             menu.addAction(a)
 
+        if has_selection and hasattr(main_window, 'toggle_pinned_entries'):
+            from apps.methods.imgfactory_svg_icons import get_pin_icon
+            a = QAction(get_pin_icon(color=icon_color), "Toggle Pin", menu_parent)
+            a.triggered.connect(main_window.toggle_pinned_entries)
+            menu.addAction(a)
 
-        # UNDO/REDO OPERATIONS
-        if hasattr(main_window, 'undo'):
-            undo_action = QAction("Undo", menu_parent)
-            undo_action.triggered.connect(main_window.undo)
-            menu.addAction(undo_action)
-
-        if hasattr(main_window, 'redo'):
-            redo_action = QAction("Redo", menu_parent)
-            redo_action.triggered.connect(main_window.redo)
-            menu.addAction(redo_action)
-
-
-        menu.addSeparator()
-
-        # CLIPBOARD OPERATIONS (Basic functionality)
-        copy_cell_action = QAction(f"Copy Cell ({column_name})", menu_parent)
-        copy_cell_action.triggered.connect(lambda: copy_table_cell(main_window, row, col))
-        menu.addAction(copy_cell_action)
-
-        copy_row_action = QAction("Copy Row", menu_parent)
-        copy_row_action.triggered.connect(lambda: copy_table_row(main_window, row))
-        menu.addAction(copy_row_action)
-
-        # Copy row as lines (each cell on a separate line)
-        copy_lines_action = QAction("Copy Lines", menu_parent)
-        copy_lines_action.triggered.connect(lambda: copy_table_row_as_lines(main_window, row))
-        menu.addAction(copy_lines_action)
-
-        copy_column_action = QAction(f"Copy Column ({column_name})", menu_parent)
-        copy_column_action.triggered.connect(lambda: copy_table_column_data(main_window, col))
-        menu.addAction(copy_column_action)
-
-        # Copy Selection action (if multiple items selected)
-        selected_items = table.selectedItems()
-        if len(selected_items) > 1:
-            copy_selection_action = QAction(f"Copy Selection ({len(selected_items)} items)", menu_parent)
-            copy_selection_action.triggered.connect(lambda: copy_table_selection(main_window))
-            menu.addAction(copy_selection_action)
-
-        # Copy operations
-        copy_submenu = menu.addMenu("Copy")
-
-        copy_name_action = QAction("Copy Name", menu)
-        if row is not None:
-            copy_name_action.triggered.connect(lambda: copy_entry_name(main_window, row))
-        copy_submenu.addAction(copy_name_action)
-
-        copy_info_action = QAction("Copy Info", menu)
-        if row is not None:
-            copy_info_action.triggered.connect(lambda: copy_entry_info(main_window, row))
-        copy_submenu.addAction(copy_info_action)
-
-        # Copy selected text from current cell (if text is selected)
-        copy_selected_text_action = QAction("Copy Selected Text", menu_parent)
-        copy_selected_text_action.triggered.connect(lambda: copy_selected_text_from_cell(main_window, row, col))
-        menu.addAction(copy_selected_text_action)
-
-        # Copy filename only (for first column)
-        if col == 0:
-            copy_filename_action = QAction("Copy Filename Only", menu_parent)
-            copy_filename_action.triggered.connect(lambda: copy_filename_only(main_window, row))
-            menu.addAction(copy_filename_action)
-
-        # Copy file summary
-        copy_summary_action = QAction("Copy File Summary", menu_parent)
-        copy_summary_action.triggered.connect(lambda: copy_file_summary(main_window, row))
-        menu.addAction(copy_summary_action)
-
-        # Copy selected row
-        copy_row_action = QAction("Copy Selected Row", menu_parent)
-        copy_row_action.triggered.connect(lambda: copy_table_row(main_window, row))
-        menu.addAction(copy_row_action)
-
-        # Show menu at cursor position
-        menu.exec(table.mapToGlobal(position))
+        menu.exec(table.viewport().mapToGlobal(position))
 
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error showing context menu: {str(e)}")
+            main_window.log_message(f"Error showing context menu: {e}")
+        import traceback; traceback.print_exc()
 
-# CLIPBOARD OPERATIONS
+
 def copy_table_cell(main_window, row: int, col: int): #vers 1
     """Copy single table cell to clipboard"""
     try:
