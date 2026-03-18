@@ -1,12 +1,13 @@
-#this belongs in apps/core/dff_texlist.py - Version: 2
+#this belongs in apps/core/dff_texlist.py - Version: 3
 # X-Seti - March 2026 - IMG Factory 1.6 - DFF Texture List Reader
 """
 DFF Texture List Reader
-Linear scan for Texture (0x0006) chunks containing String (0x0002) names.
-Avoids recursive walking which breaks on Geometry chunks with compressed sizes.
+Byte-scan for Texture (0x0006) chunks — handles all RW versions (GTA3 through SA/LCS).
+Fallback: null-terminated string scan for models with no Texture sub-chunks.
 """
 
 import os
+import re
 import struct
 from typing import List, Dict, Optional
 
@@ -19,47 +20,66 @@ from typing import List, Dict, Optional
 RW_STRING  = 0x0002
 RW_TEXTURE = 0x0006
 
+# Words that indicate non-texture strings
+_SKIP_WORDS = frozenset([
+    'collision', 'mesh', 'frame', 'bone', 'skin', 'anim',
+    'normal', 'matrix', 'object', 'model', 'geometry',
+])
 
-def parse_dff_textures(data: bytes) -> List[str]: #vers 2
-    """Linear scan through DFF binary for Texture (0x0006) chunks.
-    Reads the first String (0x0002) child of each Texture chunk — the diffuse name.
-    Returns deduplicated sorted list. Safe against Geometry chunks with corrupt sizes.
+
+def parse_dff_textures(data: bytes) -> List[str]: #vers 3
+    """Extract texture names from a DFF binary.
+    Byte-scan for Texture (0x0006) chunks, reads first String (0x0002) child.
+    Works across all RW versions — GTA3 (0x0800/0x0C02), VC, SA, LCS.
+    Falls back to null-terminated string scan if no Texture chunks found.
+    """
+    names = _scan_texture_chunks(data)
+    if not names:
+        names = _fallback_string_scan(data)
+    # Deduplicate preserving order, sort
+    seen = set()
+    result = []
+    for n in names:
+        if n.lower() not in seen:
+            seen.add(n.lower())
+            result.append(n)
+    result.sort(key=str.lower)
+    return result
+
+
+def _scan_texture_chunks(data: bytes) -> List[str]: #vers 1
+    """Byte-by-byte scan for Texture chunk signature 06 00 00 00.
+    Reads first String sub-chunk for the diffuse texture name.
     """
     names = []
-    seen  = set()
-    i = 0
     limit = len(data) - 12
-
+    i = 0
     while i < limit:
-        chunk_type = struct.unpack_from('<I', data, i)[0]
-        chunk_size = struct.unpack_from('<I', data, i + 4)[0]
-
-        if chunk_type == RW_TEXTURE and 8 < chunk_size < 512:
-            body  = i + 12
-            end   = body + chunk_size
-            if end <= len(data):
-                name = _first_string(data, body, end)
-                if name and name.lower() not in seen:
-                    seen.add(name.lower())
-                    names.append(name)
-            i = end
-        else:
-            # Advance by 4 — linear scan, don't trust size fields globally
-            i += 4
-
-    names.sort(key=str.lower)
+        # Look for Texture chunk type bytes
+        if data[i] == 0x06 and data[i+1] == 0x00 and data[i+2] == 0x00 and data[i+3] == 0x00:
+            s = struct.unpack_from('<I', data, i + 4)[0]
+            if 8 < s < 512:
+                body_start = i + 12
+                body_end   = body_start + s
+                if body_end <= len(data):
+                    name = _first_string(data, body_start, body_end)
+                    if name:
+                        names.append(name)
+                i = body_end
+                continue
+        i += 1
     return names
 
 
 def _first_string(data: bytes, start: int, end: int) -> Optional[str]: #vers 1
-    """Return first String (0x0002) chunk value found between start and end."""
+    """Return first String (0x0002) chunk value between start and end."""
     j = start
     while j + 12 <= end:
         ct = struct.unpack_from('<I', data, j)[0]
         cs = struct.unpack_from('<I', data, j + 4)[0]
-        body = j + 12
+        body     = j + 12
         body_end = body + cs
-        if body_end > end or cs > end - start:
+        if body_end > end or cs > (end - start):
             break
         if ct == RW_STRING and 0 < cs < 64:
             raw  = data[body:body_end]
@@ -68,6 +88,23 @@ def _first_string(data: bytes, start: int, end: int) -> Optional[str]: #vers 1
                 return name
         j += 12 + cs
     return None
+
+
+def _fallback_string_scan(data: bytes) -> List[str]: #vers 1
+    """Fallback: scan for null-terminated ASCII strings that look like texture names.
+    Used when DFF has no Texture sub-chunks (some GTA3/VC models).
+    """
+    raw = re.findall(rb'[A-Za-z][A-Za-z0-9_]{3,31}\x00', data)
+    names = []
+    for b in raw:
+        n = b.rstrip(b'\x00').decode('ascii', 'ignore')
+        low = n.lower()
+        if any(w in low for w in _SKIP_WORDS):
+            continue
+        # Must contain a digit or underscore to look like a texture name
+        if '_' in n or any(c.isdigit() for c in n):
+            names.append(n)
+    return list(dict.fromkeys(names))
 
 
 def check_txd_in_img(tex_names: List[str], img_entries) -> Dict[str, bool]: #vers 1

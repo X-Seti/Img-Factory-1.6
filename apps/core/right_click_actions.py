@@ -63,200 +63,149 @@ def setup_table_context_menu(main_window): #vers 3
         main_window.log_message(f"Error setting up context menu: {str(e)}")
         return False
 
-def show_context_menu(main_window, position): #vers 4 Fixed
-    """Show comprehensive context menu with file-type specific actions"""
+def show_context_menu(main_window, position): #vers 5
+    """Right-click context menu — grouped by function with submenus per file type."""
     try:
         from apps.methods.export_shared import get_active_table
         table = get_active_table(main_window) or main_window.gui_layout.table
-        item = table.itemAt(position)
-
+        item  = table.itemAt(position)
         if not item:
             return
 
-        # Choose proper parent for QMenu
-        menu_parent = table
-        if isinstance(main_window, QWidget):
-            menu_parent = main_window
-
-        # Create context menu
+        menu_parent = main_window if isinstance(main_window, QWidget) else table
         menu = QMenu(menu_parent)
+        row  = item.row()
 
-        # Get selected data info
-        row = item.row()
-        col = item.column()
-
-        # Get column header and cell data
-        header_item = table.horizontalHeaderItem(col)
-        column_name = header_item.text() if header_item else f"Column {col}"
-        cell_data = item.text() if item else ""
-
-        # Get entry info for file-type specific actions
-        entry_name = ""
+        # Resolve entry
+        entry      = None
         entry_type = ""
-        # Use tab-aware approach if available
+        img = getattr(main_window, 'current_img', None)
         if hasattr(main_window, 'get_current_file_from_active_tab'):
             file_object, file_type = main_window.get_current_file_from_active_tab()
-            if file_type == 'IMG' and file_object and hasattr(file_object, 'entries'):
-                if 0 <= row < len(file_object.entries):
-                    entry = file_object.entries[row]
-                    entry_name = entry.name
-                    entry_type = entry.name.split('.')[-1].upper() if '.' in entry.name else ""
-        else:
-            # Fallback to old method
-            if hasattr(main_window, 'current_img') and main_window.current_img:
-                if 0 <= row < len(main_window.current_img.entries):
-                    entry = main_window.current_img.entries[row]
-                    entry_name = entry.name
-                    entry_type = entry.name.split('.')[-1].upper() if '.' in entry.name else ""
+            if file_type == 'IMG' and file_object and 0 <= row < len(file_object.entries):
+                entry = file_object.entries[row]
+        elif img and 0 <= row < len(img.entries):
+            entry = img.entries[row]
+        if entry:
+            entry_type = entry.name.rsplit('.', 1)[-1].upper() if '.' in entry.name else ""
 
-        # FILE-TYPE SPECIFIC ACTIONS (Advanced functionality)
-        if entry_type:
-            if entry_type == 'COL':
-                # COL file specific actions
-                edit_col_action = QAction("Edit COL File", menu_parent)
-                edit_col_action.triggered.connect(lambda: edit_col_from_table(main_window, row))
-                menu.addAction(edit_col_action)
+        has_selection = bool(table.selectedItems())
 
-                analyze_col_action = QAction("Analyze COL File", menu_parent)
-                analyze_col_action.triggered.connect(lambda: analyze_col_from_table(main_window, row))
-                menu.addAction(analyze_col_action)
-
-            elif entry_type == 'IDE':
-                # IDE file specific actions
-                view_ide_action = QAction("View IDE Definitions", menu_parent)
-                view_ide_action.triggered.connect(lambda: view_ide_definitions(main_window, row))
-                menu.addAction(view_ide_action)
-
-                edit_ide_action = QAction("Edit IDE File", menu_parent)
-                edit_ide_action.triggered.connect(lambda: edit_ide_file(main_window, row))
-                menu.addAction(edit_ide_action)
-
-            elif entry_type == 'DFF':
-                # DFF model specific actions
-                dff_info_action = QAction("DFF Model Info", menu_parent)
-                dff_info_action.triggered.connect(lambda: show_dff_info(main_window, row))
-                menu.addAction(dff_info_action)
-
-            elif entry_type == 'TXD':
-                # TXD texture specific actions
-                txd_view_action = QAction("View TXD Textures", menu_parent)
-                txd_view_action.triggered.connect(lambda: view_txd_textures(main_window, row))
-                menu.addAction(txd_view_action)
-
-            menu.addSeparator()
-
-        # EXTRACTION ACTIONS (if extraction system is available)
-        if hasattr(main_window, 'extract_selected_files'):
-            selected_entries = get_selected_entries_for_extraction(main_window)
-            if selected_entries:
-                extract_selected_action = QAction("Extract Selected", menu_parent)
-                extract_selected_action.triggered.connect(main_window.extract_selected_files)
-                menu.addAction(extract_selected_action)
-
-                # Drag selected entries to desktop / dir-tree / file manager
-                if hasattr(table, '_explicit_start_drag'):
-                    drag_action = QAction("Drag to Desktop / Folder…", menu_parent)
-                    drag_action.triggered.connect(table._explicit_start_drag)
-                    menu.addAction(drag_action)
-
-            if hasattr(main_window, 'extract_all_files'):
-                extract_all_action = QAction("Extract All", menu_parent)
-                extract_all_action.triggered.connect(main_window.extract_all_files)
-                menu.addAction(extract_all_action)
-
-            # Quick extract submenu
-            if entry_type in ['IDE', 'COL', 'DFF', 'TXD']:
-                quick_extract_action = QAction(f"Quick Extract {entry_type} Files", menu_parent)
-                if entry_type == 'IDE' and hasattr(main_window, 'quick_extract_ide_files'):
-                    quick_extract_action.triggered.connect(main_window.quick_extract_ide_files)
-                elif entry_type == 'COL' and hasattr(main_window, 'quick_extract_col_files'):
-                    quick_extract_action.triggered.connect(main_window.quick_extract_col_files)
-                elif entry_type == 'DFF' and hasattr(main_window, 'quick_extract_dff_files'):
-                    quick_extract_action.triggered.connect(main_window.quick_extract_dff_files)
-                elif entry_type == 'TXD' and hasattr(main_window, 'quick_extract_txd_files'):
-                    quick_extract_action.triggered.connect(main_window.quick_extract_txd_files)
-                menu.addAction(quick_extract_action)
-
-            menu.addSeparator()
-
-        # STANDARD IMG OPERATIONS
-        if hasattr(main_window, 'export_selected'):
-            export_action = QAction("Export", menu_parent)
-            export_action.triggered.connect(main_window.export_selected)
-            menu.addAction(export_action)
-
-        # Remove action - use remove_selected_function (pin-protected)
-        if table.selectedItems():
-            if hasattr(main_window, 'remove_selected_function'):
-                remove_action = QAction("Remove", menu_parent)
-                remove_action.triggered.connect(main_window.remove_selected_function)
-                menu.addAction(remove_action)
-            elif hasattr(main_window, 'remove_selected'):
-                remove_action = QAction("Remove", menu_parent)
-                remove_action.triggered.connect(main_window.remove_selected)
-                menu.addAction(remove_action)
-
-        # RENAME OPERATION
-        if table.selectedItems() and hasattr(main_window, 'rename_entry'):
-            rename_action = QAction("Rename", menu_parent)
-
-            #'rename_selected': lambda: rename_entry(self.main_window),
-            rename_action.triggered.connect(main_window.rename_entry)
-            menu.addAction(rename_action)
-
-        # MOVE OPERATION (file move to folder - legacy)
-        if hasattr(main_window, 'move_selected_file'):
-            selected_items = table.selectedItems()
-            if selected_items:
-                move_action = QAction("Move to Folder", menu_parent)
-                move_action.triggered.connect(main_window.move_selected_file)
-                menu.addAction(move_action)
-
-        # REORDER OPERATIONS — move entry up/down in list (Ctrl+Up / Ctrl+Down)
-        if table.selectedItems() and hasattr(main_window, '_move_entries_up'):
-            menu.addSeparator()
-            up_action = QAction("Move Up  (Ctrl+Up)", menu_parent)
-            up_action.triggered.connect(main_window._move_entries_up)
-            menu.addAction(up_action)
-            dn_action = QAction("Move Down  (Ctrl+Down)", menu_parent)
-            dn_action.triggered.connect(main_window._move_entries_down)
-            menu.addAction(dn_action)
-
-        # ANALYZE FILE OPERATION
-        if hasattr(main_window, 'analyze_selected_file'):
-            selected_items = table.selectedItems()
-            if selected_items:
-                analyze_action = QAction("Analyze File", menu_parent)
-                analyze_action.triggered.connect(main_window.analyze_selected_file)
-                menu.addAction(analyze_action)
-
-        # HEX EDITOR OPERATION
-        if hasattr(main_window, 'show_hex_editor_selected'):
-            selected_items = table.selectedItems()
-            if selected_items:
-                hex_action = QAction("Show Hex Editor", menu_parent)
-                hex_action.triggered.connect(main_window.show_hex_editor_selected)
-                menu.addAction(hex_action)
-
-        # SPECIAL OPERATIONS FOR DFF FILES
+        # ── 1. FILE-TYPE SUBMENUS ─────────────────────────────────────
         if entry_type == 'DFF':
-            # Show texture list for DFF
-            texture_action = QAction("Show Texture List for DFF", menu_parent)
-            texture_action.triggered.connect(lambda: show_dff_texture_list(main_window, row))
-            menu.addAction(texture_action)
+            dff_menu = menu.addMenu("DFF")
+            a = QAction("Model Info", menu_parent)
+            a.triggered.connect(lambda: show_dff_info(main_window, row))
+            dff_menu.addAction(a)
+            a = QAction("Texture List", menu_parent)
+            a.triggered.connect(lambda: show_dff_texture_list(main_window, row))
+            dff_menu.addAction(a)
+            a = QAction("View in Model Workshop", menu_parent)
+            a.setEnabled(False)   # TODO: Model Workshop
+            dff_menu.addAction(a)
 
-            # Show DFF model in viewer
-            model_action = QAction("Show DFF Model in Viewer", menu_parent)
-            model_action.triggered.connect(lambda: show_dff_model_viewer(main_window, row))
-            menu.addAction(model_action)
+        elif entry_type == 'TXD':
+            txd_menu = menu.addMenu("TXD")
+            a = QAction("View Textures", menu_parent)
+            a.triggered.connect(lambda: view_txd_textures(main_window, row))
+            txd_menu.addAction(a)
+            a = QAction("Open in TXD Workshop", menu_parent)
+            if hasattr(main_window, 'open_txd_workshop_for_entry'):
+                a.triggered.connect(lambda: main_window.open_txd_workshop_for_entry(row))
+            else:
+                a.setEnabled(False)
+            txd_menu.addAction(a)
 
-        # PIN OPERATIONS
-        if hasattr(main_window, 'toggle_pinned_entries'):
-            selected_items = table.selectedItems()
-            if selected_items:
-                pin_action = QAction("Toggle Pin", menu_parent)
-                pin_action.triggered.connect(main_window.toggle_pinned_entries)
-                menu.addAction(pin_action)
+        elif entry_type == 'COL':
+            col_menu = menu.addMenu("COL")
+            a = QAction("Open in COL Workshop", menu_parent)
+            a.triggered.connect(lambda: edit_col_from_table(main_window, row))
+            col_menu.addAction(a)
+            a = QAction("Analyze", menu_parent)
+            a.triggered.connect(lambda: analyze_col_from_table(main_window, row))
+            col_menu.addAction(a)
+
+        elif entry_type == 'IDE':
+            ide_menu = menu.addMenu("IDE")
+            a = QAction("View Definitions", menu_parent)
+            a.triggered.connect(lambda: view_ide_definitions(main_window, row))
+            ide_menu.addAction(a)
+            a = QAction("Edit File", menu_parent)
+            a.triggered.connect(lambda: edit_ide_file(main_window, row))
+            ide_menu.addAction(a)
+
+        if entry_type:
+            menu.addSeparator()
+
+        # ── 2. EXTRACT / EXPORT ───────────────────────────────────────
+        if has_selection and hasattr(main_window, 'extract_selected_files'):
+            a = QAction("Extract Selected", menu_parent)
+            a.triggered.connect(main_window.extract_selected_files)
+            menu.addAction(a)
+            if hasattr(table, '_explicit_start_drag'):
+                a = QAction("Drag to Folder...", menu_parent)
+                a.triggered.connect(table._explicit_start_drag)
+                menu.addAction(a)
+
+        if hasattr(main_window, 'extract_all_files'):
+            a = QAction("Extract All", menu_parent)
+            a.triggered.connect(main_window.extract_all_files)
+            menu.addAction(a)
+
+        if hasattr(main_window, 'export_selected'):
+            a = QAction("Export", menu_parent)
+            a.triggered.connect(main_window.export_selected)
+            menu.addAction(a)
+
+        menu.addSeparator()
+
+        # ── 3. ENTRY OPERATIONS ───────────────────────────────────────
+        if has_selection and hasattr(main_window, 'rename_entry'):
+            a = QAction("Rename        F2", menu_parent)
+            a.triggered.connect(main_window.rename_entry)
+            menu.addAction(a)
+
+        if has_selection:
+            if hasattr(main_window, 'remove_selected_function'):
+                a = QAction("Remove        Del", menu_parent)
+                a.triggered.connect(main_window.remove_selected_function)
+                menu.addAction(a)
+            elif hasattr(main_window, 'remove_selected'):
+                a = QAction("Remove        Del", menu_parent)
+                a.triggered.connect(main_window.remove_selected)
+                menu.addAction(a)
+
+        if has_selection and hasattr(main_window, '_move_entries_up'):
+            a = QAction("Move Up       Ctrl+Up", menu_parent)
+            a.triggered.connect(main_window._move_entries_up)
+            menu.addAction(a)
+            a = QAction("Move Down     Ctrl+Down", menu_parent)
+            a.triggered.connect(main_window._move_entries_down)
+            menu.addAction(a)
+
+        if has_selection and hasattr(main_window, 'move_selected_file'):
+            a = QAction("Move to Folder", menu_parent)
+            a.triggered.connect(main_window.move_selected_file)
+            menu.addAction(a)
+
+        if has_selection and hasattr(main_window, 'toggle_pinned_entries'):
+            a = QAction("Toggle Pin", menu_parent)
+            a.triggered.connect(main_window.toggle_pinned_entries)
+            menu.addAction(a)
+
+        menu.addSeparator()
+
+        # ── 4. TOOLS ─────────────────────────────────────────────────
+        if has_selection and hasattr(main_window, 'analyze_selected_file'):
+            a = QAction("Analyze File", menu_parent)
+            a.triggered.connect(main_window.analyze_selected_file)
+            menu.addAction(a)
+
+        if has_selection and hasattr(main_window, 'show_hex_editor_selected'):
+            a = QAction("Hex Editor", menu_parent)
+            a.triggered.connect(main_window.show_hex_editor_selected)
+            menu.addAction(a)
+
 
         # UNDO/REDO OPERATIONS
         if hasattr(main_window, 'undo'):
