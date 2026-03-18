@@ -771,15 +771,20 @@ class DATBrowserWidget(QWidget): #vers 2
 def _wire_xref_signal(widget, main_window): #vers 2
     """Connect widget.xref_ready to apply tooltips on ALL open IMG tabs."""
     def _on_xref_ready(xref):
+        # Store immediately — safe outside Qt model operations
+        if main_window:
+            main_window.xref = xref
+            if not hasattr(main_window, 'xref_by_root'):
+                main_window.xref_by_root = {}
+            gr = getattr(xref, 'game_root', '')
+            if gr:
+                main_window.xref_by_root[gr] = xref
+        # Defer table updates until after event loop is fully running
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(200, lambda: _apply_xref_to_tables(xref, main_window))
+
+    def _apply_xref_to_tables(xref, main_window):
         try:
-            # Store xref on main_window keyed by game_root, plus a 'last' slot
-            if main_window:
-                main_window.xref = xref   # most recently loaded xref
-                if not hasattr(main_window, 'xref_by_root'):
-                    main_window.xref_by_root = {}
-                gr = getattr(xref, 'game_root', '')
-                if gr:
-                    main_window.xref_by_root[gr] = xref
             from apps.methods.populate_img_table import apply_xref_tooltips, apply_xref_status
             tw = getattr(main_window, "main_tab_widget", None)
             if not tw:
@@ -791,10 +796,9 @@ def _wire_xref_signal(widget, main_window): #vers 2
                 if not tab:
                     continue
                 table = getattr(tab, "table_ref", None)
-                if table:
+                if table and table.rowCount() > 0:
                     total_tips   += apply_xref_tooltips(table, xref)
                     total_status += apply_xref_status(table, xref)
-                    # Unhide IDE Model and IDE TXD columns now that xref is loaded
                     for c in range(table.columnCount()):
                         h = table.horizontalHeaderItem(c)
                         if h and h.text() in ('IDE Model', 'IDE TXD'):
@@ -802,10 +806,11 @@ def _wire_xref_signal(widget, main_window): #vers 2
             if hasattr(main_window, "log_message"):
                 main_window.log_message(
                     f"XRef: {total_tips} tooltips, "
-                    f"{total_status} status entries updated across all tabs")
+                    f"{total_status} status entries updated")
         except Exception as e:
             if hasattr(main_window, "log_message"):
-                main_window.log_message(f"XRef tooltip error: {e}")
+                main_window.log_message(f"XRef apply error: {e}")
+
     widget.xref_ready.connect(_on_xref_ready)
 
 

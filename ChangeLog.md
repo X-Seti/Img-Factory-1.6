@@ -1822,3 +1822,26 @@ See `TODO.md` for planned features and fixes.
 **Total Commits**: 100+ improvements
 **Lines of Code**: 10,000+ (clean, documented)
 **Community Impact**: Ongoing
+
+---
+
+### Build 78-95 — DFF Texture List, IDE Cross-Reference, Missing TXD Scanner
+
+**New files**:
+- apps/core/dff_texlist.py — RW chunk walker (linear scan), parse_dff_textures, check_txd_in_img, ide_txd_in_img, find_missing_txds
+- apps/gui/dff_texlist_dialog.py — DFFTexListDialog, MissingTXDDialog (batch scanner, large-IMG threshold)
+- apps/core/img_ide_find.py — find_not_in_ide, find_orphan_txd, find_orphan_col, find_all_col, find_all_dff_in_ide
+
+**Updated**:
+- apps/core/right_click_actions.py — show_context_menu v6 (clean layout, SVG icons, submenus per file type); show_dff_texture_list v3 (real parser, IDE xref lookup); _xref_for_img (os.path.commonpath matching)
+- apps/components/Dat_Browser/dat_browser.py — project game_root priority over Dir Tree; xref stored per game_root in xref_by_root dict; table updates deferred via QTimer to prevent segfault
+- apps/methods/populate_img_table.py — apply_xref_status v2 (Status column updated with In IDE/Not in IDE/Orphan TXD/In COLFILE, detects column by name); IDE Model + IDE TXD hidden columns (cols 9/10 for standard layout); _set_cell guard
+- apps/methods/gta_dat_parser.py — xref tagged with game_root
+- apps/gui/gui_menu.py — Tools > Find in IDE/COL submenu (5 entries)
+- apps/components/Img_Factory/imgfactory.py — column count 9->11 for standard layout, 10->12 for LVZ/DTZ
+
+**Fixes**:
+- Segfault from column out-of-bounds access (_set_cell guard, deferred xref apply)
+- IDE TXD check was checking texture names not the IDE-declared TXD name
+- DAT Browser was using Dir Tree last-browsed path instead of project game_root
+- xref game mismatch (VC files showing orphan when SA xref loaded) — os.path.commonpath fix
