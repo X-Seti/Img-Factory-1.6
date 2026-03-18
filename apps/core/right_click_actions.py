@@ -75,6 +75,9 @@ def show_context_menu(main_window, position): #vers 5
         menu_parent = main_window if isinstance(main_window, QWidget) else table
         menu = QMenu(menu_parent)
         row  = item.row()
+        col  = item.column()
+        header_item = table.horizontalHeaderItem(col)
+        column_name = header_item.text() if header_item else f"Column {col}"
 
         # Resolve entry
         entry      = None
