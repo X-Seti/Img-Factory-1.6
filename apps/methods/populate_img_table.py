@@ -641,7 +641,10 @@ def populate_col_column(table, paired: list) -> int: #vers 1
 
 
 def _set_cell(table, row: int, col: int, text: str): #vers 1
-    """Set text in a table cell, creating the item if needed."""
+    """Set text in a table cell, creating the item if needed.
+    Silently skips if col is out of range."""
+    if col >= table.columnCount():
+        return
     from PyQt6.QtWidgets import QTableWidgetItem
     item = table.item(row, col)
     if item is None:

@@ -4532,12 +4532,16 @@ class IMGFactory(QMainWindow):
             IMGVersion.VERSION_DTZ_VCS,
             IMGVersion.VERSION_DTZ_LCS,
         ))
-        _ncols = 10 if _is_stream_fmt else 9
+        _ncols = 12 if _is_stream_fmt else 11
         table.setColumnCount(_ncols)
         if _is_stream_fmt:
-            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "Source"])
+            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "Source", "IDE Model", "IDE TXD"])
         else:
-            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status"])
+            table.setHorizontalHeaderLabels(["Name", "Type", "Date", "Size", "Offset", "RW Address", "RW Version", "Encoding", "Status", "IDE Model", "IDE TXD"])
+        # Hide IDE columns until xref loads
+        ide_col = _ncols - 2
+        table.setColumnHidden(ide_col, True)
+        table.setColumnHidden(ide_col + 1, True)
 
         # Clear existing data (including sample entries)
         table.setRowCount(0)
