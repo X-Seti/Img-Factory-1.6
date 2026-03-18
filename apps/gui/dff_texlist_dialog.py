@@ -1,9 +1,10 @@
-#this belongs in apps/gui/dff_texlist_dialog.py - Version: 1
+#this belongs in apps/gui/dff_texlist_dialog.py - Version: 3
 # X-Seti - March 2026 - IMG Factory 1.6 - DFF Texture List Dialog
 """
 DFF Texture List Dialog
 Shows texture names from a DFF with TXD existence checks.
 Includes option to build a TXD from a folder of PNG/BMP/TGA images.
+MissingTXDDialog: batch scanner for all DFFs in the loaded IMG.
 """
 
 import os
@@ -19,21 +20,30 @@ from apps.core.theme_utils import apply_dialog_theme
 
 ##Methods list -
 # show_dff_texlist_dialog
+# show_missing_txd_dialog
 # DFFTexListDialog.__init__
 # DFFTexListDialog._build_ui
 # DFFTexListDialog._populate
+# DFFTexListDialog._find_missing_txds
 # DFFTexListDialog._build_txd_from_folder
 # DFFTexListDialog._open_txd_workshop
+# MissingTXDDialog.__init__
+# MissingTXDDialog._build_ui
+# MissingTXDDialog._populate
+# MissingTXDDialog._show_full
+# MissingTXDDialog._create_txds_from_folder
+
+LARGE_IMG_THRESHOLD = 200   # rows above this trigger the large-IMG prompt
 
 
 class DFFTexListDialog(QDialog): #vers 1
     """Dialog showing texture names from a DFF with TXD status checks."""
 
-    def __init__(self, parent, dff_name: str, report: dict, img_entries=None,
-                 main_window=None):
+    def __init__(self, parent, dff_name: str, report: dict,
+                 img_entries=None, main_window=None):
         super().__init__(parent)
         self.dff_name    = dff_name
-        self.report      = report        # from dff_texlist.get_dff_texture_report()
+        self.report      = report
         self.img_entries = img_entries
         self.main_window = main_window
         self.setWindowTitle(f"Texture List — {dff_name}")
@@ -49,13 +59,14 @@ class DFFTexListDialog(QDialog): #vers 1
         ide_txd = self.report.get('ide_txd_name')
         if ide_txd:
             in_img = any(
-                getattr(e, 'name', '').lower() == ide_txd.lower() + '.txd'
+                os.path.splitext(getattr(e, 'name', '').lower())[0] == ide_txd.lower()
                 for e in (self.img_entries or [])
             )
             status = "found in IMG" if in_img else "NOT in IMG"
             color  = "#00a000" if in_img else "#b00000"
             ide_label = QLabel(
-                f"IDE TXD: <b>{ide_txd}.txd</b> — <span style='color:{color}'>{status}</span>")
+                f"IDE TXD: <b>{ide_txd}.txd</b> — "
+                f"<span style='color:{color}'>{status}</span>")
             ide_label.setTextFormat(Qt.TextFormat.RichText)
             layout.addWidget(ide_label)
 
@@ -77,7 +88,6 @@ class DFFTexListDialog(QDialog): #vers 1
         hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.table)
 
-        # Buttons
         btn_row = QHBoxLayout()
 
         self.build_txd_btn = QPushButton("Build TXD from folder...")
@@ -86,8 +96,12 @@ class DFFTexListDialog(QDialog): #vers 1
         self.build_txd_btn.clicked.connect(self._build_txd_from_folder)
         btn_row.addWidget(self.build_txd_btn)
 
-        btn_row.addStretch()
+        find_btn = QPushButton("Find Missing TXDs")
+        find_btn.setToolTip("Scan all DFFs in the IMG for missing TXD files")
+        find_btn.clicked.connect(self._find_missing_txds)
+        btn_row.addWidget(find_btn)
 
+        btn_row.addStretch()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         btn_row.addWidget(close_btn)
@@ -105,31 +119,45 @@ class DFFTexListDialog(QDialog): #vers 1
 
         for row, name in enumerate(textures):
             self.table.setItem(row, 0, QTableWidgetItem(name))
-
             img_found  = in_img.get(name, False)
-            disk_found = on_disk.get(name)
-
-            img_item = QTableWidgetItem("Yes" if img_found else "No")
+            img_item   = QTableWidgetItem("Yes" if img_found else "No")
             img_item.setForeground(green if img_found else red)
             img_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row, 1, img_item)
-
-            if disk_found:
-                disk_item = QTableWidgetItem(os.path.basename(disk_found))
+            if on_disk.get(name):
+                disk_item = QTableWidgetItem(os.path.basename(on_disk[name]))
                 disk_item.setForeground(green)
-                disk_item.setToolTip(disk_found)
+                disk_item.setToolTip(on_disk[name])
             else:
                 disk_item = QTableWidgetItem("Not found")
                 disk_item.setForeground(grey)
             disk_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row, 2, disk_item)
 
-        # Update summary counts
         found_img  = sum(1 for v in in_img.values() if v)
         found_disk = sum(1 for v in on_disk.values() if v)
         self._summary.setText(
             f"{len(textures)} texture(s) in {self.dff_name} — "
             f"{found_img} TXD in IMG, {found_disk} found on disk")
+
+        # Highlight Build TXD button if IDE TXD is missing from IMG
+        ide_txd = self.report.get('ide_txd_name')
+        if ide_txd:
+            ide_in_img = any(
+                os.path.splitext(getattr(e, 'name', '').lower())[0] == ide_txd.lower()
+                for e in (self.img_entries or [])
+            )
+            if not ide_in_img:
+                self.build_txd_btn.setStyleSheet(
+                    "background-color: #8b0000; color: white; font-weight: bold;")
+                self.build_txd_btn.setText("Create Missing TXD from folder...")
+
+    def _find_missing_txds(self): #vers 1
+        """Open the Missing TXD batch scanner dialog."""
+        if not self.main_window:
+            return
+        dlg = MissingTXDDialog(self, self.main_window)
+        dlg.exec()
 
     def _build_txd_from_folder(self): #vers 1
         """Let user pick a folder, find matching images, open TXD Workshop to build."""
@@ -137,11 +165,8 @@ class DFFTexListDialog(QDialog): #vers 1
             self, "Pick folder containing PNG/BMP/TGA images")
         if not folder:
             return
-
         textures = self.report.get('textures', [])
         EXTS = ('.png', '.bmp', '.tga', '.jpg', '.jpeg', '.dds')
-
-        # Find matching files
         matched = {}
         for name in textures:
             for ext in EXTS:
@@ -149,22 +174,18 @@ class DFFTexListDialog(QDialog): #vers 1
                 if os.path.isfile(path):
                     matched[name] = path
                     break
-
         if not matched:
             QMessageBox.information(self, "Build TXD",
-                f"No matching image files found in:\n{folder}\n\n"
-                f"Expected filenames like: {textures[0]}.png" if textures else "No textures.")
+                "No matching image files found in:\n" + folder)
             return
-
         missing = [n for n in textures if n not in matched]
         msg = f"Found {len(matched)} of {len(textures)} matching image(s)."
         if missing:
-            msg += f"\n\nMissing ({len(missing)}):\n" + "\n".join(f"  {n}" for n in missing[:10])
+            msg += "\n\nMissing (" + str(len(missing)) + "):\n" + \
+                   "\n".join("  " + n for n in missing[:10])
         msg += "\n\nOpen TXD Workshop to build the TXD?"
-
         if QMessageBox.question(self, "Build TXD", msg) != QMessageBox.StandardButton.Yes:
             return
-
         self._open_txd_workshop(matched)
 
     def _open_txd_workshop(self, image_map: dict): #vers 1
@@ -172,18 +193,187 @@ class DFFTexListDialog(QDialog): #vers 1
         try:
             from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
             w = open_txd_workshop(self.main_window)
-            # Pass the image map so TXD Workshop can auto-import
             if w and hasattr(w, 'import_images_as_textures'):
                 w.import_images_as_textures(image_map)
-            elif w:
-                # Fallback: log the files
+            elif w and self.main_window and hasattr(self.main_window, 'log_message'):
                 names = "\n".join(f"  {k}: {v}" for k, v in image_map.items())
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(
-                        f"TXD Workshop opened — import these images:\n{names}")
+                self.main_window.log_message(
+                    "TXD Workshop opened — import these images:\n" + names)
         except Exception as e:
             QMessageBox.warning(self, "TXD Workshop",
-                f"Could not open TXD Workshop:\n{e}")
+                "Could not open TXD Workshop:\n" + str(e))
+
+
+class MissingTXDDialog(QDialog): #vers 1
+    """Batch scanner — shows all DFFs in the IMG with missing IDE-declared TXDs.
+    For large IMGs (200+ problem entries) prompts before loading all rows.
+    """
+
+    def __init__(self, parent, main_window):
+        super().__init__(parent)
+        self.main_window = main_window
+        self._results    = []
+        self._show_all   = False
+        self.setWindowTitle("Missing TXD Scanner")
+        self.setMinimumSize(760, 500)
+        self._build_ui()
+        self._populate()
+        apply_dialog_theme(self)
+
+    def _build_ui(self): #vers 1
+        layout = QVBoxLayout(self)
+
+        self._summary = QLabel("Scanning…")
+        layout.addWidget(self._summary)
+
+        # Large-IMG warning bar — hidden by default
+        self._large_bar = QHBoxLayout()
+        self._large_label = QLabel("")
+        self._large_label.setStyleSheet("color: #e0a000; font-weight: bold;")
+        self._large_bar.addWidget(self._large_label)
+        self._show_all_btn = QPushButton("Show all")
+        self._show_all_btn.setVisible(False)
+        self._show_all_btn.clicked.connect(self._show_full)
+        self._large_bar.addWidget(self._show_all_btn)
+        self._large_bar.addStretch()
+        layout.addLayout(self._large_bar)
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(
+            ["DFF", "IDE TXD", "In IMG", "Textures in DFF"])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
+        hdr = self.table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table)
+
+        btn_row = QHBoxLayout()
+        create_btn = QPushButton("Create TXDs from folder...")
+        create_btn.setToolTip(
+            "Pick a folder of images — builds a TXD for each missing entry found")
+        create_btn.clicked.connect(self._create_txds_from_folder)
+        btn_row.addWidget(create_btn)
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+    def _populate(self): #vers 1
+        from apps.core.dff_texlist import find_missing_txds
+        self._results = find_missing_txds(self.main_window)
+
+        missing = [r for r in self._results if r['ide_txd'] and r['in_img'] is False]
+        no_ide  = [r for r in self._results if r['ide_txd'] is None]
+        ok      = [r for r in self._results if r['in_img'] is True]
+
+        self._summary.setText(
+            f"{len(self._results)} DFFs scanned — "
+            f"{len(missing)} missing TXD, "
+            f"{len(no_ide)} no IDE entry, "
+            f"{len(ok)} OK")
+
+        show = missing + no_ide
+
+        # Large IMG prompt — ask before filling hundreds of rows
+        if len(show) > LARGE_IMG_THRESHOLD and not self._show_all:
+            self._large_label.setText(
+                f"Large result: {len(show)} entries. "
+                f"Showing first {LARGE_IMG_THRESHOLD}.")
+            self._show_all_btn.setText(f"Show all {len(show)}")
+            self._show_all_btn.setVisible(True)
+            show = show[:LARGE_IMG_THRESHOLD]
+        else:
+            self._large_label.setText("")
+            self._show_all_btn.setVisible(False)
+
+        self._fill_table(show)
+
+    def _show_full(self): #vers 1
+        """Remove the row cap and repopulate with all results."""
+        self._show_all = True
+        self._show_all_btn.setVisible(False)
+        self._large_label.setText("")
+        missing = [r for r in self._results if r['ide_txd'] and r['in_img'] is False]
+        no_ide  = [r for r in self._results if r['ide_txd'] is None]
+        self._fill_table(missing + no_ide)
+
+    def _fill_table(self, rows: list): #vers 1
+        green = QColor(0, 160, 0)
+        red   = QColor(180, 0, 0)
+        grey  = QColor(120, 120, 120)
+        self.table.setRowCount(len(rows))
+        for row, r in enumerate(rows):
+            self.table.setItem(row, 0, QTableWidgetItem(r['dff']))
+            txd_item = QTableWidgetItem(
+                r['ide_txd'] + '.txd' if r['ide_txd'] else '—')
+            txd_item.setForeground(grey if not r['ide_txd'] else red)
+            self.table.setItem(row, 1, txd_item)
+            if r['in_img'] is None:
+                s = QTableWidgetItem("No IDE")
+                s.setForeground(grey)
+            elif r['in_img']:
+                s = QTableWidgetItem("Yes")
+                s.setForeground(green)
+            else:
+                s = QTableWidgetItem("Missing")
+                s.setForeground(red)
+            s.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(row, 2, s)
+            tex_list = ", ".join(r['textures_in_dff'][:4])
+            if len(r['textures_in_dff']) > 4:
+                tex_list += " +" + str(len(r['textures_in_dff']) - 4) + " more"
+            self.table.setItem(row, 3, QTableWidgetItem(tex_list or "—"))
+
+    def _create_txds_from_folder(self): #vers 1
+        """Pick a folder, for each missing-TXD row try to build from matching images."""
+        missing = [r for r in self._results
+                   if r['ide_txd'] and r['in_img'] is False and r['textures_in_dff']]
+        if not missing:
+            QMessageBox.information(self, "Create TXDs",
+                "No missing TXDs with known texture names found.")
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self, "Pick folder containing PNG/BMP/TGA images")
+        if not folder:
+            return
+        EXTS = ('.png', '.bmp', '.tga', '.jpg', '.jpeg', '.dds')
+        built = 0
+        skipped = []
+        for r in missing:
+            matched = {}
+            for name in r['textures_in_dff']:
+                for ext in EXTS:
+                    path = os.path.join(folder, name + ext)
+                    if os.path.isfile(path):
+                        matched[name] = path
+                        break
+            if matched:
+                try:
+                    from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+                    w = open_txd_workshop(self.main_window)
+                    if w and hasattr(w, 'import_images_as_textures'):
+                        w.import_images_as_textures(matched)
+                    built += 1
+                except Exception:
+                    skipped.append(r['dff'])
+            else:
+                skipped.append(r['dff'])
+        msg = "Opened TXD Workshop for " + str(built) + " model(s)."
+        if skipped:
+            msg += "\nSkipped " + str(len(skipped)) + " (no matching images found)."
+        QMessageBox.information(self, "Create TXDs", msg)
+
+
+def show_missing_txd_dialog(main_window): #vers 1
+    """Open the Missing TXD batch scanner directly from a menu."""
+    dlg = MissingTXDDialog(main_window, main_window)
+    dlg.exec()
 
 
 def show_dff_texlist_dialog(main_window, dff_name: str, dff_data: bytes,
@@ -209,7 +399,7 @@ def show_dff_texlist_dialog(main_window, dff_name: str, dff_data: bytes,
             ]
 
     report = get_dff_texture_report(dff_data, img_entries, search_dirs)
-    report['ide_txd_name'] = ide_txd_name  # may be None if DAT Browser not loaded
+    report['ide_txd_name'] = ide_txd_name
 
     dlg = DFFTexListDialog(main_window, dff_name, report,
                            img_entries=img_entries, main_window=main_window)
