@@ -49,20 +49,27 @@ def show_tab_context_menu(main_window, position): #vers 1
         
         menu = QMenu(tab_bar)
         
+        from apps.methods.tab_system import close_tab as _close_tab
+
         # Close this tab
         close_action = QAction("Close Tab", menu)
-        close_action.triggered.connect(lambda: main_window.close_tab(tab_index))
+        close_action.triggered.connect(lambda: _close_tab(main_window, tab_index))
         menu.addAction(close_action)
-        
+
         # Close other tabs (only if more than 1 tab)
         if main_window.main_tab_widget.count() > 1:
             close_others_action = QAction("Close Other Tabs", menu)
-            close_others_action.triggered.connect(lambda: close_other_tabs(main_window, tab_index))
+            close_others_action.triggered.connect(
+                lambda: close_other_tabs(main_window, tab_index))
             menu.addAction(close_others_action)
-        
+
         # Close all tabs
         close_all_action = QAction("Close All Tabs", menu)
-        close_all_action.triggered.connect(main_window.close_all_tabs)
+        if hasattr(main_window, 'close_all_tabs'):
+            close_all_action.triggered.connect(main_window.close_all_tabs)
+        else:
+            from apps.core.close import close_all_tabs as _close_all
+            close_all_action.triggered.connect(lambda: _close_all(main_window))
         menu.addAction(close_all_action)
         
         menu.addSeparator()
@@ -95,18 +102,13 @@ def close_other_tabs(main_window, keep_index): #vers 1
         tab_widget = main_window.main_tab_widget
         
         # Close tabs after keep_index first (in reverse)
+        from apps.methods.tab_system import close_tab as _close_tab
         for i in range(tab_widget.count() - 1, keep_index, -1):
-            if hasattr(main_window, 'close_tab'):
-                main_window.close_tab(i)
-            else:
-                tab_widget.removeTab(i)
-        
+            _close_tab(main_window, i)
+
         # Close tabs before keep_index (in reverse)
         for i in range(keep_index - 1, -1, -1):
-            if hasattr(main_window, 'close_tab'):
-                main_window.close_tab(i)
-            else:
-                tab_widget.removeTab(i)
+            _close_tab(main_window, i)
         
         if hasattr(main_window, 'log_message'):
             main_window.log_message("Closed other tabs")
