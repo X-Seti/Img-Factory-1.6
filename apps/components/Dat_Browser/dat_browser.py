@@ -141,14 +141,13 @@ class DATBrowserWidget(QWidget): #vers 2
         toolbar.addWidget(browse_btn)
         toolbar.addWidget(self._load_btn)
 
-        # Split/full panel toggle — same as Dir Tree split_toggle_btn
-        from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
+        # Split/full panel toggle — mirrors gui_layout.split_toggle_btn exactly
         self._split_btn = QPushButton()
         self._split_btn.setFixedSize(24, 24)
-        self._split_btn.setIcon(get_layout_w1left_icon(20))
         self._split_btn.setIconSize(QSize(20, 20))
         self._split_btn.setToolTip("Panel left | Files right → click to cycle layout")
         self._split_btn.clicked.connect(self._on_split_toggle)
+        self._sync_split_icon()   # set initial icon
         toolbar.addWidget(self._split_btn)
 
         root.addLayout(toolbar)
@@ -378,18 +377,28 @@ class DATBrowserWidget(QWidget): #vers 2
         self._load_btn.setEnabled(True)
         self._start_load()
 
-    def _on_split_toggle(self): #vers 2
-        """Cycle panel layout — mirrors gui_layout split_toggle_btn behaviour."""
+    def _sync_split_icon(self): #vers 1
+        """Copy icon and tooltip from gui_layout.split_toggle_btn."""
         try:
-            mw = self._main_window
-            gl = getattr(mw, 'gui_layout', None)
+            from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
+            gl = getattr(self._main_window, 'gui_layout', None)
+            src = getattr(gl, 'split_toggle_btn', None)
+            if src:
+                self._split_btn.setIcon(src.icon())
+                self._split_btn.setToolTip(src.toolTip())
+            else:
+                # gui_layout not ready yet — use default icon
+                self._split_btn.setIcon(get_layout_w1left_icon(20))
+        except Exception:
+            pass
+
+    def _on_split_toggle(self): #vers 3
+        """Cycle panel layout — calls gui_layout._toggle_merge_view_layout then syncs icon."""
+        try:
+            gl = getattr(self._main_window, 'gui_layout', None)
             if gl and hasattr(gl, '_toggle_merge_view_layout'):
                 gl._toggle_merge_view_layout()
-                # Sync icon with gui_layout's split_toggle_btn
-                src_btn = getattr(gl, 'split_toggle_btn', None)
-                if src_btn:
-                    self._split_btn.setIcon(src_btn.icon())
-                    self._split_btn.setToolTip(src_btn.toolTip())
+            self._sync_split_icon()
         except Exception:
             pass
 
