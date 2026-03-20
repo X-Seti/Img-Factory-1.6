@@ -844,8 +844,8 @@ def show_dat_browser(main_window) -> bool: #vers 2
         for i in range(tw.count()):
             if tw.widget(i) is widget:
                 tw.setCurrentIndex(i)
-                # Re-fill in case dir tree root changed since last open
                 _auto_fill_game_root(widget, main_window)
+                _register_dat_taskbar(widget, main_window)
                 return True
 
         # Tab was closed — re-add it
@@ -855,6 +855,7 @@ def show_dat_browser(main_window) -> bool: #vers 2
         widget.update()
         widget.repaint()
         _auto_fill_game_root(widget, main_window)
+        _register_dat_taskbar(widget, main_window)
         if hasattr(main_window, "log_message"):
             main_window.log_message("DAT Browser re-opened")
         return True
@@ -943,6 +944,24 @@ def set_game_root_from_dir_tree(main_window) -> bool: #vers 1
         return False
 
 
+def _register_dat_taskbar(widget, main_window): #vers 1
+    """Register or activate the DAT button in the tool taskbar."""
+    try:
+        tb = getattr(main_window, 'tool_taskbar', None)
+        if not tb:
+            return
+        if 'dat' not in tb._tools:
+            from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
+            icon_color = getattr(tb, '_txt', '#e0e0e0')
+            icon = get_dat_browser_icon(16, icon_color)
+            tb.register('dat', 'DAT', icon, widget, 'DAT Browser')
+        else:
+            tb._tools['dat']['target'] = widget
+        tb._set_exclusive_active('dat')
+    except Exception:
+        pass
+
+
 def integrate_dat_browser(main_window) -> bool: #vers 4
     """Add a DAT Browser tab to main_window.main_tab_widget.
     The tab has a normal close [x] button; use show_dat_browser() to re-open it.
@@ -970,6 +989,9 @@ def integrate_dat_browser(main_window) -> bool: #vers 4
 
         # Auto-fill game root from directory tree (silent — no warning if not set)
         _auto_fill_game_root(widget, main_window)
+
+        # Register DAT button in taskbar and mark active
+        _register_dat_taskbar(widget, main_window)
 
         if hasattr(main_window, "log_message"):
             main_window.log_message("DAT Browser integrated (v4)")

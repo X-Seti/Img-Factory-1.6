@@ -5607,6 +5607,7 @@ class IMGFactory(QMainWindow):
                 QTabWidget::pane {{
                     border-top: 1px solid {brd};
                     margin-top: 0px;
+                    background-color: {bg_p};
                 }}
                 QTabWidget > QTabBar::tab {{
                     background-color: {bg_s};
