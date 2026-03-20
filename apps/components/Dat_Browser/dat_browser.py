@@ -88,14 +88,16 @@ class DATBrowserWidget(QWidget): #vers 2
         self.setAttribute(_Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         try:
             mw = main_window
+            bg = '#1e1e1e'  # safe dark default
             if mw and hasattr(mw, 'app_settings'):
                 colors = mw.app_settings.get_theme_colors() or {}
-                bg = colors.get('panel_bg', colors.get('bg_primary', ''))
-                if bg:
-                    from PyQt6.QtGui import QPalette, QColor
-                    pal = self.palette()
-                    pal.setColor(QPalette.ColorRole.Window, QColor(bg))
-                    self.setPalette(pal)
+                bg = colors.get('panel_bg', colors.get('bg_primary', bg))
+            # Use stylesheet — survives re-parenting unlike palette
+            self.setStyleSheet(f"DATBrowserWidget {{ background-color: {bg}; }}")
+            from PyQt6.QtGui import QPalette, QColor
+            pal = self.palette()
+            pal.setColor(QPalette.ColorRole.Window, QColor(bg))
+            self.setPalette(pal)
         except Exception:
             pass
         root = QVBoxLayout(self)
@@ -852,6 +854,16 @@ def show_dat_browser(main_window) -> bool: #vers 2
         tab_idx = tw.addTab(widget, "DAT Browser")
         tw.setCurrentIndex(tab_idx)
         widget.setAutoFillBackground(True)
+        # Reapply stylesheet — palette is reset on re-parent
+        try:
+            mw = main_window
+            bg = '#1e1e1e'
+            if mw and hasattr(mw, 'app_settings'):
+                colors = mw.app_settings.get_theme_colors() or {}
+                bg = colors.get('panel_bg', colors.get('bg_primary', bg))
+            widget.setStyleSheet(f"DATBrowserWidget {{ background-color: {bg}; }}")
+        except Exception:
+            pass
         widget.update()
         widget.repaint()
         _auto_fill_game_root(widget, main_window)
