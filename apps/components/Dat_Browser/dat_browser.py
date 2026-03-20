@@ -140,6 +140,19 @@ class DATBrowserWidget(QWidget): #vers 2
         toolbar.addWidget(self._path_edit, 1)
         toolbar.addWidget(browse_btn)
         toolbar.addWidget(self._load_btn)
+
+        # Split/full panel layout toggle
+        from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
+        self._split_btn = QPushButton()
+        try:
+            self._split_btn.setIcon(get_layout_w1left_icon(16))
+        except Exception:
+            self._split_btn.setText("⊞")
+        self._split_btn.setFixedSize(26, 26)
+        self._split_btn.setToolTip("Cycle panel layout: left | top | right | hidden")
+        self._split_btn.clicked.connect(self._on_split_toggle)
+        toolbar.addWidget(self._split_btn)
+
         root.addLayout(toolbar)
 
         # Progress bar (hidden when idle)
@@ -177,11 +190,13 @@ class DATBrowserWidget(QWidget): #vers 2
         # Main splitter: left = load-order tree  |  right = data tabs
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setAutoFillBackground(True)
+        splitter.setStyleSheet("QSplitter { background-color: palette(window); }")
         root.addWidget(splitter, 1)
 
         # Left — file load-order tree
         left = QWidget()
         left.setAutoFillBackground(True)
+        left.setStyleSheet("QWidget { background-color: palette(window); }")
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(QLabel("Load Order:"))
@@ -203,6 +218,9 @@ class DATBrowserWidget(QWidget): #vers 2
         # Right — tabbed result tables
         self._tabs = QTabWidget()
         self._tabs.setAutoFillBackground(True)
+        self._tabs.setStyleSheet(
+            "QTabWidget::pane { background-color: palette(window); }"
+        )
         splitter.addWidget(self._tabs)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 3)
@@ -225,19 +243,22 @@ class DATBrowserWidget(QWidget): #vers 2
         self._log_text.setFont(QFont("Consolas", 9))
         self._tabs.addTab(self._log_text, "Load Log")
 
-    def _make_table(self, headers): #vers 3
+    def _make_table(self, headers): #vers 4
         from apps.methods.populate_img_table import DragSelectTableWidget
         t = DragSelectTableWidget()
         t.setColumnCount(len(headers))
         t.setHorizontalHeaderLabels(headers)
         t.setAlternatingRowColors(True)
         t.setSortingEnabled(True)
+        t.setAutoFillBackground(True)
         t.horizontalHeader().setStretchLastSection(True)
         t.horizontalHeader().setSectionsMovable(False)
         t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         t.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         t.customContextMenuRequested.connect(
             lambda pos, tbl=t: self._table_context_menu(tbl, pos))
+        # Opaque viewport prevents bleed-through
+        t.viewport().setAutoFillBackground(True)
         return t
 
     # ── Responsive toolbar — compact (icon-only) below 520 px wide ────────
