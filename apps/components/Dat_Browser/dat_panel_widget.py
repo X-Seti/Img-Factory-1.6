@@ -494,12 +494,13 @@ def integrate_dat_panel(main_window) -> bool: #vers 1
         panel = DATPanel(main_window)
         main_window.dat_browser = panel   # keep same attribute name
 
-        gl    = getattr(main_window, 'gui_layout', None)
-        lp    = getattr(gl, 'left_panel', None)
-        if lp is not None:
-            # Will be swapped in by _show_dat_browser when user clicks DAT
-            panel.setParent(lp)
-            panel.hide()
+        gl         = getattr(main_window, 'gui_layout', None)
+        left_stack = getattr(gl, 'left_stack', None)
+        if left_stack is not None:
+            old = left_stack.widget(1)
+            if old is not None:
+                left_stack.removeWidget(old)
+            left_stack.insertWidget(1, panel)
         else:
             panel.setWindowTitle("GTA DAT Browser")
             panel.resize(900, 700)
