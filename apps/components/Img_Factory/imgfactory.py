@@ -2888,8 +2888,10 @@ class IMGFactory(QMainWindow):
             QTabWidget::pane {
                 border-top: 1px solid palette(mid);
                 margin-top: 0px;
+                background-color: palette(window);
             }
         """)
+        self.main_tab_widget.setAutoFillBackground(True)
         self._apply_tab_theme()
         self.main_tab_widget.tabBar().setContentsMargins(0, 0, 0, 2)
 
@@ -2983,6 +2985,7 @@ class IMGFactory(QMainWindow):
         """Create initial empty tab with a standalone table"""
         from apps.methods.populate_img_table import DragSelectTableWidget
         tab_widget = QWidget()
+        tab_widget.setAutoFillBackground(True)
         tab_layout = QVBoxLayout(tab_widget)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 

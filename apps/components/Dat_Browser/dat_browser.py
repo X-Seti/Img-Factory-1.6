@@ -945,6 +945,7 @@ def integrate_dat_browser(main_window) -> bool: #vers 4
         from PyQt6.QtWidgets import QWidget as _QW
         parent_arg = main_window if isinstance(main_window, _QW) else None
         widget = DATBrowserWidget(main_window, parent=parent_arg)
+        widget.setAutoFillBackground(True)
         main_window.dat_browser = widget
 
         if hasattr(main_window, "main_tab_widget"):

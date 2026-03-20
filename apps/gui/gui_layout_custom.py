@@ -58,6 +58,45 @@ except ImportError:
     print("Warning: AppSettings not available")
 
 
+def _show_dir_tree(mw): #vers 1
+    """Ensure the directory tree is visible in the splitter — no cycling."""
+    try:
+        gl = getattr(mw, 'gui_layout', None)
+        splitter = getattr(gl, 'content_splitter', None) if gl else None
+
+        # Set up dir tree first time if needed
+        if not getattr(mw, 'directory_tree', None):
+            from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
+            integrate_directory_tree_browser(mw)
+            if splitter and mw.directory_tree:
+                already = any(splitter.widget(i) is mw.directory_tree
+                              for i in range(splitter.count()))
+                if not already:
+                    splitter.addWidget(mw.directory_tree)
+            root = getattr(mw, 'game_root', None)
+            if root and hasattr(mw.directory_tree, 'browse_directory'):
+                mw.directory_tree.browse_directory(root)
+
+        if not splitter or splitter.count() < 2:
+            return
+
+        sizes = splitter.sizes()
+        total = sum(sizes) or 10000
+        tree_size = sizes[-1] if len(sizes) > 1 else 0
+
+        # Only expand if currently hidden or too small
+        if tree_size < total * 0.15:
+            splitter.setSizes([total // 2, total // 2])
+
+        mw.directory_tree.show()
+        mw.directory_tree.raise_()
+        if hasattr(mw, 'log_message'):
+            mw.log_message("Dir Tree")
+    except Exception as e:
+        if hasattr(mw, 'log_message'):
+            mw.log_message(f"Dir tree show error: {e}")
+
+
 class ToolTaskbar(QWidget):  # vers 2
     """Tool taskbar — lives INSIDE the titlebar row between the title and undo.
 
@@ -150,11 +189,10 @@ class ToolTaskbar(QWidget):  # vers 2
         if t is None:
             return
 
-        # Dir tree button: delegate to toggle_dir_tree on main window
+        # Dir tree: ensure visible in splitter, don't cycle
         if key == "dirtree":
-            mw = self._main_window
-            if hasattr(mw, 'toggle_dir_tree'):
-                mw.toggle_dir_tree()
+            _show_dir_tree(self._main_window)
+            self._set_exclusive_active(key)
             return
 
         if callable(t):
@@ -193,20 +231,18 @@ class ToolTaskbar(QWidget):  # vers 2
                 self.unregister(key)
 
     def _open_tool(self, key: str) -> None:
-        """Open or re-open a tool — uses the correct opener for each key."""
+        """Open or focus a tool panel."""
         mw = self._main_window
 
-        # dirtree and dat need special routing
         if key == "dirtree":
-            if hasattr(mw, 'toggle_dir_tree'):
-                mw.toggle_dir_tree()
+            _show_dir_tree(mw)
+            self._set_exclusive_active(key)
             return
 
         if key == "dat":
             try:
                 from apps.components.Dat_Browser.dat_browser import show_dat_browser
                 show_dat_browser(mw)
-                # Always update target after open so raise_target works
                 widget = getattr(mw, 'dat_browser', None)
                 if widget:
                     if 'dat' in self._tools:
