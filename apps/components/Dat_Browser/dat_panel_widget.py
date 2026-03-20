@@ -494,16 +494,9 @@ def integrate_dat_panel(main_window) -> bool: #vers 1
         panel = DATPanel(main_window)
         main_window.dat_browser = panel   # keep same attribute name
 
-        gl    = getattr(main_window, 'gui_layout', None)
-        lp    = getattr(gl, 'left_panel', None)
-        if lp is not None:
-            # Will be swapped in by _show_dat_browser when user clicks DAT
-            panel.setParent(lp)
-            panel.hide()
-        else:
-            panel.setWindowTitle("GTA DAT Browser")
-            panel.resize(900, 700)
-            panel.show()
+        # Don't place into left_panel yet — _show_dat_browser does that on demand
+        # Just keep the panel as a hidden top-level until then
+        panel.hide()
 
         panel.auto_fill_game_root()
 
