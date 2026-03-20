@@ -2932,12 +2932,25 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Panel toggle button error: {e}")
 
-        # Replace table in content_splitter with main_tab_widget
+        # Replace table placeholder (index 1) in content_splitter with main_tab_widget
+        # Index 0 = left_stack (dir tree / dat browser panel)
+        # Index 1 = table placeholder -> replaced with main_tab_widget
         if hasattr(self.gui_layout, 'content_splitter'):
-            self.gui_layout.content_splitter.replaceWidget(0, self.main_tab_widget)
-            # Keep table parented but hidden - setParent(None) makes it a top-level window
+            cs = self.gui_layout.content_splitter
+            # Find table's index — it's the non-left_stack widget
+            left_stack = getattr(self.gui_layout, 'left_stack', None)
+            table_idx = 1  # default
+            for i in range(cs.count()):
+                if cs.widget(i) is not left_stack:
+                    table_idx = i
+                    break
+            cs.replaceWidget(table_idx, self.main_tab_widget)
             self.gui_layout.table.setVisible(False)
             self.gui_layout.table.setMaximumSize(0, 0)
+            # Ensure left_stack stays hidden until Dir/DAT opened
+            if left_stack:
+                left_stack.hide()
+                cs.setSizes([0, cs.width() or 1000])
         else:
             main_layout.addWidget(self.main_tab_widget)
 
@@ -5514,7 +5527,15 @@ class IMGFactory(QMainWindow):
         """Open IPL item placement editor"""
         self.log_message("IPL editor functionality coming soon")
 
-    def toggle_dir_tree(self): #vers 2
+    def toggle_dir_tree(self): #vers 3
+        """Delegate to _show_dir_tree which uses left_stack."""
+        try:
+            from apps.gui.gui_layout_custom import _show_dir_tree
+            _show_dir_tree(self)
+        except Exception as e:
+            self.log_message(f"Dir tree error: {e}")
+
+    def toggle_dir_tree_OLD(self): #vers 2 — kept for reference
         """Toggle the directory tree panel open/closed via the content splitter."""
         try:
             gl = getattr(self, 'gui_layout', None)

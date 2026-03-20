@@ -1011,7 +1011,15 @@ def integrate_dat_browser(main_window) -> bool: #vers 5
 
         _wire_xref_signal(widget, main_window)
         _auto_fill_game_root(widget, main_window)
-        _register_dat_taskbar(widget, main_window)
+        # Register taskbar button but don't activate — panel is hidden until user clicks DAT
+        try:
+            tb = getattr(main_window, 'tool_taskbar', None)
+            if tb and 'dat' not in tb._tools:
+                from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
+                icon = get_dat_browser_icon(16, getattr(tb, '_txt', '#e0e0e0'))
+                tb.register('dat', 'DAT', icon, widget, 'DAT Browser')
+        except Exception:
+            pass
 
         if hasattr(main_window, "log_message"):
             main_window.log_message("DAT Browser integrated (v5)")
