@@ -359,6 +359,16 @@ class DATBrowserWidget(QWidget): #vers 2
         self._load_btn.setEnabled(True)
         self._start_load()
 
+    def _on_split_toggle(self): #vers 1
+        """Delegate split/full cycle to gui_layout."""
+        try:
+            mw = self._main_window
+            gl = getattr(mw, 'gui_layout', None)
+            if gl and hasattr(gl, '_toggle_merge_view_layout'):
+                gl._toggle_merge_view_layout()
+        except Exception:
+            pass
+
     def _browse_game_root(self): #vers 2
         path = QFileDialog.getExistingDirectory(
             self, "Select GTA game root folder",
@@ -974,39 +984,37 @@ def _register_dat_taskbar(widget, main_window): #vers 1
         pass
 
 
-def integrate_dat_browser(main_window) -> bool: #vers 4
-    """Add a DAT Browser tab to main_window.main_tab_widget.
-    The tab has a normal close [x] button; use show_dat_browser() to re-open it.
-    Auto-populates game root from the directory tree on creation.
+def integrate_dat_browser(main_window) -> bool: #vers 5
+    """Create DAT Browser widget and place it in the left_stack panel.
+    Use show_dat_browser() / _show_dat_browser() to open/focus it.
     """
     try:
-        # Pass parent only if main_window is an actual QWidget
         from PyQt6.QtWidgets import QWidget as _QW
         parent_arg = main_window if isinstance(main_window, _QW) else None
         widget = DATBrowserWidget(main_window, parent=parent_arg)
         widget.setAutoFillBackground(True)
         main_window.dat_browser = widget
 
-        if hasattr(main_window, "main_tab_widget"):
-            tw = main_window.main_tab_widget
-            tab_idx = tw.addTab(widget, "DAT Browser")
-            tw.setCurrentIndex(tab_idx)
-            # tab is closable by default (tabsClosable=True already set on tw)
+        # Place in left_stack page 1 if available
+        gl = getattr(main_window, 'gui_layout', None)
+        left_stack = getattr(gl, 'left_stack', None)
+        if left_stack is not None:
+            old = left_stack.widget(1)
+            if old is not None:
+                left_stack.removeWidget(old)
+            left_stack.insertWidget(1, widget)
         else:
+            # Fallback: floating window
             widget.setWindowTitle("GTA DAT/IDE/IPL Browser")
-            widget.resize(1100, 700)
+            widget.resize(900, 700)
             widget.show()
 
         _wire_xref_signal(widget, main_window)
-
-        # Auto-fill game root from directory tree (silent — no warning if not set)
         _auto_fill_game_root(widget, main_window)
-
-        # Register DAT button in taskbar and mark active
         _register_dat_taskbar(widget, main_window)
 
         if hasattr(main_window, "log_message"):
-            main_window.log_message("DAT Browser integrated (v4)")
+            main_window.log_message("DAT Browser integrated (v5)")
         return True
     except Exception as e:
         if hasattr(main_window, "log_message"):

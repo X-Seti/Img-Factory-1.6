@@ -58,43 +58,114 @@ except ImportError:
     print("Warning: AppSettings not available")
 
 
-def _show_dir_tree(mw): #vers 1
-    """Ensure the directory tree is visible in the splitter — no cycling."""
-    try:
-        gl = getattr(mw, 'gui_layout', None)
-        splitter = getattr(gl, 'content_splitter', None) if gl else None
+def _get_left_stack(mw):
+    """Return (left_stack, splitter) from gui_layout, or (None, None)."""
+    gl = getattr(mw, 'gui_layout', None)
+    return getattr(gl, 'left_stack', None), getattr(gl, 'content_splitter', None)
 
-        # Set up dir tree first time if needed
+
+def _ensure_left_panel_visible(mw, splitter, left_stack):
+    """Show left_stack in splitter if currently hidden."""
+    sizes = splitter.sizes()
+    total = sum(sizes) or 10000
+    left_size = sizes[0] if len(sizes) > 1 else 0
+    if left_size < total * 0.10:
+        splitter.setSizes([total // 3, total * 2 // 3])
+    left_stack.show()
+
+
+def _show_dir_tree(mw): #vers 2
+    """Show dir tree in left stack — toggle collapse if already active."""
+    try:
+        left_stack, splitter = _get_left_stack(mw)
+        if left_stack is None or splitter is None:
+            return
+
+        # Build dir tree first time
         if not getattr(mw, 'directory_tree', None):
             from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser
             integrate_directory_tree_browser(mw)
-            if splitter and mw.directory_tree:
-                already = any(splitter.widget(i) is mw.directory_tree
-                              for i in range(splitter.count()))
-                if not already:
-                    splitter.addWidget(mw.directory_tree)
             root = getattr(mw, 'game_root', None)
             if root and hasattr(mw.directory_tree, 'browse_directory'):
                 mw.directory_tree.browse_directory(root)
 
-        if not splitter or splitter.count() < 2:
+        dt = getattr(mw, 'directory_tree', None)
+        if dt is None:
             return
 
-        sizes = splitter.sizes()
-        total = sum(sizes) or 10000
-        tree_size = sizes[-1] if len(sizes) > 1 else 0
+        # Insert dir tree into page 0 of left_stack
+        if left_stack.widget(0) is not dt:
+            old = left_stack.widget(0)
+            left_stack.removeWidget(old)
+            left_stack.insertWidget(0, dt)
 
-        # Only expand if currently hidden or too small
-        if tree_size < total * 0.15:
-            splitter.setSizes([total // 2, total // 2])
-
-        mw.directory_tree.show()
-        mw.directory_tree.raise_()
-        if hasattr(mw, 'log_message'):
-            mw.log_message("Dir Tree")
+        # Toggle: if already showing dir tree — collapse; else show it
+        currently_dir = (left_stack.currentIndex() == 0 and left_stack.isVisible()
+                         and splitter.sizes()[0] > 20)
+        if currently_dir:
+            # Collapse
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([0, total])
+            left_stack.hide()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.set_active('dirtree', False)
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Dir Tree hidden")
+        else:
+            left_stack.setCurrentIndex(0)
+            _ensure_left_panel_visible(mw, splitter, left_stack)
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar._set_exclusive_active('dirtree')
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Dir Tree")
     except Exception as e:
         if hasattr(mw, 'log_message'):
             mw.log_message(f"Dir tree show error: {e}")
+
+
+def _show_dat_browser(mw): #vers 1
+    """Show DAT Browser in left stack — toggle collapse if already active."""
+    try:
+        left_stack, splitter = _get_left_stack(mw)
+        if left_stack is None or splitter is None:
+            return
+
+        # Create DAT Browser if needed
+        widget = getattr(mw, 'dat_browser', None)
+        if widget is None:
+            from apps.components.Dat_Browser.dat_browser import integrate_dat_browser
+            integrate_dat_browser(mw)
+            widget = getattr(mw, 'dat_browser', None)
+        if widget is None:
+            return
+
+        # Insert dat browser into page 1 of left_stack
+        if left_stack.widget(1) is not widget:
+            old = left_stack.widget(1)
+            left_stack.removeWidget(old)
+            left_stack.insertWidget(1, widget)
+
+        # Toggle: if already showing DAT — collapse; else show it
+        currently_dat = (left_stack.currentIndex() == 1 and left_stack.isVisible()
+                         and splitter.sizes()[0] > 20)
+        if currently_dat:
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([0, total])
+            left_stack.hide()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.set_active('dat', False)
+            if hasattr(mw, 'log_message'):
+                mw.log_message("DAT Browser hidden")
+        else:
+            left_stack.setCurrentIndex(1)
+            _ensure_left_panel_visible(mw, splitter, left_stack)
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar._set_exclusive_active('dat')
+            if hasattr(mw, 'log_message'):
+                mw.log_message("DAT Browser")
+    except Exception as e:
+        if hasattr(mw, 'log_message'):
+            mw.log_message(f"DAT Browser show error: {e}")
 
 
 class ToolTaskbar(QWidget):  # vers 2
@@ -189,10 +260,13 @@ class ToolTaskbar(QWidget):  # vers 2
         if t is None:
             return
 
-        # Dir tree: ensure visible in splitter, don't cycle
+        # Dir tree: show/toggle via left stack
         if key == "dirtree":
             _show_dir_tree(self._main_window)
-            self._set_exclusive_active(key)
+            return
+
+        if key == "dat":
+            _show_dat_browser(self._main_window)
             return
 
         if callable(t):
@@ -236,29 +310,10 @@ class ToolTaskbar(QWidget):  # vers 2
 
         if key == "dirtree":
             _show_dir_tree(mw)
-            self._set_exclusive_active(key)
             return
 
         if key == "dat":
-            try:
-                from apps.components.Dat_Browser.dat_browser import show_dat_browser
-                show_dat_browser(mw)
-                widget = getattr(mw, 'dat_browser', None)
-                if widget:
-                    if 'dat' in self._tools:
-                        self._tools['dat']['target'] = widget
-                    else:
-                        # Re-register with widget target
-                        try:
-                            from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
-                            icon_color = self._txt
-                            icon = get_dat_browser_icon(16, icon_color)
-                            self.register('dat', 'DAT', icon, widget, 'DAT Browser')
-                        except Exception:
-                            pass
-                self._set_exclusive_active('dat')
-            except Exception as _e:
-                print(f"DAT open error: {_e}")
+            _show_dat_browser(mw)
             return
 
         # For COL/TXD/IDE/AI use the docked opener on main_window
