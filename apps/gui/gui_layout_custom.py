@@ -123,18 +123,18 @@ def _show_dir_tree(mw): #vers 2
             mw.log_message(f"Dir tree show error: {e}")
 
 
-def _show_dat_browser(mw): #vers 1
-    """Show DAT Browser in left stack — toggle collapse if already active."""
+def _show_dat_browser(mw): #vers 2
+    """Show DAT Panel in left stack — toggle collapse if already active."""
     try:
         left_stack, splitter = _get_left_stack(mw)
         if left_stack is None or splitter is None:
             return
 
-        # Create DAT Browser if needed
+        # Create DAT Panel if needed
         widget = getattr(mw, 'dat_browser', None)
         if widget is None:
-            from apps.components.Dat_Browser.dat_browser import integrate_dat_browser
-            integrate_dat_browser(mw)
+            from apps.components.Dat_Browser.dat_panel_widget import integrate_dat_panel
+            integrate_dat_panel(mw)
             widget = getattr(mw, 'dat_browser', None)
         if widget is None:
             return
