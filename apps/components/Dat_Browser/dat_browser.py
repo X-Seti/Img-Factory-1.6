@@ -84,6 +84,8 @@ class DATBrowserWidget(QWidget): #vers 2
     def _setup_ui(self): #vers 2
         # Ensure opaque background using panel_bg from theme
         self.setAutoFillBackground(True)
+        from PyQt6.QtCore import Qt as _Qt
+        self.setAttribute(_Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         try:
             mw = main_window
             if mw and hasattr(mw, 'app_settings'):
@@ -172,10 +174,12 @@ class DATBrowserWidget(QWidget): #vers 2
 
         # Main splitter: left = load-order tree  |  right = data tabs
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setAutoFillBackground(True)
         root.addWidget(splitter, 1)
 
         # Left — file load-order tree
         left = QWidget()
+        left.setAutoFillBackground(True)
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(QLabel("Load Order:"))
@@ -196,6 +200,7 @@ class DATBrowserWidget(QWidget): #vers 2
 
         # Right — tabbed result tables
         self._tabs = QTabWidget()
+        self._tabs.setAutoFillBackground(True)
         splitter.addWidget(self._tabs)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 3)
@@ -846,6 +851,9 @@ def show_dat_browser(main_window) -> bool: #vers 2
         # Tab was closed — re-add it
         tab_idx = tw.addTab(widget, "DAT Browser")
         tw.setCurrentIndex(tab_idx)
+        widget.setAutoFillBackground(True)
+        widget.update()
+        widget.repaint()
         _auto_fill_game_root(widget, main_window)
         if hasattr(main_window, "log_message"):
             main_window.log_message("DAT Browser re-opened")
