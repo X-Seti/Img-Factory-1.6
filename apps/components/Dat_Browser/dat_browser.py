@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QTextEdit, QAbstractItemView,
     QMessageBox, QMenu, QApplication,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QSize, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QColor
 
 try:
@@ -141,15 +141,13 @@ class DATBrowserWidget(QWidget): #vers 2
         toolbar.addWidget(browse_btn)
         toolbar.addWidget(self._load_btn)
 
-        # Split/full panel layout toggle
+        # Split/full panel toggle — same as Dir Tree split_toggle_btn
         from apps.methods.imgfactory_svg_icons import get_layout_w1left_icon
         self._split_btn = QPushButton()
-        try:
-            self._split_btn.setIcon(get_layout_w1left_icon(16))
-        except Exception:
-            self._split_btn.setText("⊞")
-        self._split_btn.setFixedSize(26, 26)
-        self._split_btn.setToolTip("Cycle panel layout: left | top | right | hidden")
+        self._split_btn.setFixedSize(24, 24)
+        self._split_btn.setIcon(get_layout_w1left_icon(20))
+        self._split_btn.setIconSize(QSize(20, 20))
+        self._split_btn.setToolTip("Panel left | Files right → click to cycle layout")
         self._split_btn.clicked.connect(self._on_split_toggle)
         toolbar.addWidget(self._split_btn)
 
@@ -380,13 +378,18 @@ class DATBrowserWidget(QWidget): #vers 2
         self._load_btn.setEnabled(True)
         self._start_load()
 
-    def _on_split_toggle(self): #vers 1
-        """Delegate split/full cycle to gui_layout."""
+    def _on_split_toggle(self): #vers 2
+        """Cycle panel layout — mirrors gui_layout split_toggle_btn behaviour."""
         try:
             mw = self._main_window
             gl = getattr(mw, 'gui_layout', None)
             if gl and hasattr(gl, '_toggle_merge_view_layout'):
                 gl._toggle_merge_view_layout()
+                # Sync icon with gui_layout's split_toggle_btn
+                src_btn = getattr(gl, 'split_toggle_btn', None)
+                if src_btn:
+                    self._split_btn.setIcon(src_btn.icon())
+                    self._split_btn.setToolTip(src_btn.toolTip())
         except Exception:
             pass
 
