@@ -1,12 +1,14 @@
+# @title COL Editor 2 Analyzer
+# @author X-Seti / Claude
+# @category Analysis
+# @keybinding
+# @menupath Tools.COL Editor 2 Analyzer
+# @toolbar
+
 # Ghidra Script: COL Editor 2 - COL Format Analyzer
-# Run from: Ghidra Script Manager (Window > Script Manager > Python)
-# Author: X-Seti / Claude - March 2026
-#
-# USAGE:
-# 1. Ghidra: Window > Script Manager
-# 2. Script Directories > add this file's folder
-# 3. Double-click ghidra_col_analyzer.py to run
-# 4. Results in ~/ghidra_col_report.txt — paste to Claude
+# Run from: Script Manager > double-click
+# Results saved to: ~/ghidra_col_report.txt
+# Paste that file to Claude for struct analysis
 
 import os
 import re
@@ -23,11 +25,9 @@ def run():
     log("=" * 60)
 
     program = currentProgram
-    memory  = program.getMemory()
     listing = program.getListing()
     refs    = program.getReferenceManager()
     funcs   = program.getFunctionManager()
-    dtmgr   = program.getDataTypeManager()
 
     # ── 1. Find COL magic strings ────────────────────────────────
     log("\n[1] Searching for COL magic bytes...")
@@ -42,7 +42,7 @@ def run():
     for magic_bytes, label in magics.items():
         found = findBytes(None, magic_bytes, 50)
         while found is not None:
-            log(f"  {label} at {found}")
+            log("  {} at {}".format(label, found))
             magic_addrs.setdefault(label, []).append(found)
             try:
                 createLabel(found, label, True)
@@ -65,12 +65,12 @@ def run():
                         key = fn.getName()
                         if key not in col_functions:
                             col_functions[key] = fn
-                            log(f"  {key} @ {fn.getEntryPoint()} (refs {label})")
+                            log("  {} @ {} (refs {})".format(key, fn.getEntryPoint(), label))
             except Exception as e:
-                log(f"  ref error: {e}")
+                log("  ref error: {}".format(e))
 
-    # ── 3. Decompile and dump pseudocode ─────────────────────────
-    log("\n[3] Decompiling COL functions (first 15)...")
+    # ── 3. Decompile COL functions ───────────────────────────────
+    log("\n[3] Decompiling COL functions...")
     try:
         from ghidra.app.decompiler import DecompInterface
         decomp = DecompInterface()
@@ -78,9 +78,9 @@ def run():
         monitor = ghidra.util.task.TaskMonitor.DUMMY
 
         for fn_name, fn in list(col_functions.items())[:15]:
-            log(f"\n{'='*40}")
-            log(f"FUNCTION: {fn_name}  @ {fn.getEntryPoint()}")
-            log(f"{'='*40}")
+            log("\n" + "="*50)
+            log("FUNCTION: {}  @ {}".format(fn_name, fn.getEntryPoint()))
+            log("="*50)
             try:
                 result = decomp.decompileFunction(fn, 60, monitor)
                 if result and result.decompileCompleted():
@@ -90,48 +90,44 @@ def run():
                 else:
                     log("  [decompile failed]")
             except Exception as e:
-                log(f"  [error: {e}]")
+                log("  [error: {}]".format(e))
 
         decomp.closeProgram()
     except Exception as e:
-        log(f"Decompiler unavailable: {e}")
+        log("Decompiler error: {}".format(e))
 
     # ── 4. Find fread/ReadFile calls ─────────────────────────────
     log("\n[4] File I/O calls...")
-    for io_name in ["fread","fwrite","ReadFile","WriteFile","_read","_write","fopen","CreateFileA"]:
+    for io_name in ["fread","fwrite","ReadFile","WriteFile","fopen","CreateFileA"]:
         try:
             syms = getSymbols(io_name, None)
             for sym in syms:
-                log(f"  {io_name} @ {sym.getAddress()}")
+                log("  {} @ {}".format(io_name, sym.getAddress()))
                 for ref in refs.getReferencesTo(sym.getAddress()):
                     fn = funcs.getFunctionContaining(ref.getFromAddress())
                     if fn:
-                        log(f"    <- {fn.getName()} @ {ref.getFromAddress()}")
+                        log("    <- {} @ {}".format(fn.getName(), ref.getFromAddress()))
         except Exception:
             pass
 
-    # ── 5. Search for struct size constants ──────────────────────
-    log("\n[5] Looking for struct size constants (typical COL sizes)...")
-    # COL1 sphere=20, box=28, face=8, vertex=6
-    # COL2 sphere=20, box=28, face=8, vertex=12
-    interesting = [4,6,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64]
-    # We just note this for manual cross-reference
-    log("  Key struct sizes to watch for in decompiler output:")
-    log("  COL1: bounding_sphere=20, sphere=20, box=28, face=8, vertex=6")
-    log("  COL2: bounding_sphere=20, sphere=20, box=28, face=8, vertex=12")
-    log("  COL3: same as COL2 + face_groups")
-    log("  Header: name=24bytes, model_id=2bytes, size=4bytes")
+    # ── 5. Known struct sizes for reference ──────────────────────
+    log("\n[5] Known COL struct sizes for cross-reference:")
+    log("  COL1: header=32, sphere=20, box=28, face=8, vertex=6")
+    log("  COL2: header=32, sphere=20, box=28, face=8, vertex=12")
+    log("  COL3: same as COL2 + face_groups, shadow_mesh flags")
+    log("  Name field: 24 bytes (null padded)")
+    log("  Model ID: 2 bytes (uint16)")
 
     # ── 6. Write report ──────────────────────────────────────────
     report_path = os.path.expanduser("~/ghidra_col_report.txt")
     try:
         with open(report_path, 'w') as f:
             f.write('\n'.join(output_lines))
-        log(f"\n[DONE] Report saved to: {report_path}")
+        log("\n[DONE] Report saved to: {}".format(report_path))
     except Exception as e:
-        log(f"\n[ERROR] Could not save report: {e}")
-        log("Copy the Script Manager output manually instead.")
+        log("\n[ERROR] Could not save: {}".format(e))
+        log("Copy Script Manager output manually instead.")
 
-    log("\nPaste the report contents to Claude for analysis.")
+    log("Paste report to Claude for struct analysis.")
 
 run()
