@@ -54,18 +54,59 @@ from apps.methods.col_workshop_loader import COLFile
 
 
 # Temporary 3D viewport placeholder
-class COL3DViewport(QWidget):
+class COL3DViewport(QLabel):
+    """2D top-down collision preview widget."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(400, 400)
-        layout = QVBoxLayout(self)
-        label = QLabel("3D Viewport - Placeholder")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet("background-color: #191923;")
+        self.bg_color = QColor(25, 25, 35)
+        self._model = None
+        self.setText("No model selected")
+
     def set_current_file(self, col_file): pass
     def set_view_options(self, **options): pass
+    def set_checkerboard_background(self): pass
+    def set_background_color(self, color):
+        self.bg_color = color
+        if self._model:
+            self._refresh()
 
-VIEWPORT_AVAILABLE = False  # 3D viewport not yet implemented
+    def pan(self, dx, dy): pass
+
+    def set_current_model(self, model, index=0): #vers 1
+        self._model = model
+        self._refresh()
+
+    def _refresh(self): #vers 1
+        if not self._model:
+            return
+        w = max(400, self.width())
+        h = max(400, self.height())
+        # Use workshop's render method if parent has it
+        workshop = self._find_workshop()
+        if workshop and hasattr(workshop, '_render_collision_preview'):
+            pix = workshop._render_collision_preview(self._model, w, h)
+            self.setPixmap(pix)
+        else:
+            self.setText("No renderer available")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._model:
+            self._refresh()
+
+    def _find_workshop(self):
+        """Walk up parent chain to find COLWorkshop instance."""
+        p = self.parent()
+        while p:
+            if isinstance(p, COLWorkshop):
+                return p
+            p = p.parent() if hasattr(p, 'parent') else None
+        return None
+
+VIEWPORT_AVAILABLE = True  # 2D preview now available
 
 # Add root directory to path
 App_name = "Col Workshop"
@@ -4226,6 +4267,156 @@ class COLWorkshop(QWidget): #vers 3
                 self.main_window.log_message(f"Extract error: {str(e)}")
             return None
 
+
+
+    def _project_model_2d(self, model, width, height, padding=8): #vers 1
+        """Project COL model geometry to 2D canvas coords (top-down X/Y view).
+        Returns (scale, offset_x, offset_y, pts) where pts is list of (x,y) vertex positions."""
+        import math
+        # Collect all points in world space
+        pts_3d = []
+        for s in getattr(model, 'spheres', []):
+            c = s.center
+            pts_3d.append((c.x - s.radius, c.y - s.radius))
+            pts_3d.append((c.x + s.radius, c.y + s.radius))
+        for b in getattr(model, 'boxes', []):
+            pts_3d.append((b.min_point.x, b.min_point.y))
+            pts_3d.append((b.max_point.x, b.max_point.y))
+        for v in getattr(model, 'vertices', []):
+            pts_3d.append((v.position.x, v.position.y))
+        if not pts_3d:
+            return 1.0, width//2, height//2, []
+        xs = [p[0] for p in pts_3d]
+        ys = [p[1] for p in pts_3d]
+        mn_x, mx_x = min(xs), max(xs)
+        mn_y, mx_y = min(ys), max(ys)
+        rng_x = mx_x - mn_x or 1.0
+        rng_y = mx_y - mn_y or 1.0
+        scale = min((width - padding*2) / rng_x, (height - padding*2) / rng_y)
+        cx = (mn_x + mx_x) / 2
+        cy = (mn_y + mx_y) / 2
+        ox = width  / 2 - cx * scale
+        oy = height / 2 - cy * scale
+        return scale, ox, oy, [(x * scale + ox, y * scale + oy) for x, y in pts_3d]
+
+    def _draw_col_model(self, painter, model, width, height, padding=4): #vers 1
+        """Draw COL model onto a QPainter — used by both thumbnail and preview."""
+        from PyQt6.QtGui import QPen, QBrush, QColor
+        from PyQt6.QtCore import QRectF, QPointF
+        import math
+
+        scale, ox, oy, _ = self._project_model_2d(model, width, height, padding)
+
+        def wx(x): return x * scale + ox
+        def wy(y): return y * scale + oy
+
+        # Mesh faces — filled triangles (grey)
+        verts = getattr(model, 'vertices', [])
+        faces = getattr(model, 'faces', [])
+        if verts and faces:
+            painter.setPen(QPen(QColor(120, 180, 120, 180), 0.5))
+            painter.setBrush(QBrush(QColor(60, 120, 60, 80)))
+            from PyQt6.QtGui import QPolygonF
+            for face in faces:
+                idx = getattr(face, 'vertex_indices', None)
+                if idx and len(idx) == 3:
+                    try:
+                        poly = QPolygonF([
+                            QPointF(wx(verts[idx[0]].position.x), wy(verts[idx[0]].position.y)),
+                            QPointF(wx(verts[idx[1]].position.x), wy(verts[idx[1]].position.y)),
+                            QPointF(wx(verts[idx[2]].position.x), wy(verts[idx[2]].position.y)),
+                        ])
+                        painter.drawPolygon(poly)
+                    except (IndexError, AttributeError):
+                        pass
+
+        # Boxes — yellow outline
+        painter.setPen(QPen(QColor(220, 180, 50), max(1.0, scale * 0.05)))
+        painter.setBrush(QBrush(QColor(220, 180, 50, 40)))
+        for box in getattr(model, 'boxes', []):
+            x1 = wx(box.min_point.x)
+            y1 = wy(box.min_point.y)
+            x2 = wx(box.max_point.x)
+            y2 = wy(box.max_point.y)
+            painter.drawRect(QRectF(min(x1,x2), min(y1,y2),
+                                    abs(x2-x1) or 2, abs(y2-y1) or 2))
+
+        # Spheres — cyan outline
+        painter.setPen(QPen(QColor(80, 200, 220), max(1.0, scale * 0.05)))
+        painter.setBrush(QBrush(QColor(80, 200, 220, 40)))
+        for sph in getattr(model, 'spheres', []):
+            r = sph.radius * scale
+            cx = wx(sph.center.x)
+            cy = wy(sph.center.y)
+            painter.drawEllipse(QRectF(cx - r, cy - r, r * 2 or 2, r * 2 or 2))
+
+    def _generate_collision_thumbnail(self, model, width=64, height=64): #vers 1
+        """Generate a small QPixmap thumbnail of a COL model (top-down 2D)."""
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import Qt
+        pixmap = QPixmap(width, height)
+        pixmap.fill(QColor(30, 30, 40))
+        has_data = (getattr(model, 'spheres', []) or
+                    getattr(model, 'boxes', []) or
+                    getattr(model, 'vertices', []))
+        if not has_data:
+            # Draw placeholder X
+            painter = QPainter(pixmap)
+            from PyQt6.QtGui import QPen
+            painter.setPen(QPen(QColor(80, 80, 80), 1))
+            painter.drawLine(4, 4, width-4, height-4)
+            painter.drawLine(width-4, 4, 4, height-4)
+            painter.end()
+            return pixmap
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._draw_col_model(painter, model, width, height, padding=4)
+        painter.end()
+        return pixmap
+
+    def _render_collision_preview(self, model, width=400, height=400): #vers 1
+        """Render a full-size QPixmap preview of a COL model."""
+        from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
+        from PyQt6.QtCore import Qt
+        pixmap = QPixmap(width, height)
+        pixmap.fill(QColor(25, 25, 35))
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        has_data = (getattr(model, 'spheres', []) or
+                    getattr(model, 'boxes', []) or
+                    getattr(model, 'vertices', []))
+
+        if not has_data:
+            painter.setPen(QColor(120, 120, 120))
+            painter.setFont(QFont('Arial', 11))
+            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "No geometry data")
+            painter.end()
+            return pixmap
+
+        self._draw_col_model(painter, model, width, height, padding=20)
+
+        # Legend
+        painter.setFont(QFont('Arial', 8))
+        y = height - 52
+        for color, label in [
+            (QColor(60, 120, 60),   f"Mesh  F:{len(getattr(model,'faces',[]))} V:{len(getattr(model,'vertices',[]))}"),
+            (QColor(220, 180, 50),  f"Boxes  {len(getattr(model,'boxes',[]))}"),
+            (QColor(80, 200, 220),  f"Spheres  {len(getattr(model,'spheres',[]))}"),
+        ]:
+            painter.setPen(color)
+            painter.drawText(6, y, label)
+            y += 14
+
+        # Model name
+        name = getattr(model, 'name', '')
+        if name:
+            painter.setPen(QColor(200, 200, 200))
+            painter.setFont(QFont('Arial', 9))
+            painter.drawText(6, 14, name)
+
+        painter.end()
+        return pixmap
 
     def _on_collision_selected(self): #vers 6
         """Handle COL model selection from table"""
