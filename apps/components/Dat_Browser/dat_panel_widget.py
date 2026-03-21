@@ -234,15 +234,19 @@ class DATPanel(QWidget): #vers 1
 
     # ── Split button ─────────────────────────────────────────────────────────
 
-    def _sync_split_icon(self): #vers 1
-        """Set icon matching current merge_view_state in gui_layout."""
+    def _sync_split_icon(self): #vers 2
+        """Set split icon — mirrors gui_layout.split_toggle_btn. Retries if not ready."""
         try:
             from apps.methods.imgfactory_svg_icons import (
                 get_layout_w1left_icon, get_layout_w1top_icon,
                 get_layout_w2left_icon, get_layout_w2top_icon
             )
-            gl    = getattr(self._main_window, 'gui_layout', None)
-            state = getattr(gl, '_merge_view_state', 0) if gl else 0
+            gl = getattr(self._main_window, 'gui_layout', None)
+            if gl is None:
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(500, self._sync_split_icon)
+                return
+            state = getattr(gl, '_merge_view_state', 0)
             color = '#cccccc'
             try:
                 tb = getattr(self._main_window, 'tool_taskbar', None)
@@ -488,23 +492,12 @@ class DATPanel(QWidget): #vers 1
             pass
 
 
-def integrate_dat_panel(main_window) -> bool: #vers 1
-    """Create DATPanel and place it in left_stack page 1."""
+def integrate_dat_panel(main_window) -> bool: #vers 2
+    """Create DATPanel — stays hidden until _show_dat_browser inserts it into splitter."""
     try:
         panel = DATPanel(main_window)
-        main_window.dat_browser = panel   # keep same attribute name
-
-        gl         = getattr(main_window, 'gui_layout', None)
-        left_stack = getattr(gl, 'left_stack', None)
-        if left_stack is not None:
-            old = left_stack.widget(1)
-            if old is not None:
-                left_stack.removeWidget(old)
-            left_stack.insertWidget(1, panel)
-        else:
-            panel.setWindowTitle("GTA DAT Browser")
-            panel.resize(900, 700)
-            panel.show()
+        main_window.dat_browser = panel
+        panel.hide()  # _show_dat_browser will insertWidget(0, panel) on demand
 
         panel.auto_fill_game_root()
 

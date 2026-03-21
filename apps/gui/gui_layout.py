@@ -1586,18 +1586,15 @@ class IMGFactoryGUILayout:
         self.content_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.content_splitter.setAutoFillBackground(True)
 
-        # Left stacked panel — page 0: dir tree, page 1: DAT browser
-        from PyQt6.QtWidgets import QStackedWidget
-        self.left_stack = QStackedWidget()
-        self.left_stack.setAutoFillBackground(True)
-        self.left_stack.setMinimumWidth(0)
-        # Placeholder pages — real widgets inserted when panels first open
-        self._left_stack_placeholder = QWidget()  # page 0 dir tree slot
-        self._left_stack_dat_placeholder = QWidget()  # page 1 dat browser slot
-        self.left_stack.addWidget(self._left_stack_placeholder)   # page 0
-        self.left_stack.addWidget(self._left_stack_dat_placeholder)  # page 1
-        self.left_stack.hide()  # hidden until Dir or DAT opened
-        self.content_splitter.addWidget(self.left_stack)
+        # Left side — dir tree and dat panel sit directly in the splitter
+        # Both start hidden; show/hide on demand (no QStackedWidget layer)
+        self._dir_tree_slot  = None   # set when dir tree first created
+        self._dat_panel_slot = None   # set when dat panel first created
+        # Placeholder keeps splitter index 0 reserved until real widget arrives
+        self._left_placeholder = QWidget()
+        self._left_placeholder.setFixedWidth(0)
+        self._left_placeholder.hide()
+        self.content_splitter.addWidget(self._left_placeholder)
 
         # Create main table placeholder (replaced by main_tab_widget in _create_ui)
         from apps.methods.populate_img_table import DragSelectTableWidget
@@ -2384,40 +2381,48 @@ class IMGFactoryGUILayout:
                 get_layout_w1left_icon, get_layout_w1top_icon,
                 get_layout_w2left_icon, get_layout_w2top_icon
             )
-            if not hasattr(self, 'content_splitter') or not hasattr(self, 'left_stack'):
+            if not hasattr(self, 'content_splitter'):
                 return
 
             splitter = self.content_splitter
             mw = self.main_window
             tab_widget = getattr(mw, 'main_tab_widget', None)
+            # active_left = whichever of dir_tree / dat_panel is currently shown
+            active_left = (getattr(mw, 'directory_tree', None)
+                           if getattr(mw, '_left_showing', '') == 'dir'
+                           else getattr(mw, 'dat_browser', None))
 
             self._merge_view_state = (getattr(self, '_merge_view_state', 0) + 1) % 4
             state = self._merge_view_state
 
-            if state == 0:  # left stack left | tabs right
+            def _show_left():
+                if active_left:
+                    active_left.show()
+
+            if state == 0:  # left | tabs
                 splitter.setOrientation(Qt.Orientation.Horizontal)
-                splitter.insertWidget(0, self.left_stack)
-                if tab_widget: splitter.insertWidget(1, tab_widget)
+                if active_left: splitter.insertWidget(0, active_left)
+                if tab_widget:  splitter.insertWidget(1, tab_widget)
                 splitter.setSizes([350, 650])
-                self.left_stack.show()
+                _show_left()
                 if hasattr(self, 'split_toggle_btn'):
                     self.split_toggle_btn.setIcon(get_layout_w1left_icon(20))
                     self.split_toggle_btn.setToolTip("Panel left | Files right → click: top/bottom")
-            elif state == 1:  # left stack top / tabs bottom
+            elif state == 1:  # top / bottom
                 splitter.setOrientation(Qt.Orientation.Vertical)
-                splitter.insertWidget(0, self.left_stack)
-                if tab_widget: splitter.insertWidget(1, tab_widget)
+                if active_left: splitter.insertWidget(0, active_left)
+                if tab_widget:  splitter.insertWidget(1, tab_widget)
                 splitter.setSizes([300, 500])
-                self.left_stack.show()
+                _show_left()
                 if hasattr(self, 'split_toggle_btn'):
                     self.split_toggle_btn.setIcon(get_layout_w1top_icon(20))
                     self.split_toggle_btn.setToolTip("Panel top / Files bottom → click: right|left")
-            elif state == 2:  # tabs left | left stack right
+            elif state == 2:  # tabs | right
                 splitter.setOrientation(Qt.Orientation.Horizontal)
-                if tab_widget: splitter.insertWidget(0, tab_widget)
-                splitter.insertWidget(1, self.left_stack)
+                if tab_widget:  splitter.insertWidget(0, tab_widget)
+                if active_left: splitter.insertWidget(1, active_left)
                 splitter.setSizes([650, 350])
-                self.left_stack.show()
+                _show_left()
                 if hasattr(self, 'split_toggle_btn'):
                     self.split_toggle_btn.setIcon(get_layout_w2left_icon(20))
                     self.split_toggle_btn.setToolTip("Files left | Panel right → click: hidden")
@@ -2425,8 +2430,8 @@ class IMGFactoryGUILayout:
                 splitter.setOrientation(Qt.Orientation.Horizontal)
                 if tab_widget: splitter.insertWidget(0, tab_widget)
                 total = sum(splitter.sizes()) or 1000
-                splitter.setSizes([0, total])
-                self.left_stack.hide()
+                splitter.setSizes([total, 0])
+                if active_left: active_left.hide()
                 if hasattr(self, 'split_toggle_btn'):
                     self.split_toggle_btn.setIcon(get_layout_w2top_icon(20))
                     self.split_toggle_btn.setToolTip("Panel hidden → click: left|right")

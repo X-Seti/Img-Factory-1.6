@@ -2932,25 +2932,25 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Panel toggle button error: {e}")
 
-        # Replace table placeholder (index 1) in content_splitter with main_tab_widget
-        # Index 0 = left_stack (dir tree / dat browser panel)
-        # Index 1 = table placeholder -> replaced with main_tab_widget
+        # Replace placeholder (index 0) in content_splitter with main_tab_widget
+        # Index 0 = _left_placeholder (tiny hidden widget)
+        # Dir/DAT panels are inserted at index 0 on demand by _show_dir_tree/_show_dat_browser
         if hasattr(self.gui_layout, 'content_splitter'):
             cs = self.gui_layout.content_splitter
-            # Find table's index — it's the non-left_stack widget
-            left_stack = getattr(self.gui_layout, 'left_stack', None)
-            table_idx = 1  # default
+            # Find the table/placeholder — replace with main_tab_widget
+            placeholder = getattr(self.gui_layout, '_left_placeholder', None)
+            table_idx = 1  # table is always added after placeholder
             for i in range(cs.count()):
-                if cs.widget(i) is not left_stack:
+                if cs.widget(i) is not placeholder:
                     table_idx = i
                     break
             cs.replaceWidget(table_idx, self.main_tab_widget)
             self.gui_layout.table.setVisible(False)
             self.gui_layout.table.setMaximumSize(0, 0)
-            # Ensure left_stack stays hidden until Dir/DAT opened
-            if left_stack:
-                left_stack.hide()
-                cs.setSizes([0, cs.width() or 1000])
+            # Keep placeholder hidden and zero-width
+            if placeholder:
+                placeholder.hide()
+            cs.setSizes([0, cs.width() or 1000])
         else:
             main_layout.addWidget(self.main_tab_widget)
 

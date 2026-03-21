@@ -58,27 +58,25 @@ except ImportError:
     print("Warning: AppSettings not available")
 
 
-def _get_left_stack(mw):
-    """Return (left_stack, splitter) from gui_layout, or (None, None)."""
+def _get_splitter(mw):
+    """Return content_splitter from gui_layout, or None."""
     gl = getattr(mw, 'gui_layout', None)
-    return getattr(gl, 'left_stack', None), getattr(gl, 'content_splitter', None)
+    return getattr(gl, 'content_splitter', None)
 
 
-def _ensure_left_panel_visible(mw, splitter, left_stack):
-    """Show left_stack in splitter if currently hidden."""
+def _expand_left(splitter):
+    """Ensure left slot in splitter has visible width."""
     sizes = splitter.sizes()
     total = sum(sizes) or 10000
-    left_size = sizes[0] if len(sizes) > 1 else 0
-    if left_size < total * 0.10:
+    if sizes[0] < total * 0.10:
         splitter.setSizes([total // 3, total * 2 // 3])
-    left_stack.show()
 
 
-def _show_dir_tree(mw): #vers 2
-    """Show dir tree in left stack — toggle collapse if already active."""
+def _show_dir_tree(mw): #vers 4
+    """Show dir tree directly in content_splitter slot 0 — toggle collapse."""
     try:
-        left_stack, splitter = _get_left_stack(mw)
-        if left_stack is None or splitter is None:
+        splitter = _get_splitter(mw)
+        if splitter is None:
             return
 
         # Build dir tree first time
@@ -93,44 +91,46 @@ def _show_dir_tree(mw): #vers 2
         if dt is None:
             return
 
-        # Insert dir tree into page 0 of left_stack
-        if left_stack.widget(0) is not dt:
-            old = left_stack.widget(0)
-            left_stack.removeWidget(old)
-            left_stack.insertWidget(0, dt)
+        # Hide DAT panel if showing
+        dat = getattr(mw, 'dat_browser', None)
+        if dat and dat.isVisible():
+            dat.hide()
 
-        # Toggle: if already showing dir tree — collapse; else show it
-        currently_dir = (left_stack.currentIndex() == 0 and left_stack.isVisible()
-                         and splitter.sizes()[0] > 20)
-        if currently_dir:
-            # Collapse
-            total = sum(splitter.sizes()) or 10000
+        # Already showing dir tree → toggle collapse
+        sizes = splitter.sizes()
+        showing = (splitter.widget(0) is dt and dt.isVisible()
+                   and sizes[0] > 20)
+        if showing:
+            total = sum(sizes) or 10000
             splitter.setSizes([0, total])
-            left_stack.hide()
+            dt.hide()
+            mw._left_showing = ''
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar.set_active('dirtree', False)
             if hasattr(mw, 'log_message'):
                 mw.log_message("Dir Tree hidden")
         else:
-            left_stack.setCurrentIndex(0)
-            _ensure_left_panel_visible(mw, splitter, left_stack)
+            splitter.insertWidget(0, dt)
+            dt.show()
+            _expand_left(splitter)
+            mw._left_showing = 'dir'
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar._set_exclusive_active('dirtree')
             if hasattr(mw, 'log_message'):
                 mw.log_message("Dir Tree")
     except Exception as e:
         if hasattr(mw, 'log_message'):
-            mw.log_message(f"Dir tree show error: {e}")
+            mw.log_message(f"Dir tree error: {e}")
 
 
-def _show_dat_browser(mw): #vers 2
-    """Show DAT Panel in left stack — toggle collapse if already active."""
+def _show_dat_browser(mw): #vers 4
+    """Show DAT panel directly in content_splitter slot 0 — toggle collapse."""
     try:
-        left_stack, splitter = _get_left_stack(mw)
-        if left_stack is None or splitter is None:
+        splitter = _get_splitter(mw)
+        if splitter is None:
             return
 
-        # Create DAT Panel if needed
+        # Create DAT panel first time
         widget = getattr(mw, 'dat_browser', None)
         if widget is None:
             from apps.components.Dat_Browser.dat_panel_widget import integrate_dat_panel
@@ -139,33 +139,36 @@ def _show_dat_browser(mw): #vers 2
         if widget is None:
             return
 
-        # Insert dat browser into page 1 of left_stack
-        if left_stack.widget(1) is not widget:
-            old = left_stack.widget(1)
-            left_stack.removeWidget(old)
-            left_stack.insertWidget(1, widget)
+        # Hide dir tree if showing
+        dt = getattr(mw, 'directory_tree', None)
+        if dt and dt.isVisible():
+            dt.hide()
 
-        # Toggle: if already showing DAT — collapse; else show it
-        currently_dat = (left_stack.currentIndex() == 1 and left_stack.isVisible()
-                         and splitter.sizes()[0] > 20)
-        if currently_dat:
-            total = sum(splitter.sizes()) or 10000
+        # Already showing DAT → toggle collapse
+        sizes = splitter.sizes()
+        showing = (splitter.widget(0) is widget and widget.isVisible()
+                   and sizes[0] > 20)
+        if showing:
+            total = sum(sizes) or 10000
             splitter.setSizes([0, total])
-            left_stack.hide()
+            widget.hide()
+            mw._left_showing = ''
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar.set_active('dat', False)
             if hasattr(mw, 'log_message'):
                 mw.log_message("DAT Browser hidden")
         else:
-            left_stack.setCurrentIndex(1)
-            _ensure_left_panel_visible(mw, splitter, left_stack)
+            splitter.insertWidget(0, widget)
+            widget.show()
+            _expand_left(splitter)
+            mw._left_showing = 'dat'
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar._set_exclusive_active('dat')
             if hasattr(mw, 'log_message'):
                 mw.log_message("DAT Browser")
     except Exception as e:
         if hasattr(mw, 'log_message'):
-            mw.log_message(f"DAT Browser show error: {e}")
+            mw.log_message(f"DAT Browser error: {e}")
 
 
 class ToolTaskbar(QWidget):  # vers 2
