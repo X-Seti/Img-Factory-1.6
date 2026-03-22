@@ -11572,6 +11572,26 @@ class TXDWorkshop(QWidget): #vers 3
         return bytes(alpha_display)
 
 
+    # ── TXD method aliases and stubs (Build 131) ─────────────────────
+    def _export_all_textures(self, *a, **kw): return self.export_all_textures(*a, **kw)
+    def _export_selected_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)
+    def _open_txd_file(self, *a, **kw): pass  # TODO: _open_file
+    def copy_texture(self, *a, **kw): return self._copy_texture(*a, **kw)
+    def delete_texture(self, *a, **kw): return self._delete_texture(*a, **kw)
+    def duplicate_texture(self, *a, **kw): return self._duplicate_texture(*a, **kw)
+    def export_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)
+    def import_normal_texture(self, *a, **kw): return self._import_textures(*a, **kw)
+    def import_textures(self, *a, **kw): return self._import_textures(*a, **kw)
+    def paste_texture(self, *a, **kw): return self._paste_texture(*a, **kw)
+    def refresh(self, *a, **kw): return self._reload_texture_table(*a, **kw)
+    def reload_texture_table(self, *a, **kw): return self._reload_texture_table(*a, **kw)
+    def save_as_txd_file(self, *a, **kw): return self._save_as_txd_file(*a, **kw)
+    def undo_last_action(self, *a, **kw): return self._undo_last_action(*a, **kw)
+    def _show_detailed_info(self, *a, **kw): pass
+    def _show_texture_info(self, *a, **kw): pass
+    def show_help(self, *a, **kw): pass
+    def show_settings_dialog(self, *a, **kw): pass
+
     def _flip_vertical(self): #vers 2
         """Flip texture vertically"""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
