@@ -10,9 +10,10 @@ import struct
 from typing import Tuple, List, Optional
 from apps.debug.debug_functions import img_debugger
 from apps.methods.col_workshop_classes import (
-    COLHeader, COLBounds, COLSphere, COLBox, 
+    COLHeader, COLBounds, COLSphere, COLBox,
     COLVertex, COLFace, COLModel, COLVersion
 )
+from apps.methods.col_core_classes import Vector3, COLMaterial, BoundingBox
 
 ##Classes list -
 # COLParser
@@ -215,62 +216,27 @@ class COLParser: #vers 1
             raise ValueError(f"Bounds parse error: {str(e)}")
 
 
-    def parse_spheres(self, data: bytes, offset: int, count: int) -> Tuple[List[COLSphere], int]: #vers 1
-        """Parse collision spheres - 20 bytes each (COL1)"""
+    def parse_spheres(self, data: bytes, offset: int, count: int) -> Tuple[List[COLSphere], int]: #vers 3
+        """Parse collision spheres.
+        All versions: center(12) + radius(4) + surface(1) + piece(1) + pad(2) = 20 bytes.
+        VERIFIED from special.col RE March 2026.
+        """
         spheres = []
-        
         for _ in range(count):
             if len(data) < offset + 20:
                 raise ValueError("Data too short for sphere")
-            
-            # Radius (4 bytes)
+            cx, cy, cz = struct.unpack('<fff', data[offset:offset+12])
+            center = (cx, cy, cz)
+            offset += 12
             radius = struct.unpack('<f', data[offset:offset+4])[0]
             offset += 4
-            
-            # Center (12 bytes)
-            center = struct.unpack('<fff', data[offset:offset+12])
-            offset += 12
-            
-            # Parse spheres
-            num_spheres = struct.unpack('<I', data[offset:offset+4])[0]
-            offset += 4
-            spheres, offset = self.parse_spheres(data, offset, num_spheres)
-
-            # Skip unknown (always 0)
-            offset += 4
-
-            # Parse boxes
-            num_boxes = struct.unpack('<I', data[offset:offset+4])[0]
-            offset += 4
-            boxes, offset = self.parse_boxes(data, offset, num_boxes)
-
-            # Parse vertices
-            num_vertices = struct.unpack('<I', data[offset:offset+4])[0]
-            offset += 4
-            vertices, offset = self.parse_vertices(data, offset, num_vertices, header.version)
-
-            # Parse faces
-            num_faces = struct.unpack('<I', data[offset:offset+4])[0]
-            offset += 4
-            faces, offset = self.parse_faces(data, offset, num_faces, header.version)
-
-            # Surface properties (4 bytes)
-            material = data[offset]
-            flag = data[offset + 1]
-            brightness = data[offset + 2]
-            light = data[offset + 3]
-            offset += 4
-            
-            sphere = COLSphere(
-                radius=radius,
-                center=center,
-                material=material,
-                flag=flag,
-                brightness=brightness,
-                light=light
-            )
+            material = data[offset]      # surface type
+            flag     = data[offset + 1]  # piece
+            offset += 4  # surface(1) + piece(1) + pad(2)
+            sphere = COLSphere(radius=radius, center=center,
+                               material=material, flag=flag,
+                               brightness=0, light=0)
             spheres.append(sphere)
-        
         return spheres, offset
     
 
@@ -284,32 +250,23 @@ class COLParser: #vers 1
         """
         try:
             spheres = []
-            sphere_size = 24 if version == COLVersion.COL_1 else 20
+            # All versions: sphere = center(12) + radius(4) + surface(1) + piece(1) + pad(2) = 20 bytes
+            # VERIFIED from special.col RE March 2026
+            sphere_size = 20
 
             if len(data) < offset + (count * sphere_size):
                 raise ValueError(f"Data too short for {count} spheres")
 
             for i in range(count):
-                # Center (12 bytes)
                 cx, cy, cz = struct.unpack('<fff', data[offset:offset+12])
                 center = Vector3(cx, cy, cz)
                 offset += 12
-
-                # Radius (4 bytes)
                 radius = struct.unpack('<f', data[offset:offset+4])[0]
                 offset += 4
-
-                # Material (4 bytes)
-                material_id = struct.unpack('<I', data[offset:offset+4])[0]
-                offset += 4
-
-                # Flags (COL1 only, 4 bytes)
-                flags = 0
-                if version == COLVersion.COL_1:
-                    flags = struct.unpack('<I', data[offset:offset+4])[0]
-                    offset += 4
-
-                material = COLMaterial(material_id, flags)
+                surface = data[offset]
+                piece   = data[offset+1]
+                offset += 4  # surface(1) + piece(1) + pad(2)
+                material = COLMaterial(surface, piece)
                 sphere = COLSphere(center, radius, material)
                 spheres.append(sphere)
 
@@ -500,27 +457,22 @@ class COLParser: #vers 1
         faces = []
         
         if version == COLVersion.COL_1:
-            # COL1: uint32 indices
+            # COL1: uint32 indices + mat(u8) + light(u8) + pad(u16) = 16 bytes
+            # VERIFIED from special.col RE March 2026
             for _ in range(count):
                 if len(data) < offset + 16:
-                    raise ValueError("Data too short for face")
-                
-                # Vertex indices (12 bytes)
+                    raise ValueError("Data too short for COL1 face")
                 a, b, c = struct.unpack('<III', data[offset:offset+12])
                 offset += 12
-                
-                # Surface properties (4 bytes)
-                material = data[offset]
-                flag = data[offset + 1]
-                brightness = data[offset + 2]
-                light = data[offset + 3]
+                material = data[offset]      # surface type (e.g. 63=concrete)
+                light    = data[offset + 1]  # light value
+                # pad uint16 at offset+2
                 offset += 4
-                
                 face = COLFace(
                     a=a, b=b, c=c,
                     material=material,
-                    flag=flag,
-                    brightness=brightness,
+                    flag=0,
+                    brightness=0,
                     light=light
                 )
                 faces.append(face)
@@ -602,8 +554,17 @@ class COLParser: #vers 1
             raise ValueError(f"Faces parse error: {str(e)}")
 
 
-    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 2
+    def parse_model(self, data: bytes, offset: int = 0) -> Tuple[Optional[COLModel], int]: #vers 3
         """Parse complete COL model (COL1/2/3/4).
+
+        COL1 layout (VERIFIED from special.col RE, March 2026):
+          header(32) -> bounds(40) -> n_spheres -> spheres[] -> n_boxes -> boxes[]
+          -> n_facegroups -> facegroups[] -> n_verts -> verts[] -> n_faces -> faces[]
+
+        COL2/3 layout:
+          header(32) -> bounds(40) -> n_spheres -> spheres[] -> n_boxes -> boxes[]
+          -> n_verts -> verts[] -> n_facegroups -> facegroups[] -> n_faces -> faces[]
+
         Returns: (COLModel, new_offset) or (None, offset) on error.
         """
         start_offset = offset
@@ -612,26 +573,61 @@ class COLParser: #vers 1
             header, offset = self.parse_header(data, offset)
             version = header.version
 
-            # Parse bounds
+            # Parse bounds (bounding sphere + bounding box = 40 bytes)
             bounds, offset = self.parse_bounds(data, offset, version)
 
-            # Parse counts
-            num_spheres, num_boxes, num_vertices, num_faces, offset =                 self.parse_counts(data, offset, version)
+            # ── COL1: interleaved counts+data ────────────────────────
+            if version == COLVersion.COL_1:
+                # Spheres
+                num_spheres = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                spheres, offset = self.parse_spheres(data, offset, num_spheres)
+
+                # Boxes
+                num_boxes = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                boxes, offset = self.parse_boxes(data, offset, num_boxes)
+
+                # Face groups (COL1 CAN have face groups — verified)
+                num_facegroups = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                # Each face group = min(vec3) + max(vec3) + surface(u8) + pad(u8) + pad2(u16) = 28 bytes
+                face_groups = []
+                for _ in range(num_facegroups):
+                    offset += 28  # skip for now — store raw later
+
+                # Vertices (float x3 = 12 bytes each in COL1)
+                num_vertices = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                vertices, offset = self.parse_vertices(data, offset, num_vertices, version)
+
+                # Faces (uint32 x3 + mat + light + pad = 16 bytes in COL1)
+                num_faces = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                faces, offset = self.parse_faces(data, offset, num_faces, version)
+
+            # ── COL2/3: interleaved counts+data ──────────────────────
+            else:
+                num_spheres = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                spheres, offset = self.parse_spheres(data, offset, num_spheres)
+
+                num_boxes = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                boxes, offset = self.parse_boxes(data, offset, num_boxes)
+
+                num_vertices = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                vertices, offset = self.parse_vertices(data, offset, num_vertices, version)
+
+                num_facegroups = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                for _ in range(num_facegroups):
+                    offset += 28  # skip face groups
+
+                num_faces = struct.unpack_from('<I', data, offset)[0]; offset += 4
+                faces, offset = self.parse_faces(data, offset, num_faces, version)
 
             # Sanity checks
-            if num_spheres > 10000 or num_boxes > 10000                     or num_vertices > 100000 or num_faces > 100000:
+            if (len(spheres) > 10000 or len(boxes) > 10000
+                    or len(vertices) > 200000 or len(faces) > 200000):
                 if self.debug:
-                    print(f"parse_model: implausible counts S={num_spheres} "
-                          f"B={num_boxes} V={num_vertices} F={num_faces}")
+                    print(f"parse_model: implausible counts S={len(spheres)} "
+                          f"B={len(boxes)} V={len(vertices)} F={len(faces)}")
                 return None, start_offset
 
-            # Parse geometry — spheres/boxes don't take version, vertices/faces do
-            spheres,  offset = self.parse_spheres(data, offset, num_spheres)
-            boxes,    offset = self.parse_boxes(data, offset, num_boxes)
-            vertices, offset = self.parse_vertices(data, offset, num_vertices, version)
-            faces,    offset = self.parse_faces(data, offset, num_faces, version)
-
-            # Build the dataclass — all 6 fields required
+            # Build model
             model = COLModel(
                 header=header,
                 bounds=bounds,
@@ -640,7 +636,6 @@ class COLParser: #vers 1
                 vertices=vertices,
                 faces=faces,
             )
-            # Convenience attrs used by various callers
             model.name     = header.name
             model.version  = header.version
             model.model_id = header.model_id

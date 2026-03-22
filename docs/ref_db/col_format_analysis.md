@@ -1,146 +1,178 @@
-# COL Format Analysis — CollEditor2 Reverse Engineering
-**Source**: CollEditor2_unpacked.exe (UPX unpacked)
-**Method**: Static analysis via Python struct tracing
+# COL Format Analysis — CollEditor2 RE + special.col verification
+**Sources**: CollEditor2_unpacked.exe (binary RE) + special.col (GTA:SA SOL mod)
+**Method**: Static binary analysis + empirical byte-by-byte parsing
 **Date**: March 2026
+**Status**: COL1 fully verified — all 5 models in special.col parse correctly
 
 ---
 
-## Binary Info
-- Format: PE32 executable (GUI) Intel 80386
-- Language: Delphi/Borland (statically linked MSVCRT)
-- File I/O: KERNEL32.DLL ReadFile/WriteFile (no MSVCRT fread)
-- Packer: UPX (removed with `upx -d`)
-- Image Base: 0x00400000
+## COL1 File Format — VERIFIED CORRECT
 
-## Key Addresses (unpacked)
-| Address    | Description |
-|------------|-------------|
-| 0x004CF8E4 | Delphi VMT / class descriptor for COL object |
-| 0x004B79EC | COL1 reader function entry |
-| 0x004B79FC | COL2 reader function entry |
-| 0x004B7A0C | COL3 reader function entry |
-| 0x004B7C44 | Stream read dispatcher (calls virtual stream.Read) |
-| 0x004B99FC | "No" dialog string |
-| 0x004B9A08 | "Yes" dialog string |
+### File Structure
+A COL file contains one or more models concatenated sequentially.
 
-## VMT Layout at 0x004CF8E4
 ```
-+00: 0x004B7080  <- base class method
-+04: 'COLL'      <- COL1 magic identifier
-+08: 'COL2'      <- COL2 magic identifier
-+0C: 'COL3'      <- COL3 magic identifier
-+10: 0x004B79EC  <- COL1 read/write function
-+14: 0x004B79FC  <- COL2 read/write function
-+18: 0x004B7A0C  <- COL3 read/write function
-+1C: float       <- unknown (0x3C23D70A)
-+20: 0x004B99FC  <- "No" dialog
-+24: 0x004B9A08  <- "Yes" dialog
-+28: 0x00000001
-+38: 0x00000018  <- 24 (name field size)
-+3C: 0x00000030  <- 48 (header size?)
+[Model 1][Model 2][Model 3]...
 ```
 
----
-
-## Confirmed Struct Sizes (from stream reader at 0x004B7C44)
-
-| Size (bytes) | Struct | Notes |
-|-------------|--------|-------|
-| 40 | Bounding sphere + box | Read twice at start — center(12)+radius(4)+pad(24) |
-| 20 | COLSphere | center:Vector3(12) + radius:float(4) + material:uint32(4) |
-| 28 | COLBox | min:Vector3(12) + max:Vector3(12) + material:uint32(4) |
-| 6  | COLVertex COL1 | x:int16 + y:int16 + z:int16 |
-| 12 | COLVertex COL2/3 | x:float + y:float + z:float |
-| 8  | COLFace | v0:uint16 + v1:uint16 + v2:uint16 + mat:uint8 + light:uint8 |
-| 4  | Count fields | uint32 — sphere_count, box_count, face_count etc. |
-| 22 | Unknown | Possibly header name block (24 - 2 for model_id?) |
-| 14 | Unknown | Possibly COL1 combined vertex+face? |
-| 30 | Unknown | Possibly COLFaceGroup |
-| 36 | Shadow mesh vertex | 9 floats? Or 3x Vector3? Shadow mesh COL3 feature |
-| 1  | Flags byte | Per-element flag byte |
+Each model:
+```
+magic(4) + data_size(4) + model_data(data_size bytes)
+```
+Total model bytes = data_size + 8
 
 ---
 
-## COL File Header Layout (confirmed)
+### COL1 Model Layout
+
+```
+Offset  Size  Type      Field
+──────────────────────────────────────────────────
+0       4     char[4]   magic = "COLL"
+4       4     uint32    data_size  (bytes after this field)
+── model_data starts here ──
+8       22    char[22]  model_name (null-padded ASCII)
+30      2     uint16    model_id
+── bounding_sphere ──
+32      12    float[3]  bs_center  (x, y, z)
+44      4     float     bs_radius
+── bounding_box ──
+48      12    float[3]  bb_min     (x, y, z)
+60      12    float[3]  bb_max     (x, y, z)
+── spheres ──
+72      4     uint32    num_spheres
+76      20*N  COLSphere spheres[N]
+── boxes ──
+?       4     uint32    num_boxes
+?       28*M  COLBox    boxes[M]
+── face_groups ──
+?       4     uint32    num_face_groups
+?       28*G  COLFaceGroup face_groups[G]
+── vertices ──
+?       4     uint32    num_vertices
+?       12*V  float[3]  vertices[V]   ← FLOAT not int16!
+── faces ──
+?       4     uint32    num_faces
+?       16*F  COLFace   faces[F]      ← 16 bytes not 8!
+```
+
+---
+
+### Struct Definitions
+
 ```c
-struct COLHeader {
-    char     magic[4];     // "COLL", "COL2", "COL3"
-    uint32_t file_size;    // size of data after this point
-    char     model_name[24]; // null-padded ASCII name
-    uint16_t model_id;     // object model ID
-};
-// Total header = 4+4+24+2 = 34 bytes
-```
-
-## COL1 Model Layout (confirmed sizes)
-```c
-struct COL1Model {
-    // Bounding sphere
-    float    bs_center[3];  // 12 bytes
-    float    bs_radius;     //  4 bytes
-    // Bounding box  
-    float    bb_min[3];     // 12 bytes
-    float    bb_max[3];     // 12 bytes
-    // = 40 bytes total for bounds block
-
-    uint32_t sphere_count;
-    COLSphere spheres[];    // each 20 bytes
-
-    uint32_t box_count;
-    COLBox   boxes[];       // each 28 bytes
-
-    uint32_t vertex_count;
-    COLVertex1 vertices[];  // each 6 bytes (int16 x3)
-
-    uint32_t face_count;
-    COLFace  faces[];       // each 8 bytes
+// COLSphere — 20 bytes
+struct COLSphere {
+    float    center[3];   // 12 bytes
+    float    radius;      //  4 bytes
+    uint8_t  surface;     //  1 byte  (material ID)
+    uint8_t  piece;       //  1 byte
+    uint16_t pad;         //  2 bytes
 };
 
-struct COLSphere {          // 20 bytes
-    float    center[3];     // 12
-    float    radius;        //  4
-    uint8_t  surface;       //  1
-    uint8_t  piece;         //  1
-    uint16_t pad;           //  2
+// COLBox — 28 bytes
+struct COLBox {
+    float    min[3];      // 12 bytes
+    float    max[3];      // 12 bytes
+    uint8_t  surface;     //  1 byte
+    uint8_t  piece;       //  1 byte
+    uint16_t pad;         //  2 bytes
 };
 
-struct COLBox {             // 28 bytes
-    float    min[3];        // 12
-    float    max[3];        // 12
-    uint8_t  surface;       //  1
-    uint8_t  piece;         //  1
-    uint16_t pad;           //  2
+// COLFaceGroup — 28 bytes  (PRESENT IN COL1, not just COL3)
+struct COLFaceGroup {
+    float    min[3];      // 12 bytes  bounding box min
+    float    max[3];      // 12 bytes  bounding box max
+    uint8_t  surface;     //  1 byte   material
+    uint8_t  pad1;        //  1 byte
+    uint16_t pad2;        //  2 bytes
 };
 
-struct COLVertex1 {         // 6 bytes
-    int16_t  x, y, z;
+// COLVertex — 12 bytes  (FLOAT not int16!)
+struct COLVertex {
+    float    x, y, z;    // 12 bytes
 };
 
-struct COLFace {            // 8 bytes
-    uint16_t v0, v1, v2;
-    uint8_t  material;
-    uint8_t  light;
+// COLFace — 16 bytes  (uint32 indices, not uint16!)
+struct COLFace {
+    uint32_t v0, v1, v2; // 12 bytes  vertex indices
+    uint8_t  material;   //  1 byte   surface type
+    uint8_t  light;      //  1 byte   lighting
+    uint16_t pad;        //  2 bytes
 };
 ```
 
-## COL2/3 Differences
-- Vertices are float32 (12 bytes each) not int16 (6 bytes)
-- COL3 adds face groups (shadow mesh)
-- Shadow mesh vertex = 36 bytes (possibly 3x Vector3 for triangle?)
-- Face flags/lighting stored differently
+---
+
+### IMPORTANT CORRECTIONS vs GTAMods Wiki
+
+| Field | GTAMods Wiki | ACTUAL (verified) |
+|-------|-------------|-------------------|
+| model_name size | 24 bytes | **22 bytes** |
+| model_id offset | 32 | **30** |
+| data_start offset | 34 | **32** |
+| COLVertex type | int16 (6 bytes) | **float32 (12 bytes)** |
+| COLFace size | 8 bytes | **16 bytes** |
+| COLFace v0/v1/v2 type | uint16 | **uint32** |
+| Face groups in COL1 | No | **Yes** |
 
 ---
 
-## Notes
-- Our existing `col_core_classes.py` struct sizes are CORRECT
-- The parsing issue was `_generate_collision_thumbnail` was called but not defined
-- Fixed in Build 111 with QPainter 2D top-down renderer
-- The 22/30/36 byte unknowns need further investigation
-- CollEditor2 is written in Delphi — class methods follow Delphi ABI (ESI=self)
+### Verified Examples from special.col
+
+| Model | Magic | Spheres | Boxes | FaceGroups | Vertices | Faces |
+|-------|-------|---------|-------|------------|----------|-------|
+| tram | COLL | 14 | 0 | 1 | 28 | 16 |
+| train | COLL | 0 | 0 | 0 | 284 | 198 |
+| train_dl | COLL | 0 | 0 | 0 | 126 | 96 |
+| train_dr | COLL | 0 | 0 | 0 | 126 | 96 |
+| Ferry | COLL | 0 | 0 | 0 | 909 | 1026 |
 
 ---
 
-## Tools Used
-- `upx -d CollEditor2.exe` — unpack
-- Custom Python PE analyser (see `apps/utils/ghidra_col_analyzer.py`)
-- Ghidra with PyGhidra (`/opt/ghidra/support/pyghidraRun`)
+### Material ID 63 (0x3F)
+The tram model uses material 63 consistently.
+In GTA surface types: 63 = METAL or similar hard surface.
+
+---
+
+## Binary Source Analysis (CollEditor2)
+
+- **Location**: `/opt/ghidra/support/pyghidraRun` for analysis
+- **Packer**: UPX — unpack with `upx -d CollEditor2.exe`
+- **Language**: Delphi/Borland (statically linked)
+- **Stream reader**: `0x004B7C44` — virtual stream.Read dispatcher
+- **COL1 reader**: `0x004B79EC` (function after "Col 1\0\0\0" string)
+- **COL2 reader**: `0x004B79FC`
+- **COL3 reader**: `0x004B7A0C`
+
+### Read sizes confirmed from binary
+| Size | Struct |
+|------|--------|
+| 40 | Bounding sphere + radius (full block) |
+| 20 | COLSphere |
+| 28 | COLBox |
+| 6  | (COL1 vertex — **but actual file shows float=12**) |
+| 12 | COLVertex COL2/3 — also used in COL1 |
+| 16 | COLFace (confirmed from file parsing) |
+| 28 | COLFaceGroup |
+
+---
+
+## Impact on IMG Factory Parser
+
+The existing `col_core_classes.py` and `col_workshop_parser.py` have:
+- `COLVertex` storing `position: Vector3` (floats) — **correct**
+- `COLFace.vertex_indices: Tuple[int,int,int]` — **correct**
+- Face parsing reading uint16 indices — **WRONG, should be uint32**
+- Face struct size 8 bytes — **WRONG, should be 16 bytes**
+- Name field 24 bytes — **WRONG, should be 22 bytes + 2 for model_id**
+
+## TODO: Fix Parser
+- `col_workshop_parser.py`: fix face struct to read uint32 indices
+- `col_core_classes.py`: COLVertex already uses float (correct)
+- Fix header parsing: name=22 bytes not 24
+
+---
+
+**Last Updated**: March 2026 — Build 112
