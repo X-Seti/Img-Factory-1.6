@@ -416,8 +416,19 @@ class COLFile: #vers 1
             fourcc = data[offset:offset+4]
             if fourcc not in VALID_FOURCCS:
                 if self.debug:
-                    print(f"_parse_all_models: unexpected bytes at 0x{offset:X}: {fourcc.hex()}")
-                break
+                    print(f"_parse_all_models: unexpected bytes at 0x{offset:X}: {fourcc.hex()} {repr(fourcc)}")
+                # Try scanning forward for a valid FOURCC (handles files with padding/junk)
+                found = False
+                for skip in range(1, min(64, len(data) - offset - 8)):
+                    candidate = data[offset+skip:offset+skip+4]
+                    if candidate in VALID_FOURCCS:
+                        if self.debug:
+                            print(f"  found valid FOURCC at +{skip}: {candidate}")
+                        offset += skip
+                        found = True
+                        break
+                if not found:
+                    break
 
             # Read the size field so we can safely skip on failure
             block_size = _s.unpack_from('<I', data, offset + 4)[0]

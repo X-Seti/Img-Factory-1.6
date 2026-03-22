@@ -1,4 +1,44 @@
-#this belongs in root /ChangeLog.md - Version: 26
+#this belongs in root /ChangeLog.md - Version: 27
+
+## March 2026 — COL Workshop rendering, parser RE, routing fixes
+
+### Build 116 — COL Workshop: fix thumbnail/preview renderer + COL routing
+- `col_workshop.py`: renderer now supports both `COLVertex.x/y/z` (col_workshop_classes)
+  and `COLVertex.position.x` (col_core_classes) — was always hitting AttributeError
+- Face drawing: support `a/b/c` fields as well as `vertex_indices` tuple on COLFace
+- Box/sphere drawing: dual-attribute support for both class hierarchies
+- `open.py` `_load_col_file` v5: all COL open paths now call `open_col_workshop()`
+  so `.col` files always open with the full Workshop UI, not a blank table tab
+
+### Build 115 — Fix COL open showing blank tab
+- Unified file dialog and `open_col_workshop_docked` now call `open_col_workshop()`
+  instead of `_load_col_file_in_new_tab()` — full Workshop UI always shown
+
+### Build 114 — Fix double COL tab + "Send to Col Workshop" context menu
+- `_load_col_file_in_new_tab` v4: parse COL first, create exactly ONE tab
+- Tab right-click → "Send to Col Workshop" for COL tabs
+- Deduplicates: switches to existing workshop tab if already open
+
+### Build 113 — COL parser fully verified against special.col + CollEditor2 RE
+- `parse_model` v3: correct interleaved layout
+  (n_sph→spheres→n_box→boxes→n_fg→facegroups→n_vert→verts→n_face→faces)
+- `parse_spheres` v3: 20 bytes all versions (center+radius+surface+piece+pad)
+- `parse_faces` COL1: 16 bytes (uint32 x3 + mat + light + pad)
+- Fix Vector3/COLMaterial import; fix COLSphere construction
+- All 5 models in special.col parse correctly
+- `docs/ref_db/col_format_analysis.md`: complete verified COL1 struct layout
+
+### Build 112 — COL Workshop: use _populate_collision_list + real thumbnails
+- `open_col_file` calls `_populate_collision_list()` (with thumbnails)
+- Compact list `[T]` view also uses `_generate_collision_thumbnail()`
+
+### Build 111 — COL Workshop: implement thumbnail + preview renderer
+- `_generate_collision_thumbnail()`: 64×64 QPainter top-down projection
+- `_render_collision_preview()`: full-size render with legend
+- `_draw_col_model()`: shared renderer (mesh=green, boxes=yellow, spheres=cyan)
+- `COL3DViewport` replaced with working 2D QLabel preview
+- `VIEWPORT_AVAILABLE = True`
+
 
 ## March 16, 2026 (3) — PS2/LCS/VCS/iOS formats, COL Workshop integration, theme dialogs
 

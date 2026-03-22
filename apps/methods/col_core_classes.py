@@ -202,11 +202,16 @@ class COLBox:
 
 class COLVertex:
     """Mesh vertex"""
-    
-    def __init__(self, position: Vector3): #vers 1
-        """Initialize vertex"""
-        self.position = position
-    
+
+    def __init__(self, position=None, x=None, y=None, z=None): #vers 2
+        """Accept both COLVertex(Vector3) and COLVertex(x=, y=, z=) styles."""
+        if position is not None:
+            self.position = position
+        elif x is not None:
+            self.position = Vector3(x, y, z)
+        else:
+            self.position = Vector3(0.0, 0.0, 0.0)
+
     def __str__(self):
         return f"COLVertex({self.position})"
 
