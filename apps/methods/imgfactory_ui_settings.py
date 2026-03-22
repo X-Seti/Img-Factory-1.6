@@ -9,9 +9,9 @@ Handles IMG Factory-only settings separate from global theme settings
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QGroupBox, QCheckBox, QPushButton, QHBoxLayout,
     QSpinBox, QLabel, QComboBox, QFontComboBox, QTabWidget, QWidget,
-    QMessageBox, QRadioButton, QButtonGroup
+    QMessageBox, QRadioButton, QButtonGroup, QSlider
 )
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QFont
 from apps.methods.img_factory_settings import IMGFactorySettings
 
