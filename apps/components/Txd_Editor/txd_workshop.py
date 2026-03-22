@@ -2200,35 +2200,39 @@ class TXDWorkshop(QWidget): #vers 3
         """Called when main splitter is dragged."""
         self._update_transform_text_panel_visibility()
 
-    def _update_transform_text_panel_visibility(self): #vers 2
+    def _update_transform_text_panel_visibility(self): #vers 3
         """Toggle between text+icon panel (wide) and icon-only strip (narrow).
         Respects manual button_display_mode setting."""
-        tp  = getattr(self, '_transform_text_panel_ref', None)
-        ip  = getattr(self, '_transform_icon_panel_ref', None)
+        tp   = getattr(self, '_transform_text_panel_ref', None)
+        ip   = getattr(self, '_transform_icon_panel_ref', None)
         mode = getattr(self, 'button_display_mode', 'both')
 
         if mode == 'icons':
-            # Manual override: icons only
             if tp: tp.setVisible(False)
             if ip: ip.setVisible(True)
             return
         if mode == 'text':
-            # Manual override: text only (no icons)
             if tp: tp.setVisible(True)
             if ip: ip.setVisible(False)
             return
 
-        # Auto mode ('both'): decide based on available width
-        splitter = getattr(self, '_main_splitter', None)
-        ref_w = self.width()
-        if splitter:
-            w = tp
-            while w and w.parent() is not splitter:
-                w = w.parent() if hasattr(w, 'parent') else None
-            if w:
-                ref_w = w.width()
+        # Auto mode: measure the right panel width directly
+        rp = getattr(self, '_right_panel_ref', None)
+        if rp:
+            ref_w = rp.width()
+        else:
+            # fallback: walk up from text panel to find splitter child
+            splitter = getattr(self, '_main_splitter', None)
+            ref_w = self.width()
+            if splitter and tp:
+                w = tp
+                while w and w.parent() is not splitter:
+                    w = w.parent() if hasattr(w, 'parent') else None
+                if w:
+                    ref_w = w.width()
 
-        wide = ref_w >= 160   # text+icon panel needs ~160px
+        # Text panel (160px wide) + icon panel (46px) + some margin = needs ~220px
+        wide = ref_w >= 230  # 170px text panel + 46px icon panel + margins
         if tp: tp.setVisible(wide)
         if ip: ip.setVisible(not wide)
 
@@ -2550,6 +2554,7 @@ class TXDWorkshop(QWidget): #vers 3
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
+        self._right_panel_ref = panel   # used by visibility method
         has_bumpmap = False
         main_layout = QVBoxLayout(panel)
         #main_layout.setContentsMargins(5, 5, 5, 5)
@@ -11019,7 +11024,7 @@ class TXDWorkshop(QWidget): #vers 3
         self.transform_text_panel = QFrame()
         self.transform_text_panel.setFrameStyle(QFrame.Shape.StyledPanel)
         self.transform_text_panel.setMinimumWidth(150)
-        self.transform_text_panel.setMaximumWidth(160)
+        self.transform_text_panel.setMaximumWidth(170)
 
         layout = QVBoxLayout(self.transform_text_panel)
         layout.setContentsMargins(4, 5, 4, 5)
@@ -11035,7 +11040,8 @@ class TXDWorkshop(QWidget): #vers 3
             b.setIcon(icon_fn(color=icon_color))
             b.setIconSize(IS)
             # left-align icon+text
-            b.setStyleSheet("text-align: left; padding-left: 4px;")
+            # icon on left, text centred — Qt default with icon set
+            b.setStyleSheet("")
             if not enabled:
                 b.setEnabled(False)
             if checkable:
