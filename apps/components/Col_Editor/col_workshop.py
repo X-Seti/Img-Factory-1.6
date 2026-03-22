@@ -197,10 +197,16 @@ class COL3DViewport(QWidget):
                 self._render_style, self._bg_color)
 
     def _find_workshop(self):
+        # Direct reference set at creation — fastest path
+        ref = getattr(self, '_workshop_ref', None)
+        if ref is not None:
+            return ref
+        # Fallback: walk parent chain
         p = self.parent()
         while p:
-            if isinstance(p, COLWorkshop): return p
-            p = p.parent() if hasattr(p, 'parent') else None
+            if isinstance(p, COLWorkshop):
+                return p
+            p = p.parent() if callable(getattr(p, 'parent', None)) else None
         return None
 
 VIEWPORT_AVAILABLE = True
@@ -2635,6 +2641,7 @@ class COLWorkshop(QWidget): #vers 3
 
         # Preview area (center) - 3D Viewport
         self.preview_widget = COL3DViewport()
+        self.preview_widget._workshop_ref = self  # direct ref — no parent-chain walk needed
         top_layout.addWidget(self.preview_widget, stretch=2)
 
         # Preview controls (right side, vertical)
@@ -4556,6 +4563,61 @@ class COLWorkshop(QWidget): #vers 3
             return None
 
 
+
+    def _paint_model_onto(self, painter, model, W, H,
+                          yaw, pitch, zoom, pan_x, pan_y,
+                          flip_h, flip_v,
+                          show_spheres, show_boxes, show_mesh,
+                          backface, render_style, bg_color): #vers 1
+        """Paint a COL model onto an existing QPainter.
+        Called by COL3DViewport.paintEvent — handles zoom/pan/visibility flags."""
+        from PyQt6.QtGui import QPen, QBrush, QColor, QFont
+        from PyQt6.QtCore import QRectF, QPointF
+        import math
+
+        # Apply zoom/pan by transforming the painter
+        painter.save()
+        painter.translate(W / 2 + pan_x, H / 2 + pan_y)
+        painter.scale(zoom, zoom)
+        painter.translate(-W / 2, -H / 2)
+
+        # Temporarily filter model data based on visibility flags
+        class _FilteredModel:
+            def __init__(self, m, ss, sb, sm):
+                self.name     = getattr(m, 'name', '')
+                self.version  = getattr(m, 'version', None)
+                self.spheres  = getattr(m, 'spheres', []) if ss else []
+                self.boxes    = getattr(m, 'boxes',   []) if sb else []
+                self.vertices = getattr(m, 'vertices',[]) if sm else []
+                self.faces    = getattr(m, 'faces',   []) if sm else []
+
+        filtered = _FilteredModel(model, show_spheres, show_boxes, show_mesh)
+
+        self._draw_col_model(painter, filtered, W, H, padding=20,
+                             yaw=yaw, pitch=pitch,
+                             flip_h=flip_h, flip_v=flip_v)
+        painter.restore()
+
+        # HUD — drawn after restore so it stays in screen space
+        painter.setFont(QFont('Arial', 8))
+        painter.setPen(QColor(200, 200, 200))
+        painter.drawText(6, 14, getattr(model, 'name', ''))
+        y = H - 54
+        spheres = getattr(model, 'spheres', [])
+        boxes   = getattr(model, 'boxes',   [])
+        verts   = getattr(model, 'vertices',[])
+        faces   = getattr(model, 'faces',   [])
+        for col, txt in [
+            (QColor(100, 180, 100), f"Mesh  F:{len(faces)} V:{len(verts)}"),
+            (QColor(220, 180,  50), f"Boxes  {len(boxes)}"),
+            (QColor( 80, 200, 220), f"Spheres  {len(spheres)}"),
+        ]:
+            painter.setPen(col)
+            painter.drawText(6, y, txt)
+            y += 14
+        painter.setPen(QColor(140, 140, 140))
+        painter.setFont(QFont('Arial', 7))
+        painter.drawText(6, H - 4, f"Y:{yaw:.0f}° P:{pitch:.0f}° Z:{zoom:.2f}x")
 
     def _get_view_coords(self, model, view='xy'): #vers 1
         """Get all geometry points projected to 2D using the selected view axis."""
