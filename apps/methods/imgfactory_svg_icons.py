@@ -711,16 +711,15 @@ class SVGIconFactory: #vers 7
     @staticmethod
     def filter_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
         """Filter/sliders icon"""
-        c = color or '#ffffff'
-        svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="6" cy="4" r="2" fill="{c}"/>
-            <rect x="5" y="7" width="2" height="9" fill="{c}"/>
-            <circle cx="14" cy="12" r="2" fill="{c}"/>
-            <rect x="13" y="4" width="2" height="6" fill="{c}"/>
-            <circle cx="10" cy="8" r="2" fill="{c}"/>
-            <rect x="9" y="12" width="2" height="4" fill="{c}"/>
+        svg_data = '''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="6" cy="4" r="2" fill="currentColor"/>
+            <rect x="5" y="7" width="2" height="9" fill="currentColor"/>
+            <circle cx="14" cy="12" r="2" fill="currentColor"/>
+            <rect x="13" y="4" width="2" height="6" fill="currentColor"/>
+            <circle cx="10" cy="8" r="2" fill="currentColor"/>
+            <rect x="9" y="12" width="2" height="4" fill="currentColor"/>
         </svg>'''
-        return SVGIconFactory._svg_to_icon(svg.encode(), size=size)
+        return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
     def zoom_in_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
