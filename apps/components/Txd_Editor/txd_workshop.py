@@ -2232,7 +2232,7 @@ class TXDWorkshop(QWidget): #vers 3
                     ref_w = w.width()
 
         # Text panel (160px wide) + icon panel (46px) + some margin = needs ~220px
-        wide = ref_w >= 230  # 170px text panel + 46px icon panel + margins
+        wide = ref_w >= 550  # need ~550px: 170 text + 46 icons + 300 preview + margins
         if tp: tp.setVisible(wide)
         if ip: ip.setVisible(not wide)
 
@@ -2553,7 +2553,7 @@ class TXDWorkshop(QWidget): #vers 3
         """Create right panel with editing controls - compact layout"""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(200)
+        panel.setMinimumWidth(250)
         self._right_panel_ref = panel   # used by visibility method
         has_bumpmap = False
         main_layout = QVBoxLayout(panel)
