@@ -3751,66 +3751,51 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()
 
 
-    def _load_col_file_in_new_tab(self, file_path):  # vers 3
-        """Load COL file in new tab - FULLY FIXED: creates tab first, assigns data correctly"""
+    def _load_col_file_in_new_tab(self, file_path):  # vers 4
+        """Load COL file into a new tab with correct single-tab creation.
+
+        Flow: parse COL -> create one tab -> populate tab's COL workshop widget.
+        Suppresses _update_ui_for_loaded_col to prevent a second tab being created.
+        """
         try:
             import os
+            from apps.methods.col_core_classes import COLFile
             file_name = os.path.basename(file_path)
-            self.log_message(f"Loading COL in new tab: {file_name}")
+            self.log_message(f"Loading COL: {file_name}")
 
-            # STEP 1: Create new tab BEFORE loading
-            tab_index = self.create_tab(file_path, 'COL', None)
+            # ── Parse the COL file first (no UI side effects) ────────
+            col_file = COLFile()
+            if not col_file.load_from_file(file_path):
+                err = getattr(col_file, 'load_error', 'parse failed')
+                self.log_message(f"COL parse failed: {err}")
+                return
+
+            model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
+            self.log_message(f"COL parsed: {model_count} models")
+
+            # ── Create exactly ONE tab ───────────────────────────────
+            tab_index = self.create_tab(file_path, 'COL', col_file)
             if tab_index is None:
-                self.log_message("Failed to create new tab for COL file")
+                self.log_message("Failed to create COL tab")
                 return
 
-            # STEP 2: Remember the target tab index (in case user switches tabs during load)
-            target_tab_index = tab_index
+            # ── Store on tab widget ──────────────────────────────────
+            tab_widget = self.main_tab_widget.widget(tab_index)
+            if tab_widget:
+                tab_widget.file_object = col_file
+                tab_widget.file_type   = 'COL'
+                tab_widget.file_path   = file_path
+                tab_widget.tab_ready   = True
 
-            # STEP 3: Load COL file (synchronously)
-            if not hasattr(self, 'load_col_file_safely'):
-                self.log_message("COL loading method not available")
-                return
+            # ── Store reference for other code that checks current_col ─
+            self.current_col = col_file
 
-            success = self.load_col_file_safely(file_path)
-            if not success:
-                self.log_message("COL file failed to load after tab creation")
-                # Optionally close the empty tab
-                if hasattr(self, 'close_tab'):
-                    self.close_tab(target_tab_index)
-                return
-
-            # STEP 4: At this point, self.current_col is set by load_col_file_safely
-            # Assign it to the **correct tab**, not the current one (which may have changed)
-            if target_tab_index >= self.main_tab_widget.count():
-                self.log_message("Tab index out of bounds after COL load")
-                return
-
-            tab_widget = self.main_tab_widget.widget(target_tab_index)
-            if tab_widget and self.current_col:
-                # Store the loaded object on the tab
-                tab_widget.file_object = self.current_col
-                tab_widget.file_type = 'COL'
-                tab_widget.file_path = file_path
-                tab_widget.tab_ready = True
-
-                # Update tab text (remove .col)
-                base_name = file_name.rsplit('.', 1)[0]
-                self.main_tab_widget.setTabText(target_tab_index, base_name)
-
-                self.log_message(f"COL file assigned to tab {target_tab_index}")
-            else:
-                self.log_message("Warning: No tab widget or current_col missing after COL load")
-
-            # STEP 5: Optionally clear global reference to avoid side effects
-            # But only AFTER it's safely stored on the tab
-            self.current_col = None
-
-            # STEP 6: Switch to the new tab (optional but expected UX)
-            self.main_tab_widget.setCurrentIndex(target_tab_index)
+            # ── Switch to the new tab ────────────────────────────────
+            self.main_tab_widget.setCurrentIndex(tab_index)
+            self.log_message(f"✅ COL loaded: {file_name} ({model_count} models)")
 
         except Exception as e:
-            self.log_message(f"Error loading COL in new tab: {str(e)}")
+            self.log_message(f"Error loading COL: {str(e)}")
             import traceback
             traceback.print_exc()
 

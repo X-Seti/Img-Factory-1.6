@@ -79,16 +79,50 @@ def show_tab_context_menu(main_window, position): #vers 1
         rename_action.triggered.connect(lambda: rename_tab(main_window, tab_index))
         menu.addAction(rename_action)
         
+        # ── Type-specific actions ────────────────────────────────
+        tab_widget = main_window.main_tab_widget.widget(tab_index)
+        file_type  = getattr(tab_widget, 'file_type', None)
+        file_path  = getattr(tab_widget, 'file_path', None)
+
+        if file_type == 'COL' and file_path:
+            menu.addSeparator()
+            send_col_action = QAction("Send to Col Workshop", menu)
+            def _send_to_col_workshop(fp=file_path):
+                try:
+                    # Switch to existing Col Workshop tab for this file if open
+                    tw = main_window.main_tab_widget
+                    for i in range(tw.count()):
+                        w = tw.widget(i)
+                        from apps.components.Col_Editor.col_workshop import COLWorkshop
+                        workshops = w.findChildren(COLWorkshop) if w else []
+                        if workshops:
+                            wk = workshops[0]
+                            if getattr(wk, 'current_file_path', None) == fp:
+                                tw.setCurrentIndex(i)
+                                return
+                    # Otherwise open a new Col Workshop tab
+                    from apps.components.Col_Editor.col_workshop import open_col_workshop
+                    open_col_workshop(main_window, fp)
+                except Exception as e:
+                    if hasattr(main_window, 'log_message'):
+                        main_window.log_message(f"Col Workshop error: {e}")
+            send_col_action.triggered.connect(_send_to_col_workshop)
+            menu.addAction(send_col_action)
+
         menu.addSeparator()
-        
+
         # Show full path
         tab_text = tab_bar.tabText(tab_index)
-        if hasattr(main_window, 'current_img') and main_window.current_img:
+        if file_path:
+            full_path_action = QAction(file_path, menu)
+            full_path_action.setEnabled(False)
+            menu.addAction(full_path_action)
+        elif hasattr(main_window, 'current_img') and main_window.current_img:
             if hasattr(main_window.current_img, 'file_path'):
-                full_path_action = QAction(f"{main_window.current_img.file_path}", menu)
+                full_path_action = QAction(main_window.current_img.file_path, menu)
                 full_path_action.setEnabled(False)
                 menu.addAction(full_path_action)
-        
+
         menu.exec(tab_bar.mapToGlobal(position))
         
     except Exception as e:
