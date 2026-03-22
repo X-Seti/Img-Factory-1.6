@@ -2232,9 +2232,20 @@ class TXDWorkshop(QWidget): #vers 3
                     ref_w = w.width()
 
         # Text panel (160px wide) + icon panel (46px) + some margin = needs ~220px
-        wide = ref_w >= 550  # need ~550px: 170 text + 46 icons + 300 preview + margins
+        try:
+            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
+            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
+        except Exception:
+            threshold = 550
+        wide = ref_w >= threshold
         if tp: tp.setVisible(wide)
         if ip: ip.setVisible(not wide)
+
+        # Also sync the button_display_mode so bottom buttons collapse too
+        new_mode = 'both' if wide else 'icons'
+        if getattr(self, 'button_display_mode', 'both') != new_mode:
+            self.button_display_mode = new_mode
+            self._update_all_buttons()
 
 
     def mouseDoubleClickEvent(self, event): #vers 2

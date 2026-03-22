@@ -273,6 +273,39 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         tab_group.setLayout(tab_layout)
         layout.addWidget(tab_group)
 
+        # Panel Collapse Group
+        collapse_group = QGroupBox("Workshop Panel Collapse")
+        collapse_layout = QVBoxLayout()
+
+        desc = QLabel("Side panels switch from text+icon to icon-only\nwhen the right panel width drops below this value.")
+        desc.setStyleSheet("color: #888; font-size: 10px;")
+        desc.setWordWrap(True)
+        collapse_layout.addWidget(desc)
+
+        slider_row = QHBoxLayout()
+        slider_row.addWidget(QLabel("Threshold:"))
+        self.collapse_slider = QSlider(Qt.Orientation.Horizontal)
+        self.collapse_slider.setRange(200, 900)
+        self.collapse_slider.setSingleStep(10)
+        self.collapse_slider.setPageStep(50)
+        self.collapse_slider.setValue(self.img_settings.get("panel_collapse_threshold", 550))
+        slider_row.addWidget(self.collapse_slider)
+        self.collapse_label = QLabel(f"{self.collapse_slider.value()} px")
+        self.collapse_label.setMinimumWidth(55)
+        slider_row.addWidget(self.collapse_label)
+        self.collapse_slider.valueChanged.connect(
+            lambda v: self.collapse_label.setText(f"{v} px"))
+        collapse_layout.addLayout(slider_row)
+
+        hint_row = QHBoxLayout()
+        hint_row.addWidget(QLabel("200 px (always icons)"))
+        hint_row.addStretch()
+        hint_row.addWidget(QLabel("900 px (always text)"))
+        collapse_layout.addLayout(hint_row)
+
+        collapse_group.setLayout(collapse_layout)
+        layout.addWidget(collapse_group)
+
         layout.addStretch()
         return widget
 
@@ -698,6 +731,10 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
             mode_rev.get(self.tab_content_combo.currentIndex(), "both"))
         self.img_settings.set("tab_position", self.tab_position_combo.currentText())
 
+        # Panel collapse threshold
+        if hasattr(self, 'collapse_slider'):
+            self.img_settings.set("panel_collapse_threshold", self.collapse_slider.value())
+
         # Advanced tab
         self.img_settings.set("recent_files_limit", self.recent_files_spin.value())
         self.img_settings.set("auto_backup", self.auto_backup_cb.isChecked())
@@ -776,6 +813,21 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
             # Reopen dialog to show defaults
             show_imgfactory_settings_dialog(self.main_window)
 
+
+
+def get_collapse_threshold(main_window=None) -> int:
+    """Read panel_collapse_threshold from IMG Factory settings.
+    Falls back to 550 if settings unavailable."""
+    try:
+        settings = None
+        if main_window and hasattr(main_window, 'img_settings'):
+            settings = main_window.img_settings
+        if settings is None:
+            from apps.methods.img_factory_settings import IMGFactorySettings
+            settings = IMGFactorySettings()
+        return settings.get_panel_collapse_threshold()
+    except Exception:
+        return 550
 
 def show_imgfactory_settings_dialog(main_window): #vers 2
     """Show IMG Factory settings dialog — non-modal, movable, reused if open."""

@@ -58,6 +58,10 @@ class IMGFactorySettings:
             "show_status_bar": True,
             "show_menu_bar": True,
 
+            # Panel collapse threshold (pixels) — workshop side panels
+            # switch from text+icon buttons to icon-only below this right-panel width
+            "panel_collapse_threshold": 550,
+
             # Tab Settings
             "tab_height": 24,
             "tab_min_width": 100,
@@ -98,6 +102,14 @@ class IMGFactorySettings:
     def get(self, key: str, default=None) -> Any:
         """Get a setting value"""
         return self.current_settings.get(key, default)
+
+    def set(self, key: str, value) -> None:
+        """Set a setting value"""
+        self.current_settings[key] = value
+
+    def get_panel_collapse_threshold(self) -> int:
+        """Return the right-panel width at which side buttons collapse to icons."""
+        return int(self.current_settings.get("panel_collapse_threshold", 550))
 
     def set(self, key: str, value: Any):
         """Set a setting value"""

@@ -1843,23 +1843,52 @@ class COLWorkshop(QWidget): #vers 3
         """Called when main splitter is dragged — update text panel visibility."""
         self._update_transform_text_panel_visibility()
 
-    def _update_transform_text_panel_visibility(self): #vers 1
-        """Show/hide text transform panel based on right-panel width."""
-        tp = getattr(self, '_transform_text_panel_ref', None)
-        if not tp: return
-        # The text panel's grandparent is the splitter pane (QSplitterHandle proxy)
-        # Walk up until we find the direct child of the splitter
-        splitter = getattr(self, '_main_splitter', None)
-        if splitter:
-            # Find which splitter widget contains the text panel
-            w = tp
-            while w and w.parent() is not splitter:
-                w = w.parent() if hasattr(w, 'parent') else None
-            if w:
-                tp.setVisible(w.width() >= 600)
-                return
-        # Fallback: use workshop width
-        tp.setVisible(self.width() >= 700)
+    def _update_transform_text_panel_visibility(self): #vers 2
+        """Toggle between text+icon panel (wide) and icon-only strip (narrow).
+        Reads threshold from IMG Factory settings. Also collapses bottom buttons."""
+        tp   = getattr(self, '_transform_text_panel_ref', None)
+        ip   = getattr(self, '_transform_icon_panel_ref', None)
+        mode = getattr(self, 'button_display_mode', 'both')
+
+        if mode == 'icons':
+            if tp: tp.setVisible(False)
+            if ip: ip.setVisible(True)
+            return
+        if mode == 'text':
+            if tp: tp.setVisible(True)
+            if ip: ip.setVisible(False)
+            return
+
+        # Measure right panel width directly
+        rp = getattr(self, '_right_panel_ref', None)
+        if rp:
+            ref_w = rp.width()
+        else:
+            splitter = getattr(self, '_main_splitter', None)
+            ref_w = self.width()
+            if splitter and tp:
+                w = tp
+                while w and w.parent() is not splitter:
+                    w = w.parent() if hasattr(w, 'parent') else None
+                if w:
+                    ref_w = w.width()
+
+        try:
+            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
+            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
+        except Exception:
+            threshold = 550
+        wide = ref_w >= threshold
+        if tp: tp.setVisible(wide)
+        if ip: ip.setVisible(not wide)
+
+        # Sync button_display_mode so bottom buttons collapse too
+        new_mode = 'both' if wide else 'icons'
+        if getattr(self, 'button_display_mode', 'both') != new_mode:
+            self.button_display_mode = new_mode
+            # Rebuild the bottom info panel to switch between text/icon layouts
+            if hasattr(self, '_rebuild_bottom_panel'):
+                self._rebuild_bottom_panel()
 
     def resizeEvent(self, event): #vers 3
         """Keep resize grip in corner; auto-collapse text transform panel when narrow."""
@@ -2458,27 +2487,32 @@ class COLWorkshop(QWidget): #vers 3
         return panel
 
 
-    def _create_right_panel(self): #vers 11
+    def _create_right_panel(self): #vers 12
         """Create right panel with editing controls - compact layout"""
         icon_color = self._get_icon_color()
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
+        self._right_panel_ref = panel
         has_bumpmap = False
         main_layout = QVBoxLayout(panel)
+        self._right_panel_main_layout = main_layout
         #main_layout.setContentsMargins(5, 5, 5, 5)
         top_layout = QHBoxLayout()
 
         # Transform panel (icon) — always visible
         transform_icon_panel = self._create_transform_icon_panel()
+        self._transform_icon_panel_ref = transform_icon_panel
         top_layout.setSpacing(2)
         top_layout.addWidget(transform_icon_panel)
+        transform_icon_panel.setVisible(False)  # hidden until panel is narrow
 
         # Transform panel (text) — hidden when right panel is narrow
         transform_text_panel = self._create_transform_text_panel()
         top_layout.setSpacing(2)
         top_layout.addWidget(transform_text_panel)
         self._transform_text_panel_ref = transform_text_panel  # keep ref for resize logic
+        transform_text_panel.setVisible(True)
 
         # Preview area (center) - 3D Viewport
         self.preview_widget = COL3DViewport()
@@ -2494,6 +2528,7 @@ class COLWorkshop(QWidget): #vers 3
         info_group.setFont(self.title_font)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(140)
+        self._bottom_info_group_ref = info_group
 
         # === LINE 1: collision name ===
         name_layout = QHBoxLayout()
@@ -2692,6 +2727,103 @@ class COLWorkshop(QWidget): #vers 3
 
         lay.addStretch()
         return f
+
+    def _rebuild_bottom_panel(self): #vers 1
+        """Rebuild the bottom info panel when button_display_mode changes.
+        Removes the old info group and recreates it with current mode."""
+        try:
+            old = getattr(self, '_bottom_info_group_ref', None)
+            layout = getattr(self, '_right_panel_main_layout', None)
+            if not old or not layout:
+                return
+            # Remove old widget from layout
+            layout.removeWidget(old)
+            old.deleteLater()
+            self._bottom_info_group_ref = None
+
+            # Rebuild info group
+            from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QComboBox
+            from PyQt6.QtCore import QSize
+            icon_color = self._get_icon_color()
+
+            info_group = QGroupBox("")
+            info_group.setFont(self.title_font)
+            info_layout = QVBoxLayout(info_group)
+            info_group.setMaximumHeight(140)
+            self._bottom_info_group_ref = info_group
+
+            # Name row
+            name_layout = QHBoxLayout()
+            name_label = QLabel("COL Name:")
+            name_label.setFont(self.panel_font)
+            name_layout.addWidget(name_label)
+            self.info_name = QLineEdit()
+            self.info_name.setText("Click to edit...")
+            self.info_name.setFont(self.panel_font)
+            self.info_name.setReadOnly(True)
+            self.info_name.setStyleSheet("padding: px; border: 1px solid #3a3a3a;")
+            self.info_name.returnPressed.connect(self._save_surface_name)
+            self.info_name.editingFinished.connect(self._save_surface_name)
+            self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
+            name_layout.addWidget(self.info_name, stretch=1)
+            info_layout.addLayout(name_layout)
+
+            if self.button_display_mode == 'icons':
+                merged_line = self._create_merged_icons_line()
+                info_layout.addLayout(merged_line)
+            else:
+                format_layout = QHBoxLayout()
+                format_layout.setSpacing(5)
+                self.format_combo = QComboBox()
+                self.format_combo.setFont(self.panel_font)
+                self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
+                self.format_combo.currentTextChanged.connect(self._change_format)
+                self.format_combo.setMaximumWidth(100)
+                format_layout.addWidget(self.format_combo)
+                format_layout.addStretch()
+                for attr, label, icon_fn, slot in [
+                    ('switch_btn',      'Mesh',       'flip_vert_icon',   'switch_surface_view'),
+                    ('convert_btn',     'Convert',    'convert_icon',     '_convert_surface'),
+                    ('compress_btn',    'Compress',   'compress_icon',    '_compress_surface'),
+                    ('uncompress_btn',  'Uncompress', 'uncompress_icon',  '_uncompress_surface'),
+                    ('import_btn',      'Import',     'import_icon',      '_import_selected'),
+                    ('export_btn',      'Export',     'export_icon',      'export_selected'),
+                ]:
+                    b = QPushButton(label)
+                    b.setFont(self.button_font)
+                    b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
+                    b.setIconSize(QSize(20, 20))
+                    b.clicked.connect(getattr(self, slot))
+                    b.setEnabled(True)
+                    setattr(self, attr, b)
+                    format_layout.addWidget(b)
+
+                mipbump_layout = QHBoxLayout()
+                mipbump_layout.setSpacing(5)
+                lbl = QLabel("Shadow Mesh: ")
+                lbl.setFont(self.panel_font)
+                lbl.setMinimumWidth(100)
+                mipbump_layout.addWidget(lbl)
+                for attr, label, icon_fn, slot in [
+                    ('show_shadow_btn',   'View',   'view_icon',   '_open_mipmap_manager'),
+                    ('create_shadow_btn', 'Create', 'add_icon',    'shadow_dialog'),
+                    ('remove_shadow_btn', 'Remove', 'delete_icon', '_remove_shadow'),
+                ]:
+                    b = QPushButton(label)
+                    b.setFont(self.button_font)
+                    b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
+                    b.setIconSize(QSize(20, 20))
+                    b.clicked.connect(getattr(self, slot))
+                    b.setEnabled(True)
+                    setattr(self, attr, b)
+                    mipbump_layout.addWidget(b)
+                info_layout.addLayout(format_layout)
+                info_layout.addLayout(mipbump_layout)
+
+            layout.addWidget(info_group, stretch=0)
+        except Exception as e:
+            print(f"_rebuild_bottom_panel error: {e}")
+            import traceback; traceback.print_exc()
 
     def _update_toolbar_for_docking_state(self): #vers 1
         """Update toolbar visibility based on docking state"""
