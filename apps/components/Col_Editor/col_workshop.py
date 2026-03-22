@@ -623,6 +623,44 @@ class COLWorkshop(QWidget): #vers 3
         dlg.exec()
 
 
+    # ── Method aliases and stubs (auto-generated Build 121) ────────────
+    def _compress_surface(self, *a, **kw): return self._compress_col(*a, **kw)
+    def _copy_surface(self, *a, **kw): return self._copy_model_to_clipboard(*a, **kw)
+    def _delete_surface(self, *a, **kw): return self._delete_selected_model(*a, **kw)
+    def _duplicate_surface(self, *a, **kw): return self._duplicate_selected_model(*a, **kw)
+    def _force_save_col(self, *a, **kw): return self._save_file(*a, **kw)
+    def _import_selected(self, *a, **kw): return self._import_col_data(*a, **kw)
+    def _import_surface(self, *a, **kw): return self._import_col_data(*a, **kw)
+    def _open_col_file(self, *a, **kw): return self._open_file(*a, **kw)
+    def _open_mipmap_manager(self, *a, **kw): return self._show_shadow_mesh(*a, **kw)
+    def _paste_surface(self, *a, **kw): return self._paste_model_from_clipboard(*a, **kw)
+    def _reload_surface_table(self, *a, **kw): return self._populate_collision_list(*a, **kw)
+    def _remove_shadow(self, *a, **kw): return self._remove_shadow_mesh(*a, **kw)
+    def _save_as_col_file(self, *a, **kw): return self._save_file(*a, **kw)
+    def _save_col_file(self, *a, **kw): return self._save_file(*a, **kw)
+    def _saveall_file(self, *a, **kw): return self._save_file(*a, **kw)
+    def _uncompress_surface(self, *a, **kw): return self._uncompress_col(*a, **kw)
+    def export_all(self, *a, **kw): return self._export_col_data(*a, **kw)
+    def export_all_surfaces(self, *a, **kw): return self._export_col_data(*a, **kw)
+    def export_selected(self, *a, **kw): return self._export_col_data(*a, **kw)
+    def export_selected_surface(self, *a, **kw): return self._export_col_data(*a, **kw)
+    def refresh(self, *a, **kw): return self._populate_collision_list(*a, **kw)
+    def reload_surface_table(self, *a, **kw): return self._populate_collision_list(*a, **kw)
+    def save_col_file(self, *a, **kw): return self._save_file(*a, **kw)
+    def shadow_dialog(self, *a, **kw): return self._create_shadow_mesh(*a, **kw)
+    def switch_surface_view(self, *a, **kw): return self._cycle_render_mode(*a, **kw)
+
+    def _change_format(self, *a, **kw): pass
+    def _close_col_tab(self, *a, **kw): pass
+    def _edit_main_surface(self, *a, **kw): pass
+    def _focus_search(self, *a, **kw): pass
+    def _rename_shadow_shortcut(self, *a, **kw): pass
+    def _save_surface_name(self, *a, **kw): pass
+    def _show_detailed_info(self, *a, **kw): pass
+    def _show_surface_info(self, *a, **kw): pass
+    def show_help(self, *a, **kw): pass
+    def show_settings_dialog(self, *a, **kw): pass
+
     def _enable_name_edit(self, event, is_alpha): #vers 1
         """Enable name editing on click"""
         self.info_name.setReadOnly(False)
