@@ -1257,11 +1257,12 @@ class IMGFactory(QMainWindow):
             self.log_message(f"TXD workshop error: {str(e)}")
 
     # Menu isolation: Docked workshops should not affect main window menu
-    def open_col_workshop_docked(self, col_name=None, col_data=None, file_path=None): #vers 2
+    def open_col_workshop_docked(self, col_name=None, col_data=None, file_path=None): #vers 3
         """Open COL Workshop in its own tab with icon"""
         try:
             if file_path:
-                self._load_col_file_in_new_tab(file_path)
+                from apps.components.Col_Editor.col_workshop import open_col_workshop
+                return open_col_workshop(self, file_path)
             elif col_name and hasattr(self, 'current_img') and self.current_img:
                 for entry in self.current_img.entries:
                     if entry.name.lower() == col_name.lower():
@@ -3871,11 +3872,14 @@ class IMGFactory(QMainWindow):
             if file_ext == '.txd':
                 load_txd_file(main_window, file_path)
             elif file_ext == '.col':
-                # Create new tab for COL
-                if hasattr(main_window, '_load_col_file_in_new_tab'):
-                    main_window._load_col_file_in_new_tab(file_path)
-                else:
-                    main_window.load_col_file_safely(file_path)
+                # Open COL in a proper Col Workshop tab
+                try:
+                    from apps.components.Col_Editor.col_workshop import open_col_workshop
+                    open_col_workshop(main_window, file_path)
+                except Exception as e:
+                    main_window.log_message(f"Col Workshop error: {e}")
+                    if hasattr(main_window, '_load_col_file_in_new_tab'):
+                        main_window._load_col_file_in_new_tab(file_path)
             else:  # .img
                 # Create new tab for IMG
                 if hasattr(main_window, '_load_img_file_in_new_tab'):
