@@ -54,114 +54,147 @@ from apps.methods.col_workshop_loader import COLFile
 
 
 # Temporary 3D viewport placeholder
-class COL3DViewport(QLabel):
-    """2D collision preview with free-rotation (right-drag) and axis buttons."""
-    import math as _math
+class COL3DViewport(QWidget):
+    """COL preview: left-drag=pan, right-drag=rotate, wheel=zoom, right-click=presets."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(400, 400)
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet("background-color: #191923;")
-        self.bg_color = QColor(25, 25, 35)
-        self._model  = None
-        self._flip_h = False
-        self._flip_v = False
-        # Euler angles for free rotation (degrees)
-        self._yaw   = 0.0   # rotate around Z (left/right)
-        self._pitch = 0.0   # rotate around X (up/down)
-        self._drag_last = None
+        self.setMinimumSize(200, 200)
+        self._model        = None
+        self._yaw          = 0.0
+        self._pitch        = 0.0
+        self._zoom         = 1.0
+        self._pan_x        = 0.0
+        self._pan_y        = 0.0
+        self._flip_h       = False
+        self._flip_v       = False
+        self._show_spheres = True
+        self._show_boxes   = True
+        self._show_mesh    = True
+        self._backface     = False
+        self._render_style = 'semi'   # 'wireframe' | 'semi' | 'solid'
+        self._bg_color     = (25, 25, 35)
+        self._left_drag    = None
+        self._right_drag   = None
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
-        self.setText("No model selected")
 
     # ── public API ──────────────────────────────────────────────────────────
     def set_current_file(self, col_file): pass
-    def set_view_options(self, **options): pass
-    def set_checkerboard_background(self): pass
-    def set_background_color(self, color):
-        self.bg_color = color
-        if self._model: self._refresh()
-    def pan(self, dx, dy): pass
+    def set_view_options(self, **kw):     pass
 
     def set_current_model(self, model, index=0):
         self._model = model
-        self._refresh()
+        self.update()
 
-    def rotate_cw(self):
-        self._yaw = (self._yaw + 90) % 360
-        self._refresh()
+    def zoom_in(self):
+        self._zoom = min(20.0, self._zoom * 1.25); self.update()
 
-    def rotate_ccw(self):
-        self._yaw = (self._yaw - 90) % 360
-        self._refresh()
-
-    def flip_horizontal(self):
-        self._flip_h = not self._flip_h
-        self._refresh()
-
-    def flip_vertical(self):
-        self._flip_v = not self._flip_v
-        self._refresh()
+    def zoom_out(self):
+        self._zoom = max(0.05, self._zoom / 1.25); self.update()
 
     def reset_view(self):
-        self._yaw = self._pitch = 0.0
-        self._flip_h = self._flip_v = False
-        self._refresh()
+        self._yaw = self._pitch = self._pan_x = self._pan_y = 0.0
+        self._zoom = 1.0; self._flip_h = self._flip_v = False
+        self.update()
 
-    # ── mouse drag for free rotation ────────────────────────────────────────
+    def fit_to_window(self):
+        self._pan_x = self._pan_y = 0.0; self._zoom = 1.0; self.update()
+
+    def pan(self, dx, dy):
+        self._pan_x += dx; self._pan_y += dy; self.update()
+
+    def rotate_cw(self):
+        self._yaw = (self._yaw + 90) % 360; self.update()
+
+    def rotate_ccw(self):
+        self._yaw = (self._yaw - 90) % 360; self.update()
+
+    def flip_horizontal(self):
+        self._flip_h = not self._flip_h; self.update()
+
+    def flip_vertical(self):
+        self._flip_v = not self._flip_v; self.update()
+
+    def set_background_color(self, rgb):
+        self._bg_color = rgb; self.update()
+
+    def set_show_spheres(self, v): self._show_spheres = v; self.update()
+    def set_show_boxes(self,   v): self._show_boxes   = v; self.update()
+    def set_show_mesh(self,    v): self._show_mesh     = v; self.update()
+    def set_backface(self,     v): self._backface      = v; self.update()
+    def set_render_style(self, s): self._render_style  = s; self.update()
+
+    # ── mouse ────────────────────────────────────────────────────────────────
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton:
-            self._drag_last = event.position()
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._left_drag = event.position()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        super().mousePressEvent(event)
+        elif event.button() == Qt.MouseButton.RightButton:
+            self._right_drag = event.position()
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
 
     def mouseMoveEvent(self, event):
-        if self._drag_last and (event.buttons() & Qt.MouseButton.RightButton):
-            delta = event.position() - self._drag_last
-            self._yaw   = (self._yaw   + delta.x() * 0.5) % 360
-            self._pitch = max(-89.0, min(89.0, self._pitch + delta.y() * 0.5))
-            self._drag_last = event.position()
-            self._refresh()
-        super().mouseMoveEvent(event)
+        if self._left_drag and (event.buttons() & Qt.MouseButton.LeftButton):
+            d = event.position() - self._left_drag
+            self._pan_x += d.x(); self._pan_y += d.y()
+            self._left_drag = event.position(); self.update()
+        if self._right_drag and (event.buttons() & Qt.MouseButton.RightButton):
+            d = event.position() - self._right_drag
+            self._yaw   = (self._yaw   + d.x() * 0.5) % 360
+            self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.5))
+            self._right_drag = event.position(); self.update()
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton:
-            self._drag_last = None
-            self.setCursor(Qt.CursorShape.OpenHandCursor)
-        super().mouseReleaseEvent(event)
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._left_drag  = None
+        elif event.button() == Qt.MouseButton.RightButton:
+            self._right_drag = None
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+
+    def wheelEvent(self, event):
+        factor = 1.15 if event.angleDelta().y() > 0 else 1/1.15
+        self._zoom = max(0.05, min(20.0, self._zoom * factor))
+        self.update()
 
     def contextMenuEvent(self, event):
         from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self)
-        menu.addAction("Top (XY)",     lambda: self._set_angles(0, 0))
-        menu.addAction("Front (XZ)",   lambda: self._set_angles(0, 90))
-        menu.addAction("Side (YZ)",    lambda: self._set_angles(90, 0))
-        menu.addAction("Isometric",    lambda: self._set_angles(45, 35))
-        menu.addSeparator()
-        menu.addAction("Reset View",   self.reset_view)
-        menu.exec(event.globalPos())
+        m = QMenu(self)
+        m.addAction("Top",        lambda: self._set_angles(0,   0))
+        m.addAction("Front",      lambda: self._set_angles(0,  90))
+        m.addAction("Side",       lambda: self._set_angles(90,  0))
+        m.addAction("Isometric",  lambda: self._set_angles(45, 35))
+        m.addSeparator()
+        m.addAction("Reset View",    self.reset_view)
+        m.addAction("Fit to Window", self.fit_to_window)
+        m.exec(event.globalPos())
 
     def _set_angles(self, yaw, pitch):
-        self._yaw, self._pitch = float(yaw), float(pitch)
-        self._refresh()
+        self._yaw, self._pitch = float(yaw), float(pitch); self.update()
 
-    # ── render ──────────────────────────────────────────────────────────────
-    def _refresh(self):
-        if not self._model: return
-        w = max(400, self.width())
-        h = max(400, self.height())
+    # ── paint ────────────────────────────────────────────────────────────────
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QPainter, QColor, QFont
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r, g, b = self._bg_color
+        painter.fillRect(self.rect(), QColor(r, g, b))
+        if not self._model:
+            painter.setPen(QColor(120, 120, 120))
+            painter.setFont(QFont('Arial', 11))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                             "No model selected")
+            return
         ws = self._find_workshop()
-        if ws and hasattr(ws, '_render_collision_preview'):
-            pix = ws._render_collision_preview(
-                self._model, w, h,
-                yaw=self._yaw, pitch=self._pitch,
-                flip_h=self._flip_h, flip_v=self._flip_v)
-            self.setPixmap(pix)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if self._model: self._refresh()
+        if ws and hasattr(ws, '_paint_model_onto'):
+            ws._paint_model_onto(
+                painter, self._model, self.width(), self.height(),
+                self._yaw, self._pitch, self._zoom,
+                self._pan_x, self._pan_y,
+                self._flip_h, self._flip_v,
+                self._show_spheres, self._show_boxes,
+                self._show_mesh, self._backface,
+                self._render_style, self._bg_color)
 
     def _find_workshop(self):
         p = self.parent()
