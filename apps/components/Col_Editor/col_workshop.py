@@ -366,7 +366,7 @@ class COLWorkshop(QWidget): #vers 3
 
 
         # Main splitter
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Create all panels first
         left_panel = self._create_left_panel()
@@ -375,21 +375,22 @@ class COLWorkshop(QWidget): #vers 3
 
         # Add panels to splitter based on mode
         if left_panel is not None:  # IMG Factory mode
-            main_splitter.addWidget(left_panel)
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
+            self._main_splitter.addWidget(left_panel)
+            self._main_splitter.addWidget(middle_panel)
+            self._main_splitter.addWidget(right_panel)
             # Set proportions (2:3:5)
-            main_splitter.setStretchFactor(0, 2)
-            main_splitter.setStretchFactor(1, 3)
-            main_splitter.setStretchFactor(2, 5)
+            self._main_splitter.setStretchFactor(0, 2)
+            self._main_splitter.setStretchFactor(1, 3)
+            self._main_splitter.setStretchFactor(2, 5)
         else:  # Standalone mode
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
+            self._main_splitter.addWidget(middle_panel)
+            self._main_splitter.addWidget(right_panel)
             # Set proportions (1:1)
-            main_splitter.setStretchFactor(0, 1)
-            main_splitter.setStretchFactor(1, 1)
+            self._main_splitter.setStretchFactor(0, 1)
+            self._main_splitter.setStretchFactor(1, 1)
 
-        main_layout.addWidget(main_splitter)
+        main_layout.addWidget(self._main_splitter)
+        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
 
         # Status indicators - hidden when embedded in main window tab
         if hasattr(self, '_setup_status_indicators'):
@@ -1767,14 +1768,34 @@ class COLWorkshop(QWidget): #vers 3
         self.drag_position = global_pos
 
 
-    def resizeEvent(self, event): #vers 2
-        """Keep resize grip in corner; collapse text panel to icon-only when narrow."""
+    def _on_splitter_moved(self, pos, index): #vers 1
+        """Called when main splitter is dragged — update text panel visibility."""
+        self._update_transform_text_panel_visibility()
+
+    def _update_transform_text_panel_visibility(self): #vers 1
+        """Show/hide text transform panel based on right-panel width."""
+        tp = getattr(self, '_transform_text_panel_ref', None)
+        if not tp: return
+        # The text panel's grandparent is the splitter pane (QSplitterHandle proxy)
+        # Walk up until we find the direct child of the splitter
+        splitter = getattr(self, '_main_splitter', None)
+        if splitter:
+            # Find which splitter widget contains the text panel
+            w = tp
+            while w and w.parent() is not splitter:
+                w = w.parent() if hasattr(w, 'parent') else None
+            if w:
+                tp.setVisible(w.width() >= 600)
+                return
+        # Fallback: use workshop width
+        tp.setVisible(self.width() >= 700)
+
+    def resizeEvent(self, event): #vers 3
+        """Keep resize grip in corner; auto-collapse text transform panel when narrow."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
-        tp = getattr(self, '_transform_text_panel_ref', None)
-        if tp:
-            tp.setVisible(self.width() >= 700)
+        self._update_transform_text_panel_visibility()
 
 
     def mouseDoubleClickEvent(self, event): #vers 2

@@ -609,7 +609,7 @@ class TXDWorkshop(QWidget): #vers 3
 
 
         # Main splitter
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Create all panels first
         left_panel = self._create_left_panel()
@@ -618,21 +618,22 @@ class TXDWorkshop(QWidget): #vers 3
 
         # Add panels to splitter based on mode
         if left_panel is not None:  # IMG Factory mode
-            main_splitter.addWidget(left_panel)
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
+            self._main_splitter.addWidget(left_panel)
+            self._main_splitter.addWidget(middle_panel)
+            self._main_splitter.addWidget(right_panel)
             # Set proportions (2:3:5)
-            main_splitter.setStretchFactor(0, 2)
-            main_splitter.setStretchFactor(1, 3)
-            main_splitter.setStretchFactor(2, 5)
+            self._main_splitter.setStretchFactor(0, 2)
+            self._main_splitter.setStretchFactor(1, 3)
+            self._main_splitter.setStretchFactor(2, 5)
         else:  # Standalone mode
-            main_splitter.addWidget(middle_panel)
-            main_splitter.addWidget(right_panel)
+            self._main_splitter.addWidget(middle_panel)
+            self._main_splitter.addWidget(right_panel)
             # Set proportions (1:1)
-            main_splitter.setStretchFactor(0, 1)
-            main_splitter.setStretchFactor(1, 1)
+            self._main_splitter.setStretchFactor(0, 1)
+            self._main_splitter.setStretchFactor(1, 1)
 
-        main_layout.addWidget(main_splitter)
+        main_layout.addWidget(self._main_splitter)
+        self._main_splitter.splitterMoved.connect(self._on_splitter_moved)
 
         # Apply themed icons now UI is fully built
         self._refresh_icons()
@@ -2191,11 +2192,34 @@ class TXDWorkshop(QWidget): #vers 3
         self.drag_position = global_pos
 
 
-    def resizeEvent(self, event): #vers 1
-        '''Keep resize grip in bottom-right corner'''
+    def _on_splitter_moved(self, pos, index): #vers 1
+        """Called when main splitter is dragged — update text panel visibility."""
+        self._update_transform_text_panel_visibility()
+
+    def _update_transform_text_panel_visibility(self): #vers 1
+        """Show/hide text transform panel based on right-panel width."""
+        tp = getattr(self, '_transform_text_panel_ref', None)
+        if not tp: return
+        # The text panel's grandparent is the splitter pane (QSplitterHandle proxy)
+        # Walk up until we find the direct child of the splitter
+        splitter = getattr(self, '_main_splitter', None)
+        if splitter:
+            # Find which splitter widget contains the text panel
+            w = tp
+            while w and w.parent() is not splitter:
+                w = w.parent() if hasattr(w, 'parent') else None
+            if w:
+                tp.setVisible(w.width() >= 600)
+                return
+        # Fallback: use workshop width
+        tp.setVisible(self.width() >= 700)
+
+    def resizeEvent(self, event): #vers 3
+        """Keep resize grip in corner; auto-collapse text transform panel."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
+        self._update_transform_text_panel_visibility()
 
 
     def mouseDoubleClickEvent(self, event): #vers 2
@@ -2525,11 +2549,11 @@ class TXDWorkshop(QWidget): #vers 3
         top_layout.setSpacing(2)
         top_layout.addWidget(transform_icon_panel)
 
-        # Transform panel (text)
+        # Transform panel (text) — hidden when right panel is narrow
         transform_text_panel = self._create_transform_text_panel()
-
         top_layout.setSpacing(2)
         top_layout.addWidget(transform_text_panel)
+        self._transform_text_panel_ref = transform_text_panel
 
         # Preview area (center)
         self.preview_widget = ZoomablePreview(self)
@@ -10973,7 +10997,7 @@ class TXDWorkshop(QWidget): #vers 3
         return self.transform_icon_panel
 
 
-    def _create_transform_text_panel(self): #vers 12
+    def _create_transform_text_panel(self): #vers 13
         """Create transform panel with text - aligned with icon panel"""
         self.transform_text_panel = QFrame()
         self.transform_text_panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -10990,62 +11014,62 @@ class TXDWorkshop(QWidget): #vers 3
         layout.addSpacing(2)
 
         # Flip Vertical
-        self.flip_vert_btn = QPushButton("Flip Vertical")
-        self.flip_vert_btn.setFont(self.button_font)
-        self.flip_vert_btn.setFixedHeight(btn_height)
-        self.flip_vert_btn.clicked.connect(self._flip_vertical)
-        self.flip_vert_btn.setEnabled(False)
-        self.flip_vert_btn.setToolTip("Flip texture vertically")
+        _tt_flip_vert_btn = QPushButton("Flip Vertical")
+        _tt_flip_vert_btn.setFont(self.button_font)
+        _tt_flip_vert_btn.setFixedHeight(btn_height)
+        _tt_flip_vert_btn.clicked.connect(self._flip_vertical)
+        _tt_flip_vert_btn.setEnabled(False)
+        _tt_flip_vert_btn.setToolTip("Flip texture vertically")
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
 
         # Flip Horizontal
-        self.flip_horz_btn = QPushButton("Flip Horizontal")
-        self.flip_horz_btn.setFont(self.button_font)
-        self.flip_horz_btn.setFixedHeight(btn_height)
-        self.flip_horz_btn.clicked.connect(self._flip_horizontal)
-        self.flip_horz_btn.setEnabled(False)
-        self.flip_horz_btn.setToolTip("Flip texture horizontally")
+        _tt_flip_horz_btn = QPushButton("Flip Horizontal")
+        _tt_flip_horz_btn.setFont(self.button_font)
+        _tt_flip_horz_btn.setFixedHeight(btn_height)
+        _tt_flip_horz_btn.clicked.connect(self._flip_horizontal)
+        _tt_flip_horz_btn.setEnabled(False)
+        _tt_flip_horz_btn.setToolTip("Flip texture horizontally")
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
 
         # Rotate Clockwise
-        self.rotate_cw_btn = QPushButton("Rotate 90° CW")
-        self.rotate_cw_btn.setFont(self.button_font)
-        self.rotate_cw_btn.setFixedHeight(btn_height)
-        self.rotate_cw_btn.clicked.connect(self._rotate_clockwise)
-        self.rotate_cw_btn.setEnabled(False)
-        self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
+        _tt_rotate_cw_btn = QPushButton("Rotate 90° CW")
+        _tt_rotate_cw_btn.setFont(self.button_font)
+        _tt_rotate_cw_btn.setFixedHeight(btn_height)
+        _tt_rotate_cw_btn.clicked.connect(self._rotate_clockwise)
+        _tt_rotate_cw_btn.setEnabled(False)
+        _tt_rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
         layout.addWidget(self.rotate_cw_btn)
         layout.addSpacing(spacer)
 
         # Rotate Counter-Clockwise
-        self.rotate_ccw_btn = QPushButton("Rotate 90° CCW")
-        self.rotate_ccw_btn.setFont(self.button_font)
-        self.rotate_ccw_btn.setFixedHeight(btn_height)
-        self.rotate_ccw_btn.clicked.connect(self._rotate_counterclockwise)
-        self.rotate_ccw_btn.setEnabled(False)
-        self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
+        _tt_rotate_ccw_btn = QPushButton("Rotate 90° CCW")
+        _tt_rotate_ccw_btn.setFont(self.button_font)
+        _tt_rotate_ccw_btn.setFixedHeight(btn_height)
+        _tt_rotate_ccw_btn.clicked.connect(self._rotate_counterclockwise)
+        _tt_rotate_ccw_btn.setEnabled(False)
+        _tt_rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
         layout.addWidget(self.rotate_ccw_btn)
         layout.addSpacing(spacer)
 
         # Copy
-        self.copy_btn = QPushButton("Copy")
-        self.copy_btn.setFont(self.button_font)
-        self.copy_btn.setFixedHeight(btn_height)
-        self.copy_btn.clicked.connect(self._copy_texture)
-        self.copy_btn.setEnabled(False)
-        self.copy_btn.setToolTip("Copy texture to clipboard")
+        _tt_copy_btn = QPushButton("Copy")
+        _tt_copy_btn.setFont(self.button_font)
+        _tt_copy_btn.setFixedHeight(btn_height)
+        _tt_copy_btn.clicked.connect(self._copy_texture)
+        _tt_copy_btn.setEnabled(False)
+        _tt_copy_btn.setToolTip("Copy texture to clipboard")
         layout.addWidget(self.copy_btn)
         layout.addSpacing(spacer)
 
         # Paste
-        self.paste_btn = QPushButton("Paste")
-        self.paste_btn.setFont(self.button_font)
-        self.paste_btn.setFixedHeight(btn_height)
-        self.paste_btn.clicked.connect(self._paste_texture)
-        self.paste_btn.setEnabled(False)
-        self.paste_btn.setToolTip("Paste texture from clipboard")
+        _tt_paste_btn = QPushButton("Paste")
+        _tt_paste_btn.setFont(self.button_font)
+        _tt_paste_btn.setFixedHeight(btn_height)
+        _tt_paste_btn.clicked.connect(self._paste_texture)
+        _tt_paste_btn.setEnabled(False)
+        _tt_paste_btn.setToolTip("Paste texture from clipboard")
         layout.addWidget(self.paste_btn)
         layout.addSpacing(spacer)
 
@@ -11079,12 +11103,12 @@ class TXDWorkshop(QWidget): #vers 3
         layout.addSpacing(spacer)
 
         # Paint
-        self.paint_btn = QPushButton("Paint")
-        self.paint_btn.setFont(self.button_font)
-        self.paint_btn.setFixedHeight(btn_height)
-        self.paint_btn.clicked.connect(self._open_paint_editor)
-        self.paint_btn.setEnabled(False)
-        self.paint_btn.setToolTip("Paint on texture")
+        _tt_paint_btn = QPushButton("Paint")
+        _tt_paint_btn.setFont(self.button_font)
+        _tt_paint_btn.setFixedHeight(btn_height)
+        _tt_paint_btn.clicked.connect(self._open_paint_editor)
+        _tt_paint_btn.setEnabled(False)
+        _tt_paint_btn.setToolTip("Paint on texture")
         layout.addWidget(self.paint_btn)
         layout.addSpacing(spacer)
 
