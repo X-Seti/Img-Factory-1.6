@@ -3762,21 +3762,9 @@ class COLWorkshop(QWidget): #vers 3
             for i, model in enumerate(models):
                 self.col_compact_list.insertRow(i)
 
-                # Col 0: bounding-box wire icon
-                from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen
+                # Col 0: real collision thumbnail
                 icon_item = QTableWidgetItem()
-                pm = QPixmap(64, 64)
-                pm.fill(QColor(0, 0, 0, 0))
-                painter = QPainter(pm)
-                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                pen = QPen(QColor(100, 180, 100))
-                pen.setWidth(2)
-                painter.setPen(pen)
-                painter.drawRect(8, 8, 48, 48)
-                painter.setPen(QPen(QColor(100, 180, 100, 80)))
-                painter.drawLine(8, 8, 56, 56)
-                painter.drawLine(56, 8, 8, 56)
-                painter.end()
+                pm = self._generate_collision_thumbnail(model, 64, 64)
                 icon_item.setData(Qt.ItemDataRole.DecorationRole, pm)
                 self.col_compact_list.setItem(i, 0, icon_item)
 
@@ -4040,10 +4028,8 @@ class COLWorkshop(QWidget): #vers 3
             version_str = f"COL ({model_count} models)"
             self.setWindowTitle(f"{App_name} - {os.path.basename(file_path)} - {version_str}")
 
-            # Populate UI
-            #self._populate_collision_list()  # ADD THIS LINE
-            setup_col_table_structure(self)
-            populate_col_table(self, col_file)
+            # Populate UI — use collision list with thumbnails
+            self._populate_collision_list()
 
             # Select first model by default
             if self.collision_list.rowCount() > 0:
