@@ -4263,13 +4263,25 @@ class COLWorkshop(QWidget): #vers 3
         pts_3d = []
         for s in getattr(model, 'spheres', []):
             c = s.center
-            pts_3d.append((c.x - s.radius, c.y - s.radius))
-            pts_3d.append((c.x + s.radius, c.y + s.radius))
+            if hasattr(c, 'x'):
+                pts_3d.append((c.x - s.radius, c.y - s.radius))
+                pts_3d.append((c.x + s.radius, c.y + s.radius))
+            else:
+                pts_3d.append((c[0] - s.radius, c[1] - s.radius))
+                pts_3d.append((c[0] + s.radius, c[1] + s.radius))
         for b in getattr(model, 'boxes', []):
-            pts_3d.append((b.min_point.x, b.min_point.y))
-            pts_3d.append((b.max_point.x, b.max_point.y))
+            if hasattr(b, 'min_point'):
+                pts_3d.append((b.min_point.x, b.min_point.y))
+                pts_3d.append((b.max_point.x, b.max_point.y))
+            else:
+                pts_3d.append((b.min[0], b.min[1]))
+                pts_3d.append((b.max[0], b.max[1]))
         for v in getattr(model, 'vertices', []):
-            pts_3d.append((v.position.x, v.position.y))
+            # COLVertex has x/y/z directly (col_workshop_classes) or via .position (col_core_classes)
+            if hasattr(v, 'position'):
+                pts_3d.append((v.position.x, v.position.y))
+            else:
+                pts_3d.append((v.x, v.y))
         if not pts_3d:
             return 1.0, width//2, height//2, []
         xs = [p[0] for p in pts_3d]
@@ -4303,14 +4315,21 @@ class COLWorkshop(QWidget): #vers 3
             painter.setPen(QPen(QColor(120, 180, 120, 180), 0.5))
             painter.setBrush(QBrush(QColor(60, 120, 60, 80)))
             from PyQt6.QtGui import QPolygonF
+            def _vx(v): return v.position.x if hasattr(v, 'position') else v.x
+            def _vy(v): return v.position.y if hasattr(v, 'position') else v.y
             for face in faces:
+                # Support vertex_indices tuple OR a/b/c fields
                 idx = getattr(face, 'vertex_indices', None)
+                if idx is None:
+                    fa = getattr(face, 'a', None)
+                    if fa is not None:
+                        idx = (fa, face.b, face.c)
                 if idx and len(idx) == 3:
                     try:
                         poly = QPolygonF([
-                            QPointF(wx(verts[idx[0]].position.x), wy(verts[idx[0]].position.y)),
-                            QPointF(wx(verts[idx[1]].position.x), wy(verts[idx[1]].position.y)),
-                            QPointF(wx(verts[idx[2]].position.x), wy(verts[idx[2]].position.y)),
+                            QPointF(wx(_vx(verts[idx[0]])), wy(_vy(verts[idx[0]]))),
+                            QPointF(wx(_vx(verts[idx[1]])), wy(_vy(verts[idx[1]]))),
+                            QPointF(wx(_vx(verts[idx[2]])), wy(_vy(verts[idx[2]]))),
                         ])
                         painter.drawPolygon(poly)
                     except (IndexError, AttributeError):
@@ -4320,10 +4339,15 @@ class COLWorkshop(QWidget): #vers 3
         painter.setPen(QPen(QColor(220, 180, 50), max(1.0, scale * 0.05)))
         painter.setBrush(QBrush(QColor(220, 180, 50, 40)))
         for box in getattr(model, 'boxes', []):
-            x1 = wx(box.min_point.x)
-            y1 = wy(box.min_point.y)
-            x2 = wx(box.max_point.x)
-            y2 = wy(box.max_point.y)
+            # Support both min_point/max_point (col_core_classes) and min/max tuples (col_workshop_classes)
+            if hasattr(box, 'min_point'):
+                bmin, bmax = box.min_point, box.max_point
+                x1 = wx(bmin.x); y1 = wy(bmin.y)
+                x2 = wx(bmax.x); y2 = wy(bmax.y)
+            else:
+                bmin, bmax = box.min, box.max
+                x1 = wx(bmin[0]); y1 = wy(bmin[1])
+                x2 = wx(bmax[0]); y2 = wy(bmax[1])
             painter.drawRect(QRectF(min(x1,x2), min(y1,y2),
                                     abs(x2-x1) or 2, abs(y2-y1) or 2))
 
@@ -4332,8 +4356,11 @@ class COLWorkshop(QWidget): #vers 3
         painter.setBrush(QBrush(QColor(80, 200, 220, 40)))
         for sph in getattr(model, 'spheres', []):
             r = sph.radius * scale
-            cx = wx(sph.center.x)
-            cy = wy(sph.center.y)
+            # Support both center.x (Vector3) and center tuple (col_workshop_classes)
+            if hasattr(sph.center, 'x'):
+                cx = wx(sph.center.x); cy = wy(sph.center.y)
+            else:
+                cx = wx(sph.center[0]); cy = wy(sph.center[1])
             painter.drawEllipse(QRectF(cx - r, cy - r, r * 2 or 2, r * 2 or 2))
 
     def _generate_collision_thumbnail(self, model, width=64, height=64): #vers 1
@@ -4658,7 +4685,10 @@ class COLWorkshop(QWidget): #vers 3
             info_text += "\nVertices:\n"
             for i in range(min(30000, len(model.vertices))):
                 v = model.vertices[i]
-                info_text += f"  [{i}] ({v.position.x:.3f}, {v.position.y:.3f}, {v.position.z:.3f})\n"
+                if hasattr(v, 'position'):
+                    info_text += f"  [{i}] ({v.position.x:.3f}, {v.position.y:.3f}, {v.position.z:.3f})\n"
+                else:
+                    info_text += f"  [{i}] ({v.x:.3f}, {v.y:.3f}, {v.z:.3f})\n"
 
         # Add material info from faces
         if len(model.faces) > 0:

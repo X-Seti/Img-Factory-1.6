@@ -206,19 +206,11 @@ def check_and_prompt_for_ide_file(main_window, img_file_path): #vers 8
         main_window.log_message(f"Error checking for IDE file: {str(e)}")
 
 
-def _load_col_file(main_window, file_path): #vers 4
-    """Load COL file in new tab using unified tab system"""
+def _load_col_file(main_window, file_path): #vers 5
+    """Load COL file — always opens in a Col Workshop tab."""
     try:
-        if hasattr(main_window, '_load_col_file_in_new_tab'):
-            main_window._load_col_file_in_new_tab(file_path)
-        elif hasattr(main_window, 'load_col_file_in_new_tab'):
-            main_window.load_col_file_in_new_tab(file_path)
-        elif hasattr(main_window, 'load_col_file_safely'):
-            main_window.load_col_file_safely(file_path)
-        else:
-            main_window.log_message("Error: No COL loading method found")
-        
-        # Add to recent files
+        from apps.components.Col_Editor.col_workshop import open_col_workshop
+        open_col_workshop(main_window, file_path)
         add_to_recent_files(main_window, file_path)
     except Exception as e:
         main_window.log_message(f"Error loading COL: {str(e)}")
