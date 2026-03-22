@@ -132,179 +132,134 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         layout.addStretch()
         return widget
 
-    def _create_interface_tab(self): #vers 1
-        """Create Interface settings tab"""
+    def _create_interface_tab(self): #vers 2
+        """Interface settings — compact 2-3 items per row."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        layout.setSpacing(8)
 
-        # Button Spacing Group
-        button_group = QGroupBox("Button Layout")
-        button_layout = QVBoxLayout()
+        def spin(attr, label, lo, hi, val, suffix=''):
+            w = QSpinBox(); w.setRange(lo, hi); w.setValue(val)
+            if suffix: w.setSuffix(suffix)
+            w.setMaximumWidth(80)
+            setattr(self, attr, w)
+            return QLabel(label), w
 
-        h_spacing_layout = QHBoxLayout()
-        h_spacing_layout.addWidget(QLabel("Horizontal spacing:"))
-        self.h_spacing_spin = QSpinBox()
-        self.h_spacing_spin.setRange(0, 50)
-        self.h_spacing_spin.setValue(self.img_settings.get("button_horizontal_spacing", 10))
-        self.h_spacing_spin.setSuffix(" px")
-        h_spacing_layout.addWidget(self.h_spacing_spin)
-        h_spacing_layout.addStretch()
-        button_layout.addLayout(h_spacing_layout)
+        def combo(attr, label, items, current):
+            w = QComboBox(); w.addItems(items); w.setCurrentText(current)
+            setattr(self, attr, w)
+            return QLabel(label), w
 
-        v_spacing_layout = QHBoxLayout()
-        v_spacing_layout.addWidget(QLabel("Vertical spacing:"))
-        self.v_spacing_spin = QSpinBox()
-        self.v_spacing_spin.setRange(0, 50)
-        self.v_spacing_spin.setValue(self.img_settings.get("button_vertical_spacing", 10))
-        self.v_spacing_spin.setSuffix(" px")
-        v_spacing_layout.addWidget(self.v_spacing_spin)
-        v_spacing_layout.addStretch()
-        button_layout.addLayout(v_spacing_layout)
+        def row(*widgets):
+            h = QHBoxLayout(); h.setSpacing(8)
+            for w in widgets: h.addWidget(w)
+            h.addStretch()
+            return h
 
-        button_group.setLayout(button_layout)
-        layout.addWidget(button_group)
+        # ── Button Layout ──────────────────────────────────────────────────
+        btn_grp = QGroupBox("Button Layout")
+        btn_lay = QVBoxLayout(btn_grp); btn_lay.setSpacing(4)
+        lh, self.h_spacing_spin = spin('h_spacing_spin', 'H spacing:', 0, 50,
+            self.img_settings.get('button_horizontal_spacing', 10), ' px')
+        lv, self.v_spacing_spin = spin('v_spacing_spin', 'V spacing:', 0, 50,
+            self.img_settings.get('button_vertical_spacing', 10), ' px')
+        btn_lay.addLayout(row(lh, self.h_spacing_spin, lv, self.v_spacing_spin))
+        layout.addWidget(btn_grp)
 
-        # Font Settings Group
-        font_group = QGroupBox("Font Settings")
-        font_layout = QVBoxLayout()
+        # ── Font Settings ──────────────────────────────────────────────────
+        fnt_grp = QGroupBox("Font Settings")
+        fnt_lay = QVBoxLayout(fnt_grp); fnt_lay.setSpacing(4)
 
-        self.use_custom_font_cb = QCheckBox("Use custom font settings")
-        self.use_custom_font_cb.setChecked(self.img_settings.get("use_custom_font", False))
-        font_layout.addWidget(self.use_custom_font_cb)
+        self.use_custom_font_cb = QCheckBox("Use custom font")
+        self.use_custom_font_cb.setChecked(self.img_settings.get('use_custom_font', False))
+        fnt_lay.addWidget(self.use_custom_font_cb)
 
-        font_family_layout = QHBoxLayout()
-        font_family_layout.addWidget(QLabel("Font:"))
+        font_row = QHBoxLayout(); font_row.setSpacing(8)
+        font_row.addWidget(QLabel("Font:"))
         self.font_combo = QFontComboBox()
-        self.font_combo.setCurrentFont(QFont(self.img_settings.get("font_family", "Segoe UI")))
+        self.font_combo.setCurrentFont(QFont(self.img_settings.get('font_family', 'Segoe UI')))
         self.font_combo.setEnabled(self.use_custom_font_cb.isChecked())
-        font_family_layout.addWidget(self.font_combo)
-        font_layout.addLayout(font_family_layout)
-
-        font_size_layout = QHBoxLayout()
-        font_size_layout.addWidget(QLabel("Size:"))
-        self.font_size_spin = QSpinBox()
-        self.font_size_spin.setRange(6, 24)
-        self.font_size_spin.setValue(self.img_settings.get("font_size", 9))
-        self.font_size_spin.setSuffix(" pt")
+        font_row.addWidget(self.font_combo, 1)
+        font_row.addWidget(QLabel("Size:"))
+        self.font_size_spin = QSpinBox(); self.font_size_spin.setRange(6, 24)
+        self.font_size_spin.setValue(self.img_settings.get('font_size', 9))
+        self.font_size_spin.setSuffix(' pt'); self.font_size_spin.setMaximumWidth(70)
         self.font_size_spin.setEnabled(self.use_custom_font_cb.isChecked())
-        font_size_layout.addWidget(self.font_size_spin)
-        font_size_layout.addStretch()
-        font_layout.addLayout(font_size_layout)
-
-        font_style_layout = QHBoxLayout()
+        font_row.addWidget(self.font_size_spin)
         self.font_bold_cb = QCheckBox("Bold")
-        self.font_bold_cb.setChecked(self.img_settings.get("font_bold", False))
+        self.font_bold_cb.setChecked(self.img_settings.get('font_bold', False))
         self.font_bold_cb.setEnabled(self.use_custom_font_cb.isChecked())
-        font_style_layout.addWidget(self.font_bold_cb)
-
+        font_row.addWidget(self.font_bold_cb)
         self.font_italic_cb = QCheckBox("Italic")
-        self.font_italic_cb.setChecked(self.img_settings.get("font_italic", False))
+        self.font_italic_cb.setChecked(self.img_settings.get('font_italic', False))
         self.font_italic_cb.setEnabled(self.use_custom_font_cb.isChecked())
-        font_style_layout.addWidget(self.font_italic_cb)
-        font_style_layout.addStretch()
-        font_layout.addLayout(font_style_layout)
+        font_row.addWidget(self.font_italic_cb)
+        fnt_lay.addLayout(font_row)
 
-        # Enable/disable font controls based on checkbox
         def toggle_font_controls(checked):
-            self.font_combo.setEnabled(checked)
-            self.font_size_spin.setEnabled(checked)
-            self.font_bold_cb.setEnabled(checked)
-            self.font_italic_cb.setEnabled(checked)
-
+            for w in [self.font_combo, self.font_size_spin,
+                      self.font_bold_cb, self.font_italic_cb]:
+                w.setEnabled(checked)
         self.use_custom_font_cb.toggled.connect(toggle_font_controls)
+        layout.addWidget(fnt_grp)
 
-        font_group.setLayout(font_layout)
-        layout.addWidget(font_group)
+        # ── Tab Settings ───────────────────────────────────────────────────
+        tab_grp = QGroupBox("Tab Settings")
+        tab_lay = QVBoxLayout(tab_grp); tab_lay.setSpacing(4)
 
-        # Tab Settings Group
-        tab_group = QGroupBox("Tab Settings")
-        tab_layout = QVBoxLayout()
+        # Row 1: height + min-width
+        lth, self.tab_height_spin = spin('tab_height_spin', 'Height:', 16, 60,
+            self.img_settings.get('tab_height', 24), ' px')
+        ltw, self.tab_min_width_spin = spin('tab_min_width_spin', 'Min width:', 40, 300,
+            self.img_settings.get('tab_min_width', 100), ' px')
+        tab_lay.addLayout(row(lth, self.tab_height_spin, ltw, self.tab_min_width_spin))
 
-        tab_height_layout = QHBoxLayout()
-        tab_height_layout.addWidget(QLabel("Tab height:"))
-        self.tab_height_spin = QSpinBox()
-        self.tab_height_spin.setRange(16, 60)
-        self.tab_height_spin.setValue(self.img_settings.get("tab_height", 24))
-        self.tab_height_spin.setSuffix(" px")
-        tab_height_layout.addWidget(self.tab_height_spin)
-        tab_height_layout.addStretch()
-        tab_layout.addLayout(tab_height_layout)
-
-        tab_width_layout = QHBoxLayout()
-        tab_width_layout.addWidget(QLabel("Min tab width:"))
-        self.tab_min_width_spin = QSpinBox()
-        self.tab_min_width_spin.setRange(40, 300)
-        self.tab_min_width_spin.setValue(self.img_settings.get("tab_min_width", 100))
-        self.tab_min_width_spin.setSuffix(" px")
-        tab_width_layout.addWidget(self.tab_min_width_spin)
-        tab_width_layout.addStretch()
-        tab_layout.addLayout(tab_width_layout)
-
-        tab_style_layout = QHBoxLayout()
-        tab_style_layout.addWidget(QLabel("Tab style:"))
-        self.tab_style_combo = QComboBox()
-        self.tab_style_combo.addItems(["default", "rounded", "square"])
-        self.tab_style_combo.setCurrentText(self.img_settings.get("tab_style", "default"))
-        tab_style_layout.addWidget(self.tab_style_combo)
-        tab_style_layout.addStretch()
-        tab_layout.addLayout(tab_style_layout)
-
-        # Tab content display mode
-        tab_content_layout = QHBoxLayout()
-        tab_content_layout.addWidget(QLabel("Tab content:"))
+        # Row 2: style + content + position
+        lts, self.tab_style_combo = combo('tab_style_combo', 'Style:',
+            ['default', 'rounded', 'square'],
+            self.img_settings.get('tab_style', 'default'))
+        self.tab_style_combo.setMaximumWidth(100)
+        mode_map = {'both': 0, 'icon': 1, 'text': 2}
         self.tab_content_combo = QComboBox()
-        self.tab_content_combo.addItems(["Icon + Text", "Icon Only", "Text Only"])
-        mode_map = {"both": 0, "icon": 1, "text": 2}
+        self.tab_content_combo.addItems(['Icon + Text', 'Icon Only', 'Text Only'])
         self.tab_content_combo.setCurrentIndex(
-            mode_map.get(self.img_settings.get("tab_content_mode", "both"), 0))
-        tab_content_layout.addWidget(self.tab_content_combo)
-        tab_content_layout.addStretch()
-        tab_layout.addLayout(tab_content_layout)
+            mode_map.get(self.img_settings.get('tab_content_mode', 'both'), 0))
+        self.tab_content_combo.setMaximumWidth(100)
+        ltp, self.tab_position_combo = combo('tab_position_combo', 'Position:',
+            ['top', 'bottom'], self.img_settings.get('tab_position', 'top'))
+        self.tab_position_combo.setMaximumWidth(80)
+        tab_lay.addLayout(row(lts, self.tab_style_combo,
+                              QLabel('Content:'), self.tab_content_combo,
+                              ltp, self.tab_position_combo))
+        layout.addWidget(tab_grp)
 
-        tab_pos_layout = QHBoxLayout()
-        tab_pos_layout.addWidget(QLabel("Tab position:"))
-        self.tab_position_combo = QComboBox()
-        self.tab_position_combo.addItems(["top", "bottom"])
-        self.tab_position_combo.setCurrentText(self.img_settings.get("tab_position", "top"))
-        tab_pos_layout.addWidget(self.tab_position_combo)
-        tab_pos_layout.addStretch()
-        tab_layout.addLayout(tab_pos_layout)
-
-        tab_group.setLayout(tab_layout)
-        layout.addWidget(tab_group)
-
-        # Panel Collapse Group
-        collapse_group = QGroupBox("Workshop Panel Collapse")
-        collapse_layout = QVBoxLayout()
-
-        desc = QLabel("Side panels switch from text+icon to icon-only\nwhen the right panel width drops below this value.")
+        # ── Workshop Panel Collapse ─────────────────────────────────────────
+        col_grp = QGroupBox("Workshop Panel Collapse")
+        col_lay = QVBoxLayout(col_grp); col_lay.setSpacing(4)
+        desc = QLabel("Side panels switch from text+icon to icon-only\n"
+                      "when the right panel width drops below this value.")
         desc.setStyleSheet("color: #888; font-size: 10px;")
-        desc.setWordWrap(True)
-        collapse_layout.addWidget(desc)
+        col_lay.addWidget(desc)
 
-        slider_row = QHBoxLayout()
+        slider_row = QHBoxLayout(); slider_row.setSpacing(8)
         slider_row.addWidget(QLabel("Threshold:"))
         self.collapse_slider = QSlider(Qt.Orientation.Horizontal)
         self.collapse_slider.setRange(200, 900)
         self.collapse_slider.setSingleStep(10)
-        self.collapse_slider.setPageStep(50)
-        self.collapse_slider.setValue(self.img_settings.get("panel_collapse_threshold", 550))
+        self.collapse_slider.setValue(self.img_settings.get('panel_collapse_threshold', 550))
         slider_row.addWidget(self.collapse_slider)
         self.collapse_label = QLabel(f"{self.collapse_slider.value()} px")
         self.collapse_label.setMinimumWidth(55)
         slider_row.addWidget(self.collapse_label)
         self.collapse_slider.valueChanged.connect(
             lambda v: self.collapse_label.setText(f"{v} px"))
-        collapse_layout.addLayout(slider_row)
-
+        col_lay.addLayout(slider_row)
         hint_row = QHBoxLayout()
         hint_row.addWidget(QLabel("200 px (always icons)"))
         hint_row.addStretch()
         hint_row.addWidget(QLabel("900 px (always text)"))
-        collapse_layout.addLayout(hint_row)
-
-        collapse_group.setLayout(collapse_layout)
-        layout.addWidget(collapse_group)
+        col_lay.addLayout(hint_row)
+        layout.addWidget(col_grp)
 
         layout.addStretch()
         return widget

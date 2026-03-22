@@ -76,6 +76,7 @@ class COL3DViewport(QWidget):
         self._bg_color     = (25, 25, 35)
         self._left_drag    = None
         self._right_drag   = None
+        self._mid_drag     = None
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
@@ -133,6 +134,9 @@ class COL3DViewport(QWidget):
         elif event.button() == Qt.MouseButton.RightButton:
             self._right_drag = event.position()
             self.setCursor(Qt.CursorShape.SizeAllCursor)
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            self._mid_drag = event.position()
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
 
     def mouseMoveEvent(self, event):
         if self._left_drag and (event.buttons() & Qt.MouseButton.LeftButton):
@@ -144,12 +148,18 @@ class COL3DViewport(QWidget):
             self._yaw   = (self._yaw   + d.x() * 0.5) % 360
             self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.5))
             self._right_drag = event.position(); self.update()
+        if self._mid_drag and (event.buttons() & Qt.MouseButton.MiddleButton):
+            d = event.position() - self._mid_drag
+            self._pan_x += d.x(); self._pan_y += d.y()
+            self._mid_drag = event.position(); self.update()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self._left_drag  = None
         elif event.button() == Qt.MouseButton.RightButton:
             self._right_drag = None
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            self._mid_drag = None
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def wheelEvent(self, event):
@@ -302,6 +312,14 @@ class COLWorkshop(QWidget): #vers 3
         self.undo_stack = []
         self.button_display_mode = 'both'
         self.last_save_directory = None
+        # Thumbnail spin animation state
+        self._spin_timer  = None
+        self._spin_row    = None
+        self._spin_model  = None
+        self._spin_yaw    = 0.0
+        self._spin_pitch  = 0.0
+        self._spin_dyaw   = 1.0
+        self._spin_dpitch = 0.2
 
         # Set default fonts
         from PyQt6.QtGui import QFont
@@ -699,6 +717,67 @@ class COLWorkshop(QWidget): #vers 3
     def _show_surface_info(self, *a, **kw): pass
     def show_help(self, *a, **kw): pass
     def show_settings_dialog(self, *a, **kw): pass
+
+    def _start_thumbnail_spin(self, row, model): #vers 1
+        """Start slowly rotating the thumbnail of the selected row."""
+        self._stop_thumbnail_spin()
+        self._spin_row   = row
+        self._spin_model = model
+        self._spin_yaw   = 0.0
+        # Random slow axis: yaw + slight pitch drift
+        import random
+        self._spin_dyaw   = random.uniform(0.8, 1.4)
+        self._spin_dpitch = random.uniform(-0.3, 0.3)
+        self._spin_pitch  = random.uniform(-20.0, 20.0)
+        from PyQt6.QtCore import QTimer
+        self._spin_timer = QTimer(self)
+        self._spin_timer.setInterval(50)   # 20 fps
+        self._spin_timer.timeout.connect(self._tick_thumbnail_spin)
+        self._spin_timer.start()
+
+    def _stop_thumbnail_spin(self): #vers 1
+        """Stop any running thumbnail rotation."""
+        t = getattr(self, '_spin_timer', None)
+        if t:
+            t.stop()
+            t.deleteLater()
+            self._spin_timer = None
+        self._spin_row   = None
+        self._spin_model = None
+
+    def _tick_thumbnail_spin(self): #vers 1
+        """Advance the spin angle and update the thumbnail."""
+        model = getattr(self, '_spin_model', None)
+        row   = getattr(self, '_spin_row',   None)
+        if model is None or row is None:
+            self._stop_thumbnail_spin()
+            return
+        # Advance angles
+        self._spin_yaw   = (self._spin_yaw + self._spin_dyaw) % 360
+        self._spin_pitch = max(-35.0, min(35.0,
+            self._spin_pitch + self._spin_dpitch))
+        # Flip pitch direction at limits
+        if abs(self._spin_pitch) >= 35.0:
+            self._spin_dpitch *= -1
+
+        # Only spin if model has geometry
+        has_geo = (getattr(model, 'vertices', []) or
+                   getattr(model, 'spheres',  []) or
+                   getattr(model, 'boxes',    []))
+        if not has_geo:
+            self._stop_thumbnail_spin()
+            return
+
+        # Render thumbnail at current angle
+        thumb = self._generate_collision_thumbnail(
+            model, 64, 64,
+            yaw=self._spin_yaw, pitch=self._spin_pitch)
+
+        item = self.collision_list.item(row, 0)
+        if item:
+            item.setData(Qt.ItemDataRole.DecorationRole, thumb)
+        else:
+            self._stop_thumbnail_spin()
 
     def _enable_name_edit(self, event, is_alpha): #vers 1
         """Enable name editing on click"""
@@ -4801,19 +4880,17 @@ class COLWorkshop(QWidget): #vers 3
             cx, cy = proj_pt(sph.center)
             painter.drawEllipse(QRectF(cx - r, cy - r, r * 2 or 2, r * 2 or 2))
 
-    def _generate_collision_thumbnail(self, model, width=64, height=64): #vers 1
-        """Generate a small QPixmap thumbnail of a COL model (top-down 2D)."""
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
+    def _generate_collision_thumbnail(self, model, width=64, height=64,
+                                      yaw=0.0, pitch=0.0): #vers 2
+        """Generate a small QPixmap thumbnail of a COL model."""
+        from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen
         pixmap = QPixmap(width, height)
         pixmap.fill(QColor(30, 30, 40))
         has_data = (getattr(model, 'spheres', []) or
                     getattr(model, 'boxes', []) or
                     getattr(model, 'vertices', []))
         if not has_data:
-            # Draw placeholder X
             painter = QPainter(pixmap)
-            from PyQt6.QtGui import QPen
             painter.setPen(QPen(QColor(80, 80, 80), 1))
             painter.drawLine(4, 4, width-4, height-4)
             painter.drawLine(width-4, 4, 4, height-4)
@@ -4821,7 +4898,8 @@ class COLWorkshop(QWidget): #vers 3
             return pixmap
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self._draw_col_model(painter, model, width, height, padding=4)
+        self._draw_col_model(painter, model, width, height, padding=4,
+                             yaw=yaw, pitch=pitch)
         painter.end()
         return pixmap
 
@@ -4926,6 +5004,9 @@ class COLWorkshop(QWidget): #vers 3
                     preview_pixmap = self._render_collision_preview(model, width, height)
                     self.preview_widget.setPixmap(preview_pixmap)
                     self.preview_widget.setScaledContents(False)
+
+            # Start thumbnail spin for selected model (geometry only)
+            self._start_thumbnail_spin(row, model)
 
         except Exception as e:
             print(f"Error selecting model: {str(e)}")
