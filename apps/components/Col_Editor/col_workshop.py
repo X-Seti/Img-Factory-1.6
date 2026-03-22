@@ -2587,8 +2587,8 @@ class COLWorkshop(QWidget): #vers 3
         hdr_row.addWidget(header)
         hdr_row.addStretch()
 
-        self._col_view_mode = 'list'   # 'list' | 'detail'
-        self.col_view_toggle_btn = QPushButton("[T]")
+        self._col_view_mode = 'detail'   # start in compact thumbnail view
+        self.col_view_toggle_btn = QPushButton("[=]")
         self.col_view_toggle_btn.setFont(self.button_font)
         self.col_view_toggle_btn.setFixedWidth(32)
         self.col_view_toggle_btn.setFixedHeight(22)
@@ -2667,6 +2667,7 @@ class COLWorkshop(QWidget): #vers 3
             Qt.ContextMenuPolicy.CustomContextMenu)
         self.collision_list.customContextMenuRequested.connect(
             self._show_collision_context_menu)
+        self.collision_list.setVisible(False)  # hidden at startup — compact view is default
         layout.addWidget(self.collision_list)
 
         # ── Compact list (thumbnail + name/version/counts, single row) ───
@@ -2686,7 +2687,8 @@ class COLWorkshop(QWidget): #vers 3
             Qt.ContextMenuPolicy.CustomContextMenu)
         self.col_compact_list.customContextMenuRequested.connect(
             self._show_collision_context_menu)
-        self.col_compact_list.setVisible(False)   # hidden until [T] pressed
+        self.col_compact_list.setVisible(True)    # start in compact view
+        self.col_compact_list.setRowCount(0)      # populated on first file load
         layout.addWidget(self.col_compact_list)
 
         return panel
@@ -4407,12 +4409,16 @@ class COLWorkshop(QWidget): #vers 3
             version_str = f"COL ({model_count} models)"
             self.setWindowTitle(f"{App_name} - {os.path.basename(file_path)} - {version_str}")
 
-            # Populate UI — use collision list with thumbnails
+            # Populate UI — compact view is default, also populate detail table
+            self._populate_compact_col_list()
             self._populate_collision_list()
 
-            # Select first model by default
-            if self.collision_list.rowCount() > 0:
-                self.collision_list.selectRow(0)
+            # Select first model by default (use whichever list is visible)
+            active_list = (self.col_compact_list
+                          if self._col_view_mode == 'detail'
+                          else self.collision_list)
+            if active_list.rowCount() > 0:
+                active_list.selectRow(0)
                 self._on_collision_selected()
 
 

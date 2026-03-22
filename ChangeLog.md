@@ -1,4 +1,104 @@
-#this belongs in root /ChangeLog.md - Version: 27
+#this belongs in root /ChangeLog.md - Version: 28
+
+## March 2026 — COL Workshop viewport, panel collapse, TXD button layout
+
+### Build 135 — COL Workshop: compact list as default view
+- Middle panel now starts in compact thumbnail view (was detail table)
+- `_col_view_mode` initialised to `'detail'`, compact list visible, detail table hidden
+- `open_col_file` populates both lists on load; selects first row in active view
+- `[T]` / `[=]` button toggles between views as before
+
+### Build 134 — COL viewport middle-mouse pan + thumbnail spin + compact settings
+- COL3DViewport: middle-mouse drag pans the view on any axis (same as left-drag)
+- Thumbnail spin: selecting a model with geometry starts a 20fps QTimer
+  rotating its list thumbnail on a random slow axis (yaw 0.8–1.4°/frame,
+  pitch rocks ±35°, stops for bounds-only models)
+- IMG Factory Settings → Interface tab v2: compact 2–3 items per row
+  (H+V spacing on one row; font+size+bold+italic on one row;
+  tab height+width on row 1, style+content+position on row 2)
+
+### Build 133 — Fix COL Workshop preview rendering
+- COL3DViewport.paintEvent called `_paint_model_onto` which didn't exist
+- Added `_paint_model_onto` to COLWorkshop: applies zoom/pan via painter
+  transform, filters geometry by visibility flags, draws HUD in screen space
+- `preview_widget._workshop_ref = self` set at creation — direct reference
+  instead of unreliable parent-chain walk when docked in IMG Factory
+- QSlider and Qt added to imgfactory_ui_settings imports (settings crash fix)
+
+### Build 132 — Fix IMG Factory settings dialog crash
+- `QSlider` and `Qt` missing from imgfactory_ui_settings.py imports
+
+### Build 131 — Fix TXD Workshop missing method aliases
+- 14 aliases + 4 stubs for methods connected but never defined
+  (copy/delete/duplicate/paste_texture, export variants, undo, save-as, refresh)
+
+### Build 130 — COL Workshop: restore clean panel methods, proper show/hide collapse
+- Restored `_create_transform_icon_panel/text_panel/_create_right_panel`
+  from Build 116 (were broken by earlier refactoring)
+- Bottom panel: build both text-row and icon-row at startup, show/hide on resize
+  (no more `_create_merged_icons_line` / `_rebuild_bottom_panel` that crashed)
+- Side panels: `_transform_icon_panel_ref` stored, starts hidden; text panel visible
+- `_update_transform_text_panel_visibility` v2: reads threshold from settings,
+  toggles all four containers (side icon, side text, bottom text, bottom icon)
+
+### Build 129 — Panel collapse threshold settings slider + both workshops
+- IMG Factory Settings → Interface tab: Workshop Panel Collapse group
+  with slider 200–900px (default 550), saved to `panel_collapse_threshold`
+- `get_collapse_threshold(main_window)` helper in imgfactory_ui_settings
+- Both TXD and COL workshops read threshold from settings
+- TXD: collapsing also triggers `_update_all_buttons()` for bottom buttons
+- COL: bottom buttons rebuilt as icon row when narrow
+
+### Build 128 — TXD panel collapse threshold 550px
+- Text panel only shows when right panel ≥ 550px (was 230px — too tight)
+- Preview gets ~90% of space in normal use
+
+### Build 127 — TXD Workshop buttons: centred text, icon-only collapse
+- Button text centred (removed left-align override)
+- Text panel widened to 170px; collapse threshold 230px
+- Visibility method v3: measures `_right_panel_ref.width()` directly
+
+### Build 126 — Fix filter_icon in SVGIconFactory
+- `filter_icon` used `_svg_to_icon` (doesn't exist); changed to `_create_icon`
+
+### Build 125 — Add filter_icon to SVGIconFactory
+- New `filter_icon` (sliders/EQ icon) for Filters button in TXD text panel
+
+### Build 124 — Fix COL Workshop load crash (QWidget viewport)
+- COL3DViewport was still the old QLabel version — replaced with QWidget
+  implementing zoom_in/zoom_out/fit_to_window/pan/paintEvent/wheelEvent
+
+### Build 123 — TXD Workshop text panel: icon+text buttons, auto-swap
+- Text panel buttons gain icons (left-aligned); never shown simultaneously
+  with icon strip — threshold 550px drives which panel is visible
+- _create_transform_text_panel v13
+
+### Build 122 — Roll back TXD Workshop to Build 73 + safe splitter collapse
+- TXD panels were broken by Build 120; restored to last known-good state
+- Re-applied only: splitter ref, splitterMoved signal, collapse methods
+
+### Build 121 — Fix COL Workshop load crash (missing method aliases)
+- 25 aliases + 10 stubs for methods connected but never implemented
+  (_saveall_file, _save_col_file, _open_col_file, export variants, etc.)
+
+### Build 120 — TXD+COL auto-collapse text panel on splitter drag
+- `self._main_splitter` stored; `splitterMoved` connected
+- `_on_splitter_moved` → `_update_transform_text_panel_visibility`
+- Collapses text panel when right panel < 600px
+
+### Build 119 — COL Workshop: rotate/flip views, proper viewport, all buttons wired
+- COL3DViewport replaced with QWidget + paintEvent (zoom/pan/rotate)
+- Left-drag=pan, right-drag=free rotate, wheel=zoom, context menu presets
+- `_create_transform_icon_panel` v13: all buttons wired at creation
+- Bottom panel text+icon buttons connected
+- Resize behaviour: text panel hides when workshop width < 700px
+
+### Build 118 — COL Workshop: rotate/flip buttons + lazy thumbnails
+- Rotate CW/CCW cycles through XY/XZ/YZ projection planes
+- Flip H/V mirror the view
+- `_populate_collision_list` v5: >100 models use placeholder thumbnails,
+  render on first selection
+
 
 ## March 2026 — COL Workshop rendering, parser RE, routing fixes
 
