@@ -55,7 +55,13 @@ from apps.methods.col_workshop_loader import COLFile
 
 # Temporary 3D viewport placeholder
 class COL3DViewport(QLabel):
-    """2D top-down collision preview widget."""
+    """2D collision preview widget with rotation/flip support."""
+
+    # View modes: XY=top-down, XZ=front, YZ=side
+    VIEW_XY = 'xy'  # top-down (default)
+    VIEW_XZ = 'xz'  # front view
+    VIEW_YZ = 'yz'  # side view
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(400, 400)
@@ -63,6 +69,9 @@ class COL3DViewport(QLabel):
         self.setStyleSheet("background-color: #191923;")
         self.bg_color = QColor(25, 25, 35)
         self._model = None
+        self._view   = self.VIEW_XY
+        self._flip_h = False
+        self._flip_v = False
         self.setText("No model selected")
 
     def set_current_file(self, col_file): pass
@@ -72,22 +81,45 @@ class COL3DViewport(QLabel):
         self.bg_color = color
         if self._model:
             self._refresh()
-
     def pan(self, dx, dy): pass
 
     def set_current_model(self, model, index=0): #vers 1
         self._model = model
         self._refresh()
 
-    def _refresh(self): #vers 1
+    def rotate_cw(self): #vers 1
+        """Cycle view: XY -> YZ -> XZ -> XY"""
+        order = [self.VIEW_XY, self.VIEW_YZ, self.VIEW_XZ]
+        idx = order.index(self._view) if self._view in order else 0
+        self._view = order[(idx + 1) % len(order)]
+        self._refresh()
+
+    def rotate_ccw(self): #vers 1
+        order = [self.VIEW_XY, self.VIEW_XZ, self.VIEW_YZ]
+        idx = order.index(self._view) if self._view in order else 0
+        self._view = order[(idx + 1) % len(order)]
+        self._refresh()
+
+    def flip_horizontal(self): #vers 1
+        self._flip_h = not self._flip_h
+        self._refresh()
+
+    def flip_vertical(self): #vers 1
+        self._flip_v = not self._flip_v
+        self._refresh()
+
+    def _refresh(self): #vers 2
         if not self._model:
             return
         w = max(400, self.width())
         h = max(400, self.height())
-        # Use workshop's render method if parent has it
         workshop = self._find_workshop()
         if workshop and hasattr(workshop, '_render_collision_preview'):
-            pix = workshop._render_collision_preview(self._model, w, h)
+            pix = workshop._render_collision_preview(
+                self._model, w, h,
+                view=self._view,
+                flip_h=self._flip_h,
+                flip_v=self._flip_v)
             self.setPixmap(pix)
         else:
             self.setText("No renderer available")
@@ -98,7 +130,6 @@ class COL3DViewport(QLabel):
             self._refresh()
 
     def _find_workshop(self):
-        """Walk up parent chain to find COLWorkshop instance."""
         p = self.parent()
         while p:
             if isinstance(p, COLWorkshop):
@@ -106,7 +137,7 @@ class COL3DViewport(QLabel):
             p = p.parent() if hasattr(p, 'parent') else None
         return None
 
-VIEWPORT_AVAILABLE = True  # 2D preview now available
+VIEWPORT_AVAILABLE = True
 
 # Add root directory to path
 App_name = "Col Workshop"
@@ -4038,14 +4069,25 @@ class COLWorkshop(QWidget): #vers 3
 
 
             # Enable buttons
-            if hasattr(self, 'save_btn'):
-                self.save_btn.setEnabled(True)
-            if hasattr(self, 'save_col_btn'):
-                self.save_col_btn.setEnabled(True)
-            if hasattr(self, 'export_col_btn'):
-                self.export_col_btn.setEnabled(True)
-            if hasattr(self, 'analyze_btn'):
-                self.analyze_btn.setEnabled(True)
+            for btn_name in ['save_btn','save_col_btn','export_col_btn','analyze_btn',
+                             'flip_vert_btn','flip_horz_btn','rotate_cw_btn','rotate_ccw_btn']:
+                btn = getattr(self, btn_name, None)
+                if btn:
+                    btn.setEnabled(True)
+
+            # Connect rotate/flip to preview widget (only connect once)
+            if not getattr(self, '_view_btns_connected', False):
+                self._view_btns_connected = True
+                pw = getattr(self, 'preview_widget', None)
+                if pw and isinstance(pw, COL3DViewport):
+                    if hasattr(self, 'rotate_cw_btn'):
+                        self.rotate_cw_btn.clicked.connect(pw.rotate_cw)
+                    if hasattr(self, 'rotate_ccw_btn'):
+                        self.rotate_ccw_btn.clicked.connect(pw.rotate_ccw)
+                    if hasattr(self, 'flip_horz_btn'):
+                        self.flip_horz_btn.clicked.connect(pw.flip_horizontal)
+                    if hasattr(self, 'flip_vert_btn'):
+                        self.flip_vert_btn.clicked.connect(pw.flip_vertical)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"✅ Loaded COL: {os.path.basename(file_path)} ({model_count} models)")
@@ -4255,37 +4297,48 @@ class COLWorkshop(QWidget): #vers 3
 
 
 
-    def _project_model_2d(self, model, width, height, padding=8): #vers 1
-        """Project COL model geometry to 2D canvas coords (top-down X/Y view).
-        Returns (scale, offset_x, offset_y, pts) where pts is list of (x,y) vertex positions."""
-        import math
-        # Collect all points in world space
-        pts_3d = []
-        for s in getattr(model, 'spheres', []):
+    def _get_view_coords(self, model, view='xy'): #vers 1
+        """Get all geometry points projected to 2D using the selected view axis."""
+        def vc(v):
+            if hasattr(v, 'position'): return (v.position.x, v.position.y, v.position.z)
+            return (v.x, v.y, v.z)
+        def sc(s):
             c = s.center
-            if hasattr(c, 'x'):
-                pts_3d.append((c.x - s.radius, c.y - s.radius))
-                pts_3d.append((c.x + s.radius, c.y + s.radius))
-            else:
-                pts_3d.append((c[0] - s.radius, c[1] - s.radius))
-                pts_3d.append((c[0] + s.radius, c[1] + s.radius))
+            if hasattr(c, 'x'): return (c.x, c.y, c.z)
+            return (c[0], c[1], c[2])
+        def bc(b, which):
+            pt = b.min_point if which=='min' else b.max_point if hasattr(b,'min_point') else (b.min if which=='min' else b.max)
+            if hasattr(pt, 'x'): return (pt.x, pt.y, pt.z)
+            return (pt[0], pt[1], pt[2])
+
+        # Map view to (horiz_idx, vert_idx) in 3D coords
+        axes = {'xy': (0,1), 'xz': (0,2), 'yz': (1,2)}
+        hi, vi = axes.get(view, (0,1))
+
+        pts = []
+        for s in getattr(model, 'spheres', []):
+            x,y,z = sc(s); r = s.radius
+            coords = (x,y,z); px,py = coords[hi], coords[vi]
+            pts += [(px-r,py-r),(px+r,py+r)]
         for b in getattr(model, 'boxes', []):
-            if hasattr(b, 'min_point'):
-                pts_3d.append((b.min_point.x, b.min_point.y))
-                pts_3d.append((b.max_point.x, b.max_point.y))
-            else:
-                pts_3d.append((b.min[0], b.min[1]))
-                pts_3d.append((b.max[0], b.max[1]))
+            mn = bc(b,'min'); mx = bc(b,'max')
+            pts += [(mn[hi],mn[vi]),(mx[hi],mx[vi])]
         for v in getattr(model, 'vertices', []):
-            # COLVertex has x/y/z directly (col_workshop_classes) or via .position (col_core_classes)
-            if hasattr(v, 'position'):
-                pts_3d.append((v.position.x, v.position.y))
-            else:
-                pts_3d.append((v.x, v.y))
-        if not pts_3d:
+            x,y,z = vc(v)
+            coords = (x,y,z)
+            pts.append((coords[hi], coords[vi]))
+        return pts
+
+    def _project_model_2d(self, model, width, height, padding=8,
+                          view='xy', flip_h=False, flip_v=False): #vers 2
+        """Project COL model geometry to 2D canvas coords.
+        view: 'xy' top-down, 'xz' front, 'yz' side
+        """
+        pts_2d = self._get_view_coords(model, view)
+        if not pts_2d:
             return 1.0, width//2, height//2, []
-        xs = [p[0] for p in pts_3d]
-        ys = [p[1] for p in pts_3d]
+        xs = [p[0] for p in pts_2d]
+        ys = [p[1] for p in pts_2d]
         mn_x, mx_x = min(xs), max(xs)
         mn_y, mx_y = min(ys), max(ys)
         rng_x = mx_x - mn_x or 1.0
@@ -4295,18 +4348,48 @@ class COLWorkshop(QWidget): #vers 3
         cy = (mn_y + mx_y) / 2
         ox = width  / 2 - cx * scale
         oy = height / 2 - cy * scale
-        return scale, ox, oy, [(x * scale + ox, y * scale + oy) for x, y in pts_3d]
 
-    def _draw_col_model(self, painter, model, width, height, padding=4): #vers 1
+        result = []
+        for px, py in pts_2d:
+            sx = px * scale + ox
+            sy = py * scale + oy
+            if flip_h: sx = width - sx
+            if flip_v: sy = height - sy
+            result.append((sx, sy))
+        return scale, ox, oy, result
+
+    def _draw_col_model(self, painter, model, width, height, padding=4,
+                       view='xy', flip_h=False, flip_v=False): #vers 2
         """Draw COL model onto a QPainter — used by both thumbnail and preview."""
         from PyQt6.QtGui import QPen, QBrush, QColor
         from PyQt6.QtCore import QRectF, QPointF
         import math
 
-        scale, ox, oy, _ = self._project_model_2d(model, width, height, padding)
+        scale, ox, oy, _ = self._project_model_2d(
+            model, width, height, padding, view=view, flip_h=flip_h, flip_v=flip_v)
 
-        def wx(x): return x * scale + ox
-        def wy(y): return y * scale + oy
+        axes = {'xy': (0,1), 'xz': (0,2), 'yz': (1,2)}
+        hi, vi = axes.get(view, (0,1))
+
+        def _coord(obj, which):
+            """Get 3D coord from various attribute styles."""
+            if hasattr(obj, 'x'):      c = (obj.x, obj.y, obj.z)
+            elif hasattr(obj, 'position'): c = (obj.position.x, obj.position.y, obj.position.z)
+            else:                          c = tuple(obj)
+            return c
+
+        def wx(val):
+            v = val * scale + ox
+            return width - v if flip_h else v
+        def wy(val):
+            v = val * scale + oy
+            return height - v if flip_v else v
+
+        def proj_pt(obj):
+            if hasattr(obj, 'x'):     c = (obj.x, obj.y, obj.z)
+            elif hasattr(obj, 'position'): c = (obj.position.x, obj.position.y, obj.position.z)
+            else: c = tuple(obj)
+            return wx(c[hi]), wy(c[vi])
 
         # Mesh faces — filled triangles (grey)
         verts = getattr(model, 'vertices', [])
@@ -4315,10 +4398,7 @@ class COLWorkshop(QWidget): #vers 3
             painter.setPen(QPen(QColor(120, 180, 120, 180), 0.5))
             painter.setBrush(QBrush(QColor(60, 120, 60, 80)))
             from PyQt6.QtGui import QPolygonF
-            def _vx(v): return v.position.x if hasattr(v, 'position') else v.x
-            def _vy(v): return v.position.y if hasattr(v, 'position') else v.y
             for face in faces:
-                # Support vertex_indices tuple OR a/b/c fields
                 idx = getattr(face, 'vertex_indices', None)
                 if idx is None:
                     fa = getattr(face, 'a', None)
@@ -4326,10 +4406,13 @@ class COLWorkshop(QWidget): #vers 3
                         idx = (fa, face.b, face.c)
                 if idx and len(idx) == 3:
                     try:
+                        p0x, p0y = proj_pt(verts[idx[0]])
+                        p1x, p1y = proj_pt(verts[idx[1]])
+                        p2x, p2y = proj_pt(verts[idx[2]])
                         poly = QPolygonF([
-                            QPointF(wx(_vx(verts[idx[0]])), wy(_vy(verts[idx[0]]))),
-                            QPointF(wx(_vx(verts[idx[1]])), wy(_vy(verts[idx[1]]))),
-                            QPointF(wx(_vx(verts[idx[2]])), wy(_vy(verts[idx[2]]))),
+                            QPointF(p0x, p0y),
+                            QPointF(p1x, p1y),
+                            QPointF(p2x, p2y),
                         ])
                         painter.drawPolygon(poly)
                     except (IndexError, AttributeError):
@@ -4339,15 +4422,10 @@ class COLWorkshop(QWidget): #vers 3
         painter.setPen(QPen(QColor(220, 180, 50), max(1.0, scale * 0.05)))
         painter.setBrush(QBrush(QColor(220, 180, 50, 40)))
         for box in getattr(model, 'boxes', []):
-            # Support both min_point/max_point (col_core_classes) and min/max tuples (col_workshop_classes)
-            if hasattr(box, 'min_point'):
-                bmin, bmax = box.min_point, box.max_point
-                x1 = wx(bmin.x); y1 = wy(bmin.y)
-                x2 = wx(bmax.x); y2 = wy(bmax.y)
-            else:
-                bmin, bmax = box.min, box.max
-                x1 = wx(bmin[0]); y1 = wy(bmin[1])
-                x2 = wx(bmax[0]); y2 = wy(bmax[1])
+            bmin_obj = box.min_point if hasattr(box, 'min_point') else box.min
+            bmax_obj = box.max_point if hasattr(box, 'max_point') else box.max
+            x1, y1 = proj_pt(bmin_obj)
+            x2, y2 = proj_pt(bmax_obj)
             painter.drawRect(QRectF(min(x1,x2), min(y1,y2),
                                     abs(x2-x1) or 2, abs(y2-y1) or 2))
 
@@ -4356,11 +4434,7 @@ class COLWorkshop(QWidget): #vers 3
         painter.setBrush(QBrush(QColor(80, 200, 220, 40)))
         for sph in getattr(model, 'spheres', []):
             r = sph.radius * scale
-            # Support both center.x (Vector3) and center tuple (col_workshop_classes)
-            if hasattr(sph.center, 'x'):
-                cx = wx(sph.center.x); cy = wy(sph.center.y)
-            else:
-                cx = wx(sph.center[0]); cy = wy(sph.center[1])
+            cx, cy = proj_pt(sph.center)
             painter.drawEllipse(QRectF(cx - r, cy - r, r * 2 or 2, r * 2 or 2))
 
     def _generate_collision_thumbnail(self, model, width=64, height=64): #vers 1
@@ -4387,7 +4461,8 @@ class COLWorkshop(QWidget): #vers 3
         painter.end()
         return pixmap
 
-    def _render_collision_preview(self, model, width=400, height=400): #vers 1
+    def _render_collision_preview(self, model, width=400, height=400,
+                                  view='xy', flip_h=False, flip_v=False): #vers 2
         """Render a full-size QPixmap preview of a COL model."""
         from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
         from PyQt6.QtCore import Qt
@@ -4407,7 +4482,8 @@ class COLWorkshop(QWidget): #vers 3
             painter.end()
             return pixmap
 
-        self._draw_col_model(painter, model, width, height, padding=20)
+        self._draw_col_model(painter, model, width, height, padding=20,
+                            view=view, flip_h=flip_h, flip_v=flip_v)
 
         # Legend
         painter.setFont(QFont('Arial', 8))
@@ -4465,23 +4541,23 @@ class COLWorkshop(QWidget): #vers 3
             if hasattr(self, 'info_name'):
                 self.info_name.setText(model_name)
 
+            # Render thumbnail on first selection (lazy mode for large files)
+            thumb_item = self.collision_list.item(row, 0)
+            if thumb_item and not thumb_item.data(Qt.ItemDataRole.UserRole + 1):
+                thumbnail = self._generate_collision_thumbnail(model, 64, 64)
+                thumb_item.setData(Qt.ItemDataRole.DecorationRole, thumbnail)
+                thumb_item.setData(Qt.ItemDataRole.UserRole + 1, True)
+
             # Update preview widget
             if hasattr(self, 'preview_widget'):
                 if VIEWPORT_AVAILABLE and isinstance(self.preview_widget, COL3DViewport):
-                    # Use 3D viewport
                     self.preview_widget.set_current_model(model, model_index)
-                    print(f"3D viewport updated for {model_name}")
                 else:
-                    # Use 2D preview fallback
-                    width = max(400, self.preview_widget.width())
+                    width  = max(400, self.preview_widget.width())
                     height = max(400, self.preview_widget.height())
-                    print(f"Rendering 2D preview: {width}x{height} for {model_name}")
                     preview_pixmap = self._render_collision_preview(model, width, height)
                     self.preview_widget.setPixmap(preview_pixmap)
                     self.preview_widget.setScaledContents(False)
-                    print(f"2D preview updated for {model_name}")
-            else:
-                print("No preview_widget attribute found")
 
         except Exception as e:
             print(f"Error selecting model: {str(e)}")
@@ -4733,48 +4809,58 @@ class COLWorkshop(QWidget): #vers 3
         clipboard.setText(text)
 
 
-    def _populate_collision_list(self): #vers 4
-        """Populate collision table with models - matches TXD Workshop style"""
+    def _populate_collision_list(self): #vers 5
+        """Populate collision table with models.
+        For large files (>100 models) uses placeholder thumbnails then renders on demand."""
         try:
             self.collision_list.setRowCount(0)
 
             if not self.current_col_file or not hasattr(self.current_col_file, 'models'):
                 return
 
-            for i, model in enumerate(self.current_col_file.models):
-                # Get model info
+            models = self.current_col_file.models
+            large_file = len(models) > 100
+
+            # Placeholder pixmap for deferred render
+            from PyQt6.QtGui import QPixmap, QColor
+            placeholder = QPixmap(64, 64)
+            placeholder.fill(QColor(30, 30, 40))
+
+            self.collision_list.setUpdatesEnabled(False)
+            for i, model in enumerate(models):
                 name = getattr(model, 'name', f'Model_{i}')
                 version = getattr(model, 'version', COLVersion.COL_1)
-
-                # Count collision elements
-                spheres = len(getattr(model, 'spheres', []))
-                boxes = len(getattr(model, 'boxes', []))
-                faces = len(getattr(model, 'faces', []))
+                spheres  = len(getattr(model, 'spheres', []))
+                boxes    = len(getattr(model, 'boxes', []))
+                faces    = len(getattr(model, 'faces', []))
                 vertices = len(getattr(model, 'vertices', []))
 
-                # Add row
                 row = self.collision_list.rowCount()
                 self.collision_list.insertRow(row)
 
-                # Create thumbnail item
                 thumb_item = QTableWidgetItem()
-                thumbnail = self._generate_collision_thumbnail(model, 64, 64)
-                thumb_item.setData(Qt.ItemDataRole.DecorationRole, thumbnail)
+                if large_file:
+                    # Use placeholder; render on first selection
+                    thumb_item.setData(Qt.ItemDataRole.DecorationRole, placeholder)
+                    thumb_item.setData(Qt.ItemDataRole.UserRole + 1, False)  # not rendered
+                else:
+                    thumbnail = self._generate_collision_thumbnail(model, 64, 64)
+                    thumb_item.setData(Qt.ItemDataRole.DecorationRole, thumbnail)
+                    thumb_item.setData(Qt.ItemDataRole.UserRole + 1, True)
                 thumb_item.setFlags(thumb_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-                # Create details text
-                details = f"Name: {name}\n"
-                details += f"Version: {version.name}\n"
-                details += f"Spheres: {spheres} | Boxes: {boxes}\n"
-                details += f"Faces: {faces} | Vertices: {vertices}"
-
+                ver_name = version.name if hasattr(version, 'name') else str(version)
+                details = f"Name: {name}\nVersion: {ver_name}\nS:{spheres} B:{boxes} V:{vertices} F:{faces}"
                 details_item = QTableWidgetItem(details)
                 details_item.setFlags(details_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                details_item.setData(Qt.ItemDataRole.UserRole, i)  # Store model index
-
-                # Set items
+                details_item.setData(Qt.ItemDataRole.UserRole, i)
                 self.collision_list.setItem(row, 0, thumb_item)
                 self.collision_list.setItem(row, 1, details_item)
+
+            self.collision_list.setUpdatesEnabled(True)
+
+            if large_file and hasattr(self, 'log_message'):
+                self.log_message(f"Loaded {len(models)} models (thumbnails render on selection)")
 
                 # Set row height
                 self.collision_list.setRowHeight(row, 100)
