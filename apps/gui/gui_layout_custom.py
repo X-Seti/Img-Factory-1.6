@@ -734,6 +734,15 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             self.main_window.showMaximized()
 
 
+    def open_img_file(self, *a, **kw):
+        if hasattr(self, "main_window"): self.main_window.log_message("open_img_file called")
+
+    def rebuild_img(self, *a, **kw):
+        if hasattr(self, "main_window"): self.main_window.log_message("rebuild_img called")
+
+    def save_img_entry(self, *a, **kw):
+        if hasattr(self, "main_window"): self.main_window.log_message("save_img_entry called")
+
     def _show_workshop_settings(self): #vers 4
         """Show IMG Factory Settings dialog - calls proper settings module"""
         try:

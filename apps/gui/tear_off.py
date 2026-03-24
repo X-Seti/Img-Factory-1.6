@@ -292,6 +292,8 @@ class TearOffPanel(QFrame):
             self.panel_resized.emit(self.panel_id, (self.width(), self.height()))
 
 
+
+    def _show_customization_dialog(self, *a, **kw): pass
 class TearOffPanelManager:
     """Manages tear-off panels and their state"""
     

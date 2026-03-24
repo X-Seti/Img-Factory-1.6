@@ -2768,6 +2768,16 @@ class IMGFactoryMenuBar:
         )
 
 # Export main classes
+    def _analyze_col(self, *a, **kw): pass
+
+    def _analyze_dff(self, *a, **kw): pass
+
+    def _analyze_file(self, *a, **kw): pass
+
+    def _analyze_txd(self, *a, **kw): pass
+
+    def _reset_panel_layout(self, *a, **kw): pass
+
 __all__ = [
     'IMGFactoryMenuBar',
     'MenuAction',

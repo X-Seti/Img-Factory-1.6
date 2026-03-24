@@ -3809,3 +3809,70 @@ if __name__ == "__main__":
         traceback.print_exc()
         sys.exit(1)
 
+
+    # ── Auto-generated stubs for unimplemented methods ──
+    def _change_bit_depth(self, *a, **kw): pass
+    def _close_txd_tab(self, *a, **kw): pass
+    def _compress_texture(self, *a, **kw): pass
+    def _convert_texture(self, *a, **kw): pass
+    def _copy_texture(self, *a, **kw): pass
+    def _create_mipmaps_dialog(self, *a, **kw): pass
+    def _create_new_texture_entry(self, *a, **kw): pass
+    def _delete_texture(self, *a, **kw): pass
+    def _duplicate_texture(self, *a, **kw): pass
+    def _export_all_textures(self, *a, **kw): pass
+    def _export_bumpmap(self, *a, **kw): pass
+    def _export_selected_texture(self, *a, **kw): pass
+    def _flip_horizontal(self, *a, **kw): pass
+    def _flip_vertical(self, *a, **kw): pass
+    def _focus_search(self, *a, **kw): pass
+    def _force_save_txd(self, *a, **kw): pass
+    def _import_bumpmap(self, *a, **kw): pass
+    def _import_normal_texture(self, *a, **kw): pass
+    def _import_selected(self, *a, **kw): pass
+    def _on_selected(self, *a, **kw): pass
+    def _open_filters_dialog(self, *a, **kw): pass
+    def _open_mipmap_manager(self, *a, **kw): pass
+    def _open_paint_editor(self, *a, **kw): pass
+    def _open_txd_file(self, *a, **kw): pass
+    def _paste_texture(self, *a, **kw): pass
+    def _pick_background_color(self, *a, **kw): pass
+    def _reload_texture_table(self, *a, **kw): pass
+    def _remove_mipmaps(self, *a, **kw): pass
+    def _rename_texture_shortcut(self, *a, **kw): pass
+    def _resize_texture(self, *a, **kw): pass
+    def _rotate_clockwise(self, *a, **kw): pass
+    def _rotate_counterclockwise(self, *a, **kw): pass
+    def _save_as_txd_file(self, *a, **kw): pass
+    def _save_texture_name(self, *a, **kw): pass
+    def _save_txd_file(self, *a, **kw): pass
+    def _show_detailed_info(self, *a, **kw): pass
+    def _show_texture_info(self, *a, **kw): pass
+    def _show_txd_info(self, *a, **kw): pass
+    def _uncompress_texture(self, *a, **kw): pass
+    def _undo_last_action(self, *a, **kw): pass
+    def _upscale_texture(self, *a, **kw): pass
+    def _view_bumpmap(self, *a, **kw): pass
+    def copy_texture(self, *a, **kw): pass
+    def delete_texture(self, *a, **kw): pass
+    def duplicate_texture(self, *a, **kw): pass
+    def export_all(self, *a, **kw): pass
+    def export_all_textures(self, *a, **kw): pass
+    def export_selected(self, *a, **kw): pass
+    def export_selected_texture(self, *a, **kw): pass
+    def export_texture(self, *a, **kw): pass
+    def import_normal_texture(self, *a, **kw): pass
+    def import_textures(self, *a, **kw): pass
+    def open_txd_file(self, *a, **kw): pass
+    def paste_texture(self, *a, **kw): pass
+    def refresh(self, *a, **kw): pass
+    def reload_texture_table(self, *a, **kw): pass
+    def save_as_txd_file(self, *a, **kw): pass
+    def save_dialog(self, *a, **kw): pass
+    def save_file(self, *a, **kw): pass
+    def save_txd_file(self, *a, **kw): pass
+    def show_help(self, *a, **kw): pass
+    def show_settings_dialog(self, *a, **kw): pass
+    def switch_texture_view(self, *a, **kw): pass
+    def undo_last_action(self, *a, **kw): pass
+

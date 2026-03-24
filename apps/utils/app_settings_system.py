@@ -8222,3 +8222,6 @@ if __name__ == "__main__":
         print("Settings applied")
 
     sys.exit(0)
+
+    def _debug_current_img(self, *a, **kw): pass
+    def _test_debug_output(self, *a, **kw): pass

@@ -371,6 +371,49 @@ class IDEFileEditor(QDialog):
             self.vehicles_table.setItem(row, 6, QTableWidgetItem(str(vehicle.get('class', ''))))
             self.vehicles_table.setItem(row, 7, QTableWidgetItem(str(vehicle.get('frequency', ''))))
 
+
+    def reload_file(self): #vers 1
+        if hasattr(self, 'file_path') and self.file_path:
+            try:
+                with open(self.file_path, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read()
+                if hasattr(self, 'text_edit'):
+                    self.text_edit.setPlainText(content)
+            except Exception as e:
+                print(f"reload_file error: {e}")
+
+    def save_file(self): #vers 1
+        if hasattr(self, 'file_path') and self.file_path:
+            try:
+                content = self.text_edit.toPlainText() if hasattr(self, 'text_edit') else ''
+                with open(self.file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+            except Exception as e:
+                print(f"save_file error: {e}")
+
+    def find_text(self): #vers 1
+        from PyQt6.QtWidgets import QInputDialog
+        text, ok = QInputDialog.getText(self, "Find", "Search:")
+        if ok and text and hasattr(self, 'text_edit'):
+            self.text_edit.find(text)
+
+    def on_text_changed(self): #vers 1
+        pass  # hook for subclasses
+
+    def filter_objects(self): #vers 1
+        pass
+
+    def jump_to_section(self): #vers 1
+        pass
+
+    def show_id_manager(self): #vers 1
+        pass
+
+    def show_object_context_menu(self, pos): #vers 1
+        pass
+
+    def validate_ide(self): #vers 1
+        pass
 class IDManagerDialog(QDialog):
     """Dialog for managing object IDs and finding free ranges"""
     

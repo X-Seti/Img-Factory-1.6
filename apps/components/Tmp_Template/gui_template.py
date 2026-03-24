@@ -4679,3 +4679,55 @@ if __name__ == "__main__":
         print(f"ERROR: {e}")
         traceback.print_exc()
         sys.exit(1)
+
+    def _analyze_collision(self, *a, **kw): pass
+    def _build_col_from_dff(self, *a, **kw): pass
+    def _change_format(self, *a, **kw): pass
+    def _check_col_type(self, *a, **kw): pass
+    def _col_edit(self, *a, **kw): pass
+    def _compress_surface(self, *a, **kw): pass
+    def _convert_surface(self, *a, **kw): pass
+    def _copy_surface(self, *a, **kw): pass
+    def _create_new_surface_entry(self, *a, **kw): pass
+    def _create_shadow_dialog(self, *a, **kw): pass
+    def _delete_surface(self, *a, **kw): pass
+    def _duplicate_surface(self, *a, **kw): pass
+    def _edit_main_surface(self, *a, **kw): pass
+    def _flip_horizontal(self, *a, **kw): pass
+    def _flip_vertical(self, *a, **kw): pass
+    def _focus_search(self, *a, **kw): pass
+    def _force_save_col(self, *a, **kw): pass
+    def _import_selected(self, *a, **kw): pass
+    def _import_surface(self, *a, **kw): pass
+    def _on_col_selected(self, *a, **kw): pass
+    def _open_col_file(self, *a, **kw): pass
+    def _open_mipmap_manager(self, *a, **kw): pass
+    def _open_paint_editor(self, *a, **kw): pass
+    def _paste_surface(self, *a, **kw): pass
+    def _reload_surface_table(self, *a, **kw): pass
+    def _remove_shadow(self, *a, **kw): pass
+    def _rename_shadow_shortcut(self, *a, **kw): pass
+    def _rotate_clockwise(self, *a, **kw): pass
+    def _rotate_counterclockwise(self, *a, **kw): pass
+    def _save_as_col_file(self, *a, **kw): pass
+    def _save_col_file(self, *a, **kw): pass
+    def _save_surface_name(self, *a, **kw): pass
+    def _saveall_file(self, *a, **kw): pass
+    def _show_detailed_info(self, *a, **kw): pass
+    def _show_ojb_info(self, *a, **kw): pass
+    def _show_shaders_dialog(self, *a, **kw): pass
+    def _show_surface_info(self, *a, **kw): pass
+    def _uncompress_surface(self, *a, **kw): pass
+    def _undo_last_action(self, *a, **kw): pass
+    def export_all(self, *a, **kw): pass
+    def export_all_surfaces(self, *a, **kw): pass
+    def export_selected(self, *a, **kw): pass
+    def export_selected_surface(self, *a, **kw): pass
+    def open_col_file(self, *a, **kw): pass
+    def open_img_archive(self, *a, **kw): pass
+    def refresh(self, *a, **kw): pass
+    def reload_surface_table(self, *a, **kw): pass
+    def save_col_file(self, *a, **kw): pass
+    def show_help(self, *a, **kw): pass
+    def show_settings_dialog(self, *a, **kw): pass
+    def switch_surface_view(self, *a, **kw): pass

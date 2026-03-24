@@ -2758,6 +2758,41 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Workshop settings dialog error: {str(e)}")
 
 
+    # ── Rebuild methods ────────────────────────────────────────────────
+    def rebuild_img(self): #vers 1
+        try:
+            from apps.core.rebuild import rebuild_current_img_native
+            rebuild_current_img_native(self, mode="auto")
+        except Exception as e:
+            self.log_message(f"Rebuild error: {e}")
+
+    def fast_rebuild(self): #vers 1
+        try:
+            from apps.core.rebuild import fast_rebuild_current
+            fast_rebuild_current(self)
+        except Exception as e:
+            self.log_message(f"Fast rebuild error: {e}")
+
+    def quick_rebuild(self): #vers 1
+        self.fast_rebuild()
+
+    def safe_rebuild(self): #vers 1
+        try:
+            from apps.core.rebuild import safe_rebuild_current
+            safe_rebuild_current(self)
+        except Exception as e:
+            self.log_message(f"Safe rebuild error: {e}")
+
+    def rebuild_all_img(self): #vers 1
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Batch Rebuild",
+            "Batch rebuild — use Rebuild IMG for the current file.")
+
+    def toggle_debug_mode(self): #vers 1
+        current = getattr(self, '_debug_mode', False)
+        self._debug_mode = not current
+        self.log_message(f"Debug mode: {'ON' if self._debug_mode else 'OFF'}")
+
     def show_about(self):
         """Show about dialog"""
         QMessageBox.about(self, f"About {App_name}", f"{App_name}\nAdvanced IMG Archive Management\nX-Seti 2026")
