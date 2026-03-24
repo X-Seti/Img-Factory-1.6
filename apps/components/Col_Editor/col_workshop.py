@@ -576,10 +576,15 @@ class COLWorkshop(QWidget): #vers 3
         lay.addWidget(btns)
         dlg.exec()
 
-    def _open_surface_edit_dialog(self): #vers 1
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Surface Edit", "Surface editor — coming soon.")
-
+    def _open_surface_edit_dialog(self): #vers 2
+        """Open the COL Mesh Editor for the currently selected model."""
+        try:
+            from apps.components.Col_Editor.col_mesh_editor import open_col_mesh_editor
+            open_col_mesh_editor(self, parent=self)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Mesh Editor Error", str(e))
     def _build_col_from_txd(self): #vers 1
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.information(self, "Build COL", "Build COL from TXD names — coming soon.")
@@ -2380,7 +2385,8 @@ class COLWorkshop(QWidget): #vers 3
         self.surface_edit_btn.setIconSize(icon_size)
         self.surface_edit_btn.setFixedHeight(btn_height)
         self.surface_edit_btn.setMinimumWidth(btn_width)
-        self.surface_edit_btn.setToolTip("Surface Editor")
+        self.surface_edit_btn.setToolTip("Surface Editor — edit mesh faces and vertices")
+        self.surface_edit_btn.clicked.connect(self._open_surface_edit_dialog)
         layout.addWidget(self.surface_edit_btn)
         layout.addSpacing(spacer)
 
@@ -2524,7 +2530,8 @@ class COLWorkshop(QWidget): #vers 3
         self.surface_edit_btn = QPushButton("Surface Edit")
         self.surface_edit_btn.setFont(self.button_font)
         self.surface_edit_btn.setFixedHeight(btn_height)
-        self.surface_edit_btn.setToolTip("Surface Editor")
+        self.surface_edit_btn.setToolTip("Surface Editor — edit mesh faces and vertices")
+        self.surface_edit_btn.clicked.connect(self._open_surface_edit_dialog)
         layout.addWidget(self.surface_edit_btn)
         layout.addSpacing(spacer)
 
@@ -4186,16 +4193,46 @@ class COLWorkshop(QWidget): #vers 3
         except Exception as e:
             print("_on_compact_col_selected error: " + str(e))
 
-    def _undo_last_action(self): #vers 1
-        """Undo the last change to the COL file."""
+    def _push_undo(self, model_index, description=""): #vers 1
+        """Deep-copy model[model_index] onto undo stack before any edit."""
+        import copy
+        if not self.current_col_file:
+            return
+        models = getattr(self.current_col_file, 'models', [])
+        if model_index < 0 or model_index >= len(models):
+            return
+        self.undo_stack.append({
+            'description': description,
+            'model_index': model_index,
+            'model_data':  copy.deepcopy(models[model_index]),
+        })
+        if len(self.undo_stack) > 50:
+            self.undo_stack.pop(0)
+        if hasattr(self, 'undo_col_btn'):
+            self.undo_col_btn.setEnabled(True)
+
+    def _undo_last_action(self): #vers 2
+        """Restore the last deep-copied model from the undo stack."""
         try:
             if not self.undo_stack:
                 return
-            self.undo_stack.pop()
+            entry = self.undo_stack.pop()
+            idx   = entry['model_index']
+            saved = entry['model_data']
+            desc  = entry.get('description', '')
+            if self.current_col_file:
+                models = getattr(self.current_col_file, 'models', [])
+                if idx < len(models):
+                    models[idx] = saved
+                    self._populate_collision_list()
+                    self._populate_compact_col_list()
+                    if hasattr(self, 'preview_widget'):
+                        self.preview_widget.set_current_model(saved, idx)
             if hasattr(self, 'undo_col_btn'):
-                self.undo_col_btn.setEnabled(len(self.undo_stack) > 0)
+                self.undo_col_btn.setEnabled(bool(self.undo_stack))
+            msg = f"Undo: {desc}" if desc else "Undo applied"
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Undo: reverted last change")
+                self.main_window.log_message(msg)
         except Exception as e:
             print(f"Undo error: {e}")
 
