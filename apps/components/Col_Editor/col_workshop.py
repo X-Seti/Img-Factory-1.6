@@ -4914,17 +4914,54 @@ class COLWorkshop(QWidget): #vers 3
             painter.drawLine(int(x0),int(y0),int(x1),int(y1))
         painter.setRenderHint(painter.renderHints().__class__.Antialiasing, True)
 
-        # ── Model geometry ────────────────────────────────────────────────
-        class _F:
-            def __init__(self, m, ss, sb, sm):
-                self.name=getattr(m,'name',''); self.version=getattr(m,'version',None)
-                self.spheres=getattr(m,'spheres',[]) if ss else []
-                self.boxes  =getattr(m,'boxes',  []) if sb else []
-                self.vertices=getattr(m,'vertices',[]) if sm else []
-                self.faces  =getattr(m,'faces',  []) if sm else []
-        filtered = _F(model, show_spheres, show_boxes, show_mesh)
-        self._draw_col_model(painter, filtered, W, H, padding=20,
-                             yaw=yaw, pitch=pitch, flip_h=flip_h, flip_v=flip_v)
+        # ── Model geometry (uses viewport's to_screen — zoom/pan consistent) ──
+        from PyQt6.QtGui import QPolygonF as _PF
+        from PyQt6.QtCore import QPointF as _P, QRectF as _R
+
+        def g3(obj):
+            """Get (x,y,z) from vertex, sphere centre, or tuple."""
+            if hasattr(obj,'x'):        return obj.x, obj.y, obj.z
+            if hasattr(obj,'position'): return obj.position.x,obj.position.y,obj.position.z
+            return float(obj[0]),float(obj[1]),float(obj[2])
+
+        # Mesh faces
+        if show_mesh:
+            _verts = getattr(model,'vertices',[])
+            _faces = getattr(model,'faces',[])
+            if _verts and _faces:
+                painter.setPen(QPen(QColor(120,180,120,180), 0.5))
+                painter.setBrush(QBrush(QColor(60,120,60,80)))
+                for face in _faces:
+                    idx = getattr(face,'vertex_indices',None)
+                    if idx is None:
+                        fa = getattr(face,'a',None)
+                        if fa is not None: idx=(fa,face.b,face.c)
+                    if idx and len(idx)==3:
+                        try:
+                            pts=[_P(*to_screen(*g3(_verts[i]))) for i in idx]
+                            painter.drawPolygon(_PF(pts))
+                        except (IndexError,AttributeError):
+                            pass
+
+        # Boxes
+        if show_boxes:
+            painter.setPen(QPen(QColor(220,180,50),1.5))
+            painter.setBrush(QBrush(QColor(220,180,50,40)))
+            for box in getattr(model,'boxes',[]):
+                bmin = box.min_point if hasattr(box,'min_point') else box.min
+                bmax = box.max_point if hasattr(box,'max_point') else box.max
+                x1,y1=to_screen(*g3(bmin)); x2,y2=to_screen(*g3(bmax))
+                painter.drawRect(_R(min(x1,x2),min(y1,y2),abs(x2-x1) or 2,abs(y2-y1) or 2))
+
+        # Spheres
+        if show_spheres:
+            painter.setPen(QPen(QColor(80,200,220),1.5))
+            painter.setBrush(QBrush(QColor(80,200,220,40)))
+            for sph in getattr(model,'spheres',[]):
+                cx,cy,cz=g3(sph.center) if hasattr(sph,'center') else (0,0,0)
+                r = sph.radius * scale
+                sx,sy=to_screen(cx,cy,cz)
+                painter.drawEllipse(_R(sx-r,sy-r,r*2 or 2,r*2 or 2))
 
         # ── Gizmo at model centroid ───────────────────────────────────────
         if verts:
