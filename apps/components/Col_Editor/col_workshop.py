@@ -4690,20 +4690,80 @@ class COLWorkshop(QWidget): #vers 3
                           yaw, pitch, zoom, pan_x, pan_y,
                           flip_h, flip_v,
                           show_spheres, show_boxes, show_mesh,
-                          backface, render_style, bg_color): #vers 1
+                          backface, render_style, bg_color): #vers 2
         """Paint a COL model onto an existing QPainter.
-        Called by COL3DViewport.paintEvent — handles zoom/pan/visibility flags."""
-        from PyQt6.QtGui import QPen, QBrush, QColor, QFont
-        from PyQt6.QtCore import QRectF, QPointF
+        Draws: reference grid → model geometry → XYZ gizmo → HUD"""
+        from PyQt6.QtGui import QPen, QBrush, QColor, QFont, QPolygonF
+        from PyQt6.QtCore import QPointF
         import math
 
-        # Apply zoom/pan by transforming the painter
-        painter.save()
-        painter.translate(W / 2 + pan_x, H / 2 + pan_y)
-        painter.scale(zoom, zoom)
-        painter.translate(-W / 2, -H / 2)
+        # ── shared projection helper ──────────────────────────────────────
+        yr = math.radians(yaw);   cy, sy = math.cos(yr), math.sin(yr)
+        pr = math.radians(pitch); cp, sp = math.cos(pr), math.sin(pr)
 
-        # Temporarily filter model data based on visibility flags
+        def proj3(x, y, z):
+            """Project a 3-D point to 2-D screen coords respecting pan/zoom."""
+            rx = x*cy - y*sy
+            ry = x*sy + y*cy
+            # pitch around X
+            ry2 = ry*cp - z*sp
+            rz2 = ry*sp + z*cp   # noqa: used for depth ordering later
+            return rx, ry2
+
+        # Compute model bounds so we can size the grid sensibly
+        verts = getattr(model, 'vertices', [])
+        if verts:
+            xs = [v.x for v in verts]; ys = [v.y for v in verts]; zs = [v.z for v in verts]
+            mn = min(min(xs), min(ys), min(zs))
+            mx = max(max(xs), max(ys), max(zs))
+            extent = max(abs(mx), abs(mn), 1.0)
+        else:
+            extent = 5.0
+
+        # Compute scale/origin from _project_model_2d (reuse existing logic)
+        scale, ox, oy, _ = self._project_model_2d(model, W, H, padding=20,
+                                                   yaw=yaw, pitch=pitch,
+                                                   flip_h=flip_h, flip_v=flip_v)
+
+        def to_screen(x, y, z):
+            px, py = proj3(x, y, z)
+            sx = px * scale + ox + pan_x
+            sy = py * scale + oy + pan_y
+            if flip_h: sx = W - sx
+            if flip_v: sy = H - sy
+            return sx, sy
+
+        # ── reference grid (XY plane, Z=0) ───────────────────────────────
+        # Grid spacing: pick a round number ~1/6 of extent
+        raw_step = extent / 4.0
+        magnitude = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
+        step = round(raw_step / magnitude) * magnitude
+        step = max(step, 0.01)
+        half = math.ceil(extent / step) * step
+        n_lines = int(half / step)
+
+        grid_color   = QColor(60, 65, 80)
+        grid_color_0 = QColor(80, 85, 110)   # slightly brighter for centre lines
+
+        painter.setRenderHint(painter.renderHints().__class__.Antialiasing, False)
+        for i in range(-n_lines, n_lines + 1):
+            v = i * step
+            pen = QPen(grid_color_0 if i == 0 else grid_color, 1)
+            painter.setPen(pen)
+            # line along X axis (vary X, fix Y=v, Z=0)
+            x0, y0 = to_screen(-half, v, 0)
+            x1, y1 = to_screen( half, v, 0)
+            painter.drawLine(int(x0), int(y0), int(x1), int(y1))
+            # line along Y axis (fix X=v, vary Y, Z=0)
+            x0, y0 = to_screen(v, -half, 0)
+            x1, y1 = to_screen(v,  half, 0)
+            painter.drawLine(int(x0), int(y0), int(x1), int(y1))
+        painter.setRenderHint(painter.renderHints().__class__.Antialiasing, True)
+
+        # ── model geometry ────────────────────────────────────────────────
+        painter.save()
+        painter.translate(pan_x, pan_y)
+
         class _FilteredModel:
             def __init__(self, m, ss, sb, sm):
                 self.name     = getattr(m, 'name', '')
@@ -4714,32 +4774,87 @@ class COLWorkshop(QWidget): #vers 3
                 self.faces    = getattr(m, 'faces',   []) if sm else []
 
         filtered = _FilteredModel(model, show_spheres, show_boxes, show_mesh)
-
         self._draw_col_model(painter, filtered, W, H, padding=20,
                              yaw=yaw, pitch=pitch,
                              flip_h=flip_h, flip_v=flip_v)
         painter.restore()
 
-        # HUD — drawn after restore so it stays in screen space
+        # ── XYZ gizmo (screen-space, bottom-left corner) ─────────────────
+        # The gizmo shows the current orientation of the 3 axes
+        gx, gy = 52, H - 52          # centre of gizmo
+        arm = 36                      # arm length in pixels
+
+        # Project unit vectors through the same yaw/pitch rotation
+        def gizmo_tip(dx, dy, dz):
+            px, py = proj3(dx, dy, dz)
+            return int(gx + px * arm), int(gy + py * arm)
+
+        axes_def = [
+            # (3D direction,  colour,      label)
+            ((1, 0, 0),  QColor(220,  60,  60),  'X'),   # red
+            ((0, 1, 0),  QColor( 60, 200,  60),  'Y'),   # green
+            ((0, 0, 1),  QColor( 60, 120, 220),  'Z'),   # blue
+        ]
+
+        # Sort by depth so further axes draw first (painter's algorithm)
+        def axis_depth(a):
+            dx, dy, dz = a[0]
+            _, py = proj3(dx, dy, dz)
+            return py   # higher screen Y = further away in this projection
+
+        for (dx, dy, dz), color, label in sorted(axes_def, key=axis_depth, reverse=True):
+            tx, ty = gizmo_tip(dx, dy, dz)
+
+            # Shaft
+            painter.setPen(QPen(color, 2))
+            painter.drawLine(gx, gy, tx, ty)
+
+            # Arrowhead (filled triangle)
+            angle = math.atan2(ty - gy, tx - gx)
+            aw, ah = 10, 6
+            tip = QPointF(tx, ty)
+            left = QPointF(tx - aw * math.cos(angle) + ah * math.sin(angle),
+                           ty - aw * math.sin(angle) - ah * math.cos(angle))
+            right = QPointF(tx - aw * math.cos(angle) - ah * math.sin(angle),
+                            ty - aw * math.sin(angle) + ah * math.cos(angle))
+            painter.setBrush(QBrush(color))
+            painter.setPen(QPen(color, 1))
+            painter.drawPolygon(QPolygonF([tip, left, right]))
+
+            # Label
+            lx = tx + (8 if tx >= gx else -14)
+            ly = ty + (5 if ty >= gy else -2)
+            painter.setFont(QFont('Arial', 8, QFont.Weight.Bold))
+            painter.setPen(color)
+            painter.drawText(lx, ly, label)
+
+        # Gizmo origin dot
+        painter.setBrush(QBrush(QColor(220, 220, 220)))
+        painter.setPen(QPen(QColor(180, 180, 180), 1))
+        painter.drawEllipse(gx - 4, gy - 4, 8, 8)
+
+        # ── HUD (top-left + bottom-left info) ─────────────────────────────
         painter.setFont(QFont('Arial', 8))
         painter.setPen(QColor(200, 200, 200))
         painter.drawText(6, 14, getattr(model, 'name', ''))
         y = H - 54
         spheres = getattr(model, 'spheres', [])
         boxes   = getattr(model, 'boxes',   [])
-        verts   = getattr(model, 'vertices',[])
         faces   = getattr(model, 'faces',   [])
-        for col, txt in [
+        for col_c, txt in [
             (QColor(100, 180, 100), f"Mesh  F:{len(faces)} V:{len(verts)}"),
             (QColor(220, 180,  50), f"Boxes  {len(boxes)}"),
             (QColor( 80, 200, 220), f"Spheres  {len(spheres)}"),
         ]:
-            painter.setPen(col)
+            painter.setPen(col_c)
             painter.drawText(6, y, txt)
             y += 14
         painter.setPen(QColor(140, 140, 140))
         painter.setFont(QFont('Arial', 7))
         painter.drawText(6, H - 4, f"Y:{yaw:.0f}° P:{pitch:.0f}° Z:{zoom:.2f}x")
+        # Grid step info
+        painter.setPen(QColor(90, 95, 110))
+        painter.drawText(W - 70, H - 4, f"grid {step:.3g}")
 
     def _get_view_coords(self, model, view='xy'): #vers 1
         """Get all geometry points projected to 2D using the selected view axis."""

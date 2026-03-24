@@ -130,6 +130,8 @@ class COLMeshEditorViewport(QWidget): #vers 1
 
     def paintEvent(self, event):
         import math
+        from PyQt6.QtGui import QPolygonF
+        from PyQt6.QtCore import QPointF
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
@@ -142,70 +144,110 @@ class COLMeshEditorViewport(QWidget): #vers 1
 
         verts = getattr(self._model, 'vertices', [])
         faces = getattr(self._model, 'faces', [])
+
+        # ── projection helpers ────────────────────────────────────────────
+        yr = math.radians(self._yaw);   cy, sy = math.cos(yr), math.sin(yr)
+        pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
+
+        def proj3(x, y, z):
+            rx = x*cy - y*sy;  ry = x*sy + y*cy
+            ry2 = ry*cp - z*sp
+            return rx, ry2
+
+        # Compute scale/origin from vertex bounds
+        if verts:
+            pts2d = [proj3(v.x, v.y, v.z) for v in verts]
+            xs2 = [q[0] for q in pts2d]; ys2 = [q[1] for q in pts2d]
+            mn_x, mx_x = min(xs2), max(xs2)
+            mn_y, mx_y = min(ys2), max(ys2)
+            rng = max(mx_x-mn_x, mx_y-mn_y, 0.001)
+            pad = 20
+            scale = ((min(W, H) - pad*2) / rng) * self._zoom
+            cx2 = (mn_x+mx_x)/2;  cy3 = (mn_y+mx_y)/2
+            ox = W/2 - cx2*scale + self._pan_x
+            oy = H/2 - cy3*scale + self._pan_y
+
+            def scx(i): return pts2d[i][0]*scale + ox
+            def scy(i): return pts2d[i][1]*scale + oy
+
+            extent = max(max(abs(v.x) for v in verts),
+                         max(abs(v.y) for v in verts),
+                         max(abs(v.z) for v in verts), 1.0)
+        else:
+            scale = 20 * self._zoom
+            ox = W/2 + self._pan_x; oy = H/2 + self._pan_y
+            extent = 5.0
+
+        def to_screen(x, y, z):
+            px, py = proj3(x, y, z)
+            return px*scale + ox, py*scale + oy
+
+        # ── reference grid ────────────────────────────────────────────────
+        raw_step = extent / 4.0
+        mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
+        step = round(raw_step / mag) * mag;  step = max(step, 0.01)
+        half = math.ceil(extent / step) * step
+        n    = int(half / step)
+
+        p.setRenderHint(p.renderHints().__class__.Antialiasing, False)
+        for i in range(-n, n+1):
+            v = i * step
+            col = QColor(70, 75, 95) if i != 0 else QColor(90, 95, 120)
+            p.setPen(QPen(col, 1))
+            x0,y0 = to_screen(-half, v, 0);  x1,y1 = to_screen(half, v, 0)
+            p.drawLine(int(x0), int(y0), int(x1), int(y1))
+            x0,y0 = to_screen(v, -half, 0);  x1,y1 = to_screen(v, half, 0)
+            p.drawLine(int(x0), int(y0), int(x1), int(y1))
+        p.setRenderHint(p.renderHints().__class__.Antialiasing, True)
+
+        # ── faces ─────────────────────────────────────────────────────────
         if not verts or not faces:
             p.setPen(QColor(100, 100, 100))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No mesh")
-            return
+        else:
+            for fi, face in enumerate(faces):
+                a, b, c = face.a, face.b, face.c
+                if a >= len(verts) or b >= len(verts) or c >= len(verts): continue
+                mat_col = MATERIAL_COLORS.get(face.material, QColor(120, 120, 120))
+                selected = fi in self._sel_faces
+                if selected:
+                    fill = QColor(255, 200, 50, 160); pen_col = QColor(255, 220, 0); pen_w = 2
+                else:
+                    fill = QColor(mat_col.red(), mat_col.green(), mat_col.blue(), 80)
+                    pen_col = QColor(mat_col.red()//2+60, mat_col.green()//2+60, mat_col.blue()//2+60)
+                    pen_w = 1
+                poly = QPolygonF([QPointF(scx(a), scy(a)), QPointF(scx(b), scy(b)), QPointF(scx(c), scy(c))])
+                p.setBrush(QBrush(fill)); p.setPen(QPen(pen_col, pen_w))
+                p.drawPolygon(poly)
 
-        # Project vertices
-        yr = math.radians(self._yaw);  cy, sy = math.cos(yr), math.sin(yr)
-        pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
+            # Selected vertices
+            p.setPen(QPen(QColor(255, 80, 80), 1)); p.setBrush(QBrush(QColor(255, 80, 80)))
+            for vi in self._sel_verts:
+                if vi < len(verts):
+                    p.drawEllipse(int(scx(vi))-4, int(scy(vi))-4, 8, 8)
 
-        def proj(v):
-            x, y, z = v.x, v.y, v.z
-            rx = x*cy - y*sy;  ry = x*sy + y*cy;  rz = z
-            rx2 = rx;           ry2 = ry*cp - rz*sp
-            return rx2, ry2
+        # ── XYZ gizmo (bottom-left) ───────────────────────────────────────
+        gx, gy, arm = 42, H-42, 30
+        axes = [((1,0,0), QColor(220,60,60), 'X'),
+                ((0,1,0), QColor(60,200,60), 'Y'),
+                ((0,0,1), QColor(60,120,220), 'Z')]
+        for (dx,dy,dz), col, lbl in sorted(axes, key=lambda a: proj3(*a[0])[1], reverse=True):
+            px,py = proj3(dx,dy,dz)
+            tx, ty = int(gx+px*arm), int(gy+py*arm)
+            p.setPen(QPen(col, 2)); p.drawLine(gx, gy, tx, ty)
+            ang = math.atan2(ty-gy, tx-gx)
+            aw, ah = 8, 5
+            tip  = QPointF(tx, ty)
+            lpt  = QPointF(tx-aw*math.cos(ang)+ah*math.sin(ang), ty-aw*math.sin(ang)-ah*math.cos(ang))
+            rpt  = QPointF(tx-aw*math.cos(ang)-ah*math.sin(ang), ty-aw*math.sin(ang)+ah*math.cos(ang))
+            p.setBrush(QBrush(col)); p.setPen(QPen(col,1))
+            p.drawPolygon(QPolygonF([tip, lpt, rpt]))
+            p.setFont(QFont('Arial', 7, QFont.Weight.Bold)); p.setPen(col)
+            p.drawText(tx+(7 if tx>=gx else -12), ty+(5 if ty>=gy else -2), lbl)
+        p.setBrush(QBrush(QColor(220,220,220))); p.setPen(QPen(QColor(180,180,180),1))
+        p.drawEllipse(gx-3, gy-3, 6, 6)
 
-        pts2d = [proj(v) for v in verts]
-        if not pts2d:
-            return
-
-        xs = [p2[0] for p2 in pts2d]
-        ys = [p2[1] for p2 in pts2d]
-        mn_x, mx_x = min(xs), max(xs)
-        mn_y, mx_y = min(ys), max(ys)
-        rng = max(mx_x - mn_x, mx_y - mn_y, 0.001)
-        pad = 20
-        scale = ((min(W, H) - pad*2) / rng) * self._zoom
-        cx = (mn_x + mx_x) / 2
-        cy2 = (mn_y + mx_y) / 2
-        ox = W/2 - cx*scale + self._pan_x
-        oy = H/2 - cy2*scale + self._pan_y
-
-        def sx(i): return pts2d[i][0] * scale + ox
-        def sy(i): return pts2d[i][1] * scale + oy
-
-        # Draw faces
-        for fi, face in enumerate(faces):
-            a, b, c = face.a, face.b, face.c
-            if a >= len(verts) or b >= len(verts) or c >= len(verts):
-                continue
-            mat_col = MATERIAL_COLORS.get(face.material, QColor(120, 120, 120))
-            selected = fi in self._sel_faces
-            if selected:
-                fill = QColor(255, 200, 50, 160)
-                pen_col = QColor(255, 220, 0)
-                pen_w = 2
-            else:
-                fill = QColor(mat_col.red(), mat_col.green(), mat_col.blue(), 80)
-                pen_col = QColor(mat_col.red()//2+60, mat_col.green()//2+60, mat_col.blue()//2+60)
-                pen_w = 1
-            from PyQt6.QtGui import QPolygonF
-            from PyQt6.QtCore import QPointF
-            poly = QPolygonF([QPointF(sx(a), sy(a)), QPointF(sx(b), sy(b)), QPointF(sx(c), sy(c))])
-            p.setBrush(QBrush(fill))
-            p.setPen(QPen(pen_col, pen_w))
-            p.drawPolygon(poly)
-
-        # Draw selected vertices
-        p.setPen(QPen(QColor(255, 80, 80), 1))
-        p.setBrush(QBrush(QColor(255, 80, 80)))
-        for vi in self._sel_verts:
-            if vi < len(verts):
-                p.drawEllipse(int(sx(vi))-4, int(sy(vi))-4, 8, 8)
-
-        # HUD
+        # ── HUD ───────────────────────────────────────────────────────────
         p.setPen(QColor(180, 180, 180))
         p.setFont(QFont('Arial', 7))
         p.drawText(4, 12, f"F:{len(faces)} V:{len(verts)}")
