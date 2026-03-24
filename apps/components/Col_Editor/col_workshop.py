@@ -250,7 +250,7 @@ class COL3DViewport(QWidget): #vers 2
             self.setCursor(Qt.CursorShape.SizeAllCursor)
         elif event.button() == Qt.MouseButton.MiddleButton:
             self._mid_drag = event.position()
-            self.setCursor(Qt.CursorShape.SizeAllCursor)
+            self.setCursor(Qt.CursorShape.SizeAllCursor)  # rotate
 
     def mouseMoveEvent(self, event):
         import math
@@ -295,7 +295,7 @@ class COL3DViewport(QWidget): #vers 2
             self.update()
             return
 
-        # ── Pan (left or middle drag) ─────────────────────────────────────
+        # ── Pan (left drag on background) ────────────────────────────────
         if self._left_drag and (event.buttons() & Qt.MouseButton.LeftButton):
             d = event.position() - self._left_drag
             self._pan_x += d.x(); self._pan_y += d.y()
@@ -308,10 +308,11 @@ class COL3DViewport(QWidget): #vers 2
             self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.4))
             self._right_drag = event.position(); self.update()
 
-        # ── Pan (middle drag) ─────────────────────────────────────────────
+        # ── Free rotate (middle drag) ─────────────────────────────────────
         if self._mid_drag and (event.buttons() & Qt.MouseButton.MiddleButton):
             d = event.position() - self._mid_drag
-            self._pan_x += d.x(); self._pan_y += d.y()
+            self._yaw   = (self._yaw + d.x() * 0.4) % 360
+            self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.4))
             self._mid_drag = event.position(); self.update()
 
     def mouseReleaseEvent(self, event):
