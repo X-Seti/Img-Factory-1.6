@@ -54,15 +54,18 @@ from apps.methods.col_workshop_loader import COLFile
 
 
 # Temporary 3D viewport placeholder
-class COL3DViewport(QWidget):
-    """COL preview: left-drag=pan, right-drag=rotate, wheel=zoom, right-click=presets."""
+class COL3DViewport(QWidget): #vers 2
+    """COL preview viewport.
+    Left-drag = pan, Right-drag = free rotate, Scroll = zoom, Middle = pan.
+    G key / button = translate gizmo, R key / button = rotate gizmo.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(200, 200)
         self._model        = None
-        self._yaw          = 0.0
-        self._pitch        = 0.0
+        self._yaw          = 30.0
+        self._pitch        = 20.0
         self._zoom         = 1.0
         self._pan_x        = 0.0
         self._pan_y        = 0.0
@@ -72,35 +75,26 @@ class COL3DViewport(QWidget):
         self._show_boxes   = True
         self._show_mesh    = True
         self._backface     = False
-        self._render_style = 'semi'   # 'wireframe' | 'semi' | 'solid'
+        self._render_style = 'semi'
         self._bg_color     = (25, 25, 35)
+        # drag state
         self._left_drag    = None
         self._right_drag   = None
         self._mid_drag     = None
-        # Gizmo state
+        # gizmo
         self._gizmo_mode   = 'translate'  # 'translate' | 'rotate'
-        self._gizmo_drag   = None         # None | 'X'|'Y'|'Z' axis being dragged
-        self._gizmo_drag_start = None     # QPointF where drag began
-        self._model_offset = [0.0, 0.0, 0.0]  # accumulated translation
-        self._model_rotation = [0.0, 0.0, 0.0]  # accumulated euler rotation
+        self._gizmo_drag   = None         # 'X'|'Y'|'Z' while dragging
+        self._gizmo_start  = None
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
-        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)  # needed for G/R key events
 
-    # ── public API ──────────────────────────────────────────────────────────
+    # ── public API ────────────────────────────────────────────────────────
     def set_current_file(self, col_file): pass
     def set_view_options(self, **kw):     pass
 
     def set_current_model(self, model, index=0):
         self._model = model
-        self._model_offset   = [0.0, 0.0, 0.0]
-        self._model_rotation = [0.0, 0.0, 0.0]
-        self.update()
-
-    def toggle_gizmo_mode(self):
-        """Switch between translate and rotate gizmo."""
-        self._gizmo_mode = 'rotate' if self._gizmo_mode == 'translate' else 'translate'
-        self._gizmo_drag = None
         self.update()
 
     def zoom_in(self):
@@ -110,8 +104,9 @@ class COL3DViewport(QWidget):
         self._zoom = max(0.05, self._zoom / 1.25); self.update()
 
     def reset_view(self):
-        self._yaw = self._pitch = self._pan_x = self._pan_y = 0.0
-        self._zoom = 1.0; self._flip_h = self._flip_v = False
+        self._yaw = 30.0; self._pitch = 20.0
+        self._zoom = 1.0; self._pan_x = self._pan_y = 0.0
+        self._flip_h = self._flip_v = False
         self.update()
 
     def fit_to_window(self):
@@ -141,64 +136,111 @@ class COL3DViewport(QWidget):
     def set_backface(self,     v): self._backface      = v; self.update()
     def set_render_style(self, s): self._render_style  = s; self.update()
 
-    # ── mouse ────────────────────────────────────────────────────────────────
-    def _get_gizmo_info(self):
-        """Return (cx_screen, cy_screen, scale, proj3_fn) for current model centre."""
-        import math
-        if not self._model: return None
-        yr = math.radians(self._yaw);  cy_r, sy_r = math.cos(yr), math.sin(yr)
-        pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
-        def proj3(x, y, z):
-            rx = x*cy_r - y*sy_r;  ry = x*sy_r + y*cy_r
-            return rx, ry*cp - z*sp
-        scale, ox, oy, _ = self._find_workshop()._project_model_2d(
-            self._model, self.width(), self.height(), padding=20,
-            yaw=self._yaw, pitch=self._pitch) if self._find_workshop() else (1,0,0,[])
-        W, H = self.width(), self.height()
-        # Model centre in screen coords
-        verts = getattr(self._model, 'vertices', [])
-        if verts:
-            cx3 = sum(v.x for v in verts)/len(verts)
-            cy3 = sum(v.y for v in verts)/len(verts)
-            cz3 = sum(v.z for v in verts)/len(verts)
-        else:
-            cx3 = cy3 = cz3 = 0.0
-        px, py = proj3(cx3, cy3, cz3)
-        gx = px*scale + ox + self._pan_x
-        gy = py*scale + oy + self._pan_y
-        arm = max(40, min(W, H) * 0.18)
-        return gx, gy, arm, scale, proj3
+    def toggle_gizmo_mode(self):
+        self._gizmo_mode = 'rotate' if self._gizmo_mode == 'translate' else 'translate'
+        self._gizmo_drag = None
+        self.update()
 
-    def _hit_gizmo_axis(self, mx, my):
-        """Return axis name ('X','Y','Z') if click is near a gizmo handle, else None."""
-        info = self._get_gizmo_info()
-        if not info: return None
-        gx, gy, arm, scale, proj3 = info
+    def _set_gizmo(self, mode):
+        self._gizmo_mode = mode; self._gizmo_drag = None; self.update()
+
+    # ── projection (self-contained, no workshop needed) ──────────────────
+    def _proj(self, x, y, z):
+        """Project 3D world point → 2D screen pixel using current view state."""
         import math
-        axes = [((1,0,0),'X'), ((0,1,0),'Y'), ((0,0,1),'Z')]
-        best, best_d = None, 14  # 14px hit radius
-        for (dx,dy,dz), name in axes:
-            px, py = proj3(dx, dy, dz)
-            tx, ty = gx + px*arm, gy + py*arm
-            # Hit on shaft or tip
-            d = math.hypot(mx-tx, my-ty)
-            if d < best_d:
-                best_d, best = d, name
+        yr = math.radians(self._yaw);   cy, sy = math.cos(yr), math.sin(yr)
+        pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
+        rx = x*cy - y*sy
+        ry = x*sy + y*cy
+        ry2 = ry*cp - z*sp
+        return rx, ry2
+
+    def _get_scale_origin(self):
+        """Return (scale, ox, oy) mapping 3D projected coords to screen pixels."""
+        W, H = self.width(), self.height()
+        model = self._model
+        if not model:
+            return 50.0 * self._zoom, W/2 + self._pan_x, H/2 + self._pan_y
+
+        verts = getattr(model, 'vertices', [])
+        spheres = getattr(model, 'spheres', [])
+        boxes   = getattr(model, 'boxes',   [])
+
+        pts3 = [(v.x, v.y, v.z) for v in verts]
+        for s in spheres:
+            c = s.center; r = s.radius
+            cx,cy,cz = (c.x,c.y,c.z) if hasattr(c,'x') else (c[0],c[1],c[2])
+            pts3 += [(cx-r,cy,cz),(cx+r,cy,cz),(cx,cy-r,cz),(cx,cy+r,cz),(cx,cy,cz-r),(cx,cy,cz+r)]
+        for b in boxes:
+            mn = b.min if not hasattr(b,'min_point') else b.min_point
+            mx = b.max if not hasattr(b,'max_point') else b.max_point
+            for p in [mn, mx]:
+                pts3.append((p.x,p.y,p.z) if hasattr(p,'x') else (p[0],p[1],p[2]))
+
+        if not pts3:
+            return 50.0 * self._zoom, W/2 + self._pan_x, H/2 + self._pan_y
+
+        pts2 = [self._proj(x,y,z) for x,y,z in pts3]
+        xs = [p[0] for p in pts2]; ys = [p[1] for p in pts2]
+        rng = max(max(xs)-min(xs), max(ys)-min(ys), 0.001)
+        pad = 40
+        base_scale = (min(W,H) - pad*2) / rng
+        scale = base_scale * self._zoom
+        cx2 = (min(xs)+max(xs))/2; cy2 = (min(ys)+max(ys))/2
+        ox = W/2 - cx2*scale + self._pan_x
+        oy = H/2 - cy2*scale + self._pan_y
+        return scale, ox, oy
+
+    def _to_screen(self, x, y, z):
+        scale, ox, oy = self._get_scale_origin()
+        px, py = self._proj(x, y, z)
+        return px*scale + ox, py*scale + oy
+
+    # ── gizmo hit test ───────────────────────────────────────────────────
+    def _gizmo_centre(self):
+        """Screen coords of gizmo origin (model centroid)."""
+        model = self._model
+        if not model: return None
+        verts = getattr(model, 'vertices', [])
+        if verts:
+            cx = sum(v.x for v in verts)/len(verts)
+            cy = sum(v.y for v in verts)/len(verts)
+            cz = sum(v.z for v in verts)/len(verts)
+        else:
+            cx = cy = cz = 0.0
+        return self._to_screen(cx, cy, cz)
+
+    def _gizmo_arm(self):
+        return max(45, min(self.width(), self.height()) * 0.15)
+
+    def _hit_gizmo(self, mx, my):
+        """Return axis 'X'/'Y'/'Z' if click near a gizmo handle, else None."""
+        import math
+        ctr = self._gizmo_centre()
+        if not ctr: return None
+        gx, gy = ctr
+        arm = self._gizmo_arm()
+        best, best_d = None, 16
+        for (dx,dy,dz), name in [((1,0,0),'X'),((0,1,0),'Y'),((0,0,1),'Z')]:
+            px, py = self._proj(dx, dy, dz)
+            tx, ty = gx+px*arm, gy+py*arm
+            if math.hypot(mx-tx, my-ty) < best_d:
+                best_d, best = math.hypot(mx-tx, my-ty), name
         return best
 
+    # ── mouse ────────────────────────────────────────────────────────────
     def mousePressEvent(self, event):
+        mx, my = event.position().x(), event.position().y()
+        W, H = self.width(), self.height()
         if event.button() == Qt.MouseButton.LeftButton:
-            mx, my = event.position().x(), event.position().y()
-            W, H = self.width(), self.height()
-            # Check toggle button (top-right corner: W-68, 6, 62, 22)
-            if W-68 <= mx <= W-6 and 6 <= my <= 28:
-                self.toggle_gizmo_mode()
-                return
-            # Check gizmo axis handle
-            axis = self._hit_gizmo_axis(mx, my)
+            # Toggle button (top-right)
+            if W-70 <= mx <= W-4 and 4 <= my <= 26:
+                self.toggle_gizmo_mode(); return
+            # Gizmo axis
+            axis = self._hit_gizmo(mx, my)
             if axis:
-                self._gizmo_drag = axis
-                self._gizmo_drag_start = event.position()
+                self._gizmo_drag  = axis
+                self._gizmo_start = event.position()
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
             else:
                 self._left_drag = event.position()
@@ -211,70 +253,62 @@ class COL3DViewport(QWidget):
             self.setCursor(Qt.CursorShape.SizeAllCursor)
 
     def mouseMoveEvent(self, event):
+        import math
+
+        # ── Gizmo drag ───────────────────────────────────────────────────
         if self._gizmo_drag and (event.buttons() & Qt.MouseButton.LeftButton):
-            import math
-            d = event.position() - self._gizmo_drag_start
-            self._gizmo_drag_start = event.position()
+            d  = event.position() - self._gizmo_start
+            self._gizmo_start = event.position()
             axis = self._gizmo_drag
-            info = self._get_gizmo_info()
-            if info:
-                _, _, arm, scale, proj3 = info
-                # Map screen delta to 3D delta along the axis
-                if self._gizmo_mode == 'translate':
-                    # Project axis direction to screen, compute scalar movement
-                    ax = {'X': (1,0,0), 'Y': (0,1,0), 'Z': (0,0,1)}[axis]
-                    px, py = proj3(*ax)
-                    screen_len = math.hypot(px, py) * arm or 1
-                    dot = (d.x()*px + d.y()*py) / screen_len
-                    world_delta = dot / scale * 2
-                    i = {'X':0,'Y':1,'Z':2}[axis]
-                    self._model_offset[i] += world_delta
-                    # Apply offset to all vertices
-                    ws = self._find_workshop()
-                    if ws and self._model:
-                        for v in getattr(self._model, 'vertices', []):
-                            if axis == 'X': v.x += world_delta
-                            elif axis == 'Y': v.y += world_delta
-                            else:            v.z += world_delta
-                        if hasattr(ws, '_push_undo'):
-                            pass  # undo handled by Apply
-                else:  # rotate
-                    ax = {'X': (1,0,0), 'Y': (0,1,0), 'Z': (0,0,1)}[axis]
-                    px, py = proj3(*ax)
-                    perp_x, perp_y = -py, px
-                    dot = d.x()*perp_x + d.y()*perp_y
-                    deg = dot * 0.5
-                    i = {'X':0,'Y':1,'Z':2}[axis]
-                    self._model_rotation[i] = (self._model_rotation[i] + deg) % 360
-                    ws = self._find_workshop()
-                    if ws and self._model:
-                        import math as _m
-                        r = _m.radians(deg)
-                        cos_r, sin_r = _m.cos(r), _m.sin(r)
-                        verts = getattr(self._model, 'vertices', [])
-                        for v in verts:
-                            x, y, z = v.x, v.y, v.z
-                            if axis == 'X':
-                                v.y = y*cos_r - z*sin_r
-                                v.z = y*sin_r + z*cos_r
-                            elif axis == 'Y':
-                                v.x = x*cos_r + z*sin_r
-                                v.z = -x*sin_r + z*cos_r
-                            else:  # Z
-                                v.x = x*cos_r - y*sin_r
-                                v.y = x*sin_r + y*cos_r
+            scale, _, _ = self._get_scale_origin()
+            ax3 = {'X':(1,0,0),'Y':(0,1,0),'Z':(0,0,1)}[axis]
+            px, py = self._proj(*ax3)
+            screen_len = math.hypot(px, py) or 1.0
+
+            if self._gizmo_mode == 'translate':
+                dot = (d.x()*px + d.y()*py) / screen_len
+                delta = dot / scale
+                ws = self._find_workshop()
+                if ws and self._model:
+                    for v in getattr(self._model, 'vertices', []):
+                        if   axis=='X': v.x += delta
+                        elif axis=='Y': v.y += delta
+                        else:           v.z += delta
+            else:  # rotate
+                perp_x, perp_y = -py, px
+                deg = (d.x()*perp_x + d.y()*perp_y) / screen_len * 0.8
+                r = math.radians(deg)
+                cos_r, sin_r = math.cos(r), math.sin(r)
+                ws = self._find_workshop()
+                if ws and self._model:
+                    for v in getattr(self._model, 'vertices', []):
+                        x, y, z = v.x, v.y, v.z
+                        if axis == 'X':
+                            v.y = y*cos_r - z*sin_r
+                            v.z = y*sin_r + z*cos_r
+                        elif axis == 'Y':
+                            v.x = x*cos_r + z*sin_r
+                            v.z = -x*sin_r + z*cos_r
+                        else:
+                            v.x = x*cos_r - y*sin_r
+                            v.y = x*sin_r + y*cos_r
             self.update()
             return
 
+        # ── Pan (left or middle drag) ─────────────────────────────────────
         if self._left_drag and (event.buttons() & Qt.MouseButton.LeftButton):
             d = event.position() - self._left_drag
             self._pan_x += d.x(); self._pan_y += d.y()
             self._left_drag = event.position(); self.update()
+
+        # ── Free rotate (right drag) ──────────────────────────────────────
         if self._right_drag and (event.buttons() & Qt.MouseButton.RightButton):
             d = event.position() - self._right_drag
-            self._yaw   = (self._yaw   + d.x() * 0.5) % 360
-            self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.5))
+            self._yaw   = (self._yaw + d.x() * 0.4) % 360
+            self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.4))
             self._right_drag = event.position(); self.update()
+
+        # ── Pan (middle drag) ─────────────────────────────────────────────
         if self._mid_drag and (event.buttons() & Qt.MouseButton.MiddleButton):
             d = event.position() - self._mid_drag
             self._pan_x += d.x(); self._pan_y += d.y()
@@ -282,52 +316,43 @@ class COL3DViewport(QWidget):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._left_drag  = None
-            self._gizmo_drag = None
+            self._left_drag = None; self._gizmo_drag = None
         elif event.button() == Qt.MouseButton.RightButton:
             self._right_drag = None
         elif event.button() == Qt.MouseButton.MiddleButton:
             self._mid_drag = None
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
-    def keyPressEvent(self, event):
-        """G = translate gizmo, R = rotate gizmo."""
-        if event.key() == Qt.Key.Key_G:
-            self._gizmo_mode = 'translate'; self.update()
-        elif event.key() == Qt.Key.Key_R:
-            self._gizmo_mode = 'rotate'; self.update()
-        else:
-            super().keyPressEvent(event)
-
     def wheelEvent(self, event):
-        factor = 1.15 if event.angleDelta().y() > 0 else 1/1.15
-        self._zoom = max(0.05, min(20.0, self._zoom * factor))
+        factor = 1.18 if event.angleDelta().y() > 0 else 1/1.18
+        self._zoom = max(0.02, min(40.0, self._zoom * factor))
         self.update()
+
+    def keyPressEvent(self, event):
+        if   event.key() == Qt.Key.Key_G: self._set_gizmo('translate')
+        elif event.key() == Qt.Key.Key_R: self._set_gizmo('rotate')
+        elif event.key() == Qt.Key.Key_F: self.fit_to_window()
+        else: super().keyPressEvent(event)
 
     def contextMenuEvent(self, event):
         from PyQt6.QtWidgets import QMenu
         m = QMenu(self)
-        m.addAction("Top",        lambda: self._set_angles(0,   0))
-        m.addAction("Front",      lambda: self._set_angles(0,  90))
-        m.addAction("Side",       lambda: self._set_angles(90,  0))
-        m.addAction("Isometric",  lambda: self._set_angles(45, 35))
+        m.addAction("Top",       lambda: self._set_angles(0,   0))
+        m.addAction("Front",     lambda: self._set_angles(0,  90))
+        m.addAction("Side",      lambda: self._set_angles(90,  0))
+        m.addAction("Isometric", lambda: self._set_angles(45, 35))
         m.addSeparator()
         m.addAction("Reset View",    self.reset_view)
         m.addAction("Fit to Window", self.fit_to_window)
         m.addSeparator()
-        m.addAction("Gizmo: Move  [G]",   lambda: self._set_gizmo('translate'))
-        m.addAction("Gizmo: Rotate [R]",  lambda: self._set_gizmo('rotate'))
+        m.addAction("Move Gizmo  [G]",   lambda: self._set_gizmo('translate'))
+        m.addAction("Rotate Gizmo [R]",  lambda: self._set_gizmo('rotate'))
         m.exec(event.globalPos())
-
-    def _set_gizmo(self, mode):
-        self._gizmo_mode = mode
-        self._gizmo_drag = None
-        self.update()
 
     def _set_angles(self, yaw, pitch):
         self._yaw, self._pitch = float(yaw), float(pitch); self.update()
 
-    # ── paint ────────────────────────────────────────────────────────────────
+    # ── paint ─────────────────────────────────────────────────────────────
     def paintEvent(self, event):
         from PyQt6.QtGui import QPainter, QColor, QFont
         painter = QPainter(self)
@@ -337,8 +362,7 @@ class COL3DViewport(QWidget):
         if not self._model:
             painter.setPen(QColor(120, 120, 120))
             painter.setFont(QFont('Arial', 11))
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
-                             "No model selected")
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No model selected")
             return
         ws = self._find_workshop()
         if ws and hasattr(ws, '_paint_model_onto'):
@@ -350,21 +374,17 @@ class COL3DViewport(QWidget):
                 self._show_spheres, self._show_boxes,
                 self._show_mesh, self._backface,
                 self._render_style, self._bg_color,
-                gizmo_mode=self._gizmo_mode)
+                gizmo_mode=self._gizmo_mode,
+                viewport=self)
 
     def _find_workshop(self):
-        # Direct reference set at creation — fastest path
         ref = getattr(self, '_workshop_ref', None)
-        if ref is not None:
-            return ref
-        # Fallback: walk parent chain
+        if ref is not None: return ref
         p = self.parent()
         while p:
-            if isinstance(p, COLWorkshop):
-                return p
+            if isinstance(p, COLWorkshop): return p
             p = p.parent() if callable(getattr(p, 'parent', None)) else None
         return None
-
 VIEWPORT_AVAILABLE = True
 
 # Add root directory to path
@@ -4837,229 +4857,158 @@ class COLWorkshop(QWidget): #vers 3
                           flip_h, flip_v,
                           show_spheres, show_boxes, show_mesh,
                           backface, render_style, bg_color,
-                          gizmo_mode='translate'): #vers 3
-        """Paint a COL model onto an existing QPainter.
-        Draws: reference grid → model geometry → XYZ gizmo → HUD"""
+                          gizmo_mode='translate', viewport=None): #vers 4
+        """Paint COL model: grid → geometry → gizmo → HUD.
+        Uses viewport's own projection when available (consistent coords)."""
         from PyQt6.QtGui import QPen, QBrush, QColor, QFont, QPolygonF
         from PyQt6.QtCore import QPointF
         import math
 
-        # ── shared projection helper ──────────────────────────────────────
-        yr = math.radians(yaw);   cy, sy = math.cos(yr), math.sin(yr)
-        pr = math.radians(pitch); cp, sp = math.cos(pr), math.sin(pr)
+        # ── Use viewport's projection if available ────────────────────────
+        if viewport is not None:
+            vp = viewport
+        else:
+            vp = getattr(self, 'preview_widget', None)
 
-        def proj3(x, y, z):
-            """Project a 3-D point to 2-D screen coords respecting pan/zoom."""
-            rx = x*cy - y*sy
-            ry = x*sy + y*cy
-            # pitch around X
-            ry2 = ry*cp - z*sp
-            rz2 = ry*sp + z*cp   # noqa: used for depth ordering later
-            return rx, ry2
+        if vp is not None:
+            scale, ox, oy = vp._get_scale_origin()
+            def proj3(x,y,z): return vp._proj(x,y,z)
+            def to_screen(x,y,z):
+                px,py = proj3(x,y,z)
+                return px*scale+ox, py*scale+oy
+        else:
+            # Fallback standalone projection
+            yr = math.radians(yaw);   cy, sy = math.cos(yr), math.sin(yr)
+            pr = math.radians(pitch); cp, sp = math.cos(pr), math.sin(pr)
+            def proj3(x,y,z):
+                rx=x*cy-y*sy; ry=x*sy+y*cy
+                return rx, ry*cp-z*sp
+            scale, ox, oy, _ = self._project_model_2d(model, W, H, padding=20,
+                                                        yaw=yaw, pitch=pitch)
+            def to_screen(x,y,z):
+                px,py=proj3(x,y,z); return px*scale+ox, py*scale+oy
 
-        # Compute model bounds so we can size the grid sensibly
+        # ── Model geometry extent for grid sizing ─────────────────────────
         verts = getattr(model, 'vertices', [])
         if verts:
-            xs = [v.x for v in verts]; ys = [v.y for v in verts]; zs = [v.z for v in verts]
-            mn = min(min(xs), min(ys), min(zs))
-            mx = max(max(xs), max(ys), max(zs))
-            extent = max(abs(mx), abs(mn), 1.0)
+            xs=[v.x for v in verts]; ys=[v.y for v in verts]; zs=[v.z for v in verts]
+            extent = max(max(abs(x) for x in xs+ys+zs), 1.0)
         else:
             extent = 5.0
 
-        # Compute scale/origin from _project_model_2d (reuse existing logic)
-        scale, ox, oy, _ = self._project_model_2d(model, W, H, padding=20,
-                                                   yaw=yaw, pitch=pitch,
-                                                   flip_h=flip_h, flip_v=flip_v)
-
-        def to_screen(x, y, z):
-            px, py = proj3(x, y, z)
-            sx = px * scale + ox + pan_x
-            sy = py * scale + oy + pan_y
-            if flip_h: sx = W - sx
-            if flip_v: sy = H - sy
-            return sx, sy
-
-        # ── reference grid (XY plane, Z=0) ───────────────────────────────
-        # Grid spacing: pick a round number ~1/6 of extent
+        # ── Reference grid (XY plane Z=0) ────────────────────────────────
         raw_step = extent / 4.0
-        magnitude = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
-        step = round(raw_step / magnitude) * magnitude
-        step = max(step, 0.01)
-        half = math.ceil(extent / step) * step
-        n_lines = int(half / step)
-
-        grid_color   = QColor(60, 65, 80)
-        grid_color_0 = QColor(80, 85, 110)   # slightly brighter for centre lines
+        mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
+        step = round(raw_step / mag) * mag; step = max(step, 0.01)
+        half = math.ceil(extent / step + 1) * step
+        n    = int(half / step)
 
         painter.setRenderHint(painter.renderHints().__class__.Antialiasing, False)
-        for i in range(-n_lines, n_lines + 1):
-            v = i * step
-            pen = QPen(grid_color_0 if i == 0 else grid_color, 1)
-            painter.setPen(pen)
-            # line along X axis (vary X, fix Y=v, Z=0)
-            x0, y0 = to_screen(-half, v, 0)
-            x1, y1 = to_screen( half, v, 0)
-            painter.drawLine(int(x0), int(y0), int(x1), int(y1))
-            # line along Y axis (fix X=v, vary Y, Z=0)
-            x0, y0 = to_screen(v, -half, 0)
-            x1, y1 = to_screen(v,  half, 0)
-            painter.drawLine(int(x0), int(y0), int(x1), int(y1))
+        for i in range(-n, n+1):
+            v2 = i * step
+            col = QColor(75, 80, 105) if i == 0 else QColor(50, 55, 72)
+            painter.setPen(QPen(col, 1))
+            x0,y0 = to_screen(-half, v2, 0); x1,y1 = to_screen(half, v2, 0)
+            painter.drawLine(int(x0),int(y0),int(x1),int(y1))
+            x0,y0 = to_screen(v2, -half, 0); x1,y1 = to_screen(v2, half, 0)
+            painter.drawLine(int(x0),int(y0),int(x1),int(y1))
         painter.setRenderHint(painter.renderHints().__class__.Antialiasing, True)
 
-        # ── model geometry ────────────────────────────────────────────────
-        painter.save()
-        painter.translate(pan_x, pan_y)
-
-        class _FilteredModel:
+        # ── Model geometry ────────────────────────────────────────────────
+        class _F:
             def __init__(self, m, ss, sb, sm):
-                self.name     = getattr(m, 'name', '')
-                self.version  = getattr(m, 'version', None)
-                self.spheres  = getattr(m, 'spheres', []) if ss else []
-                self.boxes    = getattr(m, 'boxes',   []) if sb else []
-                self.vertices = getattr(m, 'vertices',[]) if sm else []
-                self.faces    = getattr(m, 'faces',   []) if sm else []
-
-        filtered = _FilteredModel(model, show_spheres, show_boxes, show_mesh)
+                self.name=getattr(m,'name',''); self.version=getattr(m,'version',None)
+                self.spheres=getattr(m,'spheres',[]) if ss else []
+                self.boxes  =getattr(m,'boxes',  []) if sb else []
+                self.vertices=getattr(m,'vertices',[]) if sm else []
+                self.faces  =getattr(m,'faces',  []) if sm else []
+        filtered = _F(model, show_spheres, show_boxes, show_mesh)
         self._draw_col_model(painter, filtered, W, H, padding=20,
-                             yaw=yaw, pitch=pitch,
-                             flip_h=flip_h, flip_v=flip_v)
-        painter.restore()
+                             yaw=yaw, pitch=pitch, flip_h=flip_h, flip_v=flip_v)
 
-        # ── World-space gizmo centred on model ───────────────────────────
-        # Compute model centre in screen space
+        # ── Gizmo at model centroid ───────────────────────────────────────
         if verts:
-            cx3 = sum(v.x for v in verts) / len(verts)
-            cy3 = sum(v.y for v in verts) / len(verts)
-            cz3 = sum(v.z for v in verts) / len(verts)
+            cx3=sum(v.x for v in verts)/len(verts)
+            cy3=sum(v.y for v in verts)/len(verts)
+            cz3=sum(v.z for v in verts)/len(verts)
         else:
-            cx3 = cy3 = cz3 = 0.0
-        cpx, cpy = proj3(cx3, cy3, cz3)
-        gx = cpx * scale + ox + pan_x
-        gy = cpy * scale + oy + pan_y
-        arm = max(40, min(W, H) * 0.18)
+            cx3=cy3=cz3=0.0
+        gx, gy = to_screen(cx3, cy3, cz3)
+        arm = max(45, min(W,H) * 0.15)
 
-        axes_def = [
-            ((1,0,0), QColor(220, 60,  60), 'X'),
-            ((0,1,0), QColor( 60,200,  60), 'Y'),
-            ((0,0,1), QColor( 60,120, 220), 'Z'),
-        ]
-
-        # Depth-sort: draw farther axes first
-        def axis_screen(d3):
-            px, py = proj3(*d3); return py
-        sorted_axes = sorted(axes_def, key=lambda a: axis_screen(a[0]), reverse=True)
-
-        # gizmo_mode passed directly as parameter
-
-        painter.setRenderHint(painter.renderHints().__class__.Antialiasing, True)
+        axes = [((1,0,0),QColor(220,60,60),'X'),
+                ((0,1,0),QColor(60,200,60),'Y'),
+                ((0,0,1),QColor(60,120,220),'Z')]
+        sorted_axes = sorted(axes, key=lambda a: proj3(*a[0])[1], reverse=True)
 
         if gizmo_mode == 'translate':
-            # ── Translate: coloured arrows from model centre ──────────────
             for (dx,dy,dz), color, label in sorted_axes:
-                px, py = proj3(dx, dy, dz)
-                tx = gx + px * arm;  ty = gy + py * arm
-
-                # Shaft
-                painter.setPen(QPen(color, 2))
-                painter.drawLine(int(gx), int(gy), int(tx), int(ty))
-
-                # Arrowhead
-                angle = math.atan2(ty - gy, tx - gx)
-                aw, ah = 12, 6
-                tip   = QPointF(tx, ty)
-                left  = QPointF(tx - aw*math.cos(angle) + ah*math.sin(angle),
-                                ty - aw*math.sin(angle) - ah*math.cos(angle))
-                right = QPointF(tx - aw*math.cos(angle) - ah*math.sin(angle),
-                                ty - aw*math.sin(angle) + ah*math.cos(angle))
-                painter.setBrush(QBrush(color))
-                painter.setPen(QPen(color, 1))
-                painter.drawPolygon(QPolygonF([tip, left, right]))
-
-                # Label
-                lx = tx + (9 if tx >= gx else -14)
-                ly = ty + (5 if ty >= gy else -3)
-                painter.setFont(QFont('Arial', 8, QFont.Weight.Bold))
-                painter.setPen(color)
-                painter.drawText(int(lx), int(ly), label)
-
+                px,py = proj3(dx,dy,dz)
+                tx,ty = gx+px*arm, gy+py*arm
+                painter.setPen(QPen(color,2))
+                painter.drawLine(int(gx),int(gy),int(tx),int(ty))
+                ang = math.atan2(ty-gy, tx-gx); aw,ah = 12,6
+                tip  = QPointF(tx,ty)
+                lpt  = QPointF(tx-aw*math.cos(ang)+ah*math.sin(ang), ty-aw*math.sin(ang)-ah*math.cos(ang))
+                rpt  = QPointF(tx-aw*math.cos(ang)-ah*math.sin(ang), ty-aw*math.sin(ang)+ah*math.cos(ang))
+                painter.setBrush(QBrush(color)); painter.setPen(QPen(color,1))
+                painter.drawPolygon(QPolygonF([tip,lpt,rpt]))
+                lx=tx+(9 if tx>=gx else -14); ly=ty+(5 if ty>=gy else -3)
+                painter.setFont(QFont('Arial',8,QFont.Weight.Bold))
+                painter.setPen(color); painter.drawText(int(lx),int(ly),label)
         else:
-            # ── Rotate: projected ellipse arcs for each axis ─────────────
-            # Each ring is a circle in the plane perpendicular to its axis,
-            # projected through yaw/pitch to an ellipse on screen
-            N = 64  # arc segments
-            ring_configs = [
-                # axis,  tangent1,  tangent2,  colour
-                ((1,0,0), (0,1,0), (0,0,1), QColor(220, 60,  60), 'X'),  # YZ plane
-                ((0,1,0), (1,0,0), (0,0,1), QColor( 60,200,  60), 'Y'),  # XZ plane
-                ((0,0,1), (1,0,0), (0,1,0), QColor( 60,120, 220), 'Z'),  # XY plane
-            ]
-            for (ax,ay,az), (t1x,t1y,t1z), (t2x,t2y,t2z), color, label in                     sorted(ring_configs, key=lambda r: axis_screen(r[0]), reverse=True):
-                pts = []
+            # Rotate rings
+            N = 64
+            rings = [((1,0,0),(0,1,0),(0,0,1),QColor(220,60,60),'X'),
+                     ((0,1,0),(1,0,0),(0,0,1),QColor(60,200,60),'Y'),
+                     ((0,0,1),(1,0,0),(0,1,0),QColor(60,120,220),'Z')]
+            for (_,t1,t2,color,label) in sorted(rings, key=lambda r: proj3(*r[0])[1], reverse=True):
+                t1x,t1y,t1z=t1; t2x,t2y,t2z=t2
+                pts=[]
                 for i in range(N+1):
-                    a2 = 2 * math.pi * i / N
-                    # Point on unit circle in the ring's plane
-                    wx = math.cos(a2)*t1x + math.sin(a2)*t2x
-                    wy = math.cos(a2)*t1y + math.sin(a2)*t2y
-                    wz = math.cos(a2)*t1z + math.sin(a2)*t2z
-                    px, py = proj3(wx, wy, wz)
-                    pts.append(QPointF(gx + px*arm, gy + py*arm))
-
-                # Draw as polyline (no fill — arc only)
-                painter.setPen(QPen(color, 2))
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                for i in range(len(pts)-1):
-                    painter.drawLine(pts[i], pts[i+1])
-
-                # Label at 45° position on ring
-                p45x = math.cos(math.pi/4)*t1x + math.sin(math.pi/4)*t2x
-                p45y = math.cos(math.pi/4)*t1y + math.sin(math.pi/4)*t2y
-                p45z = math.cos(math.pi/4)*t1z + math.sin(math.pi/4)*t2z
-                lp, lq = proj3(p45x, p45y, p45z)
-                lx = gx + lp*arm + (6 if lp >= 0 else -12)
-                ly = gy + lq*arm + (5 if lq >= 0 else -3)
-                painter.setFont(QFont('Arial', 8, QFont.Weight.Bold))
-                painter.setPen(color)
-                painter.drawText(int(lx), int(ly), label)
+                    a2=2*math.pi*i/N
+                    wx=math.cos(a2)*t1x+math.sin(a2)*t2x
+                    wy=math.cos(a2)*t1y+math.sin(a2)*t2y
+                    wz=math.cos(a2)*t1z+math.sin(a2)*t2z
+                    px2,py2=proj3(wx,wy,wz)
+                    pts.append(QPointF(gx+px2*arm, gy+py2*arm))
+                painter.setPen(QPen(color,2)); painter.setBrush(Qt.BrushStyle.NoBrush)
+                for i in range(len(pts)-1): painter.drawLine(pts[i],pts[i+1])
+                p45x=math.cos(math.pi/4)*t1x+math.sin(math.pi/4)*t2x
+                p45y=math.cos(math.pi/4)*t1y+math.sin(math.pi/4)*t2y
+                p45z=math.cos(math.pi/4)*t1z+math.sin(math.pi/4)*t2z
+                lp,lq=proj3(p45x,p45y,p45z)
+                painter.setFont(QFont('Arial',8,QFont.Weight.Bold)); painter.setPen(color)
+                painter.drawText(int(gx+lp*arm+(6 if lp>=0 else -12)),
+                                 int(gy+lq*arm+(5 if lq>=0 else -3)), label)
 
         # Gizmo centre dot
-        painter.setBrush(QBrush(QColor(220, 220, 220)))
-        painter.setPen(QPen(QColor(160, 160, 160), 1))
-        painter.drawEllipse(int(gx)-5, int(gy)-5, 10, 10)
+        painter.setBrush(QBrush(QColor(230,230,230))); painter.setPen(QPen(QColor(160,160,160),1))
+        painter.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
-        # ── Gizmo mode toggle button (top-right corner) ───────────────────
-        # Draw a small clickable-looking button showing current mode
-        bx, by, bw, bh = W - 68, 6, 62, 22
-        painter.setBrush(QBrush(QColor(45, 48, 65)))
-        painter.setPen(QPen(QColor(90, 95, 130), 1))
-        painter.drawRoundedRect(bx, by, bw, bh, 4, 4)
-        painter.setFont(QFont('Arial', 8))
-        label_txt = '↕ Move [G]' if gizmo_mode == 'translate' else '↻ Rotate [R]'
-        painter.setPen(QColor(200, 200, 220))
-        painter.drawText(bx+4, by+15, label_txt)
+        # ── Toggle button (top-right) ─────────────────────────────────────
+        bx,by,bw,bh = W-70,4,66,22
+        painter.setBrush(QBrush(QColor(40,44,62)))
+        painter.setPen(QPen(QColor(80,90,130),1))
+        painter.drawRoundedRect(bx,by,bw,bh,4,4)
+        painter.setFont(QFont('Arial',8)); painter.setPen(QColor(200,200,220))
+        lbl = '↕ Move [G]' if gizmo_mode=='translate' else '↻ Rotate [R]'
+        painter.drawText(bx+4,by+15,lbl)
 
-        # ── HUD (top-left + bottom-left info) ─────────────────────────────
-        painter.setFont(QFont('Arial', 8))
-        painter.setPen(QColor(200, 200, 200))
-        painter.drawText(6, 14, getattr(model, 'name', ''))
-        y = H - 54
-        spheres = getattr(model, 'spheres', [])
-        boxes   = getattr(model, 'boxes',   [])
-        faces   = getattr(model, 'faces',   [])
-        for col_c, txt in [
-            (QColor(100, 180, 100), f"Mesh  F:{len(faces)} V:{len(verts)}"),
-            (QColor(220, 180,  50), f"Boxes  {len(boxes)}"),
-            (QColor( 80, 200, 220), f"Spheres  {len(spheres)}"),
-        ]:
-            painter.setPen(col_c)
-            painter.drawText(6, y, txt)
-            y += 14
-        painter.setPen(QColor(140, 140, 140))
-        painter.setFont(QFont('Arial', 7))
-        painter.drawText(6, H - 4, f"Y:{yaw:.0f}° P:{pitch:.0f}° Z:{zoom:.2f}x")
-        # Grid step info
-        painter.setPen(QColor(90, 95, 110))
-        painter.drawText(W - 70, H - 4, f"grid {step:.3g}")
+        # ── HUD ───────────────────────────────────────────────────────────
+        painter.setFont(QFont('Arial',8)); painter.setPen(QColor(200,200,200))
+        painter.drawText(6,14,getattr(model,'name',''))
+        y2=H-54
+        spheres=getattr(model,'spheres',[]); boxes=getattr(model,'boxes',[])
+        faces=getattr(model,'faces',[])
+        for col_c,txt in [(QColor(100,180,100),f"Mesh  F:{len(faces)} V:{len(verts)}"),
+                          (QColor(220,180,50), f"Boxes  {len(boxes)}"),
+                          (QColor(80,200,220), f"Spheres  {len(spheres)}")]:
+            painter.setPen(col_c); painter.drawText(6,y2,txt); y2+=14
+        painter.setPen(QColor(120,125,140)); painter.setFont(QFont('Arial',7))
+        painter.drawText(6,H-4,f"Y:{yaw:.0f}° P:{pitch:.0f}° Z:{zoom:.2f}x")
+        painter.drawText(W-68,H-4,f"grid {step:.3g}")
+
 
     def _get_view_coords(self, model, view='xy'): #vers 1
         """Get all geometry points projected to 2D using the selected view axis."""
