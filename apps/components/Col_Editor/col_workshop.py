@@ -355,28 +355,179 @@ class COL3DViewport(QWidget): #vers 2
 
     # ── paint ─────────────────────────────────────────────────────────────
     def paintEvent(self, event):
-        from PyQt6.QtGui import QPainter, QColor, QFont
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        """Fully self-contained paint — no workshop dependency."""
+        from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPolygonF
+        from PyQt6.QtCore import QPointF, QRectF
+        import math
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        W, H = self.width(), self.height()
+
+        # Background
         r, g, b = self._bg_color
-        painter.fillRect(self.rect(), QColor(r, g, b))
+        p.fillRect(self.rect(), QColor(r, g, b))
+
         if not self._model:
-            painter.setPen(QColor(120, 120, 120))
-            painter.setFont(QFont('Arial', 11))
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No model selected")
+            p.setPen(QColor(120, 120, 120))
+            p.setFont(QFont('Arial', 11))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No model selected")
             return
-        ws = self._find_workshop()
-        if ws and hasattr(ws, '_paint_model_onto'):
-            ws._paint_model_onto(
-                painter, self._model, self.width(), self.height(),
-                self._yaw, self._pitch, self._zoom,
-                self._pan_x, self._pan_y,
-                self._flip_h, self._flip_v,
-                self._show_spheres, self._show_boxes,
-                self._show_mesh, self._backface,
-                self._render_style, self._bg_color,
-                gizmo_mode=self._gizmo_mode,
-                viewport=self)
+
+        scale, ox, oy = self._get_scale_origin()
+
+        def to_screen(x, y, z):
+            px, py = self._proj(x, y, z)
+            return px * scale + ox, py * scale + oy
+
+        def g3(obj):
+            if hasattr(obj, 'x'):         return obj.x, obj.y, obj.z
+            if hasattr(obj, 'position'):  return obj.position.x, obj.position.y, obj.position.z
+            return float(obj[0]), float(obj[1]), float(obj[2])
+
+        model = self._model
+        verts   = getattr(model, 'vertices', [])
+        faces   = getattr(model, 'faces',   [])
+        boxes   = getattr(model, 'boxes',   [])
+        spheres = getattr(model, 'spheres', [])
+
+        # ── Grid (XY plane, Z=0) ─────────────────────────────────────────
+        if verts:
+            all_c = [abs(c) for v in verts for c in (v.x, v.y, v.z)]
+            extent = max(max(all_c), 1.0)
+        else:
+            extent = 5.0
+        raw_step = extent / 4.0
+        mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
+        step = round(raw_step / mag) * mag;  step = max(step, 0.01)
+        half = math.ceil(extent / step + 1) * step
+        n    = int(half / step)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        for i in range(-n, n + 1):
+            v2 = i * step
+            col = QColor(75, 80, 105) if i == 0 else QColor(50, 55, 72)
+            p.setPen(QPen(col, 1))
+            x0,y0 = to_screen(-half, v2, 0); x1,y1 = to_screen(half, v2, 0)
+            p.drawLine(int(x0), int(y0), int(x1), int(y1))
+            x0,y0 = to_screen(v2, -half, 0); x1,y1 = to_screen(v2, half, 0)
+            p.drawLine(int(x0), int(y0), int(x1), int(y1))
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        # ── Mesh faces ────────────────────────────────────────────────────
+        if self._show_mesh and verts and faces:
+            p.setPen(QPen(QColor(120, 180, 120, 180), 0.5))
+            p.setBrush(QBrush(QColor(60, 120, 60, 80)))
+            for face in faces:
+                idx = getattr(face, 'vertex_indices', None)
+                if idx is None:
+                    fa = getattr(face, 'a', None)
+                    if fa is not None: idx = (fa, face.b, face.c)
+                if idx and len(idx) == 3:
+                    try:
+                        pts = [QPointF(*to_screen(*g3(verts[i]))) for i in idx]
+                        p.drawPolygon(QPolygonF(pts))
+                    except (IndexError, AttributeError):
+                        pass
+
+        # ── Boxes ─────────────────────────────────────────────────────────
+        if self._show_boxes:
+            p.setPen(QPen(QColor(220, 180, 50), 1.5))
+            p.setBrush(QBrush(QColor(220, 180, 50, 40)))
+            for box in boxes:
+                bmin = box.min_point if hasattr(box, 'min_point') else box.min
+                bmax = box.max_point if hasattr(box, 'max_point') else box.max
+                x1,y1 = to_screen(*g3(bmin)); x2,y2 = to_screen(*g3(bmax))
+                p.drawRect(QRectF(min(x1,x2), min(y1,y2),
+                                  abs(x2-x1) or 2, abs(y2-y1) or 2))
+
+        # ── Spheres ───────────────────────────────────────────────────────
+        if self._show_spheres:
+            p.setPen(QPen(QColor(80, 200, 220), 1.5))
+            p.setBrush(QBrush(QColor(80, 200, 220, 40)))
+            for sph in spheres:
+                cx,cy2,cz = g3(sph.center if hasattr(sph,'center') else sph)
+                r = sph.radius * scale
+                sx,sy = to_screen(cx, cy2, cz)
+                p.drawEllipse(QRectF(sx-r, sy-r, r*2 or 2, r*2 or 2))
+
+        # ── Gizmo at model centroid ───────────────────────────────────────
+        if verts:
+            cx3 = sum(v.x for v in verts)/len(verts)
+            cy3 = sum(v.y for v in verts)/len(verts)
+            cz3 = sum(v.z for v in verts)/len(verts)
+        else:
+            cx3 = cy3 = cz3 = 0.0
+        gx, gy = to_screen(cx3, cy3, cz3)
+        arm = max(45, min(W, H) * 0.15)
+
+        axes = [((1,0,0), QColor(220,60,60),  'X'),
+                ((0,1,0), QColor(60,200,60),   'Y'),
+                ((0,0,1), QColor(60,120,220),  'Z')]
+        sorted_axes = sorted(axes, key=lambda a: self._proj(*a[0])[1], reverse=True)
+
+        if self._gizmo_mode == 'translate':
+            for (dx,dy,dz), color, label in sorted_axes:
+                px2, py2 = self._proj(dx, dy, dz)
+                tx, ty = gx+px2*arm, gy+py2*arm
+                p.setPen(QPen(color, 2)); p.drawLine(int(gx),int(gy),int(tx),int(ty))
+                ang = math.atan2(ty-gy, tx-gx); aw,ah = 12,6
+                tip  = QPointF(tx,ty)
+                lpt  = QPointF(tx-aw*math.cos(ang)+ah*math.sin(ang), ty-aw*math.sin(ang)-ah*math.cos(ang))
+                rpt  = QPointF(tx-aw*math.cos(ang)-ah*math.sin(ang), ty-aw*math.sin(ang)+ah*math.cos(ang))
+                p.setBrush(QBrush(color)); p.setPen(QPen(color,1))
+                p.drawPolygon(QPolygonF([tip,lpt,rpt]))
+                lx=tx+(9 if tx>=gx else -14); ly=ty+(5 if ty>=gy else -3)
+                p.setFont(QFont('Arial',8,QFont.Weight.Bold))
+                p.setPen(color); p.drawText(int(lx),int(ly),label)
+        else:
+            N = 64
+            rings = [((1,0,0),(0,1,0),(0,0,1), QColor(220,60,60),  'X'),
+                     ((0,1,0),(1,0,0),(0,0,1), QColor(60,200,60),  'Y'),
+                     ((0,0,1),(1,0,0),(0,1,0), QColor(60,120,220), 'Z')]
+            for (_,t1,t2,color,label) in sorted(rings, key=lambda r: self._proj(*r[0])[1], reverse=True):
+                t1x,t1y,t1z=t1; t2x,t2y,t2z=t2
+                pts = []
+                for i in range(N+1):
+                    a2 = 2*math.pi*i/N
+                    wx=math.cos(a2)*t1x+math.sin(a2)*t2x
+                    wy=math.cos(a2)*t1y+math.sin(a2)*t2y
+                    wz=math.cos(a2)*t1z+math.sin(a2)*t2z
+                    px2,py2 = self._proj(wx,wy,wz)
+                    pts.append(QPointF(gx+px2*arm, gy+py2*arm))
+                p.setPen(QPen(color,2)); p.setBrush(Qt.BrushStyle.NoBrush)
+                for i in range(len(pts)-1): p.drawLine(pts[i], pts[i+1])
+                p45x=math.cos(math.pi/4)*t1x+math.sin(math.pi/4)*t2x
+                p45y=math.cos(math.pi/4)*t1y+math.sin(math.pi/4)*t2y
+                p45z=math.cos(math.pi/4)*t1z+math.sin(math.pi/4)*t2z
+                lp,lq = self._proj(p45x,p45y,p45z)
+                p.setFont(QFont('Arial',8,QFont.Weight.Bold)); p.setPen(color)
+                p.drawText(int(gx+lp*arm+(6 if lp>=0 else -12)),
+                           int(gy+lq*arm+(5 if lq>=0 else -3)), label)
+
+        # Gizmo origin dot
+        p.setBrush(QBrush(QColor(230,230,230))); p.setPen(QPen(QColor(160,160,160),1))
+        p.drawEllipse(int(gx)-5, int(gy)-5, 10, 10)
+
+        # ── Toggle button (top-right) ─────────────────────────────────────
+        bx,by,bw,bh = W-70,4,66,22
+        p.setBrush(QBrush(QColor(40,44,62)))
+        p.setPen(QPen(QColor(80,90,130),1))
+        p.drawRoundedRect(bx,by,bw,bh,4,4)
+        p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,220))
+        lbl = '↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
+        p.drawText(bx+4,by+15,lbl)
+
+        # ── HUD ───────────────────────────────────────────────────────────
+        p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,200))
+        p.drawText(6,14,getattr(model,'name','') or '')
+        y2 = H-54
+        for col_c,txt in [(QColor(100,180,100), f"Mesh  F:{len(faces)} V:{len(verts)}"),
+                          (QColor(220,180,50),  f"Boxes  {len(boxes)}"),
+                          (QColor(80,200,220),  f"Spheres  {len(spheres)}")]:
+            p.setPen(col_c); p.drawText(6,y2,txt); y2+=14
+        p.setPen(QColor(120,125,140)); p.setFont(QFont('Arial',7))
+        p.drawText(6, H-4, f"Y:{self._yaw:.0f}° P:{self._pitch:.0f}° Z:{self._zoom:.2f}x")
+        p.drawText(W-68, H-4, f"grid {step:.3g}")
 
     def _find_workshop(self):
         ref = getattr(self, '_workshop_ref', None)
