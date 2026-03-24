@@ -1,4 +1,63 @@
-#this belongs in root /ChangeLog.md - Version: 28
+#this belongs in root /ChangeLog.md - Version: 29
+
+## March 2026 — COL Mesh Editor, 3D viewport, gizmo system
+
+### Build 143 — COL3DViewport fully self-contained
+- `paintEvent` now draws everything directly using `self._yaw/pitch/zoom/pan`
+- No dependency on `_find_workshop()` or `_paint_model_onto` — removes silent
+  failure mode where the workshop reference was missing and the view appeared frozen
+- Draws grid, mesh, boxes, spheres, gizmo, HUD all in one method
+- Right-drag / middle-drag = rotate, left-drag = pan, scroll = zoom now reliable
+
+### Build 142 — Middle mouse rotates scene
+- Middle-drag: pan → rotate (matches right-drag)
+- Left-drag remains pan only
+
+### Build 141 — Fix zoom not affecting mesh
+- `_paint_model_onto` was calling `_draw_col_model()` which recomputes its own
+  `scale` from bounds, ignoring `_zoom` — mesh was fixed-size while grid/gizmo zoomed
+- Fix: geometry now drawn inline via `to_screen()` (includes zoom + pan)
+
+### Build 140 — Fix COL viewport: full 3D interaction
+- Root cause of locked view: `_draw_col_model` used `_project_model_2d` which
+  computed its own origin ignoring pan/zoom — grid and geometry in different spaces
+- `COL3DViewport` v2 rewritten as fully self-contained:
+  `_proj(x,y,z)`, `_get_scale_origin()`, `_to_screen()` — no workshop dependency
+- Right-drag: free rotate (yaw + pitch), scroll: zoom, left/middle: pan
+- `_paint_model_onto` v4 uses `vp._get_scale_origin()/_proj()` when available
+
+### Build 139 — World-space gizmo at model centre, translate + rotate modes
+- Gizmo moved from bottom-left corner to model centroid in 3D world space
+- Translate mode (G key): coloured arrows along X/Y/Z, drag to move vertices
+- Rotate mode (R key): projected ellipse rings, drag to spin vertices around axis
+- Toggle button top-right of viewport, right-click menu, G/R keyboard shortcuts
+- Depth-sorted axes (nearer axis draws on top)
+
+### Build 138 — XYZ gizmo + reference grid
+- Reference grid: XY plane (Z=0), auto-sized to model extent, behind geometry
+- XYZ gizmo (bottom-left corner): red X, green Y, blue Z arrows with arrowheads
+- Both in `_paint_model_onto` and `COLMeshEditorViewport`
+
+### Build 137 — COL Mesh Editor with full undo
+- New file: `apps/components/Col_Editor/col_mesh_editor.py`
+- `COLMeshEditorViewport`: mini 2D preview with selection highlight
+- `COLMeshEditor` dialog: face table, vertex table, add/delete/move operations
+- Add face: set A/B/C vertex indices + surface material (71 GTA materials)
+- Delete face(s): multi-select; delete vertex: remaps face indices automatically
+- Remove orphan vertices; local 50-step undo stack; Apply writes to COLFile
+- `_push_undo` / `_undo_last_action` v2 on COLWorkshop (deep-copy model)
+- Surface Edit button now opens COLMeshEditor (was "coming soon")
+
+### Build 136 — Fix all missing connected methods across codebase
+- Full scan: all 221 files clean, no missing methods, no syntax errors
+- `imgfactory.py`: `rebuild_img/fast_rebuild/quick_rebuild/safe_rebuild` delegate
+  to `apps/core/rebuild.py`; `rebuild_all_img` placeholder; `toggle_debug_mode`
+- `gta_file_editors.py` (`IDEFileEditor`): `reload_file/save_file/find_text` real
+  implementations; 6 pass stubs
+- `Map_Workshop.py` (`MainGUI`): 64 pass stubs for TXD-style methods
+- `gui_layout_custom.py`, `gui_menu.py`, `tear_off.py`, `app_settings_system.py`,
+  `gui_template.py`: stubs added
+
 
 ## March 2026 — COL Workshop viewport, panel collapse, TXD button layout
 
