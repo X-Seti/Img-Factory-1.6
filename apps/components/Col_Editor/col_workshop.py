@@ -5725,6 +5725,17 @@ class COLWorkshop(QWidget): #vers 3
             # Get selected model
             model = self.current_col_file.models[model_index]
             model_name = getattr(model, 'name', f'Model_{model_index}')
+            # Debug: print what's actually in the model
+            _b = getattr(model,'boxes',[])
+            _s = getattr(model,'spheres',[])
+            _v = getattr(model,'vertices',[])
+            _f = getattr(model,'faces',[])
+            print(f"DEBUG model={model_name}: V={len(_v)} F={len(_f)} B={len(_b)} S={len(_s)}")
+            if _b:
+                b0=_b[0]
+                mn=getattr(b0,'min_point',getattr(b0,'min',None))
+                mx=getattr(b0,'max_point',getattr(b0,'max',None))
+                print(f"  box[0]: min={mn!r} max={mx!r}")
 
             # Update info display
             if hasattr(self, 'info_name'):
