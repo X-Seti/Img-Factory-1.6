@@ -686,81 +686,6 @@ class COL3DViewport(QWidget): #vers 2
         return None
 VIEWPORT_AVAILABLE = True
 
-class COLCompactDelegate(QStyledItemDelegate): #vers 1
-    """Paints = view rows: name | COL type badge | V/F/S/B icon badges."""
-    def paint(self, painter, option, index):
-        from PyQt6.QtGui import QColor, QFont, QPen, QBrush, QPolygonF
-        from PyQt6.QtCore import QPointF, QRectF
-        if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, option.palette.highlight())
-        else:
-            bg = QColor(30,32,42) if index.row()%2==0 else QColor(26,28,38)
-            painter.fillRect(option.rect, bg)
-        model = index.data(Qt.ItemDataRole.UserRole)
-        if not model: return
-        painter.save()
-        painter.setRenderHint(painter.RenderHints.__class__(1))  # Antialiasing=1
-        painter.setClipRect(option.rect)
-        r=option.rect; x=r.left()+4; h=r.height(); cy=r.top()+h//2; width=r.width()
-        name    = getattr(model,'name','') or 'model'
-        ver     = getattr(model,'version',None)
-        ver_str = ver.name if hasattr(ver,'name') else str(ver) if ver else '?'
-        ver_s   = ver_str.replace('COL_','COL').replace('COLVersion.','')
-        verts   = len(getattr(model,'vertices',[]))
-        faces   = len(getattr(model,'faces',   []))
-        spheres = len(getattr(model,'spheres', []))
-        boxes   = len(getattr(model,'boxes',   []))
-        sel = bool(option.state & QStyle.StateFlag.State_Selected)
-        tc = QColor(255,255,255) if sel else QColor(220,220,220)
-        # Name
-        name_w = width - 172
-        painter.setFont(QFont('Arial',9,QFont.Weight.Bold))
-        painter.setPen(tc)
-        painter.drawText(QRectF(x,r.top(),name_w,h),
-                         Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter, name)
-        # COL type badge
-        tx=x+name_w+2; tw=34
-        tc2={'COL1':QColor(100,160,220),'COL2':QColor(100,200,100),
-             'COL3':QColor(220,180,50),'COL4':QColor(200,100,200)}.get(ver_s,QColor(140,140,140))
-        painter.setBrush(QBrush(QColor(tc2.red(),tc2.green(),tc2.blue(),50)))
-        painter.setPen(QPen(tc2,1))
-        painter.drawRoundedRect(QRectF(tx,cy-9,tw,18),3,3)
-        painter.setFont(QFont('Arial',7,QFont.Weight.Bold))
-        painter.setPen(tc2)
-        painter.drawText(QRectF(tx,cy-9,tw,18),Qt.AlignmentFlag.AlignCenter,ver_s)
-        # 4 badges
-        stats=[('verts',verts,QColor(100,200,120)),('faces',faces,QColor(100,160,220)),
-               ('spheres',spheres,QColor(80,210,230)),('boxes',boxes,QColor(220,180,50))]
-        bx0=tx+tw+4; bw=max((r.right()-bx0-4)//4, 30)
-        for idx,(kind,count,color) in enumerate(stats):
-            bx=bx0+idx*bw; ix=bx+9; iy=cy
-            painter.setPen(QPen(color,1.2))
-            painter.setBrush(QBrush(QColor(color.red(),color.green(),color.blue(),50)))
-            if kind=='verts':
-                for ox2,oy2 in[(-3,-4),(3,-4),(0,3)]:
-                    painter.drawEllipse(QRectF(ix+ox2-2,iy+oy2-2,5,5))
-            elif kind=='faces':
-                painter.drawPolygon(QPolygonF([QPointF(ix,iy-6),QPointF(ix+6,iy+5),QPointF(ix-6,iy+5)]))
-            elif kind=='spheres':
-                painter.drawEllipse(QRectF(ix-6,iy-6,12,12))
-                painter.setPen(QPen(color.lighter(140),0.8))
-                painter.drawArc(int(ix-6),int(iy-2),12,5,0,180*16)
-            elif kind=='boxes':
-                painter.drawRect(QRectF(ix-5,iy-4,9,9))
-                painter.setPen(QPen(color,1.2))
-                painter.drawPolygon(QPolygonF([QPointF(ix-5,iy-4),QPointF(ix-2,iy-8),
-                                               QPointF(ix+7,iy-8),QPointF(ix+4,iy-4)]))
-                painter.drawLine(QPointF(ix+4,iy-4),QPointF(ix+4,iy+5))
-            painter.setPen(color)
-            painter.setFont(QFont('Arial',8,QFont.Weight.Bold))
-            painter.drawText(QRectF(ix+9,cy-8,bw-12,16),
-                             Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter,str(count))
-        painter.restore()
-
-    def sizeHint(self, option, index):
-        return QSize(option.rect.width(), 38)
-
-
 # Add root directory to path
 App_name = "Col Workshop"
 DEBUG_STANDALONE = False
@@ -1318,14 +1243,16 @@ class COLWorkshop(QWidget): #vers 3
         if not self.current_col_file:
             return
         models = getattr(self.current_col_file, 'models', [])
-        # Compact list — regenerate stats pixmap (no thumbnail in = view)
-        W = max(self.col_compact_list.width() - 4, 260)
+        # Compact list
         for row in range(self.col_compact_list.rowCount()):
             item = self.col_compact_list.item(row, 0)
             if item and row < len(models):
-                pm = self._make_stats_pixmap(models[row], width=W, height=36)
-                item.setData(Qt.ItemDataRole.DecorationRole, pm)
-        # Detail list (T view) — regenerate thumbnails
+                thumb = self._generate_collision_thumbnail(
+                    models[row], 64, 64,
+                    yaw=self._thumb_yaw, pitch=self._thumb_pitch)
+                item.setData(Qt.ItemDataRole.DecorationRole, thumb)
+                item.setData(Qt.ItemDataRole.UserRole + 1, True)
+        # Detail list
         for row in range(self.collision_list.rowCount()):
             item = self.collision_list.item(row, 0)
             if item and row < len(models):
@@ -3311,8 +3238,8 @@ class COLWorkshop(QWidget): #vers 3
 
         # ── Compact list (thumbnail + name/version/counts, single row) ───
         self.col_compact_list = QTableWidget()
-        self.col_compact_list.setColumnCount(1)
-        self.col_compact_list.horizontalHeader().setVisible(False)
+        self.col_compact_list.setColumnCount(2)
+        self.col_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
         self.col_compact_list.horizontalHeader().setStretchLastSection(True)
         self.col_compact_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
@@ -4774,131 +4701,55 @@ class COLWorkshop(QWidget): #vers 3
             self.col_view_toggle_btn.setText("[T]")
             self.col_view_toggle_btn.setToolTip("Switch to compact thumbnail view")
 
-    def _make_stats_pixmap(self, model, width=260, height=40): #vers 2
-        """Single-row: model name | col type | V/F/S/B icon badges."""
-        from PyQt6.QtGui import (QPixmap, QPainter, QColor, QFont,
-                                  QPen, QBrush, QPolygonF)
-        from PyQt6.QtCore import QPointF, QRectF
-
-        pm = QPixmap(width, height)
-        pm.fill(QColor(0, 0, 0, 0))
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        name    = getattr(model, 'name', '') or 'model'
-        ver     = getattr(model, 'version', None)
-        ver_str = ver.name if hasattr(ver,'name') else str(ver) if ver else '?'
-        # Shorten version string: COL_1->COL1 etc
-        ver_short = ver_str.replace('COL_','COL').replace('COLVersion.','')
-        verts   = len(getattr(model, 'vertices', []))
-        faces   = len(getattr(model, 'faces',    []))
-        spheres = len(getattr(model, 'spheres',  []))
-        boxes   = len(getattr(model, 'boxes',    []))
-
-        cy = height // 2   # vertical centre
-
-        # ── Model name ─────────────────────────────────────────────────────
-        name_w = width - 200
-        p.setFont(QFont('Arial', 9, QFont.Weight.Bold))
-        p.setPen(QColor(220, 220, 220))
-        p.drawText(QRectF(4, 0, name_w, height),
-                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, name)
-
-        # ── Col type badge ─────────────────────────────────────────────────
-        tag_x = name_w + 4
-        tag_w = 36
-        tag_col = {
-            'COL1': QColor(100,160,220), 'COL2': QColor(120,200,120),
-            'COL3': QColor(220,180, 60), 'COL4': QColor(200,100,200),
-        }.get(ver_short, QColor(160,160,160))
-        p.setBrush(QBrush(QColor(tag_col.red(), tag_col.green(), tag_col.blue(), 50)))
-        p.setPen(QPen(tag_col, 1))
-        p.drawRoundedRect(QRectF(tag_x, cy-9, tag_w, 18), 3, 3)
-        p.setFont(QFont('Arial', 7, QFont.Weight.Bold))
-        p.setPen(tag_col)
-        p.drawText(QRectF(tag_x, cy-9, tag_w, 18),
-                   Qt.AlignmentFlag.AlignCenter, ver_short)
-
-        # ── 4 icon badges ──────────────────────────────────────────────────
-        stats = [
-            ('verts',   verts,   QColor(100,200,120)),
-            ('faces',   faces,   QColor(100,160,220)),
-            ('spheres', spheres, QColor( 80,210,230)),
-            ('boxes',   boxes,   QColor(220,180, 50)),
-        ]
-        badge_w = 38
-        bx0 = tag_x + tag_w + 4
-
-        for idx, (kind, count, color) in enumerate(stats):
-            bx = bx0 + idx * badge_w
-            ix = bx + 10   # icon centre x
-            iy = cy         # icon centre y
-
-            p.setPen(QPen(color, 1.2))
-            p.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 50)))
-
-            # Mini icon (12px)
-            if kind == 'verts':
-                for ox2,oy2 in [(-3,-3),(3,-3),(0,4)]:
-                    p.drawEllipse(QRectF(ix+ox2-2, iy+oy2-2, 4, 4))
-            elif kind == 'faces':
-                tri = QPolygonF([QPointF(ix,iy-6),QPointF(ix+6,iy+5),QPointF(ix-6,iy+5)])
-                p.drawPolygon(tri)
-            elif kind == 'spheres':
-                p.drawEllipse(QRectF(ix-6,iy-6,12,12))
-                p.setPen(QPen(color.lighter(140),0.8))
-                p.drawArc(int(ix-6),int(iy-2),12,5,0,180*16)
-            elif kind == 'boxes':
-                p.drawRect(QRectF(ix-5,iy-4,9,9))
-                top = QPolygonF([QPointF(ix-5,iy-4),QPointF(ix-2,iy-8),
-                                  QPointF(ix+7,iy-8),QPointF(ix+4,iy-4)])
-                p.drawPolygon(top)
-                p.drawLine(QPointF(ix+4,iy-4),QPointF(ix+4,iy+5))
-
-            # Count to the right of icon
-            p.setPen(color)
-            p.setFont(QFont('Arial', 8, QFont.Weight.Bold))
-            p.drawText(QRectF(ix+8, cy-8, badge_w-12, 16),
-                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                       str(count))
-
-        p.end()
-        return pm
-
-    def _populate_compact_col_list(self): #vers 4
-        """= view: single column — name | coltype | V/F/S/B badges. No thumbnail."""
+    def _populate_compact_col_list(self): #vers 1
+        """Fill compact two-column list (icon + name/version/counts)."""
         try:
             self.col_compact_list.setRowCount(0)
-            if not isinstance(self.col_compact_list.itemDelegateForColumn(0), COLCompactDelegate):
-                self.col_compact_list.setItemDelegateForColumn(0, COLCompactDelegate(self))
             models = getattr(self.current_col_file, 'models', [])
             for i, model in enumerate(models):
                 self.col_compact_list.insertRow(i)
-                item = QTableWidgetItem()
-                item.setData(Qt.ItemDataRole.UserRole, model)
-                name    = getattr(model,'name','') or 'model'
-                ver     = getattr(model,'version',None)
-                ver_str = ver.name if hasattr(ver,'name') else str(ver) if ver else '?'
-                tip = (name + "  (" + ver_str + ")"
-                       + "  V:" + str(len(getattr(model,'vertices',[])))
-                       + "  F:" + str(len(getattr(model,'faces',[])))
-                       + "  S:" + str(len(getattr(model,'spheres',[])))
-                       + "  B:" + str(len(getattr(model,'boxes',[]))))
-                item.setToolTip(tip)
-                self.col_compact_list.setItem(i, 0, item)
-                self.col_compact_list.setRowHeight(i, 38)
-            self.col_compact_list.horizontalHeader().setStretchLastSection(True)
+
+                # Col 0: real collision thumbnail
+                icon_item = QTableWidgetItem()
+                pm = self._generate_collision_thumbnail(model, 64, 64,
+                                yaw=self._thumb_yaw, pitch=self._thumb_pitch)
+                icon_item.setData(Qt.ItemDataRole.DecorationRole, pm)
+                self.col_compact_list.setItem(i, 0, icon_item)
+
+                # Col 1: name + stats
+                name = getattr(model, 'name', '') or f'model_{i}'
+                ver  = getattr(model, 'version', None)
+                ver_str = ver.name if hasattr(ver, 'name') else str(ver) if ver else '?'
+                spheres = len(getattr(model, 'spheres',  []))
+                boxes   = len(getattr(model, 'boxes',    []))
+                verts   = len(getattr(model, 'vertices', []))
+                faces   = len(getattr(model, 'faces',    []))
+
+                line1 = name
+                line2 = "Version: " + ver_str
+                line3 = "Spheres: " + str(spheres) + "  Boxes: " + str(boxes)
+                line4 = "Verts: "   + str(verts)   + "  Faces: " + str(faces)
+                details = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4
+
+                det_item = QTableWidgetItem(details)
+                det_item.setToolTip(details)
+                self.col_compact_list.setItem(i, 1, det_item)
+                self.col_compact_list.setRowHeight(i, 72)
+
+            self.col_compact_list.setColumnWidth(0, 72)
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
-    def _on_compact_col_selected(self): #vers 2
-        """Handle compact list selection — get model directly by row index."""
+    def _on_compact_col_selected(self): #vers 1
+        """Sync compact list selection to detail table."""
         try:
             rows = self.col_compact_list.selectionModel().selectedRows()
             if not rows:
                 return
             row = rows[0].row()
-            self._select_model_by_row(row)
+            if row < self.collision_list.rowCount():
+                self.collision_list.selectRow(row)
+            self._on_collision_selected()
         except Exception as e:
             print("_on_compact_col_selected error: " + str(e))
 
@@ -5845,76 +5696,76 @@ class COLWorkshop(QWidget): #vers 3
         painter.end()
         return pixmap
 
-    def _on_collision_selected(self): #vers 7
-        """Handle detail table row selection."""
+    def _on_collision_selected(self): #vers 6
+        """Handle COL model selection from table"""
         try:
-            rows = self.collision_list.selectionModel().selectedRows()
-            if not rows:
+            selected_rows = self.collision_list.selectionModel().selectedRows()
+            if not selected_rows:
+                print("No rows selected")
                 return
-            self._select_model_by_row(rows[0].row())
-        except Exception as e:
-            print(f"_on_collision_selected error: {e}")
 
-    def _on_compact_col_selected(self): #vers 2
-        """Handle compact list row selection."""
-        try:
-            rows = self.col_compact_list.selectionModel().selectedRows()
-            if not rows:
+            row = selected_rows[0].row()
+            details_item = self.collision_list.item(row, 1)
+
+            if not details_item:
+                print("No details item found")
                 return
-            self._select_model_by_row(rows[0].row())
-        except Exception as e:
-            print(f"_on_compact_col_selected error: {e}")
 
-    def _select_model_by_row(self, row): #vers 1
-        """Select model by row index — works regardless of which list is visible."""
-        try:
+            model_index = details_item.data(Qt.ItemDataRole.UserRole)
+            print(f"Selected row {row}, model index {model_index}")
+
             if not self.current_col_file or not hasattr(self.current_col_file, 'models'):
+                print("No COL file or models")
                 return
-            models = self.current_col_file.models
-            if row < 0 or row >= len(models):
-                return
-            model = models[row]
-            model_name = getattr(model, 'name', f'Model_{row}')
 
-            # Debug
-            _b = getattr(model,'boxes',[]); _s = getattr(model,'spheres',[])
-            _v = getattr(model,'vertices',[]); _f = getattr(model,'faces',[])
-            print(f"SELECT model={model_name}: V={len(_v)} F={len(_f)} "
-                  f"B={len(_b)} S={len(_s)}")
+            if model_index is None or model_index < 0 or model_index >= len(self.current_col_file.models):
+                print(f"Invalid model index: {model_index}")
+                return
+
+            # Get selected model
+            model = self.current_col_file.models[model_index]
+            model_name = getattr(model, 'name', f'Model_{model_index}')
+            # Debug: print what's actually in the model
+            _b = getattr(model,'boxes',[])
+            _s = getattr(model,'spheres',[])
+            _v = getattr(model,'vertices',[])
+            _f = getattr(model,'faces',[])
+            print(f"DEBUG model={model_name}: V={len(_v)} F={len(_f)} B={len(_b)} S={len(_s)}")
             if _b:
-                b0 = _b[0]
-                mn = getattr(b0,'min_point', getattr(b0,'min', None))
-                mx = getattr(b0,'max_point', getattr(b0,'max', None))
-                print(f"  box[0] min={mn!r} type={type(mn).__name__}")
+                b0=_b[0]
+                mn=getattr(b0,'min_point',getattr(b0,'min',None))
+                mx=getattr(b0,'max_point',getattr(b0,'max',None))
+                print(f"  box[0]: min={mn!r} max={mx!r}")
 
-            # Update name field
+            # Update info display
             if hasattr(self, 'info_name'):
                 self.info_name.setText(model_name)
 
-            # Lazy thumbnail for detail list
+            # Render thumbnail on first selection (lazy mode for large files)
             thumb_item = self.collision_list.item(row, 0)
             if thumb_item and not thumb_item.data(Qt.ItemDataRole.UserRole + 1):
                 thumbnail = self._generate_collision_thumbnail(model, 64, 64)
                 thumb_item.setData(Qt.ItemDataRole.DecorationRole, thumbnail)
                 thumb_item.setData(Qt.ItemDataRole.UserRole + 1, True)
 
-            # Update main preview
+            # Update preview widget
             if hasattr(self, 'preview_widget'):
                 if VIEWPORT_AVAILABLE and isinstance(self.preview_widget, COL3DViewport):
-                    self.preview_widget.set_current_model(model, row)
+                    self.preview_widget.set_current_model(model, model_index)
                 else:
-                    w = max(400, self.preview_widget.width())
-                    h = max(400, self.preview_widget.height())
-                    pix = self._render_collision_preview(model, w, h)
-                    self.preview_widget.setPixmap(pix)
+                    width  = max(400, self.preview_widget.width())
+                    height = max(400, self.preview_widget.height())
+                    preview_pixmap = self._render_collision_preview(model, width, height)
+                    self.preview_widget.setPixmap(preview_pixmap)
                     self.preview_widget.setScaledContents(False)
 
-            # Start thumbnail spin
+            # Start thumbnail spin for selected model (geometry only)
             self._start_thumbnail_spin(row, model)
 
         except Exception as e:
-            print(f"_select_model_by_row error: {e}")
-            import traceback; traceback.print_exc()
+            print(f"Error selecting model: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
     def _show_collision_context_menu(self, position): #vers 4
