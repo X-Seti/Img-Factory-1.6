@@ -74,20 +74,30 @@ MATERIAL_COLORS = {
 class COLMeshEditorViewport(QWidget): #vers 1
     """Mini 2D viewport for the mesh editor — shows faces with selection highlight."""
 
+    # Signal to editor that selection changed from viewport click
+    # (can't use pyqtSignal on plain QWidget without full class boilerplate,
+    #  so we use a callback instead)
+    on_selection_changed = None   # set by COLMeshEditor at creation
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(180, 180)
         self._model        = None
-        self._sel_faces    = set()   # selected face indices
-        self._sel_verts    = set()   # selected vertex indices
+        self._sel_faces    = set()
+        self._sel_verts    = set()
         self._yaw          = 30.0
         self._pitch        = 20.0
         self._zoom         = 1.0
         self._pan_x        = 0.0
         self._pan_y        = 0.0
         self._drag         = None
+        self._proj_cache   = []    # [(sx,sy)] per vertex, rebuilt each paint
+        self._face_centres = []    # [(sx,sy)] per face centre, rebuilt each paint
         self.setStyleSheet("background-color: #14141e;")
         self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
 
     def set_model(self, model):
         self._model = model
@@ -104,8 +114,44 @@ class COLMeshEditorViewport(QWidget): #vers 1
         self.update()
 
     def mousePressEvent(self, event):
-        self._drag = event.position()
-        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        import math
+        mx, my = event.position().x(), event.position().y()
+        ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Hit-test vertices first (smaller targets), then faces
+            hit_vert = self._hit_vert(mx, my)
+            hit_face = self._hit_face(mx, my) if hit_vert is None else None
+
+            if hit_vert is not None:
+                if ctrl:
+                    self._sel_verts ^= {hit_vert}   # toggle
+                else:
+                    self._sel_verts = {hit_vert}
+                    self._sel_faces.clear()
+            elif hit_face is not None:
+                if ctrl:
+                    self._sel_faces ^= {hit_face}
+                else:
+                    self._sel_faces = {hit_face}
+                    self._sel_verts.clear()
+            else:
+                if not ctrl:
+                    self._sel_faces.clear()
+                    self._sel_verts.clear()
+
+            self.update()
+            if self.on_selection_changed:
+                self.on_selection_changed(self._sel_faces, self._sel_verts)
+            self._drag = event.position()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            self._drag = event.position()
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
+
+        elif event.button() == Qt.MouseButton.RightButton:
+            self._drag = event.position()
 
     def mouseMoveEvent(self, event):
         if self._drag:
@@ -113,7 +159,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
             if event.buttons() & Qt.MouseButton.RightButton:
                 self._yaw   = (self._yaw + d.x() * 0.5) % 360
                 self._pitch = max(-89, min(89, self._pitch + d.y() * 0.5))
-            else:
+            elif event.buttons() & (Qt.MouseButton.LeftButton | Qt.MouseButton.MiddleButton):
                 self._pan_x += d.x()
                 self._pan_y += d.y()
             self._drag = event.position()
@@ -122,6 +168,67 @@ class COLMeshEditorViewport(QWidget): #vers 1
     def mouseReleaseEvent(self, event):
         self._drag = None
         self.setCursor(Qt.CursorShape.OpenHandCursor)
+
+    def _hit_vert(self, mx, my, radius=8):
+        """Return vertex index under (mx,my) or None."""
+        import math
+        best, best_d = None, radius
+        for i, (sx, sy) in enumerate(self._proj_cache):
+            d = math.hypot(mx-sx, my-sy)
+            if d < best_d:
+                best_d, best = d, i
+        return best
+
+    def _hit_face(self, mx, my):
+        """Return face index whose 2D triangle contains (mx,my) or None."""
+        verts = getattr(self._model, 'vertices', [])
+        faces = getattr(self._model, 'faces', [])
+        cache = self._proj_cache
+        if not cache: return None
+
+        def sign(ax,ay,bx,by,cx,cy):
+            return (ax-cx)*(by-cy) - (bx-cx)*(ay-cy)
+
+        # Test in reverse order so topmost (drawn last) wins
+        for fi in range(len(faces)-1, -1, -1):
+            face = faces[fi]
+            a,b,c = face.a, face.b, face.c
+            if a>=len(cache) or b>=len(cache) or c>=len(cache): continue
+            ax,ay=cache[a]; bx,by=cache[b]; cx2,cy2=cache[c]
+            d1=sign(mx,my,ax,ay,bx,by)
+            d2=sign(mx,my,bx,by,cx2,cy2)
+            d3=sign(mx,my,cx2,cy2,ax,ay)
+            has_neg=(d1<0) or (d2<0) or (d3<0)
+            has_pos=(d1>0) or (d2>0) or (d3>0)
+            if not (has_neg and has_pos):
+                return fi
+        return None
+
+    def _show_context_menu(self, pos):
+        """Right-click context menu in viewport."""
+        from PyQt6.QtWidgets import QMenu
+        editor = self.parent()
+        while editor and not isinstance(editor, COLMeshEditor):
+            editor = editor.parent() if hasattr(editor, 'parent') else None
+        if not editor: return
+
+        menu = QMenu(self)
+        n_f = len(self._sel_faces)
+        n_v = len(self._sel_verts)
+
+        if n_f:
+            menu.addAction(f"Delete {n_f} face(s)  [Del]",   editor._delete_faces)
+            menu.addAction(f"Flip {n_f} face(s)",            lambda: editor._flip_faces(self._sel_faces))
+            menu.addAction("Select Connected",               lambda: editor._select_connected(self._sel_faces))
+            menu.addSeparator()
+        if n_v:
+            menu.addAction(f"Delete {n_v} vert(s)  [Del]",  editor._delete_verts)
+            menu.addSeparator()
+        menu.addAction("Select All  [Ctrl+A]",   editor._select_all)
+        menu.addAction("Deselect All",            editor._deselect_all)
+        menu.addSeparator()
+        menu.addAction("Merge Close Vertices…",  editor._merge_verts_dialog)
+        menu.exec(self.mapToGlobal(pos))
 
     def wheelEvent(self, event):
         f = 1.15 if event.angleDelta().y() > 0 else 1/1.15
@@ -169,6 +276,9 @@ class COLMeshEditorViewport(QWidget): #vers 1
 
             def scx(i): return pts2d[i][0]*scale + ox
             def scy(i): return pts2d[i][1]*scale + oy
+
+            # Cache screen coords for hit-testing
+            self._proj_cache = [(scx(i), scy(i)) for i in range(len(verts))]
 
             extent = max(max(abs(v.x) for v in verts),
                          max(abs(v.y) for v in verts),
@@ -265,13 +375,15 @@ class COLMeshEditor(QDialog): #vers 1
         # Deep-copy so edits don't affect original until Apply
         self._model = copy.deepcopy(
             workshop.current_col_file.models[model_index])
-        self._undo_stack = []   # local undo stack (list of deep-copied models)
+        self._undo_stack = []
         self._dirty = False
 
         self.setWindowTitle(f"Mesh Editor — {getattr(self._model.header, 'name', 'Model')}")
-        self.setMinimumSize(900, 560)
-        self.resize(1000, 620)
+        self.setMinimumSize(960, 580)
+        self.resize(1100, 660)
         self._build_ui()
+        # Wire viewport selection callback after UI exists
+        self.viewport.on_selection_changed = self._on_viewport_selection
         self._populate_all()
 
     # ── UI construction ───────────────────────────────────────────────────
@@ -316,8 +428,10 @@ class COLMeshEditor(QDialog): #vers 1
 
         # ── Bottom buttons ────────────────────────────────────────────────
         bot = QHBoxLayout()
-        self._undo_btn = self._btn(bot, "↩ Undo", self._undo)
+        self._undo_btn = self._btn(bot, "↩ Undo  [Ctrl+Z]", self._undo)
         self._undo_btn.setEnabled(False)
+        self._btn(bot, "Select All  [Ctrl+A]", self._select_all)
+        self._btn(bot, "Deselect  [Ctrl+D]",   self._deselect_all)
         bot.addStretch()
         self._btn(bot, "Apply & Close", self._apply_and_close)
         self._btn(bot, "Close",         self.reject)
@@ -341,8 +455,10 @@ class COLMeshEditor(QDialog): #vers 1
         self.face_table.itemChanged.connect(self._on_face_cell_changed)
         fl.addWidget(self.face_table)
         fb = QHBoxLayout()
-        self._btn(fb, "Add Face",    self._add_face)
-        self._btn(fb, "Delete Face", self._delete_faces)
+        self._btn(fb, "Add Face",         self._add_face)
+        self._btn(fb, "Delete  [Del]",    self._delete_faces)
+        self._btn(fb, "Flip Normal",      self._flip_faces)
+        self._btn(fb, "Select Connected", self._select_connected)
         fl.addLayout(fb)
         inner.addWidget(face_grp)
 
@@ -359,8 +475,9 @@ class COLMeshEditor(QDialog): #vers 1
         self.vert_table.itemChanged.connect(self._on_vert_cell_changed)
         vl.addWidget(self.vert_table)
         vb = QHBoxLayout()
-        self._btn(vb, "Delete Vertex",  self._delete_verts)
+        self._btn(vb, "Delete  [Del]",  self._delete_verts)
         self._btn(vb, "Remove Orphans", self._remove_orphan_verts)
+        self._btn(vb, "Merge Close…",   self._merge_verts_dialog)
         vl.addLayout(vb)
         inner.addWidget(vert_grp)
         inner.setSizes([240,200])
@@ -943,6 +1060,182 @@ class COLMeshEditor(QDialog): #vers 1
             bounds.max=Vector3(max_x,max_y,max_z)
         self._populate_bounds(); self._set_dirty()
         self._status.setText(f"Bounds recalculated: r={r:.3f} centre=({cx:.2f},{cy:.2f},{cz:.2f})")
+
+    # ── Keyboard shortcuts ───────────────────────────────────────────────
+
+    def keyPressEvent(self, event):
+        key  = event.key()
+        ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        if key == Qt.Key.Key_Delete or key == Qt.Key.Key_Backspace:
+            # Delete whatever is selected in the active tab
+            tab = self.tabs.currentIndex()
+            if tab == 0:   # Mesh
+                if self.viewport._sel_faces:
+                    self._delete_faces()
+                elif self.viewport._sel_verts:
+                    self._delete_verts()
+            elif tab == 1: self._delete_boxes()
+            elif tab == 2: self._delete_spheres()
+        elif ctrl and key == Qt.Key.Key_A:
+            self._select_all()
+        elif ctrl and key == Qt.Key.Key_Z:
+            self._undo()
+        elif ctrl and key == Qt.Key.Key_D:
+            self._deselect_all()
+        else:
+            super().keyPressEvent(event)
+
+    # ── Selection sync viewport ↔ tables ──────────────────────────────────
+
+    def _on_viewport_selection(self, sel_faces, sel_verts):
+        """Called when user clicks a face/vert in the viewport."""
+        # Sync face table
+        self.face_table.blockSignals(True)
+        self.face_table.clearSelection()
+        for fi in sel_faces:
+            if fi < self.face_table.rowCount():
+                self.face_table.selectRow(fi)
+                self.face_table.scrollToItem(self.face_table.item(fi,0))
+        self.face_table.blockSignals(False)
+        # Sync vert table
+        self.vert_table.blockSignals(True)
+        self.vert_table.clearSelection()
+        for vi in sel_verts:
+            if vi < self.vert_table.rowCount():
+                self.vert_table.selectRow(vi)
+                self.vert_table.scrollToItem(self.vert_table.item(vi,0))
+        self.vert_table.blockSignals(False)
+
+    def _on_face_selection(self):
+        rows = {idx.row() for idx in self.face_table.selectedIndexes()}
+        self.viewport.set_selected_faces(rows)
+        verts = set()
+        faces = getattr(self._model, 'faces', [])
+        for r in rows:
+            if r < len(faces):
+                f = faces[r]
+                verts.update([f.a, f.b, f.c])
+        self.viewport.set_selected_verts(verts)
+
+    def _on_vert_selection(self):
+        rows = {idx.row() for idx in self.vert_table.selectedIndexes()}
+        self.viewport.set_selected_verts(rows)
+
+    def _select_all(self):
+        tab = self.tabs.currentIndex()
+        if tab == 0:
+            self.face_table.selectAll()
+        elif tab == 1:
+            self.box_table.selectAll()
+        elif tab == 2:
+            self.sphere_table.selectAll()
+
+    def _deselect_all(self):
+        self.face_table.clearSelection()
+        self.vert_table.clearSelection()
+        self.viewport.set_selected_faces(set())
+        self.viewport.set_selected_verts(set())
+
+    # ── Flip faces ────────────────────────────────────────────────────────
+
+    def _flip_faces(self, face_indices=None):
+        """Reverse winding order of selected faces (flips normal direction)."""
+        faces = getattr(self._model, 'faces', [])
+        targets = face_indices if face_indices is not None else                   {idx.row() for idx in self.face_table.selectedIndexes()}
+        if not targets:
+            self._status.setText("Select faces to flip first.")
+            return
+        self._push_undo(f"Flip {len(targets)} face(s)")
+        for fi in targets:
+            if fi < len(faces):
+                f = faces[fi]
+                f.b, f.c = f.c, f.b   # swap B and C reverses winding
+        self._populate_faces()
+        self.viewport.update()
+        self._set_dirty()
+        self._status.setText(f"Flipped {len(targets)} face(s).")
+
+    # ── Select connected ──────────────────────────────────────────────────
+
+    def _select_connected(self, seed_faces=None):
+        """Select all faces sharing at least one vertex with seed faces."""
+        faces = getattr(self._model, 'faces', [])
+        if seed_faces is None:
+            seed_faces = {idx.row() for idx in self.face_table.selectedIndexes()}
+        if not seed_faces:
+            self._status.setText("Select at least one face first.")
+            return
+        # BFS from seed vertex set
+        frontier = set()
+        for fi in seed_faces:
+            if fi < len(faces):
+                f = faces[fi]
+                frontier.update([f.a, f.b, f.c])
+        connected = set(seed_faces)
+        changed = True
+        while changed:
+            changed = False
+            for fi, f in enumerate(faces):
+                if fi not in connected and {f.a,f.b,f.c} & frontier:
+                    connected.add(fi)
+                    frontier.update([f.a,f.b,f.c])
+                    changed = True
+        # Apply selection
+        self.face_table.blockSignals(True)
+        self.face_table.clearSelection()
+        for fi in connected:
+            if fi < self.face_table.rowCount():
+                self.face_table.selectRow(fi)
+        self.face_table.blockSignals(False)
+        self.viewport.set_selected_faces(connected)
+        self._status.setText(f"Selected {len(connected)} connected face(s).")
+
+    # ── Merge close vertices ──────────────────────────────────────────────
+
+    def _merge_verts_dialog(self):
+        from PyQt6.QtWidgets import QInputDialog
+        thresh, ok = QInputDialog.getDouble(
+            self, "Merge Vertices",
+            "Merge vertices closer than (world units):",
+            value=0.01, min=0.0001, max=100.0, decimals=4)
+        if not ok: return
+        self._merge_close_verts(thresh)
+
+    def _merge_close_verts(self, threshold):
+        """Weld all vertices within threshold distance — remaps face indices."""
+        import math
+        verts = getattr(self._model, 'vertices', [])
+        faces = getattr(self._model, 'faces', [])
+        if not verts: return
+        self._push_undo("Merge vertices")
+        # Build mapping: old_idx → canonical_idx
+        remap = list(range(len(verts)))
+        for i in range(len(verts)):
+            for j in range(i):
+                if remap[i] == i:   # not yet remapped
+                    vi, vj = verts[i], verts[remap[j]]
+                    d = math.sqrt((vi.x-vj.x)**2+(vi.y-vj.y)**2+(vi.z-vj.z)**2)
+                    if d <= threshold:
+                        remap[i] = remap[j]
+        # Compact: build new vert list and final remap
+        kept_indices = sorted(set(remap))
+        old_to_new = {old: new for new, old in enumerate(kept_indices)}
+        new_verts = [verts[i] for i in kept_indices]
+        for face in faces:
+            face.a = old_to_new[remap[face.a]]
+            face.b = old_to_new[remap[face.b]]
+            face.c = old_to_new[remap[face.c]]
+        # Remove degenerate faces (a==b or b==c or a==c)
+        before = len(faces)
+        self._model.faces = [f for f in faces if len({f.a,f.b,f.c})==3]
+        self._model.vertices = new_verts
+        removed_v = len(verts) - len(new_verts)
+        removed_f = before - len(self._model.faces)
+        self._populate_all()
+        self._set_dirty()
+        self._status.setText(
+            f"Merged: removed {removed_v} vert(s), {removed_f} degenerate face(s). "
+            f"Threshold: {threshold:.4f}")
 
     def _apply_and_close(self):
         """Write edited model back to the COL file and push to workshop undo."""
