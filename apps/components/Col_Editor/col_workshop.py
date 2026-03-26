@@ -382,7 +382,13 @@ class COL3DViewport(QWidget): #vers 2
         if   event.key() == Qt.Key.Key_G: self._set_gizmo('translate')
         elif event.key() == Qt.Key.Key_R: self._set_gizmo('rotate')
         elif event.key() == Qt.Key.Key_F: self.fit_to_window()
+        elif event.key() == Qt.Key.Key_V: self._cycle_render_style()
         else: super().keyPressEvent(event)
+
+    def _cycle_render_style(self):
+        modes = ['wireframe','semi','solid']
+        self._render_style = modes[(modes.index(self._render_style)+1) % 3]                              if self._render_style in modes else 'semi'
+        self.update()
 
     def contextMenuEvent(self, event):
         from PyQt6.QtWidgets import QMenu
@@ -397,6 +403,12 @@ class COL3DViewport(QWidget): #vers 2
         m.addSeparator()
         m.addAction("Move Gizmo  [G]",   lambda: self._set_gizmo('translate'))
         m.addAction("Rotate Gizmo [R]",  lambda: self._set_gizmo('rotate'))
+        m.addSeparator()
+        for style,label in [('wireframe','Wireframe [V]'),
+                             ('semi',     'Semi-transparent [V]'),
+                             ('solid',    'Solid [V]')]:
+            tick = '✓ ' if self._render_style == style else '    '
+            m.addAction(tick+label, lambda s=style: self.set_render_style(s))
         m.exec(event.globalPos())
 
     def _set_angles(self, yaw, pitch):
@@ -404,18 +416,17 @@ class COL3DViewport(QWidget): #vers 2
 
     # ── paint ─────────────────────────────────────────────────────────────
     def paintEvent(self, event):
-        """Fully self-contained paint — no workshop dependency."""
-        from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPolygonF
+        """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
+        from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush,
+                                  QPolygonF, QLinearGradient)
         from PyQt6.QtCore import QPointF, QRectF
         import math
 
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
-
-        # Background
-        r, g, b = self._bg_color
-        p.fillRect(self.rect(), QColor(r, g, b))
+        r2, g2, b2 = self._bg_color
+        p.fillRect(self.rect(), QColor(r2, g2, b2))
 
         if not self._model:
             p.setPen(QColor(120, 120, 120))
@@ -430,25 +441,43 @@ class COL3DViewport(QWidget): #vers 2
             return px * scale + ox, py * scale + oy
 
         def g3(obj):
-            if hasattr(obj, 'x'):         return obj.x, obj.y, obj.z
-            if hasattr(obj, 'position'):  return obj.position.x, obj.position.y, obj.position.z
+            if hasattr(obj, 'x'):        return obj.x, obj.y, obj.z
+            if hasattr(obj, 'position'): return obj.position.x, obj.position.y, obj.position.z
+            if obj is None:              return 0.0, 0.0, 0.0
             return float(obj[0]), float(obj[1]), float(obj[2])
 
-        model = self._model
+        model   = self._model
         verts   = getattr(model, 'vertices', [])
         faces   = getattr(model, 'faces',   [])
         boxes   = getattr(model, 'boxes',   [])
         spheres = getattr(model, 'spheres', [])
+        bounds  = getattr(model, 'bounds',  None)
 
-        # ── Grid (XY plane, Z=0) ─────────────────────────────────────────
-        if verts:
-            all_c = [abs(c) for v in verts for c in (v.x, v.y, v.z)]
-            extent = max(max(all_c), 1.0)
+        # ── Extent from ALL geometry (verts + boxes + spheres) ───────────
+        all_pts = [(v.x, v.y, v.z) for v in verts]
+        for box in boxes:
+            mn = getattr(box,'min_point', getattr(box,'min', None))
+            mx = getattr(box,'max_point', getattr(box,'max', None))
+            if mn: all_pts.append(g3(mn))
+            if mx: all_pts.append(g3(mx))
+        for sph in spheres:
+            cx,cy3,cz = g3(getattr(sph,'center',None))
+            r = getattr(sph,'radius',1.0)
+            all_pts += [(cx+r,cy3,cz),(cx-r,cy3,cz),(cx,cy3+r,cz),(cx,cy3-r,cz)]
+        if bounds:
+            for attr in ('min','max'):
+                pt = getattr(bounds, attr, None)
+                if pt: all_pts.append(g3(pt))
+
+        if all_pts:
+            extent = max(max(abs(c) for pt in all_pts for c in pt), 1.0)
         else:
             extent = 5.0
+
+        # ── Reference grid (XY plane, Z=0) ───────────────────────────────
         raw_step = extent / 4.0
         mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
-        step = round(raw_step / mag) * mag;  step = max(step, 0.01)
+        step = round(raw_step / mag) * mag; step = max(step, 0.01)
         half = math.ceil(extent / step + 1) * step
         n    = int(half / step)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
@@ -462,121 +491,190 @@ class COL3DViewport(QWidget): #vers 2
             p.drawLine(int(x0), int(y0), int(x1), int(y1))
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
+        # ── Material colours (same as mesh editor) ────────────────────────
+        MAT_COLORS = {
+            0:(200,200,200),1:(60,60,60),2:(140,120,80),3:(100,80,50),
+            4:(180,170,150),5:(60,150,60),6:(220,200,140),7:(50,100,220),
+            8:(160,160,160),9:(140,100,60),10:(180,180,200),11:(180,220,240),
+            12:(100,80,60),13:(150,150,150),14:(80,160,80),
+        }
+        def mat_col(mat_id):
+            t = MAT_COLORS.get(mat_id,(120,120,120))
+            return QColor(*t)
+
         # ── Mesh faces ────────────────────────────────────────────────────
+        rs = self._render_style  # 'wireframe' | 'semi' | 'solid'
         if self._show_mesh and verts and faces:
-            p.setPen(QPen(QColor(120, 180, 120, 180), 0.5))
-            p.setBrush(QBrush(QColor(60, 120, 60, 80)))
             for face in faces:
-                idx = getattr(face, 'vertex_indices', None)
+                idx = getattr(face,'vertex_indices',None)
                 if idx is None:
-                    fa = getattr(face, 'a', None)
-                    if fa is not None: idx = (fa, face.b, face.c)
-                if idx and len(idx) == 3:
-                    try:
-                        pts = [QPointF(*to_screen(*g3(verts[i]))) for i in idx]
-                        p.drawPolygon(QPolygonF(pts))
-                    except (IndexError, AttributeError):
-                        pass
+                    fa = getattr(face,'a',None)
+                    if fa is not None: idx=(fa,face.b,face.c)
+                if not idx or len(idx)!=3: continue
+                try:
+                    pts=[QPointF(*to_screen(*g3(verts[i]))) for i in idx]
+                except (IndexError,AttributeError): continue
+                mc = mat_col(getattr(face,'material',0))
+                if rs == 'solid':
+                    p.setBrush(QBrush(mc))
+                    p.setPen(QPen(mc.darker(130),0.5))
+                elif rs == 'semi':
+                    fill=QColor(mc.red(),mc.green(),mc.blue(),90)
+                    p.setBrush(QBrush(fill))
+                    p.setPen(QPen(QColor(mc.red()//2+60,mc.green()//2+60,mc.blue()//2+60),0.5))
+                else:  # wireframe
+                    p.setBrush(Qt.BrushStyle.NoBrush)
+                    p.setPen(QPen(QColor(100,180,100),1))
+                p.drawPolygon(QPolygonF(pts))
 
-        # ── Boxes ─────────────────────────────────────────────────────────
+        # ── Boxes — draw all 12 edges of AABB ─────────────────────────────
         if self._show_boxes:
-            p.setPen(QPen(QColor(220, 180, 50), 1.5))
-            p.setBrush(QBrush(QColor(220, 180, 50, 40)))
+            p.setPen(QPen(QColor(220,180,50),1.5))
+            p.setBrush(QBrush(QColor(220,180,50,30)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
             for box in boxes:
-                bmin = box.min_point if hasattr(box, 'min_point') else box.min
-                bmax = box.max_point if hasattr(box, 'max_point') else box.max
-                x1,y1 = to_screen(*g3(bmin)); x2,y2 = to_screen(*g3(bmax))
-                p.drawRect(QRectF(min(x1,x2), min(y1,y2),
-                                  abs(x2-x1) or 2, abs(y2-y1) or 2))
+                mn_obj = getattr(box,'min_point',getattr(box,'min',None))
+                mx_obj = getattr(box,'max_point',getattr(box,'max',None))
+                if mn_obj is None or mx_obj is None: continue
+                x0,y0,z0 = g3(mn_obj)
+                x1,y1,z1 = g3(mx_obj)
+                # 8 corners
+                corners=[(xa,ya,za) for xa in(x0,x1) for ya in(y0,y1) for za in(z0,z1)]
+                sc=[to_screen(*c) for c in corners]
+                # 12 edges of the cube
+                edges=[(0,1),(0,2),(0,4),(1,3),(1,5),(2,3),(2,6),(3,7),(4,5),(4,6),(5,7),(6,7)]
+                for a2,b2 in edges:
+                    ax,ay=sc[a2]; bx,by=sc[b2]
+                    p.drawLine(int(ax),int(ay),int(bx),int(by))
 
-        # ── Spheres ───────────────────────────────────────────────────────
+        # ── Spheres — draw 3 projected rings (equator + 2 meridians) ──────
         if self._show_spheres:
-            p.setPen(QPen(QColor(80, 200, 220), 1.5))
-            p.setBrush(QBrush(QColor(80, 200, 220, 40)))
+            p.setPen(QPen(QColor(80,200,220),1.5))
+            p.setBrush(QBrush(QColor(80,200,220,25)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
+            N = 48
             for sph in spheres:
-                cx,cy2,cz = g3(sph.center if hasattr(sph,'center') else sph)
-                r = sph.radius * scale
-                sx,sy = to_screen(cx, cy2, cz)
-                p.drawEllipse(QRectF(sx-r, sy-r, r*2 or 2, r*2 or 2))
+                cx,cy3,cz = g3(getattr(sph,'center',sph))
+                r = getattr(sph,'radius',1.0)
+                # 3 rings in different planes
+                for t1,t2,t3 in [(1,0,0,),(0,1,0),(0,0,1)]:
+                    # tangent vectors from axis (t1,t2,t3)
+                    if t3: ta,tb = (1,0,0),(0,1,0)
+                    elif t2: ta,tb = (1,0,0),(0,0,1)
+                    else: ta,tb = (0,1,0),(0,0,1)
+                    pts=[]
+                    for i in range(N+1):
+                        a2=2*math.pi*i/N
+                        wx=cx+r*(math.cos(a2)*ta[0]+math.sin(a2)*tb[0])
+                        wy=cy3+r*(math.cos(a2)*ta[1]+math.sin(a2)*tb[1])
+                        wz=cz+r*(math.cos(a2)*ta[2]+math.sin(a2)*tb[2])
+                        pts.append(QPointF(*to_screen(wx,wy,wz)))
+                    for i in range(len(pts)-1):
+                        p.drawLine(pts[i],pts[i+1])
+
+        # ── Bounding box (model.bounds) ───────────────────────────────────
+        if bounds:
+            mn_obj=getattr(bounds,'min',None); mx_obj=getattr(bounds,'max',None)
+            if mn_obj and mx_obj:
+                x0,y0,z0=g3(mn_obj); x1,y1,z1=g3(mx_obj)
+                corners=[(xa,ya,za) for xa in(x0,x1) for ya in(y0,y1) for za in(z0,z1)]
+                sc=[to_screen(*c) for c in corners]
+                edges=[(0,1),(0,2),(0,4),(1,3),(1,5),(2,3),(2,6),(3,7),(4,5),(4,6),(5,7),(6,7)]
+                p.setPen(QPen(QColor(180,100,220,160),1,Qt.PenStyle.DashLine))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                for a2,b2 in edges:
+                    ax,ay=sc[a2]; bx,by=sc[b2]
+                    p.drawLine(int(ax),int(ay),int(bx),int(by))
+            # Bounding sphere
+            bc=getattr(bounds,'center',None); br=getattr(bounds,'radius',0)
+            if bc and br>0:
+                cx,cy3,cz=g3(bc)
+                ta,tb=(1,0,0),(0,1,0)
+                pts=[]
+                for i in range(49):
+                    a2=2*math.pi*i/48
+                    wx=cx+br*(math.cos(a2)*ta[0]+math.sin(a2)*tb[0])
+                    wy=cy3+br*(math.cos(a2)*ta[1]+math.sin(a2)*tb[1])
+                    wz=cz+br*(math.cos(a2)*ta[2]+math.sin(a2)*tb[2])
+                    pts.append(QPointF(*to_screen(wx,wy,wz)))
+                p.setPen(QPen(QColor(180,100,220,120),1,Qt.PenStyle.DotLine))
+                for i in range(len(pts)-1): p.drawLine(pts[i],pts[i+1])
 
         # ── Gizmo at model centroid ───────────────────────────────────────
-        if verts:
-            cx3 = sum(v.x for v in verts)/len(verts)
-            cy3 = sum(v.y for v in verts)/len(verts)
-            cz3 = sum(v.z for v in verts)/len(verts)
+        if all_pts:
+            cx3=sum(pt[0] for pt in all_pts)/len(all_pts)
+            cy3=sum(pt[1] for pt in all_pts)/len(all_pts)
+            cz3=sum(pt[2] for pt in all_pts)/len(all_pts)
         else:
-            cx3 = cy3 = cz3 = 0.0
-        gx, gy = to_screen(cx3, cy3, cz3)
-        arm = max(45, min(W, H) * 0.15)
-
-        axes = [((1,0,0), QColor(220,60,60),  'X'),
-                ((0,1,0), QColor(60,200,60),   'Y'),
-                ((0,0,1), QColor(60,120,220),  'Z')]
-        sorted_axes = sorted(axes, key=lambda a: self._proj(*a[0])[1], reverse=True)
-
-        if self._gizmo_mode == 'translate':
-            for (dx,dy,dz), color, label in sorted_axes:
-                px2, py2 = self._proj(dx, dy, dz)
-                tx, ty = gx+px2*arm, gy+py2*arm
-                p.setPen(QPen(color, 2)); p.drawLine(int(gx),int(gy),int(tx),int(ty))
-                ang = math.atan2(ty-gy, tx-gx); aw,ah = 12,6
-                tip  = QPointF(tx,ty)
-                lpt  = QPointF(tx-aw*math.cos(ang)+ah*math.sin(ang), ty-aw*math.sin(ang)-ah*math.cos(ang))
-                rpt  = QPointF(tx-aw*math.cos(ang)-ah*math.sin(ang), ty-aw*math.sin(ang)+ah*math.cos(ang))
+            cx3=cy3=cz3=0.0
+        gx,gy=to_screen(cx3,cy3,cz3)
+        arm=max(45,min(W,H)*0.15)
+        axes=[((1,0,0),QColor(220,60,60),'X'),((0,1,0),QColor(60,200,60),'Y'),((0,0,1),QColor(60,120,220),'Z')]
+        sorted_axes=sorted(axes,key=lambda a:self._proj(*a[0])[1],reverse=True)
+        if self._gizmo_mode=='translate':
+            for (dx,dy,dz),color,label in sorted_axes:
+                px2,py2=self._proj(dx,dy,dz)
+                tx,ty=gx+px2*arm,gy+py2*arm
+                p.setPen(QPen(color,2)); p.drawLine(int(gx),int(gy),int(tx),int(ty))
+                ang=math.atan2(ty-gy,tx-gx); aw,ah=12,6
+                tip=QPointF(tx,ty)
+                lpt=QPointF(tx-aw*math.cos(ang)+ah*math.sin(ang),ty-aw*math.sin(ang)-ah*math.cos(ang))
+                rpt=QPointF(tx-aw*math.cos(ang)-ah*math.sin(ang),ty-aw*math.sin(ang)+ah*math.cos(ang))
                 p.setBrush(QBrush(color)); p.setPen(QPen(color,1))
                 p.drawPolygon(QPolygonF([tip,lpt,rpt]))
                 lx=tx+(9 if tx>=gx else -14); ly=ty+(5 if ty>=gy else -3)
-                p.setFont(QFont('Arial',8,QFont.Weight.Bold))
-                p.setPen(color); p.drawText(int(lx),int(ly),label)
+                p.setFont(QFont('Arial',8,QFont.Weight.Bold)); p.setPen(color)
+                p.drawText(int(lx),int(ly),label)
         else:
-            N = 64
-            rings = [((1,0,0),(0,1,0),(0,0,1), QColor(220,60,60),  'X'),
-                     ((0,1,0),(1,0,0),(0,0,1), QColor(60,200,60),  'Y'),
-                     ((0,0,1),(1,0,0),(0,1,0), QColor(60,120,220), 'Z')]
-            for (_,t1,t2,color,label) in sorted(rings, key=lambda r: self._proj(*r[0])[1], reverse=True):
+            N=64
+            rings=[((1,0,0),(0,1,0),(0,0,1),QColor(220,60,60),'X'),
+                   ((0,1,0),(1,0,0),(0,0,1),QColor(60,200,60),'Y'),
+                   ((0,0,1),(1,0,0),(0,1,0),QColor(60,120,220),'Z')]
+            for (_,t1,t2,color,label) in sorted(rings,key=lambda r:self._proj(*r[0])[1],reverse=True):
                 t1x,t1y,t1z=t1; t2x,t2y,t2z=t2
-                pts = []
+                pts=[]
                 for i in range(N+1):
-                    a2 = 2*math.pi*i/N
+                    a2=2*math.pi*i/N
                     wx=math.cos(a2)*t1x+math.sin(a2)*t2x
                     wy=math.cos(a2)*t1y+math.sin(a2)*t2y
                     wz=math.cos(a2)*t1z+math.sin(a2)*t2z
-                    px2,py2 = self._proj(wx,wy,wz)
-                    pts.append(QPointF(gx+px2*arm, gy+py2*arm))
+                    px2,py2=self._proj(wx,wy,wz)
+                    pts.append(QPointF(gx+px2*arm,gy+py2*arm))
                 p.setPen(QPen(color,2)); p.setBrush(Qt.BrushStyle.NoBrush)
-                for i in range(len(pts)-1): p.drawLine(pts[i], pts[i+1])
+                for i in range(len(pts)-1): p.drawLine(pts[i],pts[i+1])
                 p45x=math.cos(math.pi/4)*t1x+math.sin(math.pi/4)*t2x
                 p45y=math.cos(math.pi/4)*t1y+math.sin(math.pi/4)*t2y
                 p45z=math.cos(math.pi/4)*t1z+math.sin(math.pi/4)*t2z
-                lp,lq = self._proj(p45x,p45y,p45z)
+                lp,lq=self._proj(p45x,p45y,p45z)
                 p.setFont(QFont('Arial',8,QFont.Weight.Bold)); p.setPen(color)
-                p.drawText(int(gx+lp*arm+(6 if lp>=0 else -12)),
-                           int(gy+lq*arm+(5 if lq>=0 else -3)), label)
-
-        # Gizmo origin dot
+                p.drawText(int(gx+lp*arm+(6 if lp>=0 else -12)),int(gy+lq*arm+(5 if lq>=0 else -3)),label)
         p.setBrush(QBrush(QColor(230,230,230))); p.setPen(QPen(QColor(160,160,160),1))
-        p.drawEllipse(int(gx)-5, int(gy)-5, 10, 10)
+        p.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
-        # ── Toggle button (top-right) ─────────────────────────────────────
-        bx,by,bw,bh = W-70,4,66,22
-        p.setBrush(QBrush(QColor(40,44,62)))
-        p.setPen(QPen(QColor(80,90,130),1))
+        # ── Render mode + toggle button (top-right) ───────────────────────
+        bx,by,bw,bh=W-70,4,66,22
+        p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(QColor(80,90,130),1))
         p.drawRoundedRect(bx,by,bw,bh,4,4)
         p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,220))
-        lbl = '↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
+        lbl='↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
         p.drawText(bx+4,by+15,lbl)
+        # Render mode chip
+        mode_lbl={'wireframe':'Wire','semi':'Semi','solid':'Solid'}.get(rs,'?')
+        mode_col={'wireframe':QColor(100,180,100),'semi':QColor(180,180,100),'solid':QColor(100,140,220)}.get(rs,QColor(180,180,180))
+        p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(mode_col,1))
+        p.drawRoundedRect(W-70,28,66,18,3,3)
+        p.setPen(mode_col); p.setFont(QFont('Arial',7))
+        p.drawText(W-66,41,f"[V] {mode_lbl}")
 
         # ── HUD ───────────────────────────────────────────────────────────
         p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,200))
         p.drawText(6,14,getattr(model,'name','') or '')
-        y2 = H-54
-        for col_c,txt in [(QColor(100,180,100), f"Mesh  F:{len(faces)} V:{len(verts)}"),
-                          (QColor(220,180,50),  f"Boxes  {len(boxes)}"),
-                          (QColor(80,200,220),  f"Spheres  {len(spheres)}")]:
+        y2=H-54
+        for col_c,txt in [(QColor(100,180,100),f"Mesh  F:{len(faces)} V:{len(verts)}"),
+                          (QColor(220,180,50), f"Boxes  {len(boxes)}"),
+                          (QColor(80,200,220), f"Spheres  {len(spheres)}")]:
             p.setPen(col_c); p.drawText(6,y2,txt); y2+=14
         p.setPen(QColor(120,125,140)); p.setFont(QFont('Arial',7))
-        p.drawText(6, H-4, f"Y:{self._yaw:.0f}° P:{self._pitch:.0f}° Z:{self._zoom:.2f}x")
-        p.drawText(W-68, H-4, f"grid {step:.3g}")
+        p.drawText(6,H-4,f"Y:{self._yaw:.0f}° P:{self._pitch:.0f}° Z:{self._zoom:.2f}x")
+        p.drawText(W-68,H-4,f"grid {step:.3g}")
 
     def _find_workshop(self):
         ref = getattr(self, '_workshop_ref', None)
@@ -945,6 +1043,44 @@ class COLWorkshop(QWidget): #vers 3
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         dlg.exec()
+
+    def _cycle_view_render_style(self): #vers 1
+        """Cycle viewport render: wireframe -> semi -> solid."""
+        pw = getattr(self, 'preview_widget', None)
+        if not pw: return
+        modes = ['wireframe','semi','solid']
+        cur = getattr(pw, '_render_style', 'semi')
+        pw._render_style = modes[(modes.index(cur)+1) % 3] if cur in modes else 'semi'
+        pw.update()
+
+    def _open_paint_editor(self): #vers 1
+        """Paint material colours on collision surface."""
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Material Paint",
+            "Use Mesh Editor (Surface Edit) to assign materials per-face.")
+
+    def _create_new_surface(self): #vers 1
+        """Add a new empty COL model to the loaded file."""
+        if not self.current_col_file:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No File", "Load a COL file first.")
+            return
+        from apps.methods.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
+        from apps.methods.col_core_classes import Vector3
+        hdr = COLHeader(fourcc=b'COLL', size=0, name='new_model',
+                        model_id=0, version=COLVersion.COL_1)
+        bnd = COLBounds(radius=1.0, center=Vector3(0,0,0),
+                        min=Vector3(-1,-1,-1), max=Vector3(1,1,1))
+        model = COLModel(header=hdr, bounds=bnd,
+                         spheres=[], boxes=[], vertices=[], faces=[])
+        self.current_col_file.models.append(model)
+        self._populate_compact_col_list()
+        self._populate_collision_list()
+        new_row = len(self.current_col_file.models) - 1
+        active = (self.col_compact_list
+                  if self._col_view_mode == 'detail' else self.collision_list)
+        if active.rowCount() > new_row:
+            active.selectRow(new_row)
 
     def _open_surface_edit_dialog(self): #vers 2
         """Open the COL Mesh Editor for the currently selected model."""
@@ -2659,6 +2795,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_vert_btn.setMinimumWidth(btn_width)
         self.flip_vert_btn.setEnabled(False)
         self.flip_vert_btn.setToolTip("Flip col vertically")
+        self.flip_vert_btn.clicked.connect(self.preview_widget.flip_vertical)
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
 
@@ -2670,6 +2807,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_horz_btn.setMinimumWidth(btn_width)
         self.flip_horz_btn.setEnabled(False)
         self.flip_horz_btn.setToolTip("Flip col horizontally")
+        self.flip_horz_btn.clicked.connect(self.preview_widget.flip_horizontal)
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
 
@@ -2681,6 +2819,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_cw_btn.setMinimumWidth(btn_width)
         self.rotate_cw_btn.setEnabled(False)
         self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
+        self.rotate_cw_btn.clicked.connect(self.preview_widget.rotate_cw)
         layout.addWidget(self.rotate_cw_btn)
         layout.addSpacing(spacer)
 
@@ -2692,6 +2831,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_ccw_btn.setMinimumWidth(btn_width)
         self.rotate_ccw_btn.setEnabled(False)
         self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
+        self.rotate_ccw_btn.clicked.connect(self.preview_widget.rotate_ccw)
         layout.addWidget(self.rotate_ccw_btn)
         layout.addSpacing(spacer)
 
@@ -2715,6 +2855,7 @@ class COLWorkshop(QWidget): #vers 3
         self.copy_btn.setMinimumWidth(btn_width)
         self.copy_btn.setEnabled(False)
         self.copy_btn.setToolTip("Copy col to clipboard")
+        self.copy_btn.clicked.connect(self._copy_surface)
         layout.addWidget(self.copy_btn)
         layout.addSpacing(spacer)
 
@@ -2726,6 +2867,7 @@ class COLWorkshop(QWidget): #vers 3
         self.paste_btn.setMinimumWidth(btn_width)
         self.paste_btn.setEnabled(False)
         self.paste_btn.setToolTip("Paste col from clipboard")
+        self.paste_btn.clicked.connect(self._paste_surface)
         layout.addWidget(self.paste_btn)
         layout.addSpacing(spacer)
 
@@ -2736,6 +2878,7 @@ class COLWorkshop(QWidget): #vers 3
         self.create_surface_btn.setFixedHeight(btn_height)
         self.create_surface_btn.setMinimumWidth(btn_width)
         self.create_surface_btn.setToolTip("Create new blank Collision")
+        self.create_surface_btn.clicked.connect(self._create_new_surface)
         layout.addWidget(self.create_surface_btn)
         layout.addSpacing(spacer)
 
@@ -2747,6 +2890,7 @@ class COLWorkshop(QWidget): #vers 3
         self.delete_surface_btn.setMinimumWidth(btn_width)
         self.delete_surface_btn.setEnabled(False)
         self.delete_surface_btn.setToolTip("Remove selected Collision")
+        self.delete_surface_btn.clicked.connect(self._delete_surface)
         layout.addWidget(self.delete_surface_btn)
         layout.addSpacing(spacer)
 
@@ -2758,6 +2902,7 @@ class COLWorkshop(QWidget): #vers 3
         self.duplicate_surface_btn.setMinimumWidth(btn_width)
         self.duplicate_surface_btn.setEnabled(False)
         self.duplicate_surface_btn.setToolTip("Clone selected Collision")
+        self.duplicate_surface_btn.clicked.connect(self._duplicate_surface)
         layout.addWidget(self.duplicate_surface_btn)
         layout.addSpacing(spacer)
 
@@ -2768,7 +2913,8 @@ class COLWorkshop(QWidget): #vers 3
         self.paint_btn.setFixedHeight(btn_height)
         self.paint_btn.setMinimumWidth(btn_width)
         self.paint_btn.setEnabled(False)
-        self.paint_btn.setToolTip("Paint free hand on surface")
+        self.paint_btn.setToolTip("Paint free hand on surface — assign materials")
+        self.paint_btn.clicked.connect(self._open_paint_editor)
         layout.addWidget(self.paint_btn)
         layout.addSpacing(spacer)
 
@@ -2828,6 +2974,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_vert_btn.setFixedHeight(btn_height)
         self.flip_vert_btn.setEnabled(False)
         self.flip_vert_btn.setToolTip("Flip col vertically")
+        self.flip_vert_btn.clicked.connect(self.preview_widget.flip_vertical)
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
 
@@ -2837,6 +2984,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_horz_btn.setFixedHeight(btn_height)
         self.flip_horz_btn.setEnabled(False)
         self.flip_horz_btn.setToolTip("Flip col horizontally")
+        self.flip_horz_btn.clicked.connect(self.preview_widget.flip_horizontal)
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
 
@@ -2846,6 +2994,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_cw_btn.setFixedHeight(btn_height)
         self.rotate_cw_btn.setEnabled(False)
         self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
+        self.rotate_cw_btn.clicked.connect(self.preview_widget.rotate_cw)
         layout.addWidget(self.rotate_cw_btn)
         layout.addSpacing(spacer)
 
@@ -2855,6 +3004,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_ccw_btn.setFixedHeight(btn_height)
         self.rotate_ccw_btn.setEnabled(False)
         self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
+        self.rotate_ccw_btn.clicked.connect(self.preview_widget.rotate_ccw)
         layout.addWidget(self.rotate_ccw_btn)
         layout.addSpacing(spacer)
 
@@ -2874,6 +3024,7 @@ class COLWorkshop(QWidget): #vers 3
         self.copy_btn.setFixedHeight(btn_height)
         self.copy_btn.setEnabled(False)
         self.copy_btn.setToolTip("Copy col to clipboard")
+        self.copy_btn.clicked.connect(self._copy_surface)
         layout.addWidget(self.copy_btn)
         layout.addSpacing(spacer)
 
@@ -2883,6 +3034,7 @@ class COLWorkshop(QWidget): #vers 3
         self.paste_btn.setFixedHeight(btn_height)
         self.paste_btn.setEnabled(False)
         self.paste_btn.setToolTip("Paste col from clipboard")
+        self.paste_btn.clicked.connect(self._paste_surface)
         layout.addWidget(self.paste_btn)
         layout.addSpacing(spacer)
 
@@ -2891,6 +3043,7 @@ class COLWorkshop(QWidget): #vers 3
         self.create_surface_btn.setFont(self.button_font)
         self.create_surface_btn.setFixedHeight(btn_height)
         self.create_surface_btn.setToolTip("Create new blank Collision")
+        self.create_surface_btn.clicked.connect(self._create_new_surface)
         layout.addWidget(self.create_surface_btn)
         layout.addSpacing(spacer)
 
@@ -2900,6 +3053,7 @@ class COLWorkshop(QWidget): #vers 3
         self.delete_surface_btn.setFixedHeight(btn_height)
         self.delete_surface_btn.setEnabled(False)
         self.delete_surface_btn.setToolTip("Remove selected Collision")
+        self.delete_surface_btn.clicked.connect(self._delete_surface)
         layout.addWidget(self.delete_surface_btn)
         layout.addSpacing(spacer)
 
@@ -2909,6 +3063,7 @@ class COLWorkshop(QWidget): #vers 3
         self.duplicate_surface_btn.setFixedHeight(btn_height)
         self.duplicate_surface_btn.setEnabled(False)
         self.duplicate_surface_btn.setToolTip("Clone selected Collision")
+        self.duplicate_surface_btn.clicked.connect(self._duplicate_surface)
         layout.addWidget(self.duplicate_surface_btn)
         layout.addSpacing(spacer)
 
@@ -2917,7 +3072,8 @@ class COLWorkshop(QWidget): #vers 3
         self.paint_btn.setFont(self.button_font)
         self.paint_btn.setFixedHeight(btn_height)
         self.paint_btn.setEnabled(False)
-        self.paint_btn.setToolTip("Paint free hand on surface")
+        self.paint_btn.setToolTip("Paint free hand on surface — assign materials")
+        self.paint_btn.clicked.connect(self._open_paint_editor)
         layout.addWidget(self.paint_btn)
         layout.addSpacing(spacer)
 
