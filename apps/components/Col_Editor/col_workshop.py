@@ -2795,7 +2795,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_vert_btn.setMinimumWidth(btn_width)
         self.flip_vert_btn.setEnabled(False)
         self.flip_vert_btn.setToolTip("Flip col vertically")
-        self.flip_vert_btn.clicked.connect(self.preview_widget.flip_vertical)
+        self.flip_vert_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_vertical())
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
 
@@ -2807,7 +2807,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_horz_btn.setMinimumWidth(btn_width)
         self.flip_horz_btn.setEnabled(False)
         self.flip_horz_btn.setToolTip("Flip col horizontally")
-        self.flip_horz_btn.clicked.connect(self.preview_widget.flip_horizontal)
+        self.flip_horz_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_horizontal())
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
 
@@ -2819,7 +2819,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_cw_btn.setMinimumWidth(btn_width)
         self.rotate_cw_btn.setEnabled(False)
         self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
-        self.rotate_cw_btn.clicked.connect(self.preview_widget.rotate_cw)
+        self.rotate_cw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_cw())
         layout.addWidget(self.rotate_cw_btn)
         layout.addSpacing(spacer)
 
@@ -2831,7 +2831,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_ccw_btn.setMinimumWidth(btn_width)
         self.rotate_ccw_btn.setEnabled(False)
         self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
-        self.rotate_ccw_btn.clicked.connect(self.preview_widget.rotate_ccw)
+        self.rotate_ccw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_ccw())
         layout.addWidget(self.rotate_ccw_btn)
         layout.addSpacing(spacer)
 
@@ -2974,7 +2974,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_vert_btn.setFixedHeight(btn_height)
         self.flip_vert_btn.setEnabled(False)
         self.flip_vert_btn.setToolTip("Flip col vertically")
-        self.flip_vert_btn.clicked.connect(self.preview_widget.flip_vertical)
+        self.flip_vert_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_vertical())
         layout.addWidget(self.flip_vert_btn)
         layout.addSpacing(spacer)
 
@@ -2984,7 +2984,7 @@ class COLWorkshop(QWidget): #vers 3
         self.flip_horz_btn.setFixedHeight(btn_height)
         self.flip_horz_btn.setEnabled(False)
         self.flip_horz_btn.setToolTip("Flip col horizontally")
-        self.flip_horz_btn.clicked.connect(self.preview_widget.flip_horizontal)
+        self.flip_horz_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.flip_horizontal())
         layout.addWidget(self.flip_horz_btn)
         layout.addSpacing(spacer)
 
@@ -2994,7 +2994,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_cw_btn.setFixedHeight(btn_height)
         self.rotate_cw_btn.setEnabled(False)
         self.rotate_cw_btn.setToolTip("Rotate 90 degrees clockwise")
-        self.rotate_cw_btn.clicked.connect(self.preview_widget.rotate_cw)
+        self.rotate_cw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_cw())
         layout.addWidget(self.rotate_cw_btn)
         layout.addSpacing(spacer)
 
@@ -3004,7 +3004,7 @@ class COLWorkshop(QWidget): #vers 3
         self.rotate_ccw_btn.setFixedHeight(btn_height)
         self.rotate_ccw_btn.setEnabled(False)
         self.rotate_ccw_btn.setToolTip("Rotate 90 degrees counter-clockwise")
-        self.rotate_ccw_btn.clicked.connect(self.preview_widget.rotate_ccw)
+        self.rotate_ccw_btn.clicked.connect(lambda: getattr(self,"preview_widget",None) and self.preview_widget.rotate_ccw())
         layout.addWidget(self.rotate_ccw_btn)
         layout.addSpacing(spacer)
 
