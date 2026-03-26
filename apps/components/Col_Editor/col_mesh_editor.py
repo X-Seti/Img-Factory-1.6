@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView,
     QPushButton, QLabel, QWidget, QGroupBox,
     QComboBox, QDoubleSpinBox, QMessageBox,
-    QAbstractItemView, QFrame, QSpinBox
+    QAbstractItemView, QFrame, QSpinBox, QTabWidget
 )
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import (
@@ -280,79 +280,39 @@ class COLMeshEditor(QDialog): #vers 1
         root = QVBoxLayout(self)
         root.setSpacing(4)
 
+        # ── Main splitter: tabs left, viewport right ──────────────────────
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # ── Face panel ────────────────────────────────────────────────────
-        face_grp = QGroupBox("Faces")
-        fl = QVBoxLayout(face_grp)
-        self.face_table = QTableWidget(0, 5)
-        self.face_table.setHorizontalHeaderLabels(["#", "A", "B", "C", "Material"])
-        self.face_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.face_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.face_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.face_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
-        self.face_table.itemSelectionChanged.connect(self._on_face_selection)
-        self.face_table.itemChanged.connect(self._on_face_cell_changed)
-        fl.addWidget(self.face_table)
+        # ── Tab widget ────────────────────────────────────────────────────
+        self.tabs = QTabWidget()
+        self.tabs.setMinimumWidth(420)
 
-        face_btns = QHBoxLayout()
-        self._btn(face_btns, "Add Face",    self._add_face)
-        self._btn(face_btns, "Delete Face", self._delete_faces)
-        fl.addLayout(face_btns)
-        splitter.addWidget(face_grp)
+        # Tab 1: Mesh (faces + vertices)
+        self.tabs.addTab(self._build_mesh_tab(),    "Mesh")
+        # Tab 2: Boxes
+        self.tabs.addTab(self._build_boxes_tab(),   "Boxes")
+        # Tab 3: Spheres
+        self.tabs.addTab(self._build_spheres_tab(), "Spheres")
+        # Tab 4: Bounds
+        self.tabs.addTab(self._build_bounds_tab(),  "Bounds")
 
-        # ── Vertex panel ──────────────────────────────────────────────────
-        vert_grp = QGroupBox("Vertices")
-        vl = QVBoxLayout(vert_grp)
-        self.vert_table = QTableWidget(0, 4)
-        self.vert_table.setHorizontalHeaderLabels(["#", "X", "Y", "Z"])
-        self.vert_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.vert_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.vert_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.vert_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
-        self.vert_table.itemSelectionChanged.connect(self._on_vert_selection)
-        self.vert_table.itemChanged.connect(self._on_vert_cell_changed)
-        vl.addWidget(self.vert_table)
-
-        vert_btns = QHBoxLayout()
-        self._btn(vert_btns, "Delete Vertex",      self._delete_verts)
-        self._btn(vert_btns, "Remove Orphans",     self._remove_orphan_verts)
-        vl.addLayout(vert_btns)
-        splitter.addWidget(vert_grp)
+        splitter.addWidget(self.tabs)
 
         # ── Viewport ──────────────────────────────────────────────────────
         vp_grp = QGroupBox("Preview")
         vpl = QVBoxLayout(vp_grp)
         self.viewport = COLMeshEditorViewport()
         vpl.addWidget(self.viewport)
-        vpl.addWidget(QLabel("Left-drag: pan  Right-drag: rotate  Scroll: zoom",
+        vpl.addWidget(QLabel("Left: pan  Right: rotate  Scroll: zoom",
                              alignment=Qt.AlignmentFlag.AlignCenter))
         splitter.addWidget(vp_grp)
-
-        splitter.setSizes([340, 300, 220])
+        splitter.setSizes([480, 260])
         root.addWidget(splitter, 1)
 
-        # ── Status bar ────────────────────────────────────────────────────
+        # ── Status ────────────────────────────────────────────────────────
         self._status = QLabel("Ready")
-        self._status.setStyleSheet("color: #aaa; font-size: 10px;")
+        self._status.setStyleSheet("color:#aaa;font-size:10px;")
         root.addWidget(self._status)
-
-        # ── Add-face form ─────────────────────────────────────────────────
-        add_grp = QGroupBox("Add Face — vertex indices (must already exist)")
-        add_lay = QHBoxLayout(add_grp)
-        add_lay.addWidget(QLabel("A:"))
-        self._af_a = QSpinBox(); self._af_a.setRange(0, 99999); add_lay.addWidget(self._af_a)
-        add_lay.addWidget(QLabel("B:"))
-        self._af_b = QSpinBox(); self._af_b.setRange(0, 99999); add_lay.addWidget(self._af_b)
-        add_lay.addWidget(QLabel("C:"))
-        self._af_c = QSpinBox(); self._af_c.setRange(0, 99999); add_lay.addWidget(self._af_c)
-        add_lay.addWidget(QLabel("Material:"))
-        self._af_mat = QComboBox()
-        for idx, name in sorted(SURFACE_MATERIALS.items()):
-            self._af_mat.addItem(f"{idx} — {name}", idx)
-        add_lay.addWidget(self._af_mat)
-        self._btn(add_lay, "➕ Add", self._commit_add_face)
-        root.addWidget(add_grp)
 
         # ── Bottom buttons ────────────────────────────────────────────────
         bot = QHBoxLayout()
@@ -363,18 +323,170 @@ class COLMeshEditor(QDialog): #vers 1
         self._btn(bot, "Close",         self.reject)
         root.addLayout(bot)
 
-    def _btn(self, layout, label, slot, enabled=True):
-        b = QPushButton(label)
-        b.clicked.connect(slot)
-        b.setEnabled(enabled)
-        layout.addWidget(b)
-        return b
+    def _build_mesh_tab(self):
+        """Faces + vertices sub-panel."""
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(4)
+        inner = QSplitter(Qt.Orientation.Horizontal)
 
-    # ── Population ────────────────────────────────────────────────────────
+        # Face table
+        face_grp = QGroupBox("Faces")
+        fl = QVBoxLayout(face_grp)
+        self.face_table = QTableWidget(0, 5)
+        self.face_table.setHorizontalHeaderLabels(["#","A","B","C","Material"])
+        self.face_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.face_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.face_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.face_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
+        self.face_table.itemSelectionChanged.connect(self._on_face_selection)
+        self.face_table.itemChanged.connect(self._on_face_cell_changed)
+        fl.addWidget(self.face_table)
+        fb = QHBoxLayout()
+        self._btn(fb, "Add Face",    self._add_face)
+        self._btn(fb, "Delete Face", self._delete_faces)
+        fl.addLayout(fb)
+        inner.addWidget(face_grp)
+
+        # Vertex table
+        vert_grp = QGroupBox("Vertices")
+        vl = QVBoxLayout(vert_grp)
+        self.vert_table = QTableWidget(0, 4)
+        self.vert_table.setHorizontalHeaderLabels(["#","X","Y","Z"])
+        self.vert_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.vert_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.vert_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.vert_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
+        self.vert_table.itemSelectionChanged.connect(self._on_vert_selection)
+        self.vert_table.itemChanged.connect(self._on_vert_cell_changed)
+        vl.addWidget(self.vert_table)
+        vb = QHBoxLayout()
+        self._btn(vb, "Delete Vertex",  self._delete_verts)
+        self._btn(vb, "Remove Orphans", self._remove_orphan_verts)
+        vl.addLayout(vb)
+        inner.addWidget(vert_grp)
+        inner.setSizes([240,200])
+        lay.addWidget(inner, 1)
+
+        # Add face form
+        add_grp = QGroupBox("Add Face")
+        al = QHBoxLayout(add_grp)
+        al.addWidget(QLabel("A:")); self._af_a = QSpinBox(); self._af_a.setRange(0,99999); al.addWidget(self._af_a)
+        al.addWidget(QLabel("B:")); self._af_b = QSpinBox(); self._af_b.setRange(0,99999); al.addWidget(self._af_b)
+        al.addWidget(QLabel("C:")); self._af_c = QSpinBox(); self._af_c.setRange(0,99999); al.addWidget(self._af_c)
+        al.addWidget(QLabel("Material:"))
+        self._af_mat = QComboBox()
+        for idx2, name in sorted(SURFACE_MATERIALS.items()):
+            self._af_mat.addItem(f"{idx2} — {name}", idx2)
+        al.addWidget(self._af_mat)
+        self._btn(al, "➕ Add", self._commit_add_face)
+        lay.addWidget(add_grp)
+        return w
+
+    def _build_boxes_tab(self):
+        """Box editor tab."""
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(4)
+
+        self.box_table = QTableWidget(0, 9)
+        self.box_table.setHorizontalHeaderLabels(
+            ["#","Min X","Min Y","Min Z","Max X","Max Y","Max Z","Mat","Flag"])
+        self.box_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.box_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.box_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.box_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
+        self.box_table.itemChanged.connect(self._on_box_cell_changed)
+        lay.addWidget(self.box_table, 1)
+
+        btns = QHBoxLayout()
+        self._btn(btns, "Add Box",    self._add_box)
+        self._btn(btns, "Delete Box", self._delete_boxes)
+        self._btn(btns, "Duplicate",  self._duplicate_boxes)
+        lay.addLayout(btns)
+
+        # Quick-add form
+        add_grp = QGroupBox("Add Box")
+        al = QHBoxLayout(add_grp)
+        for lbl, attr in [("Min X","_bx1"),("Min Y","_by1"),("Min Z","_bz1"),
+                          ("Max X","_bx2"),("Max Y","_by2"),("Max Z","_bz2")]:
+            al.addWidget(QLabel(lbl))
+            sp = QDoubleSpinBox(); sp.setRange(-9999,9999); sp.setDecimals(3)
+            sp.setMaximumWidth(72); setattr(self, attr, sp); al.addWidget(sp)
+        al.addWidget(QLabel("Mat:"))
+        self._b_mat = QSpinBox(); self._b_mat.setRange(0,70); self._b_mat.setMaximumWidth(48)
+        al.addWidget(self._b_mat)
+        self._btn(al, "➕ Add", self._commit_add_box)
+        lay.addWidget(add_grp)
+        return w
+
+    def _build_spheres_tab(self):
+        """Sphere editor tab."""
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(4)
+
+        self.sphere_table = QTableWidget(0, 6)
+        self.sphere_table.setHorizontalHeaderLabels(
+            ["#","Centre X","Centre Y","Centre Z","Radius","Material"])
+        self.sphere_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.sphere_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.sphere_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.sphere_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
+        self.sphere_table.itemChanged.connect(self._on_sphere_cell_changed)
+        lay.addWidget(self.sphere_table, 1)
+
+        btns = QHBoxLayout()
+        self._btn(btns, "Add Sphere",    self._add_sphere)
+        self._btn(btns, "Delete Sphere", self._delete_spheres)
+        self._btn(btns, "Duplicate",     self._duplicate_spheres)
+        lay.addLayout(btns)
+
+        add_grp = QGroupBox("Add Sphere")
+        al = QHBoxLayout(add_grp)
+        for lbl, attr in [("X","_sx"),("Y","_sy"),("Z","_sz"),("Radius","_sr")]:
+            al.addWidget(QLabel(lbl))
+            sp = QDoubleSpinBox(); sp.setRange(-9999,9999); sp.setDecimals(3)
+            if attr == "_sr": sp.setRange(0.001, 9999)
+            sp.setMaximumWidth(72); setattr(self, attr, sp); al.addWidget(sp)
+            if attr == "_sr": sp.setValue(1.0)
+        al.addWidget(QLabel("Mat:"))
+        self._s_mat = QSpinBox(); self._s_mat.setRange(0,70); self._s_mat.setMaximumWidth(48)
+        al.addWidget(self._s_mat)
+        self._btn(al, "➕ Add", self._commit_add_sphere)
+        lay.addWidget(add_grp)
+        return w
+
+    def _build_bounds_tab(self):
+        """Bounds editor — radius, centre, min, max."""
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(8)
+        lay.addWidget(QLabel("Bounding volume for the entire model."))
+
+        def row(label, attrs):
+            grp = QGroupBox(label); gl = QHBoxLayout(grp)
+            spins = []
+            for lbl in attrs:
+                gl.addWidget(QLabel(lbl))
+                sp = QDoubleSpinBox(); sp.setRange(-9999,9999); sp.setDecimals(4)
+                sp.setMaximumWidth(90); gl.addWidget(sp); spins.append(sp)
+            return grp, spins
+
+        grp_r = QGroupBox("Radius"); rl = QHBoxLayout(grp_r)
+        self._bd_r = QDoubleSpinBox(); self._bd_r.setRange(0,9999); self._bd_r.setDecimals(4)
+        rl.addWidget(self._bd_r); lay.addWidget(grp_r)
+
+        grp_c, self._bd_c = row("Centre (X, Y, Z)", ["X","Y","Z"]); lay.addWidget(grp_c)
+        grp_mn, self._bd_mn = row("Min (X, Y, Z)",   ["X","Y","Z"]); lay.addWidget(grp_mn)
+        grp_mx, self._bd_mx = row("Max (X, Y, Z)",   ["X","Y","Z"]); lay.addWidget(grp_mx)
+
+        btn_row = QHBoxLayout()
+        self._btn(btn_row, "Recalculate from Geometry", self._recalc_bounds)
+        self._btn(btn_row, "Apply Bounds",              self._apply_bounds)
+        lay.addLayout(btn_row)
+        lay.addStretch()
+        return w
+
 
     def _populate_all(self):
         self._populate_faces()
         self._populate_verts()
+        self._populate_boxes()
+        self._populate_spheres()
+        self._populate_bounds()
         self.viewport.set_model(self._model)
 
     def _populate_faces(self):
@@ -605,6 +717,232 @@ class COLMeshEditor(QDialog): #vers 1
         self.setWindowTitle(
             f"Mesh Editor* — {getattr(self._model.header, 'name', 'Model')}  "
             f"F:{n_f} V:{n_v}")
+
+    # ── Box helpers ──────────────────────────────────────────────────────
+
+    def _pt(self, obj):
+        """Return (x,y,z) from Vector3, tuple, or list."""
+        if hasattr(obj,'x'):  return obj.x, obj.y, obj.z
+        if obj is None:       return 0.0, 0.0, 0.0
+        return float(obj[0]), float(obj[1]), float(obj[2])
+
+    def _box_pts(self, box):
+        mn = getattr(box,'min_point', getattr(box,'min', None))
+        mx = getattr(box,'max_point', getattr(box,'max', None))
+        return mn, mx
+
+    # ── Box populate / edit ───────────────────────────────────────────────
+
+    def _populate_boxes(self):
+        self.box_table.blockSignals(True)
+        boxes = getattr(self._model,'boxes',[])
+        self.box_table.setRowCount(len(boxes))
+        for i, box in enumerate(boxes):
+            mn, mx = self._box_pts(box)
+            mnx,mny,mnz = self._pt(mn)
+            mxx,mxy,mxz = self._pt(mx)
+            mat = getattr(box,'material',0)
+            flag = getattr(box,'flag',0)
+            for col, val in enumerate([i, mnx,mny,mnz, mxx,mxy,mxz, mat, flag]):
+                item = QTableWidgetItem(f"{val:.4f}" if isinstance(val,float) else str(val))
+                if col == 0: item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.box_table.setItem(i, col, item)
+        self.box_table.blockSignals(False)
+
+    def _on_box_cell_changed(self, item):
+        row, col = item.row(), item.column()
+        boxes = getattr(self._model,'boxes',[])
+        if row >= len(boxes) or col == 0: return
+        self._push_undo("Edit box")
+        try:
+            val = float(item.text())
+            box = boxes[row]
+            mn, mx = self._box_pts(box)
+            if col==1 and mn: mn.x=val
+            elif col==2 and mn: mn.y=val
+            elif col==3 and mn: mn.z=val
+            elif col==4 and mx: mx.x=val
+            elif col==5 and mx: mx.y=val
+            elif col==6 and mx: mx.z=val
+            elif col==7: box.material=int(val)
+            elif col==8: box.flag=int(val)
+            self.viewport.update(); self._set_dirty()
+        except ValueError:
+            self._populate_boxes()
+
+    def _add_box(self):
+        self._status.setText("Fill in coordinates below and click ➕ Add")
+
+    def _commit_add_box(self):
+        self._push_undo("Add box")
+        from apps.methods.col_workshop_classes import COLBox
+        from apps.methods.col_core_classes import Vector3
+        mn = Vector3(self._bx1.value(), self._by1.value(), self._bz1.value())
+        mx = Vector3(self._bx2.value(), self._by2.value(), self._bz2.value())
+        mat = self._b_mat.value()
+        box = COLBox(min=mn, max=mx, material=mat, flag=0, brightness=0, light=0)
+        self._model.boxes.append(box)
+        self._populate_boxes()
+        self.box_table.selectRow(self.box_table.rowCount()-1)
+        self.viewport.update(); self._set_dirty()
+        self._status.setText(f"Added box {len(self._model.boxes)-1}")
+
+    def _delete_boxes(self):
+        rows = sorted({idx.row() for idx in self.box_table.selectedIndexes()}, reverse=True)
+        if not rows: self._status.setText("Select boxes to delete first."); return
+        self._push_undo(f"Delete {len(rows)} box(es)")
+        boxes = self._model.boxes
+        for r in rows:
+            if r < len(boxes): boxes.pop(r)
+        self._populate_boxes(); self.viewport.update(); self._set_dirty()
+        self._status.setText(f"Deleted {len(rows)} box(es). {len(boxes)} remaining.")
+
+    def _duplicate_boxes(self):
+        import copy
+        rows = sorted({idx.row() for idx in self.box_table.selectedIndexes()})
+        if not rows: self._status.setText("Select boxes to duplicate."); return
+        self._push_undo(f"Duplicate {len(rows)} box(es)")
+        boxes = self._model.boxes
+        for r in rows:
+            if r < len(boxes): boxes.append(copy.deepcopy(boxes[r]))
+        self._populate_boxes(); self._set_dirty()
+
+    # ── Sphere populate / edit ────────────────────────────────────────────
+
+    def _populate_spheres(self):
+        self.sphere_table.blockSignals(True)
+        spheres = getattr(self._model,'spheres',[])
+        self.sphere_table.setRowCount(len(spheres))
+        for i, sph in enumerate(spheres):
+            cx,cy,cz = self._pt(sph.center if hasattr(sph,'center') else None)
+            r = getattr(sph,'radius',1.0)
+            mat = getattr(sph,'material',0)
+            for col, val in enumerate([i, cx,cy,cz, r, mat]):
+                item = QTableWidgetItem(f"{val:.4f}" if isinstance(val,float) else str(val))
+                if col==0: item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.sphere_table.setItem(i, col, item)
+        self.sphere_table.blockSignals(False)
+
+    def _on_sphere_cell_changed(self, item):
+        row, col = item.row(), item.column()
+        spheres = getattr(self._model,'spheres',[])
+        if row >= len(spheres) or col==0: return
+        self._push_undo("Edit sphere")
+        try:
+            val = float(item.text())
+            sph = spheres[row]
+            c = sph.center if hasattr(sph,'center') else None
+            if col==1 and c: c.x=val
+            elif col==2 and c: c.y=val
+            elif col==3 and c: c.z=val
+            elif col==4: sph.radius=max(0.001,val)
+            elif col==5: sph.material=int(val)
+            self.viewport.update(); self._set_dirty()
+        except ValueError:
+            self._populate_spheres()
+
+    def _add_sphere(self):
+        self._status.setText("Fill in coordinates below and click ➕ Add")
+
+    def _commit_add_sphere(self):
+        self._push_undo("Add sphere")
+        from apps.methods.col_workshop_classes import COLSphere
+        from apps.methods.col_core_classes import Vector3
+        centre = Vector3(self._sx.value(), self._sy.value(), self._sz.value())
+        sph = COLSphere(radius=self._sr.value(), center=centre,
+                        material=self._s_mat.value(), flag=0, brightness=0, light=0)
+        self._model.spheres.append(sph)
+        self._populate_spheres()
+        self.sphere_table.selectRow(self.sphere_table.rowCount()-1)
+        self.viewport.update(); self._set_dirty()
+        self._status.setText(f"Added sphere {len(self._model.spheres)-1}")
+
+    def _delete_spheres(self):
+        rows = sorted({idx.row() for idx in self.sphere_table.selectedIndexes()}, reverse=True)
+        if not rows: self._status.setText("Select spheres to delete first."); return
+        self._push_undo(f"Delete {len(rows)} sphere(s)")
+        spheres = self._model.spheres
+        for r in rows:
+            if r < len(spheres): spheres.pop(r)
+        self._populate_spheres(); self.viewport.update(); self._set_dirty()
+        self._status.setText(f"Deleted {len(rows)} sphere(s).")
+
+    def _duplicate_spheres(self):
+        import copy
+        rows = sorted({idx.row() for idx in self.sphere_table.selectedIndexes()})
+        if not rows: self._status.setText("Select spheres to duplicate."); return
+        self._push_undo(f"Duplicate {len(rows)} sphere(s)")
+        spheres = self._model.spheres
+        for r in rows:
+            if r < len(spheres): spheres.append(copy.deepcopy(spheres[r]))
+        self._populate_spheres(); self._set_dirty()
+
+    # ── Bounds populate / edit ────────────────────────────────────────────
+
+    def _populate_bounds(self):
+        bounds = getattr(self._model,'bounds',None)
+        if not bounds: return
+        self._bd_r.setValue(getattr(bounds,'radius',0.0))
+        cx,cy,cz   = self._pt(getattr(bounds,'center',None))
+        mnx,mny,mnz = self._pt(getattr(bounds,'min',None))
+        mxx,mxy,mxz = self._pt(getattr(bounds,'max',None))
+        for sp,v in zip(self._bd_c,  [cx,cy,cz]):   sp.setValue(v)
+        for sp,v in zip(self._bd_mn, [mnx,mny,mnz]): sp.setValue(v)
+        for sp,v in zip(self._bd_mx, [mxx,mxy,mxz]): sp.setValue(v)
+
+    def _apply_bounds(self):
+        bounds = getattr(self._model,'bounds',None)
+        if not bounds: return
+        self._push_undo("Edit bounds")
+        from apps.methods.col_core_classes import Vector3
+        bounds.radius = self._bd_r.value()
+        cx,cy,cz   = [s.value() for s in self._bd_c]
+        mnx,mny,mnz = [s.value() for s in self._bd_mn]
+        mxx,mxy,mxz = [s.value() for s in self._bd_mx]
+        if hasattr(bounds,'center') and hasattr(bounds.center,'x'):
+            bounds.center.x=cx; bounds.center.y=cy; bounds.center.z=cz
+        else: bounds.center=Vector3(cx,cy,cz)
+        if hasattr(bounds,'min') and hasattr(bounds.min,'x'):
+            bounds.min.x=mnx; bounds.min.y=mny; bounds.min.z=mnz
+        else: bounds.min=Vector3(mnx,mny,mnz)
+        if hasattr(bounds,'max') and hasattr(bounds.max,'x'):
+            bounds.max.x=mxx; bounds.max.y=mxy; bounds.max.z=mxz
+        else: bounds.max=Vector3(mxx,mxy,mxz)
+        self._set_dirty(); self._status.setText("Bounds applied.")
+
+    def _recalc_bounds(self):
+        """Recalculate bounding volume from all geometry."""
+        self._push_undo("Recalculate bounds")
+        import math
+        verts   = getattr(self._model,'vertices',[])
+        boxes   = getattr(self._model,'boxes',[])
+        spheres = getattr(self._model,'spheres',[])
+        pts = [(v.x,v.y,v.z) for v in verts]
+        for box in boxes:
+            mn,mx = self._box_pts(box)
+            if mn: pts.append(self._pt(mn))
+            if mx: pts.append(self._pt(mx))
+        for sph in spheres:
+            cx,cy,cz = self._pt(getattr(sph,'center',None))
+            r = getattr(sph,'radius',0)
+            for dx,dy,dz in [(r,0,0),(-r,0,0),(0,r,0),(0,-r,0),(0,0,r),(0,0,-r)]:
+                pts.append((cx+dx,cy+dy,cz+dz))
+        if not pts:
+            self._status.setText("No geometry to calculate bounds from."); return
+        min_x=min(p[0] for p in pts); max_x=max(p[0] for p in pts)
+        min_y=min(p[1] for p in pts); max_y=max(p[1] for p in pts)
+        min_z=min(p[2] for p in pts); max_z=max(p[2] for p in pts)
+        cx=(min_x+max_x)/2; cy=(min_y+max_y)/2; cz=(min_z+max_z)/2
+        r=math.sqrt(max((x-cx)**2+(y-cy)**2+(z-cz)**2 for x,y,z in pts))
+        bounds = getattr(self._model,'bounds',None)
+        if bounds:
+            from apps.methods.col_core_classes import Vector3
+            bounds.radius=r
+            bounds.center=Vector3(cx,cy,cz)
+            bounds.min=Vector3(min_x,min_y,min_z)
+            bounds.max=Vector3(max_x,max_y,max_z)
+        self._populate_bounds(); self._set_dirty()
+        self._status.setText(f"Bounds recalculated: r={r:.3f} centre=({cx:.2f},{cy:.2f},{cz:.2f})")
 
     def _apply_and_close(self):
         """Write edited model back to the COL file and push to workshop undo."""

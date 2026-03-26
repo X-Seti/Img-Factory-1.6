@@ -265,33 +265,82 @@ class COL3DViewport(QWidget): #vers 2
             px, py = self._proj(*ax3)
             screen_len = math.hypot(px, py) or 1.0
 
+            def _vec(obj):
+                """Return the Vector3-like object itself if it has .x/.y/.z"""
+                return obj if (obj and hasattr(obj,'x')) else None
+
+            def _box_pts(box):
+                """Yield the min and max Vector3 points of a box."""
+                mn = getattr(box,'min_point', getattr(box,'min', None))
+                mx = getattr(box,'max_point', getattr(box,'max', None))
+                for pt in [mn, mx]:
+                    if pt and hasattr(pt,'x'): yield pt
+
             if self._gizmo_mode == 'translate':
                 dot = (d.x()*px + d.y()*py) / screen_len
                 delta = dot / scale
-                ws = self._find_workshop()
-                if ws and self._model:
+                if self._model:
+                    # Move vertices
                     for v in getattr(self._model, 'vertices', []):
                         if   axis=='X': v.x += delta
                         elif axis=='Y': v.y += delta
                         else:           v.z += delta
+                    # Move box min/max points
+                    for box in getattr(self._model, 'boxes', []):
+                        for pt in _box_pts(box):
+                            if   axis=='X': pt.x += delta
+                            elif axis=='Y': pt.y += delta
+                            else:           pt.z += delta
+                    # Move sphere centres
+                    for sph in getattr(self._model, 'spheres', []):
+                        c = _vec(sph.center)
+                        if c:
+                            if   axis=='X': c.x += delta
+                            elif axis=='Y': c.y += delta
+                            else:           c.z += delta
+                    # Move bounds centre
+                    bounds = getattr(self._model, 'bounds', None)
+                    if bounds:
+                        for pt in [getattr(bounds,'center',None),
+                                   getattr(bounds,'min',None),
+                                   getattr(bounds,'max',None)]:
+                            if pt and hasattr(pt,'x'):
+                                if   axis=='X': pt.x += delta
+                                elif axis=='Y': pt.y += delta
+                                else:           pt.z += delta
             else:  # rotate
                 perp_x, perp_y = -py, px
                 deg = (d.x()*perp_x + d.y()*perp_y) / screen_len * 0.8
                 r = math.radians(deg)
                 cos_r, sin_r = math.cos(r), math.sin(r)
-                ws = self._find_workshop()
-                if ws and self._model:
-                    for v in getattr(self._model, 'vertices', []):
-                        x, y, z = v.x, v.y, v.z
-                        if axis == 'X':
-                            v.y = y*cos_r - z*sin_r
-                            v.z = y*sin_r + z*cos_r
-                        elif axis == 'Y':
-                            v.x = x*cos_r + z*sin_r
-                            v.z = -x*sin_r + z*cos_r
+                if self._model:
+                    def _rot_pt(pt):
+                        if not (pt and hasattr(pt,'x')): return
+                        x2,y2,z2 = pt.x, pt.y, pt.z
+                        if axis=='X':
+                            pt.y = y2*cos_r - z2*sin_r
+                            pt.z = y2*sin_r + z2*cos_r
+                        elif axis=='Y':
+                            pt.x = x2*cos_r + z2*sin_r
+                            pt.z = -x2*sin_r + z2*cos_r
                         else:
-                            v.x = x*cos_r - y*sin_r
-                            v.y = x*sin_r + y*cos_r
+                            pt.x = x2*cos_r - y2*sin_r
+                            pt.y = x2*sin_r + y2*cos_r
+                    # Rotate vertices
+                    for v in getattr(self._model, 'vertices', []):
+                        _rot_pt(v)
+                    # Rotate box min/max
+                    for box in getattr(self._model, 'boxes', []):
+                        for pt in _box_pts(box):
+                            _rot_pt(pt)
+                    # Rotate sphere centres
+                    for sph in getattr(self._model, 'spheres', []):
+                        _rot_pt(_vec(sph.center))
+                    # Rotate bounds
+                    bounds = getattr(self._model, 'bounds', None)
+                    if bounds:
+                        for attr in ('center','min','max'):
+                            _rot_pt(getattr(bounds, attr, None))
             self.update()
             return
 
