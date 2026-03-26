@@ -687,6 +687,9 @@ class COLWorkshop(QWidget): #vers 3
         self._spin_pitch  = 0.0
         self._spin_dyaw   = 1.0
         self._spin_dpitch = 0.2
+        # Thumbnail view axis (applied to all static thumbnails)
+        self._thumb_yaw   = 0.0    # top-down (XY plane) by default
+        self._thumb_pitch = 0.0
 
         # Set default fonts
         from PyQt6.QtGui import QFont
@@ -1089,6 +1092,39 @@ class COLWorkshop(QWidget): #vers 3
     def _show_surface_info(self, *a, **kw): pass
     def show_help(self, *a, **kw): pass
     def show_settings_dialog(self, *a, **kw): pass
+
+    def _set_thumbnail_view(self, yaw, pitch, label="Custom"): #vers 1
+        """Change the view angle for all thumbnails and regenerate them."""
+        self._thumb_yaw   = float(yaw)
+        self._thumb_pitch = float(pitch)
+        self._stop_thumbnail_spin()
+        self._regenerate_all_thumbnails()
+        if hasattr(self, 'main_window') and self.main_window:
+            self.main_window.log_message(f"Thumbnail view: {label}")
+
+    def _regenerate_all_thumbnails(self): #vers 1
+        """Redraw every thumbnail in both lists at current _thumb_yaw/pitch."""
+        if not self.current_col_file:
+            return
+        models = getattr(self.current_col_file, 'models', [])
+        # Compact list
+        for row in range(self.col_compact_list.rowCount()):
+            item = self.col_compact_list.item(row, 0)
+            if item and row < len(models):
+                thumb = self._generate_collision_thumbnail(
+                    models[row], 64, 64,
+                    yaw=self._thumb_yaw, pitch=self._thumb_pitch)
+                item.setData(Qt.ItemDataRole.DecorationRole, thumb)
+                item.setData(Qt.ItemDataRole.UserRole + 1, True)
+        # Detail list
+        for row in range(self.collision_list.rowCount()):
+            item = self.collision_list.item(row, 0)
+            if item and row < len(models):
+                thumb = self._generate_collision_thumbnail(
+                    models[row], 64, 64,
+                    yaw=self._thumb_yaw, pitch=self._thumb_pitch)
+                item.setData(Qt.ItemDataRole.DecorationRole, thumb)
+                item.setData(Qt.ItemDataRole.UserRole + 1, True)
 
     def _start_thumbnail_spin(self, row, model): #vers 1
         """Start slowly rotating the thumbnail of the selected row."""
@@ -4519,7 +4555,8 @@ class COLWorkshop(QWidget): #vers 3
 
                 # Col 0: real collision thumbnail
                 icon_item = QTableWidgetItem()
-                pm = self._generate_collision_thumbnail(model, 64, 64)
+                pm = self._generate_collision_thumbnail(model, 64, 64,
+                                yaw=self._thumb_yaw, pitch=self._thumb_pitch)
                 icon_item.setData(Qt.ItemDataRole.DecorationRole, pm)
                 self.col_compact_list.setItem(i, 0, icon_item)
 
@@ -5564,47 +5601,72 @@ class COLWorkshop(QWidget): #vers 3
             traceback.print_exc()
 
 
-    def _show_collision_context_menu(self, position): #vers 3
-        """Right-click context menu for the collision model list."""
-        item = self.collision_list.itemAt(position)
+    def _show_collision_context_menu(self, position): #vers 4
+        """Right-click context menu for both collision model lists."""
+        # Work out which list sent the signal and find the row
+        sender = self.sender()
+        if sender is self.col_compact_list:
+            source_list = self.col_compact_list
+        else:
+            source_list = self.collision_list
+
+        item = source_list.itemAt(position)
         if not item:
-            return
-
-        row = self.collision_list.row(item)
-        if row < 0 or not self.current_col_file:
-            return
-
-        models = getattr(self.current_col_file, 'models', [])
-        if row >= len(models):
-            return
-        model = models[row]
+            # Still show thumbnail-view submenu even on empty area
+            row, model = -1, None
+        else:
+            row = source_list.row(item)
+            if row < 0: row = -1
+            models = getattr(self.current_col_file, 'models', []) if self.current_col_file else []
+            model = models[row] if 0 <= row < len(models) else None
 
         menu = QMenu(self)
 
-        # ── View ──────────────────────────────────────────────────────────────
-        details_action = menu.addAction("Show Details")
-        details_action.triggered.connect(lambda: self._show_model_details(model, row))
+        # ── Thumbnail view submenu (always shown) ─────────────────────────
+        view_menu = menu.addMenu("Thumbnail View")
+        axes = [
+            ("Top  (XY — Z up)",    0,   0),
+            ("Front (XZ — Y fwd)", 0,  90),
+            ("Side  (YZ — X right)",90,  0),
+            ("Isometric",          45,  35),
+            ("Bottom",              0, 180),
+            ("Back",              180,  90),
+        ]
+        for label, yaw, pitch in axes:
+            # Tick current selection
+            is_current = (abs(self._thumb_yaw - yaw) < 0.5 and
+                          abs(self._thumb_pitch - pitch) < 0.5)
+            act = view_menu.addAction(("✓ " if is_current else "    ") + label)
+            act.triggered.connect(
+                lambda _=False, y=yaw, p=pitch, l=label:
+                    self._set_thumbnail_view(y, p, l))
 
-        copy_action = menu.addAction("Copy Info to Clipboard")
-        copy_action.triggered.connect(lambda: self._copy_model_info(model, row))
+        if model is not None:
+            menu.addSeparator()
 
-        menu.addSeparator()
+            # ── Info ──────────────────────────────────────────────────────
+            details_action = menu.addAction("Show Details")
+            details_action.triggered.connect(lambda: self._show_model_details(model, row))
 
-        # ── Rename ────────────────────────────────────────────────────────────
-        rename_action = menu.addAction("Rename Model...")
-        rename_action.triggered.connect(lambda: self._rename_col_model(model, row))
+            copy_action = menu.addAction("Copy Info to Clipboard")
+            copy_action.triggered.connect(lambda: self._copy_model_info(model, row))
 
-        menu.addSeparator()
+            menu.addSeparator()
 
-        # ── Export ────────────────────────────────────────────────────────────
-        export_action = menu.addAction("Export Model as COL...")
-        export_action.triggered.connect(lambda: self._export_col_model(model, row))
+            # ── Rename ────────────────────────────────────────────────────
+            rename_action = menu.addAction("Rename Model...")
+            rename_action.triggered.connect(lambda: self._rename_col_model(model, row))
 
-        # ── Import / Replace ──────────────────────────────────────────────────
-        import_action = menu.addAction("Replace with COL file...")
-        import_action.triggered.connect(lambda: self._import_replace_col_model(row))
+            menu.addSeparator()
 
-        menu.exec(self.collision_list.mapToGlobal(position))
+            # ── Export / Replace ──────────────────────────────────────────
+            export_action = menu.addAction("Export Model as COL...")
+            export_action.triggered.connect(lambda: self._export_col_model(model, row))
+
+            import_action = menu.addAction("Replace with COL file...")
+            import_action.triggered.connect(lambda: self._import_replace_col_model(row))
+
+        menu.exec(source_list.mapToGlobal(position))
 
     def _rename_col_model(self, model, row): #vers 1
         """Rename a collision model entry in the list."""
