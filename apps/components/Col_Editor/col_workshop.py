@@ -4701,42 +4701,126 @@ class COLWorkshop(QWidget): #vers 3
             self.col_view_toggle_btn.setText("[T]")
             self.col_view_toggle_btn.setToolTip("Switch to compact thumbnail view")
 
-    def _populate_compact_col_list(self): #vers 1
-        """Fill compact two-column list (icon + name/version/counts)."""
+    def _make_stats_pixmap(self, model, width=185, height=68): #vers 1
+        """Render: model name (left) + 4 icon+count badges (right) all on one row."""
+        from PyQt6.QtGui import (QPixmap, QPainter, QColor, QFont,
+                                  QPen, QBrush, QPolygonF)
+        from PyQt6.QtCore import QPointF, QRectF
+
+        pm = QPixmap(width, height)
+        pm.fill(QColor(0, 0, 0, 0))
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        name    = getattr(model, 'name', '') or 'model'
+        ver     = getattr(model, 'version', None)
+        ver_str = ver.name if hasattr(ver,'name') else str(ver) if ver else '?'
+        verts   = len(getattr(model, 'vertices', []))
+        faces   = len(getattr(model, 'faces',    []))
+        spheres = len(getattr(model, 'spheres',  []))
+        boxes   = len(getattr(model, 'boxes',    []))
+
+        # Badge definitions: (kind, count, colour)
+        stats = [
+            ('verts',   verts,   QColor(100, 200, 120)),
+            ('faces',   faces,   QColor(100, 160, 220)),
+            ('spheres', spheres, QColor( 80, 210, 230)),
+            ('boxes',   boxes,   QColor(220, 180,  50)),
+        ]
+
+        badge_w  = 36        # width per badge
+        badge_x0 = width - badge_w * 4 - 4   # badges start here
+        cy       = height // 2               # vertical centre
+
+        # ── Model name (left of badges) ───────────────────────────────────
+        p.setFont(QFont('Arial', 9, QFont.Weight.Bold))
+        p.setPen(QColor(220, 220, 220))
+        name_rect = QRectF(4, 4, badge_x0 - 8, cy - 6)
+        p.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, name)
+
+        # Version under name
+        p.setFont(QFont('Arial', 7))
+        p.setPen(QColor(130, 130, 150))
+        ver_rect = QRectF(4, cy - 2, badge_x0 - 8, cy - 4)
+        p.drawText(ver_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, ver_str)
+
+        # ── 4 badges, all on same row ─────────────────────────────────────
+        icon_s = 16   # icon draw size
+        for idx, (kind, count, color) in enumerate(stats):
+            bx = badge_x0 + idx * badge_w
+            ix = bx + badge_w // 2   # icon centre x
+            iy = cy - 4              # icon centre y
+
+            p.setPen(QPen(color, 1.2))
+            p.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 55)))
+
+            if kind == 'verts':
+                for ox2, oy2 in [(-4,-3),(3,-3),(-1,3)]:
+                    p.drawEllipse(QRectF(ix+ox2-2, iy+oy2-2, 5, 5))
+
+            elif kind == 'faces':
+                tri = QPolygonF([QPointF(ix, iy-7),
+                                 QPointF(ix+7, iy+5),
+                                 QPointF(ix-7, iy+5)])
+                p.drawPolygon(tri)
+
+            elif kind == 'spheres':
+                p.drawEllipse(QRectF(ix-7, iy-7, 14, 14))
+                p.setPen(QPen(color.lighter(140), 0.8))
+                p.drawArc(int(ix-7), int(iy-3), 14, 7, 0, 180*16)
+
+            elif kind == 'boxes':
+                p.drawRect(QRectF(ix-5, iy-3, 9, 9))
+                top = QPolygonF([QPointF(ix-5, iy-3),
+                                  QPointF(ix-2, iy-7),
+                                  QPointF(ix+7, iy-7),
+                                  QPointF(ix+4, iy-3)])
+                p.drawPolygon(top)
+                p.drawLine(QPointF(ix+4, iy-3), QPointF(ix+4, iy+6))
+
+            # Count below icon
+            p.setPen(color)
+            p.setFont(QFont('Arial', 8, QFont.Weight.Bold))
+            p.drawText(QRectF(bx, iy+9, badge_w, 14),
+                       Qt.AlignmentFlag.AlignHCenter, str(count))
+
+        p.end()
+        return pm
+
+    def _populate_compact_col_list(self): #vers 2
+        """Compact list: thumbnail | name + version + 4 icon badges on one row."""
         try:
             self.col_compact_list.setRowCount(0)
             models = getattr(self.current_col_file, 'models', [])
             for i, model in enumerate(models):
                 self.col_compact_list.insertRow(i)
 
-                # Col 0: real collision thumbnail
+                # Col 0: 3D thumbnail
                 icon_item = QTableWidgetItem()
                 pm = self._generate_collision_thumbnail(model, 64, 64,
                                 yaw=self._thumb_yaw, pitch=self._thumb_pitch)
                 icon_item.setData(Qt.ItemDataRole.DecorationRole, pm)
                 self.col_compact_list.setItem(i, 0, icon_item)
 
-                # Col 1: name + stats
-                name = getattr(model, 'name', '') or f'model_{i}'
-                ver  = getattr(model, 'version', None)
-                ver_str = ver.name if hasattr(ver, 'name') else str(ver) if ver else '?'
-                spheres = len(getattr(model, 'spheres',  []))
-                boxes   = len(getattr(model, 'boxes',    []))
-                verts   = len(getattr(model, 'vertices', []))
-                faces   = len(getattr(model, 'faces',    []))
+                # Col 1: rendered stats pixmap
+                stats_item = QTableWidgetItem()
+                stats_pm = self._make_stats_pixmap(model, width=185, height=68)
+                stats_item.setData(Qt.ItemDataRole.DecorationRole, stats_pm)
 
-                line1 = name
-                line2 = "Version: " + ver_str
-                line3 = "Spheres: " + str(spheres) + "  Boxes: " + str(boxes)
-                line4 = "Verts: "   + str(verts)   + "  Faces: " + str(faces)
-                details = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4
-
-                det_item = QTableWidgetItem(details)
-                det_item.setToolTip(details)
-                self.col_compact_list.setItem(i, 1, det_item)
+                name    = getattr(model,'name','') or 'model'
+                ver     = getattr(model,'version',None)
+                ver_str = ver.name if hasattr(ver,'name') else str(ver) if ver else '?'
+                tip = (name + "  (" + ver_str + ")"
+                       + "  V:" + str(len(getattr(model,'vertices',[])))
+                       + "  F:" + str(len(getattr(model,'faces',[])))
+                       + "  S:" + str(len(getattr(model,'spheres',[])))
+                       + "  B:" + str(len(getattr(model,'boxes',[]))))
+                stats_item.setToolTip(tip)
+                self.col_compact_list.setItem(i, 1, stats_item)
                 self.col_compact_list.setRowHeight(i, 72)
 
-            self.col_compact_list.setColumnWidth(0, 72)
+            self.col_compact_list.setColumnWidth(0, 68)
+            self.col_compact_list.setColumnWidth(1, 185)
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
