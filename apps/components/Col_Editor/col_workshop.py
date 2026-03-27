@@ -6083,6 +6083,14 @@ class COLWorkshop(QWidget): #vers 3
                 version  = getattr(model, 'version', None)
                 ver_str  = version.name if hasattr(version,'name') else str(version) if version else '?'
                 ver_short = ver_str.replace('COL_','COL').replace('COLVersion.','')
+                # Type = fourcc string, Version = game target label
+                header   = getattr(model, 'header', None)
+                fourcc   = getattr(header, 'fourcc', b'') if header else b''
+                try:    type_str = fourcc.decode('ascii').rstrip('\x00')
+                except Exception: type_str = str(fourcc)
+                ver_label = {'COL1':'GTA III/VC','COL2':'SA PS2',
+                             'COL3':'SA PC/Xbox','COL4':'SA (unused)'
+                             }.get(ver_short, ver_short)
                 spheres  = len(getattr(model, 'spheres',  []))
                 boxes    = len(getattr(model, 'boxes',    []))
                 vertices = len(getattr(model, 'vertices', []))
@@ -6114,8 +6122,8 @@ class COLWorkshop(QWidget): #vers 3
                 name_it.setData(Qt.ItemDataRole.UserRole, i)
 
                 self.collision_list.setItem(row, 0, name_it)
-                self.collision_list.setItem(row, 1, _item(ver_short))
-                self.collision_list.setItem(row, 2, _item(ver_short))
+                self.collision_list.setItem(row, 1, _item(type_str))
+                self.collision_list.setItem(row, 2, _item(ver_label))
                 self.collision_list.setItem(row, 3, _item(f"{radius:.2f}"))
                 self.collision_list.setItem(row, 4, _item(spheres,  col=4))
                 self.collision_list.setItem(row, 5, _item(boxes,    col=5))
