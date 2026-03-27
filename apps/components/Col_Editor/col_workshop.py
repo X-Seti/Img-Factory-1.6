@@ -6037,68 +6037,61 @@ class COLWorkshop(QWidget): #vers 3
         clipboard.setText(text)
 
 
-    def _populate_collision_list(self): #vers 5
-        """Populate collision table with models.
-        For large files (>100 models) uses placeholder thumbnails then renders on demand."""
+    def _populate_collision_list(self): #vers 6
+        """Populate [T] detail table — 8 columns, no thumbnail."""
         try:
             self.collision_list.setRowCount(0)
-
             if not self.current_col_file or not hasattr(self.current_col_file, 'models'):
                 return
-
             models = self.current_col_file.models
-            large_file = len(models) > 100
-
-            # Placeholder pixmap for deferred render
-            from PyQt6.QtGui import QPixmap, QColor
-            placeholder = QPixmap(64, 64)
-            placeholder.fill(QColor(30, 30, 40))
-
             self.collision_list.setUpdatesEnabled(False)
             for i, model in enumerate(models):
-                name = getattr(model, 'name', f'Model_{i}')
-                version = getattr(model, 'version', COLVersion.COL_1)
-                spheres  = len(getattr(model, 'spheres', []))
-                boxes    = len(getattr(model, 'boxes', []))
-                faces    = len(getattr(model, 'faces', []))
+                name     = getattr(model, 'name', '') or f'model_{i}'
+                version  = getattr(model, 'version', None)
+                ver_str  = version.name if hasattr(version,'name') else str(version) if version else '?'
+                ver_short = ver_str.replace('COL_','COL').replace('COLVersion.','')
+                spheres  = len(getattr(model, 'spheres',  []))
+                boxes    = len(getattr(model, 'boxes',    []))
                 vertices = len(getattr(model, 'vertices', []))
+                faces    = len(getattr(model, 'faces',    []))
+                bounds   = getattr(model, 'bounds', None)
+                radius   = getattr(bounds, 'radius', 0.0) if bounds else 0.0
 
                 row = self.collision_list.rowCount()
                 self.collision_list.insertRow(row)
 
-                thumb_item = QTableWidgetItem()
-                if large_file:
-                    # Use placeholder; render on first selection
-                    thumb_item.setData(Qt.ItemDataRole.DecorationRole, placeholder)
-                    thumb_item.setData(Qt.ItemDataRole.UserRole + 1, False)  # not rendered
-                else:
-                    thumbnail = self._generate_collision_thumbnail(model, 64, 64)
-                    thumb_item.setData(Qt.ItemDataRole.DecorationRole, thumbnail)
-                    thumb_item.setData(Qt.ItemDataRole.UserRole + 1, True)
-                thumb_item.setFlags(thumb_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                def _item(text, idx=None):
+                    it = QTableWidgetItem(str(text))
+                    it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    it.setTextAlignment(Qt.AlignmentFlag.AlignCenter |
+                                        Qt.AlignmentFlag.AlignVCenter)
+                    if idx is not None:
+                        it.setData(Qt.ItemDataRole.UserRole, idx)
+                    return it
 
-                ver_name = version.name if hasattr(version, 'name') else str(version)
-                details = f"Name: {name}\nVersion: {ver_name}\nS:{spheres} B:{boxes} V:{vertices} F:{faces}"
-                details_item = QTableWidgetItem(details)
-                details_item.setFlags(details_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                details_item.setData(Qt.ItemDataRole.UserRole, i)
-                self.collision_list.setItem(row, 0, thumb_item)
-                self.collision_list.setItem(row, 1, details_item)
+                name_it = QTableWidgetItem(name)
+                name_it.setFlags(name_it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                name_it.setData(Qt.ItemDataRole.UserRole, i)
 
+                self.collision_list.setItem(row, 0, name_it)
+                self.collision_list.setItem(row, 1, _item(ver_short))
+                self.collision_list.setItem(row, 2, _item(ver_short))
+                self.collision_list.setItem(row, 3, _item(f"{radius:.2f}"))
+                self.collision_list.setItem(row, 4, _item(spheres))
+                self.collision_list.setItem(row, 5, _item(boxes))
+                self.collision_list.setItem(row, 6, _item(vertices))
+                self.collision_list.setItem(row, 7, _item(faces))
+                self.collision_list.setRowHeight(row, 22)
+
+            hdr = self.collision_list.horizontalHeader()
+            hdr.resizeSection(0, 160)
+            for c in range(1, 8):
+                hdr.resizeSection(c, 65)
+            hdr.setStretchLastSection(True)
             self.collision_list.setUpdatesEnabled(True)
             self.collision_list.viewport().update()
-            if large_file:
-                n = sum(1 for m in models if (getattr(m,'spheres',[]) or getattr(m,'boxes',[]) or getattr(m,'vertices',[])))
-                print(f"_populate_collision_list: {len(models)} models ({n} with geometry), lazy thumbs")
-
-                # Set row height
-                self.collision_list.setRowHeight(row, 100)
-
-            print(f"Populated collision table with {len(self.current_col_file.models)} models")
-
         except Exception as e:
             print(f"Error populating collision table: {str(e)}")
-
 
     def _create_preview_widget(self, level_data=None): #vers 3
         """Create preview widget - large collision preview like TXD Workshop"""
