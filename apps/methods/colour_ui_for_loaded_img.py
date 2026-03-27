@@ -465,7 +465,9 @@ def update_ui_for_loaded_img(main_window): #vers 7
                         pass
 
         # Force table to be visible
-        if hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'table'):
+        if (hasattr(main_window, 'gui_layout') and
+                hasattr(main_window.gui_layout, 'table') and
+                main_window.gui_layout.table is not None):
             main_window.gui_layout.table.setVisible(True)
             main_window.gui_layout.table.show()
 

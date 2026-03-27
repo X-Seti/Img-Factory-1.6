@@ -601,23 +601,58 @@ class COLParser: #vers 1
                 num_faces = struct.unpack_from('<I', data, offset)[0]; offset += 4
                 faces, offset = self.parse_faces(data, offset, num_faces, version)
 
-            # ── COL2/3: interleaved counts+data ──────────────────────
+            # ── COL2/3: offset-table layout (GTAMods wiki) ───────────
+            # After bounds (40 bytes):
+            #   num_spheres(2) num_boxes(2) num_faces(2) num_lines(2)  = 8 bytes
+            #   spheres_off(4) boxes_off(4) cones_off(4) verts_off(4)  = 16 bytes
+            #   faces_off(4)   tri_planes_off(4) lines_off(4)           = 12 bytes
+            #   shadow_verts_off(4) shadow_faces_off(4)                 = 8 bytes
+            # All offsets are relative to start of block (after fourcc+size)
             else:
-                num_spheres = struct.unpack_from('<I', data, offset)[0]; offset += 4
-                spheres, offset = self.parse_spheres(data, offset, num_spheres)
+                block_base = start_offset + 8  # after fourcc(4)+size(4)
 
-                num_boxes = struct.unpack_from('<I', data, offset)[0]; offset += 4
-                boxes, offset = self.parse_boxes(data, offset, num_boxes)
+                # Read counts (uint16 each)
+                num_spheres, num_boxes, num_faces, num_lines =                     struct.unpack_from('<HHHH', data, offset)
+                offset += 8  # 4 * uint16
 
-                num_vertices = struct.unpack_from('<I', data, offset)[0]; offset += 4
-                vertices, offset = self.parse_vertices(data, offset, num_vertices, version)
+                # Read offsets (uint32 each) — relative to block_base
+                (spheres_off, boxes_off, cones_off, verts_off,
+                 faces_off, tri_off, lines_off,
+                 shadow_verts_off, shadow_faces_off) =                     struct.unpack_from('<9I', data, offset)
+                offset += 36  # 9 * uint32
 
-                num_facegroups = struct.unpack_from('<I', data, offset)[0]; offset += 4
-                for _ in range(num_facegroups):
-                    offset += 28  # skip face groups
+                # Parse spheres
+                if num_spheres > 0 and spheres_off > 0:
+                    spheres, _ = self.parse_spheres(
+                        data, block_base + spheres_off, num_spheres)
+                else:
+                    spheres = []
 
-                num_faces = struct.unpack_from('<I', data, offset)[0]; offset += 4
-                faces, offset = self.parse_faces(data, offset, num_faces, version)
+                # Parse boxes
+                if num_boxes > 0 and boxes_off > 0:
+                    boxes, _ = self.parse_boxes(
+                        data, block_base + boxes_off, num_boxes)
+                else:
+                    boxes = []
+
+                # Parse vertices (at verts_off)
+                num_vertices = 0
+                vertices = []
+                if verts_off > 0:
+                    # Vertex count inferred from faces; read until faces_off
+                    # Safer: count from (faces_off - verts_off) / 6
+                    if faces_off > verts_off:
+                        num_vertices = (faces_off - verts_off) // 6
+                    if num_vertices > 0:
+                        vertices, _ = self.parse_vertices(
+                            data, block_base + verts_off, num_vertices, version)
+
+                # Parse faces
+                if num_faces > 0 and faces_off > 0:
+                    faces, _ = self.parse_faces(
+                        data, block_base + faces_off, num_faces, version)
+                else:
+                    faces = []
 
             # Sanity checks
             if (len(spheres) > 10000 or len(boxes) > 10000

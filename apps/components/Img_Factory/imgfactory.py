@@ -5364,19 +5364,21 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"Error opening COL Workshop: {e}")
 
-    def open_col_editor(self): #vers 4
+    def open_col_editor(self, entry=None): #vers 5
         """Open COL Workshop with current COL data and selected entry"""
         try:
             from apps.components.Col_Editor.col_workshop import COLWorkshop
 
-            # Get selected COL entry name from table
+            # Get selected COL entry name — from passed entry or table selection
             selected_col_name = None
-            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
+            if entry is not None:
+                selected_col_name = getattr(entry, 'name', str(entry))
+            elif hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
                 table = self.gui_layout.table
                 selected_items = table.selectedItems()
                 if selected_items:
                     row = selected_items[0].row()
-                    name_item = table.item(row, 0)  # Column 0 is name
+                    name_item = table.item(row, 0)
                     if name_item:
                         selected_col_name = name_item.text()
 
