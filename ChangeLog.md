@@ -1,4 +1,89 @@
-#this belongs in root /ChangeLog.md - Version: 29
+#this belongs in root /ChangeLog.md - Version: 30
+
+## March 2026 — COL Workshop list views, parser fixes, repo sync
+
+### Build 161 — Fix viewport not rendering on model click
+- `open_col_file` called `_on_collision_selected()` which read from
+  hidden detail table (always empty) — now calls `_select_model_by_row(0)`
+- `set_current_model` resets pan/zoom so each model is centred on load
+
+### Build 160 — Three bugs fixed
+- Bug 1: `table.setVisible(True)` NoneType crash in colour_ui_for_loaded_img
+- Bug 2: `open_col_editor(entry)` — method lacked entry param, fixed
+- Bug 3: COL2/3 parser rewritten with correct offset-table layout:
+    counts: num_spheres(u16) num_boxes(u16) num_faces(u16) num_lines(u16)
+    offsets: 9 x uint32 relative to block_base
+    Previously read as COL1 sequential uint32 — completely wrong
+
+### Build 159 — Fix preview not updating on model click (3 compounding bugs)
+- Compact list read selection from hidden detail table → empty
+- Model index read from col 1 (version string) not col 0 (model index)
+- Thumbnail spin set DecorationRole on text cell (no longer a pixmap)
+- Fix: unified `_select_model_by_row(row)` for both list handlers
+
+### Build 158 — Remove 200-model hard cap in COL loader
+- Hardcoded `if model_count >= 200: break` in col_workshop_loader.py
+- generics.col has 1146 models — 946 were silently truncated
+
+### Build 157 — Fix Type vs Version columns (were identical)
+- Type = fourcc decoded: COLL / COL2 / COL3 / COL4
+- Version = game target: GTA III/VC / SA PS2 / SA PC/Xbox / SA (unused)
+
+### Build 156 — Detail table: SVG icons on non-zero counts
+- Spheres/Boxes/Vertices/Faces show 14px SVG icon when count > 0
+- Built once per populate from SVGIconFactory, theme-colour aware
+
+### Build 155 — Detail table: 8 proper columns, no thumbnail
+- Columns: Model Name, Type, Version, Size, Spheres, Boxes, Vertices, Faces
+- Row height 22px, model index in col 0 UserRole
+
+### Build 154 — [=] compact view: COLCompactDelegate
+- Custom QStyledItemDelegate draws each row directly
+- Name | COL type badge (colour-coded) | 4 inline icon badges
+- No thumbnail, single column, 38px row height
+
+### Build 153 — Compact list stats single-row layout
+- Name + version left, 4 icon badges right, all on one horizontal row
+
+### Build 152 — Thumbnail right-click: view axis menu
+- Both lists: "Thumbnail View" submenu — Top/Front/Side/Iso/Bottom/Back
+- _set_thumbnail_view regenerates all thumbs at new angle instantly
+
+### Build 151 — Fix model selection: unified _select_model_by_row
+- Both _on_compact_col_selected and _on_collision_selected delegate to it
+- Accesses models[] by row index directly, no table dependency
+
+### Build 150 — Debug build (box/sphere counts on select)
+
+### Build 149 — Fix COL Workshop startup crash
+- preview_widget not yet created when icon panel connects buttons
+- Fix: lambdas so lookup happens at click time
+
+### Build 148 — COL viewport: proper box/sphere/bounds rendering + render modes
+- Boxes: 8 corners projected, 12 AABB edges (was invisible 2D rect)
+- Spheres: 3 projected rings, 48-segment polylines each
+- Bounds AABB: dashed purple, bounding sphere: dotted purple
+- Grid extent includes all geometry types
+- Render modes: Wireframe/Semi/Solid — V key, right-click, switch btn
+- Left nav buttons all wired: flip, rotate, copy, delete, duplicate, create
+
+### Build 147 — Full COL mesh editing
+- Click-to-select in viewport (point-in-triangle + 8px vert radius)
+- Ctrl+click multi-select, _proj_cache for hit-testing
+- Keyboard: Del, Ctrl+A, Ctrl+Z, Ctrl+D
+- Flip Face(s): swap B↔C reverses winding
+- Select Connected: BFS flood-fill along shared verts
+- Merge Close Vertices: weld + remap + remove degenerate faces
+
+### Build 146 — Thumbnail view axis: right-click menu on both lists
+
+### Build 145 — Full COL editing: boxes/spheres/bounds + gizmo fixes
+- Gizmo translate/rotate moves ALL geometry
+- Mesh Editor: 4 tabs — Mesh, Boxes, Spheres, Bounds
+- Recalculate Bounds from geometry button
+
+### Build 144 — ChangeLog v29
+
 
 ## March 2026 — COL Mesh Editor, 3D viewport, gizmo system
 
