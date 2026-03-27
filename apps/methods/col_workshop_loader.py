@@ -254,12 +254,6 @@ class COLFile: #vers 1
 
                 offset = new_offset
 
-                # Safety limit
-                if model_count >= 200:
-                    if self.debug:
-                        img_debugger.warning("Hit 200 model limit, stopping")
-                    break
-
             if len(self.models) > 0:
                 self.is_loaded = True
                 if self.debug:
