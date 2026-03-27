@@ -95,6 +95,10 @@ class COL3DViewport(QWidget): #vers 2
 
     def set_current_model(self, model, index=0):
         self._model = model
+        # Reset view so the new model is centred and visible
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self._zoom  = 1.0
         self.update()
 
     def zoom_in(self):
@@ -5004,13 +5008,13 @@ class COLWorkshop(QWidget): #vers 3
             self._populate_compact_col_list()
             self._populate_collision_list()
 
-            # Select first model by default (use whichever list is visible)
+            # Select first model by default
             active_list = (self.col_compact_list
                           if self._col_view_mode == 'detail'
                           else self.collision_list)
             if active_list.rowCount() > 0:
                 active_list.selectRow(0)
-                self._on_collision_selected()
+                self._select_model_by_row(0)
 
 
             # Enable all buttons that require a loaded file
