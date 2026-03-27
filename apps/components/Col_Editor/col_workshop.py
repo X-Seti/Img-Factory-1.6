@@ -1317,11 +1317,9 @@ class COLWorkshop(QWidget): #vers 3
             model, 64, 64,
             yaw=self._spin_yaw, pitch=self._spin_pitch)
 
-        item = self.collision_list.item(row, 0)
-        if item:
-            item.setData(Qt.ItemDataRole.DecorationRole, thumb)
-        else:
-            self._stop_thumbnail_spin()
+        # [T] view no longer has thumbnails — spin does nothing visible there
+        # The viewport itself rotates via _yaw/_pitch so just stop the timer
+        self._stop_thumbnail_spin()
 
     def _enable_name_edit(self, event, is_alpha): #vers 1
         """Enable name editing on click"""
@@ -4740,16 +4738,12 @@ class COLWorkshop(QWidget): #vers 3
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
-    def _on_compact_col_selected(self): #vers 1
-        """Sync compact list selection to detail table."""
+    def _on_compact_col_selected(self): #vers 3
+        """Handle compact [=] list selection."""
         try:
             rows = self.col_compact_list.selectionModel().selectedRows()
-            if not rows:
-                return
-            row = rows[0].row()
-            if row < self.collision_list.rowCount():
-                self.collision_list.selectRow(row)
-            self._on_collision_selected()
+            if rows:
+                self._select_model_by_row(rows[0].row())
         except Exception as e:
             print("_on_compact_col_selected error: " + str(e))
 
@@ -5696,76 +5690,51 @@ class COLWorkshop(QWidget): #vers 3
         painter.end()
         return pixmap
 
-    def _on_collision_selected(self): #vers 6
-        """Handle COL model selection from table"""
+    def _on_collision_selected(self): #vers 8
+        """Handle [T] detail table selection."""
         try:
-            selected_rows = self.collision_list.selectionModel().selectedRows()
-            if not selected_rows:
-                print("No rows selected")
+            rows = self.collision_list.selectionModel().selectedRows()
+            if rows:
+                self._select_model_by_row(rows[0].row())
+        except Exception as e:
+            print("_on_collision_selected error: " + str(e))
+
+    def _select_model_by_row(self, row): #vers 2
+        """Load model by row index into preview — works for both list views."""
+        try:
+            if not self.current_col_file:
                 return
-
-            row = selected_rows[0].row()
-            details_item = self.collision_list.item(row, 1)
-
-            if not details_item:
-                print("No details item found")
+            models = getattr(self.current_col_file, 'models', [])
+            if row < 0 or row >= len(models):
                 return
+            model = models[row]
+            model_name = getattr(model, 'name', f'Model_{row}')
 
-            model_index = details_item.data(Qt.ItemDataRole.UserRole)
-            print(f"Selected row {row}, model index {model_index}")
+            # Debug counts
+            nb = len(getattr(model,'boxes',[]));  ns = len(getattr(model,'spheres',[]))
+            nv = len(getattr(model,'vertices',[])); nf = len(getattr(model,'faces',[]))
+            print(f"SELECT [{row}] {model_name}: V={nv} F={nf} B={nb} S={ns}")
 
-            if not self.current_col_file or not hasattr(self.current_col_file, 'models'):
-                print("No COL file or models")
-                return
-
-            if model_index is None or model_index < 0 or model_index >= len(self.current_col_file.models):
-                print(f"Invalid model index: {model_index}")
-                return
-
-            # Get selected model
-            model = self.current_col_file.models[model_index]
-            model_name = getattr(model, 'name', f'Model_{model_index}')
-            # Debug: print what's actually in the model
-            _b = getattr(model,'boxes',[])
-            _s = getattr(model,'spheres',[])
-            _v = getattr(model,'vertices',[])
-            _f = getattr(model,'faces',[])
-            print(f"DEBUG model={model_name}: V={len(_v)} F={len(_f)} B={len(_b)} S={len(_s)}")
-            if _b:
-                b0=_b[0]
-                mn=getattr(b0,'min_point',getattr(b0,'min',None))
-                mx=getattr(b0,'max_point',getattr(b0,'max',None))
-                print(f"  box[0]: min={mn!r} max={mx!r}")
-
-            # Update info display
+            # Name field
             if hasattr(self, 'info_name'):
                 self.info_name.setText(model_name)
 
-            # Render thumbnail on first selection (lazy mode for large files)
-            thumb_item = self.collision_list.item(row, 0)
-            if thumb_item and not thumb_item.data(Qt.ItemDataRole.UserRole + 1):
-                thumbnail = self._generate_collision_thumbnail(model, 64, 64)
-                thumb_item.setData(Qt.ItemDataRole.DecorationRole, thumbnail)
-                thumb_item.setData(Qt.ItemDataRole.UserRole + 1, True)
-
-            # Update preview widget
-            if hasattr(self, 'preview_widget'):
-                if VIEWPORT_AVAILABLE and isinstance(self.preview_widget, COL3DViewport):
-                    self.preview_widget.set_current_model(model, model_index)
+            # Push model into viewport
+            pw = getattr(self, 'preview_widget', None)
+            if pw:
+                if VIEWPORT_AVAILABLE and isinstance(pw, COL3DViewport):
+                    pw.set_current_model(model, row)
                 else:
-                    width  = max(400, self.preview_widget.width())
-                    height = max(400, self.preview_widget.height())
-                    preview_pixmap = self._render_collision_preview(model, width, height)
-                    self.preview_widget.setPixmap(preview_pixmap)
-                    self.preview_widget.setScaledContents(False)
+                    w = max(400, pw.width()); h = max(400, pw.height())
+                    pw.setPixmap(self._render_collision_preview(model, w, h))
+                    pw.setScaledContents(False)
 
-            # Start thumbnail spin for selected model (geometry only)
+            # Spin thumbnail in detail list
             self._start_thumbnail_spin(row, model)
 
         except Exception as e:
-            print(f"Error selecting model: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            import traceback; traceback.print_exc()
+            print(f"_select_model_by_row error: {e}")
 
 
     def _show_collision_context_menu(self, position): #vers 4
