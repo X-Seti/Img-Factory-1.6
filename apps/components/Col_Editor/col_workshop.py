@@ -6037,14 +6037,47 @@ class COLWorkshop(QWidget): #vers 3
         clipboard.setText(text)
 
 
-    def _populate_collision_list(self): #vers 6
-        """Populate [T] detail table — 8 columns, no thumbnail."""
+    def _populate_collision_list(self): #vers 7
+        """Populate [T] detail table — 8 columns, icon badges on counts > 0."""
         try:
             self.collision_list.setRowCount(0)
             if not self.current_col_file or not hasattr(self.current_col_file, 'models'):
                 return
+
+            # Build icon pixmaps once (16px, themed colour)
+            icon_color = self._get_icon_color()
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+            from PyQt6.QtGui import QPixmap
+
+            def _px(icon_fn, color=None):
+                """Get 14px QPixmap from an SVG icon factory method."""
+                try:
+                    ico = icon_fn(size=14, color=color or icon_color)
+                    return ico.pixmap(14, 14)
+                except Exception:
+                    return QPixmap()
+
+            sphere_px = _px(_SVG.sphere_icon, '#50c8e0')   # cyan
+            box_px    = _px(_SVG.box_icon,    '#dcb432')   # yellow
+            face_px   = _px(_SVG.mesh_icon,   '#6496dc')   # blue
+            # No dedicated vert icon — draw a tiny dot pixmap inline
+            vert_px   = QPixmap(14, 14)
+            from PyQt6.QtGui import QPainter, QColor, QBrush
+            from PyQt6.QtCore import QRectF
+            vert_px.fill(QColor(0, 0, 0, 0))
+            vp = QPainter(vert_px)
+            vp.setRenderHint(QPainter.RenderHint.Antialiasing)
+            vp.setBrush(QBrush(QColor(100, 200, 120)))
+            vp.setPen(QColor(100, 200, 120))
+            for ox, oy in [(2,2),(8,2),(5,9)]:
+                vp.drawEllipse(QRectF(ox, oy, 4, 4))
+            vp.end()
+
+            icon_map = {4: sphere_px, 5: box_px, 6: vert_px, 7: face_px}
+
             models = self.current_col_file.models
             self.collision_list.setUpdatesEnabled(False)
+
             for i, model in enumerate(models):
                 name     = getattr(model, 'name', '') or f'model_{i}'
                 version  = getattr(model, 'version', None)
@@ -6060,37 +6093,49 @@ class COLWorkshop(QWidget): #vers 3
                 row = self.collision_list.rowCount()
                 self.collision_list.insertRow(row)
 
-                def _item(text, idx=None):
+                def _item(text, col=None, idx=None):
                     it = QTableWidgetItem(str(text))
                     it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     it.setTextAlignment(Qt.AlignmentFlag.AlignCenter |
                                         Qt.AlignmentFlag.AlignVCenter)
                     if idx is not None:
                         it.setData(Qt.ItemDataRole.UserRole, idx)
+                    # Add icon if count > 0 and we have a pixmap for this col
+                    if col in icon_map and isinstance(text, int) and text > 0:
+                        it.setIcon(QIcon(icon_map[col]))
                     return it
+
+                from PyQt6.QtGui import QIcon
 
                 name_it = QTableWidgetItem(name)
                 name_it.setFlags(name_it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                name_it.setTextAlignment(Qt.AlignmentFlag.AlignLeft |
+                                         Qt.AlignmentFlag.AlignVCenter)
                 name_it.setData(Qt.ItemDataRole.UserRole, i)
 
                 self.collision_list.setItem(row, 0, name_it)
                 self.collision_list.setItem(row, 1, _item(ver_short))
                 self.collision_list.setItem(row, 2, _item(ver_short))
                 self.collision_list.setItem(row, 3, _item(f"{radius:.2f}"))
-                self.collision_list.setItem(row, 4, _item(spheres))
-                self.collision_list.setItem(row, 5, _item(boxes))
-                self.collision_list.setItem(row, 6, _item(vertices))
-                self.collision_list.setItem(row, 7, _item(faces))
+                self.collision_list.setItem(row, 4, _item(spheres,  col=4))
+                self.collision_list.setItem(row, 5, _item(boxes,    col=5))
+                self.collision_list.setItem(row, 6, _item(vertices, col=6))
+                self.collision_list.setItem(row, 7, _item(faces,    col=7))
                 self.collision_list.setRowHeight(row, 22)
 
+            # Column widths
+            self.collision_list.setIconSize(QSize(14, 14))
             hdr = self.collision_list.horizontalHeader()
             hdr.resizeSection(0, 160)
             for c in range(1, 8):
-                hdr.resizeSection(c, 65)
+                hdr.resizeSection(c, 68)
             hdr.setStretchLastSection(True)
+
             self.collision_list.setUpdatesEnabled(True)
             self.collision_list.viewport().update()
+
         except Exception as e:
+            import traceback; traceback.print_exc()
             print(f"Error populating collision table: {str(e)}")
 
     def _create_preview_widget(self, level_data=None): #vers 3
