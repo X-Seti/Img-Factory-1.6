@@ -10422,11 +10422,13 @@ class TXDWorkshop(QWidget): #vers 3
                     alpha_indices = struct.unpack('<Q', dxt_data[block_offset:block_offset+8])[0] >> 16
                     alpha_palette = [a0, a1]
                     if a0 > a1:
+                        # 6 interpolated values: weighted blend a0..a1 in 7 steps
                         for i in range(1, 7):
-                            alpha_palette.append(((7-i)*a0+i*a1)//7)
+                            alpha_palette.append(round(a0 * ((7-i)/7) + a1 * (i/7)))
                     else:
+                        # 4 interpolated + hard 0 and 255
                         for i in range(1, 5):
-                            alpha_palette.append(((5-i)*a0+i*a1)//5)
+                            alpha_palette.append(round(a0 * ((5-i)/5) + a1 * (i/5)))
                         alpha_palette.extend([0, 255])
 
                     c0, c1 = struct.unpack('<HH', dxt_data[block_offset+8:block_offset+12])
@@ -10499,15 +10501,17 @@ class TXDWorkshop(QWidget): #vers 3
 
             elif format_type == 'PAL4':
                 # 4-bit indexed, 16 x 4-byte BGRA palette entries (always)
+                # CRITICAL: high nibble is the FIRST pixel, low nibble is the SECOND.
+                # DragonFF: idx1, idx2 = (byte >> 4) & 0xf, byte & 0xf
+                # Our old code used (byte >> (nibble*4)) which outputs LOW nibble first — wrong.
                 if not palette or len(palette) < 64:
                     return None
                 force_opaque = (palette_entry_fmt == 'RGB888')
                 pixel = 0
                 for i in range(len(data)):
-                    for nibble in range(2):
+                    for idx in ((data[i] >> 4) & 0x0F, data[i] & 0x0F):
                         if pixel >= pixel_count:
                             break
-                        idx = (data[i] >> (nibble * 4)) & 0x0F
                         p = idx * 4
                         if p + 3 < len(palette):
                             b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
@@ -17842,14 +17846,16 @@ def _encode_alpha_block(alpha_bytes):
     a0 = max(alpha_bytes)
     a1 = min(alpha_bytes)
 
-    # Build alpha palette
+    # Build alpha palette (must match decoder exactly)
     alpha_palette = [a0, a1]
     if a0 > a1:
-        for i in range(1, 6):
-            alpha_palette.append((( (6 - i) * a0 + i * a1 ) // 6))
+        # 6 interpolated values at 1/7 .. 6/7
+        for i in range(1, 7):
+            alpha_palette.append(round(a0 * ((7-i)/7) + a1 * (i/7)))
     else:
-        for i in range(1, 4):
-            alpha_palette.append((( (4 - i) * a0 + i * a1 ) // 4))
+        # 4 interpolated + hard 0 and 255
+        for i in range(1, 5):
+            alpha_palette.append(round(a0 * ((5-i)/5) + a1 * (i/5)))
         alpha_palette.extend([0, 255])
 
     # For each pixel, find best index (0..7)
