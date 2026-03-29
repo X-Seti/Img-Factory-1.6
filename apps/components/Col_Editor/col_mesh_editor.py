@@ -35,39 +35,23 @@ from PyQt6.QtGui import (
     QPainter, QColor, QPen, QBrush, QPixmap, QFont
 )
 
-# GTA surface material names (material byte 0–70 used)
-SURFACE_MATERIALS = {
-    0:  "Default",       1:  "Tarmac",        2:  "Gravel",
-    3:  "Mud",           4:  "Pavement",       5:  "Grass",
-    6:  "Sand",          7:  "Water",          8:  "Stone",
-    9:  "Wood",          10: "Metal",          11: "Glass",
-    12: "Dirt",          13: "Concrete",       14: "Hedge",
-    15: "Leaves",        16: "Carpet",         17: "Fabric",
-    18: "Rubber",        19: "Plastic",        20: "Cardboard",
-    21: "Paper",         22: "Marble",         23: "Wood Floor",
-    24: "Interior Floor",25: "Sky",            26: "Explosion",
-    27: "Sand Beach",    28: "Steep Slope",    29: "Interior",
-    30: "Puddle",        31: "Snow",           32: "Ice",
-    33: "Wet",           34: "Flood Water",    35: "Office Carpet",
-    70: "Unknown",
-}
+# Material data — loaded from col_materials (SA by default, switches on game version)
+from apps.methods.col_materials import (
+    COLGame, get_material_name, get_material_qcolor,
+    get_materials_for_version, COL_PRESET_GROUP
+)
 
-MATERIAL_COLORS = {
-    0:  QColor(200, 200, 200),   # Default — grey
-    1:  QColor(60,  60,  60),    # Tarmac — dark grey
-    2:  QColor(140, 120, 80),    # Gravel — brownish
-    3:  QColor(100, 80,  50),    # Mud — brown
-    4:  QColor(180, 170, 150),   # Pavement
-    5:  QColor(60,  150, 60),    # Grass — green
-    6:  QColor(220, 200, 140),   # Sand — yellow
-    7:  QColor(50,  100, 220),   # Water — blue
-    8:  QColor(160, 160, 160),   # Stone
-    9:  QColor(140, 100, 60),    # Wood — brown
-    10: QColor(180, 180, 200),   # Metal
-    11: QColor(180, 220, 240),   # Glass — light blue
-    12: QColor(100, 80,  60),    # Dirt
-    13: QColor(150, 150, 150),   # Concrete
-}
+def _build_material_color_cache(game: COLGame = COLGame.SA) -> dict:
+    """Build {material_id: QColor} from group colours for the given game."""
+    cache = {}
+    for mat_id, name, hex_col in get_materials_for_version(game, include_procedural=True):
+        cache[mat_id] = QColor(f"#{hex_col}")
+    return cache
+
+# Default caches (SA) — rebuilt when game version changes
+_MAT_COLORS_SA = _build_material_color_cache(COLGame.SA)
+_MAT_COLORS_VC = _build_material_color_cache(COLGame.VC)
+_DEFAULT_MAT_COLOR = QColor(120, 120, 120)
 
 
 ##class COLMeshEditorViewport -
@@ -318,7 +302,12 @@ class COLMeshEditorViewport(QWidget): #vers 1
             for fi, face in enumerate(faces):
                 a, b, c = face.a, face.b, face.c
                 if a >= len(verts) or b >= len(verts) or c >= len(verts): continue
-                mat_col = MATERIAL_COLORS.get(face.material, QColor(120, 120, 120))
+                mat_id = face.material if isinstance(face.material, int) else getattr(face.material, 'material_id', 0)
+                # Pick colour cache based on editor game version (SA default)
+                _cache = _MAT_COLORS_SA
+                if hasattr(self, '_editor') and getattr(self._editor, '_game', None) == COLGame.VC:
+                    _cache = _MAT_COLORS_VC
+                mat_col = _cache.get(mat_id, _DEFAULT_MAT_COLOR)
                 selected = fi in self._sel_faces
                 if selected:
                     fill = QColor(255, 200, 50, 160); pen_col = QColor(255, 220, 0); pen_w = 2
@@ -381,8 +370,15 @@ class COLMeshEditor(QDialog): #vers 1
         self.setWindowTitle(f"Mesh Editor — {getattr(self._model.header, 'name', 'Model')}")
         self.setMinimumSize(960, 580)
         self.resize(1100, 660)
+
+        # Detect game version from COL version — COL1 = GTA3/VC, COL2/3 = SA
+        col_ver = getattr(getattr(self._model, 'version', None), 'value',
+                          getattr(self._model, 'version', 3))
+        self._game = COLGame.VC if col_ver == 1 else COLGame.SA
+
         self._build_ui()
-        # Wire viewport selection callback after UI exists
+        # Wire viewport back-reference so it can pick the right colour cache
+        self.viewport._editor = self
         self.viewport.on_selection_changed = self._on_viewport_selection
         self._populate_all()
 
@@ -421,10 +417,20 @@ class COLMeshEditor(QDialog): #vers 1
         splitter.setSizes([480, 260])
         root.addWidget(splitter, 1)
 
-        # ── Status ────────────────────────────────────────────────────────
+        # ── Status + game selector ────────────────────────────────────────
+        stat_row = QHBoxLayout()
         self._status = QLabel("Ready")
         self._status.setStyleSheet("color:#aaa;font-size:10px;")
-        root.addWidget(self._status)
+        stat_row.addWidget(self._status, 1)
+        stat_row.addWidget(QLabel("Game:"))
+        self._game_combo = QComboBox()
+        self._game_combo.addItem("San Andreas (COL2/3)", COLGame.SA)
+        self._game_combo.addItem("Vice City / GTA III (COL1)", COLGame.VC)
+        # Pre-select based on detected version
+        self._game_combo.setCurrentIndex(0 if self._game == COLGame.SA else 1)
+        self._game_combo.currentIndexChanged.connect(self._on_game_changed)
+        stat_row.addWidget(self._game_combo)
+        root.addLayout(stat_row)
 
         # ── Bottom buttons ────────────────────────────────────────────────
         bot = QHBoxLayout()
@@ -491,8 +497,7 @@ class COLMeshEditor(QDialog): #vers 1
         al.addWidget(QLabel("C:")); self._af_c = QSpinBox(); self._af_c.setRange(0,99999); al.addWidget(self._af_c)
         al.addWidget(QLabel("Material:"))
         self._af_mat = QComboBox()
-        for idx2, name in sorted(SURFACE_MATERIALS.items()):
-            self._af_mat.addItem(f"{idx2} — {name}", idx2)
+        self._af_mat.setMinimumWidth(200)
         al.addWidget(self._af_mat)
         self._btn(al, "➕ Add", self._commit_add_face)
         lay.addWidget(add_grp)
@@ -598,7 +603,34 @@ class COLMeshEditor(QDialog): #vers 1
         return w
 
 
+    # ── Material combo helpers ────────────────────────────────────────────
+
+    def _refresh_material_combo(self): #vers 1
+        """Repopulate the Add Face material combo for the current game."""
+        self._af_mat.blockSignals(True)
+        prev = self._af_mat.currentData()
+        self._af_mat.clear()
+        for mat_id, name, _ in get_materials_for_version(
+                self._game, include_procedural=True):
+            self._af_mat.addItem(f"{mat_id} \u2014 {name}", mat_id)
+        # Restore previous selection if possible
+        if prev is not None:
+            idx = self._af_mat.findData(prev)
+            if idx >= 0:
+                self._af_mat.setCurrentIndex(idx)
+        self._af_mat.blockSignals(False)
+
+    def _on_game_changed(self): #vers 1
+        """Called when the game selector changes — refresh material lists."""
+        self._game = self._game_combo.currentData()
+        self._refresh_material_combo()
+        self._populate_faces()      # update material names in face table
+        self.viewport.update()      # update face colours
+
+    # ── Populate ──────────────────────────────────────────────────────────
+
     def _populate_all(self):
+        self._refresh_material_combo()
         self._populate_faces()
         self._populate_verts()
         self._populate_boxes()
@@ -611,8 +643,9 @@ class COLMeshEditor(QDialog): #vers 1
         faces = getattr(self._model, 'faces', [])
         self.face_table.setRowCount(len(faces))
         for i, f in enumerate(faces):
-            mat_name = SURFACE_MATERIALS.get(f.material, str(f.material))
-            for col, val in enumerate([i, f.a, f.b, f.c, f"{f.material} {mat_name}"]):
+            mat_id = f.material if isinstance(f.material, int) else getattr(f.material, 'material_id', 0)
+            mat_name = get_material_name(mat_id, self._game)
+            for col, val in enumerate([i, f.a, f.b, f.c, f"{mat_id} {mat_name}"]):
                 item = QTableWidgetItem(str(val))
                 if col == 0:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -667,7 +700,7 @@ class COLMeshEditor(QDialog): #vers 1
             elif col == 4:
                 face.material = val
                 # Update display
-                mat_name = SURFACE_MATERIALS.get(val, str(val))
+                mat_name = get_material_name(val, self._game)
                 self.face_table.blockSignals(True)
                 self.face_table.item(row, 4).setText(f"{val} {mat_name}")
                 self.face_table.blockSignals(False)
