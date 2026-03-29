@@ -5133,88 +5133,65 @@ class COLWorkshop(QWidget): #vers 3
         except Exception as e:
             print(f"Undo error: {e}")
 
-    def _export_col_data(self): #vers 1
-        """Export selected COL models (or all if none selected) to individual .col files."""
-        try:
-            if not self.current_col_file:
-                QMessageBox.warning(self, "Export", "No COL file loaded.")
-                return
+    def _export_col_data(self): #vers 2
+        """Extract/export selected COL models (or all) to individual .col files."""
+        import os
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        from apps.methods.col_workshop_writer import save_col_file
 
-            models = getattr(self.current_col_file, 'models', [])
-            if not models:
-                QMessageBox.warning(self, "Export", "No collision models to export.")
-                return
+        if not self.current_col_file:
+            QMessageBox.warning(self, "Export", "No COL file loaded.")
+            return
+        models = getattr(self.current_col_file, 'models', [])
+        if not models:
+            QMessageBox.warning(self, "Export", "No collision models to export.")
+            return
 
-            # Determine which rows to export
-            selected_rows = self.collision_list.selectionModel().selectedRows()
-            if selected_rows:
-                indices = [r.row() for r in selected_rows if r.row() < len(models)]
-            else:
-                indices = list(range(len(models)))
+        # Determine selection — try both list widgets
+        indices = set()
+        for lw in (getattr(self,'col_compact_list',None), getattr(self,'collision_list',None)):
+            if lw is None: continue
+            for idx in lw.selectionModel().selectedRows():
+                if idx.row() < len(models):
+                    indices.add(idx.row())
+        if not indices:
+            indices = set(range(len(models)))
+        indices = sorted(indices)
 
-            if not indices:
-                return
+        if len(indices) == 1:
+            model = models[indices[0]]
+            safe = (getattr(model,'name','model') or 'model').replace(' ','_')
+            out, _ = QFileDialog.getSaveFileName(
+                self, "Export COL Model", safe + '.col', "COL Files (*.col);;All Files (*)")
+            if not out: return
+            ok = save_col_file([model], out)
+            msg = f"Exported {os.path.basename(out)}" if ok else "Export failed."
+            ok_count = 1 if ok else 0
+        else:
+            folder = QFileDialog.getExistingDirectory(
+                self, f"Extract {len(indices)} COL models to folder")
+            if not folder: return
+            ok_count = 0
+            for i in indices:
+                model = models[i]
+                safe = (getattr(model,'name',f'model_{i}') or f'model_{i}').replace(' ','_')
+                out  = os.path.join(folder, safe.lower() + '.col')
+                base, ext = os.path.splitext(out)
+                n = 1
+                while os.path.exists(out):
+                    out = f"{base}_{n}{ext}"; n += 1
+                if save_col_file([model], out):
+                    ok_count += 1
+            msg = f"Extracted {ok_count} of {len(indices)} model(s) to {folder}"
+            ok  = ok_count > 0
 
-            # Single model — save directly
-            if len(indices) == 1:
-                model = models[indices[0]]
-                name = getattr(model, 'name', f'model_{indices[0]}')
-                default = name.lower().replace(' ', '_') + '.col'
-                path, _ = QFileDialog.getSaveFileName(
-                    self, "Export COL Model", default,
-                    "COL Files (*.col);;All Files (*)")
-                if not path:
-                    return
-                paths = [(indices[0], path)]
-            else:
-                # Multiple — ask for a folder
-                from PyQt6.QtWidgets import QFileDialog as _QFD
-                folder = _QFD.getExistingDirectory(
-                    self, f"Export {len(indices)} COL Models to Folder")
-                if not folder:
-                    return
-                import os
-                paths = []
-                for i in indices:
-                    name = getattr(models[i], 'name', f'model_{i}')
-                    fname = name.lower().replace(' ', '_') + '.col'
-                    paths.append((i, os.path.join(folder, fname)))
-
-            # Write each model
-            import os
-            from apps.methods.col_workshop_loader import COLFile
-            ok = 0
-            for idx, out_path in paths:
-                try:
-                    model = models[idx]
-                    out_col = COLFile()
-                    out_col.models = [model]
-                    raw = getattr(model, '_raw_bytes', None)
-                    if hasattr(out_col, 'save') and out_col.save(out_path):
-                        ok += 1
-                    elif raw:
-                        with open(out_path, 'wb') as f:
-                            f.write(raw)
-                        ok += 1
-                    else:
-                        print(f"Could not serialise model {idx} ({getattr(model,'name','')})")
-                except Exception as e:
-                    print(f"Export model {idx} failed: {e}")
-
-            msg = (f"Exported {ok} of {len(paths)} model(s)."
-                   if len(paths) > 1 else
-                   f"Exported {os.path.basename(paths[0][1])}")
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(msg)
-            if ok:
-                QMessageBox.information(self, "Export Complete", msg)
-            else:
-                QMessageBox.warning(self, "Export Failed",
-                    "No models could be serialised.\n"
-                    "Export from right-click → Export Model for individual models.")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Export Error", str(e))
+        self._set_status(msg)
+        if self.main_window and hasattr(self.main_window,'log_message'):
+            self.main_window.log_message(msg)
+        if ok:
+            QMessageBox.information(self, "Extract Complete", msg)
+        else:
+            QMessageBox.warning(self, "Extract Failed", msg)
 
     def _save_file(self): #vers 1
         """Save current COL file"""
@@ -7807,28 +7784,50 @@ class COLEditorDialog(QDialog): #vers 3
             print(f"Error adding import/export functionality: {str(e)}")
 
 
-    def _import_col_data(self): #vers 1
-        """Import COL data from external source"""
-        try:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} import functionality - not yet implemented")
-                # TODO: Implement actual import functionality
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Import", "Import functionality coming soon!")
-        except Exception as e:
-            print(f"Error importing COL data: {str(e)}")
+    def _import_col_data(self): #vers 2
+        """Import one or more COL models from .col file(s) into the current archive."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        if not self.current_col_file:
+            # No file loaded yet — open the files directly
+            self._open_file()
+            return
+
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Import COL File(s)", "",
+            "COL Files (*.col);;All Files (*)")
+        if not paths:
+            return
+
+        from apps.methods.col_workshop_loader import COLFile
+        added = 0
+        for path in paths:
+            cf = COLFile()
+            if cf.load_from_file(path):
+                for model in cf.models:
+                    self.current_col_file.models.append(model)
+                    added += 1
+            else:
+                print(f"Import failed: {path}")
+
+        if added:
+            self._populate_collision_list()
+            self._populate_compact_col_list()
+            # Select last added
+            last = len(self.current_col_file.models) - 1
+            active = (self.col_compact_list
+                      if getattr(self,'_col_view_mode','list')=='detail'
+                      else self.collision_list)
+            if active.rowCount() > last:
+                active.selectRow(last)
+            msg = f"Imported {added} model(s) from {len(paths)} file(s)."
+            self._set_status(msg)
+            if self.main_window and hasattr(self.main_window,'log_message'):
+                self.main_window.log_message(msg)
+        else:
+            QMessageBox.warning(self, "Import", "No models could be imported.")
 
 
-    def _export_col_data(self): #vers 1
-        """Export COL data to external source"""
-        try:
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"{App_name} export functionality - not yet implemented")
-                # TODO: Implement actual export functionality
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Export", "Export functionality coming soon!")
-        except Exception as e:
-            print(f"Error exporting COL data: {str(e)}")
+    # _export_col_data implemented above (line ~5136) — this stub removed
 
 
 # Convenience functions
