@@ -1404,8 +1404,7 @@ class IMGFactory(QMainWindow):
                     return
 
                 elif actual_filename.endswith('.col') and self.current_img:
-                    from apps.components.Col_Editor.col_workshop import open_col_workshop
-                    open_col_workshop(self, self.current_img.file_path)
+                    self._open_col_entry_smart(name_item.text(), row)
                     return
 
             else:
@@ -5341,6 +5340,107 @@ class IMGFactory(QMainWindow):
 
 
     # COL and editor functions
+    def _open_col_entry_smart(self, col_name: str, table_row: int = -1): #vers 1
+        """Open a COL entry from the IMG file list.
+        Tries COL Workshop first; falls back to inline COL viewer if not installed."""
+        import os
+
+        if not self.current_img:
+            return
+
+        # Extract raw COL data from the IMG archive
+        col_data = None
+        for entry in self.current_img.entries:
+            if entry.name.lower() == col_name.lower():
+                try:
+                    col_data = self.current_img.read_entry(entry)
+                except Exception:
+                    col_data = getattr(entry, 'data', None)
+                break
+
+        # ── Try COL Workshop ─────────────────────────────────────────────
+        try:
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            workshop = open_col_workshop(self, self.current_img.file_path)
+            # Try to pre-select the matching entry
+            if workshop and col_name:
+                models = getattr(getattr(workshop, 'current_col_file', None), 'models', [])
+                for i, m in enumerate(models):
+                    if getattr(m, 'name', '').lower() == col_name.lower().replace('.col',''):
+                        for lw in (getattr(workshop,'col_compact_list',None),
+                                   getattr(workshop,'collision_list',None)):
+                            if lw and lw.isVisible() and i < lw.rowCount():
+                                lw.selectRow(i)
+                                break
+                        break
+            return
+        except ImportError:
+            pass   # COL Workshop not installed — use inline viewer
+        except Exception as e:
+            self.log_message(f"COL Workshop error: {e}")
+
+        # ── Fallback: inline COL info dialog ────────────────────────────
+        if not col_data:
+            self.log_message(f"Could not read COL data for {col_name}")
+            return
+
+        try:
+            from apps.methods.col_workshop_loader import COLFile
+            cf = COLFile()
+            cf.load_from_data(col_data, col_name)
+            models = cf.models
+
+            from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTableWidget,
+                QTableWidgetItem, QLabel, QPushButton, QHBoxLayout, QHeaderView)
+            from PyQt6.QtCore import Qt
+
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"COL: {col_name}  ({len(models)} models)")
+            dlg.setMinimumSize(700, 400)
+            lay = QVBoxLayout(dlg)
+
+            info = QLabel(f"<b>{col_name}</b>  —  {len(models)} collision model(s)  "
+                          f"<small>(Install COL Workshop for full editing)</small>")
+            info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lay.addWidget(info)
+
+            tbl = QTableWidget(len(models), 8)
+            tbl.setHorizontalHeaderLabels(
+                ["Name","Version","Spheres","Boxes","Vertices","Faces","Shadow V","Shadow F"])
+            tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            tbl.setAlternatingRowColors(True)
+            tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+
+            for i, m in enumerate(models):
+                ver = getattr(m.version,'name','?') if hasattr(m,'version') else '?'
+                row_data = [
+                    getattr(m,'name',''),
+                    ver,
+                    str(len(getattr(m,'spheres',[]))),
+                    str(len(getattr(m,'boxes',[]))),
+                    str(len(getattr(m,'vertices',[]))),
+                    str(len(getattr(m,'faces',[]))),
+                    str(len(getattr(m,'shadow_verts',[]))),
+                    str(len(getattr(m,'shadow_faces',[]))),
+                ]
+                for j, val in enumerate(row_data):
+                    tbl.setItem(i, j, QTableWidgetItem(val))
+
+            lay.addWidget(tbl)
+
+            btn_row = QHBoxLayout()
+            btn_close = QPushButton("Close")
+            btn_close.clicked.connect(dlg.accept)
+            btn_row.addStretch()
+            btn_row.addWidget(btn_close)
+            lay.addLayout(btn_row)
+            dlg.exec()
+
+        except Exception as e:
+            self.log_message(f"COL inline view error: {e}")
+            import traceback; traceback.print_exc()
+
     def _open_col_file_in_workshop(self): #vers 1
         """File menu → Open COL in COL Workshop.
         Shows a file dialog to pick a standalone .col file, then opens it

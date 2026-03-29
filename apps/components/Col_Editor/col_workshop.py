@@ -1368,29 +1368,34 @@ class COLWorkshop(QWidget): #vers 3
         """Called by viewport Escape key — sync button state."""
         self._exit_paint_mode()
 
-    def _get_selected_model(self): #vers 3
+    def _get_selected_model(self): #vers 4
         """Return the currently selected COLModel or None.
-        Row number == model index for both list widgets (confirmed by
-        _select_model_by_row which uses row directly)."""
+        Uses currentRow() on the active (visible) list widget — more reliable
+        than selectedRows() which can fail with custom delegates."""
         if not self.current_col_file:
             return None
         models = getattr(self.current_col_file, 'models', [])
         if not models:
             return None
 
-        # Try compact list first (default view), then text list
-        for list_widget in (
-            getattr(self, 'col_compact_list', None),
-            getattr(self, 'collision_list',   None),
-        ):
-            if list_widget is None:
-                continue
-            rows = list_widget.selectionModel().selectedRows()
+        # Only check the VISIBLE list — the hidden one may have stale state
+        if getattr(self, '_col_view_mode', 'detail') == 'detail':
+            lw = getattr(self, 'col_compact_list', None)
+        else:
+            lw = getattr(self, 'collision_list', None)
+
+        if lw is None:
+            return None
+
+        # currentRow() is always reliable; selectedRows() can fail with delegates
+        row = lw.currentRow()
+        if row < 0:
+            # Fallback: try selectedRows
+            rows = lw.selectionModel().selectedRows()
             if rows:
                 row = rows[0].row()
-                if 0 <= row < len(models):
-                    return models[row]
-
+        if 0 <= row < len(models):
+            return models[row]
         return None
 
     def _set_status(self, msg: str): #vers 1
@@ -3566,7 +3571,7 @@ class COLWorkshop(QWidget): #vers 3
         self.collision_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.collision_list.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection)
+            QAbstractItemView.SelectionMode.ExtendedSelection)
         self.collision_list.setAlternatingRowColors(True)
         self.collision_list.itemSelectionChanged.connect(self._on_collision_selected)
         self.collision_list.horizontalHeader().setStretchLastSection(True)
@@ -3585,7 +3590,7 @@ class COLWorkshop(QWidget): #vers 3
         self.col_compact_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.col_compact_list.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection)
+            QAbstractItemView.SelectionMode.ExtendedSelection)
         self.col_compact_list.setAlternatingRowColors(True)
         self.col_compact_list.setIconSize(QSize(64, 64))
         self.col_compact_list.itemSelectionChanged.connect(
@@ -5147,13 +5152,21 @@ class COLWorkshop(QWidget): #vers 3
             QMessageBox.warning(self, "Export", "No collision models to export.")
             return
 
-        # Determine selection — try both list widgets
+        # Determine selection from the VISIBLE list
+        if getattr(self, '_col_view_mode', 'detail') == 'detail':
+            lw = getattr(self, 'col_compact_list', None)
+        else:
+            lw = getattr(self, 'collision_list', None)
+
         indices = set()
-        for lw in (getattr(self,'col_compact_list',None), getattr(self,'collision_list',None)):
-            if lw is None: continue
+        if lw is not None:
             for idx in lw.selectionModel().selectedRows():
                 if idx.row() < len(models):
                     indices.add(idx.row())
+            # Also include currentRow() in case selectedRows() missed it
+            cr = lw.currentRow()
+            if 0 <= cr < len(models):
+                indices.add(cr)
         if not indices:
             indices = set(range(len(models)))
         indices = sorted(indices)
