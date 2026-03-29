@@ -1,483 +1,230 @@
-#this belongs in methods/col_workshop_loader.py - Version: 1
-# X-Seti - December21 2025 - Col Workshop - COL File Loader
+#this belongs in methods/col_workshop_loader.py - Version: 2
+# X-Seti - December21 2025 / March2026 - Col Workshop - COL File Loader
 """
-COL File Loader - High-level interface for loading COL files
-Handles single and multi-model archives
+COL File Loader — high-level interface for loading COL files.
+Supports single-model and multi-model COL archives (COL1/2/3/4).
+
+All parsing goes through _parse_all_models to avoid load_from_file /
+load / load_from_data diverging in behaviour.
+
+##Methods list -
+# COLFile
+#   __init__
+#   load
+#   load_from_file
+#   load_from_data
+#   _load_bytes
+#   _parse_all_models
+#   get_model_count
+#   get_model
+#   get_model_by_name
+#   get_stats
+#   get_info
+#   is_multi_model
+#   validate
 """
 
 import os
+import struct
 from typing import List, Optional, Tuple
+
 from apps.methods.col_workshop_parser import COLParser
 from apps.methods.col_workshop_classes import COLModel, COLVersion
-
-# Optional debug - use print if not available
 from apps.debug.debug_functions import img_debugger
-##Methods list -
-# COLFile - Class
-# Init
-# load
-# load_from_file
-# load_from_data
-# get_model_count
-# get_model
-# get_model_by_name
-# get_stats
-# get_info
-# is_multi_model
-# _parse_all_models
-# validate
+
+_VALID_FOURCCS = {b'COLL', b'COL2', b'COL3', b'COL4'}
 
 
-class COLFile: #vers 1
-    """High-level COL file interface"""
-    
+class COLFile: #vers 2
+    """High-level COL file interface."""
+
     def __init__(self, file_path: Optional[str] = None, debug: bool = False): #vers 2
-        """Initialize COL file handler.
-        file_path: optional path — stored so load() can be called with no args.
-        debug: enable debug output.
-        """
-        self.parser = COLParser(debug=debug)
-        self.debug = debug
+        self.parser     = COLParser(debug=debug)
+        self.debug      = debug
         self.models: List[COLModel] = []
-        self.is_loaded = False
+        self.is_loaded  = False
         self.load_error = ""
-        self.file_path: Optional[str] = file_path
+        self.file_path  = file_path
         self.raw_data: Optional[bytes] = None
-    
+
+    # ── Public load API ───────────────────────────────────────────────────
 
     def load(self, file_path: str = None) -> bool: #vers 2
         """Load COL file from disk. Uses self.file_path if no arg given."""
-        try:
-            if file_path is None:
-                file_path = self.file_path
-            if not file_path or not isinstance(file_path, str):
-                self.load_error = f"Invalid file path: {file_path!r}"
-                return False
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"COL file not found: {file_path}")
-            
-            # Read file data
-            with open(file_path, 'rb') as f:
-                self.raw_data = f.read()
-            
-            self.file_path = file_path
-            
-            # Parse models
-            self.models = self._parse_all_models(self.raw_data)
-            
-            if self.debug:
-                print(f"Loaded {len(self.models)} models from {os.path.basename(file_path)}")
-            
-            return True
-            
-        except Exception as e:
-            if self.debug:
-                print(f"Error loading COL file: {e}")
+        path = file_path or self.file_path
+        if not path or not isinstance(path, str):
+            self.load_error = f"Invalid file path: {path!r}"
             return False
-    
+        with open(path, 'rb') as f:
+            data = f.read()
+        self.file_path = path
+        return self._load_bytes(data)
 
-    def _load_single_model(self, data: bytes) -> bool: #vers 2
-        """Load single COL model
-
-        Args:
-            data: File data bytes
-
-        Returns:
-            True if successful
-        """
-        try:
-            model, offset = self.parser.parse_model(data, 0)
-
-            if model is None:
-                self.load_error = "Parser returned None - check debug output for details"
-                img_debugger.error(self.load_error)
-                return False
-
-            self.models.append(model)
-            self.is_loaded = True
-
-            if self.debug:
-                img_debugger.success(f"Loaded 1 model: {model.name}")
-
-            return True
-
-        except Exception as e:
-            import traceback
-            self.load_error = f"Single model parse error: {str(e)}"
-            img_debugger.error(self.load_error)
-            img_debugger.error(traceback.format_exc())
-            return False
-
-
-    def _load_multi_model_archive(self, data: bytes) -> bool: #vers 1
-        """Load multi-model COL archive
-
-        Archives contain multiple independent COL models,
-        each starting with its own signature
-
-        Args:
-            data: File data bytes
-
-        Returns:
-            True if at least one model loaded
-        """
-        try:
-            if self.debug:
-                img_debugger.info("Parsing multi-model archive...")
-
-            # Parse models sequentially using file_size from headers
-            offset = 0
-            models_loaded = 0
-
-            while offset < len(data) - 32:
-                # Check for valid signature
-                sig = data[offset:offset+4]
-                if sig not in [b'COLL', b'COL', b'COL', b'COL']:
-                    break
-
-                # Read file_size from header to skip to next model
-                file_size = struct.unpack('<I', data[offset+4:offset+8])[0]
-
-                try:
-                    model, _ = self.parser.parse_model(data, offset)
-
-                    if model:
-                        self.models.append(model)
-                        models_loaded += 1
-                        if self.debug:
-                            img_debugger.debug(f"Model {models_loaded}: {model.name} loaded")
-
-                    # Skip to next model using file_size
-                    offset += file_size
-
-                except Exception as e:
-                    if self.debug:
-                        img_debugger.warning(f"Model error: {str(e)}")
-                    # Try to skip using file_size
-                    offset += file_size if file_size > 0 else 100
-
-            if not signatures:
-                self.load_error = "No COL signatures found"
-                return False
-
-            # Parse each model
-            models_loaded = 0
-            for i, sig_offset in enumerate(signatures):
-                try:
-                    model, new_offset = self.parser.parse_model(data, sig_offset)
-
-                    if model:
-                        self.models.append(model)
-                        models_loaded += 1
-                        if self.debug:
-                            img_debugger.debug(f"Archive model {i}: {model.name} loaded")
-                    else:
-                        if self.debug:
-                            img_debugger.warning(f"Archive model {i}: parse failed")
-
-                except Exception as e:
-                    if self.debug:
-                        img_debugger.warning(f"Archive model {i} error: {str(e)}")
-                    continue
-
-            if models_loaded > 0:
-                self.is_loaded = True
-                if self.debug:
-                    img_debugger.success(f"Archive loaded: {models_loaded} models")
-                return True
-            else:
-                self.load_error = "No models could be loaded from archive"
-                return False
-
-        except Exception as e:
-            self.load_error = f"Archive parse error: {str(e)}"
-            img_debugger.error(self.load_error)
-            return False
-
-
-    def load_from_file(self, file_path: str = None) -> bool: #vers 2
-        """Load COL file from disk — guards against None/bool file_path."""
+    def load_from_file(self, file_path: str = None) -> bool: #vers 3
+        """Load COL file from disk."""
         if not file_path or not isinstance(file_path, str):
             self.load_error = f"Invalid file path: {file_path!r}"
             return False
+        if not os.path.exists(file_path):
+            self.load_error = f"File not found: {file_path}"
+            img_debugger.error(self.load_error)
+            return False
+
+        self.file_path  = file_path
+        self.models     = []
+        self.is_loaded  = False
+        self.load_error = ""
+
+        if os.path.getsize(file_path) < 32:
+            self.load_error = "File too small for COL"
+            img_debugger.error(self.load_error)
+            return False
+
+        if self.debug:
+            img_debugger.info(f"Loading: {os.path.basename(file_path)}")
+
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        return self._load_bytes(data)
+
+    def load_from_data(self, data: bytes, name: str = "unknown.col") -> bool: #vers 2
+        """Load COL from raw bytes."""
+        self.file_path  = name
+        self.models     = []
+        self.is_loaded  = False
+        self.load_error = ""
+        return self._load_bytes(data)
+
+    # ── Single internal parse path ────────────────────────────────────────
+
+    def _load_bytes(self, data: bytes) -> bool: #vers 1
+        """Parse bytes — single code path for all load methods."""
         try:
-            self.file_path = file_path
-            self.models = []
-            self.is_loaded = False
-            self.load_error = ""
-
-            # Validate file exists
-            if not os.path.exists(file_path):
-                self.load_error = f"File not found: {file_path}"
-                img_debugger.error(self.load_error)
-                return False
-
-            # Read file
-            with open(file_path, 'rb') as f:
-                data = f.read()
-
-            file_size = len(data)
-            if file_size < 32:
-                self.load_error = "File too small for COL"
-                img_debugger.error(self.load_error)
-                return False
-
-            if self.debug:
-                img_debugger.info(f"Loading: {os.path.basename(file_path)} ({file_size} bytes)")
-
-            # Parse models (COL files are archives of models, stored linearly)
-            offset = 0
-            model_count = 0
-
-            while offset < len(data) - 32:
-                # Try to parse model
-                model, new_offset = self.parser.parse_model(data, offset)
-
-                if model is None:
-                    # No more valid models
-                    if model_count == 0:
-                        self.load_error = "Failed to parse any models"
-                        img_debugger.error(self.load_error)
-                        return False
-                    else:
-                        # We got some models, that's success
-                        break
-
-                self.models.append(model)
-                model_count += 1
-
-                # Check if offset advanced
-                if new_offset <= offset:
-                    if self.debug:
-                        img_debugger.warning("Offset didn't advance, stopping")
-                    break
-
-                offset = new_offset
-
-            if len(self.models) > 0:
+            self.raw_data = data
+            self.models   = self._parse_all_models(data)
+            if self.models:
                 self.is_loaded = True
                 if self.debug:
-                    img_debugger.success(f"Loaded {len(self.models)} models")
+                    img_debugger.success(f"Loaded {len(self.models)} model(s)")
                 return True
-            else:
-                self.load_error = "No models loaded"
-                return False
-
+            self.load_error = "No models could be parsed"
+            img_debugger.error(self.load_error)
+            return False
         except Exception as e:
             import traceback
-            self.load_error = f"Load error: {str(e)}"
+            self.load_error = f"Load error: {e}"
             img_debugger.error(self.load_error)
             img_debugger.error(traceback.format_exc())
             return False
 
-
-    def load_from_data(self, data: bytes, name: str = "unknown.col") -> bool: #vers 1
+    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 3
         """
-        Load COL from raw bytes
-        
-        Returns: True if successful
+        Parse all COL models from a buffer.
+        COL files are linear archives: FOURCC + size + payload, repeat.
         """
-        try:
-            self.raw_data = data
-            self.file_path = name
-            
-            # Parse models
-            self.models = self._parse_all_models(data)
-            
-            if self.debug:
-                print(f"Loaded {len(self.models)} models from data")
-            
-            return True
-            
-        except Exception as e:
-            if self.debug:
-                print(f"Error loading COL data: {e}")
-            return False
-    
-
-    def get_model_count(self) -> int: #vers 1
-        """Get number of models in file"""
-        return len(self.models)
-    
-
-    def get_model(self, index: int) -> Optional[COLModel]: #vers 1
-        """Get model by index"""
-        if 0 <= index < len(self.models):
-            return self.models[index]
-        return None
-    
-
-    def get_model_by_name(self, name: str) -> Optional[COLModel]: #vers 1
-        """Get model by name"""
-        for model in self.models:
-            if model.header.name == name:
-                return model
-        return None
-    
-
-    def get_stats(self) -> dict: #vers 1
-        """Get file statistics"""
-        total_spheres = sum(len(m.spheres) for m in self.models)
-        total_boxes = sum(len(m.boxes) for m in self.models)
-        total_vertices = sum(len(m.vertices) for m in self.models)
-        total_faces = sum(len(m.faces) for m in self.models)
-        
-        versions = set(m.header.version for m in self.models)
-        
-        return {
-            'file_path': self.file_path,
-            'model_count': len(self.models),
-            'versions': [v.name for v in versions],
-            'total_spheres': total_spheres,
-            'total_boxes': total_boxes,
-            'total_vertices': total_vertices,
-            'total_faces': total_faces,
-            'file_size': len(self.raw_data) if self.raw_data else 0
-        }
-    
-
-    def get_info(self) -> str:
-        """Get file info summary"""
-        lines = []
-
-        filename = os.path.basename(self.file_path) if self.file_path else "Unknown"
-        lines.append(f"File: {filename}")
-        lines.append(f"Models: {len(self.models)}")
-        lines.append("")
-
-        for i, model in enumerate(self.models):
-            lines.append(f"Model {i}: {model.name}")
-            lines.append(f"  Version: {model.version.name}")
-            lines.append(f"  ID: {model.model_id}")
-            lines.append(f"  Spheres: {len(model.spheres)}")
-            lines.append(f"  Boxes: {len(model.boxes)}")
-            lines.append(f"  Vertices: {len(model.vertices)}")
-            lines.append(f"  Faces: {len(model.faces)}")
-            lines.append("")
-
-        return "\n".join(lines)
-
-
-    def is_multi_model(self) -> bool: #vers 1
-        """Check if file contains multiple models"""
-        is_multi_model_archive()
-        return len(self.models) > 1
-    
-
-    def is_multi_model_archive(self, data: bytes) -> bool: #vers 1
-        """Check if file contains multiple COL models
-
-        Multi-model archives have multiple COL signatures in the file
-
-        Args:
-            data: File data bytes
-
-        Returns:
-            True if multi-model archive
-        """
-        try:
-            signature_count = 0
-            offset = 0
-
-            # Scan for COL signatures
-            while offset < len(data) - 4:
-                sig = data[offset:offset+4]
-                if sig in [b'COLL', b'COL\x02', b'COL\x03', b'COL\x04']:
-                    signature_count += 1
-                    if signature_count > 1:
-                        if self.debug:
-                            img_debugger.debug(f"Multi-model archive detected ({signature_count} signatures)")
-                        return True
-                    # Skip ahead to avoid counting same signature
-                    offset += 100
-                else:
-                    offset += 1
-
-            return False
-
-        except Exception:
-            return False
-
-
-    def _parse_all_models(self, data: bytes) -> List[COLModel]: #vers 2
-        """Parse all COL models from data — supports COL1, COL2, COL3, COL4."""
-        import struct as _s
         models = []
         offset = 0
-        VALID_FOURCCS = {b'COLL', b'COL2', b'COL3', b'COL4'}
 
         while offset < len(data) - 8:
-            fourcc = data[offset:offset+4]
-            if fourcc not in VALID_FOURCCS:
+            fourcc = data[offset:offset + 4]
+            if fourcc not in _VALID_FOURCCS:
                 if self.debug:
-                    print(f"_parse_all_models: unexpected bytes at 0x{offset:X}: {fourcc.hex()} {repr(fourcc)}")
-                # Try scanning forward for a valid FOURCC (handles files with padding/junk)
+                    print(f"_parse_all_models: unexpected at 0x{offset:X}: {fourcc.hex()}")
+                # Scan forward for a valid FOURCC
                 found = False
                 for skip in range(1, min(64, len(data) - offset - 8)):
-                    candidate = data[offset+skip:offset+skip+4]
-                    if candidate in VALID_FOURCCS:
-                        if self.debug:
-                            print(f"  found valid FOURCC at +{skip}: {candidate}")
+                    if data[offset + skip:offset + skip + 4] in _VALID_FOURCCS:
                         offset += skip
                         found = True
                         break
                 if not found:
                     break
+                fourcc = data[offset:offset + 4]
 
-            # Read the size field so we can safely skip on failure
-            block_size = _s.unpack_from('<I', data, offset + 4)[0]
+            block_size  = struct.unpack_from('<I', data, offset + 4)[0]
             next_offset = offset + 8 + block_size   # fourcc(4)+size(4)+payload
 
             try:
-                model, parsed_offset = self.parser.parse_model(data, offset)
+                model, parsed_end = self.parser.parse_model(data, offset)
                 if model is not None:
                     models.append(model)
                     if self.debug:
-                        name = getattr(model, 'name', '?')
-                        ver  = getattr(model, 'version', '?')
-                        print(f"  model[{len(models)-1}]: {name!r}  version={ver}")
-                    # Advance by parsed amount, but never go backward
-                    offset = max(parsed_offset, next_offset)
+                        print(f"  model[{len(models)-1}]: {model.name!r} {model.version}")
+                    offset = parsed_end if parsed_end > offset else next_offset
                 else:
                     if self.debug:
-                        print(f"  parse_model returned None at 0x{offset:X}, skipping block")
+                        print(f"  parse_model None at 0x{offset:X}, skipping block")
                     offset = next_offset
             except Exception as e:
                 if self.debug:
                     print(f"  exception at 0x{offset:X}: {e}")
-                offset = next_offset   # skip the block and try the next
+                offset = next_offset
 
         return models
-    
 
-    def validate(self) -> Tuple[bool, List[str]]: #vers 1
-        """
-        Validate COL file
-        
-        Returns: (is_valid, list_of_errors)
-        """
+    # ── Query helpers ─────────────────────────────────────────────────────
+
+    def get_model_count(self) -> int: #vers 1
+        return len(self.models)
+
+    def get_model(self, index: int) -> Optional[COLModel]: #vers 1
+        return self.models[index] if 0 <= index < len(self.models) else None
+
+    def get_model_by_name(self, name: str) -> Optional[COLModel]: #vers 1
+        for model in self.models:
+            if model.name == name:
+                return model
+        return None
+
+    def is_multi_model(self) -> bool: #vers 2
+        """Return True if more than one model was loaded."""
+        return len(self.models) > 1
+
+    def get_stats(self) -> dict: #vers 1
+        return {
+            'file_path':      self.file_path,
+            'model_count':    len(self.models),
+            'versions':       list({m.version.name for m in self.models}),
+            'total_spheres':  sum(len(m.spheres)  for m in self.models),
+            'total_boxes':    sum(len(m.boxes)     for m in self.models),
+            'total_vertices': sum(len(m.vertices)  for m in self.models),
+            'total_faces':    sum(len(m.faces)     for m in self.models),
+            'file_size':      len(self.raw_data) if self.raw_data else 0,
+        }
+
+    def get_info(self) -> str: #vers 2
+        lines = []
+        filename = os.path.basename(self.file_path) if self.file_path else "Unknown"
+        lines.append(f"File: {filename}")
+        lines.append(f"Models: {len(self.models)}")
+        lines.append("")
+        for i, model in enumerate(self.models):
+            lines.append(f"Model {i}: {model.name}")
+            lines.append(f"  Version:  {model.version.name}")
+            lines.append(f"  ID:       {model.model_id}")
+            lines.append(f"  Spheres:  {len(model.spheres)}")
+            lines.append(f"  Boxes:    {len(model.boxes)}")
+            lines.append(f"  Vertices: {len(model.vertices)}")
+            lines.append(f"  Faces:    {len(model.faces)}")
+            lines.append("")
+        return "\n".join(lines)
+
+    def validate(self) -> Tuple[bool, List[str]]: #vers 2
         errors = []
-        
         if not self.raw_data:
             errors.append("No data loaded")
             return False, errors
-        
-        if len(self.models) == 0:
+        if not self.models:
             errors.append("No valid models found")
             return False, errors
-        
-        # Validate each model
         for i, model in enumerate(self.models):
-            # Check for zero-length model name
-            if not model.header.name:
-                errors.append(f"Model {i}: Empty name")
-            
-            # Check vertex indices in faces
+            if not model.name:
+                errors.append(f"Model {i}: empty name")
             num_verts = len(model.vertices)
             for j, face in enumerate(model.faces):
                 if face.a >= num_verts or face.b >= num_verts or face.c >= num_verts:
-                    errors.append(f"Model {i}, Face {j}: Invalid vertex index")
-        
+                    errors.append(f"Model {i}, Face {j}: invalid vertex index "
+                                  f"(a={face.a} b={face.b} c={face.c}, verts={num_verts})")
         return len(errors) == 0, errors
 
 
