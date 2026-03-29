@@ -1108,21 +1108,42 @@ class COLWorkshop(QWidget): #vers 3
         self._populate_collision_list()
         self.collision_list.selectRow(self.collision_list.rowCount()-1)
 
-    def _delete_selected_model(self): #vers 1
-        rows = self.collision_list.selectionModel().selectedRows()
-        if not rows or not self.current_col_file: return
-        row = rows[0].row()
-        item = self.collision_list.item(row, 1)
-        if not item: return
-        idx = item.data(Qt.ItemDataRole.UserRole)
-        if idx is None: return
+    def _delete_selected_model(self): #vers 2
+        """Delete selected collision model(s) — uses currentRow() for reliability."""
+        if not self.current_col_file: return
+        models = getattr(self.current_col_file, 'models', [])
+        if not models: return
+
+        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+              else self.collision_list)
+
+        # Collect selected indices (highest first so deletion doesn't shift lower rows)
+        indices = sorted({i.row() for i in lw.selectionModel().selectedRows()
+                          if 0 <= i.row() < len(models)}, reverse=True)
+        cr = lw.currentRow()
+        if 0 <= cr < len(models):
+            indices = sorted(set(indices) | {cr}, reverse=True)
+        if not indices: return
+
         from PyQt6.QtWidgets import QMessageBox
-        name = self.current_col_file.models[idx].name
-        if QMessageBox.question(self, "Delete", f"Delete '{name}'?",
-           QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
-            return
-        del self.current_col_file.models[idx]
+        if len(indices) == 1:
+            name = models[indices[0]].name
+            if QMessageBox.question(self, "Delete", f"Delete '{name}'?",
+               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+               ) != QMessageBox.StandardButton.Yes:
+                return
+        else:
+            if QMessageBox.question(self, "Delete",
+               f"Delete {len(indices)} collision models?",
+               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+               ) != QMessageBox.StandardButton.Yes:
+                return
+
+        for idx in indices:
+            del models[idx]
         self._populate_collision_list()
+        self._populate_compact_col_list()
+        self._set_status(f"Deleted {len(indices)} model(s).")
 
     def _duplicate_selected_model(self): #vers 1
         rows = self.collision_list.selectionModel().selectedRows()
@@ -5138,6 +5159,291 @@ class COLWorkshop(QWidget): #vers 3
         except Exception as e:
             print(f"Undo error: {e}")
 
+    # ── Selection helpers ─────────────────────────────────────────────────
+
+    def _select_all_models(self): #vers 1
+        """Select all entries in the active list (Ctrl+A)."""
+        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+              else self.collision_list)
+        lw.selectAll()
+
+    def _invert_selection(self): #vers 1
+        """Invert the current selection."""
+        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+              else self.collision_list)
+        selected = {i.row() for i in lw.selectionModel().selectedRows()}
+        lw.clearSelection()
+        lw.setSelectionMode(lw.selectionMode())  # keep mode
+        for r in range(lw.rowCount()):
+            if r not in selected:
+                lw.selectRow(r)  # QTableWidget multi-select needs blockSignals trick
+        # Proper invert via selection model
+        from PyQt6.QtCore import QItemSelection, QItemSelectionModel
+        sel_model = lw.selectionModel()
+        full = QItemSelection()
+        full.select(lw.model().index(0, 0),
+                    lw.model().index(lw.rowCount()-1, lw.columnCount()-1))
+        sel_model.select(full, QItemSelectionModel.SelectionFlag.Toggle)
+
+    # ── Sort ──────────────────────────────────────────────────────────────
+
+    def _sort_models(self, key: str = 'name'): #vers 1
+        """Sort collision models in place by key: 'name','version','faces','boxes','spheres','vertices'."""
+        if not self.current_col_file: return
+        models = getattr(self.current_col_file, 'models', [])
+        if not models: return
+
+        def sort_key(m):
+            if key == 'name':     return (getattr(m,'name','') or '').lower()
+            if key == 'version':  return getattr(getattr(m,'version',None),'value',0)
+            if key == 'faces':    return len(getattr(m,'faces',[]))
+            if key == 'boxes':    return len(getattr(m,'boxes',[]))
+            if key == 'spheres':  return len(getattr(m,'spheres',[]))
+            if key == 'vertices': return len(getattr(m,'vertices',[]))
+            return 0
+
+        models.sort(key=sort_key)
+        self._populate_collision_list()
+        self._populate_compact_col_list()
+        self._set_status(f"Sorted by {key}.")
+
+    def _show_sort_menu(self): #vers 1
+        """Show sort options popup."""
+        from PyQt6.QtWidgets import QMenu
+        m = QMenu(self)
+        m.addAction("Sort by Name (A→Z)",     lambda: self._sort_models('name'))
+        m.addAction("Sort by Version",         lambda: self._sort_models('version'))
+        m.addAction("Sort by Faces (most)",    lambda: self._sort_models_desc('faces'))
+        m.addAction("Sort by Boxes (most)",    lambda: self._sort_models_desc('boxes'))
+        m.addAction("Sort by Spheres (most)",  lambda: self._sort_models_desc('spheres'))
+        m.addAction("Sort by Vertices (most)", lambda: self._sort_models_desc('vertices'))
+        m.exec(self.cursor().pos())
+
+    def _sort_models_desc(self, key: str): #vers 1
+        """Sort descending (largest first)."""
+        if not self.current_col_file: return
+        models = getattr(self.current_col_file, 'models', [])
+        def k(m):
+            return len(getattr(m, key, []))
+        models.sort(key=k, reverse=True)
+        self._populate_collision_list()
+        self._populate_compact_col_list()
+        self._set_status(f"Sorted by {key} (descending).")
+
+    # ── Pin / lock entries from editing ───────────────────────────────────
+
+    def _toggle_pin_selected(self): #vers 1
+        """Toggle pin (edit-lock) on selected models. Pinned models can't be deleted/renamed."""
+        if not self.current_col_file: return
+        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+              else self.collision_list)
+        indices = sorted({i.row() for i in lw.selectionModel().selectedRows()})
+        cr = lw.currentRow()
+        if 0 <= cr: indices = sorted(set(indices) | {cr})
+        models = self.current_col_file.models
+
+        if not hasattr(self, '_pinned_models'):
+            self._pinned_models = set()
+
+        pinned_now = 0
+        for idx in indices:
+            if idx < len(models):
+                name = getattr(models[idx], 'name', f'model_{idx}')
+                if idx in self._pinned_models:
+                    self._pinned_models.discard(idx)
+                else:
+                    self._pinned_models.add(idx)
+                    pinned_now += 1
+
+        # Refresh both lists to show pin state
+        self._populate_collision_list()
+        self._populate_compact_col_list()
+        if pinned_now:
+            self._set_status(f"Pinned {pinned_now} model(s) — protected from editing.")
+        else:
+            self._set_status("Unpinned selected model(s).")
+
+    def _is_model_pinned(self, row: int) -> bool: #vers 1
+        """Return True if model at row is pinned."""
+        return row in getattr(self, '_pinned_models', set())
+
+    # ── IDE-linked operations ─────────────────────────────────────────────
+
+    def _import_via_ide(self): #vers 1
+        """Import COL entries referenced by the currently loaded IDE file."""
+        from PyQt6.QtWidgets import QMessageBox, QFileDialog
+        # Try to get IDE file path from main window DAT browser
+        ide_path = None
+        if self.main_window and hasattr(self.main_window, 'current_ide_path'):
+            ide_path = self.main_window.current_ide_path
+
+        if not ide_path:
+            ide_path, _ = QFileDialog.getOpenFileName(
+                self, "Select IDE File", "",
+                "IDE Files (*.ide);;All Files (*)")
+        if not ide_path:
+            return
+
+        try:
+            # Parse IDE to get model names
+            names = []
+            with open(ide_path, 'r', errors='ignore') as f:
+                in_objs = False
+                for line in f:
+                    line = line.strip()
+                    if line.lower() in ('objs', 'tobj', 'anim'):
+                        in_objs = True; continue
+                    if line == 'end':
+                        in_objs = False; continue
+                    if in_objs and line and not line.startswith('#'):
+                        parts = line.split(',')
+                        if len(parts) >= 2:
+                            names.append(parts[1].strip().lower())
+
+            if not names:
+                QMessageBox.information(self, "IDE Import",
+                    "No model names found in IDE file.")
+                return
+
+            # Find matching models in the current COL file
+            if not self.current_col_file:
+                QMessageBox.warning(self, "No COL File", "Load a COL file first.")
+                return
+
+            models = self.current_col_file.models
+            matched = [m for m in models
+                       if (getattr(m,'name','') or '').lower() in names]
+
+            QMessageBox.information(self, "IDE Import",
+                f"IDE has {len(names)} model names.\n"
+                f"{len(matched)} matching collision models found in current COL file.\n\n"
+                f"Showing matched models in list.")
+
+            # Select matched rows
+            lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+                  else self.collision_list)
+            lw.clearSelection()
+            name_set = {(getattr(m,'name','') or '').lower() for m in matched}
+            for i, model in enumerate(models):
+                if (getattr(model,'name','') or '').lower() in name_set:
+                    lw.selectRow(i)
+
+            self._set_status(f"IDE: {len(matched)}/{len(names)} models matched.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "IDE Import Error", str(e))
+
+    def _remove_via_ide(self): #vers 1
+        """Remove collision models NOT referenced by an IDE file (cleanup)."""
+        from PyQt6.QtWidgets import QMessageBox, QFileDialog
+        if not self.current_col_file:
+            QMessageBox.warning(self, "No COL File", "Load a COL file first.")
+            return
+
+        ide_path, _ = QFileDialog.getOpenFileName(
+            self, "Select IDE to remove unref'd COL models", "",
+            "IDE Files (*.ide);;All Files (*)")
+        if not ide_path:
+            return
+
+        try:
+            names = set()
+            with open(ide_path, 'r', errors='ignore') as f:
+                in_objs = False
+                for line in f:
+                    line = line.strip()
+                    if line.lower() in ('objs', 'tobj', 'anim'):
+                        in_objs = True; continue
+                    if line == 'end':
+                        in_objs = False; continue
+                    if in_objs and line and not line.startswith('#'):
+                        parts = line.split(',')
+                        if len(parts) >= 2:
+                            names.add(parts[1].strip().lower())
+
+            models = self.current_col_file.models
+            to_remove = [i for i, m in enumerate(models)
+                         if (getattr(m,'name','') or '').lower() not in names]
+
+            if not to_remove:
+                QMessageBox.information(self, "Remove via IDE",
+                    "All COL models are referenced by the IDE — nothing to remove.")
+                return
+
+            example_names = [models[i].name for i in to_remove[:5]]
+            reply = QMessageBox.question(self, "Remove via IDE",
+                f"Remove {len(to_remove)} unreferenced model(s)?\n\n"
+                f"Examples: {', '.join(example_names)}"
+                + (" ..." if len(to_remove) > 5 else ""),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+            for i in sorted(to_remove, reverse=True):
+                del models[i]
+            self._populate_collision_list()
+            self._populate_compact_col_list()
+            self._set_status(f"Removed {len(to_remove)} unreferenced model(s).")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Remove via IDE Error", str(e))
+
+    def _export_via_ide(self): #vers 1
+        """Export only COL models referenced by an IDE file."""
+        from PyQt6.QtWidgets import QMessageBox, QFileDialog
+        import os
+        from apps.methods.col_workshop_writer import save_col_file
+
+        if not self.current_col_file:
+            QMessageBox.warning(self, "No COL File", "Load a COL file first.")
+            return
+
+        ide_path, _ = QFileDialog.getOpenFileName(
+            self, "Select IDE File for Export", "",
+            "IDE Files (*.ide);;All Files (*)")
+        if not ide_path:
+            return
+
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Save filtered COL archive", "",
+            "COL Files (*.col);;All Files (*)")
+        if not out_path:
+            return
+
+        try:
+            names = set()
+            with open(ide_path, 'r', errors='ignore') as f:
+                in_objs = False
+                for line in f:
+                    line = line.strip()
+                    if line.lower() in ('objs', 'tobj', 'anim'):
+                        in_objs = True; continue
+                    if line == 'end':
+                        in_objs = False; continue
+                    if in_objs and line and not line.startswith('#'):
+                        parts = line.split(',')
+                        if len(parts) >= 2:
+                            names.add(parts[1].strip().lower())
+
+            matched = [m for m in self.current_col_file.models
+                       if (getattr(m,'name','') or '').lower() in names]
+
+            if not matched:
+                QMessageBox.warning(self, "No Matches",
+                    "No COL models matched the IDE entries.")
+                return
+
+            if save_col_file(matched, out_path):
+                msg = (f"Exported {len(matched)} IDE-referenced model(s) to:\n"
+                       f"{os.path.basename(out_path)}")
+                self._set_status(msg)
+                QMessageBox.information(self, "Export via IDE", msg)
+            else:
+                QMessageBox.warning(self, "Export Failed", "Could not write output file.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Export via IDE Error", str(e))
+
     def _export_col_data(self): #vers 2
         """Extract/export selected COL models (or all) to individual .col files."""
         import os
@@ -6135,6 +6441,29 @@ class COLWorkshop(QWidget): #vers 3
             import_action = menu.addAction("Replace with COL file...")
             import_action.triggered.connect(lambda: self._import_replace_col_model(row))
 
+            menu.addSeparator()
+
+            # ── Pin (protect from editing) ─────────────────────────────
+            is_pinned = self._is_model_pinned(row)
+            pin_action = menu.addAction(
+                "📌 Unpin (allow editing)" if is_pinned else "📌 Pin (protect from editing)")
+            pin_action.triggered.connect(self._toggle_pin_selected)
+
+        menu.addSeparator()
+
+        # ── Select / Sort ──────────────────────────────────────────────
+        menu.addAction("Select All  [Ctrl+A]",  self._select_all_models)
+        menu.addAction("Invert Selection  [Ctrl+I]", self._invert_selection)
+        menu.addAction("Sort…",                 self._show_sort_menu)
+
+        menu.addSeparator()
+
+        # ── IDE-linked operations ──────────────────────────────────────
+        ide_menu = menu.addMenu("IDE Operations")
+        ide_menu.addAction("Import matched by IDE…",    self._import_via_ide)
+        ide_menu.addAction("Export matched by IDE…",    self._export_via_ide)
+        ide_menu.addAction("Remove unreferenced by IDE…", self._remove_via_ide)
+
         menu.exec(source_list.mapToGlobal(position))
 
     def _rename_col_model(self, model, row): #vers 1
@@ -6651,9 +6980,14 @@ class COLWorkshop(QWidget): #vers 3
 
         # === NAVIGATION ===
 
-        # Select All (Ctrl+A) - reserved for future
+        # Select All (Ctrl+A)
         self.hotkey_select_all = QShortcut(QKeySequence.StandardKey.SelectAll, self)
-        # Not connected - reserved for future multi-select
+        self.hotkey_select_all.activated.connect(self._select_all_models)
+
+        # Invert Selection (Ctrl+I)
+        from PyQt6.QtGui import QKeySequence as _KS
+        self.hotkey_invert = QShortcut(_KS("Ctrl+I"), self)
+        self.hotkey_invert.activated.connect(self._invert_selection)
 
         # Find (Ctrl+F)
         self.hotkey_find = QShortcut(QKeySequence.StandardKey.Find, self)
