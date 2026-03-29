@@ -1181,9 +1181,17 @@ class COLWorkshop(QWidget): #vers 3
 
         # Get selected model
         model = self._get_selected_model()
-        if not model or not getattr(model, 'faces', []):
+        if model is None:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "No Mesh", "Selected model has no mesh faces to paint.")
+            QMessageBox.warning(self, "No Model Selected",
+                "Select a model in the list first, then click Paint.")
+            return
+        if not getattr(model, 'faces', []):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "No Mesh Faces",
+                f"'{model.name}' has no mesh faces.\n"
+                "You can still use the Mesh Editor to add faces,\n"
+                "or select a model that has mesh geometry.")
             return
 
         # ── Material picker dialog ────────────────────────────────────────
@@ -1334,20 +1342,40 @@ class COLWorkshop(QWidget): #vers 3
         """Called by viewport Escape key — sync button state."""
         self._exit_paint_mode()
 
-    def _get_selected_model(self): #vers 1
-        """Return the currently selected COLModel or None."""
-        if not self.current_col_file: return None
+    def _get_selected_model(self): #vers 2
+        """Return the currently selected COLModel or None.
+        Mirrors the logic in open_col_mesh_editor which is known to work."""
+        if not self.current_col_file:
+            return None
+        models = getattr(self.current_col_file, 'models', [])
+        if not models:
+            return None
+
         active = (self.col_compact_list
                   if getattr(self, '_col_view_mode', 'list') == 'detail'
                   else self.collision_list)
+
         rows = active.selectionModel().selectedRows() if active else []
-        if not rows: return None
-        item = active.item(rows[0].row(), 1) or active.item(rows[0].row(), 0)
-        if not item: return None
-        idx = item.data(Qt.ItemDataRole.UserRole)
-        if idx is None: return None
-        models = getattr(self.current_col_file, 'models', [])
-        return models[idx] if idx < len(models) else None
+        if not rows:
+            return None
+
+        row = rows[0].row()
+
+        # col_compact_list: no UserRole — row == model index
+        if getattr(self, '_col_view_mode', 'list') == 'detail':
+            idx = row
+        else:
+            # collision_list: UserRole stored on column 1, fall back to col 0
+            item = active.item(row, 1) or active.item(row, 0)
+            if not item:
+                return None
+            idx = item.data(Qt.ItemDataRole.UserRole)
+            if idx is None:
+                idx = row  # last resort
+
+        if idx is None or idx >= len(models):
+            return None
+        return models[idx]
 
     def _set_status(self, msg: str): #vers 1
         """Write msg to the status label (whichever one exists)."""
