@@ -325,7 +325,9 @@ class COLParser: #vers 1
         """
         try:
             boxes = []
-            box_size = 32 if version == COLVersion.COL_1 else 28
+            # All versions: box = min(12) + max(12) + surface(4) = 28 bytes
+            # DragonFF format string "VVS" = vec3+vec3+surface = 12+12+4 = 28
+            box_size = 28
 
             if len(data) < offset + (count * box_size):
                 raise ValueError(f"Data too short for {count} boxes")
@@ -341,17 +343,14 @@ class COLParser: #vers 1
                 max_point = Vector3(max_x, max_y, max_z)
                 offset += 12
 
-                # Material (4 bytes)
-                material_id = struct.unpack('<I', data[offset:offset+4])[0]
+                # Surface properties (4 bytes: material, flag, brightness, light)
+                material_id = data[offset]
+                flag        = data[offset + 1]
+                brightness  = data[offset + 2]
+                light_val   = data[offset + 3]
                 offset += 4
 
-                # Flags (COL1 only, 4 bytes)
-                flags = 0
-                if version == COLVersion.COL_1:
-                    flags = struct.unpack('<I', data[offset:offset+4])[0]
-                    offset += 4
-
-                material = COLMaterial(material_id, flags)
+                material = COLMaterial(material_id, flag)
                 box = COLBox(min_point, max_point, material)
                 boxes.append(box)
 
@@ -513,36 +512,32 @@ class COLParser: #vers 1
         """
         try:
             faces = []
-            face_size = 16 if version == COLVersion.COL_1 else 12
+            # DragonFF: COL1 = "IIIS" = uint32+uint32+uint32+surface = 12+4 = 16 bytes
+            #           COL2/3 = "HHHBB" = uint16+uint16+uint16+u8+u8  = 6+2  = 8 bytes
+            face_size = 16 if version == COLVersion.COL_1 else 8
 
             if len(data) < offset + (count * face_size):
                 raise ValueError(f"Data too short for {count} faces")
 
             for i in range(count):
-                # Vertex indices (6 bytes - 3 uint16)
-                a, b, c = struct.unpack('<HHH', data[offset:offset+6])
-                vertex_indices = (a, b, c)
-                offset += 6
-
-                # Material (2 bytes)
-                material_id = struct.unpack('<H', data[offset:offset+2])[0]
-                offset += 2
-
-                # Light (2 bytes)
-                light = struct.unpack('<H', data[offset:offset+2])[0]
-                offset += 2
-
                 if version == COLVersion.COL_1:
-                    # Flags (4 bytes)
-                    flags = struct.unpack('<I', data[offset:offset+4])[0]
-                    offset += 4
-                    material = COLMaterial(material_id, flags)
+                    # COL1: 3x uint32 indices + material(u8) + light(u8) + pad(u16) = 16 bytes
+                    a, b, c = struct.unpack('<III', data[offset:offset+12])
+                    offset += 12
+                    material_id = data[offset]
+                    light       = data[offset + 1]
+                    offset += 4  # mat(1) + light(1) + pad(2)
+                    material = COLMaterial(material_id, 0)
                 else:
-                    # Padding (2 bytes)
+                    # COL2/3: 3x uint16 indices + material(u8) + light(u8) = 8 bytes
+                    a, b, c = struct.unpack('<HHH', data[offset:offset+6])
+                    offset += 6
+                    material_id = data[offset]
+                    light       = data[offset + 1]
                     offset += 2
                     material = COLMaterial(material_id, 0)
 
-                face = COLFace(vertex_indices, material, light)
+                face = COLFace((a, b, c), material, light)
                 faces.append(face)
 
             if self.debug:
@@ -586,12 +581,9 @@ class COLParser: #vers 1
                 num_boxes = struct.unpack_from('<I', data, offset)[0]; offset += 4
                 boxes, offset = self.parse_boxes(data, offset, num_boxes)
 
-                # Face groups (COL1 CAN have face groups — verified)
-                num_facegroups = struct.unpack_from('<I', data, offset)[0]; offset += 4
-                # Each face group = min(vec3) + max(vec3) + surface(u8) + pad(u8) + pad2(u16) = 28 bytes
-                face_groups = []
-                for _ in range(num_facegroups):
-                    offset += 28  # skip for now — store raw later
+                # Skip num_unknown/lines (4 bytes, always 0 in COL1)
+                # DragonFF: self.__incr(4)  — no facegroups in COL1 format
+                offset += 4
 
                 # Vertices (float x3 = 12 bytes each in COL1)
                 num_vertices = struct.unpack_from('<I', data, offset)[0]; offset += 4

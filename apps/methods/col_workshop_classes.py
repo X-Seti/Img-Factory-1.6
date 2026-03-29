@@ -37,12 +37,12 @@ class COLHeader: #vers 1
     version: COLVersion  # Derived from fourcc
 
 @dataclass
-class COLBounds: #vers 1
+class COLBounds: #vers 2
     """COL bounding data - 40 bytes (COL1 order)"""
-    radius: float                        # 4 bytes
-    center: Tuple[float, float, float]   # 12 bytes
-    min: Tuple[float, float, float]      # 12 bytes
-    max: Tuple[float, float, float]      # 12 bytes
+    radius: float                        = 0.0   # 4 bytes
+    center: Tuple[float, float, float]   = (0.0, 0.0, 0.0)  # 12 bytes
+    min: Tuple[float, float, float]      = (0.0, 0.0, 0.0)  # 12 bytes
+    max: Tuple[float, float, float]      = (0.0, 0.0, 0.0)  # 12 bytes
 
 @dataclass
 class COLSphere: #vers 1
