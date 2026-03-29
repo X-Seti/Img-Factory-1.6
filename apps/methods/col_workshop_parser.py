@@ -595,58 +595,87 @@ class COLParser: #vers 1
                 num_faces = struct.unpack_from('<I', data, offset)[0]; offset += 4
                 faces, offset = self.parse_faces(data, offset, num_faces, version)
 
-            # ── COL2/3: offset-table layout (GTAMods wiki) ───────────
-            # After bounds (40 bytes):
-            #   num_spheres(2) num_boxes(2) num_faces(2) num_lines(2)  = 8 bytes
-            #   spheres_off(4) boxes_off(4) cones_off(4) verts_off(4)  = 16 bytes
-            #   faces_off(4)   tri_planes_off(4) lines_off(4)           = 12 bytes
-            #   shadow_verts_off(4) shadow_faces_off(4)                 = 8 bytes
-            # All offsets are relative to start of block (after fourcc+size)
+            # ── COL2/3/4: offset-table layout — matched to DragonFF __read_new_col ──
+            # DragonFF format "<HHHBxIIIIIII" = 36 bytes:
+            #   sphere_count(H) box_count(H) face_count(H) line_count(B) pad(x)
+            #   flags(I) spheres_off(I) boxes_off(I) lines_off(I)
+            #   verts_off(I) faces_off(I) tri_planes_off(I)
+            # COL3 adds 12 more bytes: shadow_face_count(I) shadow_verts_off(I) shadow_faces_off(I)
+            # COL4 adds 4 more bytes after that.
+            #
+            # DragonFF: offsets are relative to `pos` = file position of the new_col header
+            # (i.e. directly after the bounds block). data_at(off) = pos + off + 4
+            # The +4 skips the uint32 item-count embedded before each data block.
             else:
-                block_base = start_offset + 8  # after fourcc(4)+size(4)
+                # block_base = current offset = position of the new_col header in the file
+                # (DragonFF's `pos` parameter — same reference point for all offset calculations)
+                block_base = offset  # = start_offset + 8(hdr) + 40(bounds)
 
-                # Read counts (uint16 each)
-                num_spheres, num_boxes, num_faces, num_lines =                     struct.unpack_from('<HHHH', data, offset)
-                offset += 8  # 4 * uint16
+                # Read 36-byte header: counts + pad + flags + 6 offsets
+                (num_spheres, num_boxes, num_faces, num_lines_byte,
+                 flags,
+                 spheres_off, boxes_off, lines_off,
+                 verts_off, faces_off, tri_off) = \
+                    struct.unpack_from('<HHHBxIIIIIII', data, offset)
+                offset += 36
+                model_flags = flags
 
-                # Read offsets (uint32 each) — relative to block_base
-                (spheres_off, boxes_off, cones_off, verts_off,
-                 faces_off, tri_off, lines_off,
-                 shadow_verts_off, shadow_faces_off) =                     struct.unpack_from('<9I', data, offset)
-                offset += 36  # 9 * uint32
+                # COL3+: shadow mesh counts and offsets (12 bytes)
+                shadow_face_count = 0
+                shadow_verts_off  = 0
+                shadow_faces_off  = 0
+                if version.value >= 3:
+                    shadow_face_count, shadow_verts_off, shadow_faces_off = \
+                        struct.unpack_from('<III', data, offset)
+                    offset += 12
 
-                # Parse spheres
+                # COL4: extra 4 bytes
+                if version.value >= 4:
+                    offset += 4
+
+                # DragonFF: offsets point to (count_uint32 + data).
+                # Access data at: block_base + offset + 4  (skip the embedded count)
+                def data_at(off):
+                    return block_base + off + 4
+
+                # ── Spheres ───────────────────────────────────────────────
                 if num_spheres > 0 and spheres_off > 0:
                     spheres, _ = self.parse_spheres(
-                        data, block_base + spheres_off, num_spheres)
+                        data, data_at(spheres_off), num_spheres)
                 else:
                     spheres = []
 
-                # Parse boxes
+                # ── Boxes ─────────────────────────────────────────────────
                 if num_boxes > 0 and boxes_off > 0:
                     boxes, _ = self.parse_boxes(
-                        data, block_base + boxes_off, num_boxes)
+                        data, data_at(boxes_off), num_boxes)
                 else:
                     boxes = []
 
-                # Parse vertices (at verts_off)
-                num_vertices = 0
-                vertices = []
-                if verts_off > 0:
-                    # Vertex count inferred from faces; read until faces_off
-                    # Safer: count from (faces_off - verts_off) / 6
-                    if faces_off > verts_off:
-                        num_vertices = (faces_off - verts_off) // 6
-                    if num_vertices > 0:
-                        vertices, _ = self.parse_vertices(
-                            data, block_base + verts_off, num_vertices, version)
-
-                # Parse faces
+                # ── Faces (read before vertices — need indices for vert count) ──
                 if num_faces > 0 and faces_off > 0:
                     faces, _ = self.parse_faces(
-                        data, block_base + faces_off, num_faces, version)
+                        data, data_at(faces_off), num_faces, version)
                 else:
                     faces = []
+
+                # ── Vertices — count derived from face indices (DragonFF method) ──
+                vertices = []
+                if verts_off > 0 and faces:
+                    num_vertices = max(
+                        (max(f.a, f.b, f.c) for f in faces
+                         if hasattr(f, 'a')),
+                        default=-1
+                    ) + 1
+                    if num_vertices > 0:
+                        vertices, _ = self.parse_vertices(
+                            data, data_at(verts_off), num_vertices, version)
+                elif verts_off > 0 and faces_off > verts_off:
+                    # Fallback when no faces: infer from offset gap (6 bytes/vert)
+                    num_vertices = (faces_off - verts_off) // 6
+                    if num_vertices > 0:
+                        vertices, _ = self.parse_vertices(
+                            data, data_at(verts_off), num_vertices, version)
 
             # Sanity checks
             if (len(spheres) > 10000 or len(boxes) > 10000
