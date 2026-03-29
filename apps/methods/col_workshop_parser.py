@@ -607,9 +607,10 @@ class COLParser: #vers 1
             # (i.e. directly after the bounds block). data_at(off) = pos + off + 4
             # The +4 skips the uint32 item-count embedded before each data block.
             else:
-                # block_base = current offset = position of the new_col header in the file
-                # (DragonFF's `pos` parameter — same reference point for all offset calculations)
-                block_base = offset  # = start_offset + 8(hdr) + 40(bounds)
+                # DragonFF: self._pos = pos + offset + 4
+                # where pos = file position of the model's fourcc (= start_offset)
+                # So all offsets are relative to start_offset (fourcc position).
+                block_base = start_offset  # = file position of the COL fourcc
 
                 # Read 36-byte header: counts + pad + flags + 6 offsets
                 (num_spheres, num_boxes, num_faces, num_lines_byte,
@@ -698,13 +699,18 @@ class COLParser: #vers 1
             model.version  = header.version
             model.model_id = header.model_id
 
+            # Always advance by header-declared size (DragonFF: pos + file_size + 8).
+            # For COL2/3 the data blocks are read by jumping with data_at(), not
+            # advancing `offset` sequentially, so `offset` is wrong as a return value.
+            next_model_offset = start_offset + header.size + 8
+
             if self.debug:
                 print(f"parse_model OK: '{header.name}' {version.name} "
                       f"S={len(spheres)} B={len(boxes)} "
                       f"V={len(vertices)} F={len(faces)} "
-                      f"({offset-start_offset} bytes)")
+                      f"(next=0x{next_model_offset:X})")
 
-            return model, offset
+            return model, next_model_offset
 
         except Exception as e:
             import traceback
