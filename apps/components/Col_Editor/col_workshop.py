@@ -90,9 +90,10 @@ class COL3DViewport(QWidget): #vers 2
         self._paint_mode      = False    # True = click face to paint material
         self._paint_material  = 0        # material id to apply in paint mode
         self.on_face_selected = None     # callback(face_index, face) when face clicked
+        self._drag_selecting  = False    # True while LMB held after face click
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
 
     # ── public API ────────────────────────────────────────────────────────
     def set_current_file(self, col_file): pass
@@ -309,18 +310,20 @@ class COL3DViewport(QWidget): #vers 2
                     self.update()
                 return
 
-            # Normal mode — face select on click (no drag)
+            # Normal mode — face select on click; start drag-select
             fi, face = self._pick_face(mx, my)
             if fi is not None:
                 mods = event.modifiers()
                 if mods & Qt.KeyboardModifier.ControlModifier:
-                    # Ctrl+click: toggle selection
+                    # Ctrl+click: toggle individual face
                     if fi in self._selected_faces:
                         self._selected_faces.discard(fi)
                     else:
                         self._selected_faces.add(fi)
                 else:
                     self._selected_faces = {fi}
+                self._drag_selecting = True   # enable brush drag
+                self.setCursor(Qt.CursorShape.CrossCursor)
                 if self.on_face_selected:
                     self.on_face_selected(fi, face)
                 self.update()
@@ -435,7 +438,24 @@ class COL3DViewport(QWidget): #vers 2
             return
 
         # ── Pan (left drag on background) ────────────────────────────────
-        if self._left_drag and (event.buttons() & Qt.MouseButton.LeftButton):
+        # ── Drag-select (LMB held after face click — paint-brush selection) ──
+        if self._drag_selecting and (event.buttons() & Qt.MouseButton.LeftButton):
+            mx2, my2 = event.position().x(), event.position().y()
+            fi, face = self._pick_face(mx2, my2)
+            if fi is not None and fi not in self._selected_faces:
+                if self._paint_mode:
+                    # In paint mode: paint every face the brush passes over
+                    if hasattr(face, 'material'):
+                        if hasattr(face.material, 'material_id'):
+                            face.material.material_id = self._paint_material
+                        else:
+                            face.material = self._paint_material
+                self._selected_faces.add(fi)
+                if self.on_face_selected:
+                    self.on_face_selected(fi, face)
+                self.update()
+
+        elif self._left_drag and (event.buttons() & Qt.MouseButton.LeftButton):
             d = event.position() - self._left_drag
             self._pan_x += d.x(); self._pan_y += d.y()
             self._left_drag = event.position(); self.update()
@@ -456,12 +476,18 @@ class COL3DViewport(QWidget): #vers 2
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._left_drag = None; self._gizmo_drag = None
+            self._left_drag = None
+            self._gizmo_drag = None
+            self._drag_selecting = False
         elif event.button() == Qt.MouseButton.RightButton:
             self._right_drag = None
         elif event.button() == Qt.MouseButton.MiddleButton:
             self._mid_drag = None
-        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        # Restore cursor — cross if still in paint mode, else arrow
+        self.setCursor(
+            Qt.CursorShape.CrossCursor if self._paint_mode
+            else Qt.CursorShape.ArrowCursor
+        )
 
     def wheelEvent(self, event):
         factor = 1.18 if event.angleDelta().y() > 0 else 1/1.18
@@ -1342,40 +1368,30 @@ class COLWorkshop(QWidget): #vers 3
         """Called by viewport Escape key — sync button state."""
         self._exit_paint_mode()
 
-    def _get_selected_model(self): #vers 2
+    def _get_selected_model(self): #vers 3
         """Return the currently selected COLModel or None.
-        Mirrors the logic in open_col_mesh_editor which is known to work."""
+        Row number == model index for both list widgets (confirmed by
+        _select_model_by_row which uses row directly)."""
         if not self.current_col_file:
             return None
         models = getattr(self.current_col_file, 'models', [])
         if not models:
             return None
 
-        active = (self.col_compact_list
-                  if getattr(self, '_col_view_mode', 'list') == 'detail'
-                  else self.collision_list)
+        # Try compact list first (default view), then text list
+        for list_widget in (
+            getattr(self, 'col_compact_list', None),
+            getattr(self, 'collision_list',   None),
+        ):
+            if list_widget is None:
+                continue
+            rows = list_widget.selectionModel().selectedRows()
+            if rows:
+                row = rows[0].row()
+                if 0 <= row < len(models):
+                    return models[row]
 
-        rows = active.selectionModel().selectedRows() if active else []
-        if not rows:
-            return None
-
-        row = rows[0].row()
-
-        # col_compact_list: no UserRole — row == model index
-        if getattr(self, '_col_view_mode', 'list') == 'detail':
-            idx = row
-        else:
-            # collision_list: UserRole stored on column 1, fall back to col 0
-            item = active.item(row, 1) or active.item(row, 0)
-            if not item:
-                return None
-            idx = item.data(Qt.ItemDataRole.UserRole)
-            if idx is None:
-                idx = row  # last resort
-
-        if idx is None or idx >= len(models):
-            return None
-        return models[idx]
+        return None
 
     def _set_status(self, msg: str): #vers 1
         """Write msg to the status label (whichever one exists)."""
