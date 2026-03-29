@@ -573,17 +573,19 @@ class COLParser: #vers 1
 
             # ── COL1: interleaved counts+data ────────────────────────
             if version == COLVersion.COL_1:
+                # DragonFF __read_legacy_col order:
+                #   spheres → skip4(unknown) → boxes → vertices → faces
                 # Spheres
                 num_spheres = struct.unpack_from('<I', data, offset)[0]; offset += 4
                 spheres, offset = self.parse_spheres(data, offset, num_spheres)
 
+                # Skip num_unknown/lines (4 bytes, always 0 in COL1)
+                # DragonFF: self.__incr(4) — placed AFTER spheres, BEFORE boxes
+                offset += 4
+
                 # Boxes
                 num_boxes = struct.unpack_from('<I', data, offset)[0]; offset += 4
                 boxes, offset = self.parse_boxes(data, offset, num_boxes)
-
-                # Skip num_unknown/lines (4 bytes, always 0 in COL1)
-                # DragonFF: self.__incr(4)  — no facegroups in COL1 format
-                offset += 4
 
                 # Vertices (float x3 = 12 bytes each in COL1)
                 num_vertices = struct.unpack_from('<I', data, offset)[0]; offset += 4
@@ -740,39 +742,35 @@ class COLParser: #vers 1
         # Parse bounds
         bounds, offset = self.parse_bounds(data, offset, header.version)
         
-        # Read counts (COL1 format)
-        if len(data) < offset + 20:
-            raise ValueError("Data too short for COL1 counts")
-        
-        num_spheres = struct.unpack('<I', data[offset:offset+4])[0]
+        # COL1 layout (DragonFF __read_legacy_col):
+        #   num_spheres(4) → spheres[] → skip4(unknown) → num_boxes(4) → boxes[]
+        #   → num_verts(4) → verts[] → num_faces(4) → faces[]
+        # NOTE: skip4 is AFTER sphere data, BEFORE num_boxes — not a count block.
+
+        if self.debug:
+            print(f"COL1 parse at offset 0x{offset:X}")
+
+        # Spheres
+        num_spheres = struct.unpack('<I', data[offset:offset+4])[0]; offset += 4
+        spheres, offset = self.parse_spheres(data, offset, num_spheres)
+
+        # Skip unknown (4 bytes, always 0) — AFTER spheres, BEFORE boxes
         offset += 4
-        
-        num_unknown = struct.unpack('<I', data[offset:offset+4])[0]  # Always 0
-        offset += 4
-        
-        num_boxes = struct.unpack('<I', data[offset:offset+4])[0]
-        offset += 4
-        
-        num_vertices = struct.unpack('<I', data[offset:offset+4])[0]
-        offset += 4
-        
-        num_faces = struct.unpack('<I', data[offset:offset+4])[0]
-        offset += 4
-        
+
+        # Boxes
+        num_boxes = struct.unpack('<I', data[offset:offset+4])[0]; offset += 4
+        boxes, offset = self.parse_boxes(data, offset, num_boxes)
+
+        # Vertices
+        num_vertices = struct.unpack('<I', data[offset:offset+4])[0]; offset += 4
+        vertices, offset = self.parse_vertices(data, offset, num_vertices, header.version)
+
+        # Faces
+        num_faces = struct.unpack('<I', data[offset:offset+4])[0]; offset += 4
+        faces, offset = self.parse_faces(data, offset, num_faces, header.version)
+
         if self.debug:
             print(f"COL1 Counts: S={num_spheres} B={num_boxes} V={num_vertices} F={num_faces}")
-        
-        # Parse spheres
-        spheres, offset = self.parse_spheres(data, offset, num_spheres)
-        
-        # Parse boxes
-        boxes, offset = self.parse_boxes(data, offset, num_boxes)
-        
-        # Parse vertices
-        vertices, offset = self.parse_vertices(data, offset, num_vertices, header.version)
-        
-        # Parse faces
-        faces, offset = self.parse_faces(data, offset, num_faces, header.version)
         
         model = COLModel(
             header=header,
