@@ -10150,9 +10150,13 @@ class TXDWorkshop(QWidget): #vers 3
                     elif fmt == 'LUM8':
                         expected = w * h
                     elif fmt == 'PAL8':
-                        expected = 1024 + w * h
+                        # Layout: palette(1024 raw) + pixel_size(4) + pixels(w*h)
+                        # DragonFF: read_palette has no prefix; read_pixels has 4-byte prefix
+                        expected = 1024 + 4 + w * h
                     elif fmt == 'PAL4':
-                        expected = 64 + (w * h + 1) // 2
+                        # Layout: palette(64 or 128 raw) + pixel_size(4) + pixels((w*h+1)//2)
+                        _pal4_sz = 64 if depth == 4 else 128
+                        expected = _pal4_sz + 4 + (w * h + 1) // 2
                     else:
                         expected = w * h * 2
 
@@ -10199,7 +10203,10 @@ class TXDWorkshop(QWidget): #vers 3
                             pal_size = 128
                         if len(level_data) >= pal_size:
                             pal_data = level_data[:pal_size]
-                            pix_data = level_data[pal_size:]
+                            # Skip the 4-byte pixel data size prefix that follows palette
+                            # (DragonFF read_pixels always reads size-prefixed; palette is raw)
+                            pix_offset = pal_size + 4
+                            pix_data = level_data[pix_offset:]
                             rgba_data = self._decompress_uncompressed(
                                 pix_data, lw, lh, tex['format'],
                                 palette=pal_data, palette_entry_fmt=pal_entry_fmt,
