@@ -10004,6 +10004,9 @@ class TXDWorkshop(QWidget): #vers 3
             is_pal4     = bool(raster_format_flags & 0x4000)  # FORMAT_EXT_PAL4
             pixel_fmt   = raster_format_flags & 0x0F00  # bits 8-11 only, excludes PAL flags
             is_sa_plus  = (rw_version >= 0x1803FFFF)
+            # GTA3/VC palettes are stored as RGBA; SA palettes are BGRA
+            # 0x0800FFFF = GTA III 1.0 USA, also treat as D3D8 no-middle-field
+            tex['palette_is_bgra'] = is_sa_plus
 
             raster_pixel_map = {
                 0x0100: 'ARGB1555', 0x0200: 'RGB565',
@@ -10177,15 +10180,18 @@ class TXDWorkshop(QWidget): #vers 3
                     if 'DXT' in tex['format']:
                         rgba_data = self._decompress_texture(level_data, lw, lh, tex['format'])
                     elif tex['format'] in ('PAL8', 'PAL4'):
-                        # Palette entries always 4-byte BGRA; palette_entry_fmt only affects alpha output
+                        # GTA3/VC palettes are RGBA; SA (>=0x1803FFFF) palettes are BGRA
+                        # palette_is_bgra stored during header parse
                         pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
+                        palette_is_bgra = tex.get('palette_is_bgra', True)
                         pal_size = 1024 if tex['format'] == 'PAL8' else 64
                         if len(level_data) >= pal_size:
                             pal_data = level_data[:pal_size]
                             pix_data = level_data[pal_size:]
                             rgba_data = self._decompress_uncompressed(
                                 pix_data, lw, lh, tex['format'],
-                                palette=pal_data, palette_entry_fmt=pal_entry_fmt)
+                                palette=pal_data, palette_entry_fmt=pal_entry_fmt,
+                                palette_is_bgra=palette_is_bgra)
                         else:
                             rgba_data = b'\x00' * (lw * lh * 4)
                     else:
@@ -10480,7 +10486,7 @@ class TXDWorkshop(QWidget): #vers 3
 
 
     # Update _decompress_uncompressed method:
-    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0, force_opaque=False): #vers 6
+    def _decompress_uncompressed(self, data, width, height, format_type, palette=None, palette_entry_fmt='ARGB8888', depth=0, force_opaque=False, palette_is_bgra=True): #vers 7
         """Decompress all RenderWare uncompressed/palettized formats to RGBA"""
         try:
             import struct
@@ -10488,22 +10494,25 @@ class TXDWorkshop(QWidget): #vers 3
             rgba = bytearray(pixel_count * 4)
 
             if format_type == 'PAL8':
-                # 8-bit indexed, 256 x 4-byte BGRA palette entries (always, regardless of pixel_fmt)
-                # palette_entry_fmt controls alpha output: RGB888 = force alpha=255
+                # 8-bit indexed, 256 x 4-byte palette entries
+                # GTA3/VC: palette is RGBA (no swap needed)
+                # SA:       palette is BGRA (swap B<->R)
                 if not palette or len(palette) < 1024:
                     return None
                 force_opaque = (palette_entry_fmt == 'RGB888')
                 for i in range(min(pixel_count, len(data))):
                     p = data[i] * 4
                     if p + 3 < len(palette):
-                        b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                        if palette_is_bgra:
+                            b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                        else:
+                            r, g, b, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
                         rgba[i*4:i*4+4] = [r, g, b, 255 if force_opaque else a]
 
             elif format_type == 'PAL4':
-                # 4-bit indexed, 16 x 4-byte BGRA palette entries (always)
-                # CRITICAL: high nibble is the FIRST pixel, low nibble is the SECOND.
-                # DragonFF: idx1, idx2 = (byte >> 4) & 0xf, byte & 0xf
-                # Our old code used (byte >> (nibble*4)) which outputs LOW nibble first — wrong.
+                # 4-bit indexed, 16 x 4-byte palette entries
+                # GTA3/VC: palette is RGBA; SA: palette is BGRA
+                # CRITICAL: high nibble = first pixel, low nibble = second (DragonFF)
                 if not palette or len(palette) < 64:
                     return None
                 force_opaque = (palette_entry_fmt == 'RGB888')
@@ -10514,7 +10523,10 @@ class TXDWorkshop(QWidget): #vers 3
                             break
                         p = idx * 4
                         if p + 3 < len(palette):
-                            b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                            if palette_is_bgra:
+                                b, g, r, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
+                            else:
+                                r, g, b, a = palette[p], palette[p+1], palette[p+2], palette[p+3]
                             rgba[pixel*4:pixel*4+4] = [r, g, b, 255 if force_opaque else a]
                         pixel += 1
 
