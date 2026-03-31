@@ -10184,14 +10184,27 @@ class TXDWorkshop(QWidget): #vers 3
                         # palette_is_bgra stored during header parse
                         pal_entry_fmt = tex.get('palette_entry_format', 'ARGB8888')
                         palette_is_bgra = tex.get('palette_is_bgra', True)
-                        pal_size = 1024 if tex['format'] == 'PAL8' else 64
+                        # DragonFF: pal8_noalpha when has_alpha()==False
+                        # raster_format_type in (888, 565, 555, LUM) → no alpha
+                        _NO_ALPHA_TYPES = {0x0600, 0x0200, 0x0A00, 0x0400}  # 888,565,555,LUM
+                        _pix_type = tex.get('raster_format_flags', 0) & 0x0F00
+                        force_opaque_pal = _pix_type in _NO_ALPHA_TYPES
+                        # PAL8=1024 bytes, PAL4=64 bytes (depth==4) or 128 bytes (depth!=4)
+                        # Matches DragonFF read_palette() logic
+                        if tex['format'] == 'PAL8':
+                            pal_size = 1024
+                        elif tex.get('depth', 4) == 4:
+                            pal_size = 64
+                        else:
+                            pal_size = 128
                         if len(level_data) >= pal_size:
                             pal_data = level_data[:pal_size]
                             pix_data = level_data[pal_size:]
                             rgba_data = self._decompress_uncompressed(
                                 pix_data, lw, lh, tex['format'],
                                 palette=pal_data, palette_entry_fmt=pal_entry_fmt,
-                                palette_is_bgra=palette_is_bgra)
+                                palette_is_bgra=palette_is_bgra,
+                                force_opaque=force_opaque_pal)
                         else:
                             rgba_data = b'\x00' * (lw * lh * 4)
                     else:
