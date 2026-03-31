@@ -1,4 +1,112 @@
-#this belongs in root /ChangeLog.md - Version: 30
+#this belongs in root /ChangeLog.md - Version: 31
+
+## March–April 2026 — COL parser overhaul, material paint, writer, IDE ops
+
+### Build 175 — Select All, Invert, Sort, Pin, IDE ops, multi-delete
+- **Ctrl+A**: Select All entries in active list
+- **Ctrl+I**: Invert selection (QItemSelection toggle)
+- **Sort menu** (right-click → Sort…): by name A→Z, version, faces/boxes/spheres/vertices descending
+- **Pin / protect** (right-click → 📌 Pin): marks models as edit-locked, tracked in `_pinned_models` set
+- **IDE Operations** submenu (right-click):
+  - Import matched by IDE — parses `objs/tobj/anim` sections, highlights matching models
+  - Export matched by IDE — writes IDE-referenced models to new .col archive
+  - Remove unreferenced by IDE — deletes models not in IDE (archive cleanup)
+- **Multi-delete** (`_delete_selected_model` v2): uses `currentRow()` + `selectedRows()` on visible list, deletes all selected from highest index down
+
+### Build 174 — Fix selection, multi-select, IMG Factory COL fallback
+- `_get_selected_model` v4: uses `currentRow()` (reliable with custom delegates) on **visible** list only; hidden list may have stale state
+- Both `collision_list` and `col_compact_list` changed to `ExtendedSelection` — Ctrl+click, Shift+click now work
+- Export reads all `selectedRows()` + `currentRow()` from visible list
+- `_open_col_entry_smart()` in `imgfactory.py`: double-clicking `.col` in IMG file list tries COL Workshop first; falls back to inline QDialog showing model table (name, version, sphere/box/vertex/face/shadow counts) if COL Workshop not installed
+
+### Build 173 — COL binary writer + working Import/Extract buttons
+- **New file**: `apps/methods/col_workshop_writer.py` — serialises `COLModel` → binary .col
+  - `model_to_bytes()`, `models_to_bytes()`, `save_col_file()`
+  - Mirrors DragonFF `__write_col/__write_col_new` exactly
+  - COL1: sequential count+data blocks with skip-4 between spheres and boxes
+  - COL2/3: 36-byte `<HHHBxIIIIIII>` header, data blocks without count prefix, int16 fixed-point vertex compression, offsets as `(file_pos - 4) - start_offset`
+  - Round-trip verified: 154-byte COL2 blob writes bit-identically
+- **Import button** (`_import_col_data` v2): open .col files, append all models to current archive
+- **Extract button** (`_export_col_data` v2): single → SaveDialog; multi/none → FolderDialog, each model as `modelname.col` with `_N` suffix for duplicates
+
+### Build 172 — Fix COL2/3 multi-model archive advance
+- `parse_model` was returning mid-parse offset for COL2/3 (data blocks read by jumping, not linearly)
+- Loader used this wrong offset and jumped into the middle of the next model's data
+- Fix: return `start_offset + header.size + 8` — the header-declared next model position (DragonFF: `pos + file_size + 8`)
+
+### Build 171 — Fix COL2/3 SA parsing — 4 bugs from DragonFF reference
+All SA COL2/3 files were silently failing. Root causes vs DragonFF `__read_new_col`:
+1. **Wrong block_base**: was `start_offset + 8`; correct is `start_offset` (fourcc position). Stored offsets are `(file_pos - 4) - start_offset`, `data_at(off) = start_offset + off + 4`
+2. **Missing flags field**: was reading `<HHHH>` (4 uint16) then 9 offsets; correct is `<HHHBxIIIIIII>` — sphere/box/face counts + line_count(B) + pad + flags(I) + 6 offsets
+3. **Wrong offset order**: had `cones_off` between boxes and verts; DragonFF order is `spheres_off, boxes_off, lines_off, verts_off, faces_off, tri_off`
+4. **Wrong vertex count method**: used `(faces_off - verts_off) / 6`; DragonFF derives from face indices: `max(a, b, c) + 1` across all faces
+
+### Build 170 — Fix paint selection + cursor + drag-select (3 issues)
+- `_get_selected_model` (initial attempt): tries both list widgets using row as index
+- Default cursor changed from `OpenHandCursor` to `ArrowCursor` so pointer tip is precise during face selection
+- Pan retains `ClosedHandCursor`; paint mode uses `CrossCursor`
+- `_drag_selecting` flag: LMB held after clicking a face → `_pick_face()` called on every `mouseMoveEvent` → brush-style add to selection; in paint mode also paints each passed face
+
+### Build 169 — Fix `_get_selected_model` wrong list lookup
+- `col_compact_list` stores no `UserRole` — row index IS model index
+- `collision_list` stores `UserRole` on col 0, not col 1
+- Both paths now use row number directly, matching `_select_model_by_row`
+
+### Build 168 — COL viewport face picking + material paint mode
+- `_pick_face()`: centroid-based hit test, 20px pick radius; face loop uses `enumerate`
+- Click face → selects it (yellow highlight); Ctrl+click multi-select; Escape deselects
+- Material paint mode (`_open_paint_editor`): searchable picker of all 179 SA / 35 VC materials with group colour swatches; enter paint mode → crosshair cursor, HUD banner shows current material + `[Esc to exit]`; click/drag faces to paint; Escape exits; paint button shows 🔴 Exit Paint while active
+- Viewport material colours: upgraded from 14-entry hardcoded dict to full `col_materials.py` group palette; auto-detects SA vs VC from COL version
+
+### Build 167 — Rewrite `col_workshop_loader.py` — 6 bugs fixed
+1. `_load_multi_model_archive()`: dead code referencing undefined `signatures` variable — removed
+2. `is_multi_model()`: called `is_multi_model_archive()` as unbound function with no args — now `len(models) > 1`
+3. Three divergent load paths (`load`, `load_from_file`, `load_from_data`) — all now funnel through `_load_bytes()` → `_parse_all_models()`
+4. Missing `import struct` at module level
+5. `get_info()` / `validate()`: inconsistent `model.name` access — unified to shortcut
+6. `_parse_all_models` offset advance: was `max(parsed, next)` risking model skips — uses `parsed_end` when it advances, `next_offset` as fallback
+
+### Build 166 — Fix COL1 parse order: skip-4 must follow sphere DATA not box data
+- Build 163 moved the skip-4 to the right concept but wrong position — between boxes and vertices
+- DragonFF `__read_legacy_col` places skip-4 **after sphere data, before `num_boxes`**
+- Correct COL1 order: `num_spheres → spheres[] → skip4 → num_boxes → boxes[] → num_verts → verts[] → num_faces → faces[]`
+- Fixed in both `parse_model()` and `parse_col1_model()`
+- Verified with synthetic COL1: S=0 B=1 V=3 F=1 parses correctly
+
+### Build 165 — Fix PAL4 nibble order + DXT5 alpha interpolation (TXD)
+- **PAL4 decoder** (`_decompress_uncompressed`): nibble order was reversed — low nibble decoded first, swapping every pixel pair. High nibble = first pixel, low = second. Matches DragonFF: `idx1, idx2 = (i >> 4) & 0xf, i & 0xf`. Fixes shifted/scrambled PAL4 textures (GTA III era)
+- **DXT5 alpha decoder**: interpolation uses `round()` with fractional weights matching DragonFF `bc3`; both `a0>a1` (6 intermediates) and `a0<=a1` (4 intermediates + 0/255) fixed
+- **DXT5 alpha encoder** (`_encode_alpha_block`): was building wrong number of intermediates (5 or 3 instead of 6 or 4) causing encoder/decoder mismatch on exported textures
+
+### Build 164 — Mesh editor: replace stale material dicts with `col_materials.py`
+- Remove hardcoded `SURFACE_MATERIALS` (35 wrong entries) and `MATERIAL_COLORS`
+- Import `col_materials`: `get_material_name`, `get_materials_for_version`, group colour cache
+- Game version selector (SA / VC+GTA3) auto-detected from COL version on open
+- `_refresh_material_combo()`: rebuilds Add Face combo (179 SA or 35 VC entries)
+- `_on_game_changed()`: switches game, refreshes combo + face table + viewport
+- Viewport face colours driven by group colour map (14 groups)
+
+### Build 163 — Fix 4 COL1 parser bugs + add `col_materials.py`
+Parser fixes verified against DragonFF:
+- COL1 `parse_model`: removed bogus facegroups block, correct skip-4 after spheres
+- `parse_boxes_alt`: COL1 box size was 32 bytes, correct is 28 (`VVS` = 12+12+4); surface reading fixed
+- `parse_faces_alt`: COL1 faces read as uint16 (wrong), fixed to uint32×3 + surface = 16 bytes (`IIIS`)
+- `COLBounds` dataclass: field defaults added so `COLBounds()` works
+
+**New file**: `apps/methods/col_materials.py`
+- Full SA material table (179 materials, 0–178 + vehicle presets)
+- Full VC/GTA3 material table (35 materials + vehicle presets)
+- Group colour map (14 groups with hex colours for viewport)
+- API: `get_material_name/colour/group/qcolor`, `get_materials_for_version`, `get_vehicle_presets`, `material_id_from_name`
+
+### Build 162 — Sync repos + ChangeLog v30
+- Col-Workshop and Txd-Workshop repos synced to Build 161
+
+### Duplicate log line bug (pending fix)
+- `img_debugger._write()` formats `[HH:MM:SS] LEVEL message` then calls `log_message(line)`
+- `gui_layout.log_message()` (line 2736) prepends another `[HH:MM:SS]` before appending to QTextEdit
+- Results in double-stamped lines: `[18:23:50] [18:23:50] DEBUG Populating...`
+- Fix: check if message already starts with `[DD:DD:DD]` before prepending timestamp
 
 ## March 2026 — COL Workshop list views, parser fixes, repo sync
 
