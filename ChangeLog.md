@@ -1,4 +1,37 @@
-#this belongs in root /ChangeLog.md - Version: 31
+#this belongs in root /ChangeLog.md - Version: 32
+
+## March–April 2026 — TXD GTA3/VC fixes, COL ops, log dedup
+
+### Build 180 — Fix PAL8/PAL4 pixel data offset (4-byte size prefix)
+- **Root cause**: GTA3/VC TXD PAL8 layout is `palette(1024 raw) + pixel_size(4) + pixels(w*h)`
+- DragonFF `read_palette()` reads palette raw with no prefix; `read_pixels()` always reads a 4-byte size prefix first
+- Our code set `has_data_size_field=False` for GTA3/VC non-DXT, so `expected = 1024 + w*h` — no room for the pixel prefix
+- `pix_data = level_data[1024:]` landed on the size field bytes `[0x00,0x10,0x00,0x00]`, treating them as pixel indices 0,16,0,0 — shifting every row by 4 pixels
+- Fix: `expected = pal_size + 4 + pixel_data_size`; `pix_data = level_data[pal_size + 4:]`
+- Verified against all 110 PAL8 textures in `generic.txd` — every one has `prefix == w*h`
+
+### Build 179 — Align PAL4/PAL8 alpha with DragonFF txd.py
+- **PAL4 palette size**: DragonFF `read_palette()` uses 64 bytes when `depth==4`, 128 bytes otherwise — we always used 64
+- **PAL8/PAL4 alpha forcing**: DragonFF calls `pal8_noalpha()` (force alpha=255) when `has_alpha()==False`, which triggers for `RASTER_888`, `RASTER_565`, `RASTER_555`, `RASTER_LUM` pixel types (bits 8–11 of `raster_format_flags`)
+- Old code only forced opaque for `palette_entry_fmt=='RGB888'`; now checks `raster_format_flags & 0x0F00` against no-alpha type set `{0x0600, 0x0200, 0x0A00, 0x0400}`
+- Generic.txd `carlites64` has `raster_flags=0x2600` → pixel_type `0x0600` (RGB888) → `force_opaque=True` ✓
+
+### Build 178 — Fix GTA3/VC PAL8+PAL4 wrong colours (BGRA vs RGBA)
+- **Root cause confirmed** via `generic.txd` `carlites64`: GTA3/VC TXDs store palette entries as **RGBA**, not BGRA
+- SA TXDs (`>= 0x1803FFFF`) store palettes as **BGRA** — our pre-existing B↔R swap was correct for SA only
+- `carlites64` palette[0] stored bytes: `48,24,8,255`
+  - Before fix: output `R=8, G=24, B=48` → cold blue (wrong)
+  - After fix:  output `R=48, G=24, B=8` → warm brown (correct)
+- Fix: `tex['palette_is_bgra'] = is_sa_plus` during header parse; `_decompress_uncompressed` v7 adds `palette_is_bgra` param and branches on it for both PAL8 and PAL4 decode paths
+- DragonFF never swaps (outputs BGRA to Blender which handles it); our fix is more precise
+
+### Build 177 — Fix duplicate timestamps in activity log
+- `img_debugger._write()` formats lines as `[HH:MM:SS] LEVEL message` then calls `log_message()`
+- `gui_layout.log_message()` prepended another `[HH:MM:SS]` unconditionally → double-stamped output
+- Fix: `re.match(r'^\[\d{2}:\d{2}:\d{2}\]', message)` — skip adding timestamp if already present
+
+### Build 176 — ChangeLog v31
+- Documented Builds 162–175
 
 ## March–April 2026 — COL parser overhaul, material paint, writer, IDE ops
 
