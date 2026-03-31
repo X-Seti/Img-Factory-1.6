@@ -6531,11 +6531,20 @@ class TXDWorkshop(QWidget): #vers 3
                 self.main_window.log_message(traceback.format_exc())
 
 
-    def _reload_texture_table(self): #vers 3
-        """Reload texture table display - delegates to _add_texture_to_table for consistency"""
+    def _reload_texture_table(self): #vers 4
+        """Reload texture table — preserves row selection after reload."""
+        # Remember which texture was selected by object identity
+        selected_name = (self.selected_texture.get('name') 
+                         if self.selected_texture else None)
         self.texture_table.setRowCount(0)
         for tex in self.texture_list:
             self._add_texture_to_table(tex)
+        # Restore selection
+        if selected_name:
+            for row, tex in enumerate(self.texture_list):
+                if tex.get('name') == selected_name:
+                    self.texture_table.selectRow(row)
+                    break
 
 
     def _save_undo_state(self, action_name): #vers 2
@@ -9945,10 +9954,18 @@ class TXDWorkshop(QWidget): #vers 3
 
         details += f"Alpha: {'Yes' if tex.get('has_alpha', False) else 'No'}"
 
-        # Update the table item
+        # Update text (col 1)
         details_item = self.texture_table.item(row, 1)
         if details_item:
             details_item.setText(details)
+
+        # Also refresh thumbnail (col 0) so flip/rotate/filters show immediately
+        rgba = tex.get('rgba_data')
+        if rgba:
+            thumb = self._create_thumbnail(rgba, tex['width'], tex['height'])
+            thumb_item = self.texture_table.item(row, 0)
+            if thumb_item and thumb:
+                thumb_item.setIcon(QIcon(thumb))
 
 
     def _parse_single_texture(self, txd_data, offset, index, rw_version=0x1803FFFF): #vers 6
@@ -11783,144 +11800,88 @@ class TXDWorkshop(QWidget): #vers 3
     def show_help(self, *a, **kw): pass
     def show_settings_dialog(self, *a, **kw): pass
 
-    def _flip_vertical(self): #vers 2
-        """Flip texture vertically"""
+    def _flip_vertical(self): #vers 3
+        """Flip texture vertically using PIL (fast)."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
             return
-
         try:
-            width = self.selected_texture['width']
-            height = self.selected_texture['height']
-            rgba_data = bytearray(self.selected_texture['rgba_data'])
-
-            # Flip vertically - swap rows
-            flipped = bytearray(len(rgba_data))
-            for y in range(height):
-                for x in range(width):
-                    src_idx = (y * width + x) * 4
-                    dst_idx = ((height - 1 - y) * width + x) * 4
-                    flipped[dst_idx:dst_idx+4] = rgba_data[src_idx:src_idx+4]
-
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            flipped = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
             self._save_undo_state("Flip vertical")
-            self.selected_texture['rgba_data'] = bytes(flipped)
-            self._update_texture_info(self.selected_texture)
+            tex['rgba_data'] = flipped.tobytes()
+            self._update_texture_info(tex)
             self._update_table_display()
             self._mark_as_modified()
-
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("✅ Flipped texture vertically")
-
+                self.main_window.log_message("Flipped vertically")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
 
 
-    def _flip_horizontal(self): #vers 1
-        """Flip texture horizontally"""
+    def _flip_horizontal(self): #vers 2
+        """Flip texture horizontally using PIL (fast)."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
             return
-
         try:
-            width = self.selected_texture['width']
-            height = self.selected_texture['height']
-            rgba_data = bytearray(self.selected_texture['rgba_data'])
-
-            # Flip horizontally - swap columns
-            flipped = bytearray(len(rgba_data))
-            for y in range(height):
-                for x in range(width):
-                    src_idx = (y * width + x) * 4
-                    dst_idx = (y * width + (width - 1 - x)) * 4
-                    flipped[dst_idx:dst_idx+4] = rgba_data[src_idx:src_idx+4]
-
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            flipped = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
             self._save_undo_state("Flip horizontal")
-            self.selected_texture['rgba_data'] = bytes(flipped)
-            self._update_texture_info(self.selected_texture)
+            tex['rgba_data'] = flipped.tobytes()
+            self._update_texture_info(tex)
             self._update_table_display()
             self._mark_as_modified()
-
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("✅ Flipped texture horizontally")
-
+                self.main_window.log_message("Flipped horizontally")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to flip: {str(e)}")
 
 
-    def _rotate_clockwise(self): #vers 1
-        """Rotate texture 90 degrees clockwise"""
+    def _rotate_clockwise(self): #vers 2
+        """Rotate texture 90° CW using PIL (fast)."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
             return
-
         try:
-            width = self.selected_texture['width']
-            height = self.selected_texture['height']
-            rgba_data = self.selected_texture['rgba_data']
-
-            # Use QImage for rotation
-            from PyQt6.QtGui import QImage, QTransform
-            img = QImage(rgba_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
-
-            transform = QTransform().rotate(90)
-            rotated = img.transformed(transform)
-
-            # Get rotated data
-            ptr = rotated.bits()
-            ptr.setsize(rotated.sizeInBytes())
-            rotated_data = bytes(ptr)
-
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            rotated = img.transpose(Image.Transpose.ROTATE_270)  # 270 CCW = 90 CW
             self._save_undo_state("Rotate 90° CW")
-            self.selected_texture['rgba_data'] = rotated_data
-            self.selected_texture['width'] = rotated.width()
-            self.selected_texture['height'] = rotated.height()
-
-            self._update_texture_info(self.selected_texture)
+            tex['rgba_data'] = rotated.tobytes()
+            tex['width'], tex['height'] = rotated.width, rotated.height
+            self._update_texture_info(tex)
             self._update_table_display()
             self._mark_as_modified()
-
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Rotated 90° CW: now {rotated.width()}x{rotated.height()}")
-
+                self.main_window.log_message(f"Rotated 90° CW → {rotated.width}x{rotated.height}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
 
 
-    def _rotate_counterclockwise(self): #vers 1
-        """Rotate texture 90 degrees counter-clockwise"""
+    def _rotate_counterclockwise(self): #vers 2
+        """Rotate texture 90° CCW using PIL (fast)."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
             return
-
         try:
-            width = self.selected_texture['width']
-            height = self.selected_texture['height']
-            rgba_data = self.selected_texture['rgba_data']
-
-            # Use QImage for rotation
-            from PyQt6.QtGui import QImage, QTransform
-            img = QImage(rgba_data, width, height, width * 4, QImage.Format.Format_RGBA8888)
-
-            transform = QTransform().rotate(-90)
-            rotated = img.transformed(transform)
-
-            # Get rotated data
-            ptr = rotated.bits()
-            ptr.setsize(rotated.sizeInBytes())
-            rotated_data = bytes(ptr)
-
+            from PIL import Image
+            tex = self.selected_texture
+            img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+            rotated = img.transpose(Image.Transpose.ROTATE_90)  # 90 CCW
             self._save_undo_state("Rotate 90° CCW")
-            self.selected_texture['rgba_data'] = rotated_data
-            self.selected_texture['width'] = rotated.width()
-            self.selected_texture['height'] = rotated.height()
-
-            self._update_texture_info(self.selected_texture)
+            tex['rgba_data'] = rotated.tobytes()
+            tex['width'], tex['height'] = rotated.width, rotated.height
+            self._update_texture_info(tex)
             self._update_table_display()
             self._mark_as_modified()
-
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Rotated 90° CCW: now {rotated.width()}x{rotated.height()}")
-
+                self.main_window.log_message(f"Rotated 90° CCW → {rotated.width}x{rotated.height}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to rotate: {str(e)}")
 
