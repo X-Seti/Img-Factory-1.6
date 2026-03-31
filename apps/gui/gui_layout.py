@@ -2728,12 +2728,18 @@ class IMGFactoryGUILayout:
         else:
             print(f"GUI Layout: {message}")
 
-    def log_message(self, message): #vers 1
-        """Add message to activity log"""
+    def log_message(self, message): #vers 2
+        """Add message to activity log — skips timestamp if message already has one
+        (img_debugger pre-formats lines as '[HH:MM:SS] LEVEL message')."""
         if self.log:
             from PyQt6.QtCore import QDateTime
-            timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
-            self.log.append(f"[{timestamp}] {message}")
+            import re
+            # Only add timestamp if message doesn't already start with [HH:MM:SS]
+            if re.match(r'^\[\d{2}:\d{2}:\d{2}\]', str(message)):
+                self.log.append(str(message))
+            else:
+                timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
+                self.log.append(f"[{timestamp}] {message}")
             # Auto-scroll to bottom
             self.log.verticalScrollBar().setValue(
                 self.log.verticalScrollBar().maximum()
