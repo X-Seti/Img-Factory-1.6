@@ -11132,18 +11132,101 @@ class TXDWorkshop(QWidget): #vers 3
             "This will allow editing textures in an external image editor.")
 
 
-    def _open_paint_editor(self): #vers 1
-        """Open simple paint editor"""
-        if not self.selected_texture:
+    def _open_paint_editor(self): #vers 2
+        """Open simple paint editor — direct pixel drawing on the texture."""
+        if not self.selected_texture or not self.selected_texture.get('rgba_data'):
+            QMessageBox.warning(self, "No Texture", "Select a texture first.")
             return
 
-        QMessageBox.information(self, "Paint Editor",
-            "Simple pixel paint editor coming soon!\n\n"
-            "Features:\n"
-            "- Draw pixels\n"
-            "- Color picker\n"
-            "- Brush sizes\n"
-            "- Undo/Redo")
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QPushButton, QLabel, QSlider, QColorDialog, QSizePolicy)
+        from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QCursor
+        from PyQt6.QtCore import Qt, QPoint
+
+        tex = self.selected_texture
+        width, height = tex['width'], tex['height']
+        rgba = bytearray(tex['rgba_data'])
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Paint — {tex['name']}  ({width}x{height})")
+        dlg.setMinimumSize(max(width + 120, 400), max(height + 120, 400))
+
+        # State
+        state = {'color': QColor(255, 0, 0, 255), 'size': 1, 'rgba': rgba}
+
+        # Canvas label
+        canvas = QLabel()
+        canvas.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        canvas.setCursor(QCursor(Qt.CursorShape.CrossCursor))
+        canvas.setMinimumSize(width, height)
+
+        def _refresh():
+            img = QImage(bytes(state['rgba']), width, height,
+                         width * 4, QImage.Format.Format_RGBA8888)
+            canvas.setPixmap(QPixmap.fromImage(img).scaled(
+                width, height, Qt.AspectRatioMode.KeepAspectRatio))
+
+        def _paint_at(pos):
+            pw = canvas.pixmap()
+            if not pw: return
+            # Map widget pos to texture pixel
+            sx = pw.width(); sy = pw.height()
+            px = int(pos.x() * width  / sx)
+            py = int(pos.y() * height / sy)
+            s  = state['size']
+            r, g, b, a = (state['color'].red(), state['color'].green(),
+                          state['color'].blue(), state['color'].alpha())
+            for dy in range(-s, s+1):
+                for dx in range(-s, s+1):
+                    nx, ny = px+dx, py+dy
+                    if 0 <= nx < width and 0 <= ny < height:
+                        i = (ny * width + nx) * 4
+                        state['rgba'][i:i+4] = [r, g, b, a]
+            _refresh()
+
+        canvas.mousePressEvent   = lambda e: _paint_at(e.position().toPoint())
+        canvas.mouseMoveEvent    = lambda e: (_paint_at(e.position().toPoint())
+                                              if e.buttons() & Qt.MouseButton.LeftButton else None)
+        _refresh()
+
+        # Controls
+        ctrl = QHBoxLayout()
+        color_btn = QPushButton("🎨 Colour")
+        def _pick():
+            c = QColorDialog.getColor(state['color'], dlg, "Pick colour",
+                                       QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if c.isValid():
+                state['color'] = c
+                color_btn.setStyleSheet(f"background:{c.name()}")
+        color_btn.clicked.connect(_pick)
+        ctrl.addWidget(color_btn)
+
+        ctrl.addWidget(QLabel("Brush:"))
+        size_sl = QSlider(Qt.Orientation.Horizontal)
+        size_sl.setRange(0, 10); size_sl.setValue(1); size_sl.setMaximumWidth(100)
+        size_sl.valueChanged.connect(lambda v: state.update({'size': v}))
+        ctrl.addWidget(size_sl)
+        ctrl.addStretch()
+
+        ok_btn  = QPushButton("✓ Apply")
+        cxl_btn = QPushButton("✗ Cancel")
+
+        def _apply():
+            self._save_undo_state("Paint edit")
+            tex['rgba_data'] = bytes(state['rgba'])
+            self._update_texture_info(tex)
+            self._update_table_display()
+            self._mark_as_modified()
+            dlg.accept()
+
+        ok_btn.clicked.connect(_apply)
+        cxl_btn.clicked.connect(dlg.reject)
+        ctrl.addWidget(ok_btn); ctrl.addWidget(cxl_btn)
+
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(canvas)
+        lay.addLayout(ctrl)
+        dlg.exec()
 
 
     def _open_filters_dialog(self): #vers 1
@@ -11199,8 +11282,57 @@ class TXDWorkshop(QWidget): #vers 3
         button_layout.addStretch()
 
         apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(lambda: QMessageBox.information(
-            dialog, "Apply Filters", "Filter application coming soon!"))
+        def _apply_filters():
+            if not self.selected_texture or not self.selected_texture.get('rgba_data'):
+                return
+            try:
+                from PIL import Image, ImageEnhance, ImageFilter
+                import io
+                tex = self.selected_texture
+                img = Image.frombytes('RGBA', (tex['width'], tex['height']), tex['rgba_data'])
+
+                b_val = brightness_slider.value() / 100.0
+                c_val = contrast_slider.value()    / 100.0
+                s_val = saturation_slider.value()  / 100.0
+                h_val = hue_slider.value()
+
+                # Brightness: +100 = double, -100 = black
+                if b_val != 0:
+                    factor = 1.0 + b_val
+                    img = ImageEnhance.Brightness(img).enhance(max(0.0, factor))
+
+                # Contrast: +100 = double, -100 = grey
+                if c_val != 0:
+                    factor = 1.0 + c_val
+                    img = ImageEnhance.Contrast(img).enhance(max(0.0, factor))
+
+                # Saturation
+                if s_val != 0:
+                    factor = 1.0 + s_val
+                    img = ImageEnhance.Color(img).enhance(max(0.0, factor))
+
+                # Hue shift via HSV
+                if h_val != 0:
+                    import colorsys
+                    pixels = list(img.getdata())
+                    new_pixels = []
+                    for r, g, b, a in pixels:
+                        h, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+                        h = (h + h_val / 360.0) % 1.0
+                        r2, g2, b2 = colorsys.hsv_to_rgb(h, s, v)
+                        new_pixels.append((int(r2*255), int(g2*255), int(b2*255), a))
+                    img.putdata(new_pixels)
+
+                self._save_undo_state("Apply filters")
+                tex['rgba_data'] = img.tobytes()
+                self._update_texture_info(tex)
+                self._update_table_display()
+                self._mark_as_modified()
+                dialog.accept()
+            except Exception as e:
+                QMessageBox.critical(dialog, "Filter Error", str(e))
+
+        apply_btn.clicked.connect(_apply_filters)
         button_layout.addWidget(apply_btn)
 
         reset_btn = QPushButton("Reset")
