@@ -1219,27 +1219,28 @@ class COLWorkshop(QWidget): #vers 3
         pw._render_style = modes[(modes.index(cur)+1) % 3] if cur in modes else 'semi'
         pw.update()
 
-    def _open_paint_editor(self): #vers 2
-        """Open material paint mode — pick a material then click faces to paint."""
+    def _open_paint_editor(self): #vers 3
+        """Material editor — select material, apply to faces, undo supported."""
         if not self.current_col_file:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No File", "Load a COL file first.")
             return
 
-        # Get selected model
         model = self._get_selected_model()
         if model is None:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No Model Selected",
-                "Select a model in the list first, then click Paint.")
+                "Select a model in the list first.")
             return
         if not getattr(model, 'faces', []):
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(self, "No Mesh Faces",
-                f"'{model.name}' has no mesh faces.\n"
-                "You can still use the Mesh Editor to add faces,\n"
-                "or select a model that has mesh geometry.")
+                f"'{model.name}' has no mesh faces.")
             return
+
+        # Find model index for undo
+        models = getattr(self.current_col_file, 'models', [])
+        model_idx = models.index(model) if model in models else -1
 
         # ── Material picker dialog ────────────────────────────────────────
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
@@ -1322,17 +1323,52 @@ class COLWorkshop(QWidget): #vers 3
         lay.addLayout(btns)
         btn_cancel.clicked.connect(dlg.reject)
 
-        chosen_mat = [None]
+        # Show current material of viewport-selected faces
+        vp = getattr(self, 'preview_widget', None)
+        if vp and getattr(vp, '_selected_faces', set()):
+            sel_faces = sorted(vp._selected_faces)
+            first_face = model.faces[sel_faces[0]] if sel_faces[0] < len(model.faces) else None
+            if first_face:
+                cur_mat = (first_face.material if isinstance(first_face.material, int)
+                           else getattr(first_face.material, 'material_id', 0))
+                cur_lbl = QLabel(f"Current face material: {cur_mat}")
+                cur_lbl.setStyleSheet("color:#aaa; font-size:10px; padding:2px 4px;")
+                lay.insertWidget(0, cur_lbl)
 
-        def enter_paint():
+        # "Apply to selected faces" button
+        btn_apply_sel = QPushButton("✓ Apply to Selected Faces")
+        btn_apply_all = QPushButton("Apply to ALL Faces")
+        btns.insertWidget(0, btn_apply_sel)
+        btns.insertWidget(1, btn_apply_all)
+
+        chosen_mat = [None]
+        chosen_mode = [None]  # 'selected', 'all', 'paint'
+
+        def _get_mat():
             item = lst.currentItem()
             if not item:
                 from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.warning(dlg, "No material", "Select a material first.")
-                return
-            chosen_mat[0] = item.data(Qt.ItemDataRole.UserRole)
-            dlg.accept()
+                return None
+            return item.data(Qt.ItemDataRole.UserRole)
 
+        def apply_to_selected():
+            mid = _get_mat()
+            if mid is None: return
+            chosen_mat[0] = mid; chosen_mode[0] = 'selected'; dlg.accept()
+
+        def apply_to_all():
+            mid = _get_mat()
+            if mid is None: return
+            chosen_mat[0] = mid; chosen_mode[0] = 'all'; dlg.accept()
+
+        def enter_paint():
+            mid = _get_mat()
+            if mid is None: return
+            chosen_mat[0] = mid; chosen_mode[0] = 'paint'; dlg.accept()
+
+        btn_apply_sel.clicked.connect(apply_to_selected)
+        btn_apply_all.clicked.connect(apply_to_all)
         btn_paint.clicked.connect(enter_paint)
         lst.itemDoubleClicked.connect(lambda _: enter_paint())
 
@@ -1340,33 +1376,68 @@ class COLWorkshop(QWidget): #vers 3
             return
 
         mat_id = chosen_mat[0]
+        mode   = chosen_mode[0]
 
-        # Activate paint mode on the viewport
-        vp = getattr(self, 'preview_widget', None)
-        if not vp:
-            return
+        if mode == 'selected':
+            # Apply to currently selected faces in viewport
+            sel = sorted(getattr(getattr(self, 'preview_widget', None),
+                                  '_selected_faces', set()))
+            if not sel:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "No Faces Selected",
+                    "No faces selected in viewport.\nUse paint mode to click faces, "
+                    "or use 'Apply to ALL Faces'.")
+                return
+            if model_idx >= 0:
+                self._push_undo(model_idx, f"Paint material {mat_id} → {len(sel)} faces")
+            for fi in sel:
+                if fi < len(model.faces):
+                    f = model.faces[fi]
+                    if isinstance(f.material, int):
+                        model.faces[fi].material = mat_id
+                    else:
+                        f.material.material_id = mat_id
+            if vp: vp.update()
+            self._set_status(f"Applied material {mat_id} to {len(sel)} selected face(s).")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Paint: material {mat_id} → {len(sel)} faces")
 
-        vp.set_paint_mode(True, mat_id)
-        vp.on_face_selected = self._on_painted_face
+        elif mode == 'all':
+            # Apply to every face in the model
+            if model_idx >= 0:
+                self._push_undo(model_idx, f"Paint material {mat_id} → all faces")
+            for f in model.faces:
+                if isinstance(f.material, int):
+                    f.material = mat_id
+                else:
+                    f.material.material_id = mat_id
+            if vp: vp.update()
+            self._set_status(f"Applied material {mat_id} to all {len(model.faces)} faces.")
 
-        # Update paint button to show "Exit Paint" state
-        for btn in (getattr(self, 'paint_btn', None),):
-            if btn:
-                btn.setText("🔴  Exit Paint")
-                btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
-                btn.clicked.disconnect()
-                btn.clicked.connect(self._exit_paint_mode)
+        else:  # paint mode — click/drag faces in viewport
+            if not vp: return
+            if model_idx >= 0:
+                self._push_undo(model_idx, f"Paint mode: material {mat_id}")
+            vp.set_paint_mode(True, mat_id)
+            vp.on_face_selected = self._on_painted_face
 
-        self._paint_active_mat = mat_id
-        self._set_status(f"Paint mode: {mat_id} — click faces to paint. [Esc] to exit.")
+            for btn in (getattr(self, 'paint_btn', None),):
+                if btn:
+                    btn.setText("🔴  Exit Paint")
+                    btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
+                    try: btn.clicked.disconnect()
+                    except: pass
+                    btn.clicked.connect(self._exit_paint_mode)
 
-    def _on_painted_face(self, face_index, face): #vers 1
-        """Called by viewport when a face is painted — update detail panel."""
+            self._paint_active_mat = mat_id
+            self._set_status(
+                f"Paint mode: material {mat_id} — click/drag faces. [Esc] to exit.")
+
+    def _on_painted_face(self, face_index, face): #vers 2
+        """Called by viewport when a face is painted. Status update only —
+        undo state was pushed before entering paint mode."""
         mat_id = self._paint_active_mat if hasattr(self, '_paint_active_mat') else 0
-        self._set_status(f"Painted face {face_index} → material {mat_id}")
-        # Refresh detail table if visible
-        if hasattr(self, '_populate_detail_table'):
-            self._populate_detail_table()
+        self._set_status(f"Painted face {face_index} → material {mat_id}  [Esc to exit]")
 
     def _exit_paint_mode(self): #vers 1
         """Exit paint mode and restore paint button."""
@@ -1715,29 +1786,31 @@ class COLWorkshop(QWidget): #vers 3
         dlg.exec()
 
 
-    # ── Method aliases and stubs (auto-generated Build 121) ────────────
-    def _compress_surface(self, *a, **kw): return self._compress_col(*a, **kw)
-    def _copy_surface(self, *a, **kw): return self._copy_model_to_clipboard(*a, **kw)
-    def _delete_surface(self, *a, **kw): return self._delete_selected_model(*a, **kw)
-    def _duplicate_surface(self, *a, **kw): return self._duplicate_selected_model(*a, **kw)
-    def _force_save_col(self, *a, **kw): return self._save_file(*a, **kw)
-    def _import_selected(self, *a, **kw): return self._import_col_data(*a, **kw)
-    def _import_surface(self, *a, **kw): return self._import_col_data(*a, **kw)
-    def _open_col_file(self, *a, **kw): return self._open_file(*a, **kw)
-    def _open_mipmap_manager(self, *a, **kw): return self._show_shadow_mesh(*a, **kw)
-    def _paste_surface(self, *a, **kw): return self._paste_model_from_clipboard(*a, **kw)
-    def _reload_surface_table(self, *a, **kw): return self._populate_collision_list(*a, **kw)
-    def _remove_shadow(self, *a, **kw): return self._remove_shadow_mesh(*a, **kw)
-    def _save_as_col_file(self, *a, **kw): return self._save_file(*a, **kw)
-    def _save_col_file(self, *a, **kw): return self._save_file(*a, **kw)
-    def _saveall_file(self, *a, **kw): return self._save_file(*a, **kw)
-    def _uncompress_surface(self, *a, **kw): return self._uncompress_col(*a, **kw)
-    def export_all(self, *a, **kw): return self._export_col_data(*a, **kw)
-    def export_all_surfaces(self, *a, **kw): return self._export_col_data(*a, **kw)
-    def export_selected(self, *a, **kw): return self._export_col_data(*a, **kw)
-    def export_selected_surface(self, *a, **kw): return self._export_col_data(*a, **kw)
-    def refresh(self, *a, **kw): return self._populate_collision_list(*a, **kw)
-    def reload_surface_table(self, *a, **kw): return self._populate_collision_list(*a, **kw)
+    # ── Method aliases — drop Qt signal args (*_, **__) before forwarding ──
+    # These are called from Qt signals that pass e.g. bool(checked) as arg.
+    # Target methods take only self, so we must not forward the signal args.
+    def _compress_surface(self, *_, **__): return self._compress_col()
+    def _copy_surface(self, *_, **__): return self._copy_model_to_clipboard()
+    def _delete_surface(self, *_, **__): return self._delete_selected_model()
+    def _duplicate_surface(self, *_, **__): return self._duplicate_selected_model()
+    def _force_save_col(self, *_, **__): return self._save_file()
+    def _import_selected(self, *_, **__): return self._import_col_data()
+    def _import_surface(self, *_, **__): return self._import_col_data()
+    def _open_col_file(self, *_, **__): return self._open_file()
+    def _open_mipmap_manager(self, *_, **__): return self._show_shadow_mesh()
+    def _paste_surface(self, *_, **__): return self._paste_model_from_clipboard()
+    def _reload_surface_table(self, *_, **__): return self._populate_collision_list()
+    def _remove_shadow(self, *_, **__): return self._remove_shadow_mesh()
+    def _save_as_col_file(self, *_, **__): return self._save_file()
+    def _save_col_file(self, *_, **__): return self._save_file()
+    def _saveall_file(self, *_, **__): return self._save_file()
+    def _uncompress_surface(self, *_, **__): return self._uncompress_col()
+    def export_all(self, *_, **__): return self._export_col_data()
+    def export_all_surfaces(self, *_, **__): return self._export_col_data()
+    def export_selected(self, *_, **__): return self._export_col_data()
+    def export_selected_surface(self, *_, **__): return self._export_col_data()
+    def refresh(self, *_, **__): return self._populate_collision_list()
+    def reload_surface_table(self, *_, **__): return self._populate_collision_list()
     def save_col_file(self, *a, **kw): return self._save_file(*a, **kw)
     def shadow_dialog(self, *a, **kw): return self._create_shadow_mesh(*a, **kw)
     def switch_surface_view(self, *a, **kw): return self._cycle_render_mode(*a, **kw)
