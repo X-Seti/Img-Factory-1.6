@@ -2812,7 +2812,9 @@ class TXDWorkshop(QWidget): #vers 3
             self.import_btn.setIcon(self._create_import_icon())
             self.import_btn.setIconSize(QSize(20, 20))
             self.import_btn.clicked.connect(self._import_textures)
-            self.import_btn.setEnabled(False)
+            self.import_btn.setEnabled(True)   # always enabled — import starts/adds to TXD
+            self.import_btn.setToolTip("Import image as texture (PNG/JPG/BMP/TGA/DDS)\n"
+                                       "If a texture is selected, offers to replace it.")
             format_layout.addWidget(self.import_btn)
 
             self.export_btn = QPushButton("Export")
@@ -12344,69 +12346,138 @@ class TXDWorkshop(QWidget): #vers 3
             self.log_message(f"XTX display error: {e}")
 
 
-    def _import_textures(self): #vers 6
-        """Import textures with 8-bit indexed format support"""
-        if not self.current_img and not self.current_txd_data:
-            QMessageBox.warning(self, "No TXD", "Please open or create a TXD file first")
-            return
+    def _validate_texture_dimensions(self, width, height): #vers 1
+        """Validate texture dimensions — warn on non-power-of-2 but don't block."""
+        if width <= 0 or height <= 0:
+            return False, f"Invalid dimensions: {width}x{height}"
+        if width > 4096 or height > 4096:
+            return False, f"Dimensions too large: {width}x{height} (max 4096)"
+        return True, ""
 
-        # File dialog for texture selection
+    def _import_textures(self): #vers 7
+        """Import image file(s) as textures.
+        - If a texture is selected and one file chosen: ask to replace or add.
+        - Multiple files: always add.
+        - Works without a TXD loaded (creates texture list from scratch).
+        - Accepts any size/bit depth — resamples to match target if replacing.
+        """
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        from PIL import Image
+
         file_paths, _ = QFileDialog.getOpenFileNames(
-            self,
-            "Import Textures",
-            "",
-            "Image Files (*.png *.jpg *.jpeg *.bmp *.tga *.dds *.iff *.ilbm *.lbm *.pcx *.gif);;All Files (*.*)"
-        )
-
+            self, "Import Texture(s)", "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.tga *.dds *.gif *.tiff *.webp);;"
+            "All Files (*.*)")
         if not file_paths:
             return
 
-        # Check for disabled formats
-        iff_files = []
-        try:
-            iff_files = [f for f in file_paths if is_iff_file(f)]
-        except:
-            pass
-
-        if iff_files and hasattr(self, 'iff_import_enabled') and not self.iff_import_enabled:
+        # Single file + texture selected → offer replace
+        replace_mode = False
+        if len(file_paths) == 1 and self.selected_texture:
+            sel_name = self.selected_texture.get('name', '')
+            sel_w    = self.selected_texture.get('width', 0)
+            sel_h    = self.selected_texture.get('height', 0)
+            sel_fmt  = self.selected_texture.get('format', 'ARGB8888')
             reply = QMessageBox.question(
-                self,
-                "IFF Import Disabled",
-                f"Found {len(iff_files)} IFF files, but IFF import is disabled.\n"
-                "Enable IFF support in Settings?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                self._show_workshop_settings()
+                self, "Replace or Add?",
+                f"Replace selected texture '{sel_name}' ({sel_w}x{sel_h}, {sel_fmt})\n"
+                f"with {os.path.basename(file_paths[0])}?\n\n"
+                "Yes = Replace selected texture\n"
+                "No  = Add as new texture",
+                QMessageBox.StandardButton.Yes |
+                QMessageBox.StandardButton.No  |
+                QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Cancel:
                 return
+            replace_mode = (reply == QMessageBox.StandardButton.Yes)
 
-        # Import each texture
-        imported_count = 0
-        failed_count = 0
-
+        imported = 0
+        failed   = 0
         for file_path in file_paths:
             try:
-                success = self._import_single_texture(file_path)
-                if success:
-                    imported_count += 1
-                else:
-                    failed_count += 1
-            except Exception as e:
-                failed_count += 1
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Import failed: {os.path.basename(file_path)} - {str(e)}")
+                fname = os.path.basename(file_path)
+                img = Image.open(file_path).convert('RGBA')
+                has_alpha = img.mode == 'RGBA' and any(p[3] < 255 for p in img.getdata())
+                
+                # Auto-detect format from pixel content
+                fmt = 'ARGB8888' if has_alpha else 'RGB888'
 
-        # Reload display
-        if imported_count > 0:
+                if replace_mode and self.selected_texture:
+                    # Replace: resample to original dimensions if different
+                    tw, th = self.selected_texture['width'], self.selected_texture['height']
+                    if (img.width, img.height) != (tw, th):
+                        img = img.resize((tw, th), Image.Resampling.LANCZOS)
+                        if self.main_window and hasattr(self.main_window, 'log_message'):
+                            self.main_window.log_message(
+                                f"Resampled {fname} from "
+                                f"{img.width}x{img.height} → {tw}x{th}")
+                    # Keep original format and name
+                    fmt  = self.selected_texture.get('format', fmt)
+                    name = self.selected_texture.get('name', os.path.splitext(fname)[0])
+                    self._save_undo_state(f"Replace texture: {name}")
+                    self.selected_texture['rgba_data'] = img.tobytes()
+                    self.selected_texture['has_alpha']  = has_alpha
+                    self.selected_texture['format']     = fmt
+                    # Keep width/height as original (we resampled)
+                    if self.main_window and hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message(
+                            f"Replaced '{name}' with {fname} ({tw}x{th}, {fmt})")
+                    imported += 1
+                else:
+                    # Add as new texture
+                    name = os.path.splitext(os.path.basename(file_path))[0]
+                    # Truncate name if needed
+                    if getattr(self, 'name_limit_enabled', False):
+                        name = name[:getattr(self, 'max_texture_name_length', 32)]
+                    new_tex = {
+                        'name':               name,
+                        'width':              img.width,
+                        'height':             img.height,
+                        'rgba_data':          img.tobytes(),
+                        'has_alpha':          has_alpha,
+                        'format':             fmt,
+                        'alpha_name':         name + 'a' if has_alpha else '',
+                        'mipmaps':            1,
+                        'mipmap_levels':      [],
+                        'raster_format_flags':0x2600 if not has_alpha else 0x2500,
+                        'depth':              32,
+                        'platform_id':        8,
+                        'filter_flags':       0x1102,
+                    }
+                    self.texture_list.append(new_tex)
+                    if self.main_window and hasattr(self.main_window, 'log_message'):
+                        self.main_window.log_message(
+                            f"Added '{name}' ({img.width}x{img.height}, {fmt})")
+                    imported += 1
+            except Exception as e:
+                failed += 1
+                if self.main_window and hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(
+                        f"Import failed: {os.path.basename(file_path)} — {e}")
+
+        if imported:
             self._reload_texture_table()
             self._mark_as_modified()
+            # Re-select replaced texture or select newly added
+            if replace_mode and self.selected_texture:
+                self._update_texture_info(self.selected_texture)
+                self._update_table_display()
+            else:
+                # Select the last added
+                last_row = len(self.texture_list) - 1
+                if last_row >= 0:
+                    self.texture_table.selectRow(last_row)
+            # Enable save/export now that we have textures
+            if hasattr(self, 'save_txd_btn'):
+                self.save_txd_btn.setEnabled(True)
+            if hasattr(self, 'export_all_btn'):
+                self.export_all_btn.setEnabled(True)
 
-        # Report results
+        msg = f"Imported {imported} texture(s)"
+        if failed:
+            msg += f", {failed} failed"
         if self.main_window and hasattr(self.main_window, 'log_message'):
-            if imported_count > 0:
-                self.main_window.log_message(f"Imported {imported_count} texture(s)")
-            if failed_count > 0:
-                self.main_window.log_message(f"Failed to import {failed_count} texture(s)")
+            self.main_window.log_message(msg)
 
 
     def _import_single_texture(self, file_path): #vers 3
