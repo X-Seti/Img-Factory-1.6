@@ -6323,6 +6323,42 @@ class TXDWorkshop(QWidget): #vers 3
         self.texture_table.itemDoubleClicked.connect(self._on_texture_table_double_click)
 
 
+
+    def _set_transform_buttons_enabled(self, enabled: bool): #vers 1
+        """Enable/disable transform buttons in BOTH icon and text panels.
+        The text panel's _btn() calls overwrite self.flip_vert_btn etc, so when
+        the icon panel is visible (narrow mode) those self.X refs point to hidden
+        text-panel buttons. Fix: enable all QPushButtons in the icon panel too.
+        """
+        # Text panel buttons (via self.X refs)
+        transform_attrs = [
+            'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
+            'copy_btn', 'delete_texture_btn', 'duplicate_texture_btn',
+            'filters_btn', 'paint_btn', 'switch_btn', 'gen_alpha_btn',
+            'props_btn', 'convert_btn', 'compress_btn', 'uncompress_btn',
+            'resize_btn', 'upscale_btn', 'bitdepth_btn',
+        ]
+        for attr in transform_attrs:
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                btn.setEnabled(enabled)
+
+        # Icon panel buttons — find by walking the panel's children
+        icon_panel = getattr(self, '_transform_icon_panel_ref', None)
+        if icon_panel:
+            from PyQt6.QtWidgets import QPushButton
+            for btn in icon_panel.findChildren(QPushButton):
+                btn.setEnabled(enabled)
+
+    def _set_selection_buttons_enabled(self, enabled: bool): #vers 1
+        """Enable/disable buttons that need a texture selected."""
+        self._set_transform_buttons_enabled(enabled)
+        for attr in ('export_btn', 'switch_btn', 'invert_btn',
+                     'gen_alpha_btn', 'props_btn'):
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                btn.setEnabled(enabled)
+
     def _on_texture_selected(self): #vers 7
         """Handle texture selection"""
         try:
@@ -6376,15 +6412,8 @@ class TXDWorkshop(QWidget): #vers 3
                 if hasattr(self, 'import_bumpmap_btn'):
                     self.import_bumpmap_btn.setEnabled(False)
 
-                # Disable transform buttons
-                if hasattr(self, 'flip_vert_btn'):
-                    self.flip_vert_btn.setEnabled(False)
-                if hasattr(self, 'flip_horz_btn'):
-                    self.flip_horz_btn.setEnabled(False)
-                if hasattr(self, 'rotate_cw_btn'):
-                    self.rotate_cw_btn.setEnabled(False)
-                if hasattr(self, 'rotate_ccw_btn'):
-                    self.rotate_ccw_btn.setEnabled(False)
+                # Disable all transform buttons in both panels
+                self._set_transform_buttons_enabled(False)
 
                 return
 
@@ -6498,25 +6527,10 @@ class TXDWorkshop(QWidget): #vers 3
                 # Only enable import if version supports bumpmaps
                 self.import_bumpmap_btn.setEnabled(can_support_bumpmap)
 
-            # Transform buttons
-            if hasattr(self, 'flip_vert_btn'):
-                self.flip_vert_btn.setEnabled(True)
-            if hasattr(self, 'flip_horz_btn'):
-                self.flip_horz_btn.setEnabled(True)
-            if hasattr(self, 'rotate_cw_btn'):
-                self.rotate_cw_btn.setEnabled(True)
-            if hasattr(self, 'rotate_ccw_btn'):
-                self.rotate_ccw_btn.setEnabled(True)
-
-            # Additional buttons
-            if hasattr(self, 'copy_btn'):
-                self.copy_btn.setEnabled(True)
+            # Enable all transform buttons in BOTH icon and text panels
+            self._set_transform_buttons_enabled(True)
             if hasattr(self, 'paste_btn'):
                 self.paste_btn.setEnabled(True)
-            if hasattr(self, 'edit_btn'):
-                self.edit_btn.setEnabled(True)
-            if hasattr(self, 'convert_btn'):
-                self.convert_btn.setEnabled(True)
             if hasattr(self, 'paint_btn'):
                 self.paint_btn.setEnabled(True)
             if hasattr(self, 'filters_btn'):
