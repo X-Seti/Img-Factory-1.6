@@ -10033,11 +10033,14 @@ class TXDWorkshop(QWidget): #vers 3
             pos += 8  # Skip padding
 
             name_bytes = txd_data[pos:pos+32]
-            tex['name'] = name_bytes.rstrip(b'\x00').decode('ascii', errors='ignore') or f'texture_{index}'
+            # Use first-null termination (like C strlen) not rstrip — DragonFF does this too
+            _null = name_bytes.find(b'\x00')
+            tex['name'] = (name_bytes[:_null] if _null >= 0 else name_bytes).decode('ascii', errors='ignore') or f'texture_{index}'
             pos += 32
 
             mask_bytes = txd_data[pos:pos+32]
-            alpha_name = mask_bytes.rstrip(b'\x00').decode('ascii', errors='ignore')
+            _null2 = mask_bytes.find(b'\x00')
+            alpha_name = (mask_bytes[:_null2] if _null2 >= 0 else mask_bytes).decode('ascii', errors='ignore')
             if alpha_name:
                 tex['alpha_name'] = alpha_name
                 tex['has_alpha'] = True
@@ -10106,12 +10109,14 @@ class TXDWorkshop(QWidget): #vers 3
             elif d3d_format == 0x35545844:
                 tex['format'] = 'DXT5'
                 tex['has_alpha'] = True
-            elif not is_xbox and platform_prop == 1:
+            elif not is_xbox and platform_id == 8 and platform_prop == 1:
+                # D3D8 only: platform_prop 1/3/5 = DXT type
+                # D3D9 uses d3d_format field — platform_prop is alpha/cube/mip/compressed flags
                 tex['format'] = 'DXT1'
-            elif not is_xbox and platform_prop == 3:
+            elif not is_xbox and platform_id == 8 and platform_prop == 3:
                 tex['format'] = 'DXT3'
                 tex['has_alpha'] = True
-            elif not is_xbox and platform_prop == 5:
+            elif not is_xbox and platform_id == 8 and platform_prop == 5:
                 tex['format'] = 'DXT5'
                 tex['has_alpha'] = True
             elif is_sa_plus:
