@@ -3447,6 +3447,7 @@ class COLWorkshop(QWidget): #vers 3
         self.surface_type_btn.setFixedHeight(btn_height)
         self.surface_type_btn.setMinimumWidth(btn_width)
         self.surface_type_btn.setToolTip("Surface types")
+        self.surface_type_btn.clicked.connect(self._open_surface_type_dialog)
         layout.addWidget(self.surface_type_btn)
         layout.addSpacing(spacer)
 
@@ -3468,6 +3469,7 @@ class COLWorkshop(QWidget): #vers 3
         self.build_from_txd_btn.setFixedHeight(btn_height)
         self.build_from_txd_btn.setMinimumWidth(btn_width)
         self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
+        self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
         layout.addWidget(self.build_from_txd_btn)
 
         layout.addStretch()
@@ -3604,6 +3606,7 @@ class COLWorkshop(QWidget): #vers 3
         self.surface_type_btn.setFont(self.button_font)
         self.surface_type_btn.setFixedHeight(btn_height)
         self.surface_type_btn.setToolTip("Surface types")
+        self.surface_type_btn.clicked.connect(self._open_surface_type_dialog)
         layout.addWidget(self.surface_type_btn)
         layout.addSpacing(spacer)
 
@@ -3621,6 +3624,7 @@ class COLWorkshop(QWidget): #vers 3
         self.build_from_txd_btn.setFont(self.button_font)
         self.build_from_txd_btn.setFixedHeight(btn_height)
         self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
+        self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
         layout.addWidget(self.build_from_txd_btn)
 
         layout.addStretch()
@@ -5802,9 +5806,35 @@ class COLWorkshop(QWidget): #vers 3
             #if not col_file:  # Just check if None
             #    return False
 
-            col_file = COLFile(debug=True)
-            if not col_file.load(file_path):
-                return False
+            # Large file warning + progress feedback
+            import os as _os
+            _fsize = _os.path.getsize(file_path)
+            _fsize_mb = _fsize / 1024 / 1024
+            if _fsize > 512 * 1024 * 1024:  # > 512 MB
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self, "Large COL File",
+                    f"{os.path.basename(file_path)} is {_fsize_mb:.0f} MB.\n\n"
+                    "Loading uses memory-mapped I/O to minimise RAM usage, "
+                    "but parsing may take 30–60 seconds for very large archives.\n\n"
+                    "Continue?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply != QMessageBox.StandardButton.Yes:
+                    return False
+
+            # Show busy cursor for large files
+            if _fsize > 32 * 1024 * 1024:
+                from PyQt6.QtWidgets import QApplication
+                from PyQt6.QtCore import Qt
+                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+            col_file = COLFile(debug=(_fsize_mb > 64))
+            try:
+                if not col_file.load(file_path):
+                    return False
+            finally:
+                if _fsize > 32 * 1024 * 1024:
+                    QApplication.restoreOverrideCursor()
 
             # Store loaded file
             self.current_col_file = col_file
@@ -5828,23 +5858,19 @@ class COLWorkshop(QWidget): #vers 3
                 self._select_model_by_row(0)
 
 
+
             # Enable all buttons that require a loaded file
+            # Transform buttons: use helper to cover BOTH icon and text panels
+            self._set_col_buttons_enabled(True)
             for btn_name in [
                 'save_btn', 'save_col_btn', 'saveall_btn',
                 'export_col_btn', 'export_all_btn', 'export_btn',
-                'import_btn', 'analyze_btn', 'undo_btn', 'undo_col_btn',
-                'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
-                'copy_btn', 'create_surface_btn', 'delete_surface_btn',
-                'duplicate_surface_btn', 'paint_btn', 'surface_type_btn',
-                'surface_edit_btn', 'build_from_txd_btn',
-                'switch_btn', 'convert_btn',
-                'show_shadow_btn', 'create_shadow_btn', 'remove_shadow_btn',
-                'compress_btn', 'uncompress_btn',
+                'import_btn', 'undo_btn', 'undo_col_btn',
+                'create_surface_btn', 'paste_btn',
             ]:
                 btn = getattr(self, btn_name, None)
                 if btn:
                     btn.setEnabled(True)
-
 
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -5858,6 +5884,31 @@ class COLWorkshop(QWidget): #vers 3
             QMessageBox.critical(self, "Error", f"Failed to open COL file:\n{str(e)}")
             return False
 
+
+
+    def _set_col_buttons_enabled(self, enabled: bool): #vers 1
+        """Enable/disable all transform buttons in BOTH icon and text panels.
+        The text panel overwrites self.X refs, so when the icon panel is visible
+        (narrow mode) those refs point to hidden buttons. Walk the icon panel too.
+        """
+        col_btn_attrs = [
+            'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
+            'analyze_btn', 'copy_btn', 'delete_surface_btn', 'duplicate_surface_btn',
+            'paint_btn', 'surface_type_btn', 'surface_edit_btn', 'build_from_txd_btn',
+            'show_shadow_btn', 'create_shadow_btn', 'remove_shadow_btn',
+            'compress_btn', 'uncompress_btn', 'switch_btn', 'convert_btn',
+        ]
+        for attr in col_btn_attrs:
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                btn.setEnabled(enabled)
+
+        # Also enable/disable the icon panel buttons directly (avoids name overwrite issue)
+        icon_panel = getattr(self, '_transform_icon_panel_ref', None)
+        if icon_panel:
+            from PyQt6.QtWidgets import QPushButton
+            for btn in icon_panel.findChildren(QPushButton):
+                btn.setEnabled(enabled)
 
     def _pick_col_from_current_img(self): #vers 1
         """Pick a COL entry from the IMG currently loaded in IMG Factory and open it."""

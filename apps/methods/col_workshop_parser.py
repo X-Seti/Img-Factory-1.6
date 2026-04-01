@@ -678,9 +678,10 @@ class COLParser: #vers 1
                         vertices, _ = self.parse_vertices(
                             data, data_at(verts_off), num_vertices, version)
 
-            # Sanity checks
-            if (len(spheres) > 10000 or len(boxes) > 10000
-                    or len(vertices) > 200000 or len(faces) > 200000):
+            # Sanity checks — limits raised for large SA COL files
+            # SA collision archives can have models with 500k+ vertices/faces
+            if (len(spheres) > 50000 or len(boxes) > 50000
+                    or len(vertices) > 2_000_000 or len(faces) > 2_000_000):
                 if self.debug:
                     print(f"parse_model: implausible counts S={len(spheres)} "
                           f"B={len(boxes)} V={len(vertices)} F={len(faces)}")

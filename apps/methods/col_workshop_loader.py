@@ -83,9 +83,25 @@ class COLFile: #vers 2
         if self.debug:
             img_debugger.info(f"Loading: {os.path.basename(file_path)}")
 
-        with open(file_path, 'rb') as f:
-            data = f.read()
-        return self._load_bytes(data)
+        file_size = os.path.getsize(file_path)
+        if self.debug:
+            img_debugger.info(f"File size: {file_size / 1024 / 1024:.1f} MB")
+
+        # Use mmap for large files (>64 MB) — avoids loading entire file into RAM.
+        # mmap supports the same slice/struct operations as bytes but pages from disk.
+        if file_size > 64 * 1024 * 1024:
+            import mmap
+            with open(file_path, 'rb') as f:
+                mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+                try:
+                    result = self._load_bytes(mm)
+                finally:
+                    mm.close()
+            return result
+        else:
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            return self._load_bytes(data)
 
     def load_from_data(self, data: bytes, name: str = "unknown.col") -> bool: #vers 2
         """Load COL from raw bytes."""
@@ -125,14 +141,31 @@ class COLFile: #vers 2
         models = []
         offset = 0
 
-        while offset < len(data) - 8:
+        total_size = len(data)
+        last_progress_pct = -1
+
+        while offset < total_size - 8:
+            # Progress reporting every 5% for large files
+            if total_size > 10 * 1024 * 1024:
+                pct = int(offset * 100 / total_size)
+                if pct != last_progress_pct and pct % 5 == 0:
+                    last_progress_pct = pct
+                    if self.debug:
+                        img_debugger.info(f"  Parsing: {pct}% ({len(models)} models so far)")
+                    # Yield to Qt event loop to keep UI responsive
+                    try:
+                        from PyQt6.QtWidgets import QApplication
+                        QApplication.processEvents()
+                    except Exception:
+                        pass
+
             fourcc = data[offset:offset + 4]
             if fourcc not in _VALID_FOURCCS:
                 if self.debug:
                     print(f"_parse_all_models: unexpected at 0x{offset:X}: {fourcc.hex()}")
                 # Scan forward for a valid FOURCC
                 found = False
-                for skip in range(1, min(64, len(data) - offset - 8)):
+                for skip in range(1, min(64, total_size - offset - 8)):
                     if data[offset + skip:offset + skip + 4] in _VALID_FOURCCS:
                         offset += skip
                         found = True
