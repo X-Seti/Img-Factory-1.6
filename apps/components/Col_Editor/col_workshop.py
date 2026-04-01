@@ -35,7 +35,7 @@ from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
-from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
+from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor, QAction
 from PyQt6.QtSvg import QSvgRenderer
 
 # Import project modules AFTER path setup
@@ -824,8 +824,8 @@ class COL3DViewport(QWidget): #vers 2
 
     def _show_face_context_menu(self, global_pos, face_index, face): #vers 1
         """Right-click context menu for a picked face — material operations."""
-        from PyQt6.QtWidgets import QMenu, QAction, QWidgetAction, QLabel
-        from PyQt6.QtGui import QColor, QPixmap, QIcon
+        from PyQt6.QtWidgets import QMenu, QWidgetAction, QLabel
+        from PyQt6.QtGui import QColor, QPixmap, QIcon, QAction
         from PyQt6.QtCore import Qt as _Qt
 
         ws = self._find_workshop()
