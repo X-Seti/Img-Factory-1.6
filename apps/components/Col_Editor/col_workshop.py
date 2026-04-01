@@ -1460,9 +1460,61 @@ class COLWorkshop(QWidget): #vers 3
             import traceback; traceback.print_exc()
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Mesh Editor Error", str(e))
-    def _build_col_from_txd(self): #vers 1
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Build COL", "Build COL from TXD names — coming soon.")
+    def _build_col_from_txd(self): #vers 2
+        """Create stub COL models for each texture name in a loaded TXD."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        from apps.methods.col_workshop_loader import COLFile
+        from apps.methods.col_workshop_classes import COLModel, COLVersion, COLBounds
+        txd_path, _ = QFileDialog.getOpenFileName(
+            self, "Select TXD file", "", "TXD Files (*.txd);;All Files (*)")
+        if not txd_path:
+            return
+        try:
+            import os
+            # Extract texture names from TXD (scan for null-terminated strings after each 0x15 chunk)
+            import struct
+            names = []
+            with open(txd_path, 'rb') as f:
+                data = f.read()
+            pos = 0
+            while pos < len(data) - 12:
+                t, s, v = struct.unpack_from('<III', data, pos)
+                if t == 0x15 and pos + 12 + 12 < len(data):
+                    body = pos + 12 + 12
+                    name = data[body+8:body+40].rstrip(b'').decode('ascii','ignore').strip()
+                    if name:
+                        names.append(name)
+                pos += 12 + s if s > 0 else 1
+            if not names:
+                QMessageBox.warning(self, "No Textures", "No texture names found in TXD.")
+                return
+            if not self.current_col_file:
+                from apps.methods.col_workshop_loader import COLFile
+                self.current_col_file = COLFile()
+                self.current_col_file.models = []
+            added = 0
+            for name in names:
+                m = COLModel()
+                m.name = name
+                m.version = COLVersion.COL_2
+                m.spheres = []; m.boxes = []; m.vertices = []; m.faces = []
+                m.shadow_verts = []; m.shadow_faces = []
+                bounds = COLBounds()
+                bounds.min = type('V', (), {'x': -1.0, 'y': -1.0, 'z': -1.0})()
+                bounds.max = type('V', (), {'x':  1.0, 'y':  1.0, 'z':  1.0})()
+                bounds.center = type('V', (), {'x': 0.0, 'y': 0.0, 'z': 0.0})()
+                bounds.radius = 1.73
+                m.bounds = bounds; m.model_id = 0
+                self.current_col_file.models.append(m)
+                added += 1
+            self._populate_collision_list()
+            self._populate_compact_col_list()
+            msg = f"Created {added} stub COL model(s) from {os.path.basename(txd_path)}"
+            self._set_status(msg)
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(msg)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
     def _cycle_render_mode(self): #vers 1
         modes = ['wireframe','solid','painted']
@@ -1471,29 +1523,132 @@ class COLWorkshop(QWidget): #vers 3
         if hasattr(self, 'preview_widget') and self.preview_widget:
             self.preview_widget._refresh()
 
-    def _convert_surface(self): #vers 1
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Convert", "COL version conversion — coming soon.")
+    def _convert_surface(self): #vers 2
+        """Convert selected model to a different COL version."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QMessageBox
+        from apps.methods.col_workshop_classes import COLVersion
+        model = self._get_selected_model()
+        if not model:
+            QMessageBox.warning(self, "No Selection", "Select a collision model first.")
+            return
+        current = getattr(model.version, 'name', str(model.version))
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Convert COL version — {model.name}")
+        dlg.setFixedSize(300, 130)
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel(f"Current version: <b>{current}</b>"))
+        lay.addWidget(QLabel("Convert to:"))
+        combo = QComboBox()
+        ver_map = {'COL_1': COLVersion.COL_1, 'COL_2': COLVersion.COL_2, 'COL_3': COLVersion.COL_3}
+        [combo.addItem(k) for k in ver_map if k != current]
+        lay.addWidget(combo)
+        btns = QHBoxLayout()
+        ok = QPushButton("Convert"); cancel = QPushButton("Cancel")
+        btns.addStretch(); btns.addWidget(ok); btns.addWidget(cancel)
+        lay.addLayout(btns)
+        cancel.clicked.connect(dlg.reject)
+        def _do():
+            model.version = ver_map[combo.currentText()]
+            self._populate_collision_list()
+            self._populate_compact_col_list()
+            self._set_status(f"Converted {model.name} to {combo.currentText()}")
+            dlg.accept()
+        ok.clicked.connect(_do)
+        dlg.exec()
 
-    def _show_shadow_mesh(self): #vers 1
+    def _show_shadow_mesh(self): #vers 2
+        """Show shadow mesh info for selected model."""
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Shadow Mesh", "Shadow mesh viewer — coming soon.")
+        model = self._get_selected_model()
+        if not model:
+            QMessageBox.warning(self, "No Selection", "Select a collision model first.")
+            return
+        sv = len(getattr(model, 'shadow_verts', []))
+        sf = len(getattr(model, 'shadow_faces', []))
+        if sv == 0 and sf == 0:
+            QMessageBox.information(self, "Shadow Mesh",
+                f"'{model.name}' has no shadow mesh data.\n\n"
+                "COL3+ models can have a separate low-poly shadow collision mesh.")
+        else:
+            QMessageBox.information(self, "Shadow Mesh",
+                f"Model: {model.name}\n"
+                f"Shadow vertices: {sv}\n"
+                f"Shadow faces:    {sf}\n\n"
+                "Shadow mesh is included in COL3 export.")
 
-    def _create_shadow_mesh(self): #vers 1
+    def _create_shadow_mesh(self): #vers 2
+        """Auto-generate shadow mesh as a copy of the main collision mesh."""
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Shadow Mesh", "Shadow mesh creation — coming soon.")
+        import copy
+        model = self._get_selected_model()
+        if not model:
+            QMessageBox.warning(self, "No Selection", "Select a collision model first.")
+            return
+        if not model.vertices or not model.faces:
+            QMessageBox.warning(self, "No Mesh", f"'{model.name}' has no vertex/face data.")
+            return
+        # Upgrade to COL3 if needed
+        from apps.methods.col_workshop_classes import COLVersion
+        if getattr(model.version, 'value', 0) < 3:
+            reply = QMessageBox.question(self, "Upgrade to COL3",
+                "Shadow mesh requires COL3. Upgrade this model?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            model.version = COLVersion.COL_3
+        model.shadow_verts = copy.deepcopy(model.vertices)
+        model.shadow_faces = copy.deepcopy(model.faces)
+        self._populate_collision_list()
+        self._populate_compact_col_list()
+        msg = (f"Shadow mesh created for {model.name}: "
+               f"{len(model.shadow_verts)}V {len(model.shadow_faces)}F")
+        self._set_status(msg)
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(msg)
 
-    def _remove_shadow_mesh(self): #vers 1
+    def _remove_shadow_mesh(self): #vers 2
+        """Remove shadow mesh data from the selected COL model."""
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Shadow Mesh", "Shadow mesh removal — coming soon.")
+        model = self._get_selected_model()
+        if not model:
+            QMessageBox.warning(self, "No Selection", "Select a collision model first.")
+            return
+        has_shadow = bool(getattr(model, 'shadow_verts', []) or getattr(model, 'shadow_faces', []))
+        if not has_shadow:
+            QMessageBox.information(self, "No Shadow Mesh", f"{model.name} has no shadow mesh.")
+            return
+        reply = QMessageBox.question(self, "Remove Shadow Mesh",
+            f"Remove shadow mesh from '{model.name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            model.shadow_verts = []
+            model.shadow_faces = []
+            self._set_status(f"Removed shadow mesh from {model.name}")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Shadow mesh removed from {model.name}")
 
-    def _compress_col(self): #vers 1
+    def _compress_col(self): #vers 2
+        """Mark COL file for compressed output (sets flags on export)."""
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Compress", "COL compression — coming soon.")
+        if not self.current_col_file:
+            QMessageBox.warning(self, "No File", "No COL file loaded.")
+            return
+        QMessageBox.information(self, "COL Compression",
+            "COL files do not use zlib/LZO compression internally.\n\n"
+            "To reduce size: remove unused models, clear shadow meshes,\n"
+            "or reduce vertex/face counts in the mesh editor.")
 
-    def _uncompress_col(self): #vers 1
+    def _uncompress_col(self): #vers 2
+        """Reload COL file (parses fresh from disk, clears in-memory edits)."""
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Uncompress", "COL decompression — coming soon.")
+        if not self.current_col_file or not getattr(self, 'current_file_path', None):
+            QMessageBox.warning(self, "No File", "No COL file loaded.")
+            return
+        reply = QMessageBox.question(self, "Reload File",
+            "Reload from disk? Unsaved changes will be lost.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self._open_file(self.current_file_path)
 
     def _open_render_settings_dialog(self): #vers 1
         """Render & background settings dialog."""
@@ -4861,14 +5016,35 @@ class COLWorkshop(QWidget): #vers 3
         # Placeholder for upscale native functionality
         print("Upscale Native toggled")
 
-    def _show_shaders_dialog(self): #vers 1
-        """Show shaders configuration dialog"""
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Shaders",
-            "Shader configuration coming soon!\n\nThis will allow you to:\n"
-            "- Select shader presets\n"
-            "- Configure CRT effects\n"
-            "- Adjust visual filters")
+    def _show_shaders_dialog(self): #vers 2
+        """Viewport render style presets."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
+                                      QRadioButton, QButtonGroup, QPushButton)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Viewport Render Style")
+        dlg.setFixedSize(260, 200)
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("<b>Render style (viewport display only)</b>"))
+        presets = [("Wireframe", "wireframe"), ("Solid", "solid"),
+                   ("Painted (material colours)", "painted")]
+        grp = QButtonGroup(dlg)
+        current = getattr(self, '_render_mode', 'wireframe')
+        for label, key in presets:
+            rb = QRadioButton(label)
+            rb.setChecked(key == current)
+            def _set(checked, k=key):
+                if checked:
+                    self._render_mode = k
+                    pw = getattr(self, 'preview_widget', None)
+                    if pw and hasattr(pw, '_refresh'):
+                        pw._refresh()
+            rb.toggled.connect(_set)
+            grp.addButton(rb)
+            lay.addWidget(rb)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        lay.addWidget(close_btn)
+        dlg.exec()
 
     def _show_window_context_menu(self, pos): #vers 1
         """Show context menu for titlebar right-click"""

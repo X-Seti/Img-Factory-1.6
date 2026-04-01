@@ -4844,17 +4844,22 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error in close_all_img: {str(e)}")
 
 
-    def import_via_tool(self): #vers 1
-        """Import files using external tool"""
-        self.log_message("Import via tool functionality coming soon")
+    def import_via_tool(self): #vers 2
+        """Import files via IDE reference."""
+        try:
+            from apps.core.import_via import import_via_function
+            import_via_function(self)
+        except Exception as e:
+            self.log_message(f"Import via error: {str(e)}")
 
 
-    def export_via_tool(self): #vers 1
-        """Export using external tool"""
-        if not self.current_img:
-            QMessageBox.warning(self, "Warning", "No IMG file loaded")
-            return
-        self.log_message("Export via tool functionality coming soon")
+    def export_via_tool(self): #vers 2
+        """Export entries referenced by IDE file."""
+        try:
+            from apps.core.export_via import export_via_function
+            export_via_function(self)
+        except Exception as e:
+            self.log_message(f"Export via error: {str(e)}")
 
 
     def import_files(self):
@@ -5163,31 +5168,13 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error in remove_all_entries: {str(e)}")
 
 
-    def quick_export(self):
-        """Quick export selected files to default location"""
-        if not self.current_img:
-            QMessageBox.warning(self, "Warning", "No IMG file loaded")
-            return
-
+    def quick_export(self): #vers 2
+        """Quick export selected entries to Assists folder."""
         try:
-            # Check if we have a selection method available
-            if hasattr(self.gui_layout, 'table') and hasattr(self.gui_layout.table, 'selectionModel'):
-                selected_rows = self.gui_layout.table.selectionModel().selectedRows()
-            else:
-                selected_rows = []
-
-            if not selected_rows:
-                QMessageBox.warning(self, "Warning", "No entries selected")
-                return
-
-            # Use Documents/IMG_Exports as default
-            export_dir = os.path.join(os.path.expanduser("~"), "Documents", "IMG_Exports")
-            os.makedirs(export_dir, exist_ok=True)
-
-            self.log_message(f"Quick exporting {len(selected_rows)} files to {export_dir}")
-            QMessageBox.information(self, "Info", "Quick export functionality coming soon")
+            from apps.core.quick_export import quick_export_function
+            quick_export_function(self)
         except Exception as e:
-            self.log_message(f"Error in quick_export: {str(e)}")
+            self.log_message(f"Quick export error: {str(e)}")
 
     def close_img_file(self): #vers2
         """Close current IMG file using installed close functions"""
