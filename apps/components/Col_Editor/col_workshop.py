@@ -805,20 +805,7 @@ class COL3DViewport(QWidget): #vers 2
         p.setPen(QColor(120,125,140)); p.setFont(QFont('Arial',7))
         p.drawText(6,H-4,f"Y:{self._yaw:.0f}° P:{self._pitch:.0f}° Z:{self._zoom:.2f}x")
 
-        # Paint mode indicator
-        if self._paint_mode:
-            from apps.methods.col_materials import get_material_name, get_material_colour, COLGame
-            mat_name = get_material_name(self._paint_material, COLGame.SA)
-            hex_col  = get_material_colour(self._paint_material, COLGame.SA)
-            mc = QColor(f"#{hex_col}")
-            p.setBrush(QBrush(QColor(20,20,30,210)))
-            p.setPen(QPen(QColor(255,140,0), 2))
-            p.drawRoundedRect(W//2-110, 6, 220, 22, 4, 4)
-            p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
-            p.drawRoundedRect(W//2-106, 10, 14, 14, 2, 2)
-            p.setPen(QColor(255,200,80))
-            p.setFont(QFont('Arial', 8, QFont.Weight.Bold))
-            p.drawText(W//2-88, 22, f"PAINT: {self._paint_material} — {mat_name}  [Esc to exit]")
+        # Paint mode indicator now shown in paint_toolbar above viewport (not drawn here)
         p.drawText(W-68,H-4,f"grid {step:.3g}")
 
     def _find_workshop(self):
@@ -1420,6 +1407,10 @@ class COLWorkshop(QWidget): #vers 3
                 self._push_undo(model_idx, f"Paint mode: material {mat_id}")
             vp.set_paint_mode(True, mat_id)
             vp.on_face_selected = self._on_painted_face
+            self._paint_active_mat = mat_id
+
+            # Populate and show the paint toolbar
+            self._show_paint_toolbar(mat_id, model)
 
             for btn in (getattr(self, 'paint_btn', None),):
                 if btn:
@@ -1429,9 +1420,60 @@ class COLWorkshop(QWidget): #vers 3
                     except: pass
                     btn.clicked.connect(self._exit_paint_mode)
 
-            self._paint_active_mat = mat_id
-            self._set_status(
-                f"Paint mode: material {mat_id} — click/drag faces. [Esc] to exit.")
+            self._set_status("Paint mode — pick material in toolbar. [Esc] to exit.")
+
+    def _show_paint_toolbar(self, mat_id: int, model=None): #vers 1
+        """Populate and show the paint mode toolbar above the viewport."""
+        tb = getattr(self, 'paint_toolbar', None)
+        combo = getattr(self, 'paint_mat_combo', None)
+        undo_btn = getattr(self, 'paint_undo_btn', None)
+        if not tb or not combo:
+            return
+
+        # Populate material combo
+        try:
+            from apps.methods.col_materials import get_materials_for_version, COLGame, get_material_colour
+            ver = getattr(getattr(model, 'version', None), 'value', 3) if model else 3
+            game = COLGame.VC if ver == 1 else COLGame.SA
+            all_mats = get_materials_for_version(game, include_procedural=True)
+        except Exception:
+            all_mats = [(i, f"Material {i}", "808080") for i in range(10)]
+
+        combo.blockSignals(True)
+        combo.clear()
+        sel_idx = 0
+        for i, (mid, name, hex_col) in enumerate(all_mats):
+            combo.addItem(f"{mid:3d}  {name}", userData=mid)
+            if mid == mat_id:
+                sel_idx = i
+        combo.setCurrentIndex(sel_idx)
+        combo.blockSignals(False)
+
+        # Update viewport when material changes
+        try:
+            combo.currentIndexChanged.disconnect()
+        except Exception:
+            pass
+
+        def _on_mat_changed(idx):
+            new_mid = combo.itemData(idx)
+            if new_mid is None:
+                return
+            self._paint_active_mat = new_mid
+            vp = getattr(self, 'preview_widget', None)
+            if vp:
+                vp._paint_material = new_mid
+                vp.update()
+            self._set_status(f"Paint material: {new_mid}")
+
+        combo.currentIndexChanged.connect(_on_mat_changed)
+
+        # Enable undo button only if undo stack has entries
+        if undo_btn:
+            undo_btn.setEnabled(bool(getattr(self, 'undo_stack', [])))
+
+        tb.setVisible(True)
+
 
     def _on_painted_face(self, face_index, face): #vers 2
         """Called by viewport when a face is painted. Status update only —
@@ -1439,12 +1481,17 @@ class COLWorkshop(QWidget): #vers 3
         mat_id = self._paint_active_mat if hasattr(self, '_paint_active_mat') else 0
         self._set_status(f"Painted face {face_index} → material {mat_id}  [Esc to exit]")
 
-    def _exit_paint_mode(self): #vers 1
-        """Exit paint mode and restore paint button."""
+    def _exit_paint_mode(self): #vers 2
+        """Exit paint mode — hide toolbar, restore paint button."""
         vp = getattr(self, 'preview_widget', None)
         if vp:
             vp.set_paint_mode(False)
             vp.on_face_selected = None
+
+        # Hide paint toolbar
+        tb = getattr(self, 'paint_toolbar', None)
+        if tb:
+            tb.setVisible(False)
 
         for btn in (getattr(self, 'paint_btn', None),):
             if btn:
@@ -3885,10 +3932,51 @@ class COLWorkshop(QWidget): #vers 3
         top_layout.addWidget(transform_text_panel)
         transform_text_panel.setVisible(True)
 
-        # Preview area (center) - 3D Viewport
+        # Preview area (center) — viewport + paint toolbar in a container
+        _vp_container = QWidget()
+        _vp_vlay = QVBoxLayout(_vp_container)
+        _vp_vlay.setContentsMargins(0, 0, 0, 0)
+        _vp_vlay.setSpacing(0)
+
+        # Paint mode toolbar (hidden until paint mode active)
+        self.paint_toolbar = QWidget()
+        self.paint_toolbar.setFixedHeight(34)
+        self.paint_toolbar.setStyleSheet(
+            "background:#1a1a2a; border-bottom:1px solid #ff8c00;")
+        _pt_lay = QHBoxLayout(self.paint_toolbar)
+        _pt_lay.setContentsMargins(6, 3, 6, 3)
+        _pt_lay.setSpacing(6)
+
+        _pt_lay.addWidget(QLabel("Mat:"))
+        self.paint_mat_combo = QComboBox()
+        self.paint_mat_combo.setMinimumWidth(220)
+        self.paint_mat_combo.setMaximumWidth(320)
+        self.paint_mat_combo.setStyleSheet("font-size:11px;")
+        _pt_lay.addWidget(self.paint_mat_combo)
+
+        self.paint_undo_btn = QPushButton("↩ Undo")
+        self.paint_undo_btn.setFixedWidth(68)
+        self.paint_undo_btn.setToolTip("Undo last paint operation")
+        self.paint_undo_btn.clicked.connect(self._undo_last_action)
+        self.paint_undo_btn.setEnabled(False)
+        _pt_lay.addWidget(self.paint_undo_btn)
+
+        _pt_lay.addStretch()
+
+        self.paint_exit_btn = QPushButton("✕ Exit Paint")
+        self.paint_exit_btn.setFixedWidth(88)
+        self.paint_exit_btn.setStyleSheet("color:#ff6b35; font-weight:bold;")
+        self.paint_exit_btn.clicked.connect(self._exit_paint_mode)
+        _pt_lay.addWidget(self.paint_exit_btn)
+
+        self.paint_toolbar.setVisible(False)
+        _vp_vlay.addWidget(self.paint_toolbar)
+
         self.preview_widget = COL3DViewport()
         self.preview_widget._workshop_ref = self  # direct ref — no parent-chain walk needed
-        top_layout.addWidget(self.preview_widget, stretch=2)
+        _vp_vlay.addWidget(self.preview_widget)
+
+        top_layout.addWidget(_vp_container, stretch=2)
 
         # Preview controls (right side, vertical)
         self.preview_controls = self._create_preview_controls()
@@ -5386,6 +5474,9 @@ class COLWorkshop(QWidget): #vers 3
             self.undo_stack.pop(0)
         if hasattr(self, 'undo_col_btn'):
             self.undo_col_btn.setEnabled(True)
+        # Also enable the paint toolbar undo button if paint mode active
+        if hasattr(self, 'paint_undo_btn') and getattr(self, 'paint_toolbar', None)                 and self.paint_toolbar.isVisible():
+            self.paint_undo_btn.setEnabled(True)
 
     def _undo_last_action(self): #vers 2
         """Restore the last deep-copied model from the undo stack."""
