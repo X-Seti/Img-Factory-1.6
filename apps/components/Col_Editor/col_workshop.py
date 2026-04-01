@@ -339,8 +339,21 @@ class COL3DViewport(QWidget): #vers 2
                 self._left_drag = event.position()
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif event.button() == Qt.MouseButton.RightButton:
-            self._right_drag = event.position()
-            self.setCursor(Qt.CursorShape.SizeAllCursor)
+            # Try to pick a face at click pos; if hit → context menu, else → rotate drag
+            mx2, my2 = event.position().x(), event.position().y()
+            fi2, face2 = self._pick_face(mx2, my2)
+            if fi2 is not None and face2 is not None:
+                # Select the face
+                if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                    if fi2 not in self._selected_faces:
+                        self._selected_faces = {fi2}
+                else:
+                    self._selected_faces.add(fi2)
+                self.update()
+                self._show_face_context_menu(event.globalPosition().toPoint(), fi2, face2)
+            else:
+                self._right_drag = event.position()
+                self.setCursor(Qt.CursorShape.SizeAllCursor)
         elif event.button() == Qt.MouseButton.MiddleButton:
             self._mid_drag = event.position()
             self.setCursor(Qt.CursorShape.SizeAllCursor)  # rotate
@@ -807,6 +820,150 @@ class COL3DViewport(QWidget): #vers 2
 
         # Paint mode indicator now shown in paint_toolbar above viewport (not drawn here)
         p.drawText(W-68,H-4,f"grid {step:.3g}")
+
+
+    def _show_face_context_menu(self, global_pos, face_index, face): #vers 1
+        """Right-click context menu for a picked face — material operations."""
+        from PyQt6.QtWidgets import QMenu, QAction, QWidgetAction, QLabel
+        from PyQt6.QtGui import QColor, QPixmap, QIcon
+        from PyQt6.QtCore import Qt as _Qt
+
+        ws = self._find_workshop()
+
+        # Resolve material
+        mat = face.material
+        mat_id = mat.material_id if hasattr(mat, 'material_id') else int(mat)
+
+        try:
+            from apps.methods.col_materials import (
+                get_material_name, get_material_colour, COLGame)
+            model = self._model
+            ver = getattr(getattr(model, 'version', None), 'value', 3) if model else 3
+            game = COLGame.VC if ver == 1 else COLGame.SA
+            mat_name = get_material_name(mat_id, game)
+            hex_col  = get_material_colour(mat_id, game)
+        except Exception:
+            mat_name = f"Material {mat_id}"
+            hex_col  = "808080"
+
+        # ── Build menu ───────────────────────────────────────────────────
+        menu = QMenu(self)
+
+        # Header — material info with colour swatch
+        px = QPixmap(14, 14)
+        px.fill(QColor(f"#{hex_col}"))
+        info_act = QAction(QIcon(px),
+            f"  Face {face_index}:  {mat_id} — {mat_name}", self)
+        info_act.setEnabled(False)
+        menu.addAction(info_act)
+        menu.addSeparator()
+
+        # Copy material
+        act_copy = menu.addAction("📋  Copy material")
+        # Paste material (only if clipboard has one)
+        _clip = getattr(ws, '_mat_clipboard', None) if ws else None
+        act_paste = menu.addAction(
+            f"📌  Paste material  ({_clip})" if _clip is not None
+            else "📌  Paste material")
+        act_paste.setEnabled(_clip is not None)
+        menu.addSeparator()
+
+        # Apply to selection
+        n_sel = len(self._selected_faces)
+        sel_label = (f"✓  Apply to {n_sel} selected face(s)"
+                     if n_sel > 1 else "✓  Apply to selection")
+        act_apply_sel = menu.addAction(sel_label)
+        act_apply_sel.setEnabled(n_sel > 1)
+
+        # Clear material on this face (→ material 0)
+        act_clear_face = menu.addAction("✕  Clear material on this face")
+        # Clear material on ALL faces in model
+        model = self._model
+        n_faces = len(getattr(model, 'faces', []))
+        act_clear_all = menu.addAction(
+            f"✕✕  Clear material on all {n_faces} faces")
+
+        menu.addSeparator()
+        # Open full paint editor
+        act_paint = menu.addAction("🖌  Open material editor…")
+
+        # ── Execute ──────────────────────────────────────────────────────
+        chosen = menu.exec(global_pos)
+        if chosen is None:
+            return
+
+        if chosen == act_copy:
+            if ws:
+                ws._mat_clipboard = mat_id
+                if hasattr(ws, '_set_status'):
+                    ws._set_status(f"Copied material {mat_id} — {mat_name}")
+
+        elif chosen == act_paste and _clip is not None:
+            if ws and model:
+                models = getattr(getattr(ws, 'current_col_file', None), 'models', [])
+                mi = models.index(model) if model in models else -1
+                if mi >= 0 and hasattr(ws, '_push_undo'):
+                    ws._push_undo(mi, f"Paste material {_clip} → face {face_index}")
+            if hasattr(mat, 'material_id'):
+                mat.material_id = _clip
+            else:
+                face.material = _clip
+            self.update()
+            if ws and hasattr(ws, '_set_status'):
+                ws._set_status(f"Pasted material {_clip} → face {face_index}")
+
+        elif chosen == act_apply_sel:
+            if ws and model:
+                models = getattr(getattr(ws, 'current_col_file', None), 'models', [])
+                mi = models.index(model) if model in models else -1
+                if mi >= 0 and hasattr(ws, '_push_undo'):
+                    ws._push_undo(mi, f"Apply material {mat_id} → {n_sel} faces")
+            for fi in self._selected_faces:
+                if fi < len(model.faces):
+                    f2 = model.faces[fi]
+                    m2 = f2.material
+                    if hasattr(m2, 'material_id'):
+                        m2.material_id = mat_id
+                    else:
+                        f2.material = mat_id
+            self.update()
+            if ws and hasattr(ws, '_set_status'):
+                ws._set_status(f"Applied material {mat_id} to {n_sel} faces")
+
+        elif chosen == act_clear_face:
+            if ws and model:
+                models = getattr(getattr(ws, 'current_col_file', None), 'models', [])
+                mi = models.index(model) if model in models else -1
+                if mi >= 0 and hasattr(ws, '_push_undo'):
+                    ws._push_undo(mi, f"Clear material → face {face_index}")
+            if hasattr(mat, 'material_id'):
+                mat.material_id = 0
+            else:
+                face.material = 0
+            self.update()
+            if ws and hasattr(ws, '_set_status'):
+                ws._set_status(f"Cleared material on face {face_index}")
+
+        elif chosen == act_clear_all:
+            if model:
+                if ws:
+                    models = getattr(getattr(ws, 'current_col_file', None), 'models', [])
+                    mi = models.index(model) if model in models else -1
+                    if mi >= 0 and hasattr(ws, '_push_undo'):
+                        ws._push_undo(mi, "Clear all face materials")
+                for f2 in model.faces:
+                    m2 = f2.material
+                    if hasattr(m2, 'material_id'):
+                        m2.material_id = 0
+                    else:
+                        f2.material = 0
+                self.update()
+                if ws and hasattr(ws, '_set_status'):
+                    ws._set_status(f"Cleared material on all {n_faces} faces")
+
+        elif chosen == act_paint:
+            if ws and hasattr(ws, '_open_paint_editor'):
+                ws._open_paint_editor()
 
     def _find_workshop(self):
         ref = getattr(self, '_workshop_ref', None)
