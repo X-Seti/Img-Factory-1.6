@@ -1439,21 +1439,44 @@ class COLWorkshop(QWidget): #vers 3
         except Exception:
             all_mats = [(i, f"Material {i}", "808080") for i in range(10)]
 
+        from PyQt6.QtGui import QPixmap, QColor, QIcon
+        from PyQt6.QtCore import Qt as _Qt
+
+        def _make_swatch_icon(hex_col: str) -> QIcon:
+            """16×16 filled square icon for combo items."""
+            px = QPixmap(16, 16)
+            px.fill(QColor(f"#{hex_col}"))
+            return QIcon(px)
+
+        def _apply_swatch(hex_col: str):
+            """Update the standalone swatch label colour."""
+            sw = getattr(self, 'paint_swatch', None)
+            if sw:
+                sw.setStyleSheet(
+                    f"background:#{hex_col}; border:2px solid #888; border-radius:3px;")
+                sw.setToolTip(f"Colour: #{hex_col.upper()}")
+
         combo.blockSignals(True)
         combo.clear()
         sel_idx = 0
         for i, (mid, name, hex_col) in enumerate(all_mats):
-            combo.addItem(f"{mid:3d}  {name}", userData=mid)
+            icon = _make_swatch_icon(hex_col)
+            combo.addItem(icon, f"{mid:3d}  {name}", mid)
             if mid == mat_id:
                 sel_idx = i
+                _apply_swatch(hex_col)
+        combo.setIconSize(QSize(16, 16))
         combo.setCurrentIndex(sel_idx)
         combo.blockSignals(False)
 
-        # Update viewport when material changes
+        # Update viewport + swatch when material changes
         try:
             combo.currentIndexChanged.disconnect()
         except Exception:
             pass
+
+        # Build a quick hex_col lookup by mat_id
+        _col_map = {mid: hx for mid, _, hx in all_mats}
 
         def _on_mat_changed(idx):
             new_mid = combo.itemData(idx)
@@ -1464,6 +1487,7 @@ class COLWorkshop(QWidget): #vers 3
             if vp:
                 vp._paint_material = new_mid
                 vp.update()
+            _apply_swatch(_col_map.get(new_mid, "808080"))
             self._set_status(f"Paint material: {new_mid}")
 
         combo.currentIndexChanged.connect(_on_mat_changed)
@@ -3953,6 +3977,14 @@ class COLWorkshop(QWidget): #vers 3
         self.paint_mat_combo.setMaximumWidth(320)
         self.paint_mat_combo.setStyleSheet("font-size:11px;")
         _pt_lay.addWidget(self.paint_mat_combo)
+
+        # Colour swatch — shows current material colour
+        self.paint_swatch = QLabel()
+        self.paint_swatch.setFixedSize(22, 22)
+        self.paint_swatch.setToolTip("Current material colour")
+        self.paint_swatch.setStyleSheet(
+            "background:#808080; border:2px solid #555; border-radius:3px;")
+        _pt_lay.addWidget(self.paint_swatch)
 
         self.paint_undo_btn = QPushButton("↩ Undo")
         self.paint_undo_btn.setFixedWidth(68)
