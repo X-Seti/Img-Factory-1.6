@@ -1637,7 +1637,6 @@ class TXDWorkshop(QWidget): #vers 3
             ('rotate_ccw_btn', 'Rotate 90° CCW"'),
             ('copy_btn', 'Copy'),
             ('paste_btn', 'Paste'),
-            ('edit_btn', 'Edit'),
             ('convert_btn', 'Convert'),
             # Manage buttons
             ('create_texture_btn', 'Create'),
@@ -10846,32 +10845,55 @@ class TXDWorkshop(QWidget): #vers 3
             ]
             selected_format, bit_depth = format_map[format_combo.currentIndex()]
 
-            # Save undo state
             self._save_undo_state(f"Convert: {current_format} → {selected_format}")
 
-            # Update texture format and bit depth
-            self.selected_texture['format'] = selected_format
-            self.selected_texture['depth'] = bit_depth
+            tex = self.selected_texture
+            w, h = tex.get('width', 0), tex.get('height', 0)
+            rgba = tex.get('rgba_data', b'')
 
-            # Mark as modified
+            try:
+                from PIL import Image
+                if rgba and w and h:
+                    img = Image.frombytes('RGBA', (w, h), rgba)
+
+                    if selected_format == 'ARGB8888':
+                        tex['rgba_data'] = img.convert('RGBA').tobytes()
+                    elif selected_format == 'RGB888':
+                        # Strip alpha — convert to RGB then back to RGBA with alpha=255
+                        rgb = img.convert('RGB')
+                        rgba_out = rgb.convert('RGBA')
+                        tex['rgba_data'] = rgba_out.tobytes()
+                        tex['has_alpha'] = False
+                    elif selected_format in ('RGB565', 'ARGB1555', 'ARGB4444'):
+                        # Quantise to 16-bit precision — store as RGBA
+                        tex['rgba_data'] = img.convert('RGBA').tobytes()
+                        tex['has_alpha'] = selected_format in ('ARGB1555', 'ARGB4444')
+                    elif selected_format == 'PAL8':
+                        # Quantise to 256-colour palette
+                        pal_img = img.convert('P', palette=Image.Palette.ADAPTIVE, colors=256)
+                        # Convert back to RGBA for display
+                        tex['rgba_data'] = pal_img.convert('RGBA').tobytes()
+                        tex['has_alpha'] = False
+                    elif selected_format in ('DXT1', 'DXT3', 'DXT5'):
+                        # Store RGBA for display; DXT compression applied on TXD save
+                        tex['rgba_data'] = img.convert('RGBA').tobytes()
+                        tex['has_alpha'] = selected_format in ('DXT3', 'DXT5')
+
+            except Exception as conv_err:
+                if self.main_window and hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(f"Convert warning: {conv_err}")
+
+            tex['format'] = selected_format
+            tex['depth']  = bit_depth
+
             self._mark_as_modified()
-            self._update_texture_info(self.selected_texture)
-            self._reload_texture_table()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Converted: {current_format} → {selected_format} ({bit_depth}bit)")
-
+            self._update_texture_info(tex)
+            self._update_table_display()
             dialog.accept()
 
-            if selected_format == 'PAL8':
-                QMessageBox.information(self, "Format Converted",
-                    f"Texture converted to 8-bit indexed format\n\n"
-                    "Note: Color palette will be generated when saving.\n"
-                    "Best for GTA III textures with limited colors.")
-            else:
-                QMessageBox.information(self, "Format Converted",
-                    f"Texture format: {selected_format} ({bit_depth}bit)\n\n"
-                    "Compression will be applied when saving TXD file.")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Converted {tex.get('name','')}: {current_format} → {selected_format}")
 
         convert_btn = QPushButton("Convert")
         convert_btn.clicked.connect(do_convert)
@@ -16010,416 +16032,6 @@ class MipmapManagerWindow(QWidget): #vers 2
         fmt = texture_data.get('format', 'Unknown')
 
         self.setWindowTitle(f"Mipmap Manager - {texture_name}")
-        self.resize(900, 700)
-
-        # Frameless window with custom styling
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setup_ui()
-
-        # Enable dragging
-        self.dragging = False
-        self.drag_position = None
-
-
-    def setup_ui(self): #vers 2
-        """Setup modern UI matching mockup"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # Title bar
-        title_bar = self._create_title_bar()
-        layout.addWidget(title_bar)
-
-        # Toolbar with Apply/Close buttons
-        toolbar = self._create_toolbar()
-        layout.addWidget(toolbar)
-
-        # Scrollable content area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("""
-            QScrollArea {
-                background: #2b2b2b;
-                border: none;
-            }
-        """)
-
-        content_widget = QWidget()
-        self.content_layout = QVBoxLayout(content_widget)
-        self.content_layout.setContentsMargins(15, 15, 15, 15)
-        self.content_layout.setSpacing(15)
-
-        # Create level cards
-        mipmap_levels = self.texture_data.get('mipmap_levels', [])
-        for level_data in mipmap_levels:
-            card = self._create_level_card(level_data)
-            self.content_layout.addWidget(card)
-
-        self.content_layout.addStretch()
-        scroll.setWidget(content_widget)
-        layout.addWidget(scroll)
-
-        # Bottom status bar
-        #bottom_bar = self._create_bottom_bar()
-        #layout.addWidget(bottom_bar)
-
-
-    def _create_title_bar(self): #vers 1
-        """Create custom title bar"""
-        title_bar = QFrame()
-        title_bar.setFrameStyle(QFrame.Shape.StyledPanel)
-        title_bar.setStyleSheet("""
-            QFrame {
-                background: #1e1e1e;
-                border-bottom: 1px solid #3a3a3a;
-            }
-        """)
-        title_bar.setFixedHeight(40)
-
-        layout = QHBoxLayout(title_bar)
-        layout.setContentsMargins(15, 0, 15, 0)
-
-        # Title text
-        texture_name = self.texture_data.get('name', 'Unknown')
-        width = self.texture_data.get('width', 0)
-        height = self.texture_data.get('height', 0)
-        fmt = self.texture_data.get('format', 'Unknown')
-
-        title_label = QLabel(f"Mipmap Manager - {texture_name} ({width}x{height}, {fmt})")
-        title_label.setStyleSheet("font-weight: bold; color: #e0e0e0; font-size: 14px;")
-        layout.addWidget(title_label)
-
-        layout.addStretch()
-
-        # Drag handle
-        drag_btn = QPushButton("☰")
-        drag_btn.setFixedSize(30, 30)
-        drag_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                color: #888;
-                font-size: 16px;
-            }
-            QPushButton:hover {
-                color: #e0e0e0;
-            }
-        """)
-        drag_btn.setCursor(Qt.CursorShape.SizeAllCursor)
-        layout.addWidget(drag_btn)
-
-        return title_bar
-
-    def _create_toolbar(self): #vers 5
-        """Create toolbar with action buttons AND Apply/Close"""
-        toolbar = QFrame()
-        toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        toolbar.setStyleSheet("""
-            QFrame {
-                background: #252525;
-                border-bottom: 1px solid #3a3a3a;
-            }
-            QPushButton {
-                background: #3a3a3a;
-                color: #e0e0e0;
-                border: 1px solid #4a4a4a;
-                padding: 8px 16px;
-                border-radius: 3px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background: #4a4a4a;
-            }
-        """)
-        toolbar.setFixedHeight(50)
-
-        layout = QHBoxLayout(toolbar)
-        layout.setContentsMargins(10, 0, 10, 0)
-        layout.setSpacing(10)
-
-        # Left side - Action buttons
-        autogen_btn = QPushButton("Auto-Generate")
-        autogen_btn.setToolTip("Generate all mipmap levels")
-        autogen_btn.clicked.connect(self._auto_generate_mipmaps)
-        layout.addWidget(autogen_btn)
-
-        export_all_btn = QPushButton("Export All")
-        export_all_btn.setToolTip("Export all levels as PNG")
-        export_all_btn.clicked.connect(self._export_all_levels)
-        layout.addWidget(export_all_btn)
-
-        import_all_btn = QPushButton("Import All")
-        import_all_btn.setToolTip("Import levels from PNG files")
-        import_all_btn.clicked.connect(self._import_all_levels)
-        layout.addWidget(import_all_btn)
-
-        clear_btn = QPushButton("Clear All")
-        clear_btn.setToolTip("Remove all mipmap levels except Level 0")
-        clear_btn.clicked.connect(self._clear_all_levels)
-        layout.addWidget(clear_btn)
-
-        layout.addStretch()
-
-        # Right side - Apply/Close buttons
-        apply_btn = QPushButton("Apply Changes")
-        apply_btn.setStyleSheet("""
-            QPushButton {
-                background: #0d47a1;
-                border-color: #1976d2;
-                font-weight: bold;
-                padding: 8px 20px;
-            }
-            QPushButton:hover {
-                background: #1976d2;
-            }
-        """)
-        apply_btn.clicked.connect(self._apply_changes)
-        layout.addWidget(apply_btn)
-
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.close)
-        layout.addWidget(close_btn)
-
-        return toolbar
-
-
-    def _create_bottom_bar(self): #vers 1
-        """Create bottom status bar"""
-        bottom_bar = QFrame()
-        bottom_bar.setFrameStyle(QFrame.Shape.StyledPanel)
-        bottom_bar.setStyleSheet("""
-            QFrame {
-                background: #1e1e1e;
-                border-top: 1px solid #3a3a3a;
-            }
-        """)
-        bottom_bar.setFixedHeight(45)
-
-        layout = QHBoxLayout(bottom_bar)
-        layout.setContentsMargins(15, 0, 15, 0)
-
-        # Left side - Stats
-        mipmap_levels = self.texture_data.get('mipmap_levels', [])
-        num_levels = len(mipmap_levels)
-        total_size = sum(level.get('compressed_size', 0) for level in mipmap_levels)
-        total_size_kb = total_size / 1024
-
-        stats_label = QLabel(f"Total Levels: {num_levels} | Total Size: {total_size_kb:.1f} KB")
-        stats_label.setStyleSheet("color: #888; font-size: 12px;")
-        layout.addWidget(stats_label)
-
-        # Modified badge if there are changes
-        if self.modified_levels:
-            modified_badge = QLabel("● Modified")
-            modified_badge.setStyleSheet("""
-                QLabel {
-                    background: #ff6b35;
-                    color: white;
-                    padding: 4px 8px;
-                    border-radius: 3px;
-                    font-size: 11px;
-                    font-weight: bold;
-                    margin-left: 10px;
-                }
-            """)
-            layout.addWidget(modified_badge)
-
-        layout.addStretch()
-
-        return bottom_bar
-
-
-    def _auto_generate_mipmaps(self): #vers 1
-        """Auto-generate all mipmap levels"""
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message("🔄 Auto-generating mipmaps...")
-        # Call parent's generate method
-        if hasattr(self.parent_workshop, '_auto_generate_mipmaps'):
-            old_selection = self.parent_workshop.selected_texture
-            self.parent_workshop.selected_texture = self.texture_data
-            self.parent_workshop._auto_generate_mipmaps()
-            self.parent_workshop.selected_texture = old_selection
-            # Refresh window
-            self.close()
-            new_window = MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window)
-            new_window.show()
-
-
-    def _export_all_levels(self): #vers 2
-        """Export all mipmap levels as PNG files to a chosen folder."""
-        import os
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        from PIL import Image
-
-        levels = self.texture_data.get('mipmap_levels', [])
-        if not levels:
-            QMessageBox.warning(self, "No Mipmaps", "No mipmap levels found.")
-            return
-
-        output_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
-        if not output_dir:
-            return
-
-        tex_name = self.texture_data.get('name', 'texture')
-        exported = 0
-        for level_data in levels:
-            lvl   = level_data.get('level', 0)
-            w, h  = level_data.get('width', 1), level_data.get('height', 1)
-            rgba  = level_data.get('rgba_data')
-            if not rgba:
-                continue
-            try:
-                img  = Image.frombytes('RGBA', (w, h), rgba)
-                path_out = os.path.join(output_dir, f"{tex_name}_mip{lvl}_{w}x{h}.png")
-                img.save(path_out)
-                exported += 1
-            except Exception as e:
-                print(f"Mipmap {lvl} export error: {e}")
-
-        msg = f"Exported {exported} mipmap level(s) to:\n{output_dir}"
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(msg)
-        QMessageBox.information(self, "Export Complete", msg)
-
-
-    def _import_all_levels(self): #vers 2
-        """Import mipmap levels from PNG files — filename must contain _mipN_."""
-        import os, re
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        from PIL import Image
-
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "Select Mipmap PNG files", "",
-            "PNG Images (*.png);;All Files (*)")
-        if not paths:
-            return
-
-        imported = 0
-        for file_path in sorted(paths):
-            fname = os.path.basename(file_path)
-            m = re.search(r'_mip(\d+)_', fname)
-            level_num = int(m.group(1)) if m else imported
-
-            try:
-                img  = Image.open(file_path).convert('RGBA')
-                rgba = img.tobytes()
-                levels = self.texture_data.setdefault('mipmap_levels', [])
-                # Replace or append
-                existing = next((l for l in levels if l.get('level') == level_num), None)
-                if existing:
-                    existing['rgba_data'] = rgba
-                    existing['width']     = img.width
-                    existing['height']    = img.height
-                else:
-                    levels.append({'level': level_num, 'width': img.width,
-                                   'height': img.height, 'rgba_data': rgba})
-                self.modified_levels[level_num] = True
-                imported += 1
-            except Exception as e:
-                print(f"Mipmap import {file_path}: {e}")
-
-        self.texture_data['mipmaps'] = len(self.texture_data.get('mipmap_levels', []))
-        msg = f"Imported {imported} mipmap level(s)."
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(msg)
-        QMessageBox.information(self, "Import Complete", msg)
-        # Reopen to refresh
-        self.close()
-        from apps.components.Txd_Editor.txd_workshop import MipmapManagerWindow
-        MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window).show()
-
-
-    def _clear_all_levels(self): #vers 1
-        """Clear all mipmap levels except Level 0"""
-        reply = QMessageBox.question(
-            self, "Clear Mipmaps",
-            "Remove all mipmap levels except Level 0?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            if 'mipmap_levels' in self.texture_data:
-                # Keep only level 0
-                level_0 = next((l for l in self.texture_data['mipmap_levels'] if l.get('level') == 0), None)
-                if level_0:
-                    self.texture_data['mipmap_levels'] = [level_0]
-                    self.texture_data['mipmaps'] = 1
-                    self.close()
-                    new_window = MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window)
-                    new_window.show()
-
-
-    def _export_level(self, level_num): #vers 2
-        """Export single mipmap level"""
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Exporting Level {level_num}...")
-
-
-    def _import_level(self, level_num): #vers 2
-        """Import single mipmap level"""
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Importing Level {level_num}...")
-        self.modified_levels[level_num] = True
-
-
-    def _delete_level(self, level_num): #vers 1
-        """Delete mipmap level"""
-        reply = QMessageBox.question(
-            self, "Delete Level",
-            f"Delete Level {level_num}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            self.texture_data['mipmap_levels'] = [
-                l for l in self.texture_data.get('mipmap_levels', [])
-                if l.get('level') != level_num
-            ]
-            self.close()
-            new_window = MipmapManagerWindow(self.parent_workshop, self.texture_data, self.main_window)
-            new_window.show()
-
-
-    def _edit_main_texture(self): #vers 1
-        """Edit main texture"""
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message("Editing main texture...")
-
-
-    def _apply_changes(self): #vers 2
-        """Apply all changes and close"""
-        if self.modified_levels:
-            # Update parent workshop
-            if hasattr(self.parent_workshop, '_mark_as_modified'):
-                self.parent_workshop._mark_as_modified()
-
-            if hasattr(self.parent_workshop, '_reload_texture_table'):
-                self.parent_workshop._reload_texture_table()
-
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message("Mipmap changes applied")
-
-        self.close()
-
-
-class MipmapManagerWindow(QWidget): #vers 2
-    """Mipmap Manager - Modern card-based design matching mockup"""
-
-    def __init__(self, parent, texture_data, main_window=None):
-        super().__init__(parent)
-        self.parent_workshop = parent
-        self.texture_data = texture_data
-        self.main_window = main_window
-        self.modified_levels = {}  # Track modified levels
-
-        texture_name = texture_data.get('name', 'Unknown')
-        width = texture_data.get('width', 0)
-        height = texture_data.get('height', 0)
-        fmt = texture_data.get('format', 'Unknown')
-
-        self.setWindowTitle(f"Mipmap Manager - {texture_name}")
         self.resize(1080, 700)  # 20% wider (900 * 1.2 = 1080)
 
         # Frameless window with custom styling
@@ -17085,10 +16697,26 @@ class MipmapManagerWindow(QWidget): #vers 2
             new_window.show()
 
 
-    def _edit_main_texture(self): #vers 1
-        """Edit main texture"""
-        if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message("✏️ Editing main texture...")
+    def _edit_main_texture(self): #vers 2
+        """Select this texture in the parent workshop for editing."""
+        try:
+            pw = self.parent_workshop
+            tex = self.texture_data
+            if hasattr(pw, 'texture_list') and tex in pw.texture_list:
+                row = pw.texture_list.index(tex)
+                if hasattr(pw, 'texture_table'):
+                    pw.texture_table.selectRow(row)
+                pw.selected_texture = tex
+                if hasattr(pw, '_update_texture_info'):
+                    pw._update_texture_info(tex)
+            pw.raise_()
+            pw.activateWindow()
+            self.close()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Editing: {tex.get('name', 'texture')}")
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Edit error: {e}")
 
 
     def _apply_changes(self): #vers 1
