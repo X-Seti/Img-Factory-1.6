@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import (
     Qt, QMimeData, QUrl, pyqtSignal, QObject, QThread, QRect
 )
+from apps.methods.dragdrop_functions import _qurl_from_path
 from PyQt6.QtGui import QActionGroup, QAction, QIcon, QDrag, QKeySequence, QShortcut, QPixmap, QPainter, QColor
 
 from PyQt6.QtSvgWidgets import QSvgWidget
@@ -251,7 +252,7 @@ class IMGTreeView(QTreeWidget):
         for e in entries:
             path = Path(temp_dir) / e.name
             path.write_bytes(e.data)
-            urls.append(QUrl.fromLocalFile(str(path)))
+            urls.append(_qurl_from_path(str(path)))
         mime.setUrls(urls)
         drag.setMimeData(mime)
         drag.exec(supportedActions)

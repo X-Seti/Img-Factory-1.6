@@ -15,6 +15,15 @@ from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtCore import Qt, QMimeData, QUrl, pyqtSignal
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QDrag, QPixmap, QPainter
 
+
+def _qurl_from_path(path: str) -> QUrl:
+    """Safe QUrl.fromLocalFile wrapper for both normal and PyInstaller builds.
+    Ensures an absolute path is used before calling fromLocalFile, which avoids
+    the 'unknown protocol file://' error in PyInstaller frozen builds."""
+    abs_path = os.path.abspath(path)
+    url = QUrl.fromLocalFile(abs_path)
+    return url
+
 ##Methods list -
 # setup_drag_drop_widget
 # handle_drag_enter
@@ -153,7 +162,7 @@ class DragDropHandler:
             urls = []
             for file_path in file_paths:
                 if os.path.exists(file_path):
-                    urls.append(QUrl.fromLocalFile(file_path))
+                    urls.append(_qurl_from_path(file_path))
             
             if not urls:
                 return False
@@ -496,7 +505,7 @@ def setup_tree_drag_drop(tree_widget, main_window, side='left'): #vers 1
         if not paths:
             return
         mime = QMimeData()
-        urls = [QUrl.fromLocalFile(p) for p in paths]
+        urls = [_qurl_from_path(p) for p in paths]
         mime.setUrls(urls)
         mime.setText('\n'.join(paths))
         mime.setData('application/x-imgfactory-tree', side.encode())
@@ -717,7 +726,7 @@ def setup_table_entry_drag(table_widget, main_window): #vers 2
                             with open(out_path, 'wb') as f:
                                 f.write(entry.data)
                         if os.path.exists(out_path):
-                            urls.append(QUrl.fromLocalFile(out_path))
+                            urls.append(_qurl_from_path(out_path))
                     except Exception as e:
                         print(f"Drag extract error: {e}")
 

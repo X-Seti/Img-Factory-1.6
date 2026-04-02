@@ -824,8 +824,8 @@ class COL3DViewport(QWidget): #vers 2
 
     def _show_face_context_menu(self, global_pos, face_index, face): #vers 1
         """Right-click context menu for a picked face — material operations."""
-        from PyQt6.QtWidgets import QMenu, QWidgetAction, QLabel
-        from PyQt6.QtGui import QColor, QPixmap, QIcon, QAction
+        from PyQt6.QtWidgets import QMenu, QAction
+        from PyQt6.QtGui import QColor, QPixmap, QIcon
         from PyQt6.QtCore import Qt as _Qt
 
         ws = self._find_workshop()
@@ -1457,7 +1457,28 @@ class COLWorkshop(QWidget): #vers 3
 
         lst.currentItemChanged.connect(lambda *_: on_select())
 
-        # Buttons
+        # Show current material of first selected face (if any)
+        vp = getattr(self, 'preview_widget', None)
+        if vp and getattr(vp, '_selected_faces', set()):
+            sel_faces = sorted(vp._selected_faces)
+            first_face = model.faces[sel_faces[0]] if sel_faces[0] < len(model.faces) else None
+            if first_face:
+                mat_obj = getattr(first_face, 'material', None)
+                cur_mat = (mat_obj if isinstance(mat_obj, int)
+                           else getattr(mat_obj, 'material_id', 0))
+                cur_lbl = QLabel(f"Selected face material: {cur_mat}")
+                cur_lbl.setStyleSheet("color:#aaa; font-size:10px; padding:2px 4px;")
+                lay.addWidget(cur_lbl)
+
+        # Buttons — top row: Apply to selection / Apply to all
+        btns_top = QHBoxLayout()
+        btn_apply_sel = QPushButton("✓ Apply to Selected Faces")
+        btn_apply_all = QPushButton("Apply to ALL Faces")
+        btns_top.addWidget(btn_apply_sel)
+        btns_top.addWidget(btn_apply_all)
+        lay.addLayout(btns_top)
+
+        # Bottom row: Enter Paint / Cancel
         btns = QHBoxLayout()
         btn_paint  = QPushButton("🖌  Enter Paint Mode")
         btn_cancel = QPushButton("Cancel")
@@ -1466,24 +1487,6 @@ class COLWorkshop(QWidget): #vers 3
         btns.addWidget(btn_cancel)
         lay.addLayout(btns)
         btn_cancel.clicked.connect(dlg.reject)
-
-        # Show current material of viewport-selected faces
-        vp = getattr(self, 'preview_widget', None)
-        if vp and getattr(vp, '_selected_faces', set()):
-            sel_faces = sorted(vp._selected_faces)
-            first_face = model.faces[sel_faces[0]] if sel_faces[0] < len(model.faces) else None
-            if first_face:
-                cur_mat = (first_face.material if isinstance(first_face.material, int)
-                           else getattr(first_face.material, 'material_id', 0))
-                cur_lbl = QLabel(f"Current face material: {cur_mat}")
-                cur_lbl.setStyleSheet("color:#aaa; font-size:10px; padding:2px 4px;")
-                lay.insertWidget(0, cur_lbl)
-
-        # "Apply to selected faces" button
-        btn_apply_sel = QPushButton("✓ Apply to Selected Faces")
-        btn_apply_all = QPushButton("Apply to ALL Faces")
-        btns.insertWidget(0, btn_apply_sel)
-        btns.insertWidget(1, btn_apply_all)
 
         chosen_mat = [None]
         chosen_mode = [None]  # 'selected', 'all', 'paint'
@@ -1579,12 +1582,18 @@ class COLWorkshop(QWidget): #vers 3
 
             self._set_status("Paint mode — pick material in toolbar. [Esc] to exit.")
 
-    def _show_paint_toolbar(self, mat_id: int, model=None): #vers 1
+    def _show_paint_toolbar(self, mat_id: int, model=None): #vers 2
         """Populate and show the paint mode toolbar above the viewport."""
-        tb = getattr(self, 'paint_toolbar', None)
+        tb    = getattr(self, 'paint_toolbar', None)
         combo = getattr(self, 'paint_mat_combo', None)
         undo_btn = getattr(self, 'paint_undo_btn', None)
         if not tb or not combo:
+            # Toolbar wasn't created — this means the viewport container
+            # setup didn't run (e.g. standalone mode or layout race).
+            # Log and bail gracefully.
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    "paint_toolbar not found — may need restart")
             return
 
         # Populate material combo
