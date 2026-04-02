@@ -1080,6 +1080,44 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
+
+    @staticmethod
+    def dropper_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Eyedropper / colour picker tool"""
+        svg_data = '''<svg viewBox="0 0 24 24" fill="none">
+            <path d="M20.71 5.63l-2.34-2.34a1 1 0 0 0-1.41 0l-3.12 3.12-1.41-1.42-1.42 1.42
+                     1.41 1.41-6.6 6.6A2 2 0 0 0 5 16v3h3a2 2 0 0 0 1.42-.59l6.6-6.6
+                     1.41 1.42 1.42-1.42-1.42-1.41 3.12-3.12a1 1 0 0 0 0-1.65z"
+                  stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <circle cx="7.5" cy="17.5" r="1" fill="currentColor" opacity="0.6"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def fill_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Bucket fill / flood fill tool"""
+        svg_data = '''<svg viewBox="0 0 24 24" fill="none">
+            <path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.49 1.49 0 0 0 0
+                     2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58
+                     .59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21z"
+                  fill="currentColor" opacity="0.9"/>
+            <path d="M19 11.5s-2 2.17-2 3.5a2 2 0 1 0 4 0c0-1.33-2-3.5-2-3.5z"
+                  fill="currentColor" opacity="0.7"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def undo_paint_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Undo arrow"""
+        svg_data = '''<svg viewBox="0 0 24 24" fill="none">
+            <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16
+                     3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08
+                     11.03 17.15 8 12.5 8z"
+                  fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
     def surfaceedit_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
         """Grid mesh with edit point"""
         svg_data = '''<svg viewBox="0 0 24 24" fill="none">
