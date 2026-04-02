@@ -4251,7 +4251,7 @@ class COLWorkshop(QWidget): #vers 3
         # Floating paint bar — child of the viewport, always visible on top
         self._build_float_paint_bar()
 
-        # paint_toolbar attrs pre-initialised in __init__; set by _create_paint_row()
+        # paint_toolbar built by _build_float_paint_bar() — floats over preview_widget
 
         # Preview controls (right side, vertical)
         self.preview_controls = self._create_preview_controls()
