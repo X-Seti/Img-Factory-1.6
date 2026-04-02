@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components.Col_Editor.col_workshop.py - Version: 72
+#this belongs in components.Col_Editor.col_workshop.py - Version: 74
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -57,7 +57,6 @@ from apps.methods.col_workshop_parser import COLParser
 from apps.methods.col_workshop_loader import COLFile
 
 
-
 # Temporary 3D viewport placeholder
 class COL3DViewport(QWidget): #vers 2
     """COL preview viewport.
@@ -101,6 +100,7 @@ class COL3DViewport(QWidget): #vers 2
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.ArrowCursor)
+
 
     # ── public API ────────────────────────────────────────────────────────
     def set_current_file(self, col_file): pass
@@ -161,6 +161,7 @@ class COL3DViewport(QWidget): #vers 2
     def _set_gizmo(self, mode):
         self._gizmo_mode = mode; self._gizmo_drag = None; self.update()
 
+
     # ── projection (self-contained, no workshop needed) ──────────────────
     def _proj(self, x, y, z):
         """Project 3D world point → 2D screen pixel using current view state."""
@@ -212,6 +213,7 @@ class COL3DViewport(QWidget): #vers 2
         scale, ox, oy = self._get_scale_origin()
         px, py = self._proj(x, y, z)
         return px*scale + ox, py*scale + oy
+
 
     # ── gizmo hit test ───────────────────────────────────────────────────
     def _gizmo_centre(self):
@@ -292,6 +294,7 @@ class COL3DViewport(QWidget): #vers 2
             return best_i, faces[best_i]
         return None, None
 
+
     # ── mouse ────────────────────────────────────────────────────────────
     def mousePressEvent(self, event):
         mx, my = event.position().x(), event.position().y()
@@ -325,7 +328,7 @@ class COL3DViewport(QWidget): #vers 2
                     ws = self._find_workshop()
                     # Each button occupies _BTN_W + _BTN_GAP
                     btn_idx = (mx - rx) // (_BTN_W + _BTN_GAP)
-                    if   btn_idx == 0 and ws: ws._set_paint_tool('paint')#;btn_idx.setToolTip("Choose colour")
+                    if   btn_idx == 0 and ws:#TODO tomorrow, add proper tooltips ws._set_paint_tool('paint')#;btn_idx.setToolTip("Choose colour")
                     elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')#;btn_idx.setToolTip("Colour dropper")
                     elif btn_idx == 2 and ws: ws._set_paint_tool('fill')#;btn_idx.setToolTip("Colour Fill")
                     elif btn_idx == 3 and ws: ws._undo_last_action()#;btn_idx.setToolTip("Undo")
@@ -1090,12 +1093,12 @@ class COL3DViewport(QWidget): #vers 2
         menu.addSeparator()
 
         # Copy material
-        act_copy = menu.addAction("📋  Copy material")
+        act_copy = menu.addAction("Copy material")
         # Paste material (only if clipboard has one)
         _clip = getattr(ws, '_mat_clipboard', None) if ws else None
         act_paste = menu.addAction(
-            f"📌  Paste material  ({_clip})" if _clip is not None
-            else "📌  Paste material")
+            f"Paste material  ({_clip})" if _clip is not None
+            else "Paste material")
         act_paste.setEnabled(_clip is not None)
         menu.addSeparator()
 
