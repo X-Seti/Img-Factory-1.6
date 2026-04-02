@@ -299,21 +299,24 @@ class COL3DViewport(QWidget): #vers 2
         if event.button() == Qt.MouseButton.LeftButton:
             # Top-right chips
             if self._paint_mode:
-                # Material chip row: tools at y=30..48, undo, exit
-                # Tools: paint(W-180), dropper(W-148), fill(W-116)
-                # Undo: (W-84), Exit: (W-52)
-                if 30 <= my <= 48:
+                # Hit-test using same constants as paintEvent
+                _CHIP_H  = 22; _BTN_W = 28; _BTN_GAP = 4
+                _MAT_W   = 180; _MARGIN = 8
+                _ROW1_Y  = 4;  _ROW2_Y = _ROW1_Y + _CHIP_H + 2
+                rx = W - _MAT_W - _MARGIN   # left edge of chip area
+                # Row 1: material chip click (future: open mat picker)
+                if _ROW1_Y <= my <= _ROW1_Y + _CHIP_H:
+                    pass   # could open material picker
+                # Row 2: tool buttons
+                elif _ROW2_Y <= my <= _ROW2_Y + _CHIP_H:
                     ws = self._find_workshop()
-                    if W-180 <= mx <= W-152:   # 🖌 Paint
-                        if ws: ws._set_paint_tool('paint')
-                    elif W-148 <= mx <= W-120:  # 💧 Dropper
-                        if ws: ws._set_paint_tool('dropper')
-                    elif W-116 <= mx <= W-88:   # ▣ Fill
-                        if ws: ws._set_paint_tool('fill')
-                    elif W-84 <= mx <= W-56:    # ↩ Undo
-                        if ws: ws._undo_last_action()
-                    elif W-52 <= mx <= W-24:    # ✕ Exit
-                        if ws: ws._exit_paint_mode()
+                    # Each button occupies _BTN_W + _BTN_GAP
+                    btn_idx = (mx - rx) // (_BTN_W + _BTN_GAP)
+                    if   btn_idx == 0 and ws: ws._set_paint_tool('paint')
+                    elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')
+                    elif btn_idx == 2 and ws: ws._set_paint_tool('fill')
+                    elif btn_idx == 3 and ws: ws._undo_last_action()
+                    elif btn_idx == 4 and ws: ws._exit_paint_mode()
                     self.update(); return
             else:
                 # Normal: Move [G] toggle
@@ -879,49 +882,88 @@ class COL3DViewport(QWidget): #vers 2
         # ── Top-right overlay — normal mode: Move/Rotate + Render chips ──
         #                         paint mode:  material + tool chips
         if self._paint_mode:
+            # ── Tunable layout constants ────────────────────────────────
+            _CHIP_H   = 22   # height of each chip row  (px)
+            _BTN_W    = 28   # width  of each tool button
+            _BTN_GAP  = 4    # gap between buttons
+            _ICON_SZ  = 14   # SVG icon size inside button
+            _MAT_W    = 180  # width of the material name chip
+            _MARGIN   = 8    # right margin from viewport edge
+            _ROW1_Y   = 4    # y of material chip
+            _ROW2_Y   = _ROW1_Y + _CHIP_H + 2   # y of tool buttons row
+            # ────────────────────────────────────────────────────────────
+
             from apps.methods.col_materials import get_material_name, get_material_colour, COLGame
-            mat_id  = self._paint_material
+            from PyQt6.QtCore import QRect
+            mat_id   = self._paint_material
             mat_name = get_material_name(mat_id, COLGame.SA)
             hex_col  = get_material_colour(mat_id, COLGame.SA)
             mc = QColor(f"#{hex_col}")
 
-            # Wide chip: current material (swatch + name + id)
-            pw = W - 8
+            # Row 1: material chip
+            rx = W - _MAT_W - _MARGIN
             p.setBrush(QBrush(QColor(20,20,40,220))); p.setPen(QPen(QColor(255,140,0),1))
-            p.drawRoundedRect(W-180,4,172,22,4,4)
-            # colour swatch
+            p.drawRoundedRect(rx, _ROW1_Y, _MAT_W, _CHIP_H, 4, 4)
             p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
-            p.drawRoundedRect(W-176,8,14,14,2,2)
+            p.drawRoundedRect(rx+4, _ROW1_Y+4, _CHIP_H-8, _CHIP_H-8, 2, 2)
             p.setPen(QColor(255,200,80)); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
-            p.drawText(W-158,19,f"{mat_id} — {mat_name[:22]}")
+            p.drawText(rx+_CHIP_H+2, _ROW1_Y+15, f"{mat_id} — {mat_name[:24]}")
 
-            # Tool chip row: [🖌 Paint] [💧 Drop] [▣ Fill] | [↩] [✕]
+            # Row 2: tool buttons using SVG icons via QIcon.paint()
             tool = getattr(self, '_tool_mode', 'paint')
-            tools = [('paint','🖌'),('dropper','💧'),('fill','▣')]
-            tx = W - 180
-            ty = 30
-            for t_name, t_icon in tools:
+            tx = W - _MAT_W - _MARGIN
+            ws = self._find_workshop()
+            icon_fac = getattr(ws, 'icon_factory', None) if ws else None
+
+            tool_defs = [
+                ('paint',   'paint_icon',   '#ff8c00'),   # orange when active
+                ('dropper', 'dropper_icon', '#4fc3f7'),   # blue
+                ('fill',    'fill_icon',    '#a5d6a7'),   # green
+            ]
+            for t_name, icon_fn, active_col in tool_defs:
                 active = (tool == t_name)
-                bg = QColor(255,140,0) if active else QColor(30,30,50,210)
-                fg = QColor(0,0,0)     if active else QColor(200,200,220)
-                p.setBrush(QBrush(bg)); p.setPen(QPen(QColor(80,90,130),1))
-                p.drawRoundedRect(tx,ty,28,18,3,3)
-                p.setPen(fg); p.setFont(QFont('Arial',9))
-                p.drawText(tx+6,ty+13,t_icon)
-                tx += 32
+                bg  = QColor(active_col) if active else QColor(30,30,50,210)
+                bdr = QColor(active_col) if active else QColor(80,90,130)
+                p.setBrush(QBrush(bg)); p.setPen(QPen(bdr, 1))
+                p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
+                # Draw SVG icon centred in button
+                if icon_fac:
+                    icon_col = '#000000' if active else active_col
+                    try:
+                        icon = getattr(icon_fac, icon_fn)(color=icon_col)
+                        icon_x = tx + (_BTN_W - _ICON_SZ) // 2
+                        icon_y = _ROW2_Y + (_CHIP_H - _ICON_SZ) // 2
+                        icon.paint(p, QRect(icon_x, icon_y, _ICON_SZ, _ICON_SZ))
+                    except Exception:
+                        pass
+                tx += _BTN_W + _BTN_GAP
 
-            # Undo chip
+            # Undo button (↩ text — no emoji risk)
             p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(80,90,130),1))
-            p.drawRoundedRect(tx,ty,28,18,3,3)
-            p.setPen(QColor(180,200,255)); p.setFont(QFont('Arial',8))
-            p.drawText(tx+5,ty+13,"↩")
-            tx += 32
+            p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
+            if icon_fac:
+                try:
+                    icon = icon_fac.undo_paint_icon(color='#b0bec5')
+                    icon_x = tx + (_BTN_W - _ICON_SZ)//2
+                    icon_y = _ROW2_Y + (_CHIP_H - _ICON_SZ)//2
+                    icon.paint(p, QRect(icon_x, icon_y, _ICON_SZ, _ICON_SZ))
+                except Exception:
+                    p.setPen(QColor(180,200,255)); p.setFont(QFont('Arial',9))
+                    p.drawText(tx+6, _ROW2_Y+15, "↩")
+            tx += _BTN_W + _BTN_GAP
 
-            # Exit chip
+            # Exit button (✕)
             p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(200,80,60),1))
-            p.drawRoundedRect(tx,ty,28,18,3,3)
-            p.setPen(QColor(255,100,80)); p.setFont(QFont('Arial',9,QFont.Weight.Bold))
-            p.drawText(tx+7,ty+13,"✕")
+            p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
+            if icon_fac:
+                try:
+                    icon = icon_fac.close_icon(color='#ef5350')
+                    icon_x = tx + (_BTN_W - _ICON_SZ)//2
+                    icon_y = _ROW2_Y + (_CHIP_H - _ICON_SZ)//2
+                    icon.paint(p, QRect(icon_x, icon_y, _ICON_SZ, _ICON_SZ))
+                except Exception:
+                    p.setPen(QColor(255,100,80)); p.setFont(QFont('Arial',9,QFont.Weight.Bold))
+                    p.drawText(tx+7, _ROW2_Y+15, "x")
         else:
             bx,by,bw,bh=W-70,4,66,22
             p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(QColor(80,90,130),1))
