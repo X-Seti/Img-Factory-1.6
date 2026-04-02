@@ -4508,10 +4508,18 @@ class COLWorkshop(QWidget): #vers 3
         if self.tool_paint_btn:
             self.tool_paint_btn.setChecked(True)
 
-        _btn('paint_undo_btn', 'undo_paint_icon', 'Undo', 'undo', checkable=False)
-        self.paint_undo_btn.clicked.disconnect()
-        self.paint_undo_btn.clicked.connect(self._undo_last_action)
+        self.paint_undo_btn = QPushButton()
+        try:
+            self.paint_undo_btn.setIcon(self.icon_factory.undo_paint_icon(color=c))
+        except Exception:
+            self.paint_undo_btn.setText("↩")
+        self.paint_undo_btn.setIconSize(QSize(16, 16))
+        self.paint_undo_btn.setFixedSize(28, 28)
+        self.paint_undo_btn.setToolTip("Undo last paint operation")
+        self.paint_undo_btn.setStyleSheet("background:#2a2a3a; color:#eee; border:1px solid #555; border-radius:3px;")
         self.paint_undo_btn.setEnabled(False)
+        self.paint_undo_btn.clicked.connect(self._undo_last_action)
+        lay.addWidget(self.paint_undo_btn)
 
         lay.addStretch()
 
