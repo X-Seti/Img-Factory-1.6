@@ -4371,9 +4371,14 @@ class COLWorkshop(QWidget): #vers 3
         try:
             self._create_paint_row(info_layout, icon_color)
         except Exception as _e:
-            import traceback
-            print(f"[COLWorkshop] _create_paint_row failed: {_e}")
-            traceback.print_exc()
+            import traceback as _tb
+            _msg = f"[COLWorkshop] _create_paint_row failed: {_e}"
+            print(_msg)
+            _tb.print_exc()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(_msg)
+            if hasattr(self, '_set_status'):
+                self._set_status("Paint toolbar unavailable — see console")
 
         main_layout.addWidget(info_group, stretch=0)
         return panel
