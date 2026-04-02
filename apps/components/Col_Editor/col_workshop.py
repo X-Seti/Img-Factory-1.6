@@ -305,8 +305,21 @@ class COL3DViewport(QWidget): #vers 2
                 _ROW1_Y  = 4;  _ROW2_Y = _ROW1_Y + _CHIP_H + 2
                 rx = W - _MAT_W - _MARGIN   # left edge of chip area
                 # Row 1: material chip click (future: open mat picker)
-                if _ROW1_Y <= my <= _ROW1_Y + _CHIP_H:
-                    pass   # could open material picker
+                if _ROW1_Y <= my <= _ROW1_Y + _CHIP_H and rx <= mx <= rx + _MAT_W:
+                    # Click mat chip → open material picker inline
+                    ws = self._find_workshop()
+                    if ws:
+                        combo = getattr(ws, 'paint_mat_combo', None)
+                        if combo and combo.count() > 0:
+                            # Cycle to next material
+                            nxt = (combo.currentIndex() + 1) % combo.count()
+                            combo.setCurrentIndex(nxt)
+                            new_mid = combo.itemData(nxt)
+                            if new_mid is not None:
+                                self._paint_material = new_mid
+                                vp = getattr(ws, 'preview_widget', None)
+                                if vp: vp._paint_material = new_mid
+                    self.update(); return
                 # Row 2: tool buttons
                 elif _ROW2_Y <= my <= _ROW2_Y + _CHIP_H:
                     ws = self._find_workshop()
@@ -330,13 +343,13 @@ class COL3DViewport(QWidget): #vers 2
                     tool = getattr(self, '_tool_mode', 'paint')
 
                     if tool == 'dropper':
-                        # Pick material from this face → update paint material
+                        # Pick material from face → update paint colour + overlay
                         mat = face.material
                         picked = mat.material_id if hasattr(mat, 'material_id') else int(mat)
                         self._paint_material = picked
+                        self._paint_material = picked   # update viewport attr
                         ws = self._find_workshop()
                         if ws:
-                            # Sync combo to picked material
                             combo = getattr(ws, 'paint_mat_combo', None)
                             if combo:
                                 for i in range(combo.count()):
@@ -344,12 +357,10 @@ class COL3DViewport(QWidget): #vers 2
                                         combo.setCurrentIndex(i)
                                         break
                             ws._paint_active_mat = picked
-                            ws._set_status(f"Dropper: picked material {picked}")
-                        # Switch back to paint tool after pick
+                        # Auto-switch back to paint tool after dropper pick
                         self._tool_mode = 'paint'
-                        self.setCursor(Qt.CursorShape.CrossCursor)
-                        if ws:
-                            ws._set_paint_tool('paint')
+                        self.update()   # refresh overlay chip with new colour
+                        return
 
                     elif tool == 'fill':
                         # Fill all faces that share the same material as clicked face
@@ -883,11 +894,11 @@ class COL3DViewport(QWidget): #vers 2
         #                         paint mode:  material + tool chips
         if self._paint_mode:
             # ── Tunable layout constants ────────────────────────────────
-            _CHIP_H   = 22   # height of each chip row  (px)
-            _BTN_W    = 28   # width  of each tool button
-            _BTN_GAP  = 4    # gap between buttons
-            _ICON_SZ  = 14   # SVG icon size inside button
-            _MAT_W    = 180  # width of the material name chip
+            _CHIP_H   = 26   # height of each chip row  (px)
+            _BTN_W    = 32   # width  of each tool button
+            _BTN_GAP  = 3    # gap between buttons
+            _ICON_SZ  = 18   # SVG icon size inside button
+            _MAT_W    = 200  # width of the material name chip
             _MARGIN   = 8    # right margin from viewport edge
             _ROW1_Y   = 4    # y of material chip
             _ROW2_Y   = _ROW1_Y + _CHIP_H + 2   # y of tool buttons row
@@ -938,7 +949,13 @@ class COL3DViewport(QWidget): #vers 2
                         pass
                 tx += _BTN_W + _BTN_GAP
 
-            # Undo button (↩ text — no emoji risk)
+            # Tool name label below row 2 (acts as tooltip)
+            tool_labels = {'paint':'Paint', 'dropper':'Pick', 'fill':'Fill'}
+            p.setPen(QColor(200,200,160,180)); p.setFont(QFont('Arial',7))
+            p.drawText(W - _MAT_W - _MARGIN, _ROW2_Y + _CHIP_H + 10,
+                       f"Tool: {tool_labels.get(tool, tool)}")
+
+            # Undo button
             p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(80,90,130),1))
             p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
             if icon_fac:
@@ -1215,6 +1232,39 @@ class COLModelListWidget(QListWidget): #vers 1
             self.model_context_menu.emit(model_index, self.mapToGlobal(position))
 
 
+
+
+class _ColListDelegate(QStyledItemDelegate): #vers 1
+    """Word-wrapping delegate for the COL compact list Details column."""
+    def paint(self, painter, option, index):
+        if index.column() != 1:
+            super().paint(painter, option, index)
+            return
+        from PyQt6.QtWidgets import QStyle, QApplication
+        from PyQt6.QtCore import Qt
+        # Background
+        QApplication.style().drawPrimitive(
+            QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter)
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ''
+        painter.save()
+        painter.setClipRect(option.rect)
+        r = option.rect.adjusted(4, 4, -4, -4)
+        painter.setPen(option.palette.text().color())
+        painter.setFont(option.font)
+        painter.drawText(r, Qt.TextFlag.TextWordWrap | Qt.AlignmentFlag.AlignTop, text)
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        if index.column() != 1:
+            return super().sizeHint(option, index)
+        from PyQt6.QtCore import Qt, QSize
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ''
+        fm = option.fontMetrics
+        # Measure the text in a column ~160px wide
+        w = 160
+        r = fm.boundingRect(0, 0, w, 9999,
+            Qt.TextFlag.TextWordWrap | Qt.AlignmentFlag.AlignTop, text)
+        return QSize(w, max(72, r.height() + 12))
 
 class COLWorkshop(QWidget): #vers 3
     """COL Workshop - Main window"""
@@ -4303,6 +4353,8 @@ class COLWorkshop(QWidget): #vers 3
             self._show_collision_context_menu)
         self.col_compact_list.setVisible(True)    # start in compact view
         self.col_compact_list.setRowCount(0)      # populated on first file load
+        self.col_compact_list.setWordWrap(True)
+        self.col_compact_list.setItemDelegate(_ColListDelegate(self.col_compact_list))
         layout.addWidget(self.col_compact_list)
 
         return panel
