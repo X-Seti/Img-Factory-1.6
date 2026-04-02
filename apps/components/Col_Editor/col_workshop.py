@@ -297,9 +297,28 @@ class COL3DViewport(QWidget): #vers 2
         mx, my = event.position().x(), event.position().y()
         W, H = self.width(), self.height()
         if event.button() == Qt.MouseButton.LeftButton:
-            # Toggle button (top-right)
-            if W-70 <= mx <= W-4 and 4 <= my <= 26:
-                self.toggle_gizmo_mode(); return
+            # Top-right chips
+            if self._paint_mode:
+                # Material chip row: tools at y=30..48, undo, exit
+                # Tools: paint(W-180), dropper(W-148), fill(W-116)
+                # Undo: (W-84), Exit: (W-52)
+                if 30 <= my <= 48:
+                    ws = self._find_workshop()
+                    if W-180 <= mx <= W-152:   # 🖌 Paint
+                        if ws: ws._set_paint_tool('paint')
+                    elif W-148 <= mx <= W-120:  # 💧 Dropper
+                        if ws: ws._set_paint_tool('dropper')
+                    elif W-116 <= mx <= W-88:   # ▣ Fill
+                        if ws: ws._set_paint_tool('fill')
+                    elif W-84 <= mx <= W-56:    # ↩ Undo
+                        if ws: ws._undo_last_action()
+                    elif W-52 <= mx <= W-24:    # ✕ Exit
+                        if ws: ws._exit_paint_mode()
+                    self.update(); return
+            else:
+                # Normal: Move [G] toggle
+                if W-70 <= mx <= W-4 and 4 <= my <= 26:
+                    self.toggle_gizmo_mode(); return
 
             # Paint mode — pick face, apply current tool
             if self._paint_mode:
@@ -857,20 +876,65 @@ class COL3DViewport(QWidget): #vers 2
         p.setBrush(QBrush(QColor(230,230,230))); p.setPen(QPen(QColor(160,160,160),1))
         p.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
-        # ── Render mode + toggle button (top-right) ───────────────────────
-        bx,by,bw,bh=W-70,4,66,22
-        p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(QColor(80,90,130),1))
-        p.drawRoundedRect(bx,by,bw,bh,4,4)
-        p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,220))
-        lbl='↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
-        p.drawText(bx+4,by+15,lbl)
-        # Render mode chip
-        mode_lbl={'wireframe':'Wire','semi':'Semi','solid':'Solid'}.get(rs,'?')
-        mode_col={'wireframe':QColor(100,180,100),'semi':QColor(180,180,100),'solid':QColor(100,140,220)}.get(rs,QColor(180,180,180))
-        p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(mode_col,1))
-        p.drawRoundedRect(W-70,28,66,18,3,3)
-        p.setPen(mode_col); p.setFont(QFont('Arial',7))
-        p.drawText(W-66,41,f"[V] {mode_lbl}")
+        # ── Top-right overlay — normal mode: Move/Rotate + Render chips ──
+        #                         paint mode:  material + tool chips
+        if self._paint_mode:
+            from apps.methods.col_materials import get_material_name, get_material_colour, COLGame
+            mat_id  = self._paint_material
+            mat_name = get_material_name(mat_id, COLGame.SA)
+            hex_col  = get_material_colour(mat_id, COLGame.SA)
+            mc = QColor(f"#{hex_col}")
+
+            # Wide chip: current material (swatch + name + id)
+            pw = W - 8
+            p.setBrush(QBrush(QColor(20,20,40,220))); p.setPen(QPen(QColor(255,140,0),1))
+            p.drawRoundedRect(W-180,4,172,22,4,4)
+            # colour swatch
+            p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(W-176,8,14,14,2,2)
+            p.setPen(QColor(255,200,80)); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
+            p.drawText(W-158,19,f"{mat_id} — {mat_name[:22]}")
+
+            # Tool chip row: [🖌 Paint] [💧 Drop] [▣ Fill] | [↩] [✕]
+            tool = getattr(self, '_tool_mode', 'paint')
+            tools = [('paint','🖌'),('dropper','💧'),('fill','▣')]
+            tx = W - 180
+            ty = 30
+            for t_name, t_icon in tools:
+                active = (tool == t_name)
+                bg = QColor(255,140,0) if active else QColor(30,30,50,210)
+                fg = QColor(0,0,0)     if active else QColor(200,200,220)
+                p.setBrush(QBrush(bg)); p.setPen(QPen(QColor(80,90,130),1))
+                p.drawRoundedRect(tx,ty,28,18,3,3)
+                p.setPen(fg); p.setFont(QFont('Arial',9))
+                p.drawText(tx+6,ty+13,t_icon)
+                tx += 32
+
+            # Undo chip
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(80,90,130),1))
+            p.drawRoundedRect(tx,ty,28,18,3,3)
+            p.setPen(QColor(180,200,255)); p.setFont(QFont('Arial',8))
+            p.drawText(tx+5,ty+13,"↩")
+            tx += 32
+
+            # Exit chip
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(200,80,60),1))
+            p.drawRoundedRect(tx,ty,28,18,3,3)
+            p.setPen(QColor(255,100,80)); p.setFont(QFont('Arial',9,QFont.Weight.Bold))
+            p.drawText(tx+7,ty+13,"✕")
+        else:
+            bx,by,bw,bh=W-70,4,66,22
+            p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(QColor(80,90,130),1))
+            p.drawRoundedRect(bx,by,bw,bh,4,4)
+            p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,220))
+            lbl='↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
+            p.drawText(bx+4,by+15,lbl)
+            mode_lbl={'wireframe':'Wire','semi':'Semi','solid':'Solid'}.get(rs,'?')
+            mode_col={'wireframe':QColor(100,180,100),'semi':QColor(180,180,100),'solid':QColor(100,140,220)}.get(rs,QColor(180,180,180))
+            p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(mode_col,1))
+            p.drawRoundedRect(W-70,28,66,18,3,3)
+            p.setPen(mode_col); p.setFont(QFont('Arial',7))
+            p.drawText(W-66,41,f"[V] {mode_lbl}")
 
         # ── HUD ───────────────────────────────────────────────────────────
         p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,200))
@@ -1728,11 +1792,10 @@ class COLWorkshop(QWidget): #vers 3
         if undo_btn:
             undo_btn.setEnabled(bool(getattr(self, 'undo_stack', [])))
 
-        # Position and show the floating bar over the viewport
-        bar = self.paint_toolbar
-        bar.setGeometry(0, 0, self.preview_widget.width(), 34)
-        bar.raise_()
-        bar.show()
+        # Trigger viewport repaint to show the paint overlay chips
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp.update()
 
 
     def _on_painted_face(self, face_index, face): #vers 2
@@ -1774,10 +1837,13 @@ class COLWorkshop(QWidget): #vers 3
             vp.set_paint_mode(False)
             vp.on_face_selected = None
 
-        # Hide floating paint bar
+        # Hide QWidget paint bar if it was created, refresh viewport
         tb = getattr(self, 'paint_toolbar', None)
         if tb:
             tb.hide()
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp.update()
 
         # Reset paint button in both icon and text panels
         for btn in self._find_all_paint_btns():
