@@ -563,9 +563,10 @@ class COL3DViewport(QWidget): #vers 2
         if event.key() == Qt.Key.Key_Escape:
             if self._paint_mode:
                 self.set_paint_mode(False)
-                # notify workshop to update paint button state
-                if hasattr(self.parent(), '_on_paint_mode_exited'):
-                    self.parent()._on_paint_mode_exited()
+                # notify workshop via _workshop_ref (reliable; parent() may be a QFrame)
+                ws = self._find_workshop()
+                if ws and hasattr(ws, '_on_paint_mode_exited'):
+                    ws._on_paint_mode_exited()
             self._selected_faces = set()
             self.update()
         elif event.key() == Qt.Key.Key_G: self._set_gizmo('translate')
