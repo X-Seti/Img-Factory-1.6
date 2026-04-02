@@ -562,8 +562,9 @@ class COL3DViewport(QWidget): #vers 2
     def resizeEvent(self, event):
         super().resizeEvent(event)
         ws = self._find_workshop()
-        if ws and hasattr(ws, '_position_paint_bar'):
-            ws._position_paint_bar()
+        if ws and hasattr(ws, 'paint_toolbar') and ws.paint_toolbar and ws.paint_toolbar.isVisible():
+            vp = getattr(ws, 'preview_widget', None)
+            if vp: ws.paint_toolbar.setGeometry(0, 0, vp.width(), 34)
 
     def wheelEvent(self, event):
         factor = 1.18 if event.angleDelta().y() > 0 else 1/1.18
@@ -1208,7 +1209,7 @@ class COLWorkshop(QWidget): #vers 3
             self.move(parent_pos.x() + 50, parent_pos.y() + 80)
 
 
-        # Pre-initialise paint toolbar attrs (populated by _create_paint_bar in setup_ui)
+        # Paint toolbar attrs — set by _create_paint_bar() called from _create_right_panel
         self.paint_toolbar   = None
         self.paint_mat_combo = None
         self.paint_swatch    = None
@@ -1285,11 +1286,6 @@ class COLWorkshop(QWidget): #vers 3
             if not self.standalone_mode:
                 status_frame.setVisible(False)
             main_layout.addWidget(status_frame)
-
-        # Create floating paint bar over the viewport
-        # Must be called AFTER _create_right_panel (which creates preview_widget)
-        if hasattr(self, 'preview_widget') and self.preview_widget:
-            self._create_paint_bar()
 
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()
@@ -1733,9 +1729,10 @@ class COLWorkshop(QWidget): #vers 3
             undo_btn.setEnabled(bool(getattr(self, 'undo_stack', [])))
 
         # Position and show the floating bar over the viewport
-        self._position_paint_bar()
-        tb.show()
-        tb.raise_()
+        bar = self.paint_toolbar
+        bar.setGeometry(0, 0, self.preview_widget.width(), 34)
+        bar.raise_()
+        bar.show()
 
 
     def _on_painted_face(self, face_index, face): #vers 2
@@ -4235,7 +4232,7 @@ class COLWorkshop(QWidget): #vers 3
         top_layout.addWidget(self.preview_widget, stretch=2)
 
         # Floating paint bar — child of the viewport, always visible on top
-        self._build_float_paint_bar()
+        self._create_paint_bar()
 
         # paint_toolbar built by _build_float_paint_bar() — floats over preview_widget
 
@@ -4364,52 +4361,52 @@ class COLWorkshop(QWidget): #vers 3
 
 
 
-    def _create_paint_bar(self): #vers 1
-        """Create a floating paint toolbar — parented to preview_widget so it
-        sits visibly at the top of the 3D viewport regardless of layout state."""
+
+    def _create_paint_bar(self): #vers 3
+        """Floating paint bar — QWidget child of preview_widget, sits at top of viewport.
+        Called once from _create_right_panel after preview_widget is created."""
+        vp = self.preview_widget
         ic = self._get_icon_color()
 
-        bar = QWidget(self.preview_widget)   # child of the 3D viewport
+        bar = QWidget(vp)
         bar.setObjectName("paint_bar")
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar.setStyleSheet(
             "QWidget#paint_bar { background:#1a1a2e; border-bottom:2px solid #ff8c00; }"
+            "QLabel  { color:#ddd; background:transparent; }"
+            "QComboBox { background:#252535; color:#eee; border:1px solid #555; }"
+            "QPushButton { background:#252535; color:#eee; border:1px solid #555; border-radius:3px; }"
+            "QPushButton:hover   { background:#353548; }"
+            "QPushButton:checked { background:#ff8c00; color:#000; border:1px solid #ff8c00; }"
         )
-        bar.setFixedHeight(36)
+        bar.setFixedHeight(34)
 
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(6, 3, 6, 3)
         lay.setSpacing(4)
 
-        # Mat label
-        lbl = QLabel("Mat:")
-        lbl.setFont(self.panel_font)
-        lay.addWidget(lbl)
+        lay.addWidget(QLabel("Mat:"))
 
-        # Colour swatch
         self.paint_swatch = QLabel()
-        self.paint_swatch.setFixedSize(18, 18)
+        self.paint_swatch.setFixedSize(16, 16)
         self.paint_swatch.setStyleSheet(
-            "background:#808080; border:1px solid #666; border-radius:2px;")
+            "background:#808080; border:1px solid #aaa; border-radius:2px;")
         lay.addWidget(self.paint_swatch)
 
-        # Material combo
         self.paint_mat_combo = QComboBox()
-        self.paint_mat_combo.setFont(self.panel_font)
         self.paint_mat_combo.setFixedHeight(26)
         self.paint_mat_combo.setMinimumWidth(160)
         self.paint_mat_combo.setMaximumWidth(260)
         lay.addWidget(self.paint_mat_combo)
 
-        lay.addSpacing(6)
+        lay.addSpacing(4)
 
-        # Tool buttons
         def _tbtn(attr, icon_fn, tip, tool):
             b = QPushButton()
             try:
                 b.setIcon(getattr(self.icon_factory, icon_fn)(color=ic))
             except Exception:
-                b.setText(tool[0])
+                b.setText(tool[0].upper())
             b.setIconSize(QSize(16, 16))
             b.setFixedSize(28, 28)
             b.setToolTip(tip)
@@ -4418,13 +4415,12 @@ class COLWorkshop(QWidget): #vers 3
             setattr(self, attr, b)
             lay.addWidget(b)
 
-        _tbtn('tool_paint_btn',   'paint_icon',   'Paint faces',            'paint')
-        _tbtn('tool_dropper_btn', 'dropper_icon', 'Pick material',          'dropper')
-        _tbtn('tool_fill_btn',    'fill_icon',    'Fill same-material faces','fill')
+        _tbtn('tool_paint_btn',   'paint_icon',   'Paint faces',   'paint')
+        _tbtn('tool_dropper_btn', 'dropper_icon', 'Dropper',       'dropper')
+        _tbtn('tool_fill_btn',    'fill_icon',    'Flood fill',    'fill')
         if self.tool_paint_btn:
             self.tool_paint_btn.setChecked(True)
 
-        # Undo
         self.paint_undo_btn = QPushButton()
         try:
             self.paint_undo_btn.setIcon(self.icon_factory.undo_paint_icon(color=ic))
@@ -4432,91 +4428,7 @@ class COLWorkshop(QWidget): #vers 3
             self.paint_undo_btn.setText("↩")
         self.paint_undo_btn.setIconSize(QSize(16, 16))
         self.paint_undo_btn.setFixedSize(28, 28)
-        self.paint_undo_btn.setToolTip("Undo")
-        self.paint_undo_btn.setEnabled(False)
-        self.paint_undo_btn.clicked.connect(self._undo_last_action)
-        lay.addWidget(self.paint_undo_btn)
-
-        lay.addStretch()
-
-        # Exit
-        self.paint_exit_btn = QPushButton()
-        try:
-            self.paint_exit_btn.setIcon(self.icon_factory.close_icon(color='#ff6b35'))
-        except Exception:
-            self.paint_exit_btn.setText("✕")
-        self.paint_exit_btn.setIconSize(QSize(16, 16))
-        self.paint_exit_btn.setFixedSize(28, 28)
-        self.paint_exit_btn.setToolTip("Exit paint mode")
-        self.paint_exit_btn.clicked.connect(self._exit_paint_mode)
-        lay.addWidget(self.paint_exit_btn)
-
-        bar.hide()
-        self.paint_toolbar = bar
-        self._position_paint_bar()
-
-
-
-    def _build_float_paint_bar(self): #vers 2
-        """Floating paint bar — QFrame child of preview_widget, zero-height when hidden."""
-        from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QComboBox, QPushButton
-        from PyQt6.QtCore import Qt
-
-        vp = self.preview_widget
-        c  = self._get_icon_color()
-
-        bar = QFrame(vp)
-        bar.setStyleSheet("background:#141422; border-bottom:2px solid #ff8c00;")
-        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        bar.setFixedHeight(34)
-
-        lay = QHBoxLayout(bar)
-        lay.setContentsMargins(6, 2, 6, 2)
-        lay.setSpacing(4)
-
-        lay.addWidget(QLabel("Mat:", styleSheet="color:#ddd;"))
-
-        self.paint_swatch = QLabel()
-        self.paint_swatch.setFixedSize(16, 16)
-        self.paint_swatch.setStyleSheet("background:#808080; border:1px solid #aaa;")
-        lay.addWidget(self.paint_swatch)
-
-        self.paint_mat_combo = QComboBox()
-        self.paint_mat_combo.setMinimumWidth(160)
-        self.paint_mat_combo.setStyleSheet("background:#2a2a3a; color:#eee;")
-        lay.addWidget(self.paint_mat_combo)
-
-        def _btn(attr, icon_fn, tip, tool, checkable=True):
-            b = QPushButton()
-            try:
-                b.setIcon(getattr(self.icon_factory, icon_fn)(color=c))
-            except Exception:
-                b.setText(tool[0].upper())
-            b.setIconSize(QSize(16, 16))
-            b.setFixedSize(28, 28)
-            b.setToolTip(tip)
-            b.setCheckable(checkable)
-            b.setStyleSheet("background:#2a2a3a; color:#eee; border:1px solid #555; border-radius:3px;")
-            if checkable:
-                b.clicked.connect(lambda *_, t=tool: self._set_paint_tool(t))
-            setattr(self, attr, b)
-            lay.addWidget(b)
-
-        _btn('tool_paint_btn',   'paint_icon',   'Paint',   'paint')
-        _btn('tool_dropper_btn', 'dropper_icon', 'Dropper', 'dropper')
-        _btn('tool_fill_btn',    'fill_icon',    'Fill',    'fill')
-        if self.tool_paint_btn:
-            self.tool_paint_btn.setChecked(True)
-
-        self.paint_undo_btn = QPushButton()
-        try:
-            self.paint_undo_btn.setIcon(self.icon_factory.undo_paint_icon(color=c))
-        except Exception:
-            self.paint_undo_btn.setText("↩")
-        self.paint_undo_btn.setIconSize(QSize(16, 16))
-        self.paint_undo_btn.setFixedSize(28, 28)
-        self.paint_undo_btn.setToolTip("Undo last paint operation")
-        self.paint_undo_btn.setStyleSheet("background:#2a2a3a; color:#eee; border:1px solid #555; border-radius:3px;")
+        self.paint_undo_btn.setToolTip("Undo last paint op")
         self.paint_undo_btn.setEnabled(False)
         self.paint_undo_btn.clicked.connect(self._undo_last_action)
         lay.addWidget(self.paint_undo_btn)
@@ -4525,22 +4437,24 @@ class COLWorkshop(QWidget): #vers 3
 
         self.paint_exit_btn = QPushButton("✕")
         self.paint_exit_btn.setFixedSize(28, 28)
-        self.paint_exit_btn.setStyleSheet("color:#ff6b35; background:#2a2a3a; border:1px solid #555; border-radius:3px; font-weight:bold;")
         self.paint_exit_btn.setToolTip("Exit paint mode")
+        self.paint_exit_btn.setStyleSheet(
+            "color:#ff6b35; font-weight:bold; background:#252535; border:1px solid #555; border-radius:3px;")
         self.paint_exit_btn.clicked.connect(self._exit_paint_mode)
         lay.addWidget(self.paint_exit_btn)
 
         self.paint_toolbar = bar
+        bar.setGeometry(0, 0, vp.width(), 34)
         bar.hide()
 
-        # Keep bar at top of viewport, full width
-        def _repos():
-            bar.setGeometry(0, 0, vp.width(), 34)
-            bar.raise_()
-
-        _repos()
+        # Reposition bar when viewport resizes
         _orig = vp.resizeEvent
-        vp.resizeEvent = lambda event, _o=_orig, _r=_repos: (_o(event), _r())
+        def _on_vp_resize(event, _o=_orig, _bar=bar, _vp=vp):
+            _o(event)
+            if _bar.isVisible():
+                _bar.setGeometry(0, 0, _vp.width(), 34)
+                _bar.raise_()
+        vp.resizeEvent = _on_vp_resize
 
     def _create_preview_controls(self): #vers 6
         """Vertical button strip to the right of the preview viewport."""
