@@ -7,7 +7,11 @@ Provides tab management operations: close, rename, navigate
 """
 
 from PyQt6.QtWidgets import QMenu, QInputDialog, QWidget
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QFont
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from PyQt6.QtCore import Qt
 
 ##Methods list -

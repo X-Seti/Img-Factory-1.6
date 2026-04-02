@@ -17,7 +17,13 @@ from PyQt6.QtWidgets import (
     QInputDialog, QDialog, QFormLayout, QCheckBox, QListWidget, QSplitter
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSettings
-from PyQt6.QtGui import QAction
+try:
+    try:
+        from PyQt6.QtGui import QAction
+    except ImportError:
+        from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 # SVG Icons
 try:
     from apps.methods.imgfactory_svg_icons import (

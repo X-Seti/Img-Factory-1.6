@@ -8,7 +8,11 @@ Integrates with directory tree system.
 """
 
 from PyQt6.QtWidgets import QMenuBar, QMenu, QFileDialog, QMessageBox
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QFont
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from PyQt6.QtCore import QSettings, Qt
 import os
 from apps.components.File_Editor.directory_tree_browser import integrate_directory_tree_browser

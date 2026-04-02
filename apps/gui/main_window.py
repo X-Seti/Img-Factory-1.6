@@ -15,7 +15,10 @@ from PyQt6.QtWidgets import (
     QApplication, QMenuBar, QStatusBar, QMainWindow
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QKeySequence
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 
 # Import consolidated GUI components
 try:

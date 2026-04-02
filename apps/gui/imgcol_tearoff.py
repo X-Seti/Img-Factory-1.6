@@ -12,7 +12,11 @@ from PyQt6.QtWidgets import (
     QGroupBox, QMessageBox, QHeaderView, QAbstractItemView, QMenu
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QIcon, QFont, QCursor, QAction, QTextCursor
+from PyQt6.QtGui import QIcon, QFont, QCursor, QTextCursor
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from apps.gui.tear_off import TearOffPanel
 
 ##Methods list -

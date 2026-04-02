@@ -15,7 +15,10 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 from PyQt6.QtWidgets import QFileDialog, QMenu, QFileDialog, QMessageBox, QInputDialog
 from PyQt6.QtCore import pyqtSignal, QMimeData, Qt, QThread, QTimer, QSettings
-from PyQt6.QtGui import QAction, QContextMenuEvent, QDragEnterEvent, QDropEvent, QFont, QIcon, QPixmap, QShortcut
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from apps.methods.img_core_classes import format_file_size
 
 ##Methods list -

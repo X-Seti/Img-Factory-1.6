@@ -10,7 +10,10 @@ from PyQt6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QMenu, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QAction, QFont, QColor
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from typing import Dict, List, Set, Tuple, Optional
 import re
 import os

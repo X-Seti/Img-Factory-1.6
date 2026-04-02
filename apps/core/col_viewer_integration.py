@@ -172,7 +172,10 @@ def add_view_col_3d_to_context_menu(main_window) -> bool: #vers 1
                 
                 # Create context menu
                 from PyQt6.QtWidgets import QMenu
-                from PyQt6.QtGui import QAction
+                try:
+                    from PyQt6.QtGui import QAction
+                except ImportError:
+                    from PyQt6.QtWidgets import QAction
                 menu = QMenu(table)
                 
                 # Add COL 3D viewer option FIRST if COL file

@@ -10,7 +10,10 @@ from PyQt6.QtWidgets import (
     QLabel, QFrame, QMenu, QAbstractItemView
 )
 from PyQt6.QtCore import Qt, QMimeData
-from PyQt6.QtGui import QAction, QClipboard, QKeySequence, QContextMenuEvent
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 import struct
 import binascii
 import os

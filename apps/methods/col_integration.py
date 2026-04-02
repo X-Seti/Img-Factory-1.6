@@ -15,7 +15,10 @@ from PyQt6.QtWidgets import (
     QMessageBox, QFileDialog, QDialog, QTextEdit
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QFont
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 
 # Import IMG debug system and COL components
 from apps.debug.debug_functions import img_debugger

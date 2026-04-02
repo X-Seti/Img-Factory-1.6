@@ -21,7 +21,11 @@ from PyQt6.QtCore import (
     Qt, QMimeData, QUrl, pyqtSignal, QObject, QThread, QRect
 )
 from apps.methods.dragdrop_functions import _qurl_from_path
-from PyQt6.QtGui import QActionGroup, QAction, QIcon, QDrag, QKeySequence, QShortcut, QPixmap, QPainter, QColor
+from PyQt6.QtGui import QActionGroup, QIcon, QDrag, QKeySequence, QShortcut, QPixmap, QPainter, QColor
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 
 from PyQt6.QtSvgWidgets import QSvgWidget
 

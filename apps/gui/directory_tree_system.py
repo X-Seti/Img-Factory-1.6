@@ -15,7 +15,10 @@ from PyQt6.QtWidgets import (
     QSplitter, QTextEdit, QGroupBox, QComboBox, QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
-from PyQt6.QtGui import QAction, QIcon, QFont
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 
 ##Methods list -
 # analyze_directory

@@ -12,7 +12,11 @@ from PyQt6.QtWidgets import (
     QFormLayout, QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QPoint, QItemSelectionModel
-from PyQt6.QtGui import QFont, QAction, QIcon, QShortcut, QKeySequence, QPalette, QTextCursor
+from PyQt6.QtGui import QFont, QIcon, QShortcut, QKeySequence, QPalette, QTextCursor
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from apps.core.gui_search import ASearchDialog, SearchManager
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 

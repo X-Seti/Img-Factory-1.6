@@ -17,7 +17,11 @@ from PyQt6.QtWidgets import (
     QApplication, QMenu, QLineEdit
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QRect, QTimer
-from PyQt6.QtGui import QDrag, QPixmap, QPainter, QCursor, QIcon, QAction
+from PyQt6.QtGui import QDrag, QPixmap, QPainter, QCursor, QIcon
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 
 # Import required classes
 from .tear_off import TearOffPanel

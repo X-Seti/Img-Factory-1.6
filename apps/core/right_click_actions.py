@@ -12,7 +12,13 @@ import tempfile
 from typing import Optional, List, Any
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMenu, QTableWidget, QWidget, QMessageBox
-from PyQt6.QtGui import QAction
+try:
+    try:
+        from PyQt6.QtGui import QAction
+    except ImportError:
+        from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from apps.core.rename import rename_entry
 
 ##Methods list -

@@ -11,7 +11,10 @@ from PyQt6.QtWidgets import (
     QMenu, QFileDialog, QMessageBox, QInputDialog
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QContextMenuEvent
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 import os
 import shutil
 from pathlib import Path

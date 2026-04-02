@@ -7,7 +7,11 @@ FIXED: Corrected all method names to match txd_workshop.py
 """
 
 from PyQt6.QtWidgets import QMenu, QMessageBox
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QFont
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from PyQt6.QtCore import Qt
 
 ##Methods list -

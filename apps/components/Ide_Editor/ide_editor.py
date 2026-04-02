@@ -21,7 +21,10 @@ from PyQt6.QtWidgets import (
     QApplication
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QAction, QFont, QIcon, QPixmap, QKeySequence, QShortcut
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 
 # Add project root to path for standalone execution
 current_dir = os.path.dirname(os.path.abspath(__file__))

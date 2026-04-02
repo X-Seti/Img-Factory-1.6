@@ -15032,7 +15032,11 @@ class BumpmapManagerWindow(QWidget): #vers 1
     def _create_menu_bar(self): #vers 3
         """Create compact menu bar for embedding in title bar"""
         from PyQt6.QtWidgets import QMenuBar
-        from PyQt6.QtGui import QAction, QKeySequence
+        from PyQt6.QtGui import QKeySequence
+        try:
+            from PyQt6.QtGui import QAction
+        except ImportError:
+            from PyQt6.QtWidgets import QAction
 
         menu_bar = QMenuBar()
         menu_bar.setStyleSheet("""

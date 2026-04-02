@@ -7,7 +7,13 @@ Allows users to toggle auto-save on/off for import operations
 """
 
 from PyQt6.QtWidgets import QMessageBox
-from PyQt6.QtGui import QAction
+try:
+    try:
+        from PyQt6.QtGui import QAction
+    except ImportError:
+        from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from PyQt6.QtCore import Qt
 
 def add_autosave_menu_option(main_window): #vers 1

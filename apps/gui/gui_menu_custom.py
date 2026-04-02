@@ -8,7 +8,10 @@ Uses global theme and SVG icons
 
 from PyQt6.QtWidgets import QMenu, QMessageBox, QFileDialog, QTextEdit, QLabel, QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QTabWidget, QWidget, QInputDialog
 from PyQt6.QtCore import Qt, QPoint, QSettings
-from PyQt6.QtGui import QAction, QCursor, QKeySequence
+try:
+    from PyQt6.QtGui import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 import json
 from apps.components.Project_Manager.project_manager import ProjectManager, show_project_manager_dialog, create_new_project, delete_selected_project, rename_selected_project, activate_selected_project
 from apps.gui.file_menu_integration import handle_set_project_folder, handle_set_game_root_folder, create_project_folder_structure

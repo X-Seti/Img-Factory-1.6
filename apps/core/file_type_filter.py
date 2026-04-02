@@ -9,7 +9,13 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView, QMenu
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from PyQt6.QtGui import QAction
+try:
+    try:
+        from PyQt6.QtGui import QAction
+    except ImportError:
+        from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtWidgets import QAction
 from typing import List, Dict, Any, Optional
 import os
 import tempfile
