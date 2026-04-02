@@ -1214,7 +1214,6 @@ class COLWorkshop(QWidget): #vers 3
 
         # Setup UI FIRST
         self.setup_ui()
-
         # Setup hotkeys
         self._setup_hotkeys()
 
@@ -3522,9 +3521,9 @@ class COLWorkshop(QWidget): #vers 3
         self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.titlebar.setMouseTracking(True)
 
-        self.layout = QHBoxLayout(self.titlebar)
-        self.layout.setContentsMargins(5, 5, 5, 5)
-        self.layout.setSpacing(5)
+        self.titlebar_layout = QHBoxLayout(self.titlebar)
+        self.titlebar_layout.setContentsMargins(5, 5, 5, 5)
+        self.titlebar_layout.setSpacing(5)
 
         # Get icon color from theme
         icon_color = self._get_icon_color()
@@ -4257,7 +4256,7 @@ class COLWorkshop(QWidget): #vers 3
         info_group = QGroupBox("")
         info_group.setFont(self.title_font)
         info_layout = QVBoxLayout(info_group)
-        info_group.setMaximumHeight(140)
+        info_group.setMaximumHeight(180)  # extra 40px for paint row
 
         # === LINE 1: collision name ===
         name_layout = QHBoxLayout()
