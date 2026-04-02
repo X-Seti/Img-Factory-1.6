@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QMenu, QFileDialog, QMessageBox, QInputDialog
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QContextMenuEvent
 try:
     from PyQt6.QtGui import QAction
 except ImportError:

@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QApplication
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QIcon, QPixmap, QKeySequence, QShortcut
 try:
     from PyQt6.QtGui import QAction
 except ImportError:

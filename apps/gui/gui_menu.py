@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QTreeWidget, QTreeWidgetItem, QScrollArea
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSettings
+from PyQt6.QtGui import QFont, QPixmap, QIcon, QKeySequence, QActionGroup
 try:
     from PyQt6.QtGui import QAction
 except ImportError:

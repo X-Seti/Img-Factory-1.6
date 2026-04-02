@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QMenu, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QColor
 try:
     from PyQt6.QtGui import QAction
 except ImportError:

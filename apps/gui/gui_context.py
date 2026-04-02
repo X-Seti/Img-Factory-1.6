@@ -15,6 +15,7 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 from PyQt6.QtWidgets import QFileDialog, QMenu, QFileDialog, QMessageBox, QInputDialog
 from PyQt6.QtCore import pyqtSignal, QMimeData, Qt, QThread, QTimer, QSettings
+from PyQt6.QtGui import QContextMenuEvent, QDragEnterEvent, QDropEvent, QFont, QIcon, QPixmap, QShortcut
 try:
     from PyQt6.QtGui import QAction
 except ImportError:

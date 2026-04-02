@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QInputDialog, QProgressDialog, QListWidget, QTableWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot, QTimer, QSettings
+from PyQt6.QtGui import QIcon, QFont, QKeySequence, QActionGroup
 try:
     from PyQt6.QtGui import QAction
 except ImportError:

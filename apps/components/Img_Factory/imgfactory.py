@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 print("PyQt6.QtWidgets imported successfully")
 
 from PyQt6.QtCore import pyqtSignal, QMimeData, Qt, QThread, QTimer, QSettings, QSize, QPoint, QRect, QByteArray, QItemSelectionModel
+from PyQt6.QtGui import QShortcut, QKeySequence, QPalette, QTextCursor, QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor, QContextMenuEvent, QDragEnterEvent
 try:
     from PyQt6.QtGui import QAction
 except ImportError:

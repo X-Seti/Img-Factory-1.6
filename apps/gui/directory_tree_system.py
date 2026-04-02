@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QSplitter, QTextEdit, QGroupBox, QComboBox, QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
+from PyQt6.QtGui import QIcon, QFont
 try:
     from PyQt6.QtGui import QAction
 except ImportError:
