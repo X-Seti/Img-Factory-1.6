@@ -1639,18 +1639,36 @@ class COLWorkshop(QWidget): #vers 3
 
             self._set_status("Paint mode — pick material in toolbar. [Esc] to exit.")
 
-    def _show_paint_toolbar(self, mat_id: int, model=None): #vers 2
+    def _show_paint_toolbar(self, mat_id: int, model=None): #vers 3
         """Populate and show the paint mode toolbar above the viewport."""
         tb    = getattr(self, 'paint_toolbar', None)
         combo = getattr(self, 'paint_mat_combo', None)
         undo_btn = getattr(self, 'paint_undo_btn', None)
+
+        # If toolbar was never created, build it now and attach to main layout.
         if not tb or not combo:
-            # Toolbar wasn't created — this means the viewport container
-            # setup didn't run (e.g. standalone mode or layout race).
-            # Log and bail gracefully.
+            try:
+                # Create a standalone QVBoxLayout container for the paint row
+                from PyQt6.QtWidgets import QVBoxLayout
+                # Find the main vertical layout of this widget
+                lo = self.layout()
+                if lo is None:
+                    lo = QVBoxLayout(self)
+                self._create_paint_row(lo, self._get_icon_color())
+                tb    = getattr(self, 'paint_toolbar', None)
+                combo = getattr(self, 'paint_mat_combo', None)
+                undo_btn = getattr(self, 'paint_undo_btn', None)
+                if tb:
+                    print("[COLWorkshop] paint_toolbar created on-demand via fallback")
+            except Exception as _e:
+                import traceback
+                print(f"[COLWorkshop] on-demand paint_toolbar creation failed: {_e}")
+                traceback.print_exc()
+
+        if not tb or not combo:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
-                    "paint_toolbar not found — may need restart")
+                    "paint_toolbar not found — check console for error")
             return
 
         # Populate material combo
@@ -4349,7 +4367,12 @@ class COLWorkshop(QWidget): #vers 3
         self._bottom_icon_row.setVisible(False)
 
         # ── Paint mode row (hidden until paint mode active) ───────────────
-        self._create_paint_row(info_layout, icon_color)
+        try:
+            self._create_paint_row(info_layout, icon_color)
+        except Exception as _e:
+            import traceback
+            print(f"[COLWorkshop] _create_paint_row failed: {_e}")
+            traceback.print_exc()
 
         main_layout.addWidget(info_group, stretch=0)
         return panel
