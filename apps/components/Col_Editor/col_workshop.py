@@ -88,7 +88,9 @@ class COL3DViewport(QWidget): #vers 2
         # face selection / paint state
         self._selected_faces  = set()    # set of face indices currently selected
         self._paint_mode      = False    # True = click face to paint material
-        self._paint_material  = 0        # material id to apply in paint mode
+        self._paint_material  = 0
+        self._tool_mode       = 'select'  # 'select' | 'paint' | 'dropper' | 'select_all_mat'
+        self._dropper_active  = False        # material id to apply in paint mode
         self.on_face_selected = None     # callback(face_index, face) when face clicked
         self._drag_selecting  = False    # True while LMB held after face click
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
@@ -294,16 +296,66 @@ class COL3DViewport(QWidget): #vers 2
             if W-70 <= mx <= W-4 and 4 <= my <= 26:
                 self.toggle_gizmo_mode(); return
 
-            # Paint mode — pick face and paint material
+            # Paint mode — pick face, apply current tool
             if self._paint_mode:
                 fi, face = self._pick_face(mx, my)
                 if fi is not None and face is not None:
-                    # Apply paint material
-                    if hasattr(face, 'material'):
-                        if hasattr(face.material, 'material_id'):
-                            face.material.material_id = self._paint_material
-                        else:
-                            face.material = self._paint_material
+                    tool = getattr(self, '_tool_mode', 'paint')
+
+                    if tool == 'dropper':
+                        # Pick material from this face → update paint material
+                        mat = face.material
+                        picked = mat.material_id if hasattr(mat, 'material_id') else int(mat)
+                        self._paint_material = picked
+                        ws = self._find_workshop()
+                        if ws:
+                            # Sync combo to picked material
+                            combo = getattr(ws, 'paint_mat_combo', None)
+                            if combo:
+                                for i in range(combo.count()):
+                                    if combo.itemData(i) == picked:
+                                        combo.setCurrentIndex(i)
+                                        break
+                            ws._paint_active_mat = picked
+                            ws._set_status(f"Dropper: picked material {picked}")
+                        # Switch back to paint tool after pick
+                        self._tool_mode = 'paint'
+                        self.setCursor(Qt.CursorShape.CrossCursor)
+                        if ws:
+                            ws._set_paint_tool('paint')
+
+                    elif tool == 'fill':
+                        # Fill all faces that share the same material as clicked face
+                        mat = face.material
+                        src_id = mat.material_id if hasattr(mat, 'material_id') else int(mat)
+                        model = self._model
+                        if model:
+                            ws = self._find_workshop()
+                            if ws:
+                                models = getattr(getattr(ws, 'current_col_file', None), 'models', [])
+                                mi = models.index(model) if model in models else -1
+                                if mi >= 0:
+                                    ws._push_undo(mi, f"Fill material {self._paint_material} from {src_id}")
+                            count = 0
+                            for f2 in model.faces:
+                                m2 = f2.material
+                                cur = m2.material_id if hasattr(m2, 'material_id') else int(m2)
+                                if cur == src_id:
+                                    if hasattr(m2, 'material_id'):
+                                        m2.material_id = self._paint_material
+                                    else:
+                                        f2.material = self._paint_material
+                                    count += 1
+                            if ws:
+                                ws._set_status(f"Filled {count} faces (mat {src_id} → {self._paint_material})")
+
+                    else:  # paint
+                        if hasattr(face, 'material'):
+                            if hasattr(face.material, 'material_id'):
+                                face.material.material_id = self._paint_material
+                            else:
+                                face.material = self._paint_material
+
                     self._selected_faces = {fi}
                     if self.on_face_selected:
                         self.on_face_selected(fi, face)
@@ -1662,7 +1714,14 @@ class COLWorkshop(QWidget): #vers 3
         if undo_btn:
             undo_btn.setEnabled(bool(getattr(self, 'undo_stack', [])))
 
+        # Position toolbar at top of viewport (overlay)
+        vp = getattr(self, 'preview_widget', None)
+        if vp and tb:
+            vp_global = vp.mapToGlobal(vp.rect().topLeft())
+            tb_pos = self.mapFromGlobal(vp_global)
+            tb.setGeometry(tb_pos.x(), tb_pos.y(), vp.width(), 36)
         tb.setVisible(True)
+        tb.raise_()
 
 
     def _on_painted_face(self, face_index, face): #vers 2
@@ -1670,6 +1729,32 @@ class COLWorkshop(QWidget): #vers 3
         undo state was pushed before entering paint mode."""
         mat_id = self._paint_active_mat if hasattr(self, '_paint_active_mat') else 0
         self._set_status(f"Painted face {face_index} → material {mat_id}  [Esc to exit]")
+
+    def _set_paint_tool(self, mode: str): #vers 1
+        """Switch active paint tool: 'paint' | 'dropper' | 'fill'."""
+        self._current_paint_tool = mode
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._tool_mode = mode
+            if mode == 'dropper':
+                from PyQt6.QtCore import Qt
+                vp.setCursor(Qt.CursorShape.PointingHandCursor)
+            elif mode == 'fill':
+                from PyQt6.QtCore import Qt
+                vp.setCursor(Qt.CursorShape.CrossCursor)
+            else:
+                from PyQt6.QtCore import Qt
+                vp.setCursor(Qt.CursorShape.CrossCursor)
+        # Update button check states
+        for btn, name in [
+            (getattr(self, 'tool_paint_btn', None), 'paint'),
+            (getattr(self, 'tool_dropper_btn', None), 'dropper'),
+            (getattr(self, 'tool_fill_btn', None), 'fill'),
+        ]:
+            if btn:
+                btn.setChecked(name == mode)
+        tool_names = {'paint': 'Paint', 'dropper': 'Dropper (pick material)', 'fill': 'Fill (same material)'}
+        self._set_status(f"Tool: {tool_names.get(mode, mode)}")
 
     def _exit_paint_mode(self): #vers 2
         """Exit paint mode — hide toolbar, restore paint button."""
@@ -3300,9 +3385,27 @@ class COLWorkshop(QWidget): #vers 3
         self.drag_position = global_pos
 
 
+    def resizeEvent(self, event): #vers 2
+        """Reposition paint toolbar overlay when window resizes."""
+        super().resizeEvent(event)
+        if hasattr(self, 'size_grip'):
+            self.size_grip.move(self.width() - 16, self.height() - 16)
+        self._update_transform_text_panel_visibility()
+        self._reposition_paint_toolbar()
+
+    def _reposition_paint_toolbar(self): #vers 1
+        """Keep paint toolbar pinned to top of viewport."""
+        tb = getattr(self, 'paint_toolbar', None)
+        vp = getattr(self, 'preview_widget', None)
+        if tb and vp and tb.isVisible():
+            vp_global = vp.mapToGlobal(vp.rect().topLeft())
+            tb_pos = self.mapFromGlobal(vp_global)
+            tb.setGeometry(tb_pos.x(), tb_pos.y(), vp.width(), 36)
+
     def _on_splitter_moved(self, pos, index): #vers 1
         """Called when main splitter is dragged — update text panel visibility."""
         self._update_transform_text_panel_visibility()
+        self._reposition_paint_toolbar()
 
     def _update_transform_text_panel_visibility(self): #vers 2
         """Toggle between text+icon panel (wide) and icon-only strip (narrow).
@@ -4122,29 +4225,31 @@ class COLWorkshop(QWidget): #vers 3
         top_layout.addWidget(transform_text_panel)
         transform_text_panel.setVisible(True)
 
-        # Preview area (center) — viewport + paint toolbar in a container
-        _vp_container = QWidget()
-        _vp_vlay = QVBoxLayout(_vp_container)
-        _vp_vlay.setContentsMargins(0, 0, 0, 0)
-        _vp_vlay.setSpacing(0)
+        # Preview area (center) — viewport widget
+        self.preview_widget = COL3DViewport()
+        self.preview_widget._workshop_ref = self  # direct ref — no parent-chain walk needed
+        top_layout.addWidget(self.preview_widget, stretch=2)
 
-        # Paint mode toolbar (hidden until paint mode active)
-        self.paint_toolbar = QWidget()
-        self.paint_toolbar.setFixedHeight(34)
+        # Paint toolbar — overlay positioned at top of viewport.
+        # Created as a sibling child of the right-panel main_layout's parent
+        # so it can be positioned absolutely over the viewport.
+        # Built after preview_widget so we can parent it correctly.
+        self.paint_toolbar = QWidget(self)   # child of COLWorkshop, not viewport
+        self.paint_toolbar.setFixedHeight(36)
         self.paint_toolbar.setStyleSheet(
-            "background:#1a1a2a; border-bottom:1px solid #ff8c00;")
+            "background:#1a1a2a; border:1px solid #ff8c00; border-radius:0px;")
         _pt_lay = QHBoxLayout(self.paint_toolbar)
         _pt_lay.setContentsMargins(6, 3, 6, 3)
         _pt_lay.setSpacing(6)
 
         _pt_lay.addWidget(QLabel("Mat:"))
         self.paint_mat_combo = QComboBox()
-        self.paint_mat_combo.setMinimumWidth(220)
-        self.paint_mat_combo.setMaximumWidth(320)
+        self.paint_mat_combo.setMinimumWidth(200)
+        self.paint_mat_combo.setMaximumWidth(300)
         self.paint_mat_combo.setStyleSheet("font-size:11px;")
         _pt_lay.addWidget(self.paint_mat_combo)
 
-        # Colour swatch — shows current material colour
+        # Colour swatch
         self.paint_swatch = QLabel()
         self.paint_swatch.setFixedSize(22, 22)
         self.paint_swatch.setToolTip("Current material colour")
@@ -4161,6 +4266,32 @@ class COLWorkshop(QWidget): #vers 3
 
         _pt_lay.addStretch()
 
+        # Tool mode buttons
+        _pt_lay.addSpacing(4)
+        self.tool_paint_btn = QPushButton("🖌")
+        self.tool_paint_btn.setFixedSize(28, 28)
+        self.tool_paint_btn.setToolTip("Paint tool — click faces to paint material")
+        self.tool_paint_btn.setCheckable(True)
+        self.tool_paint_btn.setChecked(True)
+        self.tool_paint_btn.clicked.connect(lambda: self._set_paint_tool('paint'))
+        _pt_lay.addWidget(self.tool_paint_btn)
+
+        self.tool_dropper_btn = QPushButton("💧")
+        self.tool_dropper_btn.setFixedSize(28, 28)
+        self.tool_dropper_btn.setToolTip("Dropper — click a face to pick its material")
+        self.tool_dropper_btn.setCheckable(True)
+        self.tool_dropper_btn.clicked.connect(lambda: self._set_paint_tool('dropper'))
+        _pt_lay.addWidget(self.tool_dropper_btn)
+
+        self.tool_fill_btn = QPushButton("▣")
+        self.tool_fill_btn.setFixedSize(28, 28)
+        self.tool_fill_btn.setToolTip("Fill — apply material to all faces with same material as clicked face")
+        self.tool_fill_btn.setCheckable(True)
+        self.tool_fill_btn.clicked.connect(lambda: self._set_paint_tool('fill'))
+        _pt_lay.addWidget(self.tool_fill_btn)
+
+        _pt_lay.addStretch()
+
         self.paint_exit_btn = QPushButton("✕ Exit Paint")
         self.paint_exit_btn.setFixedWidth(88)
         self.paint_exit_btn.setStyleSheet("color:#ff6b35; font-weight:bold;")
@@ -4168,13 +4299,7 @@ class COLWorkshop(QWidget): #vers 3
         _pt_lay.addWidget(self.paint_exit_btn)
 
         self.paint_toolbar.setVisible(False)
-        _vp_vlay.addWidget(self.paint_toolbar)
-
-        self.preview_widget = COL3DViewport()
-        self.preview_widget._workshop_ref = self  # direct ref — no parent-chain walk needed
-        _vp_vlay.addWidget(self.preview_widget)
-
-        top_layout.addWidget(_vp_container, stretch=2)
+        self.paint_toolbar.raise_()
 
         # Preview controls (right side, vertical)
         self.preview_controls = self._create_preview_controls()
