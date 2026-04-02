@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components.Col_Editor.col_workshop.py - Version: 12
+#this belongs in components.Col_Editor.col_workshop.py - Version: 72
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -36,7 +36,7 @@ from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
-# QAction location varies by PyQt6 version — try both
+# QAction location varies by PyQt6 version — try bothQStyledItemDelegate
 try:
     from PyQt6.QtGui import QAction
 except ImportError:
@@ -300,7 +300,7 @@ class COL3DViewport(QWidget): #vers 2
             # Top-right chips
             if self._paint_mode:
                 # Hit-test using same constants as paintEvent
-                _CHIP_H  = 22; _BTN_W = 28; _BTN_GAP = 4
+                _CHIP_H  = 22; _BTN_W = 24; _BTN_GAP = 4
                 _MAT_W   = 180; _MARGIN = 8
                 _ROW1_Y  = 4;  _ROW2_Y = _ROW1_Y + _CHIP_H + 2
                 rx = W - _MAT_W - _MARGIN   # left edge of chip area
@@ -325,11 +325,11 @@ class COL3DViewport(QWidget): #vers 2
                     ws = self._find_workshop()
                     # Each button occupies _BTN_W + _BTN_GAP
                     btn_idx = (mx - rx) // (_BTN_W + _BTN_GAP)
-                    if   btn_idx == 0 and ws: ws._set_paint_tool('paint')
-                    elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')
-                    elif btn_idx == 2 and ws: ws._set_paint_tool('fill')
-                    elif btn_idx == 3 and ws: ws._undo_last_action()
-                    elif btn_idx == 4 and ws: ws._exit_paint_mode()
+                    if   btn_idx == 0 and ws: ws._set_paint_tool('paint')#;btn_idx.setToolTip("Choose colour")
+                    elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')#;btn_idx.setToolTip("Colour dropper")
+                    elif btn_idx == 2 and ws: ws._set_paint_tool('fill')#;btn_idx.setToolTip("Colour Fill")
+                    elif btn_idx == 3 and ws: ws._undo_last_action()#;btn_idx.setToolTip("Undo")
+                    elif btn_idx == 4 and ws: ws._exit_paint_mode()#;btn_idx.setToolTip("Exit")
                     self.update(); return
             else:
                 # Normal: Move [G] toggle
@@ -648,6 +648,7 @@ class COL3DViewport(QWidget): #vers 2
 
     def _set_angles(self, yaw, pitch):
         self._yaw, self._pitch = float(yaw), float(pitch); self.update()
+
 
     # ── paint ─────────────────────────────────────────────────────────────
     def paintEvent(self, event):
@@ -1008,6 +1009,48 @@ class COL3DViewport(QWidget): #vers 2
 
         # Paint mode indicator now shown in paint_toolbar above viewport (not drawn here)
         p.drawText(W-68,H-4,f"grid {step:.3g}")
+
+
+    def _apply_to_selected_faces(self):
+        vp = self.preview_widget
+        model = self._get_selected_model()
+
+        if not vp or not model:
+            return
+
+        sel = sorted(getattr(vp, '_selected_faces', []))
+        if not sel:
+            return
+
+        mat_id = self._paint_active_mat
+
+        for fi in sel:
+            if fi < len(model.faces):
+                f = model.faces[fi]
+                if isinstance(f.material, int):
+                    f.material = mat_id
+                else:
+                    f.material.material_id = mat_id
+
+        vp.update()
+        self._set_status(f"Applied material {mat_id} to {len(sel)} faces")
+
+
+    def _apply_to_all_faces(self):
+        model = self._get_selected_model()
+        if not model:
+            return
+
+        mat_id = self._paint_active_mat
+
+        for f in model.faces:
+            if isinstance(f.material, int):
+                f.material = mat_id
+            else:
+                f.material.material_id = mat_id
+
+        self.preview_widget.update()
+        self._set_status(f"Applied material {mat_id} to all faces")
 
 
     def _show_face_context_menu(self, global_pos, face_index, face): #vers 1
@@ -1584,6 +1627,7 @@ class COLWorkshop(QWidget): #vers 3
         lay.addWidget(btns)
         dlg.exec()
 
+
     def _cycle_view_render_style(self): #vers 1
         """Cycle viewport render: wireframe -> semi -> solid."""
         pw = getattr(self, 'preview_widget', None)
@@ -1593,8 +1637,13 @@ class COLWorkshop(QWidget): #vers 3
         pw._render_style = modes[(modes.index(cur)+1) % 3] if cur in modes else 'semi'
         pw.update()
 
+
     def _open_paint_editor(self): #vers 3
         """Material editor — select material, apply to faces, undo supported."""
+
+
+
+
         if not self.current_col_file:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No File", "Load a COL file first.")
@@ -1612,9 +1661,45 @@ class COLWorkshop(QWidget): #vers 3
                 f"'{model.name}' has no mesh faces.")
             return
 
+        vp = getattr(self, 'preview_widget', None)
+        if not vp:
+            return
+
         # Find model index for undo
         models = getattr(self.current_col_file, 'models', [])
         model_idx = models.index(model) if model in models else -1
+
+        # Default material (use current active or fallback)
+        mat_id = getattr(self, '_paint_active_mat', 0)
+
+        # Push undo state ONCE when entering
+        if model_idx >= 0:
+            self._push_undo(model_idx, f"Enter paint mode (mat {mat_id})")
+
+        # ENTER PAINT MODE DIRECTLY
+        vp.set_paint_mode(True, mat_id)
+        vp.on_face_selected = self._on_painted_face
+
+        self._paint_active_mat = mat_id
+        vp._paint_material = mat_id
+
+        # Populate toolbar (THIS replaces the dialog)
+        self._show_paint_toolbar(mat_id, model)
+
+        # Hook exit buttons
+        for btn in self._find_all_paint_btns():
+            try:
+                btn.clicked.disconnect()
+            except:
+                pass
+            btn.clicked.connect(self._exit_paint_mode)
+            btn.setText("⬛ Exit")
+            btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
+
+        self._set_status("Paint mode — pick material in toolbar, click faces to paint. [Esc to exit]")
+
+        #keep as Temporary
+        #Plan is to remove the dialog and do everything in the editor, moving the mat editor, selection face buttons, fill, pick, droplet, undo, clooe svg buttons
 
         # ── Material picker dialog ────────────────────────────────────────
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
@@ -1810,6 +1895,7 @@ class COLWorkshop(QWidget): #vers 3
                 btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
 
             self._set_status("Paint mode — pick material in toolbar. [Esc] to exit.")
+
 
     def _show_paint_toolbar(self, mat_id: int, model=None): #vers 5
         """Populate combo then show the floating paint bar."""
