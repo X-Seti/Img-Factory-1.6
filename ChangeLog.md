@@ -2270,3 +2270,101 @@ See `TODO.md` for planned features and fixes.
 - IDE TXD check was checking texture names not the IDE-declared TXD name
 - DAT Browser was using Dir Tree last-browsed path instead of project game_root
 - xref game mismatch (VC files showing orphan when SA xref loaded) — os.path.commonpath fix
+
+---
+
+### Builds 162–196 — TXD Workshop overhaul, COL Workshop fixes, PyInstaller support
+
+**Session**: March–April 2026 (Claude AI pair programming)
+
+---
+
+#### TXD Workshop (txd_workshop.py)
+
+**Parser fixes (Build 163–165, 178–180, 189):**
+- COL1 parse order fixed (skip-4 after spheres, before boxes)
+- COL2/3 SA: 5 bugs fixed vs DragonFF reference (block_base, flags field, offset order, vertex count, multi-model advance)
+- PAL4 nibble order: high nibble = first pixel
+- DXT5 alpha: correct 6/4 intermediates
+- GTA3/VC palette RGBA vs SA BGRA (`palette_is_bgra` flag)
+- PAL8 pixel offset: palette raw + pixel data 4-byte size prefix
+- **Build 189**: D3D9 SA textures (platform_id=9) wrongly detected as DXT1 — D3D8 `platform_prop==1/3/5` check now guarded by `platform_id==8`
+- **Build 189**: Name/mask fields: `find(b'\x00')` first-null termination instead of `rstrip` — fixes garbled alpha names from garbage bytes
+
+**Navbar buttons (Build 184–188):**
+- Flip/Rotate: pure Python pixel loops replaced with PIL `Image.transpose()` (instant vs frozen)
+- Thumbnail (col 0) now refreshed after flip/rotate/filters — was only updating text col 1
+- `_reload_texture_table` v4: restores row selection after rebuild
+- Copy/Paste/Clone/Delete: selection restored after table reload
+- `_convert_texture` v3: actual PIL conversion for all 8 formats (was only setting format flag)
+- `_edit_main_texture` v2: selects texture in parent workshop, raises window
+- Removed duplicate `MipmapManagerWindow` class (428 dead lines)
+- `edit_btn` removed from `_update_all_buttons` (local var, not `self.X`)
+- **Build 188**: Icon panel buttons never enabling — text panel overwrites `self.X` refs; `_set_transform_buttons_enabled()` now walks `findChildren(QPushButton)` on both panels
+
+**Import button (Build 187):**
+- Always enabled (was disabled until TXD loaded)
+- Single file + selected texture: Replace/Add/Cancel dialog
+- Replace: LANCZOS resample to original dims, keep format/name
+- `_validate_texture_dimensions` defined (was called but missing → AttributeError on every import)
+- New texture dict includes all required fields (mipmap_levels, raster_format_flags, etc.)
+
+---
+
+#### COL Workshop (col_workshop.py)
+
+**Icon panel buttons (Build 190):**
+- Same overwrite bug as TXD: `_set_col_buttons_enabled()` walks both panels via `findChildren`
+- `surface_type_btn` and `build_from_txd_btn` wired to handlers (both panels)
+
+**Delete/wrapper crash (Build 191):**
+- 22 alias wrappers: `(*a, **kw)` → `(*_, **__)`, drop Qt signal args before forwarding
+- Qt `clicked` signal passes `bool(checked)` — was forwarded to methods taking only `self` → TypeError + core dump
+
+**Material editor (Build 191–196):**
+- Three modes: Apply to Selected Faces / Apply to ALL Faces / Enter Paint Mode
+- Shows current face material at top of dialog
+- Undo pushed before every paint operation
+- Paint toolbar (Build 192–196): replaces yellow HUD text banner
+  - Material dropdown with 16×16 colour swatch icons per item
+  - 22×22 colour swatch label beside combo (updates live)
+  - ↩ Undo button, ✕ Exit Paint button
+  - **Build 196**: toolbar is a floating overlay parented to COLWorkshop, positioned via `mapToGlobal` over viewport (fixes Qt layout reflow issue)
+  - **Build 196**: 🖌 Paint | 💧 Dropper (pick material, auto-reverts) | ▣ Fill (flood same-material faces) tools
+
+**Right-click face context menu (Build 194):**
+- Right-click a face in viewport (normal or paint mode): info header with colour icon, Copy material, Paste material (shows clipboard value), Apply to N selected faces, Clear this face, Clear all faces, Open material editor
+- All mutations push undo; right-click on empty space = rotation drag (unchanged)
+
+**Large file support (Build 190):**
+- Files >64 MB: `mmap.mmap(ACCESS_READ)` — no 2GB RAM spike
+- Progress reporting every 5% + `QApplication.processEvents()`
+- >512 MB: confirmation dialog; >32 MB: WaitCursor
+- Sanity limits raised: vertices/faces 200k→2M, spheres/boxes 10k→50k
+
+**Stubs implemented (Build 185):**
+- `_convert_surface`: version change dialog (COL1/2/3)
+- `_build_col_from_txd`: scan TXD → create stub COL models
+- `_show/_create/_remove_shadow_mesh`: full shadow mesh management
+- `_compress_col`: informative; `_uncompress_col`: reload from disk
+- `_show_shaders_dialog`: wireframe/solid/painted preset picker
+
+---
+
+#### PyInstaller support (Build 195)
+
+- `imgfactory.spec` created with `PyQt6.QtNetwork` in hiddenimports (file:// protocol handler), `apps/` and `assets/` in datas, WebEngine excluded (~200MB saving)
+- `_qurl_from_path()` wrapper in `dragdrop_functions.py`: `os.path.abspath()` before `QUrl.fromLocalFile()` — fixes "unknown protocol file://" in frozen builds
+- 4 call sites in dragdrop_functions, 1 in img_browser replaced
+
+---
+
+**Files changed this session:**
+- `apps/components/Txd_Editor/txd_workshop.py`
+- `apps/components/Col_Editor/col_workshop.py`
+- `apps/methods/col_workshop_loader.py`
+- `apps/methods/col_workshop_parser.py`
+- `apps/methods/dragdrop_functions.py`
+- `apps/components/Img_Browser/img_browser.py`
+- `imgfactory.spec` (new)
+

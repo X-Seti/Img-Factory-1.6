@@ -464,3 +464,26 @@ When working on tasks:
 ---
 
 **Last Updated**: March 2026
+
+---
+
+## Post-session TODO (after Builds 162–196)
+
+### COL Workshop
+- [ ] Paint toolbar: verify overlay positioning on all screen sizes / dock states
+- [ ] Paint toolbar: keyboard shortcut to switch tools (P=paint, D=dropper, F=fill)
+- [ ] Material editor: show material colour in the "Apply to Selection" confirmation
+- [ ] `export_model` / `import_elements` module-level helpers (currently print stubs)
+- [ ] COL3DViewport: vertex selection mode (currently only face selection)
+
+### TXD Workshop  
+- [ ] Bumpmap preview ("Preview coming soon" label still present)
+- [ ] DXT re-compression on save (currently stores RGBA, notes "compression applied on save")
+
+### IMG Factory
+- [ ] Future editors still stubbed: DFF, IPF, IPL, DAT, zones, weapons, vehicles, radar, paths, water
+
+### PyInstaller
+- [ ] Test `imgfactory.spec` on Windows — may need platform-specific binary paths
+- [ ] Icon file: ensure `assets/icon.ico` exists for Windows build
+
