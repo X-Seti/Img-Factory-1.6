@@ -1624,13 +1624,12 @@ class COLWorkshop(QWidget): #vers 3
             # Populate and show the paint toolbar
             self._show_paint_toolbar(mat_id, model)
 
-            for btn in (getattr(self, 'paint_btn', None),):
-                if btn:
-                    btn.setText("🔴  Exit Paint")
-                    btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
-                    try: btn.clicked.disconnect()
-                    except: pass
-                    btn.clicked.connect(self._exit_paint_mode)
+            for btn in self._find_all_paint_btns():
+                try: btn.clicked.disconnect()
+                except: pass
+                btn.clicked.connect(self._exit_paint_mode)
+                btn.setText("⬛ Exit")
+                btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
 
             self._set_status("Paint mode — pick material in toolbar. [Esc] to exit.")
 
@@ -1761,13 +1760,14 @@ class COLWorkshop(QWidget): #vers 3
         if tb:
             tb.setVisible(False)
 
-        for btn in (getattr(self, 'paint_btn', None),):
-            if btn:
-                btn.setText("Paint")
-                btn.setStyleSheet("")
-                try: btn.clicked.disconnect()
-                except: pass
-                btn.clicked.connect(self._open_paint_editor)
+        # Reset paint button in both icon and text panels
+        for btn in self._find_all_paint_btns():
+            try: btn.clicked.disconnect()
+            except: pass
+            btn.clicked.connect(self._open_paint_editor)
+            btn.setText("Paint")
+            btn.setStyleSheet("")
+            btn.setChecked(False) if btn.isCheckable() else None
 
         self._set_status("Paint mode exited.")
 
@@ -6389,6 +6389,20 @@ class COLWorkshop(QWidget): #vers 3
 
 
 
+    def _find_all_paint_btns(self): #vers 1
+        """Return all paint buttons from both icon and text panels."""
+        btns = []
+        b = getattr(self, 'paint_btn', None)
+        if b: btns.append(b)
+        # Walk icon panel for any other paint_btn that was overwritten
+        ip = getattr(self, '_transform_icon_panel_ref', None)
+        if ip:
+            from PyQt6.QtWidgets import QPushButton
+            for child in ip.findChildren(QPushButton):
+                if child.toolTip() and 'paint' in child.toolTip().lower()                    and child not in btns:
+                    btns.append(child)
+        return btns
+
     def _set_col_buttons_enabled(self, enabled: bool): #vers 1
         """Enable/disable all transform buttons in BOTH icon and text panels.
         The text panel overwrites self.X refs, so when the icon panel is visible
@@ -6405,8 +6419,6 @@ class COLWorkshop(QWidget): #vers 3
             btn = getattr(self, attr, None)
             if btn is not None:
                 btn.setEnabled(enabled)
-
-        # Also enable/disable the icon panel buttons directly (avoids name overwrite issue)
         icon_panel = getattr(self, '_transform_icon_panel_ref', None)
         if icon_panel:
             from PyQt6.QtWidgets import QPushButton
