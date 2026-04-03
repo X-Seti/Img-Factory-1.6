@@ -6486,6 +6486,11 @@ class TXDWorkshop(QWidget): #vers 3
                     'LUM8':     'RGB565',   'A8L8':     'ARGB8888',
                     'DXT1': 'DXT1', 'DXT2': 'DXT3', 'DXT3': 'DXT3',
                     'DXT4': 'DXT5', 'DXT5': 'DXT5',
+                    # PS2 native formats — map to nearest PC equivalent for combo display
+                    'PSMT8':        'ARGB8888', 'PSMT4':        'ARGB8888',
+                    'PSMT8-PAL8':   'ARGB8888', 'PSMT4-PAL4':   'ARGB8888',
+                    'PSMCT32':      'ARGB8888', 'PSMCT16':      'ARGB1555',
+                    'PSMCT16S':     'ARGB1555',
                 }
                 combo_text = fmt_map.get(fmt, fmt)
                 idx = self.format_combo.findText(combo_text)

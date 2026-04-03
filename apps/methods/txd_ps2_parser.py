@@ -219,11 +219,14 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
             else:
                 palette = None
 
-            # Unswizzle
-            if depth == 8 and palette:
+            # Unswizzle — only apply when texture is large enough for GS VRAM paging:
+            #   PSMT8: GS page = 64px wide → need width >= 64
+            #   PSMT4: GS page = 128px wide → need width >= 128
+            # Smaller textures are stored linearly (no swizzle applied by game).
+            if depth == 8 and palette and w >= 64:
                 palette     = _unswizzle_palette(palette)
                 raw_pixels  = _unswizzle8(raw_pixels, w, h)
-            elif depth == 4:
+            elif depth == 4 and w >= 128:
                 raw_pixels  = _unswizzle4(raw_pixels, w, h)
 
             tex['pixels']  = raw_pixels
