@@ -325,10 +325,10 @@ class COL3DViewport(QWidget): #vers 2
                     # Each button occupies _BTN_W + _BTN_GAP
                     btn_idx = (mx - rx) // (_BTN_W + _BTN_GAP)
                     if   btn_idx == 0 and ws: ws._set_paint_tool('paint')
-                    elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')#;btn_idx.setToolTip("Colour dropper")
-                    elif btn_idx == 2 and ws: ws._set_paint_tool('fill')#;btn_idx.setToolTip("Colour Fill")
-                    elif btn_idx == 3 and ws: ws._undo_last_action()#;btn_idx.setToolTip("Undo")
-                    elif btn_idx == 4 and ws: ws._exit_paint_mode()#;btn_idx.setToolTip("Exit")
+                    elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')
+                    elif btn_idx == 2 and ws: ws._set_paint_tool('fill')
+                    elif btn_idx == 3 and ws: ws._undo_last_action()
+                    elif btn_idx == 4 and ws: ws._exit_paint_mode()
                     self.update(); return
             else:
                 # Normal: Move [G] toggle
