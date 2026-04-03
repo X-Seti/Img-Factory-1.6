@@ -12273,6 +12273,17 @@ class TXDWorkshop(QWidget): #vers 3
                     self._open_xtx_file(file_path)
                     return
 
+                # Detect PS2 TXD before full parse
+                try:
+                    with open(file_path, 'rb') as _f:
+                        _hdr = _f.read(64)
+                    from apps.methods.txd_ps2_parser import detect_ps2_txd
+                    if detect_ps2_txd(_hdr):
+                        self._open_ps2_txd(file_path)
+                        return
+                except Exception:
+                    pass  # fall through to regular TXD parser
+
                 with open(file_path, 'rb') as f:
                     txd_data = f.read()
 
@@ -12325,11 +12336,15 @@ class TXDWorkshop(QWidget): #vers 3
             self.current_txd_path = file_path
             self.current_txd_name = name
             self.setWindowTitle(f"TXD Workshop: {name} [XTX — VCS PS2 Palettized {w}×{h}]")
-            self.log_message(f"Opened XTX: {name} ({w}×{h}, 256-colour indexed)")
+            self._log(f"Opened XTX: {name} ({w}x{h}, 256-colour indexed)")
 
         except Exception as e:
             QMessageBox.critical(self, "XTX Error", f"Failed to open XTX:\n{str(e)}")
 
+
+    def _log(self, msg: str):
+        """Safe logging — uses print() since TXDWorkshop has no log_message."""
+        print(f"[TXDWorkshop] {msg}")
 
     def _open_mobile_texture_db(self, file_path: str): #vers 1
         """Open a mobile texture database (.txt+.toc+.dat+.tmb quad-file set).
@@ -12338,7 +12353,7 @@ class TXDWorkshop(QWidget): #vers 3
             from apps.methods.mobile_texture_db import (
                 load_mobile_texture_db, describe_mobile_db
             )
-            self.log_message(f"Loading mobile texture DB: {os.path.basename(file_path)}")
+            self._log(f"Loading mobile texture DB: {os.path.basename(file_path)}")
             db = load_mobile_texture_db(file_path, load_pixel_data=True)
             if db is None:
                 QMessageBox.warning(self, "Mobile DB",
@@ -12349,11 +12364,11 @@ class TXDWorkshop(QWidget): #vers 3
 
             if db.errors:
                 for err in db.errors:
-                    self.log_message(f"  Warning: {err}")
+                    self._log(f"Warning: {err}")
 
             real_textures = [t for t in db.textures if not t.is_affiliate]
             desc = describe_mobile_db(db)
-            self.log_message(f"Mobile DB: {desc}")
+            self._log(f"Mobile DB: {desc}")
 
             self.current_txd_path = file_path
             self.current_txd_name = os.path.basename(file_path)
@@ -12477,6 +12492,120 @@ class TXDWorkshop(QWidget): #vers 3
                     f"Note: {tex.name} uses PVRTC — preview is approximate. "
                     f"Export raw data for full-quality decoding.")
 
+
+    def _open_ps2_txd(self, file_path: str): #vers 1
+        """Open a GTA III/VC PS2 native TXD file (platform='PS2\0')."""
+        try:
+            from apps.methods.txd_ps2_parser import parse_ps2_txd, ps2_tex_to_rgba
+            from PyQt6.QtWidgets import QListWidgetItem
+            from PyQt6.QtGui import QPixmap, QImage
+            from PyQt6.QtCore import Qt
+            from PIL import Image as PilImage
+
+            with open(file_path, 'rb') as f:
+                data = f.read()
+
+            textures = parse_ps2_txd(data)
+            if not textures:
+                QMessageBox.warning(self, "PS2 TXD",
+                    "No textures found in PS2 TXD file.\n"
+                    "File may be corrupt or use an unsupported sub-format.")
+                return
+
+            name = os.path.basename(file_path)
+            self.current_txd_path = file_path
+            self.current_txd_name = name
+            self.setWindowTitle(
+                f"TXD Workshop: {name} [PS2 — {len(textures)} textures]")
+            self._log(f"Opened PS2 TXD: {name} ({len(textures)} textures)")
+
+            if hasattr(self, 'txd_list_widget'):
+                self.txd_list_widget.clear()
+
+            self._ps2_textures = []
+
+            for tex in textures:
+                rgba = ps2_tex_to_rgba(tex)
+                qpix = None
+                if rgba and tex['width'] > 0 and tex['height'] > 0:
+                    try:
+                        qimg = QImage(rgba, tex['width'], tex['height'],
+                                      QImage.Format.Format_RGBA8888)
+                        qpix = QPixmap.fromImage(qimg)
+                    except Exception:
+                        qpix = None
+
+                tex_entry = {
+                    'name':   tex['name'],
+                    'width':  tex['width'],
+                    'height': tex['height'],
+                    'format': tex['format'],
+                    'depth':  tex['depth'],
+                    'alpha':  True,
+                    'mipmaps': 0,
+                    'platform': 'PS2',
+                    'pixmap': qpix,
+                    'ps2_tex': tex,
+                }
+                self._ps2_textures.append(tex_entry)
+
+                label = (f"{tex['name']}  [{tex['width']}×{tex['height']}]"
+                         f"  {tex['format']}")
+                if hasattr(self, 'txd_list_widget'):
+                    item = QListWidgetItem(label)
+                    if qpix:
+                        from PyQt6.QtGui import QIcon
+                        thumb = qpix.scaled(64, 64,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
+                        item.setIcon(QIcon(thumb))
+                    self.txd_list_widget.addItem(item)
+
+            if self._ps2_textures:
+                self._show_ps2_texture(0)
+
+            if hasattr(self, 'txd_list_widget'):
+                try:
+                    self.txd_list_widget.currentRowChanged.disconnect()
+                except Exception:
+                    pass
+                self.txd_list_widget.currentRowChanged.connect(
+                    self._show_ps2_texture)
+
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "PS2 TXD Error",
+                f"Failed to open PS2 TXD:\n{e}")
+
+    def _show_ps2_texture(self, row: int): #vers 1
+        """Display a PS2 texture in the preview area."""
+        from PyQt6.QtCore import Qt
+        textures = getattr(self, '_ps2_textures', [])
+        if row < 0 or row >= len(textures):
+            return
+        entry = textures[row]
+        qpix = entry.get('pixmap')
+
+        if hasattr(self, 'texture_preview') and qpix:
+            scaled = qpix.scaled(
+                self.texture_preview.width(),
+                self.texture_preview.height(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            self.texture_preview.setPixmap(scaled)
+
+        for attr, val in [
+            ('texture_name_label',   entry['name']),
+            ('texture_size_label',   f"{entry['width']} × {entry['height']}"),
+            ('texture_format_label', entry['format']),
+            ('texture_depth_label',  f"{entry['depth']} bpp"),
+            ('texture_alpha_label',  "Yes"),
+            ('texture_mip_label',    "0"),
+        ]:
+            lbl = getattr(self, attr, None)
+            if lbl and hasattr(lbl, 'setText'):
+                lbl.setText(val)
+
     def _display_xtx_texture(self, name: str, pixmap, info: dict): #vers 1
         """Show an XTX texture in the workshop preview area."""
         try:
@@ -12518,7 +12647,7 @@ class TXDWorkshop(QWidget): #vers 3
             self._xtx_info   = info
 
         except Exception as e:
-            self.log_message(f"XTX display error: {e}")
+            self._log(f"XTX display error: {e}")
 
 
     def _validate_texture_dimensions(self, width, height): #vers 1
