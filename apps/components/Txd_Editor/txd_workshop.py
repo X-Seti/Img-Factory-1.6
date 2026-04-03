@@ -12383,124 +12383,68 @@ class TXDWorkshop(QWidget): #vers 3
             QMessageBox.critical(self, "Mobile DB Error",
                 f"Failed to load mobile texture database:\n{e}")
 
-    def _display_mobile_textures(self, db): #vers 1
-        """Populate the TXD Workshop UI with mobile texture database textures."""
-        from PyQt6.QtWidgets import QListWidgetItem
-        from PyQt6.QtGui import QPixmap, QImage
-        from PyQt6.QtCore import Qt
+    def _display_mobile_textures(self, db): #vers 2
+        """Populate texture_table with mobile texture database textures."""
         from apps.methods.mobile_texture_decode import to_pil_image
         from apps.methods.mobile_texture_db import ENCODING_IS_PVRTC
 
         real_textures = [t for t in db.textures if not t.is_affiliate]
 
-        # Clear texture list
-        if hasattr(self, 'txd_list_widget'):
-            self.txd_list_widget.clear()
-
-        # Store for later access
-        self._mobile_db = db
-        self._mobile_textures = []
+        # Clear existing textures
+        self.texture_list = []
+        if hasattr(self, 'texture_table'):
+            self.texture_table.setRowCount(0)
 
         for tex in real_textures:
             enc_name = tex.encoding_name
-            pvrtc_note = " (preview limited)" if tex.encoding_type in ENCODING_IS_PVRTC else ""
-            label = (f"{tex.name}  [{tex.width}×{tex.height}]  "
-                     f"{enc_name}{pvrtc_note}")
+            pvrtc = tex.encoding_type in ENCODING_IS_PVRTC
 
-            # Build QPixmap from decoded pixel data
+            # Decode to RGBA
             pil_img = to_pil_image(tex)
-            qpix = None
             if pil_img:
-                try:
-                    img_data = pil_img.tobytes('raw', 'RGBA')
-                    qimg = QImage(img_data, pil_img.width, pil_img.height,
-                                  QImage.Format.Format_RGBA8888)
-                    qpix = QPixmap.fromImage(qimg)
-                except Exception:
-                    qpix = None
+                rgba = pil_img.tobytes('raw', 'RGBA')
+            else:
+                rgba = bytes(tex.width * tex.height * 4)
 
-            # Store display record matching TXD Workshop texture dict format
+            fmt = enc_name + (" (preview)" if pvrtc else "")
             tex_entry = {
-                'name':        tex.name,
-                'width':       tex.width,
-                'height':      tex.height,
-                'format':      enc_name,
-                'depth':       tex.bpp,
-                'alpha':       tex.encoding_type in (2, 4, 7, 8),  # RGBA variants
-                'mipmaps':     tex.mip_count,
-                'platform':    db.platform.upper(),
-                'mobile_tex':  tex,     # original object for export
-                'pixmap':      qpix,
+                'name':                tex.name,
+                'width':               tex.width,
+                'height':              tex.height,
+                'depth':               tex.bpp,
+                'format':              fmt,
+                'has_alpha':           tex.encoding_type in (2, 4, 7, 8),
+                'alpha_name':          '',
+                'mipmaps':             tex.mip_count,
+                'rgba_data':           rgba,
+                'raster_format_flags': 0,
+                'is_swizzled':         False,
+                'platform':            db.platform.upper(),
+                'compressed_size':     tex.compressed_size,
+                'mobile_tex':          tex,
             }
-            self._mobile_textures.append(tex_entry)
+            self.texture_list.append(tex_entry)
+            if hasattr(self, '_add_texture_to_table'):
+                self._add_texture_to_table(tex_entry)
 
-            if hasattr(self, 'txd_list_widget') and qpix:
-                item = QListWidgetItem(label)
-                thumb = qpix.scaled(64, 64,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation)
-                item.setIcon(thumb.toImage() if hasattr(thumb, 'toImage') else
-                             __import__('PyQt6.QtGui', fromlist=['QIcon']).QIcon(thumb))
-                self.txd_list_widget.addItem(item)
-            elif hasattr(self, 'txd_list_widget'):
-                self.txd_list_widget.addItem(QListWidgetItem(label))
+        if hasattr(self, 'texture_table') and self.texture_list:
+            self.texture_table.selectRow(0)
 
-        # Show first texture
-        if self._mobile_textures:
-            self._show_mobile_texture(0)
+        self._log(f"Mobile DB: {db.name}.{db.platform} — {len(real_textures)} textures loaded")
 
-        if hasattr(self, 'txd_list_widget'):
-            self.txd_list_widget.currentRowChanged.connect(self._show_mobile_texture)
-
-    def _show_mobile_texture(self, row: int): #vers 1
-        """Display a mobile texture in the preview area."""
-        from PyQt6.QtCore import Qt
-        textures = getattr(self, '_mobile_textures', [])
-        if row < 0 or row >= len(textures):
-            return
-        tex_entry = textures[row]
-        qpix = tex_entry.get('pixmap')
-
-        # Show in preview
-        if hasattr(self, 'texture_preview') and qpix:
-            scaled = qpix.scaled(
-                self.texture_preview.width(),
-                self.texture_preview.height(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation)
-            self.texture_preview.setPixmap(scaled)
-
-        # Update info labels
-        tex = tex_entry.get('mobile_tex')
-        for attr, val in [
-            ('texture_name_label',   tex_entry['name']),
-            ('texture_size_label',   f"{tex_entry['width']} × {tex_entry['height']} pixels"),
-            ('texture_format_label', tex_entry['format']),
-            ('texture_depth_label',  f"{tex_entry['depth']} bpp"),
-            ('texture_alpha_label',  "Yes" if tex_entry['alpha'] else "No"),
-            ('texture_mip_label',    str(tex_entry['mipmaps'])),
-        ]:
-            lbl = getattr(self, attr, None)
-            if lbl and hasattr(lbl, 'setText'):
-                lbl.setText(val)
-
-        db = getattr(self, '_mobile_db', None)
-        if db and tex:
-            from apps.methods.mobile_texture_db import ENCODING_IS_PVRTC
-            if tex.encoding_type in ENCODING_IS_PVRTC:
-                self.log_message(
-                    f"Note: {tex.name} uses PVRTC — preview is approximate. "
-                    f"Export raw data for full-quality decoding.")
+    def _show_mobile_texture(self, row: int): #vers 2
+        """Kept for API compat — texture_table handles selection via _on_texture_selected."""
+        pass
 
 
-    def _open_ps2_txd(self, file_path: str): #vers 1
-        """Open a GTA III/VC PS2 native TXD file (platform='PS2\0')."""
+    def _open_ps2_txd(self, file_path: str): #vers 2
+        """Open a GTA PS2 TXD (all games/regions — device_id 0 or 6).
+
+        Populates self.texture_list and texture_table exactly like a regular
+        TXD so that export, undo, and info panel all work correctly.
+        """
         try:
             from apps.methods.txd_ps2_parser import parse_ps2_txd, ps2_tex_to_rgba
-            from PyQt6.QtWidgets import QListWidgetItem
-            from PyQt6.QtGui import QPixmap, QImage
-            from PyQt6.QtCore import Qt
-            from PIL import Image as PilImage
 
             with open(file_path, 'rb') as f:
                 data = f.read()
@@ -12508,103 +12452,70 @@ class TXDWorkshop(QWidget): #vers 3
             textures = parse_ps2_txd(data)
             if not textures:
                 QMessageBox.warning(self, "PS2 TXD",
-                    "No textures found in PS2 TXD file.\n"
-                    "File may be corrupt or use an unsupported sub-format.")
+                    "No textures found in this PS2 TXD file.\n"
+                    "The file may be corrupt or use an unsupported variant.")
                 return
 
             name = os.path.basename(file_path)
             self.current_txd_path = file_path
             self.current_txd_name = name
-            self.setWindowTitle(
-                f"TXD Workshop: {name} [PS2 — {len(textures)} textures]")
-            self._log(f"Opened PS2 TXD: {name} ({len(textures)} textures)")
 
-            if hasattr(self, 'txd_list_widget'):
-                self.txd_list_widget.clear()
+            depth_fmt = {4: "PSMT4", 8: "PSMT8", 16: "PSMCT16", 32: "PSMCT32"}
 
-            self._ps2_textures = []
+            # Clear existing texture data
+            self.texture_list = []
+            if hasattr(self, 'texture_table'):
+                self.texture_table.setRowCount(0)
 
             for tex in textures:
                 rgba = ps2_tex_to_rgba(tex)
-                qpix = None
-                if rgba and tex['width'] > 0 and tex['height'] > 0:
-                    try:
-                        qimg = QImage(rgba, tex['width'], tex['height'],
-                                      QImage.Format.Format_RGBA8888)
-                        qpix = QPixmap.fromImage(qimg)
-                    except Exception:
-                        qpix = None
+                if rgba is None:
+                    rgba = bytes(tex['width'] * tex['height'] * 4)
+
+                d = tex['depth']
+                palette_type = (tex['raster_format_flags'] >> 13) & 0x3
+                fmt = depth_fmt.get(d, f"{d}bpp")
+                if palette_type in (1, 2):
+                    fmt += f"-PAL{'8' if palette_type==1 else '4'}"
 
                 tex_entry = {
-                    'name':   tex['name'],
-                    'width':  tex['width'],
-                    'height': tex['height'],
-                    'format': tex['format'],
-                    'depth':  tex['depth'],
-                    'alpha':  True,
-                    'mipmaps': 0,
-                    'platform': 'PS2',
-                    'pixmap': qpix,
-                    'ps2_tex': tex,
+                    'name':                 tex['name'],
+                    'width':                tex['width'],
+                    'height':               tex['height'],
+                    'depth':                d,
+                    'format':               fmt,
+                    'has_alpha':            True,
+                    'alpha_name':           tex.get('mask', ''),
+                    'mipmaps':              1,
+                    'rgba_data':            rgba,
+                    'raster_format_flags':  tex['raster_format_flags'],
+                    'is_swizzled':          False,   # already unswizzled
+                    'platform':             'PS2',
+                    'compressed_size':      tex.get('pixels_size', 0),
                 }
-                self._ps2_textures.append(tex_entry)
+                self.texture_list.append(tex_entry)
+                if hasattr(self, '_add_texture_to_table'):
+                    self._add_texture_to_table(tex_entry)
 
-                label = (f"{tex['name']}  [{tex['width']}×{tex['height']}]"
-                         f"  {tex['format']}")
-                if hasattr(self, 'txd_list_widget'):
-                    item = QListWidgetItem(label)
-                    if qpix:
-                        from PyQt6.QtGui import QIcon
-                        thumb = qpix.scaled(64, 64,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation)
-                        item.setIcon(QIcon(thumb))
-                    self.txd_list_widget.addItem(item)
+            # Select first texture
+            if hasattr(self, 'texture_table') and self.texture_list:
+                self.texture_table.selectRow(0)
 
-            if self._ps2_textures:
-                self._show_ps2_texture(0)
-
-            if hasattr(self, 'txd_list_widget'):
-                try:
-                    self.txd_list_widget.currentRowChanged.disconnect()
-                except Exception:
-                    pass
-                self.txd_list_widget.currentRowChanged.connect(
-                    self._show_ps2_texture)
+            dev = textures[0].get('device_id', 0) if textures else 0
+            game_hint = 'SA' if dev == 6 else 'LC/VC'
+            self.setWindowTitle(
+                f"TXD Workshop: {name} [PS2/{game_hint} — {len(textures)} textures]")
+            self._log(f"Opened PS2 TXD: {name} — {len(textures)} textures "
+                      f"(device_id={dev}, {game_hint})")
 
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "PS2 TXD Error",
                 f"Failed to open PS2 TXD:\n{e}")
 
-    def _show_ps2_texture(self, row: int): #vers 1
-        """Display a PS2 texture in the preview area."""
-        from PyQt6.QtCore import Qt
-        textures = getattr(self, '_ps2_textures', [])
-        if row < 0 or row >= len(textures):
-            return
-        entry = textures[row]
-        qpix = entry.get('pixmap')
-
-        if hasattr(self, 'texture_preview') and qpix:
-            scaled = qpix.scaled(
-                self.texture_preview.width(),
-                self.texture_preview.height(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation)
-            self.texture_preview.setPixmap(scaled)
-
-        for attr, val in [
-            ('texture_name_label',   entry['name']),
-            ('texture_size_label',   f"{entry['width']} × {entry['height']}"),
-            ('texture_format_label', entry['format']),
-            ('texture_depth_label',  f"{entry['depth']} bpp"),
-            ('texture_alpha_label',  "Yes"),
-            ('texture_mip_label',    "0"),
-        ]:
-            lbl = getattr(self, attr, None)
-            if lbl and hasattr(lbl, 'setText'):
-                lbl.setText(val)
+    def _show_ps2_texture(self, row: int): #vers 2
+        """Kept for API compat — texture_table handles selection via _on_texture_selected."""
+        pass
 
     def _display_xtx_texture(self, name: str, pixmap, info: dict): #vers 1
         """Show an XTX texture in the workshop preview area."""
