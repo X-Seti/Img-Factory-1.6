@@ -857,18 +857,24 @@ class COLWriter: #vers 1
         return getattr(m, 'material_id', 0) & 0xFF
 
     @staticmethod
-    def _write_bounds(bounds) -> bytes:
-        """Serialise COLBounds to 40 bytes."""
+    def _v3(v) -> bytes:
+        """Pack a Vector3, tuple, list, or None to 12 bytes."""
         import struct
-        def _v3(v):
-            if v is None:
-                return struct.pack('<fff', 0.0, 0.0, 0.0)
-            return struct.pack('<fff', float(v.x), float(v.y), float(v.z))
-        mn = getattr(bounds, 'min', None) or getattr(bounds, 'min_point', None)
-        mx = getattr(bounds, 'max', None) or getattr(bounds, 'max_point', None)
+        if v is None:
+            return struct.pack('<fff', 0.0, 0.0, 0.0)
+        if isinstance(v, (tuple, list)):
+            return struct.pack('<fff', float(v[0]), float(v[1]), float(v[2]))
+        return struct.pack('<fff', float(v.x), float(v.y), float(v.z))
+
+    @classmethod
+    def _write_bounds(cls, bounds) -> bytes:
+        """Serialise COLBounds to 40 bytes: min+max+center+radius."""
+        import struct
+        mn = getattr(bounds, 'min',    None) or getattr(bounds, 'min_point', None)
+        mx = getattr(bounds, 'max',    None) or getattr(bounds, 'max_point', None)
         ct = getattr(bounds, 'center', None)
         rd = float(getattr(bounds, 'radius', 0.0))
-        return _v3(mn) + _v3(mx) + _v3(ct) + struct.pack('<f', rd)
+        return cls._v3(mn) + cls._v3(mx) + cls._v3(ct) + struct.pack('<f', rd)
 
     @classmethod
     def write_model(cls, model) -> bytes:

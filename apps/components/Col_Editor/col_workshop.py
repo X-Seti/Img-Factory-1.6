@@ -328,7 +328,8 @@ class COL3DViewport(QWidget): #vers 2
                     elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')
                     elif btn_idx == 2 and ws: ws._set_paint_tool('fill')
                     elif btn_idx == 3 and ws: ws._undo_last_action()
-                    elif btn_idx == 4 and ws: ws._exit_paint_mode()
+                    elif btn_idx == 4 and ws: ws._save_file()
+                    elif btn_idx == 5 and ws: ws._exit_paint_mode()
                     self.update(); return
             else:
                 # Normal: Move [G] toggle
@@ -996,6 +997,20 @@ class COL3DViewport(QWidget): #vers 2
                 except Exception:
                     p.setPen(QColor(180,200,255)); p.setFont(QFont('Arial',9))
                     p.drawText(tx+6, _ROW2_Y+15, "↩")
+            tx += _BTN_W + _BTN_GAP
+
+            # Save button (between undo and exit)
+            p.setBrush(QBrush(QColor(20,50,30,220))); p.setPen(QPen(QColor(80,200,100),1))
+            p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
+            if icon_fac:
+                try:
+                    icon = icon_fac.save_icon(color='#66bb6a')
+                    icon_x = tx + (_BTN_W - _ICON_SZ)//2
+                    icon_y = _ROW2_Y + (_CHIP_H - _ICON_SZ)//2
+                    icon.paint(p, QRect(icon_x, icon_y, _ICON_SZ, _ICON_SZ))
+                except Exception:
+                    p.setPen(QColor(100,220,120)); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
+                    p.drawText(tx+5, _ROW2_Y+15, "S")
             tx += _BTN_W + _BTN_GAP
 
             # Exit button (✕)
