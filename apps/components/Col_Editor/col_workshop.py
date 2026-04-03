@@ -1733,11 +1733,13 @@ class COLWorkshop(QWidget): #vers 3
             "|  Shift+drag to select  |  Esc to exit")
 
 
-    def _open_paint_mat_popup(self): #vers 1
-        """Popup material list anchored to the viewport overlay — no dialog needed."""
+    def _open_paint_mat_popup(self): #vers 2
+        """Searchable material popup anchored below the mat chip.
+        Closes on item click, X button, or focus loss."""
         from PyQt6.QtWidgets import (QListWidget, QListWidgetItem, QFrame,
-                                     QVBoxLayout, QLineEdit)
-        from PyQt6.QtCore import Qt, QPoint
+                                     QVBoxLayout, QHBoxLayout, QLineEdit,
+                                     QPushButton, QLabel)
+        from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QColor
 
         lst = getattr(self, '_paint_mat_list', [])
@@ -1746,44 +1748,78 @@ class COLWorkshop(QWidget): #vers 3
         vp = getattr(self, 'preview_widget', None)
         if not vp: return
 
-        # Floating popup parented to viewport
+        # Close any existing popup
+        old = getattr(self, '_mat_popup', None)
+        if old:
+            try: old.hide(); old.deleteLater()
+            except: pass
+            self._mat_popup = None
+
         popup = QFrame(vp)
         popup.setFrameStyle(QFrame.Shape.StyledPanel)
         popup.setStyleSheet(
-            "QFrame { background:#1a1a2e; border:1px solid #ff8c00; }"
+            "QFrame { background:#1a1a2e; border:1px solid #ff8c00; border-radius:4px; }"
             "QListWidget { background:#1a1a2e; color:#eee; border:none; }"
+            "QListWidget::item { padding:2px 4px; }"
+            "QListWidget::item:hover { background:#252540; }"
             "QListWidget::item:selected { background:#ff8c00; color:#000; }"
-            "QLineEdit { background:#252535; color:#eee; border:1px solid #555; padding:2px; }"
+            "QLineEdit { background:#252535; color:#eee; border:1px solid #555; "
+            "            border-radius:3px; padding:2px 4px; }"
+            "QPushButton { background:transparent; color:#ff6b35; border:none; "
+            "              font-weight:bold; font-size:14px; }"
+            "QPushButton:hover { color:#ff3300; }"
         )
 
         lay = QVBoxLayout(popup)
-        lay.setContentsMargins(4, 4, 4, 4)
-        lay.setSpacing(3)
+        lay.setContentsMargins(6, 4, 6, 6)
+        lay.setSpacing(4)
 
+        # Header: search + X
+        hdr = QHBoxLayout()
         search = QLineEdit()
-        search.setPlaceholderText("Filter…")
-        search.setFixedHeight(24)
-        lay.addWidget(search)
+        search.setPlaceholderText("Filter materials…")
+        search.setFixedHeight(26)
+        hdr.addWidget(search)
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(22, 22)
+        close_btn.setToolTip("Close")
+        hdr.addWidget(close_btn)
+        lay.addLayout(hdr)
 
         lw = QListWidget()
-        lw.setFixedHeight(200)
+        lw.setFixedHeight(220)
+        lw.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         lay.addWidget(lw)
+
+        ws = self
+
+        def _close():
+            popup.hide()
+            popup.deleteLater()
+            ws._mat_popup = None
+
+        close_btn.clicked.connect(_close)
 
         def _populate(flt=""):
             lw.clear()
             for mid, name, hex_col in lst:
-                if flt and flt.lower() not in name.lower() and flt not in str(mid):
+                if flt and flt.lower() not in name.lower()                         and flt not in str(mid):
                     continue
                 item = QListWidgetItem(f"  {mid:3d}  {name}")
                 item.setData(Qt.ItemDataRole.UserRole, mid)
                 c = QColor(f"#{hex_col}")
-                item.setBackground(QColor(c.red()//4, c.green()//4, c.blue()//4+10))
-                item.setForeground(c.lighter(180))
+                item.setBackground(
+                    QColor(max(0,c.red()//4), max(0,c.green()//4),
+                           min(255, c.blue()//4 + 15)))
+                item.setForeground(c.lighter(200))
                 lw.addItem(item)
-            # Scroll to current
-            cur = getattr(self, '_paint_mat_idx', 0)
-            if cur < lw.count():
-                lw.setCurrentRow(cur)
+            # Scroll to current material
+            cur_id = getattr(ws, '_paint_active_mat', 0)
+            for i in range(lw.count()):
+                if lw.item(i).data(Qt.ItemDataRole.UserRole) == cur_id:
+                    lw.setCurrentRow(i)
+                    lw.scrollToItem(lw.item(i))
+                    break
 
         _populate()
         search.textChanged.connect(_populate)
@@ -1792,29 +1828,29 @@ class COLWorkshop(QWidget): #vers 3
             mid = item.data(Qt.ItemDataRole.UserRole)
             if mid is None: return
             mat_ids = [m[0] for m in lst]
-            self._paint_mat_idx = mat_ids.index(mid) if mid in mat_ids else 0
-            self._paint_active_mat = mid
-            vp._paint_material = mid
+            ws._paint_mat_idx    = mat_ids.index(mid) if mid in mat_ids else 0
+            ws._paint_active_mat = mid
+            vp._paint_material   = mid
             vp.update()
-            popup.hide()
-            popup.deleteLater()
+            _close()
 
         lw.itemClicked.connect(_pick)
         lw.itemDoubleClicked.connect(_pick)
 
-        # Position popup below the material chip
+        # Position: anchored below the mat chip, aligned to right edge
         W = vp.width()
-        _MARGIN = 8; _MAT_W = 200; _ROW1_Y = 4; _CHIP_H = 26
-        px = W - _MAT_W - _MARGIN + 22   # below mat name area
-        py = _ROW1_Y + _CHIP_H + 2
+        _MARGIN = 8; _MAT_W = 200; _ROW1_Y = 4; _CHIP_H = 26; _ARW = 22
+        pw = 200   # popup width
+        px = W - _MAT_W - _MARGIN + _ARW     # left-align with mat name chip
+        py = _ROW1_Y + _CHIP_H + 4           # just below mat row
+        # Keep inside viewport
+        px = max(4, min(px, W - pw - 4))
         popup.move(px, py)
-        popup.resize(160, 235)
+        popup.resize(pw, 264)
         popup.show()
         popup.raise_()
+        self._mat_popup = popup
         search.setFocus()
-
-        # Close on click outside
-        popup.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
 
     def _apply_to_selected_faces_paint(self): #vers 1
@@ -1970,6 +2006,13 @@ class COLWorkshop(QWidget): #vers 3
 
     def _exit_paint_mode(self): #vers 2
         """Exit paint mode — hide toolbar, restore paint button."""
+        # Close material popup if open
+        old_popup = getattr(self, '_mat_popup', None)
+        if old_popup:
+            try: old_popup.hide(); old_popup.deleteLater()
+            except: pass
+            self._mat_popup = None
+
         vp = getattr(self, 'preview_widget', None)
         if vp:
             vp.set_paint_mode(False)
@@ -6418,43 +6461,43 @@ class COLWorkshop(QWidget): #vers 3
         else:
             QMessageBox.warning(self, "Extract Failed", msg)
 
-    def _save_file(self): #vers 1
-        """Save current COL file"""
+    def _save_file(self): #vers 2
+        """Save current COL file — serialises all models via COLWriter."""
+        if not self.current_col_file:
+            QMessageBox.warning(self, "Save", "No COL file loaded to save")
+            return
+
+        if not self.current_file_path:
+            self._save_file_as()
+            return
+
+        models = getattr(self.current_col_file, 'models', [])
+        if not models:
+            QMessageBox.warning(self, "Save", "No models to save.")
+            return
+
         try:
-            if not self.current_col_file:
-                QMessageBox.warning(self, "Save", "No COL file loaded to save")
-                return
-
-            if not self.current_file_path:
-                # No path yet, do Save As
-                self._save_file_as()
-                return
-
-            # Save to current path — write raw_data back (COLFile has no serialiser yet)
-            raw = getattr(self.current_col_file, 'raw_data', None)
-            if not raw:
-                QMessageBox.warning(self, "Save",
-                    "No raw COL data available to save.\n"
-                    "The file can only be saved if it was loaded from disk.")
-                return
-            try:
-                with open(self.current_file_path, 'wb') as f:
-                    f.write(raw)
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(
-                        f"Saved COL: {os.path.basename(self.current_file_path)}")
-                QMessageBox.information(self, "Save",
-                    f"Saved:\n{os.path.basename(self.current_file_path)}")
-                if hasattr(self, 'save_col_btn'):
-                    self.save_col_btn.setEnabled(True)
-                if hasattr(self, 'save_btn'):
-                    self.save_btn.setEnabled(True)
-            except Exception as write_err:
-                QMessageBox.critical(self, "Save Error", str(write_err))
-
+            from apps.methods.col_workshop_parser import COLWriter
+            raw = COLWriter.write_file(models)
         except Exception as e:
-            print(f"Error saving file: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Serialise Error",
+                f"Failed to serialise COL data:\n{e}")
+            return
+
+        try:
+            with open(self.current_file_path, 'wb') as f:
+                f.write(raw)
+            # Update raw_data so a second Save uses the fresh bytes
+            self.current_col_file.raw_data = raw
+            fname = os.path.basename(self.current_file_path)
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Saved COL: {fname} ({len(models)} models, {len(raw):,} bytes)")
+            self._set_status(f"Saved: {fname}")
+        except Exception as e:
+            QMessageBox.critical(self, "Write Error", str(e))
 
 
     def _save_file_as(self): #vers 1
