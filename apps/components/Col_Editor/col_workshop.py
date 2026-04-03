@@ -356,9 +356,14 @@ class COL3DViewport(QWidget): #vers 2
                                         combo.setCurrentIndex(i)
                                         break
                             ws._paint_active_mat = picked
+                            # Sync _paint_mat_idx so ◀▶ arrows start from picked mat
+                            lst = getattr(ws, '_paint_mat_list', [])
+                            mat_ids = [m[0] for m in lst]
+                            if picked in mat_ids:
+                                ws._paint_mat_idx = mat_ids.index(picked)
                         # Auto-switch back to paint tool after dropper pick
                         self._tool_mode = 'paint'
-                        self.update()   # refresh overlay chip with new colour
+                        self.update()   # refresh overlay with new colour
                         return
 
                     elif tool == 'fill':
@@ -910,11 +915,17 @@ class COL3DViewport(QWidget): #vers 2
             _ROW2_Y   = _ROW1_Y + _CHIP_H + 2   # y of tool buttons row
             # ────────────────────────────────────────────────────────────
 
-            from apps.methods.col_materials import get_material_name, get_material_colour, COLGame
             from PyQt6.QtCore import QRect
-            mat_id   = self._paint_material
-            mat_name = get_material_name(mat_id, COLGame.SA)
-            hex_col  = get_material_colour(mat_id, COLGame.SA)
+            mat_id = self._paint_material
+            # Use cached list if available, else fall back to direct lookup
+            _mat_cache = getattr(self._find_workshop(), '_paint_mat_list', [])                          if self._find_workshop() else []
+            _mat_entry = next((m for m in _mat_cache if m[0] == mat_id), None)
+            if _mat_entry:
+                _, mat_name, hex_col = _mat_entry
+            else:
+                from apps.methods.col_materials import get_material_name, get_material_colour, COLGame
+                mat_name = get_material_name(mat_id, COLGame.SA)
+                hex_col  = get_material_colour(mat_id, COLGame.SA)
             mc = QColor(f"#{hex_col}")
 
             # Row 1: [◀] [■ mat swatch | id — name | ▶]
