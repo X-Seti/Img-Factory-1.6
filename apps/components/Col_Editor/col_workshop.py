@@ -309,26 +309,22 @@ class COL3DViewport(QWidget): #vers 2
                 rx = W - _MAT_W - _MARGIN   # left edge of chip area
                 # Row 1: material chip click (future: open mat picker)
                 if _ROW1_Y <= my <= _ROW1_Y + _CHIP_H and rx <= mx <= rx + _MAT_W:
-                    # Click mat chip → open material picker inline
+                    _ARW = 22
                     ws = self._find_workshop()
                     if ws:
-                        combo = getattr(ws, 'paint_mat_combo', None)
-                        if combo and combo.count() > 0:
-                            # Cycle to next material
-                            nxt = (combo.currentIndex() + 1) % combo.count()
-                            combo.setCurrentIndex(nxt)
-                            new_mid = combo.itemData(nxt)
-                            if new_mid is not None:
-                                self._paint_material = new_mid
-                                vp = getattr(ws, 'preview_widget', None)
-                                if vp: vp._paint_material = new_mid
-                    self.update(); return
+                        if mx <= rx + _ARW:           # ◀ prev
+                            ws._paint_cycle_mat(-1)
+                        elif mx >= rx + _MAT_W - _ARW: # ▶ next
+                            ws._paint_cycle_mat(+1)
+                        else:                           # mat name chip — open list popup
+                            ws._open_paint_mat_popup()
+                    return
                 # Row 2: tool buttons
                 elif _ROW2_Y <= my <= _ROW2_Y + _CHIP_H:
                     ws = self._find_workshop()
                     # Each button occupies _BTN_W + _BTN_GAP
                     btn_idx = (mx - rx) // (_BTN_W + _BTN_GAP)
-                    if   btn_idx == 0 and ws:#TODO tomorrow, add proper tooltips ws._set_paint_tool('paint')#;btn_idx.setToolTip("Choose colour")
+                    if   btn_idx == 0 and ws: ws._set_paint_tool('paint')
                     elif btn_idx == 1 and ws: ws._set_paint_tool('dropper')#;btn_idx.setToolTip("Colour dropper")
                     elif btn_idx == 2 and ws: ws._set_paint_tool('fill')#;btn_idx.setToolTip("Colour Fill")
                     elif btn_idx == 3 and ws: ws._undo_last_action()#;btn_idx.setToolTip("Undo")
@@ -548,16 +544,18 @@ class COL3DViewport(QWidget): #vers 2
         if self._drag_selecting and (event.buttons() & Qt.MouseButton.LeftButton):
             mx2, my2 = event.position().x(), event.position().y()
             fi, face = self._pick_face(mx2, my2)
+            shift_held = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
             if fi is not None and fi not in self._selected_faces:
-                if self._paint_mode:
-                    # In paint mode: paint every face the brush passes over
+                if self._paint_mode and not shift_held:
+                    # Paint mode drag without shift: paint face
                     if hasattr(face, 'material'):
                         if hasattr(face.material, 'material_id'):
                             face.material.material_id = self._paint_material
                         else:
                             face.material = self._paint_material
+                # Shift held OR not in paint mode: just add to selection
                 self._selected_faces.add(fi)
-                if self.on_face_selected:
+                if self.on_face_selected and not shift_held:
                     self.on_face_selected(fi, face)
                 self.update()
 
@@ -618,6 +616,10 @@ class COL3DViewport(QWidget): #vers 2
             self._selected_faces = set()
             self.update()
         elif event.key() == Qt.Key.Key_G: self._set_gizmo('translate')
+        elif event.key() == Qt.Key.Key_F and self._paint_mode:
+            # F = fill selected faces with current paint material
+            ws = self._find_workshop()
+            if ws: ws._apply_to_selected_faces_paint()
         elif event.key() == Qt.Key.Key_R: self._set_gizmo('rotate')
         elif event.key() == Qt.Key.Key_F: self.fit_to_window()
         elif event.key() == Qt.Key.Key_V: self._cycle_render_style()
@@ -915,14 +917,26 @@ class COL3DViewport(QWidget): #vers 2
             hex_col  = get_material_colour(mat_id, COLGame.SA)
             mc = QColor(f"#{hex_col}")
 
-            # Row 1: material chip
+            # Row 1: [◀] [■ mat swatch | id — name | ▶]
+            _ARW = 22   # arrow button width
             rx = W - _MAT_W - _MARGIN
+            # ◀ prev button
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
+            p.drawRoundedRect(rx, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
+            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.drawText(rx+5, _ROW1_Y+17, "◀")
+            # material name chip
             p.setBrush(QBrush(QColor(20,20,40,220))); p.setPen(QPen(QColor(255,140,0),1))
-            p.drawRoundedRect(rx, _ROW1_Y, _MAT_W, _CHIP_H, 4, 4)
+            p.drawRoundedRect(rx+_ARW+2, _ROW1_Y, _MAT_W-_ARW*2-4, _CHIP_H, 4, 4)
             p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
-            p.drawRoundedRect(rx+4, _ROW1_Y+4, _CHIP_H-8, _CHIP_H-8, 2, 2)
+            p.drawRoundedRect(rx+_ARW+6, _ROW1_Y+4, _CHIP_H-8, _CHIP_H-8, 2, 2)
             p.setPen(QColor(255,200,80)); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
-            p.drawText(rx+_CHIP_H+2, _ROW1_Y+15, f"{mat_id} — {mat_name[:24]}")
+            p.drawText(rx+_ARW+_CHIP_H+4, _ROW1_Y+17, f"{mat_id} — {mat_name[:20]}")
+            # ▶ next button
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
+            p.drawRoundedRect(rx+_MAT_W-_ARW, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
+            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.drawText(rx+_MAT_W-_ARW+4, _ROW1_Y+17, "▶")
 
             # Row 2: tool buttons using SVG icons via QIcon.paint()
             tool = getattr(self, '_tool_mode', 'paint')
@@ -1641,17 +1655,13 @@ class COLWorkshop(QWidget): #vers 3
         pw.update()
 
 
-    def _open_paint_editor(self): #vers 3
-        """Material editor — select material, apply to faces, undo supported."""
-
-
-
-
+    def _open_paint_editor(self): #vers 4
+        """Enter paint mode immediately — no dialog.
+        All material selection happens in the viewport overlay."""
         if not self.current_col_file:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No File", "Load a COL file first.")
             return
-
         model = self._get_selected_model()
         if model is None:
             from PyQt6.QtWidgets import QMessageBox
@@ -1661,244 +1671,180 @@ class COLWorkshop(QWidget): #vers 3
         if not getattr(model, 'faces', []):
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(self, "No Mesh Faces",
-                f"'{model.name}' has no mesh faces.")
+                f"'{model.name}' has no mesh faces to paint.")
             return
 
         vp = getattr(self, 'preview_widget', None)
         if not vp:
             return
 
-        # Find model index for undo
-        models = getattr(self.current_col_file, 'models', [])
+        models  = getattr(self.current_col_file, 'models', [])
         model_idx = models.index(model) if model in models else -1
 
-        # Default material (use current active or fallback)
-        mat_id = getattr(self, '_paint_active_mat', 0)
+        # Use last active mat or default 0
+        mat_id  = getattr(self, '_paint_active_mat', 0)
 
-        # Push undo state ONCE when entering
+        # Push one undo snapshot on entry
         if model_idx >= 0:
-            self._push_undo(model_idx, f"Enter paint mode (mat {mat_id})")
+            self._push_undo(model_idx, f"Enter paint mode")
 
-        # ENTER PAINT MODE DIRECTLY
+        # Cache the full material list for this model's version
+        try:
+            from apps.methods.col_materials import get_materials_for_version, COLGame
+            ver     = getattr(getattr(model,'version',None),'value',3) if model else 3
+            game    = COLGame.VC if ver == 1 else COLGame.SA
+            self._paint_mat_list = get_materials_for_version(game, include_procedural=True)
+        except Exception:
+            self._paint_mat_list = [(i, f"Material {i}", "808080") for i in range(64)]
+
+        # Set current index into the list
+        mat_ids = [m[0] for m in self._paint_mat_list]
+        self._paint_mat_idx = mat_ids.index(mat_id) if mat_id in mat_ids else 0
+        mat_id = self._paint_mat_list[self._paint_mat_idx][0]
+        self._paint_active_mat = mat_id
+
+        # Enter viewport paint mode
         vp.set_paint_mode(True, mat_id)
         vp.on_face_selected = self._on_painted_face
+        vp._paint_material  = mat_id
+        vp.update()  # draw overlay immediately
 
-        self._paint_active_mat = mat_id
-        vp._paint_material = mat_id
-
-        # Populate toolbar (THIS replaces the dialog)
-        self._show_paint_toolbar(mat_id, model)
-
-        # Hook exit buttons
+        # Update paint button to show exit state
         for btn in self._find_all_paint_btns():
-            try:
-                btn.clicked.disconnect()
-            except:
-                pass
+            try: btn.clicked.disconnect()
+            except: pass
             btn.clicked.connect(self._exit_paint_mode)
             btn.setText("⬛ Exit")
-            btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
+            btn.setStyleSheet("color:#ff6b35; font-weight:bold;")
 
-        self._set_status("Paint mode — pick material in toolbar, click faces to paint. [Esc to exit]")
+        self._set_status(
+            "Paint mode — click faces to paint  |  ◀▶ change material  "
+            "|  Shift+drag to select  |  Esc to exit")
 
-        #keep as Temporary
-        #Plan is to remove the dialog and do everything in the editor, moving the mat editor, selection face buttons, fill, pick, droplet, undo, clooe svg buttons
 
-        # ── Material picker dialog ────────────────────────────────────────
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QListWidget, QListWidgetItem, QLabel, QPushButton,
-            QDialogButtonBox, QLineEdit, QSplitter, QWidget)
+    def _open_paint_mat_popup(self): #vers 1
+        """Popup material list anchored to the viewport overlay — no dialog needed."""
+        from PyQt6.QtWidgets import (QListWidget, QListWidgetItem, QFrame,
+                                     QVBoxLayout, QLineEdit)
+        from PyQt6.QtCore import Qt, QPoint
         from PyQt6.QtGui import QColor
-        from PyQt6.QtCore import Qt
-        from apps.methods.col_materials import (
-            get_materials_for_version, COLGame, COL_PRESET_GROUP
+
+        lst = getattr(self, '_paint_mat_list', [])
+        if not lst: return
+
+        vp = getattr(self, 'preview_widget', None)
+        if not vp: return
+
+        # Floating popup parented to viewport
+        popup = QFrame(vp)
+        popup.setFrameStyle(QFrame.Shape.StyledPanel)
+        popup.setStyleSheet(
+            "QFrame { background:#1a1a2e; border:1px solid #ff8c00; }"
+            "QListWidget { background:#1a1a2e; color:#eee; border:none; }"
+            "QListWidget::item:selected { background:#ff8c00; color:#000; }"
+            "QLineEdit { background:#252535; color:#eee; border:1px solid #555; padding:2px; }"
         )
 
-        # Detect game from model version
-        ver = getattr(model, 'version', None)
-        ver_val = getattr(ver, 'value', 3) if ver else 3
-        game = COLGame.VC if ver_val == 1 else COLGame.SA
+        lay = QVBoxLayout(popup)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(3)
 
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Material Paint — Choose Surface Material")
-        dlg.setMinimumSize(460, 420)
-        lay = QVBoxLayout(dlg)
-
-        # Search bar
-        search = QLineEdit(); search.setPlaceholderText("Filter materials…")
+        search = QLineEdit()
+        search.setPlaceholderText("Filter…")
+        search.setFixedHeight(24)
         lay.addWidget(search)
 
-        # Material list
-        lst = QListWidget()
-        lst.setAlternatingRowColors(True)
+        lw = QListWidget()
+        lw.setFixedHeight(200)
+        lay.addWidget(lw)
 
-        all_mats = get_materials_for_version(game, include_procedural=True)
+        def _populate(flt=""):
+            lw.clear()
+            for mid, name, hex_col in lst:
+                if flt and flt.lower() not in name.lower() and flt not in str(mid):
+                    continue
+                item = QListWidgetItem(f"  {mid:3d}  {name}")
+                item.setData(Qt.ItemDataRole.UserRole, mid)
+                c = QColor(f"#{hex_col}")
+                item.setBackground(QColor(c.red()//4, c.green()//4, c.blue()//4+10))
+                item.setForeground(c.lighter(180))
+                lw.addItem(item)
+            # Scroll to current
+            cur = getattr(self, '_paint_mat_idx', 0)
+            if cur < lw.count():
+                lw.setCurrentRow(cur)
 
-        def populate(filter_text=""):
-            lst.clear()
-            for mat_id, name, hex_col in all_mats:
-                if filter_text and filter_text.lower() not in name.lower():
-                    if filter_text not in str(mat_id):
-                        continue
-                item = QListWidgetItem(f"  {mat_id:3d}  {name}")
-                item.setData(Qt.ItemDataRole.UserRole, mat_id)
-                col = QColor(f"#{hex_col}")
-                item.setBackground(QColor(col.red()//4, col.green()//4, col.blue()//4))
-                item.setForeground(QColor(col.lighter(200)))
-                lst.addItem(item)
+        _populate()
+        search.textChanged.connect(_populate)
 
-        populate()
-        search.textChanged.connect(populate)
-        lay.addWidget(lst)
+        def _pick(item):
+            mid = item.data(Qt.ItemDataRole.UserRole)
+            if mid is None: return
+            mat_ids = [m[0] for m in lst]
+            self._paint_mat_idx = mat_ids.index(mid) if mid in mat_ids else 0
+            self._paint_active_mat = mid
+            vp._paint_material = mid
+            vp.update()
+            popup.hide()
+            popup.deleteLater()
 
-        # Preview strip
-        preview_lbl = QLabel("Select a material")
-        preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_lbl.setFixedHeight(32)
-        preview_lbl.setStyleSheet("border:1px solid #444; border-radius:3px; font-size:11px;")
-        lay.addWidget(preview_lbl)
+        lw.itemClicked.connect(_pick)
+        lw.itemDoubleClicked.connect(_pick)
 
-        def on_select():
-            item = lst.currentItem()
-            if not item: return
-            mat_id = item.data(Qt.ItemDataRole.UserRole)
-            _, name, hex_col = all_mats[lst.currentRow()] if lst.currentRow() >= 0 else (mat_id, "?", "808080")
-            # find name from list since filter may reorder
-            for mid, mname, mhex in all_mats:
-                if mid == mat_id:
-                    name, hex_col = mname, mhex; break
-            col = QColor(f"#{hex_col}")
-            preview_lbl.setText(f"  {mat_id} — {name}")
-            preview_lbl.setStyleSheet(
-                f"background:#{hex_col}22; border:2px solid #{hex_col}; "
-                f"border-radius:3px; font-size:11px; color:#{hex_col};")
+        # Position popup below the material chip
+        W = vp.width()
+        _MARGIN = 8; _MAT_W = 200; _ROW1_Y = 4; _CHIP_H = 26
+        px = W - _MAT_W - _MARGIN + 22   # below mat name area
+        py = _ROW1_Y + _CHIP_H + 2
+        popup.move(px, py)
+        popup.resize(160, 235)
+        popup.show()
+        popup.raise_()
+        search.setFocus()
 
-        lst.currentItemChanged.connect(lambda *_: on_select())
+        # Close on click outside
+        popup.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        # Show current material of first selected face (if any)
+
+    def _apply_to_selected_faces_paint(self): #vers 1
+        """Apply current paint material to all selected faces (F key in paint mode)."""
         vp = getattr(self, 'preview_widget', None)
-        if vp and getattr(vp, '_selected_faces', set()):
-            sel_faces = sorted(vp._selected_faces)
-            first_face = model.faces[sel_faces[0]] if sel_faces[0] < len(model.faces) else None
-            if first_face:
-                mat_obj = getattr(first_face, 'material', None)
-                cur_mat = (mat_obj if isinstance(mat_obj, int)
-                           else getattr(mat_obj, 'material_id', 0))
-                cur_lbl = QLabel(f"Selected face material: {cur_mat}")
-                cur_lbl.setStyleSheet("color:#aaa; font-size:10px; padding:2px 4px;")
-                lay.addWidget(cur_lbl)
-
-        # Buttons — top row: Apply to selection / Apply to all
-        btns_top = QHBoxLayout()
-        btn_apply_sel = QPushButton("✓ Apply to Selected Faces")
-        btn_apply_all = QPushButton("Apply to ALL Faces")
-        btns_top.addWidget(btn_apply_sel)
-        btns_top.addWidget(btn_apply_all)
-        lay.addLayout(btns_top)
-
-        # Bottom row: Enter Paint / Cancel
-        btns = QHBoxLayout()
-        btn_paint  = QPushButton("🖌  Enter Paint Mode")
-        btn_cancel = QPushButton("Cancel")
-        btn_paint.setDefault(True)
-        btns.addWidget(btn_paint)
-        btns.addWidget(btn_cancel)
-        lay.addLayout(btns)
-        btn_cancel.clicked.connect(dlg.reject)
-
-        chosen_mat = [None]
-        chosen_mode = [None]  # 'selected', 'all', 'paint'
-
-        def _get_mat():
-            item = lst.currentItem()
-            if not item:
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.warning(dlg, "No material", "Select a material first.")
-                return None
-            return item.data(Qt.ItemDataRole.UserRole)
-
-        def apply_to_selected():
-            mid = _get_mat()
-            if mid is None: return
-            chosen_mat[0] = mid; chosen_mode[0] = 'selected'; dlg.accept()
-
-        def apply_to_all():
-            mid = _get_mat()
-            if mid is None: return
-            chosen_mat[0] = mid; chosen_mode[0] = 'all'; dlg.accept()
-
-        def enter_paint():
-            mid = _get_mat()
-            if mid is None: return
-            chosen_mat[0] = mid; chosen_mode[0] = 'paint'; dlg.accept()
-
-        btn_apply_sel.clicked.connect(apply_to_selected)
-        btn_apply_all.clicked.connect(apply_to_all)
-        btn_paint.clicked.connect(enter_paint)
-        lst.itemDoubleClicked.connect(lambda _: enter_paint())
-
-        if dlg.exec() != QDialog.DialogCode.Accepted or chosen_mat[0] is None:
+        if not vp: return
+        sel = sorted(getattr(vp, '_selected_faces', set()))
+        if not sel:
+            self._set_status("No faces selected — click or drag to select faces first")
             return
-
-        mat_id = chosen_mat[0]
-        mode   = chosen_mode[0]
-
-        if mode == 'selected':
-            # Apply to currently selected faces in viewport
-            sel = sorted(getattr(getattr(self, 'preview_widget', None),
-                                  '_selected_faces', set()))
-            if not sel:
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.information(self, "No Faces Selected",
-                    "No faces selected in viewport.\nUse paint mode to click faces, "
-                    "or use 'Apply to ALL Faces'.")
-                return
-            if model_idx >= 0:
-                self._push_undo(model_idx, f"Paint material {mat_id} → {len(sel)} faces")
-            for fi in sel:
-                if fi < len(model.faces):
-                    f = model.faces[fi]
-                    if isinstance(f.material, int):
-                        model.faces[fi].material = mat_id
-                    else:
-                        f.material.material_id = mat_id
-            if vp: vp.update()
-            self._set_status(f"Applied material {mat_id} to {len(sel)} selected face(s).")
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Paint: material {mat_id} → {len(sel)} faces")
-
-        elif mode == 'all':
-            # Apply to every face in the model
-            if model_idx >= 0:
-                self._push_undo(model_idx, f"Paint material {mat_id} → all faces")
-            for f in model.faces:
-                if isinstance(f.material, int):
-                    f.material = mat_id
-                else:
+        model = self._get_selected_model()
+        if not model: return
+        models = getattr(self.current_col_file, 'models', [])
+        mi = models.index(model) if model in models else -1
+        mat_id = getattr(self, '_paint_active_mat', 0)
+        if mi >= 0:
+            self._push_undo(mi, f"Paint {mat_id} → {len(sel)} selected faces")
+        for fi in sel:
+            if fi < len(model.faces):
+                f = model.faces[fi]
+                if hasattr(f.material, 'material_id'):
                     f.material.material_id = mat_id
-            if vp: vp.update()
-            self._set_status(f"Applied material {mat_id} to all {len(model.faces)} faces.")
+                else:
+                    f.material = mat_id
+        vp.update()
+        self._set_status(f"Applied material {mat_id} to {len(sel)} selected face(s)")
 
-        else:  # paint mode — click/drag faces in viewport
-            if not vp: return
-            if model_idx >= 0:
-                self._push_undo(model_idx, f"Paint mode: material {mat_id}")
-            vp.set_paint_mode(True, mat_id)
-            vp.on_face_selected = self._on_painted_face
-            self._paint_active_mat = mat_id
-
-            # Populate and show the paint toolbar
-            self._show_paint_toolbar(mat_id, model)
-
-            for btn in self._find_all_paint_btns():
-                try: btn.clicked.disconnect()
-                except: pass
-                btn.clicked.connect(self._exit_paint_mode)
-                btn.setText("⬛ Exit")
-                btn.setStyleSheet("color: #ff6b35; font-weight:bold;")
-
-            self._set_status("Paint mode — pick material in toolbar. [Esc] to exit.")
-
+    def _paint_cycle_mat(self, delta: int): #vers 1
+        """Cycle active paint material by delta steps (+1 next / -1 prev)."""
+        lst = getattr(self, '_paint_mat_list', [])
+        if not lst: return
+        idx = getattr(self, '_paint_mat_idx', 0)
+        idx = (idx + delta) % len(lst)
+        self._paint_mat_idx   = idx
+        mat_id, name, hex_col = lst[idx]
+        self._paint_active_mat = mat_id
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._paint_material = mat_id
+            vp.update()
+        self._set_status(f"Paint material: {mat_id} — {name}")
 
     def _show_paint_toolbar(self, mat_id: int, model=None): #vers 5
         """Populate combo then show the floating paint bar."""
