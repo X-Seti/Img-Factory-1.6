@@ -1159,7 +1159,7 @@ class COL3DViewport(QWidget): #vers 2
 
         menu.addSeparator()
         # Open full paint editor
-        act_paint = menu.addAction("🖌  Open material editor…")
+        act_paint = menu.addAction("Paint — open material editor…")
 
         # ── Execute ──────────────────────────────────────────────────────
         chosen = menu.exec(global_pos)
@@ -1740,7 +1740,7 @@ class COLWorkshop(QWidget): #vers 3
             try: btn.clicked.disconnect()
             except: pass
             btn.clicked.connect(self._exit_paint_mode)
-            btn.setText("⬛ Exit")
+            btn.setText("[ ] Exit Paint")
             btn.setStyleSheet("color:#ff6b35; font-weight:bold;")
 
         self._set_status(
