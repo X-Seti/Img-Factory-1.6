@@ -12251,7 +12251,7 @@ class TXDWorkshop(QWidget): #vers 3
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
                     self, "Open TXD File", "",
-                    "TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;All Files (*)"
+                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc);;TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB (*.txt *.dat *.toc);;All Files (*)"
                 )
             if file_path:
                 self.current_txd_path = file_path  # Store the full path
@@ -12259,6 +12259,15 @@ class TXDWorkshop(QWidget): #vers 3
 
 
             if file_path:
+                # Route mobile texture DB files (.txt / .dat / .toc)
+                try:
+                    from apps.methods.mobile_texture_db import detect_mobile_db
+                    if detect_mobile_db(file_path):
+                        self._open_mobile_texture_db(file_path)
+                        return
+                except Exception:
+                    pass  # not a mobile DB — fall through to TXD
+
                 # Route .xtx files to XTX reader
                 if file_path.lower().endswith('.xtx'):
                     self._open_xtx_file(file_path)
@@ -12320,6 +12329,153 @@ class TXDWorkshop(QWidget): #vers 3
 
         except Exception as e:
             QMessageBox.critical(self, "XTX Error", f"Failed to open XTX:\n{str(e)}")
+
+
+    def _open_mobile_texture_db(self, file_path: str): #vers 1
+        """Open a mobile texture database (.txt+.toc+.dat+.tmb quad-file set).
+        Supports SA/VC iOS (PVRTC) and Android (ETC1) mobile texture formats."""
+        try:
+            from apps.methods.mobile_texture_db import (
+                load_mobile_texture_db, describe_mobile_db
+            )
+            self.log_message(f"Loading mobile texture DB: {os.path.basename(file_path)}")
+            db = load_mobile_texture_db(file_path, load_pixel_data=True)
+            if db is None:
+                QMessageBox.warning(self, "Mobile DB",
+                    "Could not recognise as a mobile texture database.\n"
+                    "Expected: name.txt + name.pvr.dat + name.pvr.toc\n"
+                    "       or: name.txt + name.etc.dat + name.etc.toc")
+                return
+
+            if db.errors:
+                for err in db.errors:
+                    self.log_message(f"  Warning: {err}")
+
+            real_textures = [t for t in db.textures if not t.is_affiliate]
+            desc = describe_mobile_db(db)
+            self.log_message(f"Mobile DB: {desc}")
+
+            self.current_txd_path = file_path
+            self.current_txd_name = os.path.basename(file_path)
+            platform_str = "iOS (PVRTC)" if db.is_ios else "Android (ETC1)"
+            self.setWindowTitle(
+                f"TXD Workshop: {db.name} [{platform_str} — {len(real_textures)} textures]")
+
+            self._display_mobile_textures(db)
+
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "Mobile DB Error",
+                f"Failed to load mobile texture database:\n{e}")
+
+    def _display_mobile_textures(self, db): #vers 1
+        """Populate the TXD Workshop UI with mobile texture database textures."""
+        from PyQt6.QtWidgets import QListWidgetItem
+        from PyQt6.QtGui import QPixmap, QImage
+        from PyQt6.QtCore import Qt
+        from apps.methods.mobile_texture_decode import to_pil_image
+        from apps.methods.mobile_texture_db import ENCODING_IS_PVRTC
+
+        real_textures = [t for t in db.textures if not t.is_affiliate]
+
+        # Clear texture list
+        if hasattr(self, 'txd_list_widget'):
+            self.txd_list_widget.clear()
+
+        # Store for later access
+        self._mobile_db = db
+        self._mobile_textures = []
+
+        for tex in real_textures:
+            enc_name = tex.encoding_name
+            pvrtc_note = " (preview limited)" if tex.encoding_type in ENCODING_IS_PVRTC else ""
+            label = (f"{tex.name}  [{tex.width}×{tex.height}]  "
+                     f"{enc_name}{pvrtc_note}")
+
+            # Build QPixmap from decoded pixel data
+            pil_img = to_pil_image(tex)
+            qpix = None
+            if pil_img:
+                try:
+                    img_data = pil_img.tobytes('raw', 'RGBA')
+                    qimg = QImage(img_data, pil_img.width, pil_img.height,
+                                  QImage.Format.Format_RGBA8888)
+                    qpix = QPixmap.fromImage(qimg)
+                except Exception:
+                    qpix = None
+
+            # Store display record matching TXD Workshop texture dict format
+            tex_entry = {
+                'name':        tex.name,
+                'width':       tex.width,
+                'height':      tex.height,
+                'format':      enc_name,
+                'depth':       tex.bpp,
+                'alpha':       tex.encoding_type in (2, 4, 7, 8),  # RGBA variants
+                'mipmaps':     tex.mip_count,
+                'platform':    db.platform.upper(),
+                'mobile_tex':  tex,     # original object for export
+                'pixmap':      qpix,
+            }
+            self._mobile_textures.append(tex_entry)
+
+            if hasattr(self, 'txd_list_widget') and qpix:
+                item = QListWidgetItem(label)
+                thumb = qpix.scaled(64, 64,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)
+                item.setIcon(thumb.toImage() if hasattr(thumb, 'toImage') else
+                             __import__('PyQt6.QtGui', fromlist=['QIcon']).QIcon(thumb))
+                self.txd_list_widget.addItem(item)
+            elif hasattr(self, 'txd_list_widget'):
+                self.txd_list_widget.addItem(QListWidgetItem(label))
+
+        # Show first texture
+        if self._mobile_textures:
+            self._show_mobile_texture(0)
+
+        if hasattr(self, 'txd_list_widget'):
+            self.txd_list_widget.currentRowChanged.connect(self._show_mobile_texture)
+
+    def _show_mobile_texture(self, row: int): #vers 1
+        """Display a mobile texture in the preview area."""
+        from PyQt6.QtCore import Qt
+        textures = getattr(self, '_mobile_textures', [])
+        if row < 0 or row >= len(textures):
+            return
+        tex_entry = textures[row]
+        qpix = tex_entry.get('pixmap')
+
+        # Show in preview
+        if hasattr(self, 'texture_preview') and qpix:
+            scaled = qpix.scaled(
+                self.texture_preview.width(),
+                self.texture_preview.height(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            self.texture_preview.setPixmap(scaled)
+
+        # Update info labels
+        tex = tex_entry.get('mobile_tex')
+        for attr, val in [
+            ('texture_name_label',   tex_entry['name']),
+            ('texture_size_label',   f"{tex_entry['width']} × {tex_entry['height']} pixels"),
+            ('texture_format_label', tex_entry['format']),
+            ('texture_depth_label',  f"{tex_entry['depth']} bpp"),
+            ('texture_alpha_label',  "Yes" if tex_entry['alpha'] else "No"),
+            ('texture_mip_label',    str(tex_entry['mipmaps'])),
+        ]:
+            lbl = getattr(self, attr, None)
+            if lbl and hasattr(lbl, 'setText'):
+                lbl.setText(val)
+
+        db = getattr(self, '_mobile_db', None)
+        if db and tex:
+            from apps.methods.mobile_texture_db import ENCODING_IS_PVRTC
+            if tex.encoding_type in ENCODING_IS_PVRTC:
+                self.log_message(
+                    f"Note: {tex.name} uses PVRTC — preview is approximate. "
+                    f"Export raw data for full-quality decoding.")
 
     def _display_xtx_texture(self, name: str, pixmap, info: dict): #vers 1
         """Show an XTX texture in the workshop preview area."""
