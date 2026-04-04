@@ -10035,6 +10035,27 @@ class TXDWorkshop(QWidget): #vers 3
 
             # Read 88-byte header
             platform_id, filter_mode, uv_addressing = struct.unpack('<I2B', txd_data[pos:pos+6])[:3]
+
+            # ── Xbox (platform_id == 5): delegate to Xbox parser ──────────────
+            if platform_id == 5:
+                try:
+                    from apps.methods.txd_platform_xbox import parse_xbox_nativetex
+                    xbox_tex = parse_xbox_nativetex(txd_data, offset, index)
+                    if xbox_tex:
+                        # Decode compressed data to RGBA for display
+                        if xbox_tex.get('compressed_data') and not xbox_tex.get('rgba_data'):
+                            fmt = xbox_tex.get('format', 'DXT1')
+                            w   = xbox_tex.get('width', 0)
+                            h   = xbox_tex.get('height', 0)
+                            if w > 0 and h > 0 and 'DXT' in fmt:
+                                xbox_tex['rgba_data'] = self._decompress_texture(
+                                    xbox_tex['compressed_data'], w, h, fmt)
+                        return xbox_tex
+                except Exception as _xe:
+                    print(f"[Xbox TXD] Texture {index}: {_xe}")
+                return tex  # return empty rather than crash
+            # ── End Xbox ─────────────────────────────────────────────────────
+
             pos += 8  # Skip padding
 
             name_bytes = txd_data[pos:pos+32]
@@ -12256,7 +12277,7 @@ class TXDWorkshop(QWidget): #vers 3
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
                     self, "Open TXD File", "",
-                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc);;TXD / XTX Files (*.txd *.xtx);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB (*.txt *.dat *.toc);;All Files (*)"
+                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc *.tmb);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;All Files (*)"
                 )
             if file_path:
                 self.current_txd_path = file_path  # Store the full path
@@ -12264,7 +12285,29 @@ class TXDWorkshop(QWidget): #vers 3
 
 
             if file_path:
-                # Route mobile texture DB files (.txt / .dat / .toc)
+                # Hard-reject non-TXD extensions before any parsing
+                _ext = os.path.splitext(file_path)[1].lower()
+                if _ext in ('.toc', '.tmb'):
+                    # .toc and .tmb are mobile DB sidecar files — never valid TXDs.
+                    # Route to mobile DB loader using the companion .dat file.
+                    try:
+                        from apps.methods.mobile_texture_db import detect_mobile_db
+                        _detected = detect_mobile_db(file_path)
+                        if _detected:
+                            self._open_mobile_texture_db(file_path)
+                        else:
+                            from PyQt6.QtWidgets import QMessageBox
+                            QMessageBox.warning(
+                                self, "Unsupported File",
+                                f"{os.path.basename(file_path)} is a mobile texture sidecar "
+                                "(.toc/.tmb).\n\nOpen the matching .dat or .txt file instead "
+                                "to load the full texture database."
+                            )
+                    except Exception as _e:
+                        print(f"[TXDWorkshop] Mobile DB error: {_e}")
+                    return
+
+                # Route mobile texture DB files (.txt / .dat)
                 try:
                     from apps.methods.mobile_texture_db import detect_mobile_db
                     if detect_mobile_db(file_path):
@@ -12363,8 +12406,10 @@ class TXDWorkshop(QWidget): #vers 3
             if db is None:
                 QMessageBox.warning(self, "Mobile DB",
                     "Could not recognise as a mobile texture database.\n"
-                    "Expected: name.txt + name.pvr.dat + name.pvr.toc\n"
-                    "       or: name.txt + name.etc.dat + name.etc.toc")
+                    "Expected: name.txt + name.pvr.dat (SA iOS/VC iOS)\n"
+                    "       or: name.dxt.dat + name.dxt.toc (SA Android)\n"
+                    "       or: name.pvr.dat + name.pvr.toc (VC Android)\n"
+                    "Open the .dat or .txt file, not the .toc or .tmb sidecar.")
                 return
 
             if db.errors:

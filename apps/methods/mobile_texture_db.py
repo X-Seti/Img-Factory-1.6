@@ -120,7 +120,7 @@ def decode_rle(data: bytes, segment_size: int, indicator: int) -> bytes:
 
     Args:
         data:         Compressed bytes.
-        segment_size: Size of each segment in bytes.
+        segment_size: Size of each segment in bytes (must be >= 1).
         indicator:    If a group starts with this byte, the next byte is a
                       repeat count and the following segment_size bytes are
                       repeated that many times.
@@ -128,19 +128,29 @@ def decode_rle(data: bytes, segment_size: int, indicator: int) -> bytes:
     Returns:
         Decompressed bytes.
     """
+    # Sanity checks to prevent runaway loops on corrupt/wrong data
+    segment_size = max(1, segment_size)
+    max_out = max(len(data) * 256, 64 * 1024 * 1024)  # cap at 64 MB
+
     out = bytearray()
     i = 0
     n = len(data)
 
     while i < n:
+        if len(out) >= max_out:
+            break  # safety cap — corrupt data guard
         b = data[i]; i += 1
         if b == indicator:
             if i + 1 + segment_size > n:
                 break
             count = data[i]; i += 1
+            if count == 0:
+                continue  # skip zero-repeat runs
             segment = data[i:i + segment_size]; i += segment_size
             for _ in range(count):
                 out.extend(segment)
+                if len(out) >= max_out:
+                    break
         else:
             if i + segment_size - 1 > n:
                 break
@@ -307,13 +317,20 @@ def parse_toc_file(toc_path: str, entry_count: int) -> Tuple[int, List[int]]:
     """
     Parse the .toc offset file.
 
+    Supports two TOC layouts:
+      With-txt (SA iOS / VC iOS):
+        dat_size(4) + N×offset(4) where N == entry_count, offsets -1 = affiliate
+      No-txt (SA Android / VC Android):
+        dat_size(4) + pad(4) + M×offset(4) where M = (file_size-8)/4
+        First texture is implicitly at offset 0 (not in the array).
+
     Args:
         toc_path:    Path to .toc file.
-        entry_count: Number of entries expected (from .txt).
+        entry_count: Number of entries from .txt (0 = no-txt format).
 
     Returns:
-        (stated_dat_size, list_of_int32_offsets)
-        Offsets of -1 (0xFFFFFFFF) indicate affiliate entries.
+        (stated_dat_size, list_of_offsets)
+        Offsets of -1 (0xFFFFFFFF) = affiliate/gap entries.
     """
     offsets: List[int] = []
     dat_size = 0
@@ -329,12 +346,21 @@ def parse_toc_file(toc_path: str, entry_count: int) -> Tuple[int, List[int]]:
 
     dat_size = struct.unpack_from('<I', data, 0)[0]
 
-    for i in range(entry_count):
-        off = 4 + i * 4
-        if off + 4 > len(data):
-            break
-        val = struct.unpack_from('<i', data, off)[0]  # signed int32
-        offsets.append(val)
+    if entry_count == 0:
+        # No-txt format: dat_size(4) + pad(4) + flat u32 offsets
+        # First texture is always at offset 0 in the DAT (implicit).
+        if len(data) < 8:
+            return dat_size, offsets
+        n = (len(data) - 8) // 4
+        raw = struct.unpack_from(f'<{n}I', data, 8)
+        # Prepend 0 (implicit first entry) then all TOC entries
+        # Sentinel 0xFFFFFFFF = affiliate gap → keep as -1
+        offsets = [0] + [int(o) if o != 0xFFFFFFFF else -1 for o in raw]
+    else:
+        # With-txt format: dat_size(4) + entry_count × u32 offsets
+        n = min(entry_count, (len(data) - 4) // 4)
+        raw = struct.unpack_from(f'<{n}I', data, 4)
+        offsets = [int(o) if o != 0xFFFFFFFF else -1 for o in raw]
 
     return dat_size, offsets
 
@@ -365,7 +391,7 @@ def parse_dat_file(dat_path: str, txt_entries: List[Dict],
 
     use_offsets = (offsets is not None and len(offsets) == len(txt_entries))
     pos = 0
-    HEADER_SIZE = 12  # u16 hash + u16 enc + u16 w + u16 h_mask + u32 csz + u32 rle
+    HEADER_SIZE = 16  # u16 hash + u16 enc + u16 w + u16 h_mask + u32 csz + i32 rle
 
     for idx, entry_props in enumerate(txt_entries):
         tex = MobileTexture()
@@ -419,6 +445,13 @@ def parse_dat_file(dat_path: str, txt_entries: List[Dict],
         else:
             tex.mip_count = 1
 
+        # Sanity check comp_size before reading — corrupt/wrong-format guard
+        MAX_TEX_BYTES = 16 * 1024 * 1024  # 16 MB hard cap per texture
+        if comp_size == 0 or comp_size > MAX_TEX_BYTES:
+            # comp_size is garbage — this entry is not in the expected format.
+            # Likely a VC PVR-native dat or corrupt offset. Skip safely.
+            break
+
         # Read raw compressed bytes
         data_start = pos + HEADER_SIZE
         data_end = data_start + comp_size
@@ -450,11 +483,13 @@ def detect_mobile_db(path: str) -> Optional[Tuple[str, str, str]]:
     """
     Detect if a path belongs to a mobile texture database.
 
-    Accepts:
-      - The .txt file:       gta3.txt
-      - The .dat file:       gta3.pvr.dat  /  gta3.etc.dat
-      - The .toc file:       gta3.pvr.toc
-      - Any of the 4 files.
+    Accepts (with .txt sidecar — SA iOS / VC iOS format):
+      - name.txt, name.pvr.dat, name.pvr.toc, name.pvr.tmb
+
+    Accepts (without .txt — SA Android / VC Android format):
+      - name.dxt.toc / name.dxt.dat / name.dxt.tmb
+      - name.etc.toc / name.etc.dat / name.etc.tmb
+      - name.pvr.toc / name.pvr.dat / name.pvr.tmb  (VC)
 
     Returns:
         (base_name, platform_ext, folder_path)  or  None if not a mobile DB.
@@ -464,31 +499,34 @@ def detect_mobile_db(path: str) -> Optional[Tuple[str, str, str]]:
         return None
 
     folder = os.path.dirname(path)
-    fname = os.path.basename(path)
-    base, ext = os.path.splitext(fname)
-    ext = ext.lstrip('.')
+    fname  = os.path.basename(path)
+    name_lower = fname.lower()
 
-    # Case 1: .txt file → base is the db name
-    if ext == 'txt':
-        db_name = base
-        for platform in (PLATFORM_IOS, PLATFORM_ANDROID):
+    # Quick reject: must have a known platform extension somewhere in the name
+    KNOWN_PLATFORMS = (PLATFORM_IOS, PLATFORM_ANDROID, 'dxt', 'etc')
+
+    # Case 1: .txt file → look for companion .dat
+    if name_lower.endswith('.txt'):
+        db_name = os.path.splitext(fname)[0]
+        for platform in (PLATFORM_IOS, PLATFORM_ANDROID, 'dxt', 'etc'):
             dat = os.path.join(folder, f'{db_name}.{platform}.dat')
             if os.path.isfile(dat):
                 return (db_name, platform, folder)
         return None
 
-    # Case 2: .dat / .toc / .tmb → base looks like 'gta3.pvr'
-    for platform in (PLATFORM_IOS, PLATFORM_ANDROID):
-        if base.endswith(f'.{platform}') or ext in ('dat', 'toc', 'tmb'):
-            # try to strip platform extension
-            if f'.{platform}' in base:
-                db_name = base.replace(f'.{platform}', '')
-            elif f'.{platform}' in fname:
-                db_name = fname.split(f'.{platform}')[0]
-            else:
-                continue
+    # Case 2: .dat / .toc / .tmb with embedded platform token
+    # Filename looks like: gta3hi.pvr.dat  /  txd.dxt.toc  /  hud.etc.tmb
+    for platform in (PLATFORM_IOS, PLATFORM_ANDROID, 'dxt', 'etc'):
+        token = f'.{platform}.'
+        if token in name_lower:
+            db_name = fname[:name_lower.index(token)]
+            # With .txt sidecar (preferred)
             txt = os.path.join(folder, f'{db_name}.txt')
             if os.path.isfile(txt):
+                return (db_name, platform, folder)
+            # Without .txt — Android/no-txt format; verify .dat exists
+            dat = os.path.join(folder, f'{db_name}.{platform}.dat')
+            if os.path.isfile(dat):
                 return (db_name, platform, folder)
 
     return None
@@ -520,33 +558,54 @@ def load_mobile_texture_db(path: str,
     db.dat_path = os.path.join(folder, f'{db_name}.{platform}.dat')
     db.tmb_path = os.path.join(folder, f'{db_name}.{platform}.tmb')
 
-    # 1. Parse .txt
+    # 1. Parse .txt (optional — not present in Android / no-txt format)
     cat_props, txt_entries = parse_txt_file(db.txt_path)
 
-    if not txt_entries:
-        db.errors.append(f'No texture entries found in {db.txt_path}')
-        return db
+    has_txt = bool(txt_entries)
 
-    # 2. Parse .toc (optional - falls back to sequential scan)
+    # 2. Parse .toc
+    # entry_count=0 triggers no-txt mode in parse_toc_file
     offsets: Optional[List[int]] = None
     if os.path.isfile(db.toc_path):
-        dat_size, offsets = parse_toc_file(db.toc_path, len(txt_entries))
+        dat_size, offsets = parse_toc_file(
+            db.toc_path,
+            entry_count=len(txt_entries) if has_txt else 0
+        )
         db.dat_size = dat_size
 
-        # Validate toc against actual dat size
+        # Validate against actual dat size
         if os.path.isfile(db.dat_path):
             actual_size = os.path.getsize(db.dat_path)
-            if dat_size != actual_size:
+            if dat_size and dat_size != actual_size:
                 db.errors.append(
                     f'.toc states dat_size={dat_size} but actual={actual_size}; '
-                    f'falling back to sequential scan'
+                    f'using sequential scan'
                 )
-                offsets = None
+                if has_txt:
+                    offsets = None  # only discard offsets if we have .txt fallback
 
-    # 3. Parse .dat
+    # For no-txt format: synthesise placeholder txt_entries from offsets
+    if not has_txt and offsets:
+        txt_entries = [{'name': f'texture_{i}'} for i in range(len(offsets))]
+
+    if not txt_entries:
+        db.errors.append(
+            f'No texture entries found: missing {db.txt_path} '
+            f'and could not derive entries from .toc'
+        )
+        return db
+
+    # 3. Parse .dat (only if we have entries to match — no-txt formats
+    #    use TOC offsets alone; txt_entries may be [] for VC Android)
     if os.path.isfile(db.dat_path):
-        db.textures = parse_dat_file(db.dat_path, txt_entries, offsets,
-                                     load_pixel_data)
+        if txt_entries or offsets:
+            db.textures = parse_dat_file(db.dat_path, txt_entries, offsets,
+                                         load_pixel_data)
+        else:
+            db.errors.append(
+                'No texture entries (.txt missing and TOC has no usable offsets) '
+                f'for {os.path.basename(db.dat_path)} — cannot parse.'
+            )
     else:
         db.errors.append(f'Missing .dat file: {db.dat_path}')
 
