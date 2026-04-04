@@ -44,6 +44,9 @@ ENCODING_PVRTC_4RGBA= 2   # PVRTC 4bpp RGBA (iOS PowerVR)
 ENCODING_PVRTC_2RGB = 3   # PVRTC 2bpp RGB  (iOS PowerVR)
 ENCODING_PVRTC_2RGBA= 4   # PVRTC 2bpp RGBA (iOS PowerVR)
 ENCODING_ETC1       = 5   # ETC1 (Android / some iOS fallback)
+# VC Android pvr.dat encoding IDs (different from SA)
+ENCODING_VC_PVRTC2  = 0x8C01   # PVRTC 2bpp (VC Android gta3hi.pvr.dat)
+ENCODING_VC_PVRTC2B = 0x8C02   # PVRTC 2bpp variant 2
 ENCODING_RGB565     = 6   # 16-bit RGB 5:6:5
 ENCODING_RGBA4444   = 7   # 16-bit RGBA 4:4:4:4
 ENCODING_RGBA5551   = 8   # 16-bit RGBA 5:5:5:1
@@ -55,6 +58,8 @@ ENCODING_NAMES = {
     ENCODING_PVRTC_2RGB:  'PVRTC-2bpp-RGB',
     ENCODING_PVRTC_2RGBA: 'PVRTC-2bpp-RGBA',
     ENCODING_ETC1:        'ETC1',
+    ENCODING_VC_PVRTC2:  'PVRTC-2bpp-VC',
+    ENCODING_VC_PVRTC2B: 'PVRTC-2bpp-VC-B',
     ENCODING_RGB565:      'RGB565',
     ENCODING_RGBA4444:    'RGBA4444',
     ENCODING_RGBA5551:    'RGBA5551',
@@ -389,6 +394,12 @@ def parse_dat_file(dat_path: str, txt_entries: List[Dict],
     with open(dat_path, 'rb') as f:
         dat = f.read()
 
+    # If no txt_entries but offsets exist (VC Android no-txt format),
+    # create synthetic entry list so we can iterate over TOC offsets directly.
+    if not txt_entries and offsets:
+        txt_entries = [{'name': f'texture_{i}', 'is_affiliate': False}
+                       for i in range(len(offsets))]
+
     use_offsets = (offsets is not None and len(offsets) == len(txt_entries))
     pos = 0
     HEADER_SIZE = 16  # u16 hash + u16 enc + u16 w + u16 h_mask + u32 csz + i32 rle
@@ -445,12 +456,25 @@ def parse_dat_file(dat_path: str, txt_entries: List[Dict],
         else:
             tex.mip_count = 1
 
+        # When TOC offsets available, derive true comp_size from offset difference.
+        # VC pvr.dat stores garbage in the csz header field — use TOC instead.
+        # Skip -1 (affiliate/gap) entries to find the real next valid offset.
+        if use_offsets:
+            for _nxt_i in range(idx + 1, len(offsets)):
+                if offsets[_nxt_i] != -1:
+                    toc_comp_size = offsets[_nxt_i] - pos - HEADER_SIZE
+                    if toc_comp_size > 0:
+                        comp_size = toc_comp_size
+                        tex.compressed_size = comp_size
+                    break
+
         # Sanity check comp_size before reading — corrupt/wrong-format guard
         MAX_TEX_BYTES = 16 * 1024 * 1024  # 16 MB hard cap per texture
         if comp_size == 0 or comp_size > MAX_TEX_BYTES:
-            # comp_size is garbage — this entry is not in the expected format.
-            # Likely a VC PVR-native dat or corrupt offset. Skip safely.
-            break
+            # comp_size is unrecoverable — append affiliate placeholder and skip
+            tex.is_affiliate = True
+            textures.append(tex)
+            continue
 
         # Read raw compressed bytes
         data_start = pos + HEADER_SIZE
