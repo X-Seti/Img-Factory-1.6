@@ -158,7 +158,7 @@ class DFFParser:
         geom.uv_layer_count = uv_count if uv_count > 0 else 1
 
         HAS_COLORS   = bool(flags & 0x0008)
-        HAS_TEXCOORD = bool(flags & 0x0004) or bool(flags & 0x0080)
+        HAS_TEXCOORD = bool(flags & (0x0004 | 0x0080))  # rpGEOMETRYTEXTURED | TEXTURED2
         HAS_NORMALS  = bool(flags & 0x0010)
 
         # Prelit vertex colors
@@ -167,8 +167,8 @@ class DFFParser:
                 r,g,b,a = struct.unpack_from('<BBBB', self.data, p); p += 4
                 geom.colors.append(RGBA(r,g,b,a))
 
-        # UV layers
-        layer_count = geom.uv_layer_count
+        # UV layers — only read if texture flags are set
+        layer_count = geom.uv_layer_count if HAS_TEXCOORD else 0
         for layer_i in range(layer_count):
             uvs = []
             for _ in range(vert_count):
@@ -235,10 +235,10 @@ class DFFParser:
             return mat
 
         # flags(4) + color(4) + unk(4) + textured(4) + ambient(f) + specular(f) + diffuse(f)
-        mflags, r,g,b,a, unk, textured = struct.unpack_from('<I4BI2I', self.data, p)[:7]
-        # ambient/specular/diffuse come after but layout varies; safe read:
+        # RW Material Struct: flags(4)+RGBA(4)+unused(4)+textured(4)+ambient(f)+specular(f)+diffuse(f)
+        mflags, r,g,b,a, unk, textured = struct.unpack_from('<I4BII', self.data, p)[:7]
         try:
-            ambient, specular, diffuse = struct.unpack_from('<3f', self.data, p + 20)
+            ambient, specular, diffuse = struct.unpack_from('<3f', self.data, p + 16)
         except Exception:
             ambient = specular = diffuse = 1.0
         mat.flags    = mflags
