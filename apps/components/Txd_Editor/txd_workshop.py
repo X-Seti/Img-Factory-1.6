@@ -12277,7 +12277,7 @@ class TXDWorkshop(QWidget): #vers 3
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
                     self, "Open TXD File", "",
-                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc *.tmb);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;All Files (*)"
+                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc *.tmb *.chk);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;PS2 Splash (*.chk);;All Files (*)"
                 )
             if file_path:
                 self.current_txd_path = file_path  # Store the full path
@@ -12315,6 +12315,11 @@ class TXDWorkshop(QWidget): #vers 3
                         return
                 except Exception:
                     pass  # not a mobile DB — fall through to TXD
+
+                # Route .chk files to CHK parser (GTA III PS2 splash)
+                if file_path.lower().endswith('.chk'):
+                    self._open_chk_file(file_path)
+                    return
 
                 # Route .xtx files to XTX reader
                 if file_path.lower().endswith('.xtx'):
@@ -12393,6 +12398,39 @@ class TXDWorkshop(QWidget): #vers 3
     def _log(self, msg: str):
         """Safe logging — uses print() since TXDWorkshop has no log_message."""
         print(f"[TXDWorkshop] {msg}")
+
+    def _open_chk_file(self, file_path: str): #vers 1
+        """Open a GTA III PS2 CHK splash texture file."""
+        try:
+            from apps.methods.chk_parser import load_chk
+            tex = load_chk(file_path)
+            if not tex:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "CHK Error", f"Failed to parse CHK file:\n{file_path}")
+                return
+
+            name = tex['name']
+            self.setWindowTitle(f"TXD Workshop: {name}.CHK [{tex['width']}×{tex['height']}]")
+            self._set_status(f"Opened CHK: {name}  "
+                             f"{tex['width']}×{tex['height']}  8bpp palettised")
+
+            # Display as a single-texture list
+            if hasattr(self, 'texture_list'):
+                self.texture_list.clear()
+            if hasattr(self, 'texture_table'):
+                self.texture_table.setRowCount(0)
+
+            self._add_texture_to_table(tex)
+            self.textures = [tex]
+            self.selected_texture = tex
+
+            # Show in preview
+            if tex.get('rgba_data') and tex['width'] > 0:
+                self._display_rgba_preview(tex['rgba_data'], tex['width'], tex['height'])
+
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            print(f"[TXDWorkshop] CHK error: {e}")
 
     def _open_mobile_texture_db(self, file_path: str): #vers 1
         """Open a mobile texture database (.txt+.toc+.dat+.tmb quad-file set).
