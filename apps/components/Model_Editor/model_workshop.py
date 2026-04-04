@@ -4182,30 +4182,6 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
         layout.addWidget(self.build_from_txd_btn)
 
-        layout.addSpacing(8)
-
-        # ── DFF View presets (in left panel) ──────────────────────────────
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #3a3a5a;")
-        layout.addWidget(sep)
-        layout.addSpacing(4)
-
-        for v_label, v_yaw, v_pitch in [("XY", 0, 0), ("XZ", 0, 90),
-                                         ("YZ", 90, 0), ("Iso", 30, 20)]:
-            vb = QPushButton(v_label)
-            vb.setFont(self.button_font)
-            vb.setFixedHeight(btn_height)
-            vb.setMinimumWidth(btn_width)
-            vb.setToolTip(f"View preset: {v_label}")
-            def _set_v(checked=False, y=v_yaw, p=v_pitch):
-                pw = getattr(self, 'preview_widget', None)
-                if pw and isinstance(pw, COL3DViewport):
-                    pw._yaw = y; pw._pitch = p; pw.update()
-            vb.clicked.connect(_set_v)
-            layout.addWidget(vb)
-            layout.addSpacing(spacer)
-
         layout.addStretch()
         return self.transform_icon_panel
 
@@ -4809,10 +4785,13 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window)
 
         lay.addSpacing(6)
-        btn("Pan Up",    self.icon_factory.arrow_up_icon,    lambda: pw.pan( 0,  20))
-        btn("Pan Down",  self.icon_factory.arrow_down_icon,  lambda: pw.pan( 0, -20))
-        btn("Pan Left",  self.icon_factory.arrow_left_icon,  lambda: pw.pan(-20,  0))
-        btn("Pan Right", self.icon_factory.arrow_right_icon, lambda: pw.pan( 20,  0))
+        for v_label, v_yaw, v_pitch in [("XY", 0, 0), ("XZ", 0, 90),
+                                         ("YZ", 90, 0), ("Iso", 30, 20)]:
+            def _set_v(checked=False, y=v_yaw, p=v_pitch):
+                pw._yaw = y; pw._pitch = p; pw.update()
+            b = btn(f"View: {v_label}", self.icon_factory.reset_icon, _set_v)
+            b.setText(v_label)
+            b.setToolTip(f"View preset: {v_label}")
 
         lay.addSpacing(6)
         btn("Render / Background Settings",
