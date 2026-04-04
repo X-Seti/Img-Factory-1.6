@@ -312,6 +312,31 @@ def parse_dff_textures_from_data(dff_path):
         return []
 
 
+def show_dff_model_viewer(main_window, row, entry_info):
+    """Open Model Workshop for a specific DFF entry from the IMG table."""
+    try:
+        import tempfile, os
+        entry = entry_info.get('entry') if entry_info else None
+        img   = getattr(main_window, 'current_img', None)
+
+        if entry and img and hasattr(img, 'extract_entry_data'):
+            data = img.extract_entry_data(entry)
+            if data:
+                name = entry_info.get('name', 'model.dff')
+                tmp  = tempfile.NamedTemporaryFile(
+                    delete=False, suffix='.dff',
+                    prefix=os.path.splitext(name)[0] + '_')
+                tmp.write(data); tmp.close()
+                if hasattr(main_window, 'open_model_workshop_docked'):
+                    main_window.open_model_workshop_docked(file_path=tmp.name)
+                    return
+        # Fallback
+        if hasattr(main_window, 'open_model_workshop_docked'):
+            main_window.open_model_workshop_docked()
+    except Exception as e:
+        main_window.log_message(f"Model Workshop error: {e}")
+
+
 def show_dff_model_viewer_from_selection(main_window):
     """
     Show DFF model viewer for currently selected entry
@@ -583,10 +608,13 @@ def add_requested_file_operations(main_window, menu, row=None):
             texture_action.triggered.connect(lambda: show_dff_texture_list(main_window, row, entry_info))
             menu.addAction(texture_action)
         
-        # Show DFF model in viewer (if DFF file)
+        # Open in Model Workshop (if DFF file)
         if entry_info and entry_info['is_dff']:
-            model_action = QAction("Show DFF Model in Viewer", menu)
-            model_action.triggered.connect(lambda: show_dff_model_viewer(main_window, row, entry_info))
+            menu.addSeparator()
+            model_action = QAction("Open in Model Workshop", menu)
+            def _open_model(checked=False, e=entry_info, r=row):
+                show_dff_model_viewer(main_window, r, e)
+            model_action.triggered.connect(_open_model)
             menu.addAction(model_action)
 
         # Open in COL Workshop (if COL file)

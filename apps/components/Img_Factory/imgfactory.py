@@ -1280,6 +1280,35 @@ class IMGFactory(QMainWindow):
             self.log_message(f"COL workshop error: {str(e)}")
 
 
+    def open_model_workshop_docked(self, dff_name=None, file_path=None): #vers 1
+        """Open Model Workshop in its own tab with icon"""
+        try:
+            from apps.components.Model_Workshop.model_workshop import open_model_workshop
+            if file_path:
+                open_model_workshop(self, file_path)
+            elif dff_name and hasattr(self, 'current_img') and self.current_img:
+                # Extract DFF entry from current IMG to temp file
+                import tempfile, os
+                img = self.current_img
+                for entry in img.entries:
+                    if entry.name.lower() == dff_name.lower():
+                        try:
+                            data = img.extract_entry_data(entry)
+                            if data:
+                                tmp = tempfile.NamedTemporaryFile(
+                                    delete=False, suffix='.dff',
+                                    prefix=os.path.splitext(dff_name)[0] + '_')
+                                tmp.write(data); tmp.close()
+                                open_model_workshop(self, tmp.name)
+                                return
+                        except Exception as ex:
+                            self.log_message(f"DFF extract error: {ex}")
+                self.log_message(f"DFF entry not found: {dff_name}")
+            else:
+                open_model_workshop(self)
+        except Exception as e:
+            self.log_message(f"Model Workshop error: {str(e)}")
+
     def setup_unified_signals(self): #vers 6
         """Setup unified signal handler for all table interactions"""
         from apps.components.unified_signal_handler import connect_table_signals
