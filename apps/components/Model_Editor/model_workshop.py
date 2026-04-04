@@ -4785,13 +4785,16 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window)
 
         lay.addSpacing(6)
-        for v_label, v_yaw, v_pitch in [("XY", 0, 0), ("XZ", 0, 90),
-                                         ("YZ", 90, 0), ("Iso", 30, 20)]:
+        _view_icons = [
+            ("XY",  0,   0,  self.icon_factory.view_xy_icon),
+            ("XZ",  0,  90,  self.icon_factory.view_xz_icon),
+            ("YZ",  90,  0,  self.icon_factory.view_yz_icon),
+            ("Iso", 30, 20,  self.icon_factory.view_iso_icon),
+        ]
+        for v_label, v_yaw, v_pitch, v_icon_fn in _view_icons:
             def _set_v(checked=False, y=v_yaw, p=v_pitch):
                 pw._yaw = y; pw._pitch = p; pw.update()
-            b = btn(f"View: {v_label}", self.icon_factory.reset_icon, _set_v)
-            b.setText(v_label)
-            b.setToolTip(f"View preset: {v_label}")
+            btn(f"View: {v_label}", v_icon_fn, _set_v)
 
         lay.addSpacing(6)
         btn("Render / Background Settings",

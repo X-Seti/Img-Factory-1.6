@@ -771,6 +771,85 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
     
 
+
+# - VIEW PRESET ICONS
+
+    @staticmethod
+    def view_xy_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Top-down XY plane view icon — square with X and Y axis labels"""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- Outer square representing the view plane -->
+            <rect x="2" y="2" width="20" height="20" rx="2"
+                stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <!-- X label left side -->
+            <text x="4.5" y="10.5" font-family="monospace" font-size="7"
+                font-weight="bold" fill="currentColor">X</text>
+            <!-- Y label right side -->
+            <text x="14" y="10.5" font-family="monospace" font-size="7"
+                font-weight="bold" fill="currentColor">Y</text>
+            <!-- Axis cross-lines -->
+            <line x1="12" y1="4" x2="12" y2="20"
+                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+            <line x1="2" y1="12" x2="22" y2="12"
+                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def view_xz_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Front XZ plane view icon"""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="20" height="20" rx="2"
+                stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <text x="4.5" y="10.5" font-family="monospace" font-size="7"
+                font-weight="bold" fill="currentColor">X</text>
+            <text x="14" y="10.5" font-family="monospace" font-size="7"
+                font-weight="bold" fill="currentColor">Z</text>
+            <line x1="12" y1="4" x2="12" y2="20"
+                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+            <line x1="2" y1="12" x2="22" y2="12"
+                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def view_yz_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Side YZ plane view icon"""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="20" height="20" rx="2"
+                stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <text x="4.5" y="10.5" font-family="monospace" font-size="7"
+                font-weight="bold" fill="currentColor">Y</text>
+            <text x="14" y="10.5" font-family="monospace" font-size="7"
+                font-weight="bold" fill="currentColor">Z</text>
+            <line x1="12" y1="4" x2="12" y2="20"
+                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+            <line x1="2" y1="12" x2="22" y2="12"
+                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def view_iso_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Isometric / perspective view icon — 3D cube silhouette"""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- Isometric cube outline -->
+            <!-- Top face -->
+            <polygon points="12,2 22,7 12,12 2,7"
+                stroke="currentColor" stroke-width="1.8" fill="none"
+                stroke-linejoin="round"/>
+            <!-- Left face -->
+            <polygon points="2,7 12,12 12,22 2,17"
+                stroke="currentColor" stroke-width="1.8" fill="none"
+                stroke-linejoin="round"/>
+            <!-- Right face -->
+            <polygon points="12,12 22,7 22,17 12,22"
+                stroke="currentColor" stroke-width="1.8" fill="none"
+                stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+
 # - 3D VIEW ICONS
     
     @staticmethod
