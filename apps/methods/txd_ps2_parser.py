@@ -190,6 +190,11 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
                 tex['raster_format_flags'] = raster_fmt
                 tex['pixels_size']         = pix_sz
                 tex['palette_size']        = pal_sz
+                # TEX0 GS register: bits 0-13 = TBP0 (texture base pointer).
+                # tbp0==0 means the data was uploaded from page 0 of GS VRAM
+                # and has the GS VRAM swizzle applied.
+                # tbp0!=0 means data is at a specific VRAM offset — stored linearly.
+                tex['tbp0']                = int(tex0) & 0x3FFF
             pos = p4 + sz4
 
         # ── Texture chunk (inner) — step INTO pixel/palette data ──────────
@@ -209,7 +214,10 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
             pix_sz -= 80;  pal_sz -= 80
 
             pos += 80                                     # skip pixel GIF header
-            raw_pixels = data[pos:pos + pix_sz];  pos += pix_sz
+            # pix_sz may include GIF alignment padding; clamp to actual pixel count
+            expected_pix_bytes = w * h * depth // 8
+            raw_pixels = data[pos:pos + min(pix_sz, expected_pix_bytes)]
+            pos += pix_sz                                 # advance past full block
 
             pos += 80                                     # skip palette GIF header
             if palette_type == 1:                         # PAL8 — 256 entries
@@ -219,14 +227,16 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
             else:
                 palette = None
 
-            # Unswizzle — only apply when texture is large enough for GS VRAM paging:
-            #   PSMT8: GS page = 64px wide → need width >= 64
-            #   PSMT4: GS page = 128px wide → need width >= 128
-            # Smaller textures are stored linearly (no swizzle applied by game).
-            if depth == 8 and palette and w >= 64:
+            # Unswizzle — apply only when tbp0 == 0.
+            # TEX0.TBP0 (texture base pointer) == 0 means the data was uploaded
+            # to GS VRAM starting at page 0 and has the GS VRAM page/column/byte
+            # swizzle applied. When tbp0 != 0 the data is at a specific VRAM
+            # offset and was stored in linear (pre-arranged) order on disk.
+            needs_unswizzle = (tex.get('tbp0', 0) == 0)
+            if depth == 8 and palette and needs_unswizzle:
                 palette     = _unswizzle_palette(palette)
                 raw_pixels  = _unswizzle8(raw_pixels, w, h)
-            elif depth == 4 and w >= 128:
+            elif depth == 4 and needs_unswizzle:
                 raw_pixels  = _unswizzle4(raw_pixels, w, h)
 
             tex['pixels']  = raw_pixels
