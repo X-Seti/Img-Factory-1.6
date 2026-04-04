@@ -62,7 +62,8 @@ def _unswizzle8(data: bytes, width: int, height: int) -> bytes:
             col_loc        = base_col_loc + ((x + swap_selector) & 0x7) * 4
             byte_num       = ((y >> 1) & 1) + ((x >> 2) & 2)
             swizzle_id     = block_y + block_x + col_loc + byte_num
-            res[y * width + x] = data[swizzle_id]
+            if swizzle_id < len(data):  # OOB guard for sub-page-width textures
+                res[y * width + x] = data[swizzle_id]
     return bytes(res)
 
 
@@ -227,12 +228,19 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
             else:
                 palette = None
 
-            # Unswizzle — apply only when tbp0 == 0.
-            # TEX0.TBP0 (texture base pointer) == 0 means the data was uploaded
-            # to GS VRAM starting at page 0 and has the GS VRAM page/column/byte
-            # swizzle applied. When tbp0 != 0 the data is at a specific VRAM
-            # offset and was stored in linear (pre-arranged) order on disk.
-            needs_unswizzle = (tex.get('tbp0', 0) == 0)
+            # Unswizzle predicate — combined rule covering all known PS2 TXD variants:
+            #   tbp0 == 0: texture uploaded from GS VRAM page 0 (always swizzled)
+            #   PSMT8, w >= 64: large 8bpp texture spans GS pages (LC PS2, MISC.TXD wheels)
+            #   PSMT4, w >= 128: large 4bpp texture spans GS pages
+            # This covers: PARTICLE/EFFECTS/FRONTEN (tbp0=0),
+            #               LC PS2 loading screens (PSMT8 512×512, tbp0≠0),
+            #               while correctly skipping HUD icons (PSMT4 64×64, tbp0≠0).
+            tbp0 = tex.get('tbp0', 0)
+            needs_unswizzle = (
+                tbp0 == 0
+                or (depth == 8  and w >= 64)
+                or (depth == 4  and w >= 128)
+            )
             if depth == 8 and palette and needs_unswizzle:
                 palette     = _unswizzle_palette(palette)
                 raw_pixels  = _unswizzle8(raw_pixels, w, h)
