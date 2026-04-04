@@ -9570,10 +9570,6 @@ def open_workshop(main_window, img_path=None): #vers 3
         return None
 
 
-# Compatibility alias for imports
-ModelWorkshopDialog = ModelWorkshop
-
-
 def open_col_workshop(main_window, img_path=None): #vers 2
     """Open COL Workshop - embedded in tab if main_window has tab widget, standalone otherwise"""
     try:
@@ -9581,13 +9577,13 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
         # Standalone mode
         if not main_window or not hasattr(main_window, 'main_tab_widget'):
-            workshop = COLWorkshop(None, main_window)
+            workshop = ModelWorkshop(None, main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
-            if img_path and img_path.lower().endswith('.col'):
+            if img_path and img_path.lower().endswith('.dff'):
                 if hasattr(workshop, 'open_dff_file'):
-                    workshop.open_col_file(img_path)
+                    workshop.open_dff_file(img_path)
                 elif hasattr(workshop, 'load_dff_file'):
-                    workshop.load_col_file(img_path)
+                    workshop.load_dff_file(img_path)
             workshop.setWindowTitle(f"Model Workshop - {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
@@ -9603,11 +9599,11 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         workshop.setWindowFlags(Qt.WindowType.Widget)
         tab_layout.addWidget(workshop)
 
-        if img_path and img_path.lower().endswith('.col'):
+        if img_path and img_path.lower().endswith('.dff'):
             if hasattr(workshop, 'open_dff_file'):
-                workshop.open_col_file(img_path)
+                workshop.open_dff_file(img_path)
             elif hasattr(workshop, 'load_dff_file'):
-                workshop.load_col_file(img_path)
+                workshop.load_dff_file(img_path)
 
         tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Model Workshop"
         try:
@@ -9626,7 +9622,9 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             main_window.log_message(f"Error opening Model Workshop: {str(e)}")
         return None
 
-COLEditorDialog = COLWorkshop
+MDLEditorDialog = ModelWorkshop
+MODWorkshop     = ModelWorkshop
+ModelWorkshopDialog = ModelWorkshop
 
 if __name__ == "__main__":
     import sys
