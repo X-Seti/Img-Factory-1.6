@@ -1280,7 +1280,7 @@ class COL3DViewport(QWidget): #vers 2
         if ref is not None: return ref
         p = self.parent()
         while p:
-            if isinstance(p, COLWorkshop): return p
+            if isinstance(p, ModelWorkshop): return p
             p = p.parent() if callable(getattr(p, 'parent', None)) else None
         return None
 VIEWPORT_AVAILABLE = True
@@ -1298,7 +1298,7 @@ except ImportError:
     print("Warning: AppSettings not available")
 
 
-class COLModelListWidget(QListWidget): #vers 1
+class ModelListWidget(QListWidget): #vers 1
     """Enhanced model list widget"""
 
     model_selected = pyqtSignal(int)  # Model index
@@ -1354,7 +1354,7 @@ class COLModelListWidget(QListWidget): #vers 1
             self.model_context_menu.emit(model_index, self.mapToGlobal(position))
 
 
-class _ColListDelegate(QStyledItemDelegate): #vers 1
+class _ModelListDelegate(QStyledItemDelegate): #vers 1
     """Word-wrapping delegate for the COL compact list Details column."""
     def paint(self, painter, option, index):
         if index.column() != 1:
@@ -1386,7 +1386,7 @@ class _ColListDelegate(QStyledItemDelegate): #vers 1
             Qt.TextFlag.TextWordWrap | Qt.AlignmentFlag.AlignTop, text)
         return QSize(w, max(72, r.height() + 12))
 
-class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
+class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
     """COL Workshop - Main window"""
 
     workshop_closed = pyqtSignal()
@@ -1608,7 +1608,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
         models = getattr(self.current_col_file, 'models', [])
         if not models: return
 
-        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+        lw = (self.mod_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
               else self.collision_list)
 
         # Collect selected indices (highest first so deletion doesn't shift lower rows)
@@ -2102,7 +2102,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
 
         # Only check the VISIBLE list — the hidden one may have stale state
         if getattr(self, '_col_view_mode', 'detail') == 'detail':
-            lw = getattr(self, 'col_compact_list', None)
+            lw = getattr(self, 'mod_compact_list', None)
         else:
             lw = getattr(self, 'collision_list', None)
 
@@ -2147,7 +2147,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
         self._populate_compact_col_list()
         self._populate_collision_list()
         new_row = len(self.current_col_file.models) - 1
-        active = (self.col_compact_list
+        active = (self.mod_compact_list
                   if self._col_view_mode == 'detail' else self.collision_list)
         if active.rowCount() > new_row:
             active.selectRow(new_row)
@@ -2161,6 +2161,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             import traceback; traceback.print_exc()
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Mesh Editor Error", str(e))
+
     def _build_col_from_txd(self): #vers 2
         """Create stub COL models for each texture name in a loaded TXD."""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
@@ -2471,8 +2472,8 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             return
         models = getattr(self.current_col_file, 'models', [])
         # Compact list
-        for row in range(self.col_compact_list.rowCount()):
-            item = self.col_compact_list.item(row, 0)
+        for row in range(self.mod_compact_list.rowCount()):
+            item = self.mod_compact_list.item(row, 0)
             if item and row < len(models):
                 thumb = self._generate_collision_thumbnail(
                     models[row], 64, 64,
@@ -4489,27 +4490,27 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
         layout.addWidget(self.collision_list)
 
         # ── Compact list (thumbnail + name/version/counts, single row) ───
-        self.col_compact_list = QTableWidget()
-        self.col_compact_list.setColumnCount(2)
-        self.col_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
-        self.col_compact_list.horizontalHeader().setStretchLastSection(True)
-        self.col_compact_list.setSelectionBehavior(
+        self.mod_compact_list = QTableWidget()
+        self.mod_compact_list.setColumnCount(2)
+        self.mod_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
+        self.mod_compact_list.horizontalHeader().setStretchLastSection(True)
+        self.mod_compact_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
-        self.col_compact_list.setSelectionMode(
+        self.mod_compact_list.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.col_compact_list.setAlternatingRowColors(True)
-        self.col_compact_list.setIconSize(QSize(64, 64))
-        self.col_compact_list.itemSelectionChanged.connect(
+        self.mod_compact_list.setAlternatingRowColors(True)
+        self.mod_compact_list.setIconSize(QSize(64, 64))
+        self.mod_compact_list.itemSelectionChanged.connect(
             self._on_compact_col_selected)
-        self.col_compact_list.setContextMenuPolicy(
+        self.mod_compact_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
-        self.col_compact_list.customContextMenuRequested.connect(
+        self.mod_compact_list.customContextMenuRequested.connect(
             self._show_collision_context_menu)
-        self.col_compact_list.setVisible(True)    # start in compact view
-        self.col_compact_list.setRowCount(0)      # populated on first file load
-        self.col_compact_list.setWordWrap(True)
-        self.col_compact_list.setItemDelegate(_ColListDelegate(self.col_compact_list))
-        layout.addWidget(self.col_compact_list)
+        self.mod_compact_list.setVisible(True)    # start in compact view
+        self.mod_compact_list.setRowCount(0)      # populated on first file load
+        self.mod_compact_list.setWordWrap(True)
+        self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
+        layout.addWidget(self.mod_compact_list)
 
         return panel
 
@@ -6130,10 +6131,10 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
         """Populate the workshop UI with a loaded DFF model.
         Fills the mesh list and shows the first geometry in the 3D viewport."""
         try:
-            if not hasattr(self, 'col_compact_list'):
+            if not hasattr(self, 'mod_compact_list'):
                 return
 
-            self.col_compact_list.clear()
+            self.mod_compact_list.clear()
             self._dff_adapters = []   # keep adapters alive
 
             for i, geom in enumerate(model.geometries):
@@ -6148,7 +6149,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
                 item = QListWidgetItem(label)
                 from PyQt6.QtCore import Qt
                 item.setData(Qt.ItemDataRole.UserRole, i)  # store geometry index
-                self.col_compact_list.addItem(item)
+                self.mod_compact_list.addItem(item)
 
             # Show first geometry in viewport
             if self._dff_adapters:
@@ -6156,13 +6157,13 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
 
             # Connect selection → viewport update (once)
             try:
-                self.col_compact_list.currentRowChanged.disconnect(self._on_dff_geom_selected)
+                self.mod_compact_list.currentRowChanged.disconnect(self._on_dff_geom_selected)
             except Exception:
                 pass
-            self.col_compact_list.currentRowChanged.connect(self._on_dff_geom_selected)
+            self.mod_compact_list.currentRowChanged.connect(self._on_dff_geom_selected)
 
-            if self.col_compact_list.count() > 0:
-                self.col_compact_list.setCurrentRow(0)
+            if self.mod_compact_list.count() > 0:
+                self.mod_compact_list.setCurrentRow(0)
 
         except Exception as e:
             import traceback; traceback.print_exc()
@@ -6199,16 +6200,16 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
         if self._col_view_mode == 'list':
             self._col_view_mode = 'detail'
             self.collision_list.setVisible(False)
-            self.col_compact_list.setVisible(True)
+            self.mod_compact_list.setVisible(True)
             self.col_view_toggle_btn.setText("[=]")
             self.col_view_toggle_btn.setToolTip("Switch to detail table view")
-            if (self.col_compact_list.rowCount() == 0
+            if (self.mod_compact_list.rowCount() == 0
                     and self.collision_list.rowCount() > 0
                     and self.current_col_file):
                 self._populate_compact_col_list()
         else:
             self._col_view_mode = 'list'
-            self.col_compact_list.setVisible(False)
+            self.mod_compact_list.setVisible(False)
             self.collision_list.setVisible(True)
             self.col_view_toggle_btn.setText("[T]")
             self.col_view_toggle_btn.setToolTip("Switch to compact thumbnail view")
@@ -6216,17 +6217,17 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
     def _populate_compact_col_list(self): #vers 1
         """Fill compact two-column list (icon + name/version/counts)."""
         try:
-            self.col_compact_list.setRowCount(0)
+            self.mod_compact_list.setRowCount(0)
             models = getattr(self.current_col_file, 'models', [])
             for i, model in enumerate(models):
-                self.col_compact_list.insertRow(i)
+                self.mod_compact_list.insertRow(i)
 
                 # Col 0: real collision thumbnail
                 icon_item = QTableWidgetItem()
                 pm = self._generate_collision_thumbnail(model, 64, 64,
                                 yaw=self._thumb_yaw, pitch=self._thumb_pitch)
                 icon_item.setData(Qt.ItemDataRole.DecorationRole, pm)
-                self.col_compact_list.setItem(i, 0, icon_item)
+                self.mod_compact_list.setItem(i, 0, icon_item)
 
                 # Col 1: name + stats
                 name = getattr(model, 'name', '') or f'model_{i}'
@@ -6245,17 +6246,17 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
 
                 det_item = QTableWidgetItem(details)
                 det_item.setToolTip(details)
-                self.col_compact_list.setItem(i, 1, det_item)
-                self.col_compact_list.setRowHeight(i, 72)
+                self.mod_compact_list.setItem(i, 1, det_item)
+                self.mod_compact_list.setRowHeight(i, 72)
 
-            self.col_compact_list.setColumnWidth(0, 72)
+            self.mod_compact_list.setColumnWidth(0, 72)
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
     def _on_compact_col_selected(self): #vers 3
         """Handle compact [=] list selection."""
         try:
-            rows = self.col_compact_list.selectionModel().selectedRows()
+            rows = self.mod_compact_list.selectionModel().selectedRows()
             if rows:
                 self._select_model_by_row(rows[0].row())
         except Exception as e:
@@ -6311,13 +6312,13 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
 
     def _select_all_models(self): #vers 1
         """Select all entries in the active list (Ctrl+A)."""
-        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+        lw = (self.mod_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
               else self.collision_list)
         lw.selectAll()
 
     def _invert_selection(self): #vers 1
         """Invert the current selection."""
-        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+        lw = (self.mod_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
               else self.collision_list)
         selected = {i.row() for i in lw.selectionModel().selectedRows()}
         lw.clearSelection()
@@ -6383,7 +6384,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
     def _toggle_pin_selected(self): #vers 1
         """Toggle pin (edit-lock) on selected models. Pinned models can't be deleted/renamed."""
         if not self.current_col_file: return
-        lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+        lw = (self.mod_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
               else self.collision_list)
         indices = sorted({i.row() for i in lw.selectionModel().selectedRows()})
         cr = lw.currentRow()
@@ -6468,7 +6469,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
                 f"Showing matched models in list.")
 
             # Select matched rows
-            lw = (self.col_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
+            lw = (self.mod_compact_list if getattr(self,'_col_view_mode','detail')=='detail'
                   else self.collision_list)
             lw.clearSelection()
             name_set = {(getattr(m,'name','') or '').lower() for m in matched}
@@ -6489,7 +6490,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             return
 
         ide_path, _ = QFileDialog.getOpenFileName(
-            self, "Select IDE to remove unref'd COL models", "",
+            self, "Select IDE to remove unref'd models", "",
             "IDE Files (*.ide);;All Files (*)")
         if not ide_path:
             return
@@ -6515,7 +6516,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
 
             if not to_remove:
                 QMessageBox.information(self, "Remove via IDE",
-                    "All COL models are referenced by the IDE — nothing to remove.")
+                    "All models are referenced by the IDE — nothing to remove.")
                 return
 
             example_names = [models[i].name for i in to_remove[:5]]
@@ -6537,7 +6538,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             QMessageBox.critical(self, "Remove via IDE Error", str(e))
 
     def _export_via_ide(self): #vers 1
-        """Export only COL models referenced by an IDE file."""
+        """Export only models referenced by an IDE file."""
         from PyQt6.QtWidgets import QMessageBox, QFileDialog
         import os
         from apps.methods.col_workshop_writer import save_col_file
@@ -6553,7 +6554,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             return
 
         out_path, _ = QFileDialog.getSaveFileName(
-            self, "Save filtered COL archive", "",
+            self, "Save filtered img archive", "",
             "COL Files (*.col);;All Files (*)")
         if not out_path:
             return
@@ -6578,7 +6579,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
 
             if not matched:
                 QMessageBox.warning(self, "No Matches",
-                    "No COL models matched the IDE entries.")
+                    "No models matched the IDE entries.")
                 return
 
             if save_col_file(matched, out_path):
@@ -6599,18 +6600,18 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
         from apps.methods.col_workshop_writer import save_col_file
 
         if not self.current_col_file:
-            QMessageBox.warning(self, "Export", "No COL file loaded.")
+            QMessageBox.warning(self, "Export", "No dff file loaded.")
             return
         models = getattr(self.current_col_file, 'models', [])
         if not models:
-            QMessageBox.warning(self, "Export", "No collision models to export.")
+            QMessageBox.warning(self, "Export", "No models to export.")
             return
 
         # Determine selection from the VISIBLE list
         if getattr(self, '_col_view_mode', 'detail') == 'detail':
-            lw = getattr(self, 'col_compact_list', None)
+            lw = getattr(self, 'mod_compact_list', None)
         else:
-            lw = getattr(self, 'collision_list', None)
+            lw = getattr(self, 'models_list', None)
 
         indices = set()
         if lw is not None:
@@ -6629,7 +6630,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             model = models[indices[0]]
             safe = (getattr(model,'name','model') or 'model').replace(' ','_')
             out, _ = QFileDialog.getSaveFileName(
-                self, "Export COL Model", safe + '.col', "COL Files (*.col);;All Files (*)")
+                self, "Export DFF Model", safe + '.dff', "DFF Files (*.dff);;All Files (*)")
             if not out: return
             ok = save_col_file([model], out)
             msg = f"Exported {os.path.basename(out)}" if ok else "Export failed."
@@ -6642,7 +6643,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             for i in indices:
                 model = models[i]
                 safe = (getattr(model,'name',f'model_{i}') or f'model_{i}').replace(' ','_')
-                out  = os.path.join(folder, safe.lower() + '.col')
+                out  = os.path.join(folder, safe.lower() + '.dff')
                 base, ext = os.path.splitext(out)
                 n = 1
                 while os.path.exists(out):
@@ -6818,7 +6819,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
             self._populate_collision_list()
 
             # Select first model by default
-            active_list = (self.col_compact_list
+            active_list = (self.mod_compact_list
                           if self._col_view_mode == 'detail'
                           else self.collision_list)
             if active_list.rowCount() > 0:
@@ -7587,8 +7588,8 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from COLWorkshop
         """Right-click context menu for both collision model lists."""
         # Work out which list sent the signal and find the row
         sender = self.sender()
-        if sender is self.col_compact_list:
-            source_list = self.col_compact_list
+        if sender is self.mod_compact_list:
+            source_list = self.mod_compact_list
         else:
             source_list = self.collision_list
 
@@ -9368,7 +9369,7 @@ class COLEditorDialog(QDialog): #vers 3
             self._populate_compact_col_list()
             # Select last added
             last = len(self.current_col_file.models) - 1
-            active = (self.col_compact_list
+            active = (self.mod_compact_list
                       if getattr(self,'_col_view_mode','list')=='detail'
                       else self.collision_list)
             if active.rowCount() > last:
@@ -9543,7 +9544,7 @@ def open_model_workshop(main_window, dff_path=None): #vers 1
 def open_workshop(main_window, img_path=None): #vers 3
     """Open Workshop from main window - works with or without IMG"""
     try:
-        workshop = COLWorkshop(main_window, main_window)
+        workshop = ModelWorkshop(main_window, main_window)
 
         if img_path:
             # Check if it's a col file or IMG file
@@ -9566,9 +9567,8 @@ def open_workshop(main_window, img_path=None): #vers 3
 
 
 # Compatibility alias for imports
-COLEditorDialog = COLWorkshop
-ModelWorkshop = COLWorkshop
-ModelWorkshopDialog = COLWorkshop  #vers 1
+ModelEditorDialog = ModelWorkshop
+ModelWorkshopDialog = ModelWorkshop  #vers 1
 
 
 def open_col_workshop(main_window, img_path=None): #vers 2
@@ -9578,14 +9578,14 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
         # Standalone mode
         if not main_window or not hasattr(main_window, 'main_tab_widget'):
-            workshop = COLWorkshop(None, main_window)
+            workshop = ModelWorkshop(None, main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
             if img_path and img_path.lower().endswith('.col'):
-                if hasattr(workshop, 'open_col_file'):
+                if hasattr(workshop, 'open_dff_file'):
                     workshop.open_col_file(img_path)
-                elif hasattr(workshop, 'load_col_file'):
+                elif hasattr(workshop, 'load_dff_file'):
                     workshop.load_col_file(img_path)
-            workshop.setWindowTitle(f"COL Workshop - {App_name}")
+            workshop.setWindowTitle(f"Model Workshop - {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
             return workshop
@@ -9596,7 +9596,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         tab_layout = QVBoxLayout(tab_container)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        workshop = COLWorkshop(tab_container, main_window)
+        workshop = ModelWorkshop(tab_container, main_window)
         workshop.setWindowFlags(Qt.WindowType.Widget)
         tab_layout.addWidget(workshop)
 
@@ -9606,10 +9606,10 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             elif hasattr(workshop, 'load_col_file'):
                 workshop.load_col_file(img_path)
 
-        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "COL Workshop"
+        tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "Model Workshop"
         try:
-            from apps.methods.imgfactory_svg_icons import get_col_file_icon
-            icon = get_col_file_icon()
+            from apps.methods.imgfactory_svg_icons import get_model_file_icon
+            icon = get_model_file_icon()
             idx = main_window.main_tab_widget.addTab(tab_container, icon, tab_label)
         except Exception:
             idx = main_window.main_tab_widget.addTab(tab_container, tab_label)
@@ -9620,10 +9620,10 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
     except Exception as e:
         if main_window and hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error opening COL Workshop: {str(e)}")
+            main_window.log_message(f"Error opening Model Workshop: {str(e)}")
         return None
 
-COLEditorDialog = COLWorkshop
+COLEditorDialog = ModelWorkshop
 
 if __name__ == "__main__":
     import sys
@@ -9635,7 +9635,7 @@ if __name__ == "__main__":
         app = QApplication(sys.argv)
         print("QApplication created")
 
-        workshop = COLWorkshop()
+        workshop = ModelWorkshop()
         print(App_name + " instance created")
 
         workshop.setWindowTitle(App_name + " - Standalone")
