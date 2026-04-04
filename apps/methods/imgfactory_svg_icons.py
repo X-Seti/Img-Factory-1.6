@@ -775,57 +775,41 @@ class SVGIconFactory: #vers 7
 # - VIEW PRESET ICONS
 
     @staticmethod
-    def view_xy_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Top-down XY plane view icon — square with X and Y axis labels"""
+    def view_xy_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """XY view icon — overlapping X (red) and Y (yellow), no box"""
         svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <!-- Outer square representing the view plane -->
-            <rect x="2" y="2" width="20" height="20" rx="2"
-                stroke="currentColor" stroke-width="1.8" fill="none"/>
-            <!-- X label left side -->
-            <text x="4.5" y="10.5" font-family="monospace" font-size="7"
-                font-weight="bold" fill="currentColor">X</text>
-            <!-- Y label right side -->
-            <text x="14" y="10.5" font-family="monospace" font-size="7"
-                font-weight="bold" fill="currentColor">Y</text>
-            <!-- Axis cross-lines -->
-            <line x1="12" y1="4" x2="12" y2="20"
-                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
-            <line x1="2" y1="12" x2="22" y2="12"
-                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+            <!-- Y behind, yellow, offset right -->
+            <text x="9" y="19" font-family="Arial,sans-serif" font-size="17"
+                font-weight="bold" fill="#e0c030" opacity="0.95">Y</text>
+            <!-- X in front, red, offset left -->
+            <text x="1" y="19" font-family="Arial,sans-serif" font-size="17"
+                font-weight="bold" fill="#e05050">X</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
-    def view_xz_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Front XZ plane view icon"""
+    def view_xz_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """XZ view icon — overlapping X (red) and Z (blue), no box"""
         svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2" y="2" width="20" height="20" rx="2"
-                stroke="currentColor" stroke-width="1.8" fill="none"/>
-            <text x="4.5" y="10.5" font-family="monospace" font-size="7"
-                font-weight="bold" fill="currentColor">X</text>
-            <text x="14" y="10.5" font-family="monospace" font-size="7"
-                font-weight="bold" fill="currentColor">Z</text>
-            <line x1="12" y1="4" x2="12" y2="20"
-                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
-            <line x1="2" y1="12" x2="22" y2="12"
-                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+            <!-- Z behind, blue, offset right -->
+            <text x="9" y="19" font-family="Arial,sans-serif" font-size="17"
+                font-weight="bold" fill="#5090e8" opacity="0.95">Z</text>
+            <!-- X in front, red, offset left -->
+            <text x="1" y="19" font-family="Arial,sans-serif" font-size="17"
+                font-weight="bold" fill="#e05050">X</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
-    def view_yz_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Side YZ plane view icon"""
+    def view_yz_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """YZ view icon — overlapping Y (yellow) and Z (blue), no box"""
         svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2" y="2" width="20" height="20" rx="2"
-                stroke="currentColor" stroke-width="1.8" fill="none"/>
-            <text x="4.5" y="10.5" font-family="monospace" font-size="7"
-                font-weight="bold" fill="currentColor">Y</text>
-            <text x="14" y="10.5" font-family="monospace" font-size="7"
-                font-weight="bold" fill="currentColor">Z</text>
-            <line x1="12" y1="4" x2="12" y2="20"
-                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
-            <line x1="2" y1="12" x2="22" y2="12"
-                stroke="currentColor" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+            <!-- Z behind, blue, offset right -->
+            <text x="9" y="19" font-family="Arial,sans-serif" font-size="17"
+                font-weight="bold" fill="#5090e8" opacity="0.95">Z</text>
+            <!-- Y in front, yellow, offset left -->
+            <text x="1" y="19" font-family="Arial,sans-serif" font-size="17"
+                font-weight="bold" fill="#e0c030">Y</text>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
