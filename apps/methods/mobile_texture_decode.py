@@ -232,19 +232,28 @@ def decode_mobile_texture(tex) -> Optional[bytes]:
     elif enc == ENCODING_RGBA5551:
         return decode_rgba5551(data, w, h)
     elif enc in ENCODING_IS_PVRTC:
-        # PVRTC decoding requires a complex proprietary algorithm.
-        # Return a placeholder grey image with a pink border.
+        # iOS PVRTC — placeholder (standard PVRTC4/2 different from VC variant)
         placeholder = bytearray(w * h * 4)
         for y in range(h):
             for x in range(w):
                 border = (x == 0 or x == w-1 or y == 0 or y == h-1)
                 i = (y * w + x) * 4
                 if border:
-                    placeholder[i:i+4] = [255, 64, 128, 255]  # pink border
+                    placeholder[i:i+4] = [255, 64, 128, 255]
                 else:
                     v = 80 + (x + y) % 40
                     placeholder[i:i+4] = [v, v, v+10, 255]
         return bytes(placeholder)
+
+    # VC Android PVRTC2 (enc 0x8C01 / 0x8C02)
+    from apps.methods.mobile_texture_db import ENCODING_VC_PVRTC2, ENCODING_VC_PVRTC2B
+    if enc in (ENCODING_VC_PVRTC2, ENCODING_VC_PVRTC2B):
+        try:
+            from apps.methods.pvrtc_decode import decode_pvrtc2
+            return decode_pvrtc2(data, w, h)
+        except Exception:
+            pass
+
     return None
 
 
