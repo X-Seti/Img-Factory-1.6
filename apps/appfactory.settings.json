@@ -2,7 +2,7 @@
   "debug_mode": false,
   "debug_level": "INFO",
   "current_theme": "App_Factory",
-  "theme": "manjaro_dark",
+  "theme": "manjaro2_dark",
   "button_display_mode": "both",
   "use_custom_gadgets": true,
   "enable_corner_resize": true,
@@ -71,5 +71,6 @@
   "pin_warn_log": true,
   "rename_notify_popup": true,
   "rename_notify_log": true,
-  "debug_log_functions": []
+  "debug_log_functions": [],
+  "tab_content_mode": "both"
 }
