@@ -260,7 +260,8 @@ class DP5Canvas(QWidget):
         elif self.tool == TOOL_PICKER:
             c = self.get_pixel(tx, ty)
             if c.isValid(): self.color = c
-            self.parent().parent()._update_color_btn()
+            p = getattr(self, '_editor', None)
+            if p: p._update_color_btn()
         elif self.tool in (TOOL_LINE, TOOL_RECT, TOOL_CIRCLE):
             self._preview_start = (tx, ty)
             self._preview_end   = (tx, ty)
@@ -269,8 +270,8 @@ class DP5Canvas(QWidget):
 
     def mouseMoveEvent(self, e: QMouseEvent):
         tx, ty = self._widget_to_tex(e.position().toPoint())
-        p = self.parent().parent() if self.parent() else None
-        if hasattr(p, '_update_status'):
+        p = getattr(self, '_editor', None)
+        if p and hasattr(p, '_update_status'):
             p._update_status(tx, ty, self.get_pixel(tx, ty))
 
         if not (e.buttons() & Qt.MouseButton.LeftButton): return
@@ -313,8 +314,8 @@ class DP5Canvas(QWidget):
             old = self.zoom
             if delta > 0: self.zoom = min(16, self.zoom + 1)
             else:         self.zoom = max(1,  self.zoom - 1)
-            p = self.parent().parent()
-            if hasattr(p, '_update_zoom_label'):
+            p = getattr(self, '_editor', None)
+            if p and hasattr(p, '_update_zoom_label'):
                 p._update_zoom_label()
         self.update()
 
@@ -451,6 +452,10 @@ class DP5PaintEditor(QDialog):
         # Centre: scroll canvas
         self.canvas = DP5Canvas(self.width, self.height, self.rgba, self)
         self.canvas.pixel_changed.connect(self._on_canvas_changed)
+        # Give canvas a direct reference to the editor (avoids fragile parent chains)
+        self.canvas._editor = self
+        # Now canvas exists — set initial tool
+        self._select_tool(TOOL_PENCIL)
         scroll = QScrollArea()
         scroll.setWidget(self.canvas)
         scroll.setWidgetResizable(True)
@@ -572,8 +577,7 @@ class DP5PaintEditor(QDialog):
         clr_btn.clicked.connect(self._clear)
         lay.addWidget(clr_btn)
 
-        # Select pencil initially
-        self._select_tool(TOOL_PENCIL)
+        # Note: _select_tool called after canvas is built (see _build_ui)
         return frame
 
     # ── Right panel ───────────────────────────────────────────────────────────
