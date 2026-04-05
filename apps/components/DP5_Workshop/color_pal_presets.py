@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# apps/components/DP5_Workshop/color_pal_presets.py - Version: 1
+# X-Seti - April 2026 - DP5 Workshop colour palette presets mixin
+"""
+Colour picker tab and retro palette presets for DP5Workshop.
+This module provides _create_color_picker_tab() and related methods
+as a mixin class to be merged into DP5Workshop.
+"""
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
+    QGroupBox, QLabel, QPushButton, QGridLayout, QFrame
+)
+from PyQt6.QtCore import Qt
+
+
+class ColorPalPresetsMixin:
+    """Mixin providing the colour picker tab for DP5Workshop."""
+
     def _create_color_picker_tab(self): #vers 7
         """Create color picker and theme editor tab - Final layout with logical flow"""
         tab = QWidget()
@@ -260,3 +278,15 @@
         self.palette_sizes = [(4, 6), (6, 8), (8, 10), (10,12), (8, 16), (12, 12), (16, 16)]
         self.current_palette_index = 1  # start 6x8
         self.current_retro_palette = None  # Track if a retro palette is active
+
+
+    def _refresh_retro_palette(self, *args):
+        """Stub — implemented when palette grid is wired up."""
+        pass
+
+    def _toggle_palette_grid(self, *args):
+        """Stub — implemented when palette grid is wired up."""
+        pass
+
+
+__all__ = ['ColorPalPresetsMixin']

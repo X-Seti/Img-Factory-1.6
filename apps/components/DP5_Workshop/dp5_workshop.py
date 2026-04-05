@@ -90,7 +90,7 @@ class DP5Workshop(QWidget):
         # Chat state
         self.sessions: list[dict] = []   # [{name, messages, created}]
         self.current_session_index = -1
-        self.worker: OllamaWorker | None = None
+        self.worker = None  # background worker placeholder
         self._current_response   = ""
         self._pending_attachments: list[dict] = []  # files queued for next send
 
@@ -671,6 +671,58 @@ class DP5Workshop(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
 
+
+
+    # ── Stub methods — to be implemented ─────────────────────────────────────
+
+    def _redraw_chat(self):
+        """Placeholder — DP5 canvas redraw."""
+        pass
+
+    def _update_ollama_status(self):
+        """Placeholder — status update."""
+        pass
+
+    def _refresh_session_list(self):
+        """Placeholder — bitmap list refresh."""
+        pass
+
+    def _import_bitmap(self):
+        """Import a bitmap/image file."""
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Bitmap", "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm);;All Files (*)")
+        if path:
+            print(f"[DP5Workshop] Import: {path}")
+
+    def _export_bitmap(self):
+        """Export the current canvas."""
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Bitmap", "untitled.png",
+            "PNG (*.png);;BMP (*.bmp);;IFF ILBM (*.iff);;All Files (*)")
+        if path:
+            print(f"[DP5Workshop] Export: {path}")
+
+    def _cleanup_worker(self):
+        """Clean up any background workers."""
+        pass
+
+    def _stop_web_server(self):
+        """Stop embedded web server if running."""
+        pass
+
+    def _show_workshop_settings(self):
+        """Open workshop settings dialog."""
+        try:
+            if self.app_settings and APPSETTINGS_AVAILABLE:
+                from apps.utils.app_settings_system import SettingsDialog
+                dlg = SettingsDialog(self.app_settings, self)
+                dlg.exec()
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Settings", str(e))
 
 # Public factory functions (mirrors col_workshop.py pattern)
 

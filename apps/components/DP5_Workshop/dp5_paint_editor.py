@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/dp5_paint_editor.py - Version: 2
+#this belongs in apps/components/DP5_Workshop/dp5_paint_editor.py - Version: 2
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # Deluxe Paint 5 style texture paint editor — standalone + embedded
 """
