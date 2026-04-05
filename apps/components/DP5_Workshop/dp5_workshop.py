@@ -3,13 +3,8 @@
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 
 import os
-import json
-import requests
-import threading
-from collections import deque
-from typing import Optional, List, Tuple
-from datetime import datetime
 from pathlib import Path
+from typing import Optional, List, Tuple
 
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
 os.environ['QSG_RHI_BACKEND'] = 'opengl'
@@ -29,14 +24,6 @@ from PyQt6.QtWidgets import (
     QFormLayout, QFontComboBox, QSlider, QDoubleSpinBox,
     QSizePolicy, QAbstractItemView, QMenu
 )
-from PyQt6.QtWidgets import (
-    QApplication, QDialog, QWidget,
-    QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QSlider, QScrollArea, QFrame,
-    QMenuBar, QMenu, QFileDialog, QColorDialog, QStatusBar,
-    QSizePolicy, QMessageBox
-)
-
 from PyQt6.QtCore import Qt, QPoint, QRect, pyqtSignal, QSize, QThread, pyqtSlot
 from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QCursor, QAction, QMouseEvent, QWheelEvent, QFont, QIcon, QColor, QPainter, QPen, QBrush, QPainterPath, QKeySequence, QShortcut
 
@@ -133,6 +120,14 @@ class DP5Workshop(QWidget):
         # Icon factory
         self.icon_factory = SVGIconFactory()
 
+        # Canvas state
+        self._canvas_width  = 320
+        self._canvas_height = 200
+        self._canvas_zoom   = 4
+        self._undo_stack    = __import__('collections').deque(maxlen=32)
+        self._redo_stack    = __import__('collections').deque(maxlen=32)
+        self.dp5_canvas     = None   # set by _create_centre_panel
+
         self.setWindowTitle(App_name)
         #if ICONS_AVAILABLE:
         #    self.setWindowIcon(SVGIconFactory.ai_app_icon())
@@ -181,6 +176,11 @@ class DP5Workshop(QWidget):
         splitter.setStretchFactor(2, 1)   # settings
 
         main_layout.addWidget(splitter)
+
+        # Initial tool selection (canvas must exist first)
+        if hasattr(self, '_tool_btns') and hasattr(self, 'dp5_canvas') and self.dp5_canvas:
+            from apps.components.DP5_Workshop.dp5_paint_editor import TOOL_PENCIL
+            self._select_tool(TOOL_PENCIL)
 
 
     # --- Toolbar -----------------------------------------------------------
@@ -331,43 +331,185 @@ class DP5Workshop(QWidget):
     # --- Centre panel: chat ------------------------------------------------
 
     def _create_centre_panel(self):
-        panel = QGroupBox("Canvus")
+        """Centre panel — hosts the DP5 canvas and menubar."""
+        from PyQt6.QtWidgets import QGroupBox, QVBoxLayout
+        panel = QGroupBox("")
         layout = QVBoxLayout(panel)
-        layout.setSpacing(4)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
+
+        # ── Menu bar ──
+        from PyQt6.QtWidgets import QMenuBar
+        mb = QMenuBar(panel)
+        self._build_canvas_menus(mb)
+        layout.addWidget(mb)
+
+        # ── Canvas ──
+        try:
+            from apps.components.DP5_Workshop.dp5_paint_editor import DP5Canvas
+            w, h = self._canvas_width, self._canvas_height
+            self.canvas_rgba = bytearray(b'\x80\x80\x80\xff' * (w * h))
+            self.dp5_canvas = DP5Canvas(w, h, self.canvas_rgba, panel)
+            self.dp5_canvas._editor = self
+            from PyQt6.QtWidgets import QScrollArea
+            scroll = QScrollArea()
+            scroll.setWidget(self.dp5_canvas)
+            scroll.setWidgetResizable(True)
+            layout.addWidget(scroll, 1)
+            self._set_status(f"Canvas: {w}×{h}")
+        except Exception as e:
+            from PyQt6.QtWidgets import QLabel
+            err = QLabel(f"Canvas error: {e}")
+            layout.addWidget(err)
+            self.dp5_canvas = None
 
         return panel
+
+    def _build_canvas_menus(self, mb):
+        """Build the canvas-area menu bar."""
+        from PyQt6.QtWidgets import QMenu
+        # File
+        fm = mb.addMenu("File")
+        fm.addAction("New canvas…",    self._new_canvas)
+        fm.addAction("Open image…",    self._import_bitmap)
+        fm.addAction("Save as PNG…",   self._export_bitmap)
+        fm.addAction("Export IFF…",    self._export_iff)
+        # Edit
+        em = mb.addMenu("Edit")
+        em.addAction("Undo	Ctrl+Z",   self._undo_canvas)
+        em.addAction("Redo	Ctrl+Y",   self._redo_canvas)
+        em.addSeparator()
+        em.addAction("Clear",          self._clear_canvas)
+        em.addAction("Fill colour",    self._fill_canvas)
+        # Picture
+        pm = mb.addMenu("Picture")
+        pm.addAction("Flip horizontal", self._flip_h)
+        pm.addAction("Flip vertical",   self._flip_v)
+        pm.addAction("Invert",          self._invert)
+        pm.addAction("Brighten +25",    lambda: self._adjust(25))
+        pm.addAction("Darken −25",      lambda: self._adjust(-25))
+        # View
+        vm = mb.addMenu("View")
+        vm.addAction("Zoom in  +",  lambda: self._set_zoom(self._canvas_zoom + 1))
+        vm.addAction("Zoom out −",  lambda: self._set_zoom(self._canvas_zoom - 1))
+        for z in (1, 2, 4, 8, 16):
+            vm.addAction(f"{z}×", lambda _, zz=z: self._set_zoom(zz))
 
 
     # --- Right panel: settings ---------------------------------------------
 
     def _create_right_panel(self):
+        """Right panel: tool buttons + colour swatch + palette strip."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(80)
-        panel.setMaximumWidth(180)
+        panel.setMinimumWidth(64)
+        panel.setMaximumWidth(120)
 
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(10)
+        layout.setContentsMargins(3, 3, 3, 3)
+        layout.setSpacing(3)
 
-        header = QLabel("Paint Gadgets")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        # ── Tool buttons ──
+        from apps.components.DP5_Workshop.dp5_paint_editor import (
+            TOOL_PENCIL, TOOL_ERASER, TOOL_FILL, TOOL_PICKER,
+            TOOL_LINE, TOOL_RECT, TOOL_CIRCLE, TOOL_SPRAY
+        )
+        tools = [
+            (TOOL_PENCIL, '✏',  'Pencil (P)'),
+            (TOOL_ERASER, '⬜', 'Eraser (E)'),
+            (TOOL_FILL,   '▓',  'Fill (F)'),
+            (TOOL_PICKER, '⊕',  'Picker (K)'),
+            (TOOL_LINE,   '╱',  'Line (L)'),
+            (TOOL_RECT,   '▭',  'Rect (R)'),
+            (TOOL_CIRCLE, '○',  'Circle (C)'),
+            (TOOL_SPRAY,  '·:', 'Spray (S)'),
+        ]
+        self._tool_btns = {}
+        for tool_id, icon, tip in tools:
+            btn = QPushButton(icon)
+            btn.setFixedSize(48, 28)
+            btn.setCheckable(True)
+            btn.setToolTip(tip)
+            btn.clicked.connect(lambda _, t=tool_id: self._select_tool(t))
+            self._tool_btns[tool_id] = btn
+            layout.addWidget(btn)
 
-        layout.addStretch()
+        layout.addSpacing(4)
 
-        # Settings button — only shown when docked (toolbar is hidden in docked mode)
+        # ── Brush size ──
+        from PyQt6.QtWidgets import QSlider
+        layout.addWidget(QLabel("Size"))
+        self._size_sl = QSlider(Qt.Orientation.Vertical)
+        self._size_sl.setRange(1, 10)
+        self._size_sl.setValue(1)
+        self._size_sl.setFixedHeight(60)
+        self._size_sl.valueChanged.connect(self._set_brush_size)
+        layout.addWidget(self._size_sl)
+
+        layout.addSpacing(4)
+
+        # ── Current colour swatch ──
+        self.color_btn = QPushButton()
+        self.color_btn.setFixedSize(54, 24)
+        self.color_btn.setToolTip("Click to pick colour")
+        self.color_btn.clicked.connect(self._pick_color)
+        self._update_color_btn()
+        layout.addWidget(self.color_btn)
+
+        # ── Palette strip ──
+        try:
+            from apps.components.DP5_Workshop.dp5_paint_editor import DP5PaletteBar
+            self.pal_bar = DP5PaletteBar(panel)
+            self.pal_bar.color_picked.connect(self._on_palette_color)
+            layout.addWidget(self.pal_bar, 1)
+        except Exception:
+            layout.addStretch(1)
+
+        # ── Settings button (docked mode) ──
         self.docked_settings_btn = QPushButton()
         self.docked_settings_btn.setFont(self.button_font)
         self.docked_settings_btn.setIcon(self.icon_factory.settings_icon())
-        self.docked_settings_btn.setText("Settings / Options")
-        self.docked_settings_btn.setIconSize(QSize(18, 18))
+        self.docked_settings_btn.setText("Settings")
+        self.docked_settings_btn.setIconSize(QSize(16, 16))
         self.docked_settings_btn.clicked.connect(self._show_workshop_settings)
-        self.docked_settings_btn.setToolTip("AI Workshop Settings")
         self.docked_settings_btn.setVisible(not self.standalone_mode)
         layout.addWidget(self.docked_settings_btn)
 
         return panel
+
+    def _select_tool(self, tool_id: str):
+        if self.dp5_canvas:
+            self.dp5_canvas.tool = tool_id
+        for tid, btn in self._tool_btns.items():
+            btn.setChecked(tid == tool_id)
+
+    def _set_brush_size(self, v: int):
+        if self.dp5_canvas:
+            self.dp5_canvas.brush_size = v
+
+    def _pick_color(self):
+        from PyQt6.QtWidgets import QColorDialog
+        if not self.dp5_canvas: return
+        c = QColorDialog.getColor(self.dp5_canvas.color, self, "Pick Colour",
+                                   QColorDialog.ColorDialogOption.ShowAlphaChannel)
+        if c.isValid():
+            self.dp5_canvas.color = c
+            self._update_color_btn()
+
+    def _on_palette_color(self, c):
+        if self.dp5_canvas:
+            self.dp5_canvas.color = c
+            self._update_color_btn()
+
+    def _update_color_btn(self):
+        if not self.dp5_canvas: return
+        c = self.dp5_canvas.color
+        luma = (c.red()*299 + c.green()*587 + c.blue()*114)//1000
+        fg = "#000" if luma > 128 else "#fff"
+        self.color_btn.setStyleSheet(
+            f"background:{c.name()}; color:{fg}; "
+            f"border: 2px solid {'#fff' if luma<128 else '#000'};")
+        self.color_btn.setText(c.name().upper())
 
     # Settings dialog
 
@@ -524,6 +666,31 @@ class DP5Workshop(QWidget):
         else:
             self.showMaximized()
 
+    def keyPressEvent(self, e):
+        from PyQt6.QtCore import Qt
+        from apps.components.DP5_Workshop.dp5_paint_editor import (
+            TOOL_PENCIL, TOOL_ERASER, TOOL_FILL, TOOL_PICKER,
+            TOOL_LINE, TOOL_RECT, TOOL_CIRCLE, TOOL_SPRAY
+        )
+        k = e.key(); mod = e.modifiers()
+        tool_keys = {
+            Qt.Key.Key_P: TOOL_PENCIL, Qt.Key.Key_E: TOOL_ERASER,
+            Qt.Key.Key_F: TOOL_FILL,   Qt.Key.Key_K: TOOL_PICKER,
+            Qt.Key.Key_L: TOOL_LINE,   Qt.Key.Key_R: TOOL_RECT,
+            Qt.Key.Key_C: TOOL_CIRCLE, Qt.Key.Key_S: TOOL_SPRAY,
+        }
+        if k in tool_keys:
+            self._select_tool(tool_keys[k])
+        elif mod == Qt.KeyboardModifier.ControlModifier:
+            if k == Qt.Key.Key_Z: self._undo_canvas()
+            elif k == Qt.Key.Key_Y: self._redo_canvas()
+        elif k in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+            self._set_zoom(self._canvas_zoom + 1)
+        elif k == Qt.Key.Key_Minus:
+            self._set_zoom(self._canvas_zoom - 1)
+        else:
+            super().keyPressEvent(e)
+
     def closeEvent(self, event):
         self._cleanup_worker()
         self._stop_web_server()
@@ -675,54 +842,197 @@ class DP5Workshop(QWidget):
 
     # ── Stub methods — to be implemented ─────────────────────────────────────
 
-    def _redraw_chat(self):
-        """Placeholder — DP5 canvas redraw."""
-        pass
+    # ── Canvas colour / tool forwarding ──────────────────────────────────────
 
-    def _update_ollama_status(self):
-        """Placeholder — status update."""
-        pass
+    def _update_color_btn(self):
+        """Called by DP5Canvas when colour picker selects a new colour."""
+        if self.dp5_canvas:
+            c = self.dp5_canvas.color
+            # Propagate to palette bar if present
+            pal = getattr(self, 'pal_bar', None)
+            if pal and hasattr(pal, 'set_selection_by_color'):
+                pal.set_selection_by_color(c)
 
-    def _refresh_session_list(self):
-        """Placeholder — bitmap list refresh."""
-        pass
+    def _update_status(self, x, y, colour):
+        """Called by DP5Canvas on mouse move."""
+        self._set_status(
+            f"Pos: {x},{y}  RGBA({colour.red()},{colour.green()},"
+            f"{colour.blue()},{colour.alpha()})  Zoom: {self._canvas_zoom}×")
+
+    def _update_zoom_label(self):
+        self._canvas_zoom = getattr(self.dp5_canvas, 'zoom', self._canvas_zoom)
+
+    # ── Canvas operations ─────────────────────────────────────────────────────
+
+    def _push_undo(self):
+        if self.dp5_canvas:
+            self._undo_stack.append(bytes(self.dp5_canvas.rgba))
+            self._redo_stack.clear()
+
+    def _undo_canvas(self):
+        if self.dp5_canvas and self._undo_stack:
+            self._redo_stack.append(bytes(self.dp5_canvas.rgba))
+            self.dp5_canvas.rgba[:] = self._undo_stack.pop()
+            self.dp5_canvas.update()
+
+    def _redo_canvas(self):
+        if self.dp5_canvas and self._redo_stack:
+            self._undo_stack.append(bytes(self.dp5_canvas.rgba))
+            self.dp5_canvas.rgba[:] = self._redo_stack.pop()
+            self.dp5_canvas.update()
+
+    def _clear_canvas(self):
+        if not self.dp5_canvas: return
+        self._push_undo()
+        self.dp5_canvas.rgba[:] = b'\x00' * len(self.dp5_canvas.rgba)
+        self.dp5_canvas.update()
+
+    def _fill_canvas(self):
+        if not self.dp5_canvas: return
+        self._push_undo()
+        c = self.dp5_canvas.color
+        for i in range(self._canvas_width * self._canvas_height):
+            self.dp5_canvas.rgba[i*4:i*4+4] = [c.red(),c.green(),c.blue(),c.alpha()]
+        self.dp5_canvas.update()
+
+    def _set_zoom(self, z):
+        if not self.dp5_canvas: return
+        self.dp5_canvas.zoom = max(1, min(16, z))
+        self._canvas_zoom = self.dp5_canvas.zoom
+        self.dp5_canvas.update()
+
+    def _flip_h(self):
+        if not self.dp5_canvas: return
+        self._push_undo()
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        self.dp5_canvas.rgba[:] = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT).tobytes()
+        self.dp5_canvas.update()
+
+    def _flip_v(self):
+        if not self.dp5_canvas: return
+        self._push_undo()
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        self.dp5_canvas.rgba[:] = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM).tobytes()
+        self.dp5_canvas.update()
+
+    def _invert(self):
+        if not self.dp5_canvas: return
+        self._push_undo()
+        from PIL import Image, ImageOps
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        r,g,b,a = img.split()
+        img2 = Image.merge('RGBA', (ImageOps.invert(r), ImageOps.invert(g),
+                                    ImageOps.invert(b), a))
+        self.dp5_canvas.rgba[:] = img2.tobytes()
+        self.dp5_canvas.update()
+
+    def _adjust(self, delta):
+        if not self.dp5_canvas: return
+        self._push_undo()
+        for i in range(0, len(self.dp5_canvas.rgba), 4):
+            for j in range(3):
+                self.dp5_canvas.rgba[i+j] = max(0, min(255, self.dp5_canvas.rgba[i+j] + delta))
+        self.dp5_canvas.update()
+
+    def _new_canvas(self):
+        from PyQt6.QtWidgets import QInputDialog
+        w, ok1 = QInputDialog.getInt(self, "New Canvas", "Width:",  320, 8, 4096)
+        if not ok1: return
+        h, ok2 = QInputDialog.getInt(self, "New Canvas", "Height:", 200, 8, 4096)
+        if not ok2: return
+        self._canvas_width  = w
+        self._canvas_height = h
+        if self.dp5_canvas:
+            self.dp5_canvas.tex_w = w
+            self.dp5_canvas.tex_h = h
+            self.dp5_canvas.rgba  = bytearray(b'\x80\x80\x80\xff' * (w * h))
+            self.dp5_canvas.update()
+        self._set_status(f"New canvas: {w}×{h}")
 
     def _import_bitmap(self):
-        """Import a bitmap/image file."""
         from PyQt6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getOpenFileName(
-            self, "Import Bitmap", "",
+            self, "Open Image", "",
             "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm);;All Files (*)")
-        if path:
-            print(f"[DP5Workshop] Import: {path}")
+        if not path or not self.dp5_canvas: return
+        try:
+            from PIL import Image
+            img = Image.open(path).convert('RGBA')
+            w, h = img.size
+            self._canvas_width, self._canvas_height = w, h
+            self.dp5_canvas.tex_w = w
+            self.dp5_canvas.tex_h = h
+            self.dp5_canvas.rgba  = bytearray(img.tobytes())
+            self.dp5_canvas.update()
+            self._set_status(f"Opened: {__import__('os').path.basename(path)}  {w}×{h}")
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Open Error", str(e))
 
     def _export_bitmap(self):
-        """Export the current canvas."""
+        if not self.dp5_canvas: return
         from PyQt6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Bitmap", "untitled.png",
-            "PNG (*.png);;BMP (*.bmp);;IFF ILBM (*.iff);;All Files (*)")
-        if path:
-            print(f"[DP5Workshop] Export: {path}")
+            self, "Save PNG", "untitled.png", "PNG (*.png);;BMP (*.bmp)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba))
+            img.save(path)
+            self._set_status(f"Saved: {__import__('os').path.basename(path)}")
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Save Error", str(e))
 
-    def _cleanup_worker(self):
-        """Clean up any background workers."""
-        pass
+    def _export_iff(self):
+        if not self.dp5_canvas: return
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export IFF ILBM", "untitled.iff", "IFF ILBM (*.iff)")
+        if not path: return
+        try:
+            from PIL import Image
+            from apps.methods.iff_ilbm import write_iff_ilbm
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba))
+            p_img = img.quantize(colors=256)
+            pal_flat = p_img.getpalette()
+            palette = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
+            data = write_iff_ilbm(self._canvas_width, self._canvas_height, palette, bytes(p_img.tobytes()))
+            open(path, 'wb').write(data)
+            self._set_status(f"Exported IFF: {__import__('os').path.basename(path)}")
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "IFF Export Error", str(e))
 
-    def _stop_web_server(self):
-        """Stop embedded web server if running."""
-        pass
+    def _redraw_chat(self):
+        if self.dp5_canvas: self.dp5_canvas.update()
+
+    def _update_ollama_status(self): pass
+    def _refresh_session_list(self): pass
+    def _cleanup_worker(self): pass
+    def _stop_web_server(self): pass
 
     def _show_workshop_settings(self):
-        """Open workshop settings dialog."""
         try:
             if self.app_settings and APPSETTINGS_AVAILABLE:
                 from apps.utils.app_settings_system import SettingsDialog
                 dlg = SettingsDialog(self.app_settings, self)
                 dlg.exec()
+                self._apply_theme()
         except Exception as e:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Settings", str(e))
+
+    def _set_status(self, msg: str):
+        """Show a message in the window title bar area."""
+        self.setWindowTitle(f"{App_name}  —  {msg}")
 
 # Public factory functions (mirrors col_workshop.py pattern)
 
