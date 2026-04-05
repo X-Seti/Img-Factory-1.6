@@ -11241,102 +11241,23 @@ class TXDWorkshop(QWidget): #vers 3
         self._edit_texture_external()
 
 
-    def _open_paint_editor(self): #vers 2
-        """Open simple paint editor — direct pixel drawing on the texture."""
+    def _open_paint_editor(self): #vers 3
+        """Open Deluxe Paint 5 style paint editor for the selected texture."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
-            QMessageBox.warning(self, "No Texture", "Select a texture first.")
+            QMessageBox.warning(self, "No Texture",
+                "Select a texture with RGBA data first.")
             return
-
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QPushButton, QLabel, QSlider, QColorDialog, QSizePolicy)
-        from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QCursor
-        from PyQt6.QtCore import Qt, QPoint
-
-        tex = self.selected_texture
-        width, height = tex['width'], tex['height']
-        rgba = bytearray(tex['rgba_data'])
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"Paint — {tex['name']}  ({width}x{height})")
-        dlg.setMinimumSize(max(width + 120, 400), max(height + 120, 400))
-
-        # State
-        state = {'color': QColor(255, 0, 0, 255), 'size': 1, 'rgba': rgba}
-
-        # Canvas label
-        canvas = QLabel()
-        canvas.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        canvas.setCursor(QCursor(Qt.CursorShape.CrossCursor))
-        canvas.setMinimumSize(width, height)
-
-        def _refresh():
-            img = QImage(bytes(state['rgba']), width, height,
-                         width * 4, QImage.Format.Format_RGBA8888)
-            canvas.setPixmap(QPixmap.fromImage(img).scaled(
-                width, height, Qt.AspectRatioMode.KeepAspectRatio))
-
-        def _paint_at(pos):
-            pw = canvas.pixmap()
-            if not pw: return
-            # Map widget pos to texture pixel
-            sx = pw.width(); sy = pw.height()
-            px = int(pos.x() * width  / sx)
-            py = int(pos.y() * height / sy)
-            s  = state['size']
-            r, g, b, a = (state['color'].red(), state['color'].green(),
-                          state['color'].blue(), state['color'].alpha())
-            for dy in range(-s, s+1):
-                for dx in range(-s, s+1):
-                    nx, ny = px+dx, py+dy
-                    if 0 <= nx < width and 0 <= ny < height:
-                        i = (ny * width + nx) * 4
-                        state['rgba'][i:i+4] = [r, g, b, a]
-            _refresh()
-
-        canvas.mousePressEvent   = lambda e: _paint_at(e.position().toPoint())
-        canvas.mouseMoveEvent    = lambda e: (_paint_at(e.position().toPoint())
-                                              if e.buttons() & Qt.MouseButton.LeftButton else None)
-        _refresh()
-
-        # Controls
-        ctrl = QHBoxLayout()
-        color_btn = QPushButton("🎨 Colour")
-        def _pick():
-            c = QColorDialog.getColor(state['color'], dlg, "Pick colour",
-                                       QColorDialog.ColorDialogOption.ShowAlphaChannel)
-            if c.isValid():
-                state['color'] = c
-                color_btn.setStyleSheet(f"background:{c.name()}")
-        color_btn.clicked.connect(_pick)
-        ctrl.addWidget(color_btn)
-
-        ctrl.addWidget(QLabel("Brush:"))
-        size_sl = QSlider(Qt.Orientation.Horizontal)
-        size_sl.setRange(0, 10); size_sl.setValue(1); size_sl.setMaximumWidth(100)
-        size_sl.valueChanged.connect(lambda v: state.update({'size': v}))
-        ctrl.addWidget(size_sl)
-        ctrl.addStretch()
-
-        ok_btn  = QPushButton("✓ Apply")
-        cxl_btn = QPushButton("✗ Cancel")
-
-        def _apply():
-            self._save_undo_state("Paint edit")
-            tex['rgba_data'] = bytes(state['rgba'])
-            self._update_texture_info(tex)
-            self._update_table_display()
-            self._mark_as_modified()
-            dlg.accept()
-
-        ok_btn.clicked.connect(_apply)
-        cxl_btn.clicked.connect(dlg.reject)
-        ctrl.addWidget(ok_btn); ctrl.addWidget(cxl_btn)
-
-        lay = QVBoxLayout(dlg)
-        lay.addWidget(canvas)
-        lay.addLayout(ctrl)
-        dlg.exec()
-
+        try:
+            from apps.components.Txd_Editor.dp5_paint_editor import DP5PaintEditor
+            editor = DP5PaintEditor(self.selected_texture, self)
+            if editor.exec() == editor.DialogCode.Accepted:
+                self._save_undo_state("DP5 Paint edit")
+                self._update_texture_info(self.selected_texture)
+                self._update_table_display()
+                self._mark_as_modified()
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            QMessageBox.warning(self, "Paint Editor Error", str(e))
 
     def _open_filters_dialog(self): #vers 1
         """Open filters dialog"""
