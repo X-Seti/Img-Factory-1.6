@@ -2408,6 +2408,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.resize(1400, 800)
         self.setMinimumSize(900, 560)
 
+        # Window icon — shows in taskbar, alt-tab, and title bar
+        try:
+            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+            self.setWindowIcon(get_dp5_workshop_icon(64))
+        except Exception:
+            pass
+
         if self.standalone_mode:
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         else:
@@ -3949,6 +3956,11 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop:
         workshop.setWindowFlags(Qt.WindowType.Window)
         workshop.setWindowTitle(App_name)
         workshop.resize(1400, 800)
+        try:
+            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+            workshop.setWindowIcon(get_dp5_workshop_icon(64))
+        except Exception:
+            pass
         workshop.show()
         return workshop
     except Exception as e:
@@ -3967,7 +3979,19 @@ if __name__ == "__main__":
     print(f"{App_name} starting…")
     try:
         app = QApplication(sys.argv)
-        w   = DP5Workshop()
+        app.setApplicationName(App_name)
+        app.setApplicationVersion("1.6")
+        app.setOrganizationName("X-Seti")
+
+        # Set app icon — appears in taskbar, alt-tab, dock
+        try:
+            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+            app_icon = get_dp5_workshop_icon(64)
+            app.setWindowIcon(app_icon)
+        except Exception:
+            pass
+
+        w = DP5Workshop()
         w.setWindowTitle(App_name + " – Standalone")
         w.resize(1400, 800)
         w.show()
