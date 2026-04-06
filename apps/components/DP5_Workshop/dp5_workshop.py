@@ -2480,7 +2480,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         icon_color = self._get_icon_color()
 
-        # ── [Load] [Save] [Import] [Export] [Undo] — left of cog ──────────
+        # ── _tb helper — adds button to layout ────────────────────────────
         def _tb(text, tip, slot):
             btn = QPushButton(text)
             btn.setFont(self.button_font)
@@ -2491,13 +2491,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             layout.addWidget(btn)
             return btn
 
-        self.tb_load_btn   = _tb("Load",   "Load / open image file",        self._import_bitmap)
-        self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",            self._export_bitmap)
-        self.tb_import_btn = _tb("Import", "Import image onto canvas",       self._import_bitmap)
-        self.tb_export_btn = _tb("Export", "Export canvas to file",          self._export_bitmap)
-        self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",    self._undo_canvas)
-
-        # ── Cog / Settings ─────────────────────────────────────────────────
+        # ── Cog / Settings (standalone only) ──────────────────────────────
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
@@ -2530,6 +2524,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.addLayout(title_row)
 
         layout.addStretch()
+
+        # ── [Load] [Save] [Import] [Export] [Undo] — after title ──────────
+        # TODO: add SVG icons from imgfactory_svg_icons (open, save, import, export, undo)
+        self.tb_load_btn   = _tb("Load",   "Load / open image file",        self._import_bitmap)
+        self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",            self._export_bitmap)
+        # Import/Export handle older formats: IFF, BMP, etc.
+        self.tb_import_btn = _tb("Import", "Import image onto canvas (IFF, BMP, older formats)",
+                                  self._import_bitmap)
+        self.tb_export_btn = _tb("Export", "Export canvas to file (IFF, BMP, older formats)",
+                                  self._export_bitmap)
+        self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",    self._undo_canvas)
 
         # ── Brush Manager button ───────────────────────────────────────────
         self.brush_mgr_btn = QPushButton("Brushes")
