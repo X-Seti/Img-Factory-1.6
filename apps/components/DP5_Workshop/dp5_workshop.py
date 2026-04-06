@@ -166,16 +166,18 @@ def _make_tool_icon(shape: str, size: int = 42,
             tile_bg  = '#1e1e24' if not active else '#d8d8e0'
             icon_col = '#f0f0f4' if not active else '#101014'
             try:
-                return fn(size, color=icon_col, bg_color=tile_bg)
-            except TypeError:
-                # bg_color not supported — render icon then composite onto tile
+                # Get the icon rendered transparent (no bg_color — avoids SVG corruption)
                 ico = fn(size, color=icon_col)
-                px  = QPixmap(size, size)
+                # Composite onto tile background manually
+                px = QPixmap(size, size)
                 px.fill(QColor(tile_bg))
-                p   = QPainter(px)
+                p  = QPainter(px)
+                p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
                 p.drawPixmap(0, 0, ico.pixmap(size, size))
                 p.end()
                 return QIcon(px)
+            except Exception:
+                pass  # fall through to QPainter
 
     # ── QPainter fallback (shapes, lasso, select, text, etc.) ────────────────
     import math as _m
