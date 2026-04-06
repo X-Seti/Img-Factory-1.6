@@ -1587,9 +1587,7 @@ class PaletteGrid(QWidget):
 DP5PaletteBar = PaletteGrid
 
 
-
 #  Colour Picker Widget (simple fallback — no screen capture)
-
 
 class ColorPickerWidget(QWidget):
     """Simple colour picker — opens QColorDialog."""
@@ -1622,9 +1620,7 @@ class ColorPickerWidget(QWidget):
         return self._color
 
 
-
 #  FGBGSwatch — single DPaint5-style nested FG/BG colour indicator
-
 
 class FGBGSwatch(QWidget):
     """
