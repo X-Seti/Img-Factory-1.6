@@ -1142,7 +1142,79 @@ class SVGIconFactory: #vers 7
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 
+    #Paint Icons
+
     @staticmethod
+    def dp_pencil_icon(size: int = 20, color: str = None) -> QIcon:
+        svg_data = '''<svg viewBox="0 0 24 24" fill="none">
+            <path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"
+                stroke="currentColor" stroke-width="1.5"
+                stroke-linejoin="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dp_brush_icon(size: int = 20, color: str = None) -> QIcon:
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M7 16c0 2-2 3-3 3s-2-1-2-2 1-3 3-3h2z"
+                fill="currentColor"/>
+            <path d="M14 3l7 7-8 8-7-7 8-8z"
+                fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dp_magnify_icon(size: int = 20, color: str = None) -> QIcon:
+        svg_data = '''<svg viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7"
+                stroke="currentColor" stroke-width="2"/>
+            <line x1="16.5" y1="16.5" x2="21" y2="21"
+                stroke="currentColor" stroke-width="2"
+                stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dp_line_icon(size: int = 20, color: str = None) -> QIcon:
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <line x1="5" y1="19" x2="19" y2="5"
+                stroke="currentColor" stroke-width="2"
+                stroke-linecap="round"/>
+            <circle cx="5" cy="19" r="1.5" fill="currentColor"/>
+            <circle cx="19" cy="5" r="1.5" fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dp_color_picker_icon(size: int = 20, color: str = None) -> QIcon:
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M14 3l7 7-2 2-7-7 2-2z"
+                fill="currentColor"/>
+            <path d="M3 21l6-2 8-8-4-4-8 8-2 6z"
+                fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dp_bucket_icon(size: int = 20, color: str = None) -> QIcon:
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M5 12l7-7 7 7-7 7-7-7z"
+                fill="currentColor"/>
+            <path d="M12 19c2 0 3 1 3 2s-1 2-3 2-3-1-3-2 1-2 3-2z"
+                fill="currentColor"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def dp_eraser_icon(size: int = 20, color: str = None) -> QIcon:
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <path d="M3 15l6-6 6 6-6 6H3v-6z"
+                fill="currentColor"/>
+            <line x1="3" y1="22" x2="21" y2="22"
+                stroke="currentColor" stroke-width="2"
+                stroke-dasharray="2,2"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
     def dropper_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
