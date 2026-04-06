@@ -3685,3 +3685,35 @@ def get_ide_editor_icon(size: int = 24, color: str = None, bg_color: str = None)
               fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>''', size, color, bg_color)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  DP5 Workshop icons — paint editor suite
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """DP5 Workshop — paint palette with brush"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Palette body -->
+        <path d="M12 2C6.48 2 2 6.48 2 12c0 2.76 1.12 5.26 2.93 7.07.54.54 1.32.57 1.88.11
+                 1.3-1.05 3.08-1.18 4.53-.32.72.42 1.55.64 2.41.64.97 0 1.87-.28 2.62-.76
+                 1.82-1.17 2.63-3.4 2.63-5.74 0-5.52-4.48-10-10-10z"
+              stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+        <!-- Paint holes on palette -->
+        <circle cx="8"  cy="9"  r="1.3" fill="currentColor"/>
+        <circle cx="12" cy="7"  r="1.3" fill="currentColor"/>
+        <circle cx="16" cy="9"  r="1.3" fill="currentColor"/>
+        <circle cx="17" cy="13" r="1.3" fill="currentColor"/>
+        <circle cx="7"  cy="13" r="1.3" fill="currentColor"/>
+        <!-- Thumb hole -->
+        <circle cx="15" cy="16" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <!-- Brush handle -->
+        <line x1="19" y1="5" x2="14.5" y2="14.5"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <!-- Brush tip -->
+        <path d="M19 5 l1.5-1.5 a1 1 0 0 1 0 2z"
+              fill="currentColor"/>
+    </svg>''', size, color, bg_color)
+
+
+# Attach as static method on SVGIconFactory for consistency
+SVGIconFactory.dp5_workshop_icon = staticmethod(get_dp5_workshop_icon)

@@ -1911,6 +1911,133 @@ class FGBGSwatch(QWidget):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  BrushManager — panel listing saved brushes, load/save/delete
+# ══════════════════════════════════════════════════════════════════════════════
+
+class BrushManager(QWidget):
+    """
+    Floating/dockable brush library panel.
+    Brushes are stored as PNG files in ~/.config/imgfactory/dp5_brushes/
+    Click a brush → loads it into the copy buffer (ready to stamp).
+    """
+    brush_selected = pyqtSignal(bytearray, int, int)   # buf, w, h
+
+    _BRUSH_DIR = Path.home() / '.config' / 'imgfactory' / 'dp5_brushes'
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Brush Manager")
+        self.setMinimumWidth(180)
+        self._brushes: List[Path] = []
+        self._setup_ui()
+        self._brush_dir.mkdir(parents=True, exist_ok=True)
+        self._refresh()
+
+    @property
+    def _brush_dir(self) -> Path:
+        return BrushManager._BRUSH_DIR
+
+    def _setup_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(3)
+
+        hdr = QLabel("Brushes")
+        hdr.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        lay.addWidget(hdr)
+
+        self._list = QListWidget()
+        self._list.setIconSize(QSize(48, 48))
+        self._list.setViewMode(QListWidget.ViewMode.IconMode)
+        self._list.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self._list.setGridSize(QSize(64, 72))
+        self._list.setSpacing(2)
+        self._list.setMovement(QListWidget.Movement.Static)
+        self._list.itemDoubleClicked.connect(self._on_brush_selected)
+        self._list.setToolTip("Double-click to load brush into stamp buffer")
+        lay.addWidget(self._list, 1)
+
+        btns = QHBoxLayout()
+        btns.setSpacing(3)
+        for text, tip, slot in [
+            ("Save",   "Save current copy buffer as brush",  self._save_brush),
+            ("Delete", "Delete selected brush",              self._delete_brush),
+            ("Import", "Import PNG as brush",                self._import_brush),
+        ]:
+            btn = QPushButton(text)
+            btn.setFont(QFont("Arial", 8))
+            btn.setToolTip(tip)
+            btn.setMinimumHeight(24)
+            btn.clicked.connect(slot)
+            btns.addWidget(btn)
+        lay.addLayout(btns)
+
+    def _refresh(self):
+        self._list.clear()
+        self._brushes = sorted(self._brush_dir.glob("*.png"))
+        for path in self._brushes:
+            px = QPixmap(str(path)).scaled(
+                48, 48,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            item = QListWidgetItem(QIcon(px), path.stem)
+            item.setData(Qt.ItemDataRole.UserRole, str(path))
+            self._list.addItem(item)
+
+    def _on_brush_selected(self, item: QListWidgetItem):
+        path = item.data(Qt.ItemDataRole.UserRole)
+        try:
+            from PIL import Image
+            img  = Image.open(path).convert('RGBA')
+            w, h = img.size
+            buf  = bytearray(img.tobytes())
+            self.brush_selected.emit(buf, w, h)
+        except Exception as e:
+            QMessageBox.warning(self, "Brush Load Error", str(e))
+
+    def save_current_buffer(self, buf: bytearray, w: int, h: int):
+        """Save the current canvas copy buffer as a named brush PNG."""
+        if not buf or w <= 0: return
+        name, ok = QInputDialog.getText(self, "Save Brush", "Brush name:")
+        if not ok or not name.strip(): return
+        path = self._brush_dir / f"{name.strip()}.png"
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (w, h), bytes(buf))
+            img.save(str(path))
+            self._refresh()
+        except Exception as e:
+            QMessageBox.warning(self, "Save Error", str(e))
+
+    def _save_brush(self):
+        self.brush_selected.emit(bytearray(), 0, 0)   # asks parent to call save_current_buffer
+
+    def _delete_brush(self):
+        item = self._list.currentItem()
+        if not item: return
+        path = Path(item.data(Qt.ItemDataRole.UserRole))
+        reply = QMessageBox.question(self, "Delete Brush",
+                                     f"Delete '{path.stem}'?",
+                                     QMessageBox.StandardButton.Yes |
+                                     QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            path.unlink(missing_ok=True)
+            self._refresh()
+
+    def _import_brush(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Brush PNG", "", "PNG Images (*.png);;All Files (*)")
+        if not path: return
+        try:
+            import shutil
+            dest = self._brush_dir / Path(path).name
+            shutil.copy2(path, dest)
+            self._refresh()
+        except Exception as e:
+            QMessageBox.warning(self, "Import Error", str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  BrushThumbnail — preview of the copy buffer, click to activate stamp mode
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -2349,10 +2476,28 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
+        layout.setSpacing(4)
 
         icon_color = self._get_icon_color()
 
+        # ── [Load] [Save] [Import] [Export] [Undo] — left of cog ──────────
+        def _tb(text, tip, slot):
+            btn = QPushButton(text)
+            btn.setFont(self.button_font)
+            btn.setToolTip(tip)
+            btn.setMinimumHeight(28)
+            btn.setMaximumHeight(28)
+            if slot: btn.clicked.connect(slot)
+            layout.addWidget(btn)
+            return btn
+
+        self.tb_load_btn   = _tb("Load",   "Load / open image file",        self._import_bitmap)
+        self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",            self._export_bitmap)
+        self.tb_import_btn = _tb("Import", "Import image onto canvas",       self._import_bitmap)
+        self.tb_export_btn = _tb("Export", "Export canvas to file",          self._export_bitmap)
+        self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",    self._undo_canvas)
+
+        # ── Cog / Settings ─────────────────────────────────────────────────
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
@@ -2365,13 +2510,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addStretch()
 
+        # ── Title with DP5 icon ────────────────────────────────────────────
         title_row = QHBoxLayout()
         title_row.setSpacing(6)
-        ai_icon_lbl = QLabel()
-        if ICONS_AVAILABLE:
-            pix = SVGIconFactory.ai_icon(20, icon_color).pixmap(20, 20)
-            ai_icon_lbl.setPixmap(pix)
-        title_row.addWidget(ai_icon_lbl)
+        dp5_icon_lbl = QLabel()
+        try:
+            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+            pix = get_dp5_workshop_icon(22, icon_color).pixmap(22, 22)
+            dp5_icon_lbl.setPixmap(pix)
+        except Exception:
+            if ICONS_AVAILABLE:
+                pix = SVGIconFactory.ai_icon(20, icon_color).pixmap(20, 20)
+                dp5_icon_lbl.setPixmap(pix)
+        title_row.addWidget(dp5_icon_lbl)
         self.title_label = QLabel(App_name)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2379,6 +2530,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.addLayout(title_row)
 
         layout.addStretch()
+
+        # ── Brush Manager button ───────────────────────────────────────────
+        self.brush_mgr_btn = QPushButton("Brushes")
+        self.brush_mgr_btn.setFont(self.button_font)
+        self.brush_mgr_btn.setToolTip("Open brush manager panel")
+        self.brush_mgr_btn.setMinimumHeight(28)
+        self.brush_mgr_btn.setMaximumHeight(28)
+        self.brush_mgr_btn.clicked.connect(self._toggle_brush_manager)
+        layout.addWidget(self.brush_mgr_btn)
 
         self.properties_btn = QPushButton()
         self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
@@ -2989,7 +3149,42 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.dp5_canvas.update()
         self._set_status(f"Text placed at {tx},{ty}")
 
-    def _activate_stamp_mode(self):
+    def _toggle_brush_manager(self):
+        """Show/hide the brush manager as a floating panel."""
+        if not hasattr(self, '_brush_mgr_panel'):
+            self._brush_mgr_panel = BrushManager(self)
+            self._brush_mgr_panel.setWindowFlags(
+                Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
+            self._brush_mgr_panel.brush_selected.connect(self._on_brush_mgr_selected)
+
+        if self._brush_mgr_panel.isVisible():
+            self._brush_mgr_panel.hide()
+        else:
+            # Position near toolbar
+            pos = self.mapToGlobal(self.toolbar.pos())
+            self._brush_mgr_panel.move(pos.x(), pos.y() + self.toolbar.height() + 4)
+            self._brush_mgr_panel.resize(220, 320)
+            self._brush_mgr_panel.show()
+            self._brush_mgr_panel.raise_()
+
+    def _on_brush_mgr_selected(self, buf: bytearray, w: int, h: int):
+        """Handle brush_selected signal — load brush OR save current buffer."""
+        if not buf or w == 0:
+            # Empty emit = save request
+            if self.dp5_canvas and self.dp5_canvas._sel_buffer:
+                self._brush_mgr_panel.save_current_buffer(
+                    self.dp5_canvas._sel_buffer,
+                    self.dp5_canvas._sel_buf_w,
+                    self.dp5_canvas._sel_buf_h)
+            return
+        # Load brush into canvas copy buffer
+        if self.dp5_canvas:
+            self.dp5_canvas._sel_buffer  = buf
+            self.dp5_canvas._sel_buf_w   = w
+            self.dp5_canvas._sel_buf_h   = h
+        self._sync_brush_thumb()
+        self._activate_stamp_mode()
+        self._set_status(f"Brush loaded ({w}×{h}) — click to stamp")
         """Switch to stamp tool so user clicks anywhere to place the buffer."""
         if not self.dp5_canvas or not self.dp5_canvas._sel_buffer:
             return
@@ -3309,6 +3504,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self, "Open Image", "",
             "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm);;All Files (*)")
         if not path or not self.dp5_canvas: return
+        self._import_bitmap_path(path)
+
+    def _import_bitmap_path(self, path: str):
+        """Load an image directly from a file path (called by imgfactory docked)."""
+        if not path or not self.dp5_canvas: return
         try:
             from PIL import Image
             img = Image.open(path).convert('RGBA')
@@ -3321,23 +3521,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.rgba  = new_rgba
             self.dp5_canvas.update()
 
-            # Auto-fit zoom: scale so the image fills ~90% of the scroll area
-            scroll = self.dp5_canvas.parent()
-            if hasattr(scroll, 'viewport'):
-                vw = scroll.viewport().width()
-                vh = scroll.viewport().height()
+            # Auto-fit zoom
+            sa = getattr(self, '_canvas_scroll', None)
+            if sa:
+                vw = sa.viewport().width()
+                vh = sa.viewport().height()
             else:
                 vw, vh = 800, 600
             z_w = (vw * 0.9) / max(1, w)
             z_h = (vh * 0.9) / max(1, h)
             fit_z = min(z_w, z_h)
-            # Snap to nearest integer zoom if close enough, else use float
             for snap in (16, 8, 4, 2, 1):
                 if fit_z >= snap:
                     fit_z = snap; break
             self._set_zoom(max(0.05, fit_z))
 
-            # Extract palette from image
+            # Extract palette
             p_img    = img.quantize(colors=256)
             pal_flat = p_img.getpalette()
             palette  = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2])

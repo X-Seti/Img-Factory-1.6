@@ -1280,6 +1280,81 @@ class IMGFactory(QMainWindow):
             self.log_message(f"COL workshop error: {str(e)}")
 
 
+    def open_dp5_workshop_docked(self, file_path=None): #vers 1
+        """Open DP5 Paint Workshop embedded as a tab in IMG Factory."""
+        try:
+            from apps.components.DP5_Workshop.dp5_workshop import DP5Workshop
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+                self.open_dp5_workshop_standalone()
+                return None
+
+            # Bring existing DP5 tab to front if already open
+            for i in range(self.main_tab_widget.count()):
+                widget = self.main_tab_widget.widget(i)
+                if widget:
+                    workshops = widget.findChildren(DP5Workshop)
+                    if workshops:
+                        self.main_tab_widget.setCurrentIndex(i)
+                        self.log_message("DP5 Workshop already open — switched to tab")
+                        if file_path:
+                            workshops[0]._import_bitmap_path(file_path)
+                        return workshops[0]
+
+            # Create tab container
+            tab_container = QWidget()
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+
+            workshop = DP5Workshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            # Open file if provided
+            if file_path:
+                QTimer.singleShot(100, lambda: workshop._import_bitmap_path(file_path))
+
+            # Add tab with DP5 icon
+            try:
+                from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+                icon = get_dp5_workshop_icon(20)
+                idx = self.main_tab_widget.addTab(tab_container, icon, "DP5 Paint")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "DP5 Paint")
+
+            self.main_tab_widget.setCurrentIndex(idx)
+            workshop.show()
+            self.log_message("DP5 Workshop opened (docked)")
+
+            # Register in tool taskbar
+            try:
+                from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
+                from apps.gui.gui_layout import _register_tool_taskbar
+                _register_tool_taskbar(self, "dp5", "Paint",
+                                       lambda sz, col: get_dp5_workshop_icon(sz, col),
+                                       tab_container, "DP5 Paint Workshop")
+            except Exception:
+                pass
+
+            return workshop
+
+        except Exception as e:
+            self.log_message(f"DP5 Workshop error: {str(e)}")
+            import traceback; traceback.print_exc()
+
+    def open_dp5_workshop_standalone(self, file_path=None): #vers 1
+        """Open DP5 Paint Workshop as a standalone window."""
+        try:
+            from apps.components.DP5_Workshop.dp5_workshop import open_dp5_workshop
+            workshop = open_dp5_workshop(self)
+            if workshop and file_path:
+                QTimer.singleShot(100, lambda: workshop._import_bitmap_path(file_path))
+            return workshop
+        except Exception as e:
+            self.log_message(f"DP5 standalone error: {str(e)}")
+
+
     def open_model_workshop_docked(self, dff_name=None, file_path=None): #vers 1
         """Open Model Workshop in its own tab with icon"""
         try:
