@@ -3690,30 +3690,57 @@ def get_ide_editor_icon(size: int = 24, color: str = None, bg_color: str = None)
 #  DP5 Workshop icons — paint editor suite
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
-    """DP5 Workshop — paint palette with brush"""
+def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
+    """DP5 Workshop — bold paint palette, readable at all sizes from 16px up"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <!-- Palette body -->
-        <path d="M12 2C6.48 2 2 6.48 2 12c0 2.76 1.12 5.26 2.93 7.07.54.54 1.32.57 1.88.11
-                 1.3-1.05 3.08-1.18 4.53-.32.72.42 1.55.64 2.41.64.97 0 1.87-.28 2.62-.76
-                 1.82-1.17 2.63-3.4 2.63-5.74 0-5.52-4.48-10-10-10z"
-              stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
-        <!-- Paint holes on palette -->
-        <circle cx="8"  cy="9"  r="1.3" fill="currentColor"/>
-        <circle cx="12" cy="7"  r="1.3" fill="currentColor"/>
-        <circle cx="16" cy="9"  r="1.3" fill="currentColor"/>
-        <circle cx="17" cy="13" r="1.3" fill="currentColor"/>
-        <circle cx="7"  cy="13" r="1.3" fill="currentColor"/>
-        <!-- Thumb hole -->
-        <circle cx="15" cy="16" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
-        <!-- Brush handle -->
-        <line x1="19" y1="5" x2="14.5" y2="14.5"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <!-- Brush tip -->
-        <path d="M19 5 l1.5-1.5 a1 1 0 0 1 0 2z"
+        <!-- Palette — solid filled shape, very readable at small sizes -->
+        <path d="M12 3C7 3 3 7 3 12c0 2.2.8 4.2 2.1 5.8.4.5 1 .5 1.5.1
+                 1-.8 2.4-.9 3.5-.2.6.3 1.2.5 1.9.5.8 0 1.5-.2 2-.6
+                 1.4-.9 2-2.6 2-4.4 0-4.4-3.6-8.2-8-8.2z"
               fill="currentColor"/>
+        <!-- 4 bold colour dots on palette -->
+        <circle cx="8.5"  cy="9.5"  r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="12"   cy="7.5"  r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="15.5" cy="9.5"  r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="15.5" cy="13.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <!-- Bold brush handle — diagonal, very visible -->
+        <line x1="17" y1="4" x2="21" y2="8"
+              stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <line x1="14" y1="7" x2="17" y2="4"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     </svg>''', size, color, bg_color)
 
 
 # Attach as static method on SVGIconFactory for consistency
 SVGIconFactory.dp5_workshop_icon = staticmethod(get_dp5_workshop_icon)
+
+
+def get_clear_canvas_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Clear canvas — bold X on a canvas rectangle"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Canvas rectangle -->
+        <rect x="3" y="4" width="18" height="16" rx="2"
+              stroke="currentColor" stroke-width="2" fill="none"/>
+        <!-- Bold X -->
+        <line x1="8" y1="9"  x2="16" y2="15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="16" y1="9" x2="8"  y2="15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_brushes_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Brush manager — three brushes of different sizes"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Brush 1 — thick -->
+        <rect x="3" y="3" width="5" height="12" rx="2.5" fill="currentColor"/>
+        <rect x="4" y="15" width="3" height="4" rx="1" fill="currentColor"/>
+        <!-- Brush 2 — medium -->
+        <rect x="10" y="5" width="4" height="10" rx="2" fill="currentColor"/>
+        <rect x="11" y="15" width="2" height="4" rx="1" fill="currentColor"/>
+        <!-- Brush 3 — fine -->
+        <rect x="17" y="7" width="3" height="8" rx="1.5" fill="currentColor"/>
+        <rect x="17.5" y="15" width="2" height="5" rx="1" fill="currentColor"/>
+    </svg>''', size, color, bg_color)
+
+
+SVGIconFactory.get_clear_canvas_icon = staticmethod(get_clear_canvas_icon)
+SVGIconFactory.get_brushes_icon      = staticmethod(get_brushes_icon)

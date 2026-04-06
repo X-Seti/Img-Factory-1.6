@@ -2487,13 +2487,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         icon_color = self._get_icon_color()
 
-        # ── _tb helper — adds button to layout ────────────────────────────
-        def _tb(text, tip, slot):
+        # ── _tb helper — adds button to layout with optional SVG icon ─────
+        def _tb(text, tip, slot, icon_fn=None):
             btn = QPushButton(text)
             btn.setFont(self.button_font)
             btn.setToolTip(tip)
             btn.setMinimumHeight(28)
             btn.setMaximumHeight(28)
+            if icon_fn:
+                try:
+                    btn.setIcon(icon_fn(18, icon_color))
+                    btn.setIconSize(QSize(18, 18))
+                except Exception:
+                    pass
             if slot: btn.clicked.connect(slot)
             layout.addWidget(btn)
             return btn
@@ -2521,7 +2527,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             dp5_icon_lbl.setPixmap(pix)
         except Exception:
             if ICONS_AVAILABLE:
-                pix = SVGIconFactory.ai_icon(20, icon_color).pixmap(20, 20)
+                pix = SVGIconFactory.paint_icon(20, icon_color).pixmap(20, 20)
                 dp5_icon_lbl.setPixmap(pix)
         title_row.addWidget(dp5_icon_lbl)
         self.title_label = QLabel(App_name)
@@ -2532,16 +2538,23 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addStretch()
 
-        # ── [Load] [Save] [Import] [Export] [Undo] — after title ──────────
-        # TODO: add SVG icons from imgfactory_svg_icons (open, save, import, export, undo)
-        self.tb_load_btn   = _tb("Load",   "Load / open image file",        self._import_bitmap)
-        self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",            self._export_bitmap)
-        # Import/Export handle older formats: IFF, BMP, etc.
-        self.tb_import_btn = _tb("Import", "Import image onto canvas (IFF, BMP, older formats)",
-                                  self._import_bitmap)
-        self.tb_export_btn = _tb("Export", "Export canvas to file (IFF, BMP, older formats)",
-                                  self._export_bitmap)
-        self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",    self._undo_canvas)
+        # ── [Load][Save][Import][Export][Undo] after title ─────────────────
+        # Reuse existing SVGIconFactory icons — no duplication needed
+        self.tb_load_btn   = _tb("Load",   "Load / open image file",
+                                  self._import_bitmap,
+                                  SVGIconFactory.open_icon)
+        self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
+                                  self._export_bitmap,
+                                  SVGIconFactory.save_icon)
+        self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
+                                  self._import_bitmap,
+                                  SVGIconFactory.import_icon)
+        self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
+                                  self._export_bitmap,
+                                  SVGIconFactory.export_icon)
+        self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",
+                                  self._undo_canvas,
+                                  SVGIconFactory.undo_icon)
 
         # ── Brush Manager button ───────────────────────────────────────────
         self.brush_mgr_btn = QPushButton("Brushes")
@@ -2550,6 +2563,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.brush_mgr_btn.setMinimumHeight(28)
         self.brush_mgr_btn.setMaximumHeight(28)
         self.brush_mgr_btn.clicked.connect(self._toggle_brush_manager)
+        try:
+            from apps.methods.imgfactory_svg_icons import get_brushes_icon
+            self.brush_mgr_btn.setIcon(get_brushes_icon(18, icon_color))
+            self.brush_mgr_btn.setIconSize(QSize(18, 18))
+        except Exception:
+            pass
         layout.addWidget(self.brush_mgr_btn)
 
         self.properties_btn = QPushButton()
@@ -2750,6 +2769,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
 
+        icon_color = self._get_icon_color()
+
         # ── Column count: auto or explicit ────────────────────────────────
         icon_sz   = self.dp5_settings.get('tool_icon_size')   # 24–64 px
         btn_sz    = icon_sz + 6                               # icon + padding
@@ -2851,16 +2872,30 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── UNDO / CLR — always 2 buttons side by side ────────────────────
         undo_clr = QHBoxLayout()
         undo_clr.setSpacing(gap)
+
         undo_btn = QPushButton("UN\nDO")
         undo_btn.setFixedSize(btn_sz, btn_sz)
         undo_btn.setFont(QFont("Arial", max(7, icon_sz // 6)))
         undo_btn.setToolTip("Undo  Ctrl+Z")
         undo_btn.clicked.connect(self._undo_canvas)
+        try:
+            undo_btn.setIcon(SVGIconFactory.undo_icon(max(14, icon_sz - 14), icon_color))
+            undo_btn.setIconSize(QSize(max(14, icon_sz - 14), max(14, icon_sz - 14)))
+        except Exception:
+            pass
+
         clr_btn = QPushButton("CLR")
         clr_btn.setFixedSize(btn_sz, btn_sz)
         clr_btn.setFont(QFont("Arial", max(8, icon_sz // 5)))
         clr_btn.setToolTip("Clear canvas")
         clr_btn.clicked.connect(self._clear_canvas)
+        try:
+            from apps.methods.imgfactory_svg_icons import get_clear_canvas_icon
+            clr_btn.setIcon(get_clear_canvas_icon(max(14, icon_sz - 14), icon_color))
+            clr_btn.setIconSize(QSize(max(14, icon_sz - 14), max(14, icon_sz - 14)))
+        except Exception:
+            pass
+
         undo_clr.addWidget(undo_btn)
         undo_clr.addWidget(clr_btn)
         undo_clr.addStretch()
