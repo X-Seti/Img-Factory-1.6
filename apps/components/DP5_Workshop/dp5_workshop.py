@@ -54,31 +54,33 @@ TOOL_FILL          = 'fill'
 TOOL_SPRAY         = 'spray'
 TOOL_LINE          = 'line'
 TOOL_CURVE         = 'curve'
-TOOL_RECT          = 'rect'           # outline — right-click button toggles fill
-TOOL_FILLED_RECT   = 'filled_rect'   # internal; activated via right-click toggle
-TOOL_CIRCLE        = 'circle'        # outline — right-click toggles fill
+TOOL_RECT          = 'rect'
+TOOL_FILLED_RECT   = 'filled_rect'
+TOOL_CIRCLE        = 'circle'
 TOOL_FILLED_CIRCLE = 'filled_circle'
-TOOL_TRIANGLE      = 'triangle'      # outline — right-click toggles fill
+TOOL_TRIANGLE      = 'triangle'
 TOOL_FILLED_TRIANGLE = 'filled_triangle'
-TOOL_POLYGON       = 'polygon'       # N-sided — right-click toggles fill
+TOOL_POLYGON       = 'polygon'
 TOOL_FILLED_POLYGON = 'filled_polygon'
-TOOL_STAR          = 'star'          # outline — right-click toggles fill
+TOOL_STAR          = 'star'
 TOOL_FILLED_STAR   = 'filled_star'
+TOOL_LASSO         = 'lasso'
+TOOL_FILLED_LASSO  = 'filled_lasso'   # right-click fill toggle
 TOOL_PICKER        = 'picker'
 TOOL_SELECT        = 'select'
-TOOL_LASSO         = 'lasso'
 TOOL_MOVE          = 'move'
 TOOL_ZOOM          = 'zoom'
 TOOL_TEXT          = 'text'
+TOOL_STAMP         = 'stamp'          # stamp/paste brush from buffer
 
 # Shape tools that have an outline/fill toggle via right-click
-# Maps the primary tool_id → its filled counterpart
 SHAPE_FILL_PAIRS = {
     TOOL_RECT:     TOOL_FILLED_RECT,
     TOOL_CIRCLE:   TOOL_FILLED_CIRCLE,
     TOOL_TRIANGLE: TOOL_FILLED_TRIANGLE,
     TOOL_POLYGON:  TOOL_FILLED_POLYGON,
     TOOL_STAR:     TOOL_FILLED_STAR,
+    TOOL_LASSO:    TOOL_FILLED_LASSO,
 }
 
 # ── Try importing shared infrastructure ───────────────────────────────────────
@@ -114,16 +116,57 @@ except ImportError:
     SettingsDialog = None
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 #  Tool icon renderer — Photoshop-style white silhouettes on dark tile
+# ══════════════════════════════════════════════════════════════════════════════
 
 def _make_tool_icon(shape: str, size: int = 42,
                     active: bool = False) -> QIcon:
     """
-    Render professional tool icons (Photoshop / DP5 silhouette style):
-      • Normal:  dark tile (#1e1e24) + white silhouette
-      • Active:  inverted — light tile (#d8d8e0) + dark silhouette
-    All icons drawn at normalised unit coordinates then scaled to `size`.
+    Render a tool icon.  Uses SVGIconFactory.dp_*_icon() when available
+    (icons defined in imgfactory_svg_icons.py), otherwise falls back to the
+    inline QPainter renderer below.
+
+    Normal:  dark tile (#1e1e24) + white/light icon
+    Active:  light tile (#d8d8e0) + dark icon (inverted, DP5 style)
     """
+    # ── SVG icon map: shape → SVGIconFactory method name ─────────────────────
+    # Add entries here as you create new dp_*_icon() methods in
+    # imgfactory_svg_icons.py — they'll be picked up automatically.
+    _SVG_MAP = {
+        'pencil':        'dp_pencil_icon',
+        'eraser':        'dp_eraser_icon',
+        'fill':          'dp_bucket_icon',
+        'spray':         'dp_brush_icon',
+        'picker':        'dp_color_picker_icon',
+        'line':          'dp_line_icon',
+        'zoom':          'dp_magnify_icon',
+        # Add more as you create dp_*_icon() methods:
+        # 'stamp':       'dp_stamp_icon',
+        # 'curve':       'dp_curve_icon',
+        # 'select':      'dp_select_icon',
+        # 'text':        'dp_text_icon',
+    }
+
+    if ICONS_AVAILABLE and shape in _SVG_MAP:
+        method_name = _SVG_MAP[shape]
+        fn = getattr(SVGIconFactory, method_name, None)
+        if fn is not None:
+            tile_bg  = '#1e1e24' if not active else '#d8d8e0'
+            icon_col = '#f0f0f4' if not active else '#101014'
+            try:
+                return fn(size, color=icon_col, bg_color=tile_bg)
+            except TypeError:
+                # bg_color not supported — render icon then composite onto tile
+                ico = fn(size, color=icon_col)
+                px  = QPixmap(size, size)
+                px.fill(QColor(tile_bg))
+                p   = QPainter(px)
+                p.drawPixmap(0, 0, ico.pixmap(size, size))
+                p.end()
+                return QIcon(px)
+
+    # ── QPainter fallback (shapes, lasso, select, text, etc.) ────────────────
     import math as _m
 
     tile_bg = QColor('#1e1e24') if not active else QColor('#d8d8e0')
@@ -419,9 +462,19 @@ def _make_tool_icon(shape: str, size: int = 42,
         p.setPen(pen_dash2)
         p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
         p.drawPath(path3)
-        # Open tail / end
         p.setPen(mk_pen(2.5))
         p.drawLine(QPoint(32,36), QPoint(38,44))
+
+    elif shape == 'filled_lasso':
+        # Filled lasso — same shape but solid filled
+        path3 = QPainterPath()
+        path3.moveTo(24, 42)
+        path3.cubicTo(6, 42,  6, 6,  24, 6)
+        path3.cubicTo(42, 6,  42, 30, 32, 36)
+        path3.closeSubpath()
+        p.setPen(mk_pen(1.5))
+        p.setBrush(solid_brush())
+        p.drawPath(path3)
 
     elif shape == 'move':
         # Classic 4-way arrow move tool — solid arrowheads, thin cross arms
@@ -474,11 +527,29 @@ def _make_tool_icon(shape: str, size: int = 42,
         p.drawLine(QPoint(37, 10), QPoint(43, 10))
         p.drawLine(QPoint(37, 38), QPoint(43, 38))
 
+    elif shape == 'stamp':
+        # Rubber stamp — handle bar top, stamp body bottom, wavy ink dots
+        p.setPen(mk_pen(0))
+        p.setBrush(solid_brush())
+        # Handle grip (top)
+        p.drawRoundedRect(16, 6, 16, 10, 3, 3)
+        # Neck connecting handle to pad
+        p.drawRect(20, 16, 8, 6)
+        # Stamp pad (wide flat block)
+        p.drawRoundedRect(8, 22, 32, 10, 2, 2)
+        # Ink impression dots below (showing it's been used)
+        p.setPen(mk_pen(1.5))
+        p.setBrush(solid_brush())
+        for dot_x in [14, 20, 26, 32]:
+            p.drawEllipse(QPoint(dot_x, 38), 2, 2)
+
     p.end()
     return QIcon(px)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 #  DP5Settings — per-tool settings (JSON, separate from global AppSettings)
+# ══════════════════════════════════════════════════════════════════════════════
 
 class DP5Settings:
     """
@@ -626,7 +697,9 @@ class DP5SettingsDialog(QDialog):
         self.accept()
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 #  DP5 Canvas — pixel-accurate zoomable paint surface
+# ══════════════════════════════════════════════════════════════════════════════
 
 class DP5Canvas(QWidget):
     """Zoomable pixel-accurate paint canvas (inlined from dp5_functions.py)."""
@@ -665,6 +738,7 @@ class DP5Canvas(QWidget):
         # Move / pan tool state (middle-button drag or TOOL_MOVE)
         self._pan_start:   Optional[QPoint] = None
         self._pan_offset_start: Optional[QPoint] = None
+        self._space_panning = False   # True while space is held for temp pan
         # Selection clipboard
         self._sel_buffer: Optional[bytearray] = None  # copied RGBA bytes
         self._sel_buf_w  = 0
@@ -1003,11 +1077,14 @@ class DP5Canvas(QWidget):
             vb = sa.verticalScrollBar()
             hb.setValue(hb.value() + dx)
             vb.setValue(vb.value() + dy)
+
+    def _do_spray(self, cx: int, cy: int):
+        """Spray paint random pixels in a circle around (cx, cy)."""
         r = self.brush_size * 5
         for _ in range(max(1, r)):
-            ddx, ddy = random.randint(-r,r), random.randint(-r,r)
+            ddx, ddy = random.randint(-r, r), random.randint(-r, r)
             if ddx*ddx + ddy*ddy <= r*r:
-                self.set_pixel(cx+ddx, cy+ddy, self.color)
+                self.set_pixel(cx + ddx, cy + ddy, self.color)
 
     # ── Paint ─────────────────────────────────────────────────────────────────
 
@@ -1037,12 +1114,11 @@ class DP5Canvas(QWidget):
             for y in range(0, sh, iz):
                 painter.drawLine(0, y, sw, y)
 
-        # Shape / selection preview overlay
+        # Shape / selection preview overlay (drag-to-draw tools only)
         shape_tools = (TOOL_LINE,
                        TOOL_RECT,     TOOL_FILLED_RECT,
                        TOOL_CIRCLE,   TOOL_FILLED_CIRCLE,
                        TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
-                       TOOL_POLYGON,  TOOL_FILLED_POLYGON,
                        TOOL_STAR,     TOOL_FILLED_STAR,
                        TOOL_SELECT)
         if self._preview_start and self._preview_end and self.tool in shape_tools:
@@ -1062,9 +1138,28 @@ class DP5Canvas(QWidget):
                 from PyQt6.QtGui import QPolygon
                 tri = QPolygon([QPoint(mid_x, s.y()), s, e])
                 painter.drawPolygon(tri)
-            elif self.tool in (TOOL_STAR, TOOL_FILLED_STAR,
-                               TOOL_POLYGON, TOOL_FILLED_POLYGON):
+            elif self.tool in (TOOL_STAR, TOOL_FILLED_STAR):
                 painter.drawEllipse(QRect(s, e).normalized())
+
+        # Polygon tool — draw committed edges + line to current mouse position
+        if self.tool in (TOOL_POLYGON, TOOL_FILLED_POLYGON) and self._poly_pts:
+            pen = QPen(self.color, 1, Qt.PenStyle.SolidLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            pts_w = [self._tex_to_widget(px, py) for px, py in self._poly_pts]
+            # Draw committed edges
+            for i in range(len(pts_w) - 1):
+                painter.drawLine(pts_w[i], pts_w[i+1])
+            # Dashed closing line back to first point
+            if len(pts_w) >= 2:
+                pen2 = QPen(self.color, 1, Qt.PenStyle.DashLine)
+                painter.setPen(pen2)
+                painter.drawLine(pts_w[-1], pts_w[0])
+            # Small dot at each vertex
+            painter.setPen(QPen(self.color, 1))
+            painter.setBrush(QBrush(self.color))
+            for pt in pts_w:
+                painter.drawEllipse(pt, 3, 3)
 
         # Curve tool — live preview of control points + curve
         if self.tool == TOOL_CURVE and self._curve_pts:
@@ -1088,11 +1183,18 @@ class DP5Canvas(QWidget):
                 painter.drawEllipse(QPoint(pt.x(), pt.y()), 4, 4)
 
         # Lasso preview
-        if self.tool == TOOL_LASSO and len(self._lasso_pts) > 1:
-            pen = QPen(QColor(255, 255, 0), 1, Qt.PenStyle.DashLine)
+        if self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO) and len(self._lasso_pts) > 1:
+            pen = QPen(self.color, 1,
+                       Qt.PenStyle.SolidLine if self.tool == TOOL_FILLED_LASSO
+                       else Qt.PenStyle.DashLine)
             painter.setPen(pen)
             for i in range(len(self._lasso_pts) - 1):
                 painter.drawLine(self._lasso_pts[i], self._lasso_pts[i+1])
+            # Closing line back to start
+            if len(self._lasso_pts) >= 3:
+                pen2 = QPen(self.color, 1, Qt.PenStyle.DashLine)
+                painter.setPen(pen2)
+                painter.drawLine(self._lasso_pts[-1], self._lasso_pts[0])
 
         # Committed selection rect (marching ants)
         if self._sel_active and self._selection_rect:
@@ -1134,6 +1236,26 @@ class DP5Canvas(QWidget):
             painter.setPen(QPen(self.color, 1))
             painter.drawLine(wx, wy, wx, wy + max(8, int(12 * z)))
 
+        # Stamp ghost — show buffer preview under cursor at 50% opacity
+        if self.tool == TOOL_STAMP and self._sel_buffer and self._sel_buf_w > 0:
+            if hasattr(self, '_stamp_cursor_pos'):
+                scx, scy = self._stamp_cursor_pos
+                sw2 = max(1, int(self._sel_buf_w * z))
+                sh2 = max(1, int(self._sel_buf_h * z))
+                simg = QImage(bytes(self._sel_buffer),
+                              self._sel_buf_w, self._sel_buf_h,
+                              self._sel_buf_w * 4, QImage.Format.Format_RGBA8888)
+                sscaled = simg.scaled(sw2, sh2,
+                                      Qt.AspectRatioMode.IgnoreAspectRatio,
+                                      Qt.TransformationMode.FastTransformation)
+                painter.setOpacity(0.55)
+                painter.drawImage(int(scx * z), int(scy * z), sscaled)
+                painter.setOpacity(1.0)
+                # Dashed border
+                painter.setPen(QPen(QColor('#00e5ff'), 1, Qt.PenStyle.DashLine))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(int(scx*z), int(scy*z), sw2, sh2)
+
     # ── Mouse events ──────────────────────────────────────────────────────────
 
     def mousePressEvent(self, e: QMouseEvent):
@@ -1143,6 +1265,12 @@ class DP5Canvas(QWidget):
         # Middle button always pans
         if btn == Qt.MouseButton.MiddleButton:
             self._pan_start = e.position().toPoint()
+            return
+
+        # Spacebar + left click = temporary pan
+        if btn == Qt.MouseButton.LeftButton and self._space_panning:
+            self._pan_start = e.position().toPoint()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
             return
 
         # Right-click zoom-out for zoom tool
@@ -1211,6 +1339,21 @@ class DP5Canvas(QWidget):
             ed = self._editor
             if ed: ed._place_text_at(tx, ty)
 
+        elif self.tool == TOOL_STAMP:
+            # Stamp the copy buffer at click position (top-left = click point)
+            if self._sel_buffer and self._sel_buf_w > 0:
+                self._push_undo_canvas()
+                w, h = self._sel_buf_w, self._sel_buf_h
+                for row in range(h):
+                    for col in range(w):
+                        px = tx + col; py = ty + row
+                        if 0 <= px < self.tex_w and 0 <= py < self.tex_h:
+                            si = (row * w + col) * 4
+                            if self._sel_buffer[si+3] > 0:
+                                di = (py * self.tex_w + px) * 4
+                                self.rgba[di:di+4] = self._sel_buffer[si:si+4]
+                self.update()
+
         elif self.tool == TOOL_CURVE:
             # Accumulate control points; double-click or Enter commits
             self._curve_pts.append(e.position().toPoint())
@@ -1245,7 +1388,7 @@ class DP5Canvas(QWidget):
                 self._sel_active    = False
                 self._sel_floating  = False
 
-        elif self.tool == TOOL_LASSO:
+        elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
             self._lasso_pts  = [e.position().toPoint()]
             self._sel_active = False
 
@@ -1273,6 +1416,20 @@ class DP5Canvas(QWidget):
             self._poly_pts = []
             self.update()
 
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key.Key_Space and not e.isAutoRepeat():
+            self._space_panning = True
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        else:
+            e.ignore()   # let parent handle all other keys
+
+    def keyReleaseEvent(self, e):
+        if e.key() == Qt.Key.Key_Space and not e.isAutoRepeat():
+            self._space_panning = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        else:
+            e.ignore()
+
     def _push_undo_canvas(self):
         """Push undo state from within the canvas (used by tool handlers)."""
         ed = self._editor
@@ -1285,12 +1442,26 @@ class DP5Canvas(QWidget):
         if ed and hasattr(ed, '_update_status'):
             ed._update_status(tx, ty, self.get_pixel(tx, ty))
 
+        # Stamp ghost always tracks mouse when stamp tool active
+        if self.tool == TOOL_STAMP:
+            self._stamp_cursor_pos = (tx, ty)
+            self.update()
+
         # Middle-button pan
         if e.buttons() & Qt.MouseButton.MiddleButton:
             if self._pan_start:
                 delta = e.position().toPoint() - self._pan_start
                 self._scroll_by(-delta.x(), -delta.y())
                 self._pan_start = e.position().toPoint()
+            return
+
+        # Spacebar pan
+        if self._space_panning and e.buttons() & Qt.MouseButton.LeftButton:
+            if self._pan_start:
+                delta = e.position().toPoint() - self._pan_start
+                self._scroll_by(-delta.x(), -delta.y())
+                self._pan_start = e.position().toPoint()
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
             return
 
         if not (e.buttons() & Qt.MouseButton.LeftButton) or not self._drawing:
@@ -1351,12 +1522,17 @@ class DP5Canvas(QWidget):
                            TOOL_POLYGON,  TOOL_FILLED_POLYGON):
             self._preview_end = (tx, ty); self.update()
 
-        elif self.tool == TOOL_LASSO:
+        elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
             self._lasso_pts.append(e.position().toPoint()); self.update()
 
     def mouseReleaseEvent(self, e: QMouseEvent):
         if e.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = None
+            return
+
+        if e.button() == Qt.MouseButton.LeftButton and self._space_panning:
+            self._pan_start = None
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
             return
 
         if e.button() != Qt.MouseButton.LeftButton:
@@ -1440,8 +1616,21 @@ class DP5Canvas(QWidget):
                     self._sel_active     = True
                     self._sel_floating   = False
 
-        elif self.tool == TOOL_LASSO:
-            self._lasso_pts = []
+        elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
+            if self.tool == TOOL_FILLED_LASSO and len(self._lasso_pts) >= 3:
+                # Draw outline then flood fill from centroid
+                self._push_undo_canvas()
+                z = max(0.01, self.zoom)
+                pts_tex = [self._widget_to_tex(pt) for pt in self._lasso_pts]
+                for i in range(len(pts_tex)):
+                    x0, y0 = pts_tex[i]
+                    x1, y1 = pts_tex[(i + 1) % len(pts_tex)]
+                    self.draw_line(x0, y0, x1, y1, self.color)
+                # Flood fill from centroid
+                cx = sum(p[0] for p in pts_tex) // len(pts_tex)
+                cy = sum(p[1] for p in pts_tex) // len(pts_tex)
+                self.flood_fill(cx, cy, self.color)
+            self._lasso_pts  = []
             self._sel_active = False
 
         self._drawing = False
@@ -1480,9 +1669,9 @@ class DP5Canvas(QWidget):
             self.update()
 
 
-
+# ══════════════════════════════════════════════════════════════════════════════
 #  PaletteGrid — shared 2D swatch grid used for BOTH image and user palettes
-
+# ══════════════════════════════════════════════════════════════════════════════
 
 class PaletteGrid(QWidget):
     """
@@ -1587,7 +1776,9 @@ class PaletteGrid(QWidget):
 DP5PaletteBar = PaletteGrid
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 #  Colour Picker Widget (simple fallback — no screen capture)
+# ══════════════════════════════════════════════════════════════════════════════
 
 class ColorPickerWidget(QWidget):
     """Simple colour picker — opens QColorDialog."""
@@ -1620,7 +1811,9 @@ class ColorPickerWidget(QWidget):
         return self._color
 
 
+# ══════════════════════════════════════════════════════════════════════════════
 #  FGBGSwatch — single DPaint5-style nested FG/BG colour indicator
+# ══════════════════════════════════════════════════════════════════════════════
 
 class FGBGSwatch(QWidget):
     """
@@ -1717,9 +1910,84 @@ class FGBGSwatch(QWidget):
             self.set_bg(c)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  BrushThumbnail — preview of the copy buffer, click to activate stamp mode
+# ══════════════════════════════════════════════════════════════════════════════
 
+class BrushThumbnail(QWidget):
+    """
+    Small thumbnail showing the current copy/cut buffer.
+    Click  → activate stamp mode (TOOL_STAMP) so user clicks to place.
+    Right-click → clear the buffer.
+    Shows a checkerboard when empty.
+    """
+    stamp_requested = pyqtSignal()   # emitted when user clicks to stamp
+    clear_requested = pyqtSignal()   # emitted when user right-clicks to clear
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._buf:   Optional[bytearray] = None
+        self._buf_w  = 0
+        self._buf_h  = 0
+        self._active = False   # True when stamp mode is on
+        self.setFixedSize(64, 48)
+        self.setToolTip("Copy buffer — click to stamp, right-click to clear")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def set_buffer(self, buf: Optional[bytearray], w: int, h: int):
+        self._buf   = buf
+        self._buf_w = w
+        self._buf_h = h
+        self.update()
+
+    def set_active(self, active: bool):
+        self._active = active
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        w, h = self.width(), self.height()
+
+        # Checkerboard background
+        cs = 6
+        for row in range(h // cs + 1):
+            for col in range(w // cs + 1):
+                colour = QColor('#555') if (row + col) % 2 == 0 else QColor('#888')
+                p.fillRect(col*cs, row*cs, cs, cs, colour)
+
+        # Buffer preview
+        if self._buf and self._buf_w > 0 and self._buf_h > 0:
+            img = QImage(bytes(self._buf), self._buf_w, self._buf_h,
+                         self._buf_w * 4, QImage.Format.Format_RGBA8888)
+            scaled = img.scaled(w, h,
+                                 Qt.AspectRatioMode.KeepAspectRatio,
+                                 Qt.TransformationMode.SmoothTransformation)
+            ox = (w - scaled.width())  // 2
+            oy = (h - scaled.height()) // 2
+            p.drawImage(ox, oy, scaled)
+
+        # Active border — bright cyan highlight
+        if self._active:
+            p.setPen(QPen(QColor('#00e5ff'), 2))
+            p.drawRect(1, 1, w-2, h-2)
+        else:
+            p.setPen(QPen(QColor('#444'), 1))
+            p.drawRect(0, 0, w-1, h-1)
+
+        p.end()
+
+    def mousePressEvent(self, e: QMouseEvent):
+        if e.button() == Qt.MouseButton.LeftButton:
+            if self._buf:
+                self.stamp_requested.emit()
+        elif e.button() == Qt.MouseButton.RightButton:
+            self.clear_requested.emit()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  ColorPalPresetsMixin — retro palette presets (inlined from color_pal_presets.py)
-
+# ══════════════════════════════════════════════════════════════════════════════
 
 class ColorPalPresetsMixin:
     """Retro palette preset data and helpers — mixed into DP5Workshop."""
@@ -1929,9 +2197,9 @@ class ColorPalPresetsMixin:
                 self._retro_btn.rect().bottomLeft()))
 
 
-
+# ══════════════════════════════════════════════════════════════════════════════
 #  DP5Workshop — main container (DPaint5-faithful layout)
-
+# ══════════════════════════════════════════════════════════════════════════════
 
 class DP5Workshop(ColorPalPresetsMixin, QWidget):
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
@@ -2006,6 +2274,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             TOOL_TRIANGLE: False,
             TOOL_POLYGON:  False,
             TOOL_STAR:     False,
+            TOOL_LASSO:    False,
         }
 
         self.setWindowTitle(App_name)
@@ -2354,11 +2623,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             (TOOL_RECT,     'rect',     'Rectangle  (R) — right-click to toggle fill'),
             (TOOL_CIRCLE,   'circle',   'Ellipse  (C) — right-click to toggle fill'),
             (TOOL_TRIANGLE, 'triangle', 'Triangle  (T) — right-click to toggle fill'),
-            (TOOL_POLYGON,  'polygon',  'Polygon  (O) — right-click to toggle fill'),
+            (TOOL_POLYGON,  'polygon',  'Polygon  (O) — click verts, dbl to close, right-click fills'),
             (TOOL_STAR,     'star',     'Star  (*) — right-click to toggle fill'),
-            (TOOL_SELECT,   'select',   'Marquee select — cut/copy/paste (M)'),
-            (TOOL_LASSO,    'lasso',    'Lasso select (G)'),
-            (TOOL_MOVE,     'move',     'Pan / move canvas (H)'),
+            (TOOL_SELECT,   'select',   'Select (M) — drag to select, drag inside to move'),
+            (TOOL_LASSO,    'lasso',    'Lasso  (G) — right-click to fill shape'),
             (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)'),
             (TOOL_TEXT,     'text',     'Place text on canvas (I)'),
         ]
@@ -2471,16 +2739,33 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addSpacing(4)
 
-        # ── FG / BG swatch ────────────────────────────────────────────────
+        # ── FG / BG swatch  +  brush thumbnail ───────────────────────────
+        fgbg_row_lbl = QHBoxLayout()
         fgbg_lbl = QLabel("FG / BG")
         fgbg_lbl.setFont(QFont("Arial", 8))
-        layout.addWidget(fgbg_lbl)
+        fgbg_row_lbl.addWidget(fgbg_lbl)
+        fgbg_row_lbl.addStretch()
+        brush_lbl = QLabel("Brush")
+        brush_lbl.setFont(QFont("Arial", 8))
+        fgbg_row_lbl.addWidget(brush_lbl)
+        layout.addLayout(fgbg_row_lbl)
+
+        fgbg_row = QHBoxLayout()
+        fgbg_row.setSpacing(4)
 
         self._fgbg_swatch = FGBGSwatch()
         self._fgbg_swatch.fg_changed.connect(self._on_fg_changed)
         self._fgbg_swatch.bg_changed.connect(self._on_bg_changed)
-        layout.addWidget(self._fgbg_swatch,
-                         alignment=Qt.AlignmentFlag.AlignLeft)
+        fgbg_row.addWidget(self._fgbg_swatch)
+
+        fgbg_row.addStretch()
+
+        self._brush_thumb = BrushThumbnail()
+        self._brush_thumb.stamp_requested.connect(self._activate_stamp_mode)
+        self._brush_thumb.clear_requested.connect(self._clear_brush)
+        fgbg_row.addWidget(self._brush_thumb)
+
+        layout.addLayout(fgbg_row)
 
         layout.addSpacing(4)
 
@@ -2608,7 +2893,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             TOOL_POLYGON:  'polygon',  TOOL_FILLED_POLYGON:  'filled_polygon',
             TOOL_STAR:     'star',     TOOL_FILLED_STAR:     'filled_star',
             TOOL_SELECT: 'select', TOOL_LASSO: 'lasso',
+            TOOL_FILLED_LASSO: 'filled_lasso',
             TOOL_MOVE: 'move', TOOL_ZOOM: 'zoom', TOOL_TEXT: 'text',
+            TOOL_STAMP: 'stamp',
         }
 
         for tid, btn in getattr(self, '_tool_btns', {}).items():
@@ -2622,6 +2909,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 shape_key = _shape_map.get(tid, tid)
             btn.setIcon(_make_tool_icon(shape_key, icon_sz, active=is_active))
             btn.setIconSize(QSize(icon_sz, icon_sz))
+
+        # Sync brush thumbnail active border
+        if hasattr(self, '_brush_thumb'):
+            self._brush_thumb.set_active(tool_id == TOOL_STAMP)
 
     def _set_brush_size(self, v: int):
         if self.dp5_canvas:
@@ -2698,41 +2989,54 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.dp5_canvas.update()
         self._set_status(f"Text placed at {tx},{ty}")
 
+    def _activate_stamp_mode(self):
+        """Switch to stamp tool so user clicks anywhere to place the buffer."""
+        if not self.dp5_canvas or not self.dp5_canvas._sel_buffer:
+            return
+        self._select_tool(TOOL_STAMP)
+        self._set_status("Stamp mode — click to place, press Esc to exit")
+
+    def _clear_brush(self):
+        """Clear the copy buffer and brush thumbnail."""
+        if self.dp5_canvas:
+            self.dp5_canvas._sel_buffer  = None
+            self.dp5_canvas._sel_buf_w   = 0
+            self.dp5_canvas._sel_buf_h   = 0
+            self.dp5_canvas._sel_floating = False
+        if hasattr(self, '_brush_thumb'):
+            self._brush_thumb.set_buffer(None, 0, 0)
+            self._brush_thumb.set_active(False)
+        self._set_status("Brush cleared")
+
+    def _sync_brush_thumb(self):
+        """Update the brush thumbnail from the current copy buffer."""
+        if not hasattr(self, '_brush_thumb') or not self.dp5_canvas:
+            return
+        c = self.dp5_canvas
+        self._brush_thumb.set_buffer(c._sel_buffer, c._sel_buf_w, c._sel_buf_h)
+
     def _cut_selection(self):
         if not self.dp5_canvas: return
         self._push_undo()
         self.dp5_canvas.cut_selection()
-        self._set_status("Selection cut")
+        self._sync_brush_thumb()
+        self._set_status("Selection cut — click Brush thumbnail to stamp")
 
     def _copy_selection(self):
         if not self.dp5_canvas: return
         self.dp5_canvas.copy_selection()
-        self._set_status("Selection copied")
+        self._sync_brush_thumb()
+        self._set_status("Selection copied — click Brush thumbnail to stamp")
 
     def _paste_selection(self):
+        """Paste: activate stamp mode so user clicks to place."""
         if not self.dp5_canvas: return
-        self._push_undo()
-        c  = self.dp5_canvas
+        c = self.dp5_canvas
         if c._sel_buffer and c._sel_buf_w:
-            sa = getattr(self, '_canvas_scroll', None)
-            if sa:
-                hv = sa.horizontalScrollBar().value()
-                vv = sa.verticalScrollBar().value()
-                vw = sa.viewport().width()
-                vh = sa.viewport().height()
-            else:
-                hv = vv = 0; vw = 800; vh = 600
-            # Centre of current viewport in tex-space
-            vx = int((hv + vw // 2) / max(0.01, c.zoom))
-            vy = int((vv + vh // 2) / max(0.01, c.zoom))
-            px = max(0, vx - c._sel_buf_w  // 2)
-            py = max(0, vy - c._sel_buf_h  // 2)
-            ox = c._selection_rect.x() if c._selection_rect else 0
-            oy = c._selection_rect.y() if c._selection_rect else 0
-            c.paste_selection(px - ox, py - oy)
+            self._activate_stamp_mode()
+            self._set_status("Click anywhere to stamp — Esc to exit stamp mode")
         else:
-            c.paste_selection(16, 16)
-        self._set_status("Pasted")
+            self._set_status("Nothing to paste")
 
     def _select_all(self):
         if not self.dp5_canvas: return
@@ -3088,6 +3392,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if self.dp5_canvas:
             self._select_tool(self.dp5_canvas.tool)
         self._update_color_swatches()
+        self._sync_brush_thumb()   # restore thumbnail after rebuild
 
     def _export_bitmap(self):
         if not self.dp5_canvas: return
@@ -3216,11 +3521,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             else: super().keyPressEvent(e)
             return
 
-        # Escape — cancel floating move (restore) or deselect / cancel in-progress tools
+        # Escape — exit stamp mode, cancel floating move, or deselect
         if k == Qt.Key.Key_Escape:
-            if self.dp5_canvas and self.dp5_canvas._sel_floating:
+            if self.dp5_canvas and self.dp5_canvas.tool == TOOL_STAMP:
+                # Exit stamp mode → back to select tool
+                self._select_tool(TOOL_SELECT)
+                self._set_status("Stamp mode off")
+            elif self.dp5_canvas and self.dp5_canvas._sel_floating:
                 self.dp5_canvas.cancel_sel_move()
-                self.dp5_canvas._sel_active = True   # keep selection visible
+                self.dp5_canvas._sel_active = True
             else:
                 self._deselect()
             if self.dp5_canvas:
@@ -3423,9 +3732,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         painter.end()
 
 
-
+# ══════════════════════════════════════════════════════════════════════════════
 #  Public factory function
-
+# ══════════════════════════════════════════════════════════════════════════════
 
 def open_dp5_workshop(main_window=None) -> DP5Workshop:
     """Open DP5 Workshop standalone or embedded."""
@@ -3442,9 +3751,9 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop:
         return None
 
 
-
+# ══════════════════════════════════════════════════════════════════════════════
 #  Standalone entry point
-
+# ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     import traceback
