@@ -3185,6 +3185,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._sync_brush_thumb()
         self._activate_stamp_mode()
         self._set_status(f"Brush loaded ({w}×{h}) — click to stamp")
+
+    def _activate_stamp_mode(self):
         """Switch to stamp tool so user clicks anywhere to place the buffer."""
         if not self.dp5_canvas or not self.dp5_canvas._sel_buffer:
             return
