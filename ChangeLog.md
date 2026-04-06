@@ -3,7 +3,7 @@
 ## April 2026 — DP5 Workshop: full paint editor suite, imgfactory integration
 
 ### DP5 Workshop — standalone repo
-- `X-Seti/DP5-Workshop` created as a separate MIT-licensed repository
+- `X-Seti/Deluxe-Paint-Clone---Img-Factory` created as a separate MIT-licensed repository
 - Contains `dp5_workshop.py`, `README.md`, `TODO.md`, `LICENSE`
 - Usable standalone (`python3 dp5_workshop.py`) or embedded in any PyQt6 app
 - Synced from `apps/components/DP5_Workshop/dp5_workshop.py`
