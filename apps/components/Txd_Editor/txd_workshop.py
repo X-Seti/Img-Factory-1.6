@@ -11241,20 +11241,66 @@ class TXDWorkshop(QWidget): #vers 3
         self._edit_texture_external()
 
 
-    def _open_paint_editor(self): #vers 3
-        """Open Deluxe Paint 5 style paint editor for the selected texture."""
+    def _open_paint_editor(self): #vers 4
+        """Open DP5 Workshop paint editor for the selected texture."""
         if not self.selected_texture or not self.selected_texture.get('rgba_data'):
             QMessageBox.warning(self, "No Texture",
                 "Select a texture with RGBA data first.")
             return
         try:
-            from apps.components.Txd_Editor.dp5_paint_editor import DP5PaintEditor
-            editor = DP5PaintEditor(self.selected_texture, self)
-            if editor.exec() == editor.DialogCode.Accepted:
+            from apps.components.DP5_Workshop.dp5_workshop import DP5Workshop
+            from PyQt6.QtWidgets import QVBoxLayout, QDialog
+
+            tex  = self.selected_texture
+            w    = tex.get('width', 256)
+            h    = tex.get('height', 256)
+            rgba = bytearray(tex['rgba_data'])
+
+            # Create DP5 as a modal dialog so TXD Workshop waits for the edit
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"DP5 Paint — {tex.get('name', 'texture')}")
+            dlg.resize(1400, 820)
+            lay = QVBoxLayout(dlg)
+            lay.setContentsMargins(0, 0, 0, 0)
+
+            workshop = DP5Workshop(dlg, None)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+
+            # Pre-load the texture into the canvas
+            workshop._canvas_width  = w
+            workshop._canvas_height = h
+            if workshop.dp5_canvas:
+                workshop.dp5_canvas.tex_w = w
+                workshop.dp5_canvas.tex_h = h
+                workshop.dp5_canvas.rgba  = rgba
+                workshop.dp5_canvas.update()
+                workshop._set_zoom(max(0.05, min(4, 512 / max(w, h, 1))))
+
+            lay.addWidget(workshop)
+
+            # Add OK / Cancel at the bottom
+            from PyQt6.QtWidgets import QHBoxLayout, QPushButton
+            btn_row = QHBoxLayout()
+            btn_row.addStretch()
+            ok_btn  = QPushButton("Apply to Texture")
+            ok_btn.setDefault(True)
+            ok_btn.clicked.connect(dlg.accept)
+            can_btn = QPushButton("Cancel")
+            can_btn.clicked.connect(dlg.reject)
+            btn_row.addWidget(ok_btn); btn_row.addWidget(can_btn)
+            lay.addLayout(btn_row)
+
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                # Write edited RGBA back into the texture dict
+                if workshop.dp5_canvas:
+                    tex['rgba_data'] = bytes(workshop.dp5_canvas.rgba)
+                    tex['width']     = workshop.dp5_canvas.tex_w
+                    tex['height']    = workshop.dp5_canvas.tex_h
                 self._save_undo_state("DP5 Paint edit")
-                self._update_texture_info(self.selected_texture)
+                self._update_texture_info(tex)
                 self._update_table_display()
                 self._mark_as_modified()
+
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.warning(self, "Paint Editor Error", str(e))

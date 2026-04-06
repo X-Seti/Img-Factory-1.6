@@ -601,31 +601,32 @@ class IMGFactoryGUILayout:
         ]
 
 
-    def _get_options_buttons_data(self): #vers 3
+    def _get_options_buttons_data(self): #vers 4
         """Get Options buttons data with theme colors"""
         colors = self._get_button_theme_template()
         return [
-            ("Dir Tree", "dir_tree", "dir-tree", colors['editor_data'], "toggle_dir_tree"),
-            ("Col Edit", "col_edit", "col-edit", colors['editor_col'], "edit_col_file"),
-            ("Txd Edit", "txd_edit", "txd-edit", colors['editor_txd'], "edit_txd_file"),
-            ("Dff Edit", "dff_edit", "dff-edit", colors['editor_dff'], "edit_dff_file"),
-            ("Ipf Edit", "ipf_edit", "ipf-edit", colors['editor_data'], "edit_ipf_file"),
-            ("IDE Edit", "ide_edit", "ide-edit", colors['editor_data'], "edit_ide_file"),
-            ("IPL Edit", "ipl_edit", "ipl-edit", colors['editor_data'], "edit_ipl_file"),
-            ("Dat Edit", "dat_edit", "dat-edit", colors['editor_data'], "edit_dat_file"),
-            ("Zons Cull Ed", "zones_cull", "zones-cull", colors['editor_data'], "edit_zones_cull"),
-            ("Weap Edit", "weap_edit", "weap-edit", colors['editor_vehicle'], "edit_weap_file"),
-            ("Vehi Edit", "vehi_edit", "vehi-edit", colors['editor_vehicle'], "edit_vehi_file"),
-            ("Peds Edit", "peds_edit", "peds-edit", colors['editor_vehicle'], "edit_peds_file"),
-            ("Radar Map", "radar_map", "radar-map", colors['editor_map'], "edit_radar_map"),
-            ("Paths Map", "paths_map", "paths-map", colors['editor_map'], "edit_paths_map"),
-            ("Waterpro", "timecyc", "timecyc", colors['editor_data'], "edit_waterpro"),
-            ("Weather", "timecyc", "timecyc", colors['editor_data'], "edit_weather"),
-            ("Handling", "handling", "handling", colors['editor_vehicle'], "edit_handling"),
-            ("Objects", "ojs_breakble", "ojs-breakble", colors['editor_data'], "edit_objects"),
-            ("SCM code", "scm_code", "scm-code", colors['editor_script'], "editscm"),
-            ("GXT font", "gxt_font", "gxt-font", colors['editor_script'], "editgxt"),
-            ("Menu Edit", "menu_font", "menu-font", colors['editor_script'], "editmenu"),
+            ("Dir Tree",   "dir_tree",   "dir-tree",   colors['editor_data'],    "toggle_dir_tree"),
+            ("Col Edit",   "col_edit",   "col-edit",   colors['editor_col'],     "edit_col_file"),
+            ("Txd Edit",   "txd_edit",   "txd-edit",   colors['editor_txd'],     "edit_txd_file"),
+            ("Dff Edit",   "dff_edit",   "dff-edit",   colors['editor_dff'],     "edit_dff_file"),
+            ("Paint Edit", "paint_edit", "paint-edit", colors['editor_txd'],     "open_dp5_workshop_docked"),
+            ("Ipf Edit",   "ipf_edit",   "ipf-edit",   colors['editor_data'],    "edit_ipf_file"),
+            ("IDE Edit",   "ide_edit",   "ide-edit",   colors['editor_data'],    "edit_ide_file"),
+            ("IPL Edit",   "ipl_edit",   "ipl-edit",   colors['editor_data'],    "edit_ipl_file"),
+            ("Dat Edit",   "dat_edit",   "dat-edit",   colors['editor_data'],    "edit_dat_file"),
+            ("Zons Cull Ed","zones_cull","zones-cull", colors['editor_data'],    "edit_zones_cull"),
+            ("Weap Edit",  "weap_edit",  "weap-edit",  colors['editor_vehicle'], "edit_weap_file"),
+            ("Vehi Edit",  "vehi_edit",  "vehi-edit",  colors['editor_vehicle'], "edit_vehi_file"),
+            ("Peds Edit",  "peds_edit",  "peds-edit",  colors['editor_vehicle'], "edit_peds_file"),
+            ("Radar Map",  "radar_map",  "radar-map",  colors['editor_map'],     "edit_radar_map"),
+            ("Paths Map",  "paths_map",  "paths-map",  colors['editor_map'],     "edit_paths_map"),
+            ("Waterpro",   "timecyc",    "timecyc",    colors['editor_data'],    "edit_waterpro"),
+            ("Weather",    "timecyc",    "timecyc",    colors['editor_data'],    "edit_weather"),
+            ("Handling",   "handling",   "handling",   colors['editor_vehicle'], "edit_handling"),
+            ("Objects",    "ojs_breakble","ojs-breakble",colors['editor_data'],  "edit_objects"),
+            ("SCM code",   "scm_code",   "scm-code",   colors['editor_script'],  "editscm"),
+            ("GXT font",   "gxt_font",   "gxt-font",   colors['editor_script'],  "editgxt"),
+            ("Menu Edit",  "menu_font",  "menu-font",  colors['editor_script'],  "editmenu"),
         ]
 
 

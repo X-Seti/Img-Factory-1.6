@@ -320,7 +320,6 @@ class ToolTaskbar(QWidget):  # vers 2
         openers = {
             "col": "open_col_workshop_docked",
             "txd": "open_txd_workshop_docked",
-            "dp5": "open_dp5_workshop_docked",
             "ide": "open_ide_editor_docked",
             "ai":  "open_ai_workshop_docked",
         }
@@ -438,14 +437,6 @@ class ToolTaskbar(QWidget):  # vers 2
         elif key == "col":
             _act("Open in COL Workshop", lambda: self._col_open_from_selection())
             _act("Save", lambda: self._tool_action(key, 'save'))
-            menu.addMenu(self._show_submenu(key, menu))
-            menu.addSeparator()
-            _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
-
-        # ── DP5 Paint Workshop ─────────────────────────────────────────────────
-        elif key == "dp5":
-            _act("Open DP5 Paint Workshop", lambda: getattr(mw,'open_dp5_workshop_docked',lambda:None)())
-            _act("Open Standalone", lambda: getattr(mw,'open_dp5_workshop_standalone',lambda:None)())
             menu.addMenu(self._show_submenu(key, menu))
             menu.addSeparator()
             _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
@@ -842,74 +833,6 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.menu_btn.clicked.connect(self._show_popup_menu)
         self.menu_btn.setToolTip("Main Menu")
         layout.addWidget(self.menu_btn)
-
-        # ── [Load] [Save] [Import] [Export] [Undo] ────────────────────────────
-        def _tb_btn(text, tip, slot, icon_method=None):
-            btn = QPushButton()
-            btn.setFont(self.button_font)
-            btn.setText(text)
-            btn.setToolTip(tip)
-            btn.setMinimumHeight(30)
-            btn.setMaximumHeight(30)
-            btn.setSizePolicy(
-                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            if icon_method:
-                try:
-                    btn.setIcon(icon_method(18, icon_color))
-                    btn.setIconSize(QSize(18, 18))
-                except Exception:
-                    pass
-            if slot:
-                btn.clicked.connect(slot)
-            layout.addWidget(btn)
-            return btn
-
-        mw = self.main_window
-
-        self.tb_load_btn = _tb_btn(
-            "Load", "Load / Open IMG or file  (Ctrl+O)",
-            lambda: getattr(mw, 'open_file_dialog', lambda: None)(),
-            getattr(self.icon_factory, 'open_icon', None))
-
-        self.tb_save_btn = _tb_btn(
-            "Save", "Save current file  (Ctrl+S)",
-            lambda: getattr(mw, 'save_current_file', lambda: None)())
-
-        self.tb_import_btn = _tb_btn(
-            "Import", "Import entry into IMG",
-            lambda: getattr(mw, 'import_entry', lambda: None)())
-
-        self.tb_export_btn = _tb_btn(
-            "Export", "Export selected entry",
-            lambda: getattr(mw, 'export_selected_entries', lambda: None)())
-
-        self.tb_undo_btn = _tb_btn(
-            "Undo", "Undo last change  (Ctrl+Z)",
-            lambda: (mw.undo_manager.undo()
-                     if hasattr(mw, 'undo_manager') else None),
-            getattr(self.icon_factory, 'undo_icon', None))
-
-        # ── Paint Edit (DP5 Workshop) button ──────────────────────────────────
-        self.tb_paint_btn = QPushButton()
-        self.tb_paint_btn.setFont(self.button_font)
-        self.tb_paint_btn.setText("Paint Edit")
-        self.tb_paint_btn.setToolTip(
-            "Open DP5 Paint Workshop\nLeft-click: dock into tab\nRight-click: standalone window")
-        self.tb_paint_btn.setMinimumHeight(30)
-        self.tb_paint_btn.setMaximumHeight(30)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
-            self.tb_paint_btn.setIcon(get_dp5_workshop_icon(18, icon_color))
-            self.tb_paint_btn.setIconSize(QSize(18, 18))
-        except Exception:
-            pass
-        self.tb_paint_btn.clicked.connect(
-            lambda: getattr(mw, 'open_dp5_workshop_docked', lambda: None)())
-        self.tb_paint_btn.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        self.tb_paint_btn.customContextMenuRequested.connect(
-            self._show_paint_context_menu)
-        layout.addWidget(self.tb_paint_btn)
 
         # Settings button - PREVENT DUPLICATE CONNECTIONS
         self.settings_btn = QPushButton()
@@ -2706,18 +2629,6 @@ RwTexDictionary (0x0016) chunk header [12 bytes]
         standalone_action.triggered.connect(lambda: self.main_window.open_ai_workshop_standalone())
 
         menu.exec(self.ai_btn.mapToGlobal(pos))
-
-    def _show_paint_context_menu(self, pos): #vers 1
-        """Right-click menu for Paint Edit (DP5) button"""
-        from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self.main_window)
-        docked = menu.addAction("Open DP5 Paint Workshop (Docked Tab)")
-        docked.triggered.connect(
-            lambda: getattr(self.main_window, 'open_dp5_workshop_docked', lambda: None)())
-        standalone = menu.addAction("Open DP5 Paint Workshop (Standalone)")
-        standalone.triggered.connect(
-            lambda: getattr(self.main_window, 'open_dp5_workshop_standalone', lambda: None)())
-        menu.exec(self.tb_paint_btn.mapToGlobal(pos))
 
 
         """Apply always on top window flag"""
