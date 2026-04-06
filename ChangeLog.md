@@ -1,4 +1,113 @@
-#this belongs in root /ChangeLog.md - Version: 32
+#this belongs in root /ChangeLog.md - Version: 34
+
+## April 2026 — DP5 Workshop: full paint editor suite, imgfactory integration
+
+### DP5 Workshop — standalone repo
+- `X-Seti/DP5-Workshop` created as a separate MIT-licensed repository
+- Contains `dp5_workshop.py`, `README.md`, `TODO.md`, `LICENSE`
+- Usable standalone (`python3 dp5_workshop.py`) or embedded in any PyQt6 app
+- Synced from `apps/components/DP5_Workshop/dp5_workshop.py`
+
+### Build 248 — Revert toolbar changes, Paint Edit in right panel, TXD → DP5
+- `gui_layout_custom.py`: reverted — removed misplaced Load/Save/Import/Export/Undo/PaintEdit from main IMG Factory toolbar
+- `gui_layout.py`: **Paint Edit** added to Editing Options right panel (after Dff Edit), calls `open_dp5_workshop_docked()`
+- `txd_workshop.py`: `_open_paint_editor()` v4 — replaced old `dp5_paint_editor.py` with full `DP5Workshop`
+  - Opens as modal QDialog, pre-loads selected texture RGBA into canvas, auto-fits zoom
+  - **Apply to Texture** writes edited RGBA bytes back into texture dict and marks TXD modified
+
+### Build 247 — DP5 icon redesign + SVG icons on all toolbar/gadget buttons
+- `get_dp5_workshop_icon()` v2: solid filled palette body, bold outline circles, thick brush stroke — readable at 16px+
+- `get_clear_canvas_icon()`: bold X on canvas rect — used on CLR gadget button
+- `get_brushes_icon()`: three brush shapes — used on Brushes toolbar button
+- All `dp5_workshop.py` toolbar buttons now carry SVG icons:
+  - Load=`open_icon`, Save=`save_icon`, Import=`import_icon`, Export=`export_icon`, Undo=`undo_icon`, Brushes=`get_brushes_icon`
+  - UNDO gadget = `undo_icon`, CLR gadget = `get_clear_canvas_icon`
+- `icon_color` now defined in `_create_right_panel` (was missing, causing gadget icon errors)
+
+### Build 246c — Window/app icon in taskbar and alt-tab
+- `DP5Workshop.__init__`: `setWindowIcon(get_dp5_workshop_icon(64))`
+- `open_dp5_workshop()`: sets icon on standalone window
+- `__main__`: `setApplicationName("DP5 Workshop")`, `setOrganizationName("X-Seti")`, `app.setWindowIcon()` — replaces python3/X in taskbar with DP5 palette icon
+
+### Build 246b — Toolbar reorder
+- Layout: `[Settings*] ←title→ [Load][Save][Import][Export][Undo] [Brushes] [Theme] [_][□][×]*`
+- Settings and window chrome visible only in standalone mode
+- Import/Export tooltips note older format support (IFF, BMP)
+
+### Build 246a — Fix `_activate_stamp_mode` missing
+- `_on_brush_mgr_selected` had orphaned `_activate_stamp_mode` body merged into it as a string literal
+- Restored as proper method: selects `TOOL_STAMP` and sets status bar message
+
+### Build 246 — DP5 Workshop fully integrated into IMG Factory
+- `imgfactory.py`: `open_dp5_workshop_docked()` — same pattern as AI/TXD/COL/Model workshops
+  - Finds existing tab, creates QWidget container, adds tab with DP5 icon, registers in tool taskbar
+  - `open_dp5_workshop_standalone()` convenience wrapper
+  - Both accept optional `file_path` to auto-load an image on open
+- `gui_layout_custom.py`: `[Paint Edit]` button with DP5 icon in toolbar; left-click = docked, right-click = standalone; `_show_paint_context_menu()`; `dp5` key in tool routing dict and context menu branch
+- `imgfactory_svg_icons.py`: `get_dp5_workshop_icon()` — paint palette SVG, attached as `SVGIconFactory.dp5_workshop_icon`
+- `dp5_workshop.py`: `_import_bitmap_path(path)` for imgfactory docked call; `BrushManager` floating panel; `_toggle_brush_manager()`; toolbar rebuilt with file action buttons; DP5 palette icon in title
+
+### Build 245 — Stamp mode, brush thumbnail, moveable floating objects
+- `TOOL_STAMP`: click anywhere to place copy buffer — ghost preview follows cursor at 55% opacity
+- `BrushThumbnail` widget (right of FG/BG swatch): checkerboard background, shows copy buffer preview, cyan active border, click = stamp mode, right-click = clear
+- After Ctrl+X / Ctrl+C thumbnail updates automatically; Ctrl+V enters stamp mode instead of dropping at centre
+- `_activate_stamp_mode()`, `_clear_brush()`, `_sync_brush_thumb()` wired throughout
+- Escape exits stamp mode back to Select tool
+
+### Build 244 — SVG icon lookup in `_make_tool_icon`
+- `_SVG_MAP` dict maps shape keys → `SVGIconFactory.dp_*_icon()` method names
+- When `ICONS_AVAILABLE` and the shape has an entry, calls the SVG method with tile background
+- Falls back to QPainter renderer for shapes not yet in the map
+- Currently mapped: pencil, eraser, fill, spray, picker, line, zoom
+
+### Build 243 — Right-click fill toggle for shape tools
+- `SHAPE_FILL_PAIRS`: rect/circle/triangle/polygon/star/lasso each have outline + filled variants
+- Right-click the button toggles outline ↔ filled; icon updates immediately; tooltip shows current mode
+- `ShapeToolButton` subclass intercepts right-click at Qt event level (no menu flash)
+- `_shape_fill_state` dict tracks each shape's current mode; `_toggle_shape_fill()` updates icon + canvas tool live
+- `TOOL_FILLED_TRIANGLE`, `TOOL_FILLED_POLYGON`, `TOOL_FILLED_STAR`, `TOOL_FILLED_LASSO` added
+- Lasso fill: on release, draws outline then flood-fills from centroid
+
+### Build 242 — Move tool as floating object + arrow key nudge
+- `TOOL_MOVE` with copy buffer → auto-floats buffer at existing position
+- Arrow keys: float active → nudge 1px (Shift = 10px); no float → scroll viewport
+- Enter/Return stamps float permanently and clears buffer
+- `nudge_float(dx, dy)` canvas helper
+- Spacebar + drag = temporary canvas pan with any tool (ClosedHandCursor feedback)
+- `TOOL_MOVE` removed from gadget bar (pan is middle-mouse + spacebar)
+
+### Build 241 — Zoom-to-cursor + scrollable canvas (architecture overhaul)
+- `DP5Canvas.sizeHint()` returns `tex_w × zoom, tex_h × zoom` — scroll area knows actual content size
+- `setSizePolicy(Fixed, Fixed)` + `setWidgetResizable(False)` — canvas drives its own size
+- `setAlignment(AlignCenter)` — canvas centred when smaller than viewport
+- `paintEvent` draws at `(0,0)` — no more manual `self.offset` subtraction
+- `_widget_to_tex` / `_tex_to_widget` simplified — no offset arithmetic
+- `_set_zoom(z, anchor_widget_pos)` — resizes canvas, adjusts scrollbars to keep anchor fixed: `ratio = z/old_z; new_scroll = (old_scroll + anchor) * ratio - anchor`
+- `wheelEvent` passes mouse position mapped to scroll area viewport as anchor
+- Pan via `_scroll_by(dx, dy)` → scrollbar setValue (middle-mouse and spacebar)
+- `_get_scroll_area()` walks parent chain to find containing QScrollArea
+
+### Build 240 — Moveable selection with paste-as-you-go
+- Committed selection: click inside → `_lift_selection()` (copies pixels, clears source, sets `_sel_floating=True`)
+- Drag moves `_sel_float_pos`; release keeps float active (re-draggable)
+- Float renders at 85% opacity with yellow dashed border tracking mouse
+- Click outside → `_stamp_selection(keep_floating=False)` stamps permanently
+- Escape while floating → `cancel_sel_move()` restores `_sel_float_orig` backup (full canvas backup before lift)
+- `_point_in_sel_rect()`, `_lift_selection()`, `_stamp_selection()`, `cancel_sel_move()` canvas helpers
+- `TOOL_SELECT` in `mousePressEvent`: detects click inside vs outside committed selection
+
+### Builds 233–239 — DP5 Workshop core construction
+- Single-file merge: DP5Canvas, PaletteGrid, FGBGSwatch, ColorPickerWidget, ColorPalPresetsMixin, DP5Settings, DP5SettingsDialog, DP5Workshop
+- 19 tools: pencil, eraser, fill, spray, picker, curve, line, rect, circle, triangle, polygon, star, select, lasso, zoom, text, stamp (+ filled variants)
+- `_make_tool_icon()`: normalised 48-unit QPainter icons with dark tile + white silhouette; active = inverted
+- Adaptive column gadget bar (2/3/4 cols, auto from icon size); `_rebuild_right_panel()` via QSplitter.replaceWidget
+- DP5Settings JSON at `~/.config/imgfactory/dp5_workshop.json`
+- Retro palettes: Amiga OCS/AGA/AGA-WB, C64, ZX Spectrum, Amstrad CPC, Atari 800/2600, ULA Plus
+- COL1/COL2/COL3 binary ops, Bézier curve (click-to-add control points, dbl-click commit), polygon (click vertices, dbl-click close+fill), text placement (QPainter render to canvas), brush size slider, snap-to-grid
+- IFF ILBM export, PIL-based transforms (flip, rotate, scale, invert, brighten/darken)
+- Zoom: Ctrl+scroll, click-zoom tool, menu presets 0.05×–16×
+- Selection: marquee, lasso, cut/copy/paste, select-all, deselect; Ctrl+A/X/C/V/Z/Y
+
 
 ## March–April 2026 — TXD GTA3/VC fixes, COL ops, log dedup
 
