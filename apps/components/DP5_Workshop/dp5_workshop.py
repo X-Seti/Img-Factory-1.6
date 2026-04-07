@@ -582,7 +582,6 @@ class DP5Settings:
         'default_height':    200,
         'retro_palette':     'Amiga OCS',
         'show_pixel_grid':   True,
-        'zoom_to_fit_resize': False,
     }
 
     def __init__(self):
@@ -654,11 +653,6 @@ class DP5SettingsDialog(QDialog):
         self._grid_chk.setChecked(self.s.get('show_pixel_grid'))
         cl.addRow("Show pixel grid:", self._grid_chk)
 
-        self._fit_resize_chk = QCheckBox()
-        self._fit_resize_chk.setChecked(self.s.get('zoom_to_fit_resize'))
-        self._fit_resize_chk.setToolTip("Always scale canvas to fill the viewport on window resize")
-        cl.addRow("Zoom to fit on resize:", self._fit_resize_chk)
-
         tabs.addTab(canvas_tab, "Canvas")
 
         # ── Interface tab ────────────────────────────────────────────────────
@@ -708,7 +702,6 @@ class DP5SettingsDialog(QDialog):
         self.s.set('default_zoom',     self._zoom_spin.value())
         self.s.set('undo_levels',      self._undo_spin.value())
         self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
-        self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
@@ -2567,12 +2560,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
                                   self._export_bitmap,
                                   SVGIconFactory.save_icon)
-        # self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
-        #                           self._import_bitmap,
-        #                           SVGIconFactory.import_icon)
-        # self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
-        #                           self._export_bitmap,
-        #                           SVGIconFactory.export_icon)
+        self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
+                                  self._import_bitmap,
+                                  SVGIconFactory.import_icon)
+        self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
+                                  self._export_bitmap,
+                                  SVGIconFactory.export_icon)
         self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",
                                   self._undo_canvas,
                                   SVGIconFactory.undo_icon)
@@ -2935,11 +2928,45 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         snap_row.addWidget(self._snap_chk)
         snap_row.addWidget(self._grid_chk2)
         snap_row.addWidget(self._zoom_lbl)
+        zoom_in_btn = QPushButton("+")
+        zoom_in_btn.setFixedSize(18, 18)
+        zoom_in_btn.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        zoom_in_btn.setToolTip("Zoom in")
+        zoom_in_btn.clicked.connect(lambda: self._set_zoom(
+            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(16, self._canvas_zoom + 1)))
+        zoom_out_btn = QPushButton("-")
+        zoom_out_btn.setFixedSize(18, 18)
+        zoom_out_btn.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        zoom_out_btn.setToolTip("Zoom out")
+        zoom_out_btn.clicked.connect(lambda: self._set_zoom(
+            max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
+        snap_row.addWidget(zoom_out_btn)
+        snap_row.addWidget(zoom_in_btn)
         layout.addLayout(snap_row)
 
         layout.addSpacing(4)
 
-        # ── FG / BG swatch  +  brush thumbnail + zoom ─────────────────────
+        # ── Colour history ────────────────────────────────────────────────
+        hist_lbl = QLabel("Recent")
+        hist_lbl.setFont(QFont("Arial", 8))
+        layout.addWidget(hist_lbl)
+        hist_row = QHBoxLayout()
+        hist_row.setSpacing(2)
+        self._color_history = []
+        self._color_hist_btns = []
+        for _ in range(6):
+            b = QPushButton()
+            b.setFixedSize(20, 20)
+            b.setStyleSheet("background:#222; border:1px solid #555;")
+            b.setEnabled(False)
+            hist_row.addWidget(b)
+            self._color_hist_btns.append(b)
+        hist_row.addStretch()
+        layout.addLayout(hist_row)
+
+        layout.addSpacing(4)
+
+        # ── FG / BG swatch  +  brush thumbnail ───────────────────────────
         fgbg_row_lbl = QHBoxLayout()
         fgbg_lbl = QLabel("FG / BG")
         fgbg_lbl.setFont(QFont("Arial", 8))
@@ -2965,32 +2992,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._brush_thumb.clear_requested.connect(self._clear_brush)
         fgbg_row.addWidget(self._brush_thumb)
 
-        zoom_stack = QVBoxLayout()
-        zoom_stack.setSpacing(2)
-        zoom_in_btn = QPushButton()
-        zoom_in_btn.setFixedSize(20, 20)
-        zoom_in_btn.setToolTip("Zoom in")
-        zoom_in_btn.clicked.connect(lambda: self._set_zoom(
-            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(16, self._canvas_zoom + 1)))
-        try:
-            zoom_in_btn.setIcon(SVGIconFactory.zoom_in_icon(14, icon_color))
-            zoom_in_btn.setIconSize(QSize(14, 14))
-        except Exception:
-            zoom_in_btn.setText("+")
-        zoom_out_btn = QPushButton()
-        zoom_out_btn.setFixedSize(20, 20)
-        zoom_out_btn.setToolTip("Zoom out")
-        zoom_out_btn.clicked.connect(lambda: self._set_zoom(
-            max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
-        try:
-            zoom_out_btn.setIcon(SVGIconFactory.zoom_out_icon(14, icon_color))
-            zoom_out_btn.setIconSize(QSize(14, 14))
-        except Exception:
-            zoom_out_btn.setText("-")
-        zoom_stack.addWidget(zoom_in_btn)
-        zoom_stack.addWidget(zoom_out_btn)
-        fgbg_row.addLayout(zoom_stack)
-
         layout.addLayout(fgbg_row)
 
         # ── Opacity ───────────────────────────────────────────────────────
@@ -3013,24 +3014,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addSpacing(4)
 
-        # ── Colour history ────────────────────────────────────────────────
-        hist_lbl = QLabel("Recent")
-        hist_lbl.setFont(QFont("Arial", 8))
-        layout.addWidget(hist_lbl)
-        hist_row = QHBoxLayout()
-        hist_row.setSpacing(2)
-        self._color_history = []
-        self._color_hist_btns = []
-        for _ in range(16):
-            b = QPushButton()
-            b.setFixedSize(12, 12)
-            b.setStyleSheet("background:#222; border:1px solid #555;")
-            b.setEnabled(False)
-            hist_row.addWidget(b)
-            self._color_hist_btns.append(b)
-        hist_row.addStretch()
-        layout.addLayout(hist_row)
-
         # ── IMAGE palette ─────────────────────────────────────────────────
         img_pal_lbl = QLabel("Image Palette")
         img_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
@@ -3047,14 +3030,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img_pal_scroll.setWidget(self.pal_bar)
         layout.addWidget(img_pal_scroll)
 
+        layout.addSpacing(4)
+
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
         user_pal_lbl = QLabel("User Palette")
-        user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        user_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         user_pal_hdr.addWidget(user_pal_lbl)
 
         self._retro_btn = QPushButton("Amiga OCS")
-        self._retro_btn.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self._retro_btn.setFont(QFont("Arial", 12))
         self._retro_btn.setFixedHeight(24)
         self._retro_btn.setToolTip("Choose retro palette preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
@@ -3065,7 +3050,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_scroll.setWidgetResizable(True)
         user_pal_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        user_pal_scroll.setMinimumHeight(80)
+        user_pal_scroll.setMinimumHeight(60)
         user_pal_scroll.setMaximumHeight(160)
         self._user_pal_grid = PaletteGrid(cols=8, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
@@ -3199,7 +3184,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if hex_c in self._color_history:
             self._color_history.remove(hex_c)
         self._color_history.insert(0, hex_c)
-        self._color_history = self._color_history[:16]
+        self._color_history = self._color_history[:6]
         for i, btn in enumerate(self._color_hist_btns):
             if i < len(self._color_history):
                 col = self._color_history[i]
@@ -3444,24 +3429,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.rgba[i*4:i*4+4] = [c.red(),c.green(),c.blue(),c.alpha()]
         self.dp5_canvas.update()
 
-    def _fit_canvas_to_viewport(self): #vers 1
-        if not self.dp5_canvas: return
-        sa = getattr(self, '_canvas_scroll', None)
-        vw = sa.viewport().width()  if sa else self.width()
-        vh = sa.viewport().height() if sa else self.height()
-        w = max(1, self.dp5_canvas.tex_w)
-        h = max(1, self.dp5_canvas.tex_h)
-        fit_z = min(vw / w, vh / h)
-        for snap in (16, 8, 4, 2, 1):
-            if fit_z >= snap:
-                fit_z = snap; break
-        self._set_zoom(max(0.05, fit_z))
-
-    def resizeEvent(self, event): #vers 1
-        super().resizeEvent(event)
-        if self.dp5_settings.get('zoom_to_fit_resize'):
-            self._fit_canvas_to_viewport()
-
     def _set_zoom(self, z, anchor_widget_pos=None):
         """
         Set zoom level.  anchor_widget_pos: QPoint in scroll-area viewport
@@ -3630,12 +3597,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._pil_transform(lambda i, nw=nw, nh=nh, m=method:
                                 i.resize((nw, nh), m))
 
-    def _new_canvas(self): #vers 2
-        w, ok1 = QInputDialog.getInt(self, "New Canvas", "Width:",
-                                     self.dp5_settings.get('default_width'), 8, 4096)
+    def _new_canvas(self):
+        w, ok1 = QInputDialog.getInt(self, "New Canvas", "Width:",  320, 8, 4096)
         if not ok1: return
-        h, ok2 = QInputDialog.getInt(self, "New Canvas", "Height:",
-                                     self.dp5_settings.get('default_height'), 8, 4096)
+        h, ok2 = QInputDialog.getInt(self, "New Canvas", "Height:", 200, 8, 4096)
         if not ok2: return
         self._canvas_width  = w
         self._canvas_height = h
@@ -3644,7 +3609,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.tex_h = h
             self.dp5_canvas.rgba  = bytearray(b'\x80\x80\x80\xff' * (w * h))
             self.dp5_canvas.update()
-            self._fit_canvas_to_viewport()
         self._set_status(f"New canvas: {w}×{h}")
 
     # ── File I/O ──────────────────────────────────────────────────────────────
@@ -3720,8 +3684,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             if self.dp5_canvas:
                 self.dp5_canvas.show_grid = self.dp5_settings.get('show_pixel_grid')
                 self.dp5_canvas.update()
-                if self.dp5_settings.get('zoom_to_fit_resize'):
-                    self._fit_canvas_to_viewport()
 
             # If icon size or column count changed, rebuild the right panel
             new_icon_sz = self.dp5_settings.get('tool_icon_size')
