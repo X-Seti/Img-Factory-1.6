@@ -3035,11 +3035,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
         user_pal_lbl = QLabel("User Palette")
-        user_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         user_pal_hdr.addWidget(user_pal_lbl)
 
         self._retro_btn = QPushButton("Amiga OCS")
-        self._retro_btn.setFont(QFont("Arial", 8))
+        self._retro_btn.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self._retro_btn.setFixedHeight(24)
         self._retro_btn.setToolTip("Choose retro palette preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
@@ -3050,7 +3050,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_scroll.setWidgetResizable(True)
         user_pal_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        user_pal_scroll.setMinimumHeight(100)
+        user_pal_scroll.setMinimumHeight(80)
         user_pal_scroll.setMaximumHeight(160)
         self._user_pal_grid = PaletteGrid(cols=8, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
