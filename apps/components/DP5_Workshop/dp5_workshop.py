@@ -2560,12 +2560,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
                                   self._export_bitmap,
                                   SVGIconFactory.save_icon)
-        self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
-                                  self._import_bitmap,
-                                  SVGIconFactory.import_icon)
-        self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
-                                  self._export_bitmap,
-                                  SVGIconFactory.export_icon)
+        # self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
+        #                           self._import_bitmap,
+        #                           SVGIconFactory.import_icon)
+        # self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
+        #                           self._export_bitmap,
+        #                           SVGIconFactory.export_icon)
         self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",
                                   self._undo_canvas,
                                   SVGIconFactory.undo_icon)
