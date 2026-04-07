@@ -3032,11 +3032,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.addLayout(hist_row)
 
         # ── Splitter ──────────────────────────────────────────────────────
-        sep1 = QFrame()
-        sep1.setFrameShape(QFrame.Shape.HLine)
-        sep1.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(sep1)
-
         # ── IMAGE palette ─────────────────────────────────────────────────
         img_pal_lbl = QLabel("Image Palette")
         img_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
@@ -3054,11 +3049,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.addWidget(img_pal_scroll)
 
         # ── Splitter ──────────────────────────────────────────────────────
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(sep2)
-
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
         user_pal_lbl = QLabel("User Palette")
