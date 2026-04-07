@@ -2804,10 +2804,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         else:
             n_cols = max(2, min(4, req_cols))
 
-        # Panel width: n_cols buttons + gaps + outer margins
+        # Panel width: fixed 186px min, 200px max
         panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 16
-        panel.setMinimumWidth(panel_w)
-        panel.setMaximumWidth(panel_w + 20)   # small slack for scroll bars
+        panel.setMinimumWidth(186)
+        panel.setMaximumWidth(200)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(4, 4, 4, 4)
