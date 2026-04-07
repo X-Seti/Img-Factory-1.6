@@ -134,18 +134,29 @@ def _make_tool_icon(shape: str, size: int = 42,
     # Add entries here as you create new dp_*_icon() methods in
     # imgfactory_svg_icons.py — they'll be picked up automatically.
     _SVG_MAP = {
-        'pencil':        'dp_pencil_icon',
-        'eraser':        'dp_eraser_icon',
-        'fill':          'dp_bucket_icon',
-        'spray':         'dp_brush_icon',
-        'picker':        'dp_color_picker_icon',
-        'line':          'dp_line_icon',
-        'zoom':          'dp_magnify_icon',
-        # Add more as you create dp_*_icon() methods:
-        # 'stamp':       'dp_stamp_icon',
-        # 'curve':       'dp_curve_icon',
-        # 'select':      'dp_select_icon',
-        # 'text':        'dp_text_icon',
+        'pencil':          'dp_pencil_icon',
+        'eraser':          'dp_eraser_icon',
+        'fill':            'dp_bucket_icon',
+        'spray':           'dp_brush_icon',
+        'picker':          'dp_color_picker_icon',
+        'line':            'dp_line_icon',
+        'zoom':            'dp_magnify_icon',
+        'curve':           'dp_curve_icon',
+        'rect':            'dp_rect_icon',
+        'filled_rect':     'dp_filled_rect_icon',
+        'circle':          'dp_circle_icon',
+        'filled_circle':   'dp_filled_circle_icon',
+        'triangle':        'dp_triangle_icon',
+        'filled_triangle': 'dp_filled_triangle_icon',
+        'polygon':         'dp_polygon_icon',
+        'filled_polygon':  'dp_filled_polygon_icon',
+        'star':            'dp_star_icon',
+        'filled_star':     'dp_filled_star_icon',
+        'select':          'dp_select_icon',
+        'lasso':           'dp_lasso_icon',
+        'filled_lasso':    'dp_filled_lasso_icon',
+        'text':            'dp_text_icon',
+        'stamp':           'dp_stamp_icon',
     }
 
     if ICONS_AVAILABLE and shape in _SVG_MAP:
@@ -155,16 +166,18 @@ def _make_tool_icon(shape: str, size: int = 42,
             tile_bg  = '#1e1e24' if not active else '#d8d8e0'
             icon_col = '#f0f0f4' if not active else '#101014'
             try:
-                return fn(size, color=icon_col, bg_color=tile_bg)
-            except TypeError:
-                # bg_color not supported — render icon then composite onto tile
+                # Get the icon rendered transparent (no bg_color — avoids SVG corruption)
                 ico = fn(size, color=icon_col)
-                px  = QPixmap(size, size)
+                # Composite onto tile background manually
+                px = QPixmap(size, size)
                 px.fill(QColor(tile_bg))
-                p   = QPainter(px)
+                p  = QPainter(px)
+                p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
                 p.drawPixmap(0, 0, ico.pixmap(size, size))
                 p.end()
                 return QIcon(px)
+            except Exception:
+                pass  # fall through to QPainter
 
     # ── QPainter fallback (shapes, lasso, select, text, etc.) ────────────────
     import math as _m
