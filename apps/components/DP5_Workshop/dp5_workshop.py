@@ -2986,7 +2986,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hist_row.setSpacing(2)
         self._color_history = []
         self._color_hist_btns = []
-        for _ in range(16):
+        for _ in range(12):
             b = QPushButton()
             b.setFixedSize(12, 12)
             b.setStyleSheet("background:#222; border:1px solid #555;")
@@ -3167,7 +3167,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if hex_c in self._color_history:
             self._color_history.remove(hex_c)
         self._color_history.insert(0, hex_c)
-        self._color_history = self._color_history[:16]
+        self._color_history = self._color_history[:12]
         for i, btn in enumerate(self._color_hist_btns):
             if i < len(self._color_history):
                 col = self._color_history[i]
