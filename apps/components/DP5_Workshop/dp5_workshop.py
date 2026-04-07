@@ -2932,26 +2932,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addSpacing(4)
 
-        # ── Colour history ────────────────────────────────────────────────
-        hist_lbl = QLabel("Recent")
-        hist_lbl.setFont(QFont("Arial", 8))
-        layout.addWidget(hist_lbl)
-        hist_row = QHBoxLayout()
-        hist_row.setSpacing(2)
-        self._color_history = []
-        self._color_hist_btns = []
-        for _ in range(6):
-            b = QPushButton()
-            b.setFixedSize(12, 12)
-            b.setStyleSheet("background:#222; border:1px solid #555;")
-            b.setEnabled(False)
-            hist_row.addWidget(b)
-            self._color_hist_btns.append(b)
-        hist_row.addStretch()
-        layout.addLayout(hist_row)
-
-        layout.addSpacing(4)
-
         # ── FG / BG swatch  +  brush thumbnail + zoom ─────────────────────
         fgbg_row_lbl = QHBoxLayout()
         fgbg_lbl = QLabel("FG / BG")
@@ -3026,6 +3006,30 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addSpacing(4)
 
+        # ── Colour history ────────────────────────────────────────────────
+        hist_lbl = QLabel("Recent")
+        hist_lbl.setFont(QFont("Arial", 8))
+        layout.addWidget(hist_lbl)
+        hist_row = QHBoxLayout()
+        hist_row.setSpacing(2)
+        self._color_history = []
+        self._color_hist_btns = []
+        for _ in range(16):
+            b = QPushButton()
+            b.setFixedSize(12, 12)
+            b.setStyleSheet("background:#222; border:1px solid #555;")
+            b.setEnabled(False)
+            hist_row.addWidget(b)
+            self._color_hist_btns.append(b)
+        hist_row.addStretch()
+        layout.addLayout(hist_row)
+
+        # ── Splitter ──────────────────────────────────────────────────────
+        sep1 = QFrame()
+        sep1.setFrameShape(QFrame.Shape.HLine)
+        sep1.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep1)
+
         # ── IMAGE palette ─────────────────────────────────────────────────
         img_pal_lbl = QLabel("Image Palette")
         img_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
@@ -3042,7 +3046,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img_pal_scroll.setWidget(self.pal_bar)
         layout.addWidget(img_pal_scroll)
 
-        layout.addSpacing(4)
+        # ── Splitter ──────────────────────────────────────────────────────
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep2)
 
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
@@ -3196,7 +3204,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if hex_c in self._color_history:
             self._color_history.remove(hex_c)
         self._color_history.insert(0, hex_c)
-        self._color_history = self._color_history[:6]
+        self._color_history = self._color_history[:16]
         for i, btn in enumerate(self._color_hist_btns):
             if i < len(self._color_history):
                 col = self._color_history[i]
