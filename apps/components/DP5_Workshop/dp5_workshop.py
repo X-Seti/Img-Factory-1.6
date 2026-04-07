@@ -729,6 +729,7 @@ class DP5Canvas(QWidget):
         self.tool       = TOOL_PENCIL
         self.color      = QColor(255, 0, 0, 255)
         self.brush_size = 1
+        self.opacity    = 1.0
         self.show_grid  = True
         self._drawing   = False
         self._last_pt   = None
@@ -2959,6 +2960,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addLayout(fgbg_row)
 
+        # ── Opacity ───────────────────────────────────────────────────────
+        op_row = QHBoxLayout()
+        op_lbl = QLabel("Opacity")
+        op_lbl.setFont(QFont("Arial", 9))
+        op_row.addWidget(op_lbl)
+        self._opacity_sl = QSlider(Qt.Orientation.Horizontal)
+        self._opacity_sl.setRange(0, 100)
+        self._opacity_sl.setValue(100)
+        self._opacity_sl.setMinimumHeight(22)
+        self._opacity_sl.valueChanged.connect(self._set_opacity)
+        op_row.addWidget(self._opacity_sl)
+        self._opacity_val_lbl = QLabel("100%")
+        self._opacity_val_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self._opacity_val_lbl.setFixedWidth(34)
+        self._opacity_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        op_row.addWidget(self._opacity_val_lbl)
+        layout.addLayout(op_row)
+
         layout.addSpacing(4)
 
         # ── IMAGE palette ─────────────────────────────────────────────────
@@ -3111,6 +3130,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.brush_size = v
         if hasattr(self, '_size_val_lbl'):
             self._size_val_lbl.setText(str(v))
+
+    def _set_opacity(self, v: int): #vers 1
+        if self.dp5_canvas:
+            self.dp5_canvas.opacity = v / 100.0
+        if hasattr(self, '_opacity_val_lbl'):
+            self._opacity_val_lbl.setText(f"{v}%")
 
     def _on_fg_changed(self, c: QColor):
         if self.dp5_canvas:
