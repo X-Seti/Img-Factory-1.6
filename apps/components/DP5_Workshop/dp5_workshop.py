@@ -2986,7 +2986,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_hdr.addWidget(user_pal_lbl)
 
         self._retro_btn = QPushButton("Amiga OCS")
-        self._retro_btn.setFont(QFont("Arial", 12))
+        self._retro_btn.setFont(QFont("Arial", 8))
         self._retro_btn.setFixedHeight(24)
         self._retro_btn.setToolTip("Choose retro palette preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
