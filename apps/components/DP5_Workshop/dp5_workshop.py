@@ -2993,7 +2993,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             b.setEnabled(False)
             hist_row.addWidget(b)
             self._color_hist_btns.append(b)
-        hist_row.addStretch()
         layout.addLayout(hist_row)
 
         layout.addSpacing(4)
