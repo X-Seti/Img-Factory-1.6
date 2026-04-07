@@ -2958,6 +2958,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._fgbg_swatch.bg_changed.connect(self._on_bg_changed)
         fgbg_row.addWidget(self._fgbg_swatch)
 
+        fgbg_row.addStretch()
+
         self._brush_thumb = BrushThumbnail()
         self._brush_thumb.stamp_requested.connect(self._activate_stamp_mode)
         self._brush_thumb.clear_requested.connect(self._clear_brush)
@@ -3029,7 +3031,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hist_row.addStretch()
         layout.addLayout(hist_row)
 
-        # ── Splitter ──────────────────────────────────────────────────────
         # ── IMAGE palette ─────────────────────────────────────────────────
         img_pal_lbl = QLabel("Image Palette")
         img_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
@@ -3046,7 +3047,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img_pal_scroll.setWidget(self.pal_bar)
         layout.addWidget(img_pal_scroll)
 
-        # ── Splitter ──────────────────────────────────────────────────────
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
         user_pal_lbl = QLabel("User Palette")
@@ -3445,14 +3445,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.dp5_canvas.update()
 
     def _fit_canvas_to_viewport(self): #vers 1
-        """Fit canvas zoom so the canvas fills the scroll area viewport."""
         if not self.dp5_canvas: return
         sa = getattr(self, '_canvas_scroll', None)
-        if sa:
-            vw = sa.viewport().width()
-            vh = sa.viewport().height()
-        else:
-            vw, vh = self.width(), self.height()
+        vw = sa.viewport().width()  if sa else self.width()
+        vh = sa.viewport().height() if sa else self.height()
         w = max(1, self.dp5_canvas.tex_w)
         h = max(1, self.dp5_canvas.tex_h)
         fit_z = min(vw / w, vh / h)
