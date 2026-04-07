@@ -2325,7 +2325,7 @@ class ColorPalPresetsMixin:
         if hasattr(self, '_user_pal_grid'):
             self._user_pal_grid.set_colors(colors, cols)
         if hasattr(self, '_retro_btn'):
-            self._retro_btn.setText(f"{name} ▼")
+            self._retro_btn.setText(f"{name}")
 
     def _show_retro_menu(self):
         menu = QMenu(self)
@@ -2948,8 +2948,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._grid_chk2.setChecked(self.dp5_settings.get('show_pixel_grid'))
         self._grid_chk2.toggled.connect(self._set_show_grid)
         snap_row.addWidget(self._snap_chk)
+        snap_row.addWidget(self._grid_chk2)
         layout.addLayout(snap_row)
-        layout.addWidget(self._grid_chk2)
 
         # ── Zoom label ────────────────────────────────────────────────────
         self._zoom_lbl = QLabel(f"{self._canvas_zoom}×")
@@ -3013,9 +3013,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         user_pal_hdr.addWidget(user_pal_lbl)
 
-        self._retro_btn = QPushButton("Amiga OCS ▼")
-        self._retro_btn.setFont(QFont("Arial", 7))
-        self._retro_btn.setFixedHeight(18)
+        self._retro_btn = QPushButton("Amiga OCS")
+        self._retro_btn.setFont(QFont("Arial", 12))
+        self._retro_btn.setFixedHeight(24)
         self._retro_btn.setToolTip("Choose retro palette preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
         user_pal_hdr.addWidget(self._retro_btn)
