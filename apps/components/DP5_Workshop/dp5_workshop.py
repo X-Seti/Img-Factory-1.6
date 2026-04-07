@@ -3050,7 +3050,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_scroll.setWidgetResizable(True)
         user_pal_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        user_pal_scroll.setMinimumHeight(60)
+        user_pal_scroll.setMinimumHeight(100)
         user_pal_scroll.setMaximumHeight(160)
         self._user_pal_grid = PaletteGrid(cols=8, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
