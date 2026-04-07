@@ -729,6 +729,7 @@ class DP5Canvas(QWidget):
         self.tool       = TOOL_PENCIL
         self.color      = QColor(255, 0, 0, 255)
         self.brush_size = 1
+        self.opacity    = 1.0
         self.show_grid  = True
         self._drawing   = False
         self._last_pt   = None
@@ -2927,7 +2928,41 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         snap_row.addWidget(self._snap_chk)
         snap_row.addWidget(self._grid_chk2)
         snap_row.addWidget(self._zoom_lbl)
+        zoom_in_btn = QPushButton("+")
+        zoom_in_btn.setFixedSize(18, 18)
+        zoom_in_btn.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        zoom_in_btn.setToolTip("Zoom in")
+        zoom_in_btn.clicked.connect(lambda: self._set_zoom(
+            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(16, self._canvas_zoom + 1)))
+        zoom_out_btn = QPushButton("-")
+        zoom_out_btn.setFixedSize(18, 18)
+        zoom_out_btn.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        zoom_out_btn.setToolTip("Zoom out")
+        zoom_out_btn.clicked.connect(lambda: self._set_zoom(
+            max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
+        snap_row.addWidget(zoom_out_btn)
+        snap_row.addWidget(zoom_in_btn)
         layout.addLayout(snap_row)
+
+        layout.addSpacing(4)
+
+        # ── Colour history ────────────────────────────────────────────────
+        hist_lbl = QLabel("Recent")
+        hist_lbl.setFont(QFont("Arial", 8))
+        layout.addWidget(hist_lbl)
+        hist_row = QHBoxLayout()
+        hist_row.setSpacing(2)
+        self._color_history = []
+        self._color_hist_btns = []
+        for _ in range(6):
+            b = QPushButton()
+            b.setFixedSize(20, 20)
+            b.setStyleSheet("background:#222; border:1px solid #555;")
+            b.setEnabled(False)
+            hist_row.addWidget(b)
+            self._color_hist_btns.append(b)
+        hist_row.addStretch()
+        layout.addLayout(hist_row)
 
         layout.addSpacing(4)
 
@@ -2958,6 +2993,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fgbg_row.addWidget(self._brush_thumb)
 
         layout.addLayout(fgbg_row)
+
+        # ── Opacity ───────────────────────────────────────────────────────
+        op_row = QHBoxLayout()
+        op_lbl = QLabel("Opacity")
+        op_lbl.setFont(QFont("Arial", 9))
+        op_row.addWidget(op_lbl)
+        self._opacity_sl = QSlider(Qt.Orientation.Horizontal)
+        self._opacity_sl.setRange(0, 100)
+        self._opacity_sl.setValue(100)
+        self._opacity_sl.setMinimumHeight(22)
+        self._opacity_sl.valueChanged.connect(self._set_opacity)
+        op_row.addWidget(self._opacity_sl)
+        self._opacity_val_lbl = QLabel("100%")
+        self._opacity_val_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self._opacity_val_lbl.setFixedWidth(34)
+        self._opacity_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        op_row.addWidget(self._opacity_val_lbl)
+        layout.addLayout(op_row)
 
         layout.addSpacing(4)
 
@@ -3112,10 +3165,37 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if hasattr(self, '_size_val_lbl'):
             self._size_val_lbl.setText(str(v))
 
-    def _on_fg_changed(self, c: QColor):
+    def _set_opacity(self, v: int): #vers 1
+        if self.dp5_canvas:
+            self.dp5_canvas.opacity = v / 100.0
+        if hasattr(self, '_opacity_val_lbl'):
+            self._opacity_val_lbl.setText(f"{v}%")
+
+    def _on_fg_changed(self, c: QColor): #vers 2
         if self.dp5_canvas:
             self.dp5_canvas.color = c
         self.pal_bar.set_selection_by_color(c)
+        self._push_color_history(c)
+
+    def _push_color_history(self, c: QColor): #vers 1
+        hex_c = c.name()
+        if self._color_history and self._color_history[0] == hex_c:
+            return
+        if hex_c in self._color_history:
+            self._color_history.remove(hex_c)
+        self._color_history.insert(0, hex_c)
+        self._color_history = self._color_history[:6]
+        for i, btn in enumerate(self._color_hist_btns):
+            if i < len(self._color_history):
+                col = self._color_history[i]
+                btn.setStyleSheet(f"background:{col}; border:1px solid #555;")
+                btn.setEnabled(True)
+                btn.setToolTip(col)
+                btn.clicked.disconnect() if btn.receivers(btn.clicked) > 0 else None
+                btn.clicked.connect(lambda _, hc=col: self._fgbg_swatch.set_fg(QColor(hc)))
+            else:
+                btn.setStyleSheet("background:#222; border:1px solid #555;")
+                btn.setEnabled(False)
 
     def _on_bg_changed(self, c: QColor):
         # Background colour stored in swatch; eraser uses it in future
