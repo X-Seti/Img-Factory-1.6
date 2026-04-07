@@ -2568,6 +2568,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",
                                   self._undo_canvas,
                                   SVGIconFactory.undo_icon)
+        try:
+            from apps.methods.imgfactory_svg_icons import get_clear_canvas_icon
+            self.tb_clr_btn = _tb("Clear", "Clear canvas",
+                                   self._clear_canvas,
+                                   lambda sz, col: get_clear_canvas_icon(sz, col))
+        except Exception:
+            self.tb_clr_btn = _tb("Clear", "Clear canvas", self._clear_canvas)
 
         # ── Brush Manager button ───────────────────────────────────────────
         self.brush_mgr_btn = QPushButton("Brushes")
@@ -2881,38 +2888,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             gadget_grid.addWidget(btn, row, col)
 
         layout.addLayout(gadget_grid)
-
-        # ── UNDO / CLR — always 2 buttons side by side ────────────────────
-        undo_clr = QHBoxLayout()
-        undo_clr.setSpacing(gap)
-
-        undo_btn = QPushButton("UN\nDO")
-        undo_btn.setFixedSize(btn_sz, btn_sz)
-        undo_btn.setFont(QFont("Arial", max(7, icon_sz // 6)))
-        undo_btn.setToolTip("Undo  Ctrl+Z")
-        undo_btn.clicked.connect(self._undo_canvas)
-        try:
-            undo_btn.setIcon(SVGIconFactory.undo_icon(max(14, icon_sz - 14), icon_color))
-            undo_btn.setIconSize(QSize(max(14, icon_sz - 14), max(14, icon_sz - 14)))
-        except Exception:
-            pass
-
-        clr_btn = QPushButton("CLR")
-        clr_btn.setFixedSize(btn_sz, btn_sz)
-        clr_btn.setFont(QFont("Arial", max(8, icon_sz // 5)))
-        clr_btn.setToolTip("Clear canvas")
-        clr_btn.clicked.connect(self._clear_canvas)
-        try:
-            from apps.methods.imgfactory_svg_icons import get_clear_canvas_icon
-            clr_btn.setIcon(get_clear_canvas_icon(max(14, icon_sz - 14), icon_color))
-            clr_btn.setIconSize(QSize(max(14, icon_sz - 14), max(14, icon_sz - 14)))
-        except Exception:
-            pass
-
-        undo_clr.addWidget(undo_btn)
-        undo_clr.addWidget(clr_btn)
-        undo_clr.addStretch()
-        layout.addLayout(undo_clr)
 
         layout.addSpacing(4)
 
