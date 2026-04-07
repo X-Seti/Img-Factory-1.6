@@ -2921,15 +2921,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._grid_chk2.setFont(QFont("Arial", 8))
         self._grid_chk2.setChecked(self.dp5_settings.get('show_pixel_grid'))
         self._grid_chk2.toggled.connect(self._set_show_grid)
+        self._zoom_lbl = QLabel(f"{self._canvas_zoom}×")
+        self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._zoom_lbl.setFont(QFont("Arial", 8))
         snap_row.addWidget(self._snap_chk)
         snap_row.addWidget(self._grid_chk2)
+        snap_row.addWidget(self._zoom_lbl)
         layout.addLayout(snap_row)
-
-        # ── Zoom label ────────────────────────────────────────────────────
-        self._zoom_lbl = QLabel(f"{self._canvas_zoom}×")
-        self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._zoom_lbl.setFont(QFont("Arial", 8))
-        layout.addWidget(self._zoom_lbl)
 
         layout.addSpacing(4)
 
