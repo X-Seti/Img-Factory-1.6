@@ -2958,12 +2958,36 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._fgbg_swatch.bg_changed.connect(self._on_bg_changed)
         fgbg_row.addWidget(self._fgbg_swatch)
 
-        fgbg_row.addStretch()
-
         self._brush_thumb = BrushThumbnail()
         self._brush_thumb.stamp_requested.connect(self._activate_stamp_mode)
         self._brush_thumb.clear_requested.connect(self._clear_brush)
         fgbg_row.addWidget(self._brush_thumb)
+
+        zoom_stack = QVBoxLayout()
+        zoom_stack.setSpacing(2)
+        zoom_in_btn = QPushButton()
+        zoom_in_btn.setFixedSize(20, 20)
+        zoom_in_btn.setToolTip("Zoom in")
+        zoom_in_btn.clicked.connect(lambda: self._set_zoom(
+            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(16, self._canvas_zoom + 1)))
+        try:
+            zoom_in_btn.setIcon(SVGIconFactory.zoom_in_icon(14, icon_color))
+            zoom_in_btn.setIconSize(QSize(14, 14))
+        except Exception:
+            zoom_in_btn.setText("+")
+        zoom_out_btn = QPushButton()
+        zoom_out_btn.setFixedSize(20, 20)
+        zoom_out_btn.setToolTip("Zoom out")
+        zoom_out_btn.clicked.connect(lambda: self._set_zoom(
+            max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
+        try:
+            zoom_out_btn.setIcon(SVGIconFactory.zoom_out_icon(14, icon_color))
+            zoom_out_btn.setIconSize(QSize(14, 14))
+        except Exception:
+            zoom_out_btn.setText("-")
+        zoom_stack.addWidget(zoom_in_btn)
+        zoom_stack.addWidget(zoom_out_btn)
+        fgbg_row.addLayout(zoom_stack)
 
         layout.addLayout(fgbg_row)
 
