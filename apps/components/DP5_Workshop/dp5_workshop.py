@@ -582,6 +582,7 @@ class DP5Settings:
         'default_height':    200,
         'retro_palette':     'Amiga OCS',
         'show_pixel_grid':   True,
+        'zoom_to_fit_resize': False,
     }
 
     def __init__(self):
@@ -653,6 +654,11 @@ class DP5SettingsDialog(QDialog):
         self._grid_chk.setChecked(self.s.get('show_pixel_grid'))
         cl.addRow("Show pixel grid:", self._grid_chk)
 
+        self._fit_resize_chk = QCheckBox()
+        self._fit_resize_chk.setChecked(self.s.get('zoom_to_fit_resize'))
+        self._fit_resize_chk.setToolTip("Always scale canvas to fill the viewport on window resize")
+        cl.addRow("Zoom to fit on resize:", self._fit_resize_chk)
+
         tabs.addTab(canvas_tab, "Canvas")
 
         # ── Interface tab ────────────────────────────────────────────────────
@@ -702,6 +708,7 @@ class DP5SettingsDialog(QDialog):
         self.s.set('default_zoom',     self._zoom_spin.value())
         self.s.set('undo_levels',      self._undo_spin.value())
         self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
+        self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
@@ -3412,6 +3419,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.rgba[i*4:i*4+4] = [c.red(),c.green(),c.blue(),c.alpha()]
         self.dp5_canvas.update()
 
+    def _fit_canvas_to_viewport(self): #vers 1
+        if not self.dp5_canvas: return
+        sa = getattr(self, '_canvas_scroll', None)
+        vw = sa.viewport().width()  if sa else self.width()
+        vh = sa.viewport().height() if sa else self.height()
+        w = max(1, self.dp5_canvas.tex_w)
+        h = max(1, self.dp5_canvas.tex_h)
+        fit_z = min(vw / w, vh / h)
+        for snap in (16, 8, 4, 2, 1):
+            if fit_z >= snap:
+                fit_z = snap; break
+        self._set_zoom(max(0.05, fit_z))
+
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        if self.dp5_settings.get('zoom_to_fit_resize'):
+            self._fit_canvas_to_viewport()
+
     def _set_zoom(self, z, anchor_widget_pos=None):
         """
         Set zoom level.  anchor_widget_pos: QPoint in scroll-area viewport
@@ -3580,10 +3605,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._pil_transform(lambda i, nw=nw, nh=nh, m=method:
                                 i.resize((nw, nh), m))
 
-    def _new_canvas(self):
-        w, ok1 = QInputDialog.getInt(self, "New Canvas", "Width:",  320, 8, 4096)
+    def _new_canvas(self): #vers 2
+        w, ok1 = QInputDialog.getInt(self, "New Canvas", "Width:",
+                                     self.dp5_settings.get('default_width'), 8, 4096)
         if not ok1: return
-        h, ok2 = QInputDialog.getInt(self, "New Canvas", "Height:", 200, 8, 4096)
+        h, ok2 = QInputDialog.getInt(self, "New Canvas", "Height:",
+                                     self.dp5_settings.get('default_height'), 8, 4096)
         if not ok2: return
         self._canvas_width  = w
         self._canvas_height = h
@@ -3592,6 +3619,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.tex_h = h
             self.dp5_canvas.rgba  = bytearray(b'\x80\x80\x80\xff' * (w * h))
             self.dp5_canvas.update()
+            self._fit_canvas_to_viewport()
         self._set_status(f"New canvas: {w}×{h}")
 
     # ── File I/O ──────────────────────────────────────────────────────────────
@@ -3667,6 +3695,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             if self.dp5_canvas:
                 self.dp5_canvas.show_grid = self.dp5_settings.get('show_pixel_grid')
                 self.dp5_canvas.update()
+                if self.dp5_settings.get('zoom_to_fit_resize'):
+                    self._fit_canvas_to_viewport()
 
             # If icon size or column count changed, rebuild the right panel
             new_icon_sz = self.dp5_settings.get('tool_icon_size')
