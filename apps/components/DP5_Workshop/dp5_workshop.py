@@ -2958,8 +2958,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._fgbg_swatch.bg_changed.connect(self._on_bg_changed)
         fgbg_row.addWidget(self._fgbg_swatch)
 
-        fgbg_row.addStretch()
-
         self._brush_thumb = BrushThumbnail()
         self._brush_thumb.stamp_requested.connect(self._activate_stamp_mode)
         self._brush_thumb.clear_requested.connect(self._clear_brush)
