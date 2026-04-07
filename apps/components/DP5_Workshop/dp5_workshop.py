@@ -2921,6 +2921,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         size_lbl = QLabel("Size")
         size_lbl.setFont(QFont("Arial", 9))
         size_hdr.addWidget(size_lbl)
+        self._size_sl = QSlider(Qt.Orientation.Horizontal)
+        self._size_sl.setRange(1, 20)
+        self._size_sl.setValue(1)
+        self._size_sl.setMinimumHeight(22)
+        self._size_sl.valueChanged.connect(self._set_brush_size)
+        size_hdr.addWidget(self._size_sl)
         self._size_val_lbl = QLabel("1")
         self._size_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight |
                                         Qt.AlignmentFlag.AlignVCenter)
@@ -2928,13 +2934,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._size_val_lbl.setFixedWidth(28)
         size_hdr.addWidget(self._size_val_lbl)
         layout.addLayout(size_hdr)
-
-        self._size_sl = QSlider(Qt.Orientation.Horizontal)
-        self._size_sl.setRange(1, 20)
-        self._size_sl.setValue(1)
-        self._size_sl.setMinimumHeight(22)
-        self._size_sl.valueChanged.connect(self._set_brush_size)
-        layout.addWidget(self._size_sl)
 
         # ── Snap to grid toggle ───────────────────────────────────────────
         snap_row = QHBoxLayout()
