@@ -2914,17 +2914,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── Snap to grid toggle ───────────────────────────────────────────
         snap_row = QHBoxLayout()
         self._snap_chk = QCheckBox("Snap to grid")
-        self._snap_chk.setFont(QFont("Arial", 8))
+        self._snap_chk.setFont(QFont("Arial", 9))
         self._snap_chk.setChecked(False)
         self._snap_chk.setToolTip("Snap drawing to pixel grid")
         self._snap_chk.toggled.connect(self._set_snap_grid)
         self._grid_chk2 = QCheckBox("Show grid")
-        self._grid_chk2.setFont(QFont("Arial", 8))
+        self._grid_chk2.setFont(QFont("Arial", 9))
         self._grid_chk2.setChecked(self.dp5_settings.get('show_pixel_grid'))
         self._grid_chk2.toggled.connect(self._set_show_grid)
         self._zoom_lbl = QLabel(f"{self._canvas_zoom}×")
         self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._zoom_lbl.setFont(QFont("Arial", 8))
+        self._zoom_lbl.setFont(QFont("Arial", 9))
         snap_row.addWidget(self._snap_chk)
         snap_row.addWidget(self._grid_chk2)
         snap_row.addWidget(self._zoom_lbl)
@@ -2935,11 +2935,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── FG / BG swatch  +  brush thumbnail ───────────────────────────
         fgbg_row_lbl = QHBoxLayout()
         fgbg_lbl = QLabel("FG / BG")
-        fgbg_lbl.setFont(QFont("Arial", 8))
+        fgbg_lbl.setFont(QFont("Arial", 9))
         fgbg_row_lbl.addWidget(fgbg_lbl)
         fgbg_row_lbl.addStretch()
         brush_lbl = QLabel("Brush")
-        brush_lbl.setFont(QFont("Arial", 8))
+        brush_lbl.setFont(QFont("Arial", 9))
         fgbg_row_lbl.addWidget(brush_lbl)
         layout.addLayout(fgbg_row_lbl)
 
@@ -2978,11 +2978,29 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         op_row.addWidget(self._opacity_val_lbl)
         layout.addLayout(op_row)
 
+        # ── Colour history ────────────────────────────────────────────────
+        hist_lbl = QLabel("Recent")
+        hist_lbl.setFont(QFont("Arial", 9))
+        layout.addWidget(hist_lbl)
+        hist_row = QHBoxLayout()
+        hist_row.setSpacing(2)
+        self._color_history = []
+        self._color_hist_btns = []
+        for _ in range(16):
+            b = QPushButton()
+            b.setFixedSize(12, 12)
+            b.setStyleSheet("background:#222; border:1px solid #555;")
+            b.setEnabled(False)
+            hist_row.addWidget(b)
+            self._color_hist_btns.append(b)
+        hist_row.addStretch()
+        layout.addLayout(hist_row)
+
         layout.addSpacing(4)
 
         # ── IMAGE palette ─────────────────────────────────────────────────
         img_pal_lbl = QLabel("Image Palette")
-        img_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        img_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         layout.addWidget(img_pal_lbl)
 
         img_pal_scroll = QScrollArea()
@@ -3001,11 +3019,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
         user_pal_lbl = QLabel("User Palette")
-        user_pal_lbl.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         user_pal_hdr.addWidget(user_pal_lbl)
 
         self._retro_btn = QPushButton("Amiga OCS")
-        self._retro_btn.setFont(QFont("Arial", 12))
+        self._retro_btn.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self._retro_btn.setFixedHeight(24)
         self._retro_btn.setToolTip("Choose retro palette preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
@@ -3137,10 +3155,31 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if hasattr(self, '_opacity_val_lbl'):
             self._opacity_val_lbl.setText(f"{v}%")
 
-    def _on_fg_changed(self, c: QColor):
+    def _on_fg_changed(self, c: QColor): #vers 2
         if self.dp5_canvas:
             self.dp5_canvas.color = c
         self.pal_bar.set_selection_by_color(c)
+        self._push_color_history(c)
+
+    def _push_color_history(self, c: QColor): #vers 1
+        hex_c = c.name()
+        if self._color_history and self._color_history[0] == hex_c:
+            return
+        if hex_c in self._color_history:
+            self._color_history.remove(hex_c)
+        self._color_history.insert(0, hex_c)
+        self._color_history = self._color_history[:16]
+        for i, btn in enumerate(self._color_hist_btns):
+            if i < len(self._color_history):
+                col = self._color_history[i]
+                btn.setStyleSheet(f"background:{col}; border:1px solid #555;")
+                btn.setEnabled(True)
+                btn.setToolTip(col)
+                btn.clicked.disconnect() if btn.receivers(btn.clicked) > 0 else None
+                btn.clicked.connect(lambda _, hc=col: self._fgbg_swatch.set_fg(QColor(hc)))
+            else:
+                btn.setStyleSheet("background:#222; border:1px solid #555;")
+                btn.setEnabled(False)
 
     def _on_bg_changed(self, c: QColor):
         # Background colour stored in swatch; eraser uses it in future
