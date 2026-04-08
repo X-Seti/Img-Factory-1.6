@@ -3044,6 +3044,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
         img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
         img_pal_hdr.addWidget(img_pal_apply_btn)
+        img_pal_group_btn = QPushButton("Group")
+        img_pal_group_btn.setFont(QFont("Arial", 8))
+        img_pal_group_btn.setFixedHeight(20)
+        img_pal_group_btn.setToolTip("Sort palette by hue (reds → greens → blues)")
+        img_pal_group_btn.clicked.connect(self._group_palette)
+        img_pal_hdr.addWidget(img_pal_group_btn)
         layout.addLayout(img_pal_hdr)
 
         img_pal_scroll = QScrollArea()
@@ -3238,7 +3244,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.color = c
         self._fgbg_swatch.set_fg(c)
 
-    def _apply_bit_depth(self): #vers 1
+    def _apply_bit_depth(self): #vers 2
         """Quantize canvas RGBA to selected bit depth and update palette grid."""
         if not self.dp5_canvas: return
         depth = self._bit_depth_combo.currentText()
@@ -3246,34 +3252,53 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             from PIL import Image
             w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
             img = Image.frombytes('RGBA', (w, h), bytes(self.dp5_canvas.rgba))
+
             if depth == "32bit":
-                # No quantization — just refresh palette from current image
-                pass
+                out_img = img  # no change to canvas
             elif depth == "24bit":
-                img = img.convert('RGB').convert('RGBA')
+                out_img = img.convert('RGB').convert('RGBA')
             elif depth == "16bit":
-                # Simulate 16bit (R5G6B5) rounding
-                img = img.convert('RGB')
-                pixels = img.tobytes()
-                out = bytearray(len(pixels))
+                rgb = img.convert('RGB')
+                pixels = rgb.tobytes()
+                buf = bytearray(len(pixels))
                 for i in range(0, len(pixels), 3):
-                    out[i]   = (pixels[i]   >> 3) << 3
-                    out[i+1] = (pixels[i+1] >> 2) << 2
-                    out[i+2] = (pixels[i+2] >> 3) << 3
-                img = Image.frombytes('RGB', (w, h), bytes(out)).convert('RGBA')
+                    buf[i]   = (pixels[i]   >> 3) << 3
+                    buf[i+1] = (pixels[i+1] >> 2) << 2
+                    buf[i+2] = (pixels[i+2] >> 3) << 3
+                out_img = Image.frombytes('RGB', (w, h), bytes(buf)).convert('RGBA')
             elif depth == "8bit":
-                img = img.convert('RGB').quantize(colors=256).convert('RGBA')
+                rgb = img.convert('RGB')
+                q = rgb.quantize(colors=256)
+                out_img = q.convert('RGB').convert('RGBA')
+
             # Write back to canvas
-            self.dp5_canvas.rgba = bytearray(img.tobytes())
+            self.dp5_canvas.rgba = bytearray(out_img.tobytes())
             self.dp5_canvas.update()
+
             # Update palette grid
-            p_img = img.convert('RGB').quantize(colors=256)
+            p_img = out_img.convert('RGB').quantize(colors=256)
             pal_flat = p_img.getpalette()
             palette = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
             self.pal_bar.set_palette_raw(palette)
             self._set_status(f"Applied {depth} quantization")
         except Exception as e:
             QMessageBox.warning(self, "Bit Depth Error", str(e))
+
+    def _group_palette(self): #vers 2
+        """Sort current image palette by hue so colours are grouped visually."""
+        try:
+            import colorsys
+            if not hasattr(self.pal_bar, '_colors') or not self.pal_bar._colors:
+                return
+            def hue_key(qc):
+                h, s, v = colorsys.rgb_to_hsv(qc.red()/255, qc.green()/255, qc.blue()/255)
+                return (h, -v, -s)
+            sorted_colors = sorted(self.pal_bar._colors, key=hue_key)
+            palette = [(c.red(), c.green(), c.blue()) for c in sorted_colors]
+            self.pal_bar.set_palette_raw(palette)
+            self._set_status("Palette grouped by hue")
+        except Exception as e:
+            QMessageBox.warning(self, "Group Error", str(e))
 
     def _update_color_swatches(self):
         """Sync FGBGSwatch after colour changes (e.g. picker tool)."""
