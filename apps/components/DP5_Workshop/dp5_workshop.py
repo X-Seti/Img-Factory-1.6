@@ -2944,7 +2944,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fgbg_lbl = QLabel("FG / BG")
         fgbg_lbl.setFont(QFont("Arial", 9))
         fgbg_row_lbl.addWidget(fgbg_lbl)
-        fgbg_row_lbl.addStretch()
         brush_lbl = QLabel("Brush")
         brush_lbl.setFont(QFont("Arial", 9))
         fgbg_row_lbl.addWidget(brush_lbl)
