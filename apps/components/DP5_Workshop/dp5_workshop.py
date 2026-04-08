@@ -577,9 +577,10 @@ class DP5Settings:
 
     DEFAULTS = {
         'show_bitmap_list':  False,    # left panel visible
-        'tool_icon_size':    42,       # tool button pixel size (24–64)
+        'tool_icon_size':    42,       # tool button pixel size (20–64)
         'tool_icon_color':   'color',  # 'color' | 'white' | 'dark'
-        'tool_columns':      0,        # 0=auto, 2, 3, or 4
+        'tool_columns':      3,        # 3, 4, 5, or 6
+        'hidden_tools':      [],       # list of tool_ids to hide
         'default_zoom':      4,        # startup zoom level
         'undo_levels':       32,
         'default_width':     320,
@@ -681,7 +682,7 @@ class DP5SettingsDialog(QDialog):
         self._bitmap_chk.setChecked(self.s.get('show_bitmap_list'))
         ul.addRow("Show bitmap list panel:", self._bitmap_chk)
 
-        self._icon_size_spin = QSpinBox(); self._icon_size_spin.setRange(24, 64)
+        self._icon_size_spin = QSpinBox(); self._icon_size_spin.setRange(20, 64)
         self._icon_size_spin.setValue(self.s.get('tool_icon_size'))
         ul.addRow("Tool icon size (px):", self._icon_size_spin)
 
@@ -693,12 +694,35 @@ class DP5SettingsDialog(QDialog):
         ul.addRow("Tool icon colour:", self._icon_color_combo)
 
         self._cols_combo = QComboBox()
-        self._cols_combo.addItems(['Auto (fit to panel)', '2 columns', '3 columns', '4 columns'])
-        col_idx = {0: 0, 2: 1, 3: 2, 4: 3}.get(self.s.get('tool_columns'), 0)
+        self._cols_combo.addItems(['3 columns', '4 columns', '5 columns', '6 columns'])
+        col_idx = {3: 0, 4: 1, 5: 2, 6: 3}.get(self.s.get('tool_columns'), 0)
         self._cols_combo.setCurrentIndex(col_idx)
-        ul.addRow("Gadget bar columns:", self._cols_combo)
+        ul.addRow("Gadget columns:", self._cols_combo)
 
         tabs.addTab(ui_tab, "Interface")
+
+        # ── Gadgets tab ──────────────────────────────────────────────────────
+        gadgets_tab = QWidget()
+        gl = QVBoxLayout(gadgets_tab)
+        gl.setSpacing(4)
+        gl.addWidget(QLabel("Uncheck tools to hide from gadget bar:"))
+        hidden = self.s.get('hidden_tools') or []
+        self._gadget_chks = {}
+        TOOL_LABELS = [
+            ('pencil','Pencil'), ('eraser','Eraser'), ('fill','Fill'),
+            ('spray','Spray'), ('picker','Picker'), ('curve','Curve'),
+            ('line','Line'), ('rect','Rectangle'), ('circle','Circle'),
+            ('triangle','Triangle'), ('polygon','Polygon'), ('star','Star'),
+            ('select','Select'), ('lasso','Lasso'), ('zoom','Zoom'),
+            ('text','Text'), ('crop','Crop'), ('resize','Resize'),
+        ]
+        for tool_id, label in TOOL_LABELS:
+            chk = QCheckBox(label)
+            chk.setChecked(tool_id not in hidden)
+            self._gadget_chks[tool_id] = chk
+            gl.addWidget(chk)
+        gl.addStretch()
+        tabs.addTab(gadgets_tab, "Gadgets")
 
         root.addWidget(tabs)
 
@@ -724,7 +748,9 @@ class DP5SettingsDialog(QDialog):
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
-        self.s.set('tool_columns',     [0, 2, 3, 4][self._cols_combo.currentIndex()])
+        self.s.set('tool_columns',     [3, 4, 5, 6][self._cols_combo.currentIndex()])
+        hidden = [tid for tid, chk in self._gadget_chks.items() if not chk.isChecked()]
+        self.s.set('hidden_tools',     hidden)
         self.s.save()
         self.accept()
 
@@ -2738,6 +2764,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         show_mb = (self.dp5_settings.get('show_menubar') and
                    self.dp5_settings.get('menu_style') == 'topbar')
         mb.setVisible(show_mb)
+        mb.setMaximumHeight(0 if not show_mb else 30)
         layout.addWidget(mb)
 
         # Canvas
@@ -2838,17 +2865,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # Auto mode: pick columns so the panel stays ≤ ~280px
         # btn_sz=48 → 3col=150+framing=162, 4col=198+framing=210
         # btn_sz=36 → 3col=114, 4col=150  btn_sz=60 → 3col=186, 4col=246
-        req_cols = self.dp5_settings.get('tool_columns')      # 0=auto
-        if req_cols == 0:
-            # auto: prefer 4 if icon_sz ≤ 36, 3 if ≤ 50, else 2
-            if icon_sz <= 36:
-                n_cols = 4
-            elif icon_sz <= 50:
-                n_cols = 3
-            else:
-                n_cols = 2
-        else:
-            n_cols = max(2, min(4, req_cols))
+        req_cols = self.dp5_settings.get('tool_columns')
+        n_cols = max(3, min(6, req_cols))
 
         # Panel width: fit to gadget grid + 20px extra for palette labels
         panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 36
@@ -2885,6 +2903,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
             (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
         ]
+        hidden_tools = self.dp5_settings.get('hidden_tools') or []
+        TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
 
         # ── Build gadget grid ──────────────────────────────────────────────
         gadget_grid = QGridLayout()
@@ -3340,7 +3360,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._fgbg_swatch.set_fg(self.dp5_canvas.color)
             self.pal_bar.set_selection_by_color(self.dp5_canvas.color)
 
-    def _on_menu_btn_clicked(self): #vers 2
+    def _on_menu_btn_clicked(self): #vers 3
         style = self.dp5_settings.get('menu_style')
         if style == 'dropdown':
             self._show_dropdown_menu()
@@ -3350,6 +3370,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_settings.save()
             if hasattr(self, '_menu_bar'):
                 self._menu_bar.setVisible(on)
+                self._menu_bar.setMaximumHeight(0 if not on else 30)
 
     def _show_dropdown_menu(self): #vers 1
         """Pop up the canvas menus as a single QMenu dropdown."""
@@ -3905,11 +3926,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 if self.dp5_settings.get('zoom_to_fit_resize'):
                     self._fit_canvas_to_viewport()
 
-            # Apply menu style change live
             if hasattr(self, '_menu_bar'):
                 show_mb = (self.dp5_settings.get('show_menubar') and
                            self.dp5_settings.get('menu_style') == 'topbar')
                 self._menu_bar.setVisible(show_mb)
+                self._menu_bar.setMaximumHeight(0 if not show_mb else 30)
 
             # If icon size or column count changed, rebuild the right panel
             new_icon_sz = self.dp5_settings.get('tool_icon_size')
