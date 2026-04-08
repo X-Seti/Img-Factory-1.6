@@ -122,6 +122,24 @@ except ImportError:
 #  Tool icon renderer — Photoshop-style white silhouettes on dark tile
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _load_tool_icon(shape: str, size: int = 42, active: bool = False) -> QIcon:
+    """
+    Load tool icon: checks DP5_Workshop/icons/{shape}.png then .svg,
+    falls back to _make_tool_icon SVG/QPainter renderer.
+    """
+    import os
+    icons_dir = os.path.join(os.path.dirname(__file__), 'icons')
+    for ext in ('png', 'svg'):
+        path = os.path.join(icons_dir, f'{shape}.{ext}')
+        if os.path.isfile(path):
+            pix = QPixmap(path).scaled(
+                size, size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            return QIcon(pix)
+    return _make_tool_icon(shape, size, active)
+
+
 def _make_tool_icon(shape: str, size: int = 42,
                     active: bool = False) -> QIcon:
     """
@@ -705,8 +723,10 @@ class DP5SettingsDialog(QDialog):
         gadgets_tab = QWidget()
         gl = QVBoxLayout(gadgets_tab)
         gl.setSpacing(4)
-        gl.addWidget(QLabel("Uncheck tools to hide from gadget bar:"))
+        gl.addWidget(QLabel("Click to toggle tool visibility (highlighted = visible):"))
         hidden = self.s.get('hidden_tools') or []
+        icon_sz = self.s.get('tool_icon_size')
+        btn_sz  = max(48, icon_sz + 6)
         self._gadget_chks = {}
         TOOL_LABELS = [
             ('pencil','Pencil'), ('eraser','Eraser'), ('fill','Fill'),
@@ -716,11 +736,32 @@ class DP5SettingsDialog(QDialog):
             ('select','Select'), ('lasso','Lasso'), ('zoom','Zoom'),
             ('text','Text'), ('crop','Crop'), ('resize','Resize'),
         ]
-        for tool_id, label in TOOL_LABELS:
-            chk = QCheckBox(label)
-            chk.setChecked(tool_id not in hidden)
-            self._gadget_chks[tool_id] = chk
-            gl.addWidget(chk)
+        grid_w = QWidget()
+        grid_l = QGridLayout(grid_w)
+        grid_l.setSpacing(4)
+        grid_l.setContentsMargins(0, 0, 0, 0)
+        cols = 4
+        for idx, (tool_id, label) in enumerate(TOOL_LABELS):
+            btn = QPushButton()
+            btn.setCheckable(True)
+            btn.setChecked(tool_id not in hidden)
+            btn.setFixedSize(btn_sz, btn_sz + 14)
+            btn.setToolTip(label)
+            ico = _load_tool_icon(tool_id, icon_sz)
+            btn.setIcon(ico)
+            btn.setIconSize(QSize(icon_sz, icon_sz))
+            lbl_short = label[:6]
+            btn.setText(lbl_short)
+            btn.setStyleSheet(
+                "QPushButton { font-size: 8px; color: #aaa; "
+                "background: #2a2a2a; border: 1px solid #555; "
+                "padding-top: 2px; } "
+                "QPushButton:checked { background: #1a3a1a; border: 1px solid #4a4; }"
+            )
+            btn.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+            grid_l.addWidget(btn, idx // cols, idx % cols)
+            self._gadget_chks[tool_id] = btn
+        gl.addWidget(grid_w)
         gl.addStretch()
         tabs.addTab(gadgets_tab, "Gadgets")
 
@@ -2942,7 +2983,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             btn.setFixedSize(btn_sz, btn_sz)
             btn.setCheckable(True)
             btn.setToolTip(tip)
-            ico = _make_tool_icon(shape, icon_sz, active=False)
+            ico = _load_tool_icon(shape, icon_sz, active=False)
             btn.setIcon(ico)
             btn.setIconSize(QSize(icon_sz, icon_sz))
             btn.clicked.connect(lambda _, t=tool_id: self._select_tool(t))
