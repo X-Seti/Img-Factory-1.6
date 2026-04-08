@@ -2473,6 +2473,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         main_layout.addWidget(toolbar)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setStyleSheet("QSplitter { background-color: #004400; }")
 
         self._left_panel  = self._create_left_panel()
         centre            = self._create_centre_panel()
@@ -2847,6 +2848,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # Panel width: fit to gadget grid + 20px extra for palette labels
         panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 36
         panel.setFixedWidth(panel_w)
+        # DEBUG: panel background red so we can see its extent
+        panel.setStyleSheet("QFrame { background-color: #440000; }")
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(4, 4, 4, 4)
