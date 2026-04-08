@@ -74,6 +74,8 @@ TOOL_TEXT          = 'text'
 TOOL_STAMP         = 'stamp'          # stamp/paste brush from buffer
 TOOL_CROP          = 'crop'           # crop canvas to selection
 TOOL_RESIZE        = 'resize'         # resize canvas
+TOOL_DITHER        = 'dither'         # dither brush
+TOOL_SYMMETRY      = 'symmetry'       # symmetry/mirror drawing
 
 # Shape tools that have an outline/fill toggle via right-click
 SHAPE_FILL_PAIRS = {
@@ -179,6 +181,8 @@ def _make_tool_icon(shape: str, size: int = 42,
         'stamp':           'dp_stamp_icon',
         'crop':            'dp_crop_icon',
         'resize':          'dp_resize_icon',
+        'dither':          'dp_dither_icon',
+        'symmetry':        'dp_symmetry_icon',
     }
 
     if ICONS_AVAILABLE and shape in _SVG_MAP:
@@ -755,6 +759,7 @@ class DP5SettingsDialog(QDialog):
             ('triangle','Triangle'), ('polygon','Polygon'), ('star','Star'),
             ('select','Select'), ('lasso','Lasso'), ('zoom','Zoom'),
             ('text','Text'), ('crop','Crop'), ('resize','Resize'),
+            ('dither','Dither'), ('symmetry','Symmetry'),
         ]
         grid_w = QWidget()
         grid_l = QGridLayout(grid_w)
@@ -838,8 +843,11 @@ class DP5Canvas(QWidget):
         self.offset     = QPoint(0, 0)
         self.tool       = TOOL_PENCIL
         self.color      = QColor(255, 0, 0, 255)
-        self.brush_size = 1
-        self.opacity    = 1.0
+        self.brush_size    = 1
+        self.opacity       = 1.0
+        self.dither_mode   = False
+        self.symmetry_mode = False
+        self._dither_toggle = False  # alternates per pixel in dither mode
         self.show_grid  = True
         self._drawing   = False
         self._last_pt   = None
@@ -914,12 +922,24 @@ class DP5Canvas(QWidget):
             i = (y * self.tex_w + x) * 4
             self.rgba[i:i+4] = [c.red(), c.green(), c.blue(), c.alpha()]
 
-    def set_pixel_brush(self, cx: int, cy: int, c: QColor):
+    def set_pixel_brush(self, cx: int, cy: int, c: QColor): #vers 2
+        """Paint brush with optional dither and symmetry."""
         s = self.brush_size
+        # Dither: use bg colour on checkerboard positions
+        if self.dither_mode:
+            swatch = getattr(self._editor, '_fgbg_swatch', None)
+            bg_color = swatch.bg() if swatch else QColor(0,0,0,255)
+        else:
+            bg_color = c
         for dy in range(-s+1, s):
             for dx in range(-s+1, s):
                 if s == 1 or (dx*dx + dy*dy) < s*s:
-                    self.set_pixel(cx+dx, cy+dy, c)
+                    px_c = bg_color if (self.dither_mode and (cx+dx+cy+dy) % 2 == 0) else c
+                    self.set_pixel(cx+dx, cy+dy, px_c)
+                    # Symmetry: mirror horizontally
+                    if self.symmetry_mode:
+                        mx = self.tex_w - 1 - (cx+dx)
+                        self.set_pixel(mx, cy+dy, px_c)
 
     # ── Drawing ops ───────────────────────────────────────────────────────────
 
@@ -2407,6 +2427,44 @@ class ColorPalPresetsMixin:
             "#DBFE01","#DBFF55","#DCFFAB","#DBFFFF","#FFFF00","#FFFF55","#FFFFA9","#FFFFFF",
         ]
 
+        # MSX1 / TMS9918 — 16 colours
+        msx1 = [
+            "#000000","#010101","#3EB849","#74D07D",
+            "#5955E0","#8076F1","#B95E51","#65DBEF",
+            "#DB6559","#FF897D","#CCC35E","#DED087",
+            "#3AA241","#B766B5","#CCCCCC","#FFFFFF",
+        ]
+
+        # Atari ST — 16 colours from default palette
+        atari_st = [
+            "#FFFFFF","#FF0000","#00FF00","#FFFF00",
+            "#0000FF","#FF00FF","#00FFFF","#AAAAAA",
+            "#555555","#FF5555","#55FF55","#FFFF55",
+            "#5555FF","#FF55FF","#55FFFF","#000000",
+        ]
+
+        # Commodore Plus/4 — 16 base colours (luma 0)
+        plus4 = [
+            "#000000","#FFFFFF","#2B2B2B","#D4D4D4",
+            "#FF0000","#00FF00","#0000FF","#00FFFF",
+            "#FF00FF","#FFFF00","#FF5500","#00AA55",
+            "#5500FF","#FF55AA","#55AAFF","#AAAA00",
+        ]
+
+        # VIC-20 — 16 colours
+        vic20 = [
+            "#000000","#FFFFFF","#782922","#87D6DD",
+            "#AA5FB6","#55A049","#40318D","#BFCE72",
+            "#AA7449","#C9B887","#EA9090","#B2D4DC",
+            "#CE8DF6","#9DE88B","#8080E0","#E0E084",
+        ]
+
+        # Sinclair QL — 8 colours
+        sinclair_ql = [
+            "#000000","#FF0000","#00FF00","#FFFF00",
+            "#0000FF","#FF00FF","#00FFFF","#FFFFFF",
+        ]
+
         # Registry: name -> (hex_list, cols)
         # cols = how many swatches wide the grid should be for this palette
         self.retro_palettes = {
@@ -2418,6 +2476,11 @@ class ColorPalPresetsMixin:
             "Amstrad CPC":     (amstrad_cpc,  9),   # 27 colours — 3 rows × 9
             "Atari 800":       (atari_800,    8),   # 40 colours — 5 rows × 8
             "Atari 2600 NTSC": (atari_2600,   8),   # 128 colours — 16 rows × 8
+            "MSX1":            (msx1,         8),   # 16 colours — 2 rows × 8
+            "Atari ST":        (atari_st,     8),   # 16 colours — 2 rows × 8
+            "Plus/4":          (plus4,        8),   # 16 colours — 2 rows × 8
+            "VIC-20":          (vic20,        8),   # 16 colours — 2 rows × 8
+            "Sinclair QL":     (sinclair_ql,  8),   # 8 colours — 1 row × 8
             "ULA Plus":        (ula_plus,    16),   # 256 colours — 16×16
         }
         self.current_retro_palette = "Amiga OCS"
@@ -2492,6 +2555,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Canvas state — initial values from dp5_settings
         self._canvas_width  = self.dp5_settings.get('default_width')
+        self._canvas_bit_depth = 0  # 0=32bit, 1=24bit, 2=16bit, 3=8bit
+        self._dither_mode   = False
+        self._symmetry_mode = False
         self._canvas_height = self.dp5_settings.get('default_height')
         self._canvas_zoom   = self.dp5_settings.get('default_zoom')
         self._undo_stack    = deque(maxlen=self.dp5_settings.get('undo_levels'))
@@ -2864,6 +2930,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm.addAction("Open image…",    self._import_bitmap)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
+        # Platform exports submenu
+        ex = fm.addMenu("Export Platform Format")
+        ex.addAction("ZX Spectrum SCR…",   self._export_scr)
+        ex.addAction("MSX SC2…",           self._export_sc2)
+        ex.addAction("Atari ST PI1…",      self._export_pi1)
+        ex.addAction("C64 Koala…",         self._export_koala)
+        ex.addAction("C64 Art Studio…",    self._export_art_studio)
         # Edit
         em = mb.addMenu("Edit")
         em.addAction("Undo\tCtrl+Z",       self._undo_canvas)
@@ -2970,6 +3043,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             (TOOL_TEXT,     'text',     'Place text on canvas (I)'),
             (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
             (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
+            (TOOL_DITHER,   'dither',   'Dither brush — checkerboard FG/BG pattern (D)'),
+            (TOOL_SYMMETRY, 'symmetry', 'Symmetry — mirror drawing horizontally (Y)'),
         ]
         hidden_tools = self.dp5_settings.get('hidden_tools') or []
         TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
@@ -3276,6 +3351,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if tool_id == TOOL_RESIZE:
             self._resize_canvas_dialog()
             return
+        # Dither and symmetry are toggles
+        if tool_id == TOOL_DITHER:
+            self._toggle_dither_mode()
+            return
+        if tool_id == TOOL_SYMMETRY:
+            self._toggle_symmetry_mode()
+            return
 
         actual_tool = tool_id
         if tool_id in self._shape_fill_state:
@@ -3340,6 +3422,26 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.brush_size = v
         if hasattr(self, '_size_val_lbl'):
             self._size_val_lbl.setText(str(v))
+
+    def _toggle_dither_mode(self): #vers 1
+        """Toggle dither brush — alternates FG/BG in checkerboard pattern."""
+        self._dither_mode = not self._dither_mode
+        if self.dp5_canvas:
+            self.dp5_canvas.dither_mode = self._dither_mode
+        btn = self._tool_btns.get(TOOL_DITHER)
+        if btn:
+            btn.setChecked(self._dither_mode)
+        self._set_status(f"Dither: {'ON' if self._dither_mode else 'OFF'}")
+
+    def _toggle_symmetry_mode(self): #vers 1
+        """Toggle horizontal symmetry — mirrors every stroke across the vertical centre."""
+        self._symmetry_mode = not self._symmetry_mode
+        if self.dp5_canvas:
+            self.dp5_canvas.symmetry_mode = self._symmetry_mode
+        btn = self._tool_btns.get(TOOL_SYMMETRY)
+        if btn:
+            btn.setChecked(self._symmetry_mode)
+        self._set_status(f"Symmetry: {'ON' if self._symmetry_mode else 'OFF'}")
 
     def _set_opacity(self, v: int): #vers 1
         if self.dp5_canvas:
@@ -3880,22 +3982,118 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._pil_transform(lambda i, nw=nw, nh=nh, m=method:
                                 i.resize((nw, nh), m))
 
-    def _new_canvas(self): #vers 2
-        w, ok1 = QInputDialog.getInt(self, "New Canvas", "Width:",
-                                     self.dp5_settings.get('default_width'), 8, 4096)
-        if not ok1: return
-        h, ok2 = QInputDialog.getInt(self, "New Canvas", "Height:",
-                                     self.dp5_settings.get('default_height'), 8, 4096)
-        if not ok2: return
+    def _new_canvas(self): #vers 3
+        """New canvas dialog with platform presets, custom size, and bit depth."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("New Canvas")
+        dlg.setMinimumWidth(340)
+        layout = QVBoxLayout(dlg)
+        form = QFormLayout()
+
+        # ── Platform preset ───────────────────────────────────────────────
+        PRESETS = [
+            ("Custom",                    0,    0),
+            ("── Amiga ──",               0,    0),
+            ("Amiga LowRes   320×256",  320,  256),
+            ("Amiga HiRes    640×256",  640,  256),
+            ("Amiga LowRes   320×200",  320,  200),
+            ("Amiga HiRes    640×200",  640,  200),
+            ("── Commodore 64 ──",         0,    0),
+            ("C64 Hires      320×200",  320,  200),
+            ("C64 Multicolor 160×200",  160,  200),
+            ("── ZX Spectrum ──",          0,    0),
+            ("Spectrum       256×192",  256,  192),
+            ("Spectrum Next  320×256",  320,  256),
+            ("── MSX ──",                  0,    0),
+            ("MSX1           256×192",  256,  192),
+            ("── Amstrad CPC ──",           0,    0),
+            ("CPC Mode 0     160×200",  160,  200),
+            ("CPC Mode 1     320×200",  320,  200),
+            ("CPC Mode 2     640×200",  640,  200),
+            ("── Atari ST ──",             0,    0),
+            ("Atari ST Low   320×200",  320,  200),
+            ("Atari ST Med   640×200",  640,  200),
+            ("── Plus/4 ──",               0,    0),
+            ("Plus/4 Hires   320×200",  320,  200),
+            ("Plus/4 Multi   160×200",  160,  200),
+            ("── VIC-20 ──",               0,    0),
+            ("VIC-20         176×184",  176,  184),
+            ("── Sinclair QL ──",           0,    0),
+            ("QL Low         256×256",  256,  256),
+            ("── Common ──",               0,    0),
+            ("Icon            16×16",    16,   16),
+            ("Icon            32×32",    32,   32),
+            ("Icon            48×48",    48,   48),
+            ("Icon            64×64",    64,   64),
+            ("Tile            16×16",    16,   16),
+            ("Sprite          32×64",    32,   64),
+            ("HD              1280×720", 1280, 720),
+            ("Full HD         1920×1080",1920,1080),
+            ("4K              3840×2160",3840,2160),
+        ]
+        preset_combo = QComboBox()
+        for name, w, h in PRESETS:
+            preset_combo.addItem(name, (w, h))
+        form.addRow("Platform preset:", preset_combo)
+
+        # ── Width / Height ────────────────────────────────────────────────
+        w_spin = QSpinBox(); w_spin.setRange(1, 4096)
+        w_spin.setValue(self.dp5_settings.get('default_width'))
+        form.addRow("Width:", w_spin)
+        h_spin = QSpinBox(); h_spin.setRange(1, 4096)
+        h_spin.setValue(self.dp5_settings.get('default_height'))
+        form.addRow("Height:", h_spin)
+
+        # ── Bit depth ─────────────────────────────────────────────────────
+        depth_combo = QComboBox()
+        depth_combo.addItems(["32-bit RGBA", "24-bit RGB", "16-bit (R5G6B5)", "8-bit indexed"])
+        form.addRow("Bit depth:", depth_combo)
+
+        # ── Fill colour ───────────────────────────────────────────────────
+        fill_combo = QComboBox()
+        fill_combo.addItems(["Grey (128,128,128)", "Black", "White", "Transparent"])
+        form.addRow("Fill:", fill_combo)
+
+        layout.addLayout(form)
+
+        # Wire preset → w/h spinboxes
+        def on_preset(idx):
+            w, h = preset_combo.itemData(idx)
+            if w > 0 and h > 0:
+                w_spin.setValue(w)
+                h_spin.setValue(h)
+        preset_combo.currentIndexChanged.connect(on_preset)
+
+        btns = QHBoxLayout()
+        btns.addStretch()
+        ok  = QPushButton("Create"); ok.setDefault(True)
+        can = QPushButton("Cancel")
+        ok.clicked.connect(dlg.accept)
+        can.clicked.connect(dlg.reject)
+        btns.addWidget(ok); btns.addWidget(can)
+        layout.addLayout(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        w = w_spin.value()
+        h = h_spin.value()
+        fill_idx = fill_combo.currentIndex()
+        if   fill_idx == 0: fill = b'\x80\x80\x80\xff'
+        elif fill_idx == 1: fill = b'\x00\x00\x00\xff'
+        elif fill_idx == 2: fill = b'\xff\xff\xff\xff'
+        else:               fill = b'\x00\x00\x00\x00'
+
         self._canvas_width  = w
         self._canvas_height = h
+        self._canvas_bit_depth = depth_combo.currentIndex()
         if self.dp5_canvas:
             self.dp5_canvas.tex_w = w
             self.dp5_canvas.tex_h = h
-            self.dp5_canvas.rgba  = bytearray(b'\x80\x80\x80\xff' * (w * h))
+            self.dp5_canvas.rgba  = bytearray(fill * (w * h))
             self.dp5_canvas.update()
             self._fit_canvas_to_viewport()
-        self._set_status(f"New canvas: {w}×{h}")
+        self._set_status(f"New canvas: {w}×{h}  {depth_combo.currentText()}")
 
     def _crop_to_selection(self): #vers 1
         """Crop canvas to the current selection rect."""
@@ -4083,6 +4281,216 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._set_status(f"Exported IFF: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "IFF Export Error", str(e))
+
+    def _export_scr(self): #vers 1
+        """Export ZX Spectrum SCR (256×192, 6144 bitmap + 768 attr bytes)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export ZX Spectrum SCR", "screen.scr", "SCR (*.scr)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((256, 192), Image.NEAREST)
+            # Quantize to ZX Spectrum 8 colours
+            zx_pal = [0,0,0, 215,0,0, 0,215,0, 215,215,0,
+                      0,0,215, 215,0,215, 0,215,215, 215,215,215]
+            pal_img = Image.new('P', (1,1))
+            pal_img.putpalette(zx_pal + [0]*768)
+            q = img.quantize(palette=pal_img, dither=0)
+            pixels = list(q.getdata())
+            # Build bitmap (6144 bytes) — ZX order: 8 rows of 8, per third
+            bitmap = bytearray(6144)
+            for third in range(3):
+                for row in range(8):
+                    for char_y in range(8):
+                        y = third*64 + char_y*8 + row
+                        for char_x in range(32):
+                            byte = 0
+                            for bit in range(8):
+                                px = pixels[y*256 + char_x*8 + bit]
+                                if px & 1:
+                                    byte |= (0x80 >> bit)
+                            addr = third*2048 + row*256 + char_y*32 + char_x
+                            bitmap[addr] = byte
+            # Build attrs (768 bytes) — simplified: ink=colour, paper=0
+            attrs = bytearray(768)
+            for ay in range(24):
+                for ax in range(32):
+                    px = pixels[(ay*8)*256 + ax*8]
+                    attrs[ay*32+ax] = px & 7
+            open(path, 'wb').write(bitmap + attrs)
+            self._set_status(f"Exported SCR: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "SCR Export Error", str(e))
+
+    def _export_sc2(self): #vers 1
+        """Export MSX SC2 raw (256×192, 6144 pattern + 6144 colour + 768 name)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export MSX SC2", "screen.sc2", "SC2 (*.sc2)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((256, 192), Image.NEAREST)
+            q = img.quantize(colors=16, dither=0)
+            pixels = list(q.getdata())
+            pal_flat = q.getpalette()
+            pattern = bytearray(6144)
+            colour  = bytearray(6144)
+            name    = bytearray(768)
+            for by in range(24):
+                for bx in range(32):
+                    name[by*32+bx] = by*32+bx
+                    for row in range(8):
+                        y = by*8+row
+                        idx = (by*32+bx)*8+row
+                        byte = 0
+                        fg = pixels[y*256+bx*8] & 0xF
+                        bg = 0
+                        for bit in range(8):
+                            px = pixels[y*256+bx*8+bit] & 0xF
+                            if px == fg:
+                                byte |= (0x80>>bit)
+                        pattern[idx] = byte
+                        colour[idx]  = (fg<<4)|bg
+            open(path,'wb').write(pattern+colour+name)
+            self._set_status(f"Exported SC2: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "SC2 Export Error", str(e))
+
+    def _export_pi1(self): #vers 1
+        """Export Atari ST Degas PI1 (320×200, 16 colours, 4 bitplanes)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Atari ST PI1", "image.pi1", "PI1 (*.pi1)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((320, 200), Image.NEAREST)
+            q = img.quantize(colors=16, dither=0)
+            pixels = list(q.getdata())
+            pal_flat = q.getpalette()
+            # Header: resolution word (0=low)
+            out = bytearray()
+            out += (0).to_bytes(2,'big')
+            # Palette: 16 × 3-nibble ST colour (0RGB, 3 bits each)
+            for i in range(16):
+                r = pal_flat[i*3]>>5
+                g = pal_flat[i*3+1]>>5
+                b = pal_flat[i*3+2]>>5
+                word = (r<<8)|(g<<4)|b
+                out += word.to_bytes(2,'big')
+            # Bitmap: 4 interleaved bitplanes, 80 bytes per row
+            for y in range(200):
+                for word_x in range(20):
+                    planes = [0,0,0,0]
+                    for bit in range(16):
+                        px = pixels[y*320 + word_x*16 + bit]
+                        for p in range(4):
+                            if px & (1<<p):
+                                planes[p] |= (0x8000>>bit)
+                    for p in range(4):
+                        out += planes[p].to_bytes(2,'big')
+            open(path,'wb').write(out)
+            self._set_status(f"Exported PI1: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "PI1 Export Error", str(e))
+
+    def _export_koala(self): #vers 1
+        """Export C64 Koala multicolour (160×200, 3 colours+bg per 4×8 cell)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export C64 Koala", "image.kla", "Koala (*.kla)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((160, 200), Image.NEAREST)
+            q = img.quantize(colors=16, dither=0)
+            pixels = list(q.getdata())
+            # Koala: 2-byte load addr + 8000 bitmap + 1000 screen + 1000 colram + 1 bg
+            out = bytearray(b'\x00\x60')  # load address $6000
+            # Bitmap: 8000 bytes, each byte = 4 pairs of 2-bit colour indices
+            bitmap = bytearray(8000)
+            screen = bytearray(1000)
+            colram = bytearray(1000)
+            for cell_y in range(25):
+                for cell_x in range(40):
+                    cell_idx = cell_y*40+cell_x
+                    # collect colours in this cell
+                    cell_colours = {}
+                    for row in range(8):
+                        for col in range(2):  # 2 pixels wide per nibble in 160px
+                            px = pixels[(cell_y*8+row)*160 + cell_x*2+col]
+                            cell_colours[px] = cell_colours.get(px,0)+1
+                    # most common = screen colour, second = colram
+                    sorted_c = sorted(cell_colours, key=lambda k: -cell_colours[k])
+                    bg = 0
+                    c1 = sorted_c[0] if len(sorted_c)>0 else 0
+                    c2 = sorted_c[1] if len(sorted_c)>1 else 0
+                    c3 = sorted_c[2] if len(sorted_c)>2 else 0
+                    screen[cell_idx] = (c1<<4)|c2
+                    colram[cell_idx] = c3 & 0xF
+                    colour_map = {bg:0, c1:1, c2:2, c3:3}
+                    for row in range(8):
+                        byte = 0
+                        for col in range(4):
+                            px = pixels[(cell_y*8+row)*160 + cell_x*4+col] if cell_x*4+col < 160 else 0
+                            pair = colour_map.get(px, 0)
+                            byte = (byte<<2)|pair
+                        bitmap[cell_idx*8+row] = byte
+            out += bitmap + screen + colram + bytearray(b'\x00')
+            open(path,'wb').write(out)
+            self._set_status(f"Exported Koala: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "Koala Export Error", str(e))
+
+    def _export_art_studio(self): #vers 1
+        """Export C64 Art Studio hires (320×200, 2 colours per 8×8 cell)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export C64 Art Studio", "image.art", "Art Studio (*.art)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((320, 200), Image.NEAREST)
+            q = img.quantize(colors=16, dither=0)
+            pixels = list(q.getdata())
+            # Art Studio: 2-byte header + 8000 bitmap + 1000 colour + 1 border + 6 footer
+            out = bytearray(b'\x00\x20')  # load $2000
+            bitmap = bytearray(8000)
+            colour = bytearray(1000)
+            for cell_y in range(25):
+                for cell_x in range(40):
+                    cell_idx = cell_y*40+cell_x
+                    cell_pxs = [pixels[(cell_y*8+r)*320+cell_x*8+c]
+                                 for r in range(8) for c in range(8)]
+                    counts = {}
+                    for p in cell_pxs: counts[p]=counts.get(p,0)+1
+                    sorted_c = sorted(counts, key=lambda k:-counts[k])
+                    fg = sorted_c[0] if sorted_c else 0
+                    bg = sorted_c[1] if len(sorted_c)>1 else 0
+                    colour[cell_idx] = (fg<<4)|bg
+                    for row in range(8):
+                        byte = 0
+                        for bit in range(8):
+                            px = pixels[(cell_y*8+row)*320+cell_x*8+bit]
+                            if px == fg: byte |= (0x80>>bit)
+                        bitmap[cell_idx*8+row] = byte
+            out += bitmap + colour + b'\x00' + b'\x4D\x20\x27\x53\x54\x55'
+            open(path,'wb').write(out)
+            self._set_status(f"Exported Art Studio: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "Art Studio Export Error", str(e))
 
     # ── Settings / theme ──────────────────────────────────────────────────────
 

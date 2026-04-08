@@ -1355,6 +1355,30 @@ class SVGIconFactory: #vers 7
             <line x1="2" y1="22" x2="9" y2="15" stroke="currentColor" stroke-width="1.5"/>
             <line x1="22" y1="22" x2="15" y2="15" stroke="currentColor" stroke-width="1.5"/>
         </svg>''', size, color)
+
+    @staticmethod
+    def dp_dither_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Dither — checkerboard pattern"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2"  y="2"  width="5" height="5" fill="currentColor"/>
+            <rect x="9"  y="2"  width="5" height="5" fill="currentColor" opacity="0.3"/>
+            <rect x="16" y="2"  width="6" height="5" fill="currentColor"/>
+            <rect x="2"  y="9"  width="5" height="5" fill="currentColor" opacity="0.3"/>
+            <rect x="9"  y="9"  width="5" height="5" fill="currentColor"/>
+            <rect x="16" y="9"  width="6" height="5" fill="currentColor" opacity="0.3"/>
+            <rect x="2"  y="16" width="5" height="6" fill="currentColor"/>
+            <rect x="9"  y="16" width="5" height="6" fill="currentColor" opacity="0.3"/>
+            <rect x="16" y="16" width="6" height="6" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_symmetry_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Symmetry — mirrored pencil strokes"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2,2"/>
+            <path d="M3 6 Q6 4 8 10 Q9 14 7 18" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M21 6 Q18 4 16 10 Q15 14 17 18" stroke="currentColor" stroke-width="2" fill="none"/>
+        </svg>''', size, color)
     @staticmethod
     def dropper_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
         """Eyedropper / colour picker tool"""
