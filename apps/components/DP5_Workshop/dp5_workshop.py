@@ -2429,13 +2429,17 @@ class ColorPalPresetsMixin:
         colors = [QColor(h) for h in data]
         return colors, cols
 
-    def _apply_retro_palette(self, name: str):
+    def _apply_retro_palette(self, name: str): #vers 2
         """Load a retro preset into the user palette grid."""
         self.current_retro_palette = name
         colors, cols = self._get_retro_colors(name)
         if hasattr(self, '_user_pal_grid'):
             self._user_pal_grid.set_colors(colors, cols)
-            self._user_pal_grid.setFixedWidth(self._user_pal_grid._cols * self._user_pal_grid._cell)
+            grid_w = self._user_pal_grid._cols * self._user_pal_grid._cell
+            self._user_pal_grid.setFixedWidth(grid_w)
+            if hasattr(self, '_user_pal_scroll'):
+                sb_w = self._user_pal_scroll.verticalScrollBar().sizeHint().width()
+                self._user_pal_scroll.setFixedWidth(grid_w + sb_w + 4)
         if hasattr(self, '_retro_btn'):
             self._retro_btn.setText(f"{name}")
 
@@ -3146,36 +3150,37 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.addSpacing(4)
 
         # ── IMAGE palette ─────────────────────────────────────────────────
-        img_pal_hdr = QHBoxLayout()
-        img_pal_lbl = QLabel("Img Pal")
+        img_pal_lbl = QLabel("Image Palette:")
         img_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        img_pal_hdr.addWidget(img_pal_lbl)
+        layout.addWidget(img_pal_lbl)
+
+        img_pal_ctrl = QHBoxLayout()
         self._bit_depth_combo = QComboBox()
         self._bit_depth_combo.setFont(QFont("Arial", 8))
         self._bit_depth_combo.addItems(["32b", "24b", "16b", "8b"])
         self._bit_depth_combo.setFixedHeight(18)
-        self._bit_depth_combo.setFixedWidth(42)
+        self._bit_depth_combo.setFixedWidth(44)
         self._bit_depth_combo.setToolTip("Colour depth for quantization")
-        img_pal_hdr.addWidget(self._bit_depth_combo)
-        img_pal_apply_btn = QPushButton("App")
+        img_pal_ctrl.addWidget(self._bit_depth_combo)
+        img_pal_apply_btn = QPushButton("Apply")
         img_pal_apply_btn.setFont(QFont("Arial", 8))
         img_pal_apply_btn.setFixedHeight(18)
         img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
         img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
-        img_pal_hdr.addWidget(img_pal_apply_btn)
+        img_pal_ctrl.addWidget(img_pal_apply_btn)
         self._img_pal_group_btn = QPushButton("Grp↑")
         self._img_pal_group_btn.setFont(QFont("Arial", 8))
         self._img_pal_group_btn.setFixedHeight(18)
         self._img_pal_group_btn.setToolTip("Sort palette by hue — click to toggle asc/desc")
         self._img_pal_group_btn.clicked.connect(self._group_palette)
-        img_pal_hdr.addWidget(self._img_pal_group_btn)
+        img_pal_ctrl.addWidget(self._img_pal_group_btn)
         self._group_palette_asc = True
-        layout.addLayout(img_pal_hdr)
+        layout.addLayout(img_pal_ctrl)
 
         # Image palette — cols/rows from settings
         img_cols = self.dp5_settings.get('img_pal_cols')
         img_rows = self.dp5_settings.get('img_pal_rows')
-        img_pal_w = img_cols * 12
+        img_pal_w  = img_cols * 12
         img_pal_max_h = img_rows * 12 + 2
         self.pal_bar = PaletteGrid(cols=img_cols, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
@@ -3185,13 +3190,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img_pal_scroll.setWidgetResizable(False)
         img_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         img_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        img_pal_scroll.setFixedWidth(img_pal_w + 2)
+        img_pal_scroll.setFixedWidth(img_pal_w + img_pal_scroll.verticalScrollBar().sizeHint().width() + 4)
         img_pal_scroll.setMaximumHeight(img_pal_max_h)
         img_pal_scroll.setMinimumHeight(12)
         layout.addWidget(img_pal_scroll)
 
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
+        user_pal_lbl = QLabel("User Palette:")
+        user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        user_pal_hdr.addWidget(user_pal_lbl)
         self._retro_btn = QPushButton("Amiga AGA WB")
         self._retro_btn.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         self._retro_btn.setFixedHeight(20)
@@ -3212,7 +3220,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_scroll.setWidgetResizable(False)
         user_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         user_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        user_pal_scroll.setFixedWidth(user_pal_w + 2)
+        user_pal_scroll.setFixedWidth(user_pal_w + user_pal_scroll.verticalScrollBar().sizeHint().width() + 4)
         user_pal_scroll.setMaximumHeight(user_pal_max_h)
         user_pal_scroll.setMinimumHeight(12)
         self._user_pal_scroll = user_pal_scroll
