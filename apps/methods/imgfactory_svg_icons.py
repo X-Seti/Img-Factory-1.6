@@ -1333,6 +1333,28 @@ class SVGIconFactory: #vers 7
             <rect x="2" y="13" width="20" height="6" rx="2" fill="currentColor"/>
             <rect x="2" y="21" width="20" height="2" rx="1" fill="currentColor"/>
         </svg>''', size, color)
+
+    @staticmethod
+    def dp_crop_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Crop — two L-shaped corner brackets"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 6h4v2H4v10h10v-2h2v4H2z" fill="currentColor"/>
+            <path d="M22 18h-4v-2h2V6H10v2H8V2h14z" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def dp_resize_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """Resize — corner arrows expanding outward"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 2h7v2H4v5H2z" fill="currentColor"/>
+            <path d="M22 2v7h-2V4h-5V2z" fill="currentColor"/>
+            <path d="M2 22v-7h2v5h5v2z" fill="currentColor"/>
+            <path d="M22 22h-7v-2h5v-5h2z" fill="currentColor"/>
+            <line x1="2" y1="2" x2="9" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="22" y1="2" x2="15" y2="9" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="2" y1="22" x2="9" y2="15" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="22" y1="22" x2="15" y2="15" stroke="currentColor" stroke-width="1.5"/>
+        </svg>''', size, color)
     @staticmethod
     def dropper_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
         """Eyedropper / colour picker tool"""

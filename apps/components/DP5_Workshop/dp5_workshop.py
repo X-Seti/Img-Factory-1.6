@@ -159,6 +159,8 @@ def _make_tool_icon(shape: str, size: int = 42,
         'filled_lasso':    'dp_filled_lasso_icon',
         'text':            'dp_text_icon',
         'stamp':           'dp_stamp_icon',
+        'crop':            'dp_crop_icon',
+        'resize':          'dp_resize_icon',
     }
 
     if ICONS_AVAILABLE and shape in _SVG_MAP:
@@ -582,7 +584,7 @@ class DP5Settings:
         'undo_levels':       32,
         'default_width':     320,
         'default_height':    200,
-        'retro_palette':     'Amiga OCS',
+        'retro_palette':     'Amiga AGA WB',
         'show_pixel_grid':   True,
         'zoom_to_fit_resize': False,
         'show_menubar':       False,
@@ -3073,7 +3075,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._group_palette_asc = True
         layout.addLayout(img_pal_hdr)
 
-        self.pal_bar = PaletteGrid(cols=16, cell=12)
+        # Palette cols: fit to panel usable width
+        pal_cols = max(8, (panel_w - 8) // 12)
+
+        self.pal_bar = PaletteGrid(cols=pal_cols, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
         self.pal_bar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(self.pal_bar)
@@ -3083,7 +3088,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_lbl = QLabel("User Pal")
         user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         user_pal_hdr.addWidget(user_pal_lbl)
-        self._retro_btn = QPushButton("Amiga OCS")
+        self._retro_btn = QPushButton("Amiga AGA WB")
         self._retro_btn.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self._retro_btn.setFixedHeight(20)
         self._retro_btn.setToolTip("Choose retro palette preset")
@@ -3091,7 +3096,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_hdr.addWidget(self._retro_btn)
         layout.addLayout(user_pal_hdr)
 
-        self._user_pal_grid = PaletteGrid(cols=8, cell=12)
+        self._user_pal_grid = PaletteGrid(cols=pal_cols, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
         self._user_pal_grid.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(self._user_pal_grid)
