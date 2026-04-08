@@ -588,6 +588,7 @@ class DP5Settings:
         'show_pixel_grid':   True,
         'zoom_to_fit_resize': False,
         'show_menubar':       False,
+        'menu_style':         'topbar',   # 'topbar' | 'dropdown'
     }
 
     def __init__(self):
@@ -664,6 +665,11 @@ class DP5SettingsDialog(QDialog):
         self._fit_resize_chk.setToolTip("Always scale canvas to fill the viewport on window resize")
         cl.addRow("Zoom to fit on resize:", self._fit_resize_chk)
 
+        self._menu_style_combo = QComboBox()
+        self._menu_style_combo.addItems(['topbar', 'dropdown'])
+        self._menu_style_combo.setCurrentText(self.s.get('menu_style'))
+        cl.addRow("Menu button style:", self._menu_style_combo)
+
         tabs.addTab(canvas_tab, "Canvas")
 
         # ── Interface tab ────────────────────────────────────────────────────
@@ -714,6 +720,7 @@ class DP5SettingsDialog(QDialog):
         self.s.set('undo_levels',      self._undo_spin.value())
         self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
         self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
+        self.s.set('menu_style',         self._menu_style_combo.currentText())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
@@ -2535,12 +2542,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── Cog / Settings (standalone only) ──────────────────────────────
         self.menu_toggle_btn = QPushButton("Menu")
         self.menu_toggle_btn.setFont(self.button_font)
-        self.menu_toggle_btn.setCheckable(True)
-        self.menu_toggle_btn.setChecked(self.dp5_settings.get('show_menubar'))
-        self.menu_toggle_btn.setToolTip("Toggle menu bar")
+        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
         self.menu_toggle_btn.setMinimumHeight(28)
         self.menu_toggle_btn.setMaximumHeight(28)
-        self.menu_toggle_btn.toggled.connect(self._toggle_menubar)
+        self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
         self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
 
@@ -2839,8 +2844,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         else:
             n_cols = max(2, min(4, req_cols))
 
-        # Panel width: fit exactly to gadget grid
-        panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 16
+        # Panel width: fit to gadget grid + 20px extra for palette labels
+        panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 36
         panel.setFixedWidth(panel_w)
 
         layout = QVBoxLayout(panel)
@@ -3086,13 +3091,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
-        user_pal_lbl = QLabel("User Pal")
-        user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        user_pal_hdr.addWidget(user_pal_lbl)
         self._retro_btn = QPushButton("Amiga AGA WB")
-        self._retro_btn.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self._retro_btn.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         self._retro_btn.setFixedHeight(20)
-        self._retro_btn.setToolTip("Choose retro palette preset")
+        self._retro_btn.setToolTip("User palette — choose retro preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
         user_pal_hdr.addWidget(self._retro_btn)
         layout.addLayout(user_pal_hdr)
@@ -3330,7 +3332,30 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._fgbg_swatch.set_fg(self.dp5_canvas.color)
             self.pal_bar.set_selection_by_color(self.dp5_canvas.color)
 
-    def _toggle_menubar(self, on: bool): #vers 1
+    def _on_menu_btn_clicked(self): #vers 1
+        """Show topbar or dropdown menu depending on menu_style setting."""
+        style = self.dp5_settings.get('menu_style')
+        if style == 'dropdown':
+            self._show_dropdown_menu()
+        else:
+            # topbar toggle
+            on = not self.dp5_settings.get('show_menubar')
+            self.dp5_settings.set('show_menubar', on)
+            self.dp5_settings.save()
+            if hasattr(self, '_menu_bar'):
+                self._menu_bar.setVisible(on)
+
+    def _show_dropdown_menu(self): #vers 1
+        """Pop up the canvas menus as a single QMenu dropdown."""
+        menu = QMenu(self)
+        self._build_canvas_menus(menu)
+        btn = getattr(self, 'menu_toggle_btn', None)
+        if btn:
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.exec(self.cursor().pos())
+
+    def _toggle_menubar(self, on: bool): #vers 2
         self.dp5_settings.set('show_menubar', on)
         self.dp5_settings.save()
         if hasattr(self, '_menu_bar'):
