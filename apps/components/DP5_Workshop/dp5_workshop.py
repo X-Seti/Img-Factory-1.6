@@ -846,7 +846,7 @@ class DP5Canvas(QWidget):
         self.brush_size    = 1
         self.opacity       = 1.0
         self.dither_mode   = False
-        self.symmetry_mode = False
+        self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
         self._dither_toggle = False  # alternates per pixel in dither mode
         self.show_grid  = True
         self._drawing   = False
@@ -936,10 +936,18 @@ class DP5Canvas(QWidget):
                 if s == 1 or (dx*dx + dy*dy) < s*s:
                     px_c = bg_color if (self.dither_mode and (cx+dx+cy+dy) % 2 == 0) else c
                     self.set_pixel(cx+dx, cy+dy, px_c)
-                    # Symmetry: mirror horizontally
-                    if self.symmetry_mode:
+                    # Symmetry mirroring
+                    sym = self.symmetry_mode
+                    if sym in ('H', 'quad'):
                         mx = self.tex_w - 1 - (cx+dx)
                         self.set_pixel(mx, cy+dy, px_c)
+                    if sym in ('V', 'quad'):
+                        my = self.tex_h - 1 - (cy+dy)
+                        self.set_pixel(cx+dx, my, px_c)
+                    if sym == 'quad':
+                        mx = self.tex_w - 1 - (cx+dx)
+                        my = self.tex_h - 1 - (cy+dy)
+                        self.set_pixel(mx, my, px_c)
 
     # ── Drawing ops ───────────────────────────────────────────────────────────
 
@@ -2557,7 +2565,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._canvas_width  = self.dp5_settings.get('default_width')
         self._canvas_bit_depth = 0  # 0=32bit, 1=24bit, 2=16bit, 3=8bit
         self._dither_mode   = False
-        self._symmetry_mode = False
+        self._symmetry_mode = 'off'  # cycles: off → H → V → quad
         self._canvas_height = self.dp5_settings.get('default_height')
         self._canvas_zoom   = self.dp5_settings.get('default_zoom')
         self._undo_stack    = deque(maxlen=self.dp5_settings.get('undo_levels'))
@@ -3044,7 +3052,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
             (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
             (TOOL_DITHER,   'dither',   'Dither brush — checkerboard FG/BG pattern (D)'),
-            (TOOL_SYMMETRY, 'symmetry', 'Symmetry — mirror drawing horizontally (Y)'),
+            (TOOL_SYMMETRY, 'symmetry', 'Symmetry — click to cycle: H / V / Quad / Off (Y)'),
         ]
         hidden_tools = self.dp5_settings.get('hidden_tools') or []
         TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
@@ -3433,15 +3441,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             btn.setChecked(self._dither_mode)
         self._set_status(f"Dither: {'ON' if self._dither_mode else 'OFF'}")
 
-    def _toggle_symmetry_mode(self): #vers 1
-        """Toggle horizontal symmetry — mirrors every stroke across the vertical centre."""
-        self._symmetry_mode = not self._symmetry_mode
+    def _toggle_symmetry_mode(self): #vers 2
+        """Cycle symmetry: off → H → V → quad → off."""
+        cycle = {'off': 'H', 'H': 'V', 'V': 'quad', 'quad': 'off'}
+        self._symmetry_mode = cycle[self._symmetry_mode]
         if self.dp5_canvas:
             self.dp5_canvas.symmetry_mode = self._symmetry_mode
         btn = self._tool_btns.get(TOOL_SYMMETRY)
         if btn:
-            btn.setChecked(self._symmetry_mode)
-        self._set_status(f"Symmetry: {'ON' if self._symmetry_mode else 'OFF'}")
+            labels = {'off': 'Sym', 'H': 'Sym H', 'V': 'Sym V', 'quad': 'Sym X'}
+            btn.setChecked(self._symmetry_mode != 'off')
+            btn.setToolTip(f"Symmetry: {self._symmetry_mode.upper()} — click to cycle")
+        self._set_status(f"Symmetry: {self._symmetry_mode.upper()}")
 
     def _set_opacity(self, v: int): #vers 1
         if self.dp5_canvas:
