@@ -2819,10 +2819,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         else:
             n_cols = max(2, min(4, req_cols))
 
-        # Panel width: fixed 186px min, 200px max
+        # Panel width: fit exactly to gadget grid
         panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 16
-        panel.setMinimumWidth(186)
-        panel.setMaximumWidth(200)
+        panel.setFixedWidth(panel_w)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -3044,20 +3043,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
         img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
         img_pal_hdr.addWidget(img_pal_apply_btn)
-        img_pal_group_btn = QPushButton("Group")
+        img_pal_group_btn = QPushButton("Group ↑")
         img_pal_group_btn.setFont(QFont("Arial", 8))
         img_pal_group_btn.setFixedHeight(20)
-        img_pal_group_btn.setToolTip("Sort palette by hue (reds → greens → blues)")
+        img_pal_group_btn.setToolTip("Sort palette by hue — click to toggle ascending/descending")
         img_pal_group_btn.clicked.connect(self._group_palette)
         img_pal_hdr.addWidget(img_pal_group_btn)
+        self._img_pal_group_btn = img_pal_group_btn
+        self._group_palette_asc = True
         layout.addLayout(img_pal_hdr)
 
         img_pal_scroll = QScrollArea()
         img_pal_scroll.setWidgetResizable(True)
         img_pal_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        img_pal_scroll.setMinimumHeight(80)
-        img_pal_scroll.setMaximumHeight(200)
+        img_pal_scroll.setMinimumHeight(24)
+        img_pal_scroll.setMaximumHeight(16777215)  # no cap
         self.pal_bar = PaletteGrid(cols=16, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
         img_pal_scroll.setWidget(self.pal_bar)
@@ -3083,8 +3084,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_scroll.setWidgetResizable(True)
         user_pal_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        user_pal_scroll.setMinimumHeight(60)
-        user_pal_scroll.setMaximumHeight(160)
+        user_pal_scroll.setMinimumHeight(24)
+        user_pal_scroll.setMaximumHeight(16777215)  # no cap
         self._user_pal_grid = PaletteGrid(cols=8, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
         user_pal_scroll.setWidget(self._user_pal_grid)
@@ -3284,19 +3285,23 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Bit Depth Error", str(e))
 
-    def _group_palette(self): #vers 2
-        """Sort current image palette by hue so colours are grouped visually."""
+    def _group_palette(self): #vers 3
+        """Sort current image palette by hue, toggling asc/desc each click."""
         try:
             import colorsys
             if not hasattr(self.pal_bar, '_colors') or not self.pal_bar._colors:
                 return
+            self._group_palette_asc = not getattr(self, '_group_palette_asc', True)
+            asc = self._group_palette_asc
             def hue_key(qc):
                 h, s, v = colorsys.rgb_to_hsv(qc.red()/255, qc.green()/255, qc.blue()/255)
                 return (h, -v, -s)
-            sorted_colors = sorted(self.pal_bar._colors, key=hue_key)
+            sorted_colors = sorted(self.pal_bar._colors, key=hue_key, reverse=not asc)
             palette = [(c.red(), c.green(), c.blue()) for c in sorted_colors]
             self.pal_bar.set_palette_raw(palette)
-            self._set_status("Palette grouped by hue")
+            if hasattr(self, '_img_pal_group_btn'):
+                self._img_pal_group_btn.setText("Group ↑" if asc else "Group ↓")
+            self._set_status(f"Palette grouped by hue ({'asc' if asc else 'desc'})")
         except Exception as e:
             QMessageBox.warning(self, "Group Error", str(e))
 
