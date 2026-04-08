@@ -2472,6 +2472,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._splitter.setStretchFactor(0, 0)   # bitmap list
         self._splitter.setStretchFactor(1, 1)   # canvas — stretches
         self._splitter.setStretchFactor(2, 0)   # tools / palette
+        self._splitter.setCollapsible(2, False)
+        right.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
         # Left panel: hidden by default — toggle via DP5 Settings
         self._left_panel.setVisible(self.dp5_settings.get('show_bitmap_list'))
