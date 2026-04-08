@@ -120,9 +120,7 @@ except ImportError:
     SettingsDialog = None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  Tool icon renderer — Photoshop-style white silhouettes on dark tile
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _load_tool_icon(shape: str, size: int = 42, active: bool = False) -> QIcon:
     """
@@ -586,9 +584,9 @@ def _make_tool_icon(shape: str, size: int = 42,
     return QIcon(px)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  DP5Settings — per-tool settings (JSON, separate from global AppSettings)
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class DP5Settings:
     """
@@ -825,9 +823,9 @@ class DP5SettingsDialog(QDialog):
         self.accept()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  DP5 Canvas — pixel-accurate zoomable paint surface
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class DP5Canvas(QWidget):
     """Zoomable pixel-accurate paint canvas (inlined from dp5_functions.py)."""
@@ -1821,9 +1819,9 @@ class DP5Canvas(QWidget):
             self.update()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  PaletteGrid — shared 2D swatch grid used for BOTH image and user palettes
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class PaletteGrid(QWidget):
     """
@@ -1928,9 +1926,9 @@ class PaletteGrid(QWidget):
 DP5PaletteBar = PaletteGrid
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  Colour Picker Widget (simple fallback — no screen capture)
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class ColorPickerWidget(QWidget):
     """Simple colour picker — opens QColorDialog."""
@@ -1963,9 +1961,9 @@ class ColorPickerWidget(QWidget):
         return self._color
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  FGBGSwatch — single DPaint5-style nested FG/BG colour indicator
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class FGBGSwatch(QWidget):
     """
@@ -2062,9 +2060,9 @@ class FGBGSwatch(QWidget):
             self.set_bg(c)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  BrushManager — panel listing saved brushes, load/save/delete
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class BrushManager(QWidget):
     """
@@ -2189,9 +2187,9 @@ class BrushManager(QWidget):
             QMessageBox.warning(self, "Import Error", str(e))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  BrushThumbnail — preview of the copy buffer, click to activate stamp mode
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class BrushThumbnail(QWidget):
     """
@@ -2264,9 +2262,9 @@ class BrushThumbnail(QWidget):
             self.clear_requested.emit()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  ColorPalPresetsMixin — retro palette presets (inlined from color_pal_presets.py)
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class ColorPalPresetsMixin:
     """Retro palette preset data and helpers — mixed into DP5Workshop."""
@@ -2524,9 +2522,9 @@ class ColorPalPresetsMixin:
                 self._retro_btn.rect().bottomLeft()))
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  DP5Workshop — main container (DPaint5-faithful layout)
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 class DP5Workshop(ColorPalPresetsMixin, QWidget):
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
@@ -2563,7 +2561,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Canvas state — initial values from dp5_settings
         self._canvas_width  = self.dp5_settings.get('default_width')
-        self._canvas_bit_depth = 0  # 0=32bit, 1=24bit, 2=16bit, 3=8bit
+        self._canvas_bit_depth = 8  # 0=32bit, 1=24bit, 2=16bit, 3=8bit
         self._dither_mode   = False
         self._symmetry_mode = 'off'  # cycles: off → H → V → quad
         self._canvas_height = self.dp5_settings.get('default_height')
@@ -2575,6 +2573,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # Bitmap list (left panel)
         self._bitmap_list: List[dict] = []   # [{name, rgba, w, h}]
         self._current_bitmap = -1
+        self.fonthsize = 9      # TODO - Add font size and other display options to settings.
 
         # AppSettings (global theme only)
         if main_window and hasattr(main_window, 'app_settings'):
@@ -2665,7 +2664,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Status bar
         self._status_bar = QStatusBar()
-        self._status_bar.setMaximumHeight(22)
+        self._status_bar.setMaximumHeight(2)
         main_layout.addWidget(self._status_bar)
         self._set_status(f"Canvas: {self._canvas_width}×{self._canvas_height}")
 
@@ -3107,18 +3106,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── Brush size slider + value label ───────────────────────────────
         size_hdr = QHBoxLayout()
         size_lbl = QLabel("Size")
-        size_lbl.setFont(QFont("Arial", 9))
+        size_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         size_hdr.addWidget(size_lbl)
         self._size_sl = QSlider(Qt.Orientation.Horizontal)
         self._size_sl.setRange(1, 20)
         self._size_sl.setValue(1)
-        self._size_sl.setMinimumHeight(22)
+        self._size_sl.setMinimumHeight(24)
         self._size_sl.valueChanged.connect(self._set_brush_size)
         size_hdr.addWidget(self._size_sl)
         self._size_val_lbl = QLabel("1")
         self._size_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight |
                                         Qt.AlignmentFlag.AlignVCenter)
-        self._size_val_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self._size_val_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         self._size_val_lbl.setFixedWidth(28)
         size_hdr.addWidget(self._size_val_lbl)
         layout.addLayout(size_hdr)
@@ -3126,17 +3125,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── Snap to grid toggle ───────────────────────────────────────────
         snap_row = QHBoxLayout()
         self._snap_chk = QCheckBox("Snap to grid")
-        self._snap_chk.setFont(QFont("Arial", 9))
+        self._snap_chk.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         self._snap_chk.setChecked(False)
         self._snap_chk.setToolTip("Snap drawing to pixel grid")
         self._snap_chk.toggled.connect(self._set_snap_grid)
         self._grid_chk2 = QCheckBox("Show grid")
-        self._grid_chk2.setFont(QFont("Arial", 9))
+        self._grid_chk2.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         self._grid_chk2.setChecked(self.dp5_settings.get('show_pixel_grid'))
         self._grid_chk2.toggled.connect(self._set_show_grid)
         self._zoom_lbl = QLabel(f"{self._canvas_zoom}×")
         self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._zoom_lbl.setFont(QFont("Arial", 9))
+        self._zoom_lbl.setFont(QFont("Arial", self.fonthsize))
         snap_row.addWidget(self._snap_chk)
         snap_row.addWidget(self._grid_chk2)
         snap_row.addWidget(self._zoom_lbl)
@@ -3147,10 +3146,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── FG / BG swatch  +  brush thumbnail ───────────────────────────
         fgbg_row_lbl = QHBoxLayout()
         fgbg_lbl = QLabel("FG / BG")
-        fgbg_lbl.setFont(QFont("Arial", 9))
+        fgbg_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         fgbg_row_lbl.addWidget(fgbg_lbl)
         brush_lbl = QLabel("Brush")
-        brush_lbl.setFont(QFont("Arial", 9))
+        brush_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         fgbg_row_lbl.addWidget(brush_lbl)
         layout.addLayout(fgbg_row_lbl)
 
@@ -3170,7 +3169,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         zoom_stack = QVBoxLayout()
         zoom_stack.setSpacing(2)
         zoom_in_btn = QPushButton()
-        zoom_in_btn.setFixedSize(20, 20)
+        zoom_in_btn.setFixedSize(24, 24)
         zoom_in_btn.setToolTip("Zoom in")
         zoom_in_btn.clicked.connect(lambda: self._set_zoom(
             self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(16, self._canvas_zoom + 1)))
@@ -3180,7 +3179,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception:
             zoom_in_btn.setText("+")
         zoom_out_btn = QPushButton()
-        zoom_out_btn.setFixedSize(20, 20)
+        zoom_out_btn.setFixedSize(24, 24)
         zoom_out_btn.setToolTip("Zoom out")
         zoom_out_btn.clicked.connect(lambda: self._set_zoom(
             max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
@@ -3198,16 +3197,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── Opacity ───────────────────────────────────────────────────────
         op_row = QHBoxLayout()
         op_lbl = QLabel("Opacity")
-        op_lbl.setFont(QFont("Arial", 9))
+        op_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         op_row.addWidget(op_lbl)
         self._opacity_sl = QSlider(Qt.Orientation.Horizontal)
         self._opacity_sl.setRange(0, 100)
         self._opacity_sl.setValue(100)
-        self._opacity_sl.setMinimumHeight(22)
+        self._opacity_sl.setMinimumHeight(24)
         self._opacity_sl.valueChanged.connect(self._set_opacity)
         op_row.addWidget(self._opacity_sl)
         self._opacity_val_lbl = QLabel("100%")
-        self._opacity_val_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self._opacity_val_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         self._opacity_val_lbl.setFixedWidth(34)
         self._opacity_val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         op_row.addWidget(self._opacity_val_lbl)
@@ -3215,7 +3214,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # ── Colour history ────────────────────────────────────────────────
         hist_lbl = QLabel("Recent")
-        hist_lbl.setFont(QFont("Arial", 9))
+        hist_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         layout.addWidget(hist_lbl)
         hist_row = QHBoxLayout()
         hist_row.setSpacing(2)
@@ -3234,26 +3233,26 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # ── IMAGE palette ─────────────────────────────────────────────────
         img_pal_lbl = QLabel("Image Palette:")
-        img_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        img_pal_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         layout.addWidget(img_pal_lbl)
 
         img_pal_ctrl = QHBoxLayout()
         self._bit_depth_combo = QComboBox()
-        self._bit_depth_combo.setFont(QFont("Arial", 8))
-        self._bit_depth_combo.addItems(["32b", "24b", "16b", "8b"])
-        self._bit_depth_combo.setFixedHeight(18)
-        self._bit_depth_combo.setFixedWidth(44)
+        self._bit_depth_combo.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._bit_depth_combo.addItems(["32bit", "24bit", "16bit", "8bit"])
+        self._bit_depth_combo.setFixedHeight(24)
+        self._bit_depth_combo.setFixedWidth(40)
         self._bit_depth_combo.setToolTip("Colour depth for quantization")
         img_pal_ctrl.addWidget(self._bit_depth_combo)
         img_pal_apply_btn = QPushButton("Apply")
-        img_pal_apply_btn.setFont(QFont("Arial", 8))
-        img_pal_apply_btn.setFixedHeight(18)
+        img_pal_apply_btn.setFont(QFont("Arial", self.fonthsize))
+        img_pal_apply_btn.setFixedHeight(24)
         img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
         img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
         img_pal_ctrl.addWidget(img_pal_apply_btn)
-        self._img_pal_group_btn = QPushButton("Grp↑")
-        self._img_pal_group_btn.setFont(QFont("Arial", 8))
-        self._img_pal_group_btn.setFixedHeight(18)
+        self._img_pal_group_btn = QPushButton("Group")
+        self._img_pal_group_btn.setFont(QFont("Arial", self.fonthsize))
+        self._img_pal_group_btn.setFixedHeight(24)
         self._img_pal_group_btn.setToolTip("Sort palette by hue — click to toggle asc/desc")
         self._img_pal_group_btn.clicked.connect(self._group_palette)
         img_pal_ctrl.addWidget(self._img_pal_group_btn)
@@ -3281,11 +3280,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
         user_pal_lbl = QLabel("User Palette:")
-        user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        user_pal_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         user_pal_hdr.addWidget(user_pal_lbl)
         self._retro_btn = QPushButton("Amiga AGA WB")
-        self._retro_btn.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-        self._retro_btn.setFixedHeight(20)
+        self._retro_btn.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        self._retro_btn.setFixedHeight(24)
         self._retro_btn.setToolTip("User palette — choose retro preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
         user_pal_hdr.addWidget(self._retro_btn)
@@ -3996,7 +3995,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
     def _new_canvas(self): #vers 3
         """New canvas dialog with platform presets, custom size, and bit depth."""
         dlg = QDialog(self)
-        dlg.setWindowTitle("New Canvas")
+        dlg.setWindowTitle("New Canvas") # TODO [New] button on the title bar, next to [Load]
         dlg.setMinimumWidth(340)
         layout = QVBoxLayout(dlg)
         form = QFormLayout()
@@ -4838,9 +4837,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         painter.end()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  Public factory function
-# ══════════════════════════════════════════════════════════════════════════════
 
 def open_dp5_workshop(main_window=None) -> DP5Workshop:
     """Open DP5 Workshop standalone or embedded."""
@@ -4862,9 +4860,8 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop:
         return None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 #  Standalone entry point
-# ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     import traceback
@@ -4879,7 +4876,7 @@ if __name__ == "__main__":
         # Set app icon — appears in taskbar, alt-tab, dock
         try:
             from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
-            app_icon = get_dp5_workshop_icon(64)
+            app_icon = get_dp5_workshop_icon(64) #TODO this shows as a blank icon in the taskbar.
             app.setWindowIcon(app_icon)
         except Exception:
             pass
