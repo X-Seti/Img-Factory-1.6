@@ -72,6 +72,8 @@ TOOL_MOVE          = 'move'
 TOOL_ZOOM          = 'zoom'
 TOOL_TEXT          = 'text'
 TOOL_STAMP         = 'stamp'          # stamp/paste brush from buffer
+TOOL_CROP          = 'crop'           # crop canvas to selection
+TOOL_RESIZE        = 'resize'         # resize canvas
 
 # Shape tools that have an outline/fill toggle via right-click
 SHAPE_FILL_PAIRS = {
@@ -583,6 +585,7 @@ class DP5Settings:
         'retro_palette':     'Amiga OCS',
         'show_pixel_grid':   True,
         'zoom_to_fit_resize': False,
+        'show_menubar':       False,
     }
 
     def __init__(self):
@@ -2528,6 +2531,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             return btn
 
         # ── Cog / Settings (standalone only) ──────────────────────────────
+        self.menu_toggle_btn = QPushButton("Menu")
+        self.menu_toggle_btn.setFont(self.button_font)
+        self.menu_toggle_btn.setCheckable(True)
+        self.menu_toggle_btn.setChecked(self.dp5_settings.get('show_menubar'))
+        self.menu_toggle_btn.setToolTip("Toggle menu bar")
+        self.menu_toggle_btn.setMinimumHeight(28)
+        self.menu_toggle_btn.setMaximumHeight(28)
+        self.menu_toggle_btn.toggled.connect(self._toggle_menubar)
+        self.menu_toggle_btn.setVisible(self.standalone_mode)
+        layout.addWidget(self.menu_toggle_btn)
+
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
@@ -2569,12 +2583,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
                                   self._export_bitmap,
                                   SVGIconFactory.save_icon)
-        self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
-                                  self._import_bitmap,
-                                  SVGIconFactory.import_icon)
-        self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
-                                  self._export_bitmap,
-                                  SVGIconFactory.export_icon)
+        # self.tb_import_btn = _tb("Import", "Import image (IFF, BMP, older formats)",
+        #                           self._import_bitmap,
+        #                           SVGIconFactory.import_icon)
+        # self.tb_export_btn = _tb("Export", "Export canvas (IFF, BMP, older formats)",
+        #                           self._export_bitmap,
+        #                           SVGIconFactory.export_icon)
         self.tb_undo_btn   = _tb("Undo",   "Undo last action  (Ctrl+Z)",
                                   self._undo_canvas,
                                   SVGIconFactory.undo_icon)
@@ -2708,7 +2722,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Menu bar
         mb = QMenuBar(panel)
+        self._menu_bar = mb
         self._build_canvas_menus(mb)
+        mb.setVisible(self.dp5_settings.get('show_menubar'))
         layout.addWidget(mb)
 
         # Canvas
@@ -2851,6 +2867,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             (TOOL_LASSO,    'lasso',    'Lasso  (G) — right-click to fill shape'),
             (TOOL_ZOOM,     'zoom',     'Zoom — click in, right-click out (Z)'),
             (TOOL_TEXT,     'text',     'Place text on canvas (I)'),
+            (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
+            (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
         ]
 
         # ── Build gadget grid ──────────────────────────────────────────────
@@ -3030,68 +3048,55 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # ── IMAGE palette ─────────────────────────────────────────────────
         img_pal_hdr = QHBoxLayout()
-        img_pal_lbl = QLabel("Image Palette")
+        img_pal_lbl = QLabel("Img Pal")
         img_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         img_pal_hdr.addWidget(img_pal_lbl)
         self._bit_depth_combo = QComboBox()
         self._bit_depth_combo.setFont(QFont("Arial", 8))
-        self._bit_depth_combo.addItems(["32bit", "24bit", "16bit", "8bit"])
-        self._bit_depth_combo.setFixedHeight(20)
+        self._bit_depth_combo.addItems(["32b", "24b", "16b", "8b"])
+        self._bit_depth_combo.setFixedHeight(18)
+        self._bit_depth_combo.setFixedWidth(42)
         self._bit_depth_combo.setToolTip("Colour depth for quantization")
         img_pal_hdr.addWidget(self._bit_depth_combo)
-        img_pal_apply_btn = QPushButton("Apply")
+        img_pal_apply_btn = QPushButton("App")
         img_pal_apply_btn.setFont(QFont("Arial", 8))
-        img_pal_apply_btn.setFixedHeight(20)
+        img_pal_apply_btn.setFixedHeight(18)
         img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
         img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
         img_pal_hdr.addWidget(img_pal_apply_btn)
-        img_pal_group_btn = QPushButton("Group ↑")
-        img_pal_group_btn.setFont(QFont("Arial", 8))
-        img_pal_group_btn.setFixedHeight(20)
-        img_pal_group_btn.setToolTip("Sort palette by hue — click to toggle ascending/descending")
-        img_pal_group_btn.clicked.connect(self._group_palette)
-        img_pal_hdr.addWidget(img_pal_group_btn)
-        self._img_pal_group_btn = img_pal_group_btn
+        self._img_pal_group_btn = QPushButton("Grp↑")
+        self._img_pal_group_btn.setFont(QFont("Arial", 8))
+        self._img_pal_group_btn.setFixedHeight(18)
+        self._img_pal_group_btn.setToolTip("Sort palette by hue — click to toggle asc/desc")
+        self._img_pal_group_btn.clicked.connect(self._group_palette)
+        img_pal_hdr.addWidget(self._img_pal_group_btn)
         self._group_palette_asc = True
         layout.addLayout(img_pal_hdr)
 
-        img_pal_scroll = QScrollArea()
-        img_pal_scroll.setWidgetResizable(True)
-        img_pal_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        img_pal_scroll.setMinimumHeight(24)
-        img_pal_scroll.setMaximumHeight(16777215)  # no cap
         self.pal_bar = PaletteGrid(cols=16, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
-        img_pal_scroll.setWidget(self.pal_bar)
-        layout.addWidget(img_pal_scroll)
-
-        layout.addSpacing(4)
+        self.pal_bar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        layout.addWidget(self.pal_bar)
 
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
-        user_pal_lbl = QLabel("User Palette")
+        user_pal_lbl = QLabel("User Pal")
         user_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         user_pal_hdr.addWidget(user_pal_lbl)
-
         self._retro_btn = QPushButton("Amiga OCS")
         self._retro_btn.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        self._retro_btn.setFixedHeight(24)
+        self._retro_btn.setFixedHeight(20)
         self._retro_btn.setToolTip("Choose retro palette preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
         user_pal_hdr.addWidget(self._retro_btn)
         layout.addLayout(user_pal_hdr)
 
-        user_pal_scroll = QScrollArea()
-        user_pal_scroll.setWidgetResizable(True)
-        user_pal_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        user_pal_scroll.setMinimumHeight(24)
-        user_pal_scroll.setMaximumHeight(16777215)  # no cap
         self._user_pal_grid = PaletteGrid(cols=8, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
-        user_pal_scroll.setWidget(self._user_pal_grid)
-        layout.addWidget(user_pal_scroll)
+        self._user_pal_grid.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        layout.addWidget(self._user_pal_grid)
+
+        layout.addStretch()
 
         # Load default retro palette
         self._apply_retro_palette(self.dp5_settings.get('retro_palette'))
@@ -3134,9 +3139,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             if self.dp5_canvas:
                 self.dp5_canvas.tool = actual
 
-    def _select_tool(self, tool_id: str):
+    def _select_tool(self, tool_id: str): #vers 2
         """Select a tool, resolving fill state for shape tools."""
-        # For shape tools, resolve to outline or filled variant based on fill state
+        # Crop and resize are immediate actions, not persistent tools
+        if tool_id == TOOL_CROP:
+            self._crop_to_selection()
+            return
+        if tool_id == TOOL_RESIZE:
+            self._resize_canvas_dialog()
+            return
+
         actual_tool = tool_id
         if tool_id in self._shape_fill_state:
             if self._shape_fill_state[tool_id]:
@@ -3256,11 +3268,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
             img = Image.frombytes('RGBA', (w, h), bytes(self.dp5_canvas.rgba))
 
-            if depth == "32bit":
+            if depth == "32b":
                 out_img = img  # no change to canvas
-            elif depth == "24bit":
+            elif depth == "24b":
                 out_img = img.convert('RGB').convert('RGBA')
-            elif depth == "16bit":
+            elif depth == "16b":
                 rgb = img.convert('RGB')
                 pixels = rgb.tobytes()
                 buf = bytearray(len(pixels))
@@ -3269,7 +3281,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     buf[i+1] = (pixels[i+1] >> 2) << 2
                     buf[i+2] = (pixels[i+2] >> 3) << 3
                 out_img = Image.frombytes('RGB', (w, h), bytes(buf)).convert('RGBA')
-            elif depth == "8bit":
+            elif depth == "8b":
                 rgb = img.convert('RGB')
                 q = rgb.quantize(colors=256)
                 out_img = q.convert('RGB').convert('RGBA')
@@ -3313,6 +3325,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if self.dp5_canvas:
             self._fgbg_swatch.set_fg(self.dp5_canvas.color)
             self.pal_bar.set_selection_by_color(self.dp5_canvas.color)
+
+    def _toggle_menubar(self, on: bool): #vers 1
+        self.dp5_settings.set('show_menubar', on)
+        self.dp5_settings.save()
+        if hasattr(self, '_menu_bar'):
+            self._menu_bar.setVisible(on)
 
     def _set_snap_grid(self, on: bool):
         if self.dp5_canvas:
@@ -3727,6 +3745,54 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.update()
             self._fit_canvas_to_viewport()
         self._set_status(f"New canvas: {w}×{h}")
+
+    def _crop_to_selection(self): #vers 1
+        """Crop canvas to the current selection rect."""
+        if not self.dp5_canvas: return
+        c = self.dp5_canvas
+        if not c._sel_active or not c._selection_rect:
+            self._set_status("No selection to crop to")
+            return
+        r = c._selection_rect
+        x, y, w, h = r.x(), r.y(), r.width(), r.height()
+        if w <= 0 or h <= 0: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (c.tex_w, c.tex_h), bytes(c.rgba))
+            cropped = img.crop((x, y, x + w, y + h))
+            c.tex_w, c.tex_h = w, h
+            self._canvas_width, self._canvas_height = w, h
+            c.rgba = bytearray(cropped.tobytes())
+            c._sel_active = False
+            c._selection_rect = None
+            c.update()
+            self._fit_canvas_to_viewport()
+            self._set_status(f"Cropped to {w}×{h}")
+        except Exception as e:
+            QMessageBox.warning(self, "Crop Error", str(e))
+
+    def _resize_canvas_dialog(self): #vers 1
+        """Resize canvas via dialog."""
+        if not self.dp5_canvas: return
+        w, ok1 = QInputDialog.getInt(self, "Resize Canvas", "Width:",
+                                     self.dp5_canvas.tex_w, 8, 4096)
+        if not ok1: return
+        h, ok2 = QInputDialog.getInt(self, "Resize Canvas", "Height:",
+                                     self.dp5_canvas.tex_h, 8, 4096)
+        if not ok2: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self.dp5_canvas.tex_w, self.dp5_canvas.tex_h),
+                                  bytes(self.dp5_canvas.rgba))
+            resized = img.resize((w, h), Image.LANCZOS)
+            self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
+            self._canvas_width, self._canvas_height = w, h
+            self.dp5_canvas.rgba = bytearray(resized.tobytes())
+            self.dp5_canvas.update()
+            self._fit_canvas_to_viewport()
+            self._set_status(f"Resized to {w}×{h}")
+        except Exception as e:
+            QMessageBox.warning(self, "Resize Error", str(e))
 
     # ── File I/O ──────────────────────────────────────────────────────────────
 
