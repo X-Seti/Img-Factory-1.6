@@ -599,6 +599,10 @@ class DP5Settings:
         'tool_icon_color':   'color',  # 'color' | 'white' | 'dark'
         'tool_columns':      3,        # 3, 4, 5, or 6
         'hidden_tools':      [],       # list of tool_ids to hide
+        'img_pal_cols':      16,       # image palette columns
+        'img_pal_rows':      16,       # image palette max visible rows
+        'user_pal_cols':     16,       # user palette columns
+        'user_pal_rows':     16,       # user palette max visible rows
         'default_zoom':      4,        # startup zoom level
         'undo_levels':       32,
         'default_width':     320,
@@ -688,6 +692,22 @@ class DP5SettingsDialog(QDialog):
         self._menu_style_combo.addItems(['topbar', 'dropdown'])
         self._menu_style_combo.setCurrentText(self.s.get('menu_style'))
         cl.addRow("Menu button style:", self._menu_style_combo)
+
+        self._img_pal_cols_spin = QSpinBox(); self._img_pal_cols_spin.setRange(4, 32)
+        self._img_pal_cols_spin.setValue(self.s.get('img_pal_cols'))
+        cl.addRow("Image palette cols:", self._img_pal_cols_spin)
+
+        self._img_pal_rows_spin = QSpinBox(); self._img_pal_rows_spin.setRange(1, 32)
+        self._img_pal_rows_spin.setValue(self.s.get('img_pal_rows'))
+        cl.addRow("Image palette max rows:", self._img_pal_rows_spin)
+
+        self._user_pal_cols_spin = QSpinBox(); self._user_pal_cols_spin.setRange(4, 32)
+        self._user_pal_cols_spin.setValue(self.s.get('user_pal_cols'))
+        cl.addRow("User palette cols:", self._user_pal_cols_spin)
+
+        self._user_pal_rows_spin = QSpinBox(); self._user_pal_rows_spin.setRange(1, 32)
+        self._user_pal_rows_spin.setValue(self.s.get('user_pal_rows'))
+        cl.addRow("User palette max rows:", self._user_pal_rows_spin)
 
         tabs.addTab(canvas_tab, "Canvas")
 
@@ -786,6 +806,10 @@ class DP5SettingsDialog(QDialog):
         self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
         self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
         self.s.set('menu_style',         self._menu_style_combo.currentText())
+        self.s.set('img_pal_cols',       self._img_pal_cols_spin.value())
+        self.s.set('img_pal_rows',       self._img_pal_rows_spin.value())
+        self.s.set('user_pal_cols',      self._user_pal_cols_spin.value())
+        self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
@@ -2541,7 +2565,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         main_layout.addWidget(toolbar)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
-        self._splitter.setStyleSheet("QSplitter { background-color: #004400; }")
 
         self._left_panel  = self._create_left_panel()
         centre            = self._create_centre_panel()
@@ -2556,7 +2579,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._splitter.setCollapsible(2, False)
         right.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         right.setMaximumWidth(right.sizeHint().width())
-        self._splitter.handle(2).setEnabled(False)  # lock right panel handle
 
         # Left panel: hidden by default — toggle via DP5 Settings
         self._left_panel.setVisible(self.dp5_settings.get('show_bitmap_list'))
@@ -2805,8 +2827,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         show_mb = (self.dp5_settings.get('show_menubar') and
                    self.dp5_settings.get('menu_style') == 'topbar')
         mb.setVisible(show_mb)
-        mb.setMaximumHeight(0 if not show_mb else 30)
+        if not show_mb:
+            mb.setFixedHeight(0)
+            mb.setMaximumHeight(0)
         layout.addWidget(mb)
+        layout.setSpacing(0)
 
         # Canvas
         try:
@@ -2912,8 +2937,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # Panel width: fit to gadget grid + 20px extra for palette labels
         panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 36
         panel.setFixedWidth(panel_w)
-        # DEBUG: panel background red so we can see its extent
-        panel.setStyleSheet("QFrame { background-color: #440000; }")
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -3149,14 +3172,23 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._group_palette_asc = True
         layout.addLayout(img_pal_hdr)
 
-        # Palette cols: fit to panel usable width
-        pal_cols = max(8, (panel_w - 8) // 12)
-        pal_w = pal_cols * 12
-
-        self.pal_bar = PaletteGrid(cols=pal_cols, cell=12)
+        # Image palette — cols/rows from settings
+        img_cols = self.dp5_settings.get('img_pal_cols')
+        img_rows = self.dp5_settings.get('img_pal_rows')
+        img_pal_w = img_cols * 12
+        img_pal_max_h = img_rows * 12 + 2
+        self.pal_bar = PaletteGrid(cols=img_cols, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
-        self.pal_bar.setFixedWidth(pal_w)
-        layout.addWidget(self.pal_bar)
+        self.pal_bar.setFixedWidth(img_pal_w)
+        img_pal_scroll = QScrollArea()
+        img_pal_scroll.setWidget(self.pal_bar)
+        img_pal_scroll.setWidgetResizable(False)
+        img_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        img_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        img_pal_scroll.setFixedWidth(img_pal_w + 2)
+        img_pal_scroll.setMaximumHeight(img_pal_max_h)
+        img_pal_scroll.setMinimumHeight(12)
+        layout.addWidget(img_pal_scroll)
 
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
@@ -3168,10 +3200,23 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         user_pal_hdr.addWidget(self._retro_btn)
         layout.addLayout(user_pal_hdr)
 
-        self._user_pal_grid = PaletteGrid(cols=pal_cols, cell=12)
+        user_cols = self.dp5_settings.get('user_pal_cols')
+        user_rows = self.dp5_settings.get('user_pal_rows')
+        user_pal_w = user_cols * 12
+        user_pal_max_h = user_rows * 12 + 2
+        self._user_pal_grid = PaletteGrid(cols=user_cols, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
-        self._user_pal_grid.setFixedWidth(pal_w)
-        layout.addWidget(self._user_pal_grid)
+        self._user_pal_grid.setFixedWidth(user_pal_w)
+        user_pal_scroll = QScrollArea()
+        user_pal_scroll.setWidget(self._user_pal_grid)
+        user_pal_scroll.setWidgetResizable(False)
+        user_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        user_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        user_pal_scroll.setFixedWidth(user_pal_w + 2)
+        user_pal_scroll.setMaximumHeight(user_pal_max_h)
+        user_pal_scroll.setMinimumHeight(12)
+        self._user_pal_scroll = user_pal_scroll
+        layout.addWidget(user_pal_scroll)
 
         # Load default retro palette
         self._apply_retro_palette(self.dp5_settings.get('retro_palette'))
@@ -3410,8 +3455,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_settings.set('show_menubar', on)
             self.dp5_settings.save()
             if hasattr(self, '_menu_bar'):
+                self._menu_bar.setMaximumHeight(16777215 if on else 0)
+                self._menu_bar.setFixedHeight(16777215 if on else 0)
                 self._menu_bar.setVisible(on)
-                self._menu_bar.setMaximumHeight(0 if not on else 30)
 
     def _show_dropdown_menu(self): #vers 1
         """Pop up the canvas menus as a single QMenu dropdown."""
