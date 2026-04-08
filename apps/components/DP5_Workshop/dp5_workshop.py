@@ -3256,15 +3256,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             elif depth == "16bit":
                 # Simulate 16bit (R5G6B5) rounding
                 img = img.convert('RGB')
-                r, g, b = img.split()
-                import struct
                 pixels = img.tobytes()
                 out = bytearray(len(pixels))
                 for i in range(0, len(pixels), 3):
-                    rv = (pixels[i]   >> 3) << 3
-                    gv = (pixels[i+1] >> 2) << 2
-                    bv = (pixels[i+2] >> 3) << 3
-                    out[i], out[i+1], out[i+2] = rv, gv, bv
+                    out[i]   = (pixels[i]   >> 3) << 3
+                    out[i+1] = (pixels[i+1] >> 2) << 2
+                    out[i+2] = (pixels[i+2] >> 3) << 3
                 img = Image.frombytes('RGB', (w, h), bytes(out)).convert('RGBA')
             elif depth == "8bit":
                 img = img.convert('RGB').quantize(colors=256).convert('RGBA')
