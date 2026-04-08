@@ -2344,6 +2344,7 @@ class ColorPalPresetsMixin:
         colors, cols = self._get_retro_colors(name)
         if hasattr(self, '_user_pal_grid'):
             self._user_pal_grid.set_colors(colors, cols)
+            self._user_pal_grid.setFixedWidth(self._user_pal_grid._cols * self._user_pal_grid._cell)
         if hasattr(self, '_retro_btn'):
             self._retro_btn.setText(f"{name}")
 
