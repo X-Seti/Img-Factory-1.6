@@ -2754,6 +2754,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # ── [Load][Save][Import][Export][Undo] after title ─────────────────
         # Reuse existing SVGIconFactory icons — no duplication needed
+        # self.tb_new_btn   = _tb("New",   "New / New Canvas", TODO
+        #                           self._new_bitmap,
+        #                           SVGIconFactory.new_icon)
         self.tb_load_btn   = _tb("Load",   "Load / open image file",
                                   self._import_bitmap,
                                   SVGIconFactory.open_icon)
