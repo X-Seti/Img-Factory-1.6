@@ -928,7 +928,7 @@ class DP5Canvas(QWidget):
         # Dither: use bg colour on checkerboard positions
         if self.dither_mode:
             swatch = getattr(self._editor, '_fgbg_swatch', None)
-            bg_color = swatch.bg() if swatch else QColor(0,0,0,255)
+            bg_color = swatch._bg if swatch else QColor(0,0,0,255)
         else:
             bg_color = c
         for dy in range(-s+1, s):
@@ -4120,26 +4120,58 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Crop Error", str(e))
 
-    def _resize_canvas_dialog(self): #vers 1
-        """Resize canvas via dialog."""
+    def _resize_canvas_dialog(self): #vers 2
+        """Resize canvas — single dialog with width, height, bit depth and resampling."""
         if not self.dp5_canvas: return
-        w, ok1 = QInputDialog.getInt(self, "Resize Canvas", "Width:",
-                                     self.dp5_canvas.tex_w, 8, 4096)
-        if not ok1: return
-        h, ok2 = QInputDialog.getInt(self, "Resize Canvas", "Height:",
-                                     self.dp5_canvas.tex_h, 8, 4096)
-        if not ok2: return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Resize Canvas")
+        dlg.setMinimumWidth(280)
+        layout = QVBoxLayout(dlg)
+        form = QFormLayout()
+
+        w_spin = QSpinBox(); w_spin.setRange(1, 4096)
+        w_spin.setValue(self.dp5_canvas.tex_w)
+        form.addRow("Width:", w_spin)
+
+        h_spin = QSpinBox(); h_spin.setRange(1, 4096)
+        h_spin.setValue(self.dp5_canvas.tex_h)
+        form.addRow("Height:", h_spin)
+
+        depth_combo = QComboBox()
+        depth_combo.addItems(["32-bit RGBA", "24-bit RGB", "16-bit (R5G6B5)", "8-bit indexed"])
+        depth_combo.setCurrentIndex(getattr(self, '_canvas_bit_depth', 0))
+        form.addRow("Bit depth:", depth_combo)
+
+        resample_combo = QComboBox()
+        resample_combo.addItems(["Nearest (pixel perfect)", "Bilinear", "Lanczos"])
+        form.addRow("Resample:", resample_combo)
+
+        layout.addLayout(form)
+        btns = QHBoxLayout(); btns.addStretch()
+        ok = QPushButton("Resize"); ok.setDefault(True)
+        can = QPushButton("Cancel")
+        ok.clicked.connect(dlg.accept); can.clicked.connect(dlg.reject)
+        btns.addWidget(ok); btns.addWidget(can)
+        layout.addLayout(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted: return
+
+        w = w_spin.value()
+        h = h_spin.value()
+        self._canvas_bit_depth = depth_combo.currentIndex()
+        resample_map = [0, 2, 1]  # NEAREST, BILINEAR, LANCZOS
+        from PIL import Image
+        resample = [Image.NEAREST, Image.BILINEAR, Image.LANCZOS][resample_combo.currentIndex()]
         try:
-            from PIL import Image
             img = Image.frombytes('RGBA', (self.dp5_canvas.tex_w, self.dp5_canvas.tex_h),
                                   bytes(self.dp5_canvas.rgba))
-            resized = img.resize((w, h), Image.LANCZOS)
+            resized = img.resize((w, h), resample)
             self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
             self._canvas_width, self._canvas_height = w, h
             self.dp5_canvas.rgba = bytearray(resized.tobytes())
             self.dp5_canvas.update()
             self._fit_canvas_to_viewport()
-            self._set_status(f"Resized to {w}×{h}")
+            self._set_status(f"Resized to {w}×{h}  {depth_combo.currentText()}")
         except Exception as e:
             QMessageBox.warning(self, "Resize Error", str(e))
 
