@@ -3029,9 +3029,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.addSpacing(4)
 
         # ── IMAGE palette ─────────────────────────────────────────────────
+        img_pal_hdr = QHBoxLayout()
         img_pal_lbl = QLabel("Image Palette")
         img_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        layout.addWidget(img_pal_lbl)
+        img_pal_hdr.addWidget(img_pal_lbl)
+        img_pal_hdr.addStretch()
+        self._bit_depth_combo = QComboBox()
+        self._bit_depth_combo.setFont(QFont("Arial", 8))
+        self._bit_depth_combo.addItems(["32bit", "24bit", "16bit", "8bit"])
+        self._bit_depth_combo.setFixedHeight(20)
+        self._bit_depth_combo.setToolTip("Colour depth for quantization")
+        img_pal_hdr.addWidget(self._bit_depth_combo)
+        img_pal_apply_btn = QPushButton("Apply")
+        img_pal_apply_btn.setFont(QFont("Arial", 8))
+        img_pal_apply_btn.setFixedHeight(20)
+        img_pal_apply_btn.setToolTip("Quantize canvas to selected bit depth")
+        img_pal_apply_btn.clicked.connect(self._apply_bit_depth)
+        img_pal_hdr.addWidget(img_pal_apply_btn)
+        layout.addLayout(img_pal_hdr)
 
         img_pal_scroll = QScrollArea()
         img_pal_scroll.setWidgetResizable(True)
@@ -3224,6 +3239,46 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if self.dp5_canvas:
             self.dp5_canvas.color = c
         self._fgbg_swatch.set_fg(c)
+
+    def _apply_bit_depth(self): #vers 1
+        """Quantize canvas RGBA to selected bit depth and update palette grid."""
+        if not self.dp5_canvas: return
+        depth = self._bit_depth_combo.currentText()
+        try:
+            from PIL import Image
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+            img = Image.frombytes('RGBA', (w, h), bytes(self.dp5_canvas.rgba))
+            if depth == "32bit":
+                # No quantization — just refresh palette from current image
+                pass
+            elif depth == "24bit":
+                img = img.convert('RGB').convert('RGBA')
+            elif depth == "16bit":
+                # Simulate 16bit (R5G6B5) rounding
+                img = img.convert('RGB')
+                r, g, b = img.split()
+                import struct
+                pixels = img.tobytes()
+                out = bytearray(len(pixels))
+                for i in range(0, len(pixels), 3):
+                    rv = (pixels[i]   >> 3) << 3
+                    gv = (pixels[i+1] >> 2) << 2
+                    bv = (pixels[i+2] >> 3) << 3
+                    out[i], out[i+1], out[i+2] = rv, gv, bv
+                img = Image.frombytes('RGB', (w, h), bytes(out)).convert('RGBA')
+            elif depth == "8bit":
+                img = img.convert('RGB').quantize(colors=256).convert('RGBA')
+            # Write back to canvas
+            self.dp5_canvas.rgba = bytearray(img.tobytes())
+            self.dp5_canvas.update()
+            # Update palette grid
+            p_img = img.convert('RGB').quantize(colors=256)
+            pal_flat = p_img.getpalette()
+            palette = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
+            self.pal_bar.set_palette_raw(palette)
+            self._set_status(f"Applied {depth} quantization")
+        except Exception as e:
+            QMessageBox.warning(self, "Bit Depth Error", str(e))
 
     def _update_color_swatches(self):
         """Sync FGBGSwatch after colour changes (e.g. picker tool)."""
