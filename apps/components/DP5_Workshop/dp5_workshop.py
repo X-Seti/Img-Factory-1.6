@@ -3077,10 +3077,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Palette cols: fit to panel usable width
         pal_cols = max(8, (panel_w - 8) // 12)
+        pal_w = pal_cols * 12
 
         self.pal_bar = PaletteGrid(cols=pal_cols, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
-        self.pal_bar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.pal_bar.setFixedWidth(pal_w)
         layout.addWidget(self.pal_bar)
 
         # ── USER palette (retro presets) ──────────────────────────────────
@@ -3098,10 +3099,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         self._user_pal_grid = PaletteGrid(cols=pal_cols, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
-        self._user_pal_grid.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._user_pal_grid.setFixedWidth(pal_w)
         layout.addWidget(self._user_pal_grid)
-
-        layout.addStretch()
 
         # Load default retro palette
         self._apply_retro_palette(self.dp5_settings.get('retro_palette'))
