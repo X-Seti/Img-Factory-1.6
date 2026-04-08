@@ -3033,7 +3033,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img_pal_lbl = QLabel("Image Palette")
         img_pal_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         img_pal_hdr.addWidget(img_pal_lbl)
-        img_pal_hdr.addStretch()
         self._bit_depth_combo = QComboBox()
         self._bit_depth_combo.setFont(QFont("Arial", 8))
         self._bit_depth_combo.addItems(["32bit", "24bit", "16bit", "8bit"])
