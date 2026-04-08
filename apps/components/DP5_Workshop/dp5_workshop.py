@@ -2487,6 +2487,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._splitter.setStretchFactor(2, 0)   # tools / palette
         self._splitter.setCollapsible(2, False)
         right.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        right.setMaximumWidth(right.sizeHint().width())
+        self._splitter.handle(2).setEnabled(False)  # lock right panel handle
 
         # Left panel: hidden by default — toggle via DP5 Settings
         self._left_panel.setVisible(self.dp5_settings.get('show_bitmap_list'))
@@ -2728,11 +2730,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
 
-        # Menu bar
+        # Menu bar — hidden if dropdown mode or show_menubar is off
         mb = QMenuBar(panel)
         self._menu_bar = mb
         self._build_canvas_menus(mb)
-        mb.setVisible(self.dp5_settings.get('show_menubar'))
+        show_mb = (self.dp5_settings.get('show_menubar') and
+                   self.dp5_settings.get('menu_style') == 'topbar')
+        mb.setVisible(show_mb)
         layout.addWidget(mb)
 
         # Canvas
@@ -3335,13 +3339,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._fgbg_swatch.set_fg(self.dp5_canvas.color)
             self.pal_bar.set_selection_by_color(self.dp5_canvas.color)
 
-    def _on_menu_btn_clicked(self): #vers 1
-        """Show topbar or dropdown menu depending on menu_style setting."""
+    def _on_menu_btn_clicked(self): #vers 2
         style = self.dp5_settings.get('menu_style')
         if style == 'dropdown':
             self._show_dropdown_menu()
         else:
-            # topbar toggle
             on = not self.dp5_settings.get('show_menubar')
             self.dp5_settings.set('show_menubar', on)
             self.dp5_settings.save()
@@ -3901,6 +3903,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 self.dp5_canvas.update()
                 if self.dp5_settings.get('zoom_to_fit_resize'):
                     self._fit_canvas_to_viewport()
+
+            # Apply menu style change live
+            if hasattr(self, '_menu_bar'):
+                show_mb = (self.dp5_settings.get('show_menubar') and
+                           self.dp5_settings.get('menu_style') == 'topbar')
+                self._menu_bar.setVisible(show_mb)
 
             # If icon size or column count changed, rebuild the right panel
             new_icon_sz = self.dp5_settings.get('tool_icon_size')
