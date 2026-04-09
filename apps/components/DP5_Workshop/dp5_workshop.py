@@ -613,6 +613,8 @@ class DP5Settings:
         'show_pixel_grid':   True,
         'platform_mode':     'none',   # 'none'|'c64'|'c64m'|'spectrum'|'msx'|'cpc'|'atari_st'|'amiga'
         'show_cell_grid':    False,    # show platform cell boundaries
+        'show_statusbar':    True,     # show bottom status bar
+        'ui_font_size':      10,       # toolbar/button font size
         'zoom_to_fit_resize': False,
         'show_menubar':       False,
         'menu_style':         'topbar',   # 'topbar' | 'dropdown'
@@ -734,6 +736,14 @@ class DP5SettingsDialog(QDialog):
         self._bitmap_chk.setChecked(self.s.get('show_bitmap_list'))
         ul.addRow("Show bitmap list panel:", self._bitmap_chk)
 
+        self._statusbar_chk = QCheckBox()
+        self._statusbar_chk.setChecked(self.s.get('show_statusbar'))
+        ul.addRow("Show status bar:", self._statusbar_chk)
+
+        self._font_size_spin = QSpinBox(); self._font_size_spin.setRange(7, 18)
+        self._font_size_spin.setValue(self.s.get('ui_font_size'))
+        ul.addRow("UI font size:", self._font_size_spin)
+
         self._icon_size_spin = QSpinBox(); self._icon_size_spin.setRange(20, 64)
         self._icon_size_spin.setValue(self.s.get('tool_icon_size'))
         ul.addRow("Tool icon size (px):", self._icon_size_spin)
@@ -828,6 +838,8 @@ class DP5SettingsDialog(QDialog):
         self.s.set('platform_mode',      self._platform_combo.currentText())
         self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
+        self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
+        self.s.set('ui_font_size',     self._font_size_spin.value())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
         self.s.set('tool_columns',     [3, 4, 5, 6][self._cols_combo.currentIndex()])
@@ -2578,10 +2590,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # DP5-specific settings (JSON, separate from global theme)
         self.dp5_settings = DP5Settings()
 
-        # Fonts
-        self.title_font  = QFont("Arial", 14)
-        self.panel_font  = QFont("Arial", 10)
-        self.button_font = QFont("Arial", 10)
+        # Fonts — size from settings
+        fs = self.dp5_settings.get('ui_font_size')
+        self.title_font  = QFont("Arial", fs + 4)
+        self.panel_font  = QFont("Arial", fs)
+        self.button_font = QFont("Arial", fs)
+        self.fonthsize   = max(7, fs - 1)
 
         # Window chrome
         self.use_system_titlebar  = False
@@ -2609,8 +2623,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # Bitmap list (left panel)
         self._bitmap_list: List[dict] = []   # [{name, rgba, w, h}]
         self._current_bitmap = -1
-        self.fonthsize = 9      # TODO - Add font size and other display options to settings.
-
         # AppSettings (global theme only)
         if main_window and hasattr(main_window, 'app_settings'):
             self.app_settings = main_window.app_settings
@@ -2700,7 +2712,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Status bar
         self._status_bar = QStatusBar()
-        self._status_bar.setMaximumHeight(2)
+        show_sb = self.dp5_settings.get('show_statusbar')
+        self._status_bar.setVisible(show_sb)
         main_layout.addWidget(self._status_bar)
         self._set_status(f"Canvas: {self._canvas_width}×{self._canvas_height}")
 
@@ -2788,11 +2801,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         layout.addStretch()
 
-        # ── [Load][Save][Import][Export][Undo] after title ─────────────────
-        # Reuse existing SVGIconFactory icons — no duplication needed
-        # self.tb_new_btn   = _tb("New",   "New / New Canvas", TODO
-        #                           self._new_bitmap,
-        #                           SVGIconFactory.new_icon)
+        # ── [New][Load][Save][Undo][Clear][Brushes] after title ──────────────
+        self.tb_new_btn    = _tb("New",    "New canvas…",
+                                  self._new_canvas,
+                                  SVGIconFactory.new_icon)
         self.tb_load_btn   = _tb("Load",   "Load / open image file",
                                   self._import_bitmap,
                                   SVGIconFactory.open_icon)
@@ -3059,6 +3071,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         cg = vm.addAction("Cell grid (platform)")
         cg.setCheckable(True); cg.setChecked(False)
         cg.triggered.connect(self._toggle_cell_grid)
+        sb = vm.addAction("Status bar")
+        sb.setCheckable(True); sb.setChecked(self.dp5_settings.get('show_statusbar'))
+        sb.triggered.connect(self._toggle_statusbar)
 
         # Platform menu
         plm = mb.addMenu("Platform")
@@ -3696,8 +3711,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         'atari_st': (16,  1,   16),
     }
 
-    def _set_platform(self, mode: str): #vers 1
-        """Set platform mode — updates cell grid size and enables cell grid display."""
+    def _set_platform(self, mode: str): #vers 2
+        """Set platform mode — cell grid, auto-load palette, fit zoom."""
         self._platform_mode = mode
         cw, ch, _ = self._PLATFORM_CELLS.get(mode, (1,1,256))
         if self.dp5_canvas:
@@ -3707,12 +3722,27 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 self.dp5_canvas.show_cell_grid = True
             self.dp5_canvas.update()
         self.dp5_settings.set('platform_mode', mode)
+        _pal_map = {
+            'c64': 'C64', 'c64m': 'C64',
+            'spectrum': 'ZX Spectrum', 'msx': 'MSX1',
+            'cpc': 'Amstrad CPC', 'atari_st': 'Atari ST', 'amiga': 'Amiga OCS',
+        }
+        if mode in _pal_map:
+            self._apply_retro_palette(_pal_map[mode])
+        if self.dp5_canvas and mode != 'none':
+            self._fit_canvas_to_viewport()
         self._set_status(f"Platform: {mode.upper()}  cell {cw}×{ch}")
 
     def _toggle_cell_grid(self): #vers 1
         if not self.dp5_canvas: return
         self.dp5_canvas.show_cell_grid = not self.dp5_canvas.show_cell_grid
         self.dp5_canvas.update()
+
+    def _toggle_statusbar(self, on: bool): #vers 1
+        self.dp5_settings.set('show_statusbar', on)
+        self.dp5_settings.save()
+        if hasattr(self, '_status_bar'):
+            self._status_bar.setVisible(on)
 
     def _toggle_colour_constraints(self): #vers 1
         """Toggle enforcement of per-cell colour limits for current platform."""
@@ -4212,7 +4242,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
     def _new_canvas(self): #vers 3
         """New canvas dialog with platform presets, custom size, and bit depth."""
         dlg = QDialog(self)
-        dlg.setWindowTitle("New Canvas") # TODO [New] button on the title bar, next to [Load]
+        dlg.setWindowTitle("New Canvas")
         dlg.setMinimumWidth(340)
         layout = QVBoxLayout(dlg)
         form = QFormLayout()
@@ -4471,6 +4501,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             show_left = self.dp5_settings.get('show_bitmap_list')
             if hasattr(self, '_left_panel'):
                 self._left_panel.setVisible(show_left)
+            if hasattr(self, '_status_bar'):
+                self._status_bar.setVisible(self.dp5_settings.get('show_statusbar'))
 
             if self.dp5_canvas:
                 self.dp5_canvas.show_grid = self.dp5_settings.get('show_pixel_grid')
@@ -5534,7 +5566,10 @@ if __name__ == "__main__":
         # Set app icon — appears in taskbar, alt-tab, dock
         try:
             from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
-            app_icon = get_dp5_workshop_icon(64) #TODO this shows as a blank icon in the taskbar.
+            app_icon = QIcon()
+            for sz in (16, 32, 48, 64, 128):
+                ico = get_dp5_workshop_icon(sz)
+                app_icon.addPixmap(ico.pixmap(sz, sz))
             app.setWindowIcon(app_icon)
         except Exception:
             pass
