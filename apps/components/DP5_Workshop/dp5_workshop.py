@@ -717,7 +717,8 @@ class DP5SettingsDialog(QDialog):
 
         self._platform_combo = QComboBox()
         self._platform_combo.addItems([
-            'none','amiga','c64','c64m','spectrum','msx','cpc','atari_st'])
+            'none','amiga','c64','c64m','spectrum','specnext',
+            'msx','cpc','cpc1','atari_st','plus4','vic20'])
         self._platform_combo.setCurrentText(self.s.get('platform_mode'))
         cl.addRow("Platform mode:", self._platform_combo)
 
@@ -3093,8 +3094,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         plm.addAction("ZX Next 256   (free)",     lambda: self._set_platform('specnext'))
         plm.addAction("ZX Next 320   (free)",     lambda: self._set_platform('specnext'))
         plm.addAction("MSX1          (8×8 cell)", lambda: self._set_platform('msx'))
-        plm.addAction("Amstrad CPC   (4×8 cell)", lambda: self._set_platform('cpc'))
+        plm.addAction("Amstrad CPC0  (4×8 cell)", lambda: self._set_platform('cpc'))
+        plm.addAction("Amstrad CPC1  (8×8 cell)", lambda: self._set_platform('cpc1'))
         plm.addAction("Atari ST      (16×1 cell)",lambda: self._set_platform('atari_st'))
+        plm.addAction("Plus/4        (8×8 cell)", lambda: self._set_platform('plus4'))
+        plm.addAction("VIC-20        (8×8 cell)", lambda: self._set_platform('vic20'))
         plm.addSeparator()
         plm.addAction("Enforce colour constraints (toggle)", self._toggle_colour_constraints)
 
@@ -3715,10 +3719,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         'c64':      (8,   8,   2),
         'c64m':     (4,   8,   4),
         'spectrum': (8,   8,   2),
-        'specnext': (1,   1,   256),  # ZX Next — full 256 colour, no cell constraint
+        'specnext': (1,   1,   256),
         'msx':      (8,   8,   2),
-        'cpc':      (4,   8,   4),
+        'cpc':      (4,   8,   4),   # CPC Mode 0: 4 colours per 4×8
+        'cpc1':     (8,   8,   2),   # CPC Mode 1: 2 colours per 8×8
         'atari_st': (16,  1,   16),
+        'plus4':    (8,   8,   2),
+        'vic20':    (8,   8,   2),
     }
 
     def _set_platform(self, mode: str): #vers 2
@@ -3735,8 +3742,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         _pal_map = {
             'c64': 'C64', 'c64m': 'C64',
             'spectrum': 'ZX Spectrum', 'specnext': 'ULA Plus',
-            'msx': 'MSX1', 'cpc': 'Amstrad CPC',
+            'msx': 'MSX1', 'cpc': 'Amstrad CPC', 'cpc1': 'Amstrad CPC',
             'atari_st': 'Atari ST', 'amiga': 'Amiga OCS',
+            'plus4': 'Plus/4', 'vic20': 'VIC-20',
         }
         if mode in _pal_map:
             self._apply_retro_palette(_pal_map[mode])
@@ -3915,22 +3923,80 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             if self._enforce_constraints and self._platform_mode != 'none':
                 self._apply_cell_constraint(x, y)
 
-    # ZX Spectrum palette: 8 normal + 8 bright (index 0-7 normal, 8-15 bright)
+    # Platform palettes for constraint snapping
     _ZX_PALETTE = [
         (0,0,0),(0,0,215),(215,0,0),(215,0,215),
         (0,215,0),(0,215,215),(215,215,0),(215,215,215),
         (0,0,0),(0,0,255),(255,0,0),(255,0,255),
         (0,255,0),(0,255,255),(255,255,0),(255,255,255),
     ]
+    _C64_PALETTE = [
+        (0,0,0),(255,255,255),(136,0,0),(170,255,238),
+        (204,68,204),(0,204,85),(0,0,170),(238,238,119),
+        (221,136,85),(102,68,0),(255,119,119),(51,51,51),
+        (119,119,119),(170,255,102),(0,136,255),(187,187,187),
+    ]
+    _CPC_PALETTE = [
+        (0,0,0),(0,0,128),(0,0,255),(128,0,0),(128,0,128),(128,0,255),
+        (255,0,0),(255,0,128),(255,0,255),(0,128,0),(0,128,128),(0,128,255),
+        (128,128,0),(128,128,128),(128,128,255),(255,128,0),(255,128,128),(255,128,255),
+        (0,255,0),(0,255,128),(0,255,255),(128,255,0),(128,255,128),(128,255,255),
+        (255,255,0),(255,255,128),(255,255,255),
+    ]
+    _MSX_PALETTE = [
+        (0,0,0),(0,0,0),(62,184,73),(116,208,128),
+        (89,85,224),(128,118,241),(185,94,81),(101,219,239),
+        (219,101,89),(255,137,125),(204,195,94),(222,208,135),
+        (58,162,65),(183,102,181),(204,204,204),(255,255,255),
+    ]
+    _ATARI_ST_PALETTE = [
+        (0,0,0),(0,0,168),(0,168,0),(0,168,168),
+        (168,0,0),(168,0,168),(168,84,0),(168,168,168),
+        (84,84,84),(84,84,255),(84,255,84),(84,255,255),
+        (255,84,84),(255,84,255),(255,255,84),(255,255,255),
+    ]
+
+    def _nearest_in_palette(self, r: int, g: int, b: int, palette: list) -> tuple:
+        return min(palette, key=lambda c:(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
 
     def _nearest_zx_colour(self, r: int, g: int, b: int) -> tuple:
-        """Snap an RGB value to the nearest ZX Spectrum palette colour."""
-        best = min(self._ZX_PALETTE,
-                   key=lambda c: (c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
-        return best
+        return self._nearest_in_palette(r, g, b, self._ZX_PALETTE)
 
-    def _apply_cell_constraint(self, px: int, py: int): #vers 2
-        """Enforce platform colour constraints on the cell containing (px, py)."""
+    def _snap_cell_to_palette(self, cx, cy, cw, ch, w, h, palette): #vers 1
+        """Snap all pixels in cell to nearest colour from given palette."""
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                r,g,b = self.dp5_canvas.rgba[i:i+3]
+                best = self._nearest_in_palette(r, g, b, palette)
+                self.dp5_canvas.rgba[i:i+3] = list(best)
+
+    def _limit_cell_colours(self, cx, cy, cw, ch, w, h, max_c): #vers 1
+        """After palette snap, enforce max_c colours per cell."""
+        colours = {}
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                colours[key] = colours.get(key, 0) + 1
+        if len(colours) <= max_c: return
+        kept = sorted(colours, key=lambda k: -colours[k])[:max_c]
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                if key not in kept:
+                    best = min(kept, key=lambda k:(k[0]-key[0])**2+(k[1]-key[1])**2+(k[2]-key[2])**2)
+                    self.dp5_canvas.rgba[i:i+3] = list(best)
+
+    def _apply_cell_constraint(self, px: int, py: int): #vers 3
+        """Dispatch platform-specific colour constraint for the cell at (px,py)."""
         if not self.dp5_canvas: return
         cw, ch, max_c = self._PLATFORM_CELLS.get(self._platform_mode, (1,1,256))
         if max_c >= 256: return
@@ -3938,11 +4004,41 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         cy = (py // ch) * ch
         w = self.dp5_canvas.tex_w
         h = self.dp5_canvas.tex_h
+        mode = self._platform_mode
 
-        if self._platform_mode == 'spectrum':
+        if mode == 'spectrum':
             self._apply_spectrum_clash(cx, cy, cw, ch, w, h)
+        elif mode in ('c64', 'c64m'):
+            self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._C64_PALETTE)
+            self._limit_cell_colours(cx, cy, cw, ch, w, h, max_c)
+        elif mode in ('cpc', 'cpc1'):
+            self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._CPC_PALETTE)
+            self._limit_cell_colours(cx, cy, cw, ch, w, h, max_c)
+        elif mode == 'msx':
+            self._apply_msx_constraint(cx, cy, cw, ch, w, h)
+        elif mode == 'atari_st':
+            self._apply_atari_st_constraint(cx, cy, cw, ch, w, h)
+        elif mode in ('plus4', 'vic20'):
+            # Plus/4 and VIC-20: snap to C64-like palette, 2 colours per cell
+            self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._C64_PALETTE)
+            self._limit_cell_colours(cx, cy, cw, ch, w, h, max_c)
+        elif mode == 'amiga':
+            # Amiga OCS: snap to 32-colour OCS palette (no per-cell limit)
+            amiga_ocs = [
+                (0,0,0),(255,255,255),(170,0,0),(85,255,255),
+                (170,0,170),(85,255,85),(0,0,170),(255,255,85),
+                (170,85,0),(85,85,0),(255,119,119),(85,85,85),
+                (119,119,119),(170,255,170),(85,136,255),(170,170,170),
+                (0,0,0),(17,17,17),(34,34,34),(51,51,51),
+                (68,68,68),(85,85,85),(102,102,102),(119,119,119),
+                (136,136,136),(153,153,153),(170,170,170),(187,187,187),
+                (204,204,204),(221,221,221),(238,238,238),(255,255,255),
+            ]
+            self._snap_cell_to_palette(cx, cy, cw, ch, w, h, amiga_ocs)
         else:
             self._apply_generic_constraint(cx, cy, cw, ch, w, h, max_c)
+
+        self.dp5_canvas.update()
 
     def _apply_spectrum_clash(self, cx, cy, cw, ch, w, h): #vers 1
         """Enforce ZX Spectrum colour clash: max 2 colours per 8×8 cell,
@@ -4014,6 +4110,54 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     self.dp5_canvas.rgba[i:i+3] = list(best)
 
         self.dp5_canvas.update()
+
+    def _apply_msx_constraint(self, cx, cy, cw, ch, w, h): #vers 1
+        """MSX1: 2 colours per 8-pixel row within each 8×8 cell (fg+bg per scanline)."""
+        # First snap all to MSX palette
+        self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._MSX_PALETTE)
+        # Then enforce 2 colours per row
+        for dy in range(ch):
+            ty = cy + dy
+            if not (0 <= ty < h): continue
+            row_colours = {}
+            for dx in range(cw):
+                tx = cx + dx
+                if not (0 <= tx < w): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                row_colours[key] = row_colours.get(key, 0) + 1
+            if len(row_colours) <= 2: continue
+            kept = sorted(row_colours, key=lambda k: -row_colours[k])[:2]
+            for dx in range(cw):
+                tx = cx + dx
+                if not (0 <= tx < w): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                if key not in kept:
+                    best = min(kept, key=lambda k:(k[0]-key[0])**2+(k[1]-key[1])**2+(k[2]-key[2])**2)
+                    self.dp5_canvas.rgba[i:i+3] = list(best)
+
+    def _apply_atari_st_constraint(self, cx, cy, cw, ch, w, h): #vers 1
+        """Atari ST: 16 colours per scanline from ST palette."""
+        # Snap to Atari ST palette first
+        self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._ATARI_ST_PALETTE)
+        # Enforce max 16 colours per scanline (entire row, not just cell)
+        for dy in range(ch):
+            ty = cy + dy
+            if not (0 <= ty < h): continue
+            row_colours = {}
+            for tx in range(w):
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                row_colours[key] = row_colours.get(key, 0) + 1
+            if len(row_colours) <= 16: continue
+            kept = sorted(row_colours, key=lambda k: -row_colours[k])[:16]
+            for tx in range(w):
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                if key not in kept:
+                    best = min(kept, key=lambda k:(k[0]-key[0])**2+(k[1]-key[1])**2+(k[2]-key[2])**2)
+                    self.dp5_canvas.rgba[i:i+3] = list(best)
 
     def _apply_generic_constraint(self, cx, cy, cw, ch, w, h, max_c): #vers 1
         """Enforce generic max-colours-per-cell constraint."""
@@ -4450,9 +4594,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         preset_name = preset_combo.currentText()
         _preset_platform = {
             'C64 Hires': 'c64', 'C64 Multicolor': 'c64m',
-            'Spectrum': 'spectrum', 'Spectrum Next': 'specnext',
-            'MSX1': 'msx', 'CPC Mode 0': 'cpc', 'CPC Mode 1': 'cpc', 'CPC Mode 2': 'cpc',
-            'Atari ST': 'atari_st', 'Amiga LowRes': 'amiga', 'Amiga HiRes': 'amiga',
+            'Spectrum       256': 'spectrum', 'Spectrum Next  320': 'specnext',
+            'MSX1': 'msx',
+            'CPC Mode 0': 'cpc', 'CPC Mode 1': 'cpc1', 'CPC Mode 2': 'cpc1',
+            'Atari ST Low': 'atari_st', 'Atari ST Med': 'atari_st',
+            'Amiga LowRes': 'amiga', 'Amiga HiRes': 'amiga',
+            'Plus/4 Hires': 'plus4', 'Plus/4 Multi': 'plus4',
+            'VIC-20': 'vic20',
         }
         plat = next((v for k, v in _preset_platform.items() if k in preset_name), 'none')
         if plat != 'none':
