@@ -2995,6 +2995,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         im.addAction("Atari ST PI1…",      self._import_pi1)
         im.addAction("C64 Koala…",         self._import_koala)
         im.addAction("C64 Art Studio…",    self._import_art_studio)
+        im.addSeparator()
+        im.addAction("ZX Next NXI…",       self._import_nxi)
+        im.addAction("ZX Next PAL…",       self._import_pal)
         # Platform exports submenu
         ex = fm.addMenu("Export Platform Format")
         ex.addAction("ZX Spectrum SCR…",   self._export_scr)
@@ -3002,9 +3005,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ex.addAction("Atari ST PI1…",      self._export_pi1)
         ex.addAction("C64 Koala…",         self._export_koala)
         ex.addAction("C64 Art Studio…",    self._export_art_studio)
+        ex.addSeparator()
+        ex.addAction("ZX Next NXI…",       self._export_nxi)
+        ex.addAction("ZX Next PAL…",       self._export_pal)
         # Executable exports submenu
         xe = fm.addMenu("Export Executable")
         xe.addAction("ZX Spectrum TAP…",   self._export_tap)
+        xe.addAction("ZX Next NEX…",       self._export_nex)
         xe.addAction("C64 PRG (hires)…",   self._export_c64prg)
         xe.addAction("C64 PRG (multi)…",   self._export_c64mprg)
         xe.addAction("MSX COM…",           self._export_msxcom)
@@ -3083,6 +3090,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         plm.addAction("C64 Hires     (8×8 cell)", lambda: self._set_platform('c64'))
         plm.addAction("C64 Multicolor(4×8 cell)", lambda: self._set_platform('c64m'))
         plm.addAction("ZX Spectrum   (8×8 cell)", lambda: self._set_platform('spectrum'))
+        plm.addAction("ZX Next 256   (free)",     lambda: self._set_platform('specnext'))
+        plm.addAction("ZX Next 320   (free)",     lambda: self._set_platform('specnext'))
         plm.addAction("MSX1          (8×8 cell)", lambda: self._set_platform('msx'))
         plm.addAction("Amstrad CPC   (4×8 cell)", lambda: self._set_platform('cpc'))
         plm.addAction("Atari ST      (16×1 cell)",lambda: self._set_platform('atari_st'))
@@ -3706,6 +3715,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         'c64':      (8,   8,   2),
         'c64m':     (4,   8,   4),
         'spectrum': (8,   8,   2),
+        'specnext': (1,   1,   256),  # ZX Next — full 256 colour, no cell constraint
         'msx':      (8,   8,   2),
         'cpc':      (4,   8,   4),
         'atari_st': (16,  1,   16),
@@ -3724,8 +3734,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.dp5_settings.set('platform_mode', mode)
         _pal_map = {
             'c64': 'C64', 'c64m': 'C64',
-            'spectrum': 'ZX Spectrum', 'msx': 'MSX1',
-            'cpc': 'Amstrad CPC', 'atari_st': 'Atari ST', 'amiga': 'Amiga OCS',
+            'spectrum': 'ZX Spectrum', 'specnext': 'ULA Plus',
+            'msx': 'MSX1', 'cpc': 'Amstrad CPC',
+            'atari_st': 'Atari ST', 'amiga': 'Amiga OCS',
         }
         if mode in _pal_map:
             self._apply_retro_palette(_pal_map[mode])
@@ -5225,6 +5236,207 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._set_status(f"Exported VIC-20 PRG: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "VIC-20 PRG Error", str(e))
+
+    # ── ZX Spectrum Next formats ──────────────────────────────────────────────
+
+    def _rgb_to_9bit(self, r: int, g: int, b: int):
+        """Convert 8-bit RGB to ZX Next 9-bit palette bytes (RRRGGGBB + B LSB)."""
+        r3 = r // 36; g3 = g // 36; b3 = b // 36
+        hi = (r3 << 5) | (g3 << 2) | (b3 >> 1)
+        lo = b3 & 1
+        return hi, lo
+
+    def _9bit_to_rgb(self, hi: int, lo: int):
+        """Convert ZX Next 9-bit palette bytes back to 8-bit RGB."""
+        r3 = (hi >> 5) & 7; g3 = (hi >> 2) & 7; b3 = ((hi & 3) << 1) | (lo & 1)
+        # Scale 3-bit to 8-bit: val*36 + val//2
+        r = r3*36 + r3//2; g = g3*36 + g3//2; b = b3*36 + b3//2
+        return min(255,r), min(255,g), min(255,b)
+
+    def _canvas_to_256colour_indexed(self, w: int, h: int):
+        """Quantize canvas to 256 colours, return (pixels_list, palette_rgb_list)."""
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba)).convert('RGB')
+        img = img.resize((w, h), Image.NEAREST)
+        q = img.quantize(colors=256, dither=0)
+        pixels = list(q.getdata())
+        pf = q.getpalette()
+        palette = [(pf[i*3], pf[i*3+1], pf[i*3+2]) for i in range(256)]
+        return pixels, palette
+
+    def _export_nxi(self): #vers 1
+        """Export ZX Spectrum Next NXI (256×192 or 320×256, 9-bit palette + indexed pixels)."""
+        if not self.dp5_canvas: return
+        # Ask mode
+        mode_dlg = QDialog(self)
+        mode_dlg.setWindowTitle("NXI Export Mode")
+        vl = QVBoxLayout(mode_dlg)
+        vl.addWidget(QLabel("Select resolution:"))
+        combo = QComboBox()
+        combo.addItems(["256×192 (ZX Spectrum Next 256)", "320×256 (ZX Spectrum Next 320)"])
+        vl.addWidget(combo)
+        btns = QHBoxLayout(); ok=QPushButton("OK"); can=QPushButton("Cancel")
+        ok.clicked.connect(mode_dlg.accept); can.clicked.connect(mode_dlg.reject)
+        btns.addStretch(); btns.addWidget(ok); btns.addWidget(can)
+        vl.addLayout(btns)
+        if mode_dlg.exec() != QDialog.DialogCode.Accepted: return
+        is_320 = combo.currentIndex() == 1
+        w, h = (320, 256) if is_320 else (256, 192)
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export ZX Next NXI", "image.nxi", "NXI (*.nxi)")
+        if not path: return
+        try:
+            pixels, palette = self._canvas_to_256colour_indexed(w, h)
+            out = bytearray()
+            # 9-bit palette: 256 × 2 bytes = 512 bytes
+            for r, g, b in palette:
+                hi, lo = self._rgb_to_9bit(r, g, b)
+                out += bytes([hi, lo])
+            # Pixel data
+            if is_320:
+                # 320-mode: column-major order
+                grid = [pixels[y*w+x] for x in range(w) for y in range(h)]
+                out += bytes(grid)
+            else:
+                out += bytes(pixels)
+            open(path, 'wb').write(out)
+            self._set_status(f"Exported NXI: {os.path.basename(path)}  {w}×{h}")
+        except Exception as e:
+            QMessageBox.warning(self, "NXI Export Error", str(e))
+
+    def _import_nxi(self): #vers 1
+        """Import ZX Spectrum Next NXI file."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import ZX Next NXI", "", "NXI (*.nxi);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path, 'rb').read()
+            size = len(data)
+            # Detect mode by file size
+            # 256×192 + palette: 512+49152=49664  without palette: 49152
+            # 320×256 + palette: 512+81920=82432  without palette: 81920
+            has_pal = size in (49664, 82432)
+            is_320  = size in (81920, 82432)
+            w, h = (320, 256) if is_320 else (256, 192)
+            offset = 0
+            palette = None
+            if has_pal:
+                palette = []
+                for i in range(256):
+                    hi = data[i*2]; lo = data[i*2+1]
+                    palette.append(self._9bit_to_rgb(hi, lo))
+                offset = 512
+            pixel_bytes = data[offset:]
+            rgba = bytearray(w*h*4)
+            if palette is None:
+                # No palette — use greyscale index
+                palette = [(i, i, i) for i in range(256)]
+            if is_320:
+                # Column-major → row-major
+                for xi in range(w):
+                    for yi in range(h):
+                        p = pixel_bytes[xi*h+yi]
+                        c = palette[p % len(palette)]
+                        i = (yi*w+xi)*4
+                        rgba[i:i+4] = [c[0],c[1],c[2],255]
+            else:
+                for idx, p in enumerate(pixel_bytes[:w*h]):
+                    c = palette[p % len(palette)]
+                    i = idx*4
+                    rgba[i:i+4] = [c[0],c[1],c[2],255]
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+            # Load palette into user palette grid
+            if palette:
+                self._user_pal_grid.set_palette_raw(palette)
+        except Exception as e:
+            QMessageBox.warning(self, "NXI Import Error", str(e))
+
+    def _export_pal(self): #vers 1
+        """Export ZX Spectrum Next 9-bit PAL palette (512 bytes)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export ZX Next PAL", "palette.pal", "PAL (*.pal)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            q = img.quantize(colors=256, dither=0)
+            pf = q.getpalette()
+            out = bytearray()
+            for i in range(256):
+                r, g, b = pf[i*3], pf[i*3+1], pf[i*3+2]
+                hi, lo = self._rgb_to_9bit(r, g, b)
+                out += bytes([hi, lo])
+            open(path, 'wb').write(out)
+            self._set_status(f"Exported PAL: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "PAL Export Error", str(e))
+
+    def _import_pal(self): #vers 1
+        """Import ZX Spectrum Next 9-bit PAL palette into user palette grid."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import ZX Next PAL", "", "PAL (*.pal);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path, 'rb').read()
+            if len(data) != 512:
+                raise ValueError(f"PAL must be 512 bytes, got {len(data)}")
+            palette = []
+            for i in range(256):
+                hi = data[i*2]; lo = data[i*2+1]
+                palette.append(self._9bit_to_rgb(hi, lo))
+            self._user_pal_grid.set_palette_raw(palette)
+            self._retro_btn.setText("ZX Next PAL")
+            self._set_status(f"Loaded PAL: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "PAL Import Error", str(e))
+
+    def _export_nex(self): #vers 1
+        """Export ZX Spectrum Next NEX executable (loading screen, 256×192)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export ZX Next NEX", "image.nex", "NEX (*.nex)")
+        if not path: return
+        try:
+            pixels, palette = self._canvas_to_256colour_indexed(256, 192)
+            # 512-byte NEX header
+            hdr = bytearray(512)
+            hdr[0:4]   = b'Next'
+            hdr[4:8]   = b'V1.1'
+            hdr[8]     = 0        # RAM required
+            hdr[9]     = 4        # number of banks
+            hdr[10]    = 0        # loading screen blocks = Layer2 w/palette
+            hdr[11]    = 0        # border colour
+            hdr[12:14] = b'\x80\x80'  # SP=$8000
+            hdr[14:16] = b'\x00\x80'  # PC=$8000
+            hdr[16:18] = (0).to_bytes(2, 'little')  # extra files
+            # Bank flags: banks 0,9,10,11 included (bitmap at 0, palette+code at 9-11)
+            bank_flags = [0]*112
+            bank_flags[0]=1; bank_flags[9]=1; bank_flags[10]=1; bank_flags[11]=1
+            hdr[18:18+112] = bytearray(bank_flags)
+            hdr[130]   = 0   # loading bar
+            hdr[131]   = 7   # loading bar colour (white)
+            # 9-bit palette (512 bytes) — goes in bank 9
+            pal_data = bytearray()
+            for r, g, b in palette:
+                hi, lo = self._rgb_to_9bit(r, g, b)
+                pal_data += bytes([hi, lo])
+            # Pixel data (49152 bytes = 3 × 16K banks)
+            pix_data = bytearray(pixels[:49152])
+            # Simple Z80 code stub in bank 9 after palette: waits for keypress, loops
+            z80_stub = bytearray(b'\xFB\x76\xC3\x00\x80')  # EI; HALT; JP $8000
+            bank9 = pal_data + z80_stub + bytearray(16384 - len(pal_data) - len(z80_stub))
+            bank10 = pix_data[:16384]
+            bank11 = pix_data[16384:32768] + bytearray(16384-(len(pix_data)-16384))
+            bank0  = pix_data[32768:49152] + bytearray(16384-(len(pix_data)-32768))
+            out = bytes(hdr) + bytes(bank0) + bytes(bank9) + bytes(bank10) + bytes(bank11)
+            open(path, 'wb').write(out)
+            self._set_status(f"Exported NEX: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "NEX Export Error", str(e))
 
     def _apply_theme(self):
         try:
