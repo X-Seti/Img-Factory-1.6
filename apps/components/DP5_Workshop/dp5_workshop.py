@@ -3915,39 +3915,129 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             if self._enforce_constraints and self._platform_mode != 'none':
                 self._apply_cell_constraint(x, y)
 
-    def _apply_cell_constraint(self, px: int, py: int): #vers 1
-        """Enforce platform max-colours-per-cell by quantizing the affected cell."""
+    # ZX Spectrum palette: 8 normal + 8 bright (index 0-7 normal, 8-15 bright)
+    _ZX_PALETTE = [
+        (0,0,0),(0,0,215),(215,0,0),(215,0,215),
+        (0,215,0),(0,215,215),(215,215,0),(215,215,215),
+        (0,0,0),(0,0,255),(255,0,0),(255,0,255),
+        (0,255,0),(0,255,255),(255,255,0),(255,255,255),
+    ]
+
+    def _nearest_zx_colour(self, r: int, g: int, b: int) -> tuple:
+        """Snap an RGB value to the nearest ZX Spectrum palette colour."""
+        best = min(self._ZX_PALETTE,
+                   key=lambda c: (c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
+        return best
+
+    def _apply_cell_constraint(self, px: int, py: int): #vers 2
+        """Enforce platform colour constraints on the cell containing (px, py)."""
         if not self.dp5_canvas: return
         cw, ch, max_c = self._PLATFORM_CELLS.get(self._platform_mode, (1,1,256))
         if max_c >= 256: return
-        # Find cell origin
         cx = (px // cw) * cw
         cy = (py // ch) * ch
         w = self.dp5_canvas.tex_w
         h = self.dp5_canvas.tex_h
-        # Collect unique colours in cell
+
+        if self._platform_mode == 'spectrum':
+            self._apply_spectrum_clash(cx, cy, cw, ch, w, h)
+        else:
+            self._apply_generic_constraint(cx, cy, cw, ch, w, h, max_c)
+
+    def _apply_spectrum_clash(self, cx, cy, cw, ch, w, h): #vers 1
+        """Enforce ZX Spectrum colour clash: max 2 colours per 8×8 cell,
+        both snapped to ZX palette, both from same brightness group."""
+        # Step 1: snap all pixels in cell to nearest ZX colour
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                r,g,b = self.dp5_canvas.rgba[i:i+3]
+                zx = self._nearest_zx_colour(r,g,b)
+                self.dp5_canvas.rgba[i:i+3] = list(zx)
+
+        # Step 2: collect unique ZX colours in cell
         colours = {}
         for dy in range(ch):
             for dx in range(cw):
                 tx, ty = cx+dx, cy+dy
-                if 0 <= tx < w and 0 <= ty < h:
-                    i = (ty*w+tx)*4
-                    key = tuple(self.dp5_canvas.rgba[i:i+3])
-                    colours[key] = colours.get(key, 0) + 1
-        if len(colours) <= max_c: return
-        # Keep the most frequent max_c colours, remap others to nearest kept
-        kept = sorted(colours, key=lambda k: -colours[k])[:max_c]
-        def nearest(c):
-            return min(kept, key=lambda k: (k[0]-c[0])**2+(k[1]-c[1])**2+(k[2]-c[2])**2)
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                colours[key] = colours.get(key, 0) + 1
+
+        if len(colours) <= 2: return
+
+        # Step 3: determine dominant brightness (bright if >half pixels are bright)
+        bright_count = 0; total = 0
+        for c, cnt in colours.items():
+            total += cnt
+            idx = self._ZX_PALETTE.index(c) if c in self._ZX_PALETTE else 0
+            if idx >= 8: bright_count += cnt
+        use_bright = bright_count > total // 2
+
+        # Step 4: restrict palette to 8 colours of correct brightness
+        valid = self._ZX_PALETTE[8:16] if use_bright else self._ZX_PALETTE[0:8]
+
+        # Step 5: re-snap all pixels to valid group
         for dy in range(ch):
             for dx in range(cw):
                 tx, ty = cx+dx, cy+dy
-                if 0 <= tx < w and 0 <= ty < h:
-                    i = (ty*w+tx)*4
-                    key = tuple(self.dp5_canvas.rgba[i:i+3])
-                    if key not in kept:
-                        nr = nearest(key)
-                        self.dp5_canvas.rgba[i:i+3] = list(nr)
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                r,g,b = self.dp5_canvas.rgba[i:i+3]
+                best = min(valid, key=lambda c: (c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
+                self.dp5_canvas.rgba[i:i+3] = list(best)
+
+        # Step 6: collect again and keep only top 2 (ink + paper)
+        colours = {}
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                colours[key] = colours.get(key, 0) + 1
+
+        if len(colours) <= 2: return
+        kept = sorted(colours, key=lambda k: -colours[k])[:2]
+
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                if key not in kept:
+                    best = min(kept, key=lambda c: (c[0]-key[0])**2+(c[1]-key[1])**2+(c[2]-key[2])**2)
+                    self.dp5_canvas.rgba[i:i+3] = list(best)
+
+        self.dp5_canvas.update()
+
+    def _apply_generic_constraint(self, cx, cy, cw, ch, w, h, max_c): #vers 1
+        """Enforce generic max-colours-per-cell constraint."""
+        colours = {}
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                colours[key] = colours.get(key, 0) + 1
+        if len(colours) <= max_c: return
+        kept = sorted(colours, key=lambda k: -colours[k])[:max_c]
+        def nearest(c):
+            return min(kept, key=lambda k:(k[0]-c[0])**2+(k[1]-c[1])**2+(k[2]-c[2])**2)
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                key = tuple(self.dp5_canvas.rgba[i:i+3])
+                if key not in kept:
+                    self.dp5_canvas.rgba[i:i+3] = list(nearest(key))
+        self.dp5_canvas.update()
         self.dp5_canvas.update()
 
     def _update_status(self, x: int, y: int, colour: QColor):
@@ -4355,6 +4445,20 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._canvas_width  = w
         self._canvas_height = h
         self._canvas_bit_depth = depth_combo.currentIndex()
+
+        # Map preset to platform mode and auto-enable constraints
+        preset_name = preset_combo.currentText()
+        _preset_platform = {
+            'C64 Hires': 'c64', 'C64 Multicolor': 'c64m',
+            'Spectrum': 'spectrum', 'Spectrum Next': 'specnext',
+            'MSX1': 'msx', 'CPC Mode 0': 'cpc', 'CPC Mode 1': 'cpc', 'CPC Mode 2': 'cpc',
+            'Atari ST': 'atari_st', 'Amiga LowRes': 'amiga', 'Amiga HiRes': 'amiga',
+        }
+        plat = next((v for k, v in _preset_platform.items() if k in preset_name), 'none')
+        if plat != 'none':
+            self._set_platform(plat)
+            self._enforce_constraints = True
+
         if self.dp5_canvas:
             self.dp5_canvas.tex_w = w
             self.dp5_canvas.tex_h = h
