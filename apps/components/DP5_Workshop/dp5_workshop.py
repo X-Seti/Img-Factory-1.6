@@ -611,6 +611,7 @@ class DP5Settings:
         'default_height':    200,
         'retro_palette':     'Amiga AGA WB',
         'show_pixel_grid':   True,
+        'grid_color':        '#808080',  # pixel grid colour (hex)
         'platform_mode':     'none',   # 'none'|'c64'|'c64m'|'spectrum'|'msx'|'cpc'|'atari_st'|'amiga'
         'show_cell_grid':    False,    # show platform cell boundaries
         'show_statusbar':    True,     # show bottom status bar
@@ -728,6 +729,21 @@ class DP5SettingsDialog(QDialog):
         self._cell_grid_chk.setChecked(self.s.get('show_cell_grid'))
         cl.addRow("Show cell grid:", self._cell_grid_chk)
 
+        self._grid_color_btn = QPushButton()
+        gc = QColor(self.s.get('grid_color'))
+        self._grid_color_btn.setStyleSheet(f"background:{gc.name()};")
+        self._grid_color_btn.setFixedHeight(22)
+        self._grid_color_btn.setToolTip("Click to pick pixel grid colour")
+        def _pick_grid_color():
+            c = QColorDialog.getColor(QColor(self.s.get('grid_color')), self, "Grid Colour",
+                                      QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if c.isValid():
+                self._grid_color_btn.setStyleSheet(f"background:{c.name()};")
+                self._grid_color_btn._chosen = c.name(QColor.NameFormat.HexArgb)
+        self._grid_color_btn._chosen = self.s.get('grid_color')
+        self._grid_color_btn.clicked.connect(_pick_grid_color)
+        cl.addRow("Pixel grid colour:", self._grid_color_btn)
+
         tabs.addTab(canvas_tab, "Canvas")
 
         # ── Interface tab ────────────────────────────────────────────────────
@@ -840,6 +856,7 @@ class DP5SettingsDialog(QDialog):
         self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
         self.s.set('platform_mode',      self._platform_combo.currentText())
         self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
+        self.s.set('grid_color',         self._grid_color_btn._chosen)
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('show_statusbar',   self._statusbar_chk.isChecked())
         self.s.set('ui_font_size',     self._font_size_spin.value())
@@ -875,10 +892,11 @@ class DP5Canvas(QWidget):
         self.dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
         self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
         self._dither_toggle = False  # alternates per pixel in dither mode
-        self.show_grid  = True
+        self.show_grid  = True  # overridden after settings load in _create_centre_panel
         self.show_cell_grid = False
-        self.cell_w = 8   # platform cell width in pixels
-        self.cell_h = 8   # platform cell height in pixels
+        self.cell_w = 8
+        self.cell_h = 8
+        self.grid_color = QColor(128, 128, 128, 60)  # overrideable from settings
         self._drawing   = False
         self._last_pt   = None
         self._preview_start = None
@@ -1295,7 +1313,7 @@ class DP5Canvas(QWidget):
         # Pixel grid (only at zoom ≥4)
         if self.show_grid and z >= 4:
             iz = int(z)
-            pen = QPen(QColor(128, 128, 128, 60), 1)
+            pen = QPen(self.grid_color, 1)
             painter.setPen(pen)
             for x in range(0, sw, iz):
                 painter.drawLine(x, 0, x, sh)
@@ -2971,6 +2989,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas  = DP5Canvas(w, h, self.canvas_rgba, panel)
             self.dp5_canvas._editor = self
             self.dp5_canvas.pixel_changed.connect(self._on_canvas_changed)
+            self.dp5_canvas.show_grid  = self.dp5_settings.get('show_pixel_grid')
+            self.dp5_canvas.grid_color = QColor(self.dp5_settings.get('grid_color'))
             scroll = QScrollArea()
             scroll.setWidget(self.dp5_canvas)
             scroll.setWidgetResizable(False)
@@ -3098,10 +3118,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             lbl = f"{int(z)}×" if z >= 1 else f"{z}×"
             vm.addAction(lbl, lambda _, zz=z: self._set_zoom(zz))
         ga = vm.addAction("Pixel grid")
-        ga.setCheckable(True); ga.setChecked(True)
-        ga.triggered.connect(
-            lambda v: (setattr(self.dp5_canvas, 'show_grid', v),
-                       self.dp5_canvas.update()) if self.dp5_canvas else None)
+        ga.setCheckable(True)
+        ga.setChecked(self.dp5_settings.get('show_pixel_grid'))
+        ga.triggered.connect(self._set_show_grid)
         cg = vm.addAction("Cell grid (platform)")
         cg.setCheckable(True); cg.setChecked(False)
         cg.triggered.connect(self._toggle_cell_grid)
@@ -3748,11 +3767,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if self.dp5_canvas:
             self.dp5_canvas.snap_grid = on
 
-    def _set_show_grid(self, on: bool):
+    def _set_show_grid(self, on: bool): #vers 2
         if self.dp5_canvas:
-            self.dp5_canvas.show_grid = on
+            self.dp5_canvas.show_grid = bool(on)
             self.dp5_canvas.update()
-        self.dp5_settings.set('show_pixel_grid', on)
+        self.dp5_settings.set('show_pixel_grid', bool(on))
+        self.dp5_settings.save()
+        if hasattr(self, '_grid_chk2'):
+            self._grid_chk2.setChecked(bool(on))
 
     # Platform cell sizes: (cell_w, cell_h, max_colours_per_cell)
     _PLATFORM_CELLS = {
@@ -5143,6 +5165,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
             if self.dp5_canvas:
                 self.dp5_canvas.show_grid = self.dp5_settings.get('show_pixel_grid')
+                self.dp5_canvas.grid_color = QColor(self.dp5_settings.get('grid_color'))
                 self.dp5_canvas.show_cell_grid = self.dp5_settings.get('show_cell_grid')
                 self.dp5_canvas.update()
                 if self.dp5_settings.get('zoom_to_fit_resize'):
