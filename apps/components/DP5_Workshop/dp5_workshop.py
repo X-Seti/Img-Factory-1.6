@@ -3017,6 +3017,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm.addAction("New canvas…",    self._new_canvas)
         fm.addSeparator()
         fm.addAction("Open image…",    self._import_bitmap)
+        fm.addAction("Open + snap to user palette…", self._import_bitmap_snap_user_pal)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
         fm.addSeparator()
@@ -3055,6 +3056,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         tx_menu = fm.addMenu("Texture")
         tx_menu.addAction("Export PNG (current depth)…", self._export_texture_png)
         tx_menu.addAction("Export BMP…",                 self._export_texture_bmp)
+        tx_menu.addSeparator()
+        tx_menu.addAction("Snap to user palette",        self._snap_canvas_to_user_palette)
 
         # ── Icons ─────────────────────────────────────────────────────────
         ic_menu = fm.addMenu("Icons")
@@ -3064,6 +3067,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ic_menu.addSeparator()
         ic_menu.addAction("Import Windows ICO…",   self._import_ico)
         ic_menu.addAction("Import SVG…",            self._import_svg)
+        ic_menu.addSeparator()
+        ic_menu.addAction("Snap to user palette",   self._snap_canvas_to_user_palette)
         # Edit
         em = mb.addMenu("Edit")
         em.addAction("Undo\tCtrl+Z",       self._undo_canvas)
@@ -3100,6 +3105,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         pm.addAction("Invert colours",      self._invert)
         pm.addAction("Brighten +25",        lambda: self._adjust(25))
         pm.addAction("Darken -25",          lambda: self._adjust(-25))
+        pm.addSeparator()
+        pm.addAction("Snap to user palette", self._snap_canvas_to_user_palette)
         pm.addSeparator()
         dm = pm.addMenu("Dither canvas")
         dm.addAction("Floyd-Steinberg…",    self._dither_floyd_steinberg)
@@ -4221,6 +4228,47 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         self.dp5_canvas.update()
 
+    def _get_user_palette_rgb(self): #vers 1
+        """Return current user palette as list of (r,g,b) tuples, or None if empty."""
+        if not hasattr(self, '_user_pal_grid'): return None
+        colors = getattr(self._user_pal_grid, '_colors', [])
+        if not colors: return None
+        return [(c.red(), c.green(), c.blue()) for c in colors if c.isValid()]
+
+    def _snap_image_to_user_palette(self, img): #vers 1
+        """Snap every pixel in a PIL RGBA image to nearest colour in the user palette."""
+        from PIL import Image
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap to User Palette",
+                                "No user palette loaded. Load a palette first.")
+            return img
+        n = min(len(palette), 256)
+        pal_img = Image.new('P', (1, 1))
+        flat = []
+        for r, g, b in palette[:n]:
+            flat += [r, g, b]
+        flat += [0] * (768 - len(flat))
+        pal_img.putpalette(flat)
+        return img.convert('RGB').quantize(palette=pal_img, dither=0).convert('RGB').convert('RGBA')
+
+    def _snap_canvas_to_user_palette(self): #vers 1
+        """Menu action — snap entire canvas to current user palette."""
+        if not self.dp5_canvas: return
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap to User Palette",
+                                "No user palette loaded.")
+            return
+        self._push_undo()
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        snapped = self._snap_image_to_user_palette(img)
+        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(f"Snapped to user palette ({len(palette)} colours)")
+
     def _snap_image_to_platform_palette(self, img): #vers 1
         """Snap every pixel in a PIL RGBA image to the nearest platform palette colour.
         Returns the modified image. Used when loading an image in platform mode."""
@@ -4243,7 +4291,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                           (68,68,68),(85,85,85),(102,102,102),(119,119,119),
                           (136,136,136),(153,153,153),(170,170,170),(187,187,187),
                           (204,204,204),(221,221,221),(238,238,238),(255,255,255)],
-            'amiga_aga': None,   # 256 colour — no snap needed
+            'amiga_aga': 'user',   # 256 colour — snap to user palette if loaded
             'amiga_ham': None,   # handled by HAM constraint
             'amiga_ham8':None,
             'amiga_rtg': None,
@@ -4253,6 +4301,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         palette = pal_map.get(mode)
         if palette is None:
             return img   # no snap for full-colour modes
+        if palette == 'user':
+            # Use current user palette
+            user_pal = self._get_user_palette_rgb()
+            if not user_pal: return img
+            palette = user_pal
 
         from PIL import Image
         rgb = img.convert('RGB')
@@ -5086,9 +5139,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
     def _import_bitmap(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Image", "",
-            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm);;All Files (*)")
+            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.iff);;All Files (*)")
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
+
+    def _import_bitmap_snap_user_pal(self): #vers 1
+        """Open an image then immediately snap it to the current user palette."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Image + Snap to User Palette", "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm);;All Files (*)")
+        if not path or not self.dp5_canvas: return
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap to User Palette",
+                                "No user palette loaded. Load a palette first.")
+            return
+        self._import_bitmap_path(path)
+        # Snap after load (works on whatever mode reduced it to)
+        self._snap_canvas_to_user_palette()
 
     def _import_bitmap_path(self, path: str): #vers 3
         """Load an image, auto-reduce to current mode constraints if locked."""
