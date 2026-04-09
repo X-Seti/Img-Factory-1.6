@@ -521,6 +521,15 @@ class SVGIconFactory: #vers 7
             <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
+
+    @staticmethod
+    def new_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+        """New document icon — blank page with folded corner"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                  fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <polyline points="14,2 14,8 20,8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        </svg>''', size, color)
     
 
     @staticmethod
