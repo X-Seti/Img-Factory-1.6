@@ -3020,6 +3020,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         xe.addAction("MSX COM…",           self._export_msxcom)
         xe.addAction("Plus/4 PRG…",        self._export_plus4prg)
         xe.addAction("VIC-20 PRG…",        self._export_vicprg)
+        # Icon formats
+        ic = fm.addMenu("Icons")
+        ic.addAction("Export Windows ICO…", self._export_ico)
+        ic.addAction("Export Linux SVG…",   self._export_svg_icon)
+        ic.addAction("Export Amiga Icon…",  self._export_amiga_icon)
+        ic.addSeparator()
+        ic.addAction("Import Windows ICO…", self._import_ico)
+        ic.addAction("Import SVG…",         self._import_svg)
         # Edit
         em = mb.addMenu("Edit")
         em.addAction("Undo\tCtrl+Z",       self._undo_canvas)
@@ -4591,49 +4599,72 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         form = QFormLayout()
 
         # ── Platform preset ───────────────────────────────────────────────
+        # PRESETS: (name, w, h, depth_idx)  0=32bit 1=24bit 2=16bit 3=8bit
         PRESETS = [
-            ("Custom",                    0,    0),
-            ("── Amiga ──",               0,    0),
-            ("Amiga LowRes   320×256",  320,  256),
-            ("Amiga HiRes    640×256",  640,  256),
-            ("Amiga LowRes   320×200",  320,  200),
-            ("Amiga HiRes    640×200",  640,  200),
-            ("── Commodore 64 ──",         0,    0),
-            ("C64 Hires      320×200",  320,  200),
-            ("C64 Multicolor 160×200",  160,  200),
-            ("── ZX Spectrum ──",          0,    0),
-            ("Spectrum       256×192",  256,  192),
-            ("Spectrum Next  320×256",  320,  256),
-            ("── MSX ──",                  0,    0),
-            ("MSX1           256×192",  256,  192),
-            ("── Amstrad CPC ──",           0,    0),
-            ("CPC Mode 0     160×200",  160,  200),
-            ("CPC Mode 1     320×200",  320,  200),
-            ("CPC Mode 2     640×200",  640,  200),
-            ("── Atari ST ──",             0,    0),
-            ("Atari ST Low   320×200",  320,  200),
-            ("Atari ST Med   640×200",  640,  200),
-            ("── Plus/4 ──",               0,    0),
-            ("Plus/4 Hires   320×200",  320,  200),
-            ("Plus/4 Multi   160×200",  160,  200),
-            ("── VIC-20 ──",               0,    0),
-            ("VIC-20         176×184",  176,  184),
-            ("── Sinclair QL ──",           0,    0),
-            ("QL Low         256×256",  256,  256),
-            ("── Common ──",               0,    0),
-            ("Icon            16×16",    16,   16),
-            ("Icon            32×32",    32,   32),
-            ("Icon            48×48",    48,   48),
-            ("Icon            64×64",    64,   64),
-            ("Tile            16×16",    16,   16),
-            ("Sprite          32×64",    32,   64),
-            ("HD              1280×720", 1280, 720),
-            ("Full HD         1920×1080",1920,1080),
-            ("4K              3840×2160",3840,2160),
+            ("Custom",                    0,    0,   0),
+            ("── Amiga ──",               0,    0,   0),
+            ("Amiga LowRes   320×256",  320,  256,   3),
+            ("Amiga HiRes    640×256",  640,  256,   3),
+            ("Amiga LowRes   320×200",  320,  200,   3),
+            ("Amiga HiRes    640×200",  640,  200,   3),
+            ("── Commodore 64 ──",         0,    0,   0),
+            ("C64 Hires      320×200",  320,  200,   3),
+            ("C64 Multicolor 160×200",  160,  200,   3),
+            ("── ZX Spectrum ──",          0,    0,   0),
+            ("Spectrum       256×192",  256,  192,   3),
+            ("Spectrum Next  320×256",  320,  256,   3),
+            ("── MSX ──",                  0,    0,   0),
+            ("MSX1           256×192",  256,  192,   3),
+            ("── Amstrad CPC ──",           0,    0,   0),
+            ("CPC Mode 0     160×200",  160,  200,   3),
+            ("CPC Mode 1     320×200",  320,  200,   3),
+            ("CPC Mode 2     640×200",  640,  200,   3),
+            ("── Atari ST ──",             0,    0,   0),
+            ("Atari ST Low   320×200",  320,  200,   3),
+            ("Atari ST Med   640×200",  640,  200,   3),
+            ("── Plus/4 ──",               0,    0,   0),
+            ("Plus/4 Hires   320×200",  320,  200,   3),
+            ("Plus/4 Multi   160×200",  160,  200,   3),
+            ("── VIC-20 ──",               0,    0,   0),
+            ("VIC-20         176×184",  176,  184,   3),
+            ("── Sinclair QL ──",           0,    0,   0),
+            ("QL Low         256×256",  256,  256,   3),
+            ("── Textures 8-bit ──",       0,    0,   0),
+            ("Texture 8b     16×16",     16,   16,   3),
+            ("Texture 8b     32×32",     32,   32,   3),
+            ("Texture 8b     64×64",     64,   64,   3),
+            ("Texture 8b    128×128",   128,  128,   3),
+            ("── Textures 16-bit ──",      0,    0,   0),
+            ("Texture 16b    32×32",     32,   32,   2),
+            ("Texture 16b    64×64",     64,   64,   2),
+            ("Texture 16b   128×128",   128,  128,   2),
+            ("Texture 16b   256×256",   256,  256,   2),
+            ("Texture 16b   512×512",   512,  512,   2),
+            ("── Textures 24/32-bit ──",   0,    0,   0),
+            ("Texture 32b    64×64",     64,   64,   0),
+            ("Texture 32b   128×128",   128,  128,   0),
+            ("Texture 32b   256×256",   256,  256,   0),
+            ("Texture 32b   512×512",   512,  512,   0),
+            ("Texture 32b  1024×1024", 1024, 1024,   0),
+            ("Texture 32b  2048×2048", 2048, 2048,   0),
+            ("── Icons ──",                0,    0,   0),
+            ("Icon  Win .ico  16×16",    16,   16,   0),
+            ("Icon  Win .ico  32×32",    32,   32,   0),
+            ("Icon  Win .ico  48×48",    48,   48,   0),
+            ("Icon  Win .ico  64×64",    64,   64,   0),
+            ("Icon  Win .ico 128×128",  128,  128,   0),
+            ("Icon  Win .ico 256×256",  256,  256,   0),
+            ("Icon  Amiga     32×32",    32,   32,   3),
+            ("Icon  Amiga     64×64",    64,   64,   3),
+            ("Sprite          32×64",    32,   64,   3),
+            ("── Common ──",               0,    0,   0),
+            ("HD              1280×720", 1280,  720,  1),
+            ("Full HD        1920×1080", 1920, 1080,  1),
+            ("4K             3840×2160", 3840, 2160,  1),
         ]
         preset_combo = QComboBox()
-        for name, w, h in PRESETS:
-            preset_combo.addItem(name, (w, h))
+        for name, w, h, d in PRESETS:
+            preset_combo.addItem(name, (w, h, d))
         form.addRow("Platform preset:", preset_combo)
 
         # ── Width / Height ────────────────────────────────────────────────
@@ -4658,10 +4689,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Wire preset → w/h spinboxes
         def on_preset(idx):
-            w, h = preset_combo.itemData(idx)
-            if w > 0 and h > 0:
-                w_spin.setValue(w)
-                h_spin.setValue(h)
+            data = preset_combo.itemData(idx)
+            if data:
+                w, h, d = data
+                if w > 0 and h > 0:
+                    w_spin.setValue(w)
+                    h_spin.setValue(h)
+                if d is not None:
+                    depth_combo.setCurrentIndex(d)
         preset_combo.currentIndexChanged.connect(on_preset)
 
         btns = QHBoxLayout()
@@ -4803,13 +4838,27 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
 
-    def _import_bitmap_path(self, path: str):
-        """Load an image directly from a file path (called by imgfactory docked)."""
+    def _import_bitmap_path(self, path: str): #vers 2
+        """Load an image, downscale bit depth if platform/texture mode requires it."""
         if not path or not self.dp5_canvas: return
         try:
             from PIL import Image
             img = Image.open(path).convert('RGBA')
             w, h = img.size
+            # Apply bit-depth reduction based on current _canvas_bit_depth
+            depth = getattr(self, '_canvas_bit_depth', 0)
+            if depth == 1:  # 24-bit
+                img = img.convert('RGB').convert('RGBA')
+            elif depth == 2:  # 16-bit R5G6B5
+                rgb = img.convert('RGB'); px = rgb.tobytes()
+                buf = bytearray(len(px))
+                for i in range(0, len(px), 3):
+                    buf[i]   = (px[i]   >> 3) << 3
+                    buf[i+1] = (px[i+1] >> 2) << 2
+                    buf[i+2] = (px[i+2] >> 3) << 3
+                img = Image.frombytes('RGB', (w,h), bytes(buf)).convert('RGBA')
+            elif depth == 3:  # 8-bit indexed
+                img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
             self._canvas_width  = w
             self._canvas_height = h
             new_rgba = bytearray(img.tobytes())
@@ -5843,6 +5892,162 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._set_status(f"Exported NEX: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "NEX Export Error", str(e))
+
+    # ── Icon export / import ──────────────────────────────────────────────────
+
+    def _get_canvas_pil(self):
+        """Return current canvas as PIL RGBA Image."""
+        from PIL import Image
+        return Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                               bytes(self.dp5_canvas.rgba))
+
+    def _export_ico(self): #vers 1
+        """Export Windows ICO — multiple sizes embedded (16,32,48,64,128,256)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Windows ICO", "icon.ico", "ICO (*.ico)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = self._get_canvas_pil()
+            sizes = [s for s in [16,32,48,64,128,256]
+                     if s <= min(self._canvas_width, self._canvas_height)]
+            if not sizes: sizes = [16]
+            # PIL saves ICO with multiple sizes from one image
+            frames = [img.resize((s,s), Image.LANCZOS) for s in sizes]
+            frames[0].save(path, format='ICO', sizes=[(s,s) for s in sizes],
+                           append_images=frames[1:])
+            self._set_status(f"Exported ICO: {os.path.basename(path)}  sizes:{sizes}")
+        except Exception as e:
+            QMessageBox.warning(self, "ICO Export Error", str(e))
+
+    def _export_svg_icon(self): #vers 1
+        """Export Linux/Web SVG icon — embeds canvas as base64 PNG inside SVG."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export SVG Icon", "icon.svg", "SVG (*.svg)")
+        if not path: return
+        try:
+            import base64, io
+            from PIL import Image
+            img = self._get_canvas_pil()
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            w, h = self._canvas_width, self._canvas_height
+            svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="{w}" height="{h}" viewBox="0 0 {w} {h}">
+  <image width="{w}" height="{h}" xlink:href="data:image/png;base64,{b64}"/>
+</svg>'''
+            open(path, 'w').write(svg)
+            self._set_status(f"Exported SVG: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "SVG Export Error", str(e))
+
+    def _export_amiga_icon(self): #vers 1
+        """Export Amiga .info icon — simple IFF-based icon (NewIcon style PNG embedded)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Amiga Icon", "icon.info", "Amiga Icon (*.info)")
+        if not path: return
+        try:
+            import struct, io
+            from PIL import Image
+            img = self._get_canvas_pil().resize((32,32), Image.NEAREST)
+            # Quantize to 4 colours (Amiga WB standard)
+            q = img.convert('RGB').quantize(colors=4, dither=0)
+            pixels = list(q.getdata())
+            pal = q.getpalette()
+            # Amiga DiskObject header (68 bytes) — simplified magic
+            # Real .info files need full DiskObject struct — we write a minimal valid one
+            # Magic: 0xE310 (WB_MAGIC), version 1
+            hdr = bytearray(78)
+            hdr[0:2] = b'\xE3\x10'  # WBDISK magic
+            hdr[2:4] = b'\x00\x01'  # version
+            # Gadget image: 32×32, 2 bitplanes
+            hdr[12:14] = (32).to_bytes(2,'big')  # width
+            hdr[14:16] = (32).to_bytes(2,'big')  # height
+            hdr[16:18] = (2).to_bytes(2,'big')   # depth
+            # Encode 2 bitplanes
+            plane_size = 32*32//8
+            planes = [bytearray(plane_size), bytearray(plane_size)]
+            for i,p in enumerate(pixels):
+                byte_idx = i//8; bit = 7-(i%8)
+                if p&1: planes[0][byte_idx] |= (1<<bit)
+                if (p>>1)&1: planes[1][byte_idx] |= (1<<bit)
+            # Write minimal icon file
+            out = bytes(hdr) + bytes(planes[0]) + bytes(planes[1])
+            open(path,'wb').write(out)
+            self._set_status(f"Exported Amiga icon: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "Amiga Icon Error", str(e))
+
+    def _import_ico(self): #vers 1
+        """Import Windows ICO — load largest frame into canvas."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Windows ICO", "", "ICO (*.ico);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            ico = Image.open(path)
+            # Get largest frame
+            sizes = ico.info.get('sizes', [(ico.width, ico.height)])
+            largest = max(sizes, key=lambda s: s[0]*s[1])
+            ico.size = largest
+            ico.seek(0)
+            # Find frame matching largest size
+            try:
+                frames = []
+                while True:
+                    frames.append((ico.size, ico.copy().convert('RGBA')))
+                    ico.seek(ico.tell()+1)
+            except EOFError:
+                pass
+            if frames:
+                best = max(frames, key=lambda f: f[0][0]*f[0][1])
+                img = best[1]
+            else:
+                img = ico.convert('RGBA')
+            # Apply bit depth if set
+            self._canvas_bit_depth = getattr(self,'_canvas_bit_depth',0)
+            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                           os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "ICO Import Error", str(e))
+
+    def _import_svg(self): #vers 1
+        """Import SVG icon — rasterize to current canvas size."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import SVG", "", "SVG (*.svg);;All Files (*)")
+        if not path: return
+        try:
+            # Try cairosvg first, fall back to Qt SVG renderer
+            w = self._canvas_width; h = self._canvas_height
+            try:
+                import cairosvg, io
+                from PIL import Image
+                png_data = cairosvg.svg2png(url=path, output_width=w, output_height=h)
+                img = Image.open(io.BytesIO(png_data)).convert('RGBA')
+            except ImportError:
+                from PyQt6.QtSvg import QSvgRenderer
+                from PyQt6.QtGui import QImage, QPainter
+                renderer = QSvgRenderer(path)
+                qimg = QImage(w, h, QImage.Format.Format_ARGB32)
+                qimg.fill(0)
+                painter = QPainter(qimg)
+                renderer.render(painter)
+                painter.end()
+                from PIL import Image
+                buf = qimg.bits().asarray(w*h*4)
+                # Qt ARGB32 → RGBA
+                arr = bytearray(buf)
+                for i in range(0, len(arr), 4):
+                    arr[i], arr[i+2] = arr[i+2], arr[i]  # BGR→RGB
+                img = Image.frombytes('RGBA',(w,h),bytes(arr))
+            self._load_rgba(bytearray(img.tobytes()), w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "SVG Import Error", str(e))
 
     def _apply_theme(self):
         try:
