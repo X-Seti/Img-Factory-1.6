@@ -611,6 +611,8 @@ class DP5Settings:
         'default_height':    200,
         'retro_palette':     'Amiga AGA WB',
         'show_pixel_grid':   True,
+        'platform_mode':     'none',   # 'none'|'c64'|'c64m'|'spectrum'|'msx'|'cpc'|'atari_st'|'amiga'
+        'show_cell_grid':    False,    # show platform cell boundaries
         'zoom_to_fit_resize': False,
         'show_menubar':       False,
         'menu_style':         'topbar',   # 'topbar' | 'dropdown'
@@ -710,6 +712,16 @@ class DP5SettingsDialog(QDialog):
         self._user_pal_rows_spin = QSpinBox(); self._user_pal_rows_spin.setRange(1, 32)
         self._user_pal_rows_spin.setValue(self.s.get('user_pal_rows'))
         cl.addRow("User palette max rows:", self._user_pal_rows_spin)
+
+        self._platform_combo = QComboBox()
+        self._platform_combo.addItems([
+            'none','amiga','c64','c64m','spectrum','msx','cpc','atari_st'])
+        self._platform_combo.setCurrentText(self.s.get('platform_mode'))
+        cl.addRow("Platform mode:", self._platform_combo)
+
+        self._cell_grid_chk = QCheckBox()
+        self._cell_grid_chk.setChecked(self.s.get('show_cell_grid'))
+        cl.addRow("Show cell grid:", self._cell_grid_chk)
 
         tabs.addTab(canvas_tab, "Canvas")
 
@@ -813,6 +825,8 @@ class DP5SettingsDialog(QDialog):
         self.s.set('img_pal_rows',       self._img_pal_rows_spin.value())
         self.s.set('user_pal_cols',      self._user_pal_cols_spin.value())
         self.s.set('user_pal_rows',      self._user_pal_rows_spin.value())
+        self.s.set('platform_mode',      self._platform_combo.currentText())
+        self.s.set('show_cell_grid',     self._cell_grid_chk.isChecked())
         self.s.set('show_bitmap_list', self._bitmap_chk.isChecked())
         self.s.set('tool_icon_size',   self._icon_size_spin.value())
         self.s.set('tool_icon_color',  self._icon_color_combo.currentText())
@@ -847,6 +861,9 @@ class DP5Canvas(QWidget):
         self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
         self._dither_toggle = False  # alternates per pixel in dither mode
         self.show_grid  = True
+        self.show_cell_grid = False
+        self.cell_w = 8   # platform cell width in pixels
+        self.cell_h = 8   # platform cell height in pixels
         self._drawing   = False
         self._last_pt   = None
         self._preview_start = None
@@ -1268,6 +1285,17 @@ class DP5Canvas(QWidget):
             for x in range(0, sw, iz):
                 painter.drawLine(x, 0, x, sh)
             for y in range(0, sh, iz):
+                painter.drawLine(0, y, sw, y)
+
+        # Platform cell grid
+        if self.show_cell_grid:
+            cw = int(self.cell_w * z)
+            ch = int(self.cell_h * z)
+            pen = QPen(QColor(255, 100, 0, 120), 1, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            for x in range(0, sw+1, cw):
+                painter.drawLine(x, 0, x, sh)
+            for y in range(0, sh+1, ch):
                 painter.drawLine(0, y, sw, y)
 
         # Shape / selection preview overlay (drag-to-draw tools only)
@@ -2570,6 +2598,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._canvas_bit_depth = 8  # 0=32bit, 1=24bit, 2=16bit, 3=8bit
         self._dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
         self._symmetry_mode = 'off'  # cycles: off → H → V → quad
+        self._platform_mode = 'none'
+        self._enforce_constraints = False
         self._canvas_height = self.dp5_settings.get('default_height')
         self._canvas_zoom   = self.dp5_settings.get('default_zoom')
         self._undo_stack    = deque(maxlen=self.dp5_settings.get('undo_levels'))
@@ -3026,6 +3056,23 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ga.triggered.connect(
             lambda v: (setattr(self.dp5_canvas, 'show_grid', v),
                        self.dp5_canvas.update()) if self.dp5_canvas else None)
+        cg = vm.addAction("Cell grid (platform)")
+        cg.setCheckable(True); cg.setChecked(False)
+        cg.triggered.connect(self._toggle_cell_grid)
+
+        # Platform menu
+        plm = mb.addMenu("Platform")
+        plm.addAction("None (free)",              lambda: self._set_platform('none'))
+        plm.addSeparator()
+        plm.addAction("Amiga LowRes  (8×1 cell)", lambda: self._set_platform('amiga'))
+        plm.addAction("C64 Hires     (8×8 cell)", lambda: self._set_platform('c64'))
+        plm.addAction("C64 Multicolor(4×8 cell)", lambda: self._set_platform('c64m'))
+        plm.addAction("ZX Spectrum   (8×8 cell)", lambda: self._set_platform('spectrum'))
+        plm.addAction("MSX1          (8×8 cell)", lambda: self._set_platform('msx'))
+        plm.addAction("Amstrad CPC   (4×8 cell)", lambda: self._set_platform('cpc'))
+        plm.addAction("Atari ST      (16×1 cell)",lambda: self._set_platform('atari_st'))
+        plm.addSeparator()
+        plm.addAction("Enforce colour constraints (toggle)", self._toggle_colour_constraints)
 
     # ── Right panel: gadget bar + palettes ────────────────────────────────────
 
@@ -3637,6 +3684,41 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.update()
         self.dp5_settings.set('show_pixel_grid', on)
 
+    # Platform cell sizes: (cell_w, cell_h, max_colours_per_cell)
+    _PLATFORM_CELLS = {
+        'none':     (1,   1,   256),
+        'amiga':    (8,   1,   32),
+        'c64':      (8,   8,   2),
+        'c64m':     (4,   8,   4),
+        'spectrum': (8,   8,   2),
+        'msx':      (8,   8,   2),
+        'cpc':      (4,   8,   4),
+        'atari_st': (16,  1,   16),
+    }
+
+    def _set_platform(self, mode: str): #vers 1
+        """Set platform mode — updates cell grid size and enables cell grid display."""
+        self._platform_mode = mode
+        cw, ch, _ = self._PLATFORM_CELLS.get(mode, (1,1,256))
+        if self.dp5_canvas:
+            self.dp5_canvas.cell_w = cw
+            self.dp5_canvas.cell_h = ch
+            if mode != 'none':
+                self.dp5_canvas.show_cell_grid = True
+            self.dp5_canvas.update()
+        self.dp5_settings.set('platform_mode', mode)
+        self._set_status(f"Platform: {mode.upper()}  cell {cw}×{ch}")
+
+    def _toggle_cell_grid(self): #vers 1
+        if not self.dp5_canvas: return
+        self.dp5_canvas.show_cell_grid = not self.dp5_canvas.show_cell_grid
+        self.dp5_canvas.update()
+
+    def _toggle_colour_constraints(self): #vers 1
+        """Toggle enforcement of per-cell colour limits for current platform."""
+        self._enforce_constraints = not getattr(self, '_enforce_constraints', False)
+        self._set_status(f"Colour constraints: {'ON' if self._enforce_constraints else 'OFF'}")
+
     def _place_text_at(self, tx: int, ty: int):
         """Prompt for text string and paint it onto the canvas at tex coords."""
         if not self.dp5_canvas: return
@@ -3789,6 +3871,43 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
     def _on_canvas_changed(self, x: int, y: int):
         if self.dp5_canvas:
             self._update_status(x, y, self.dp5_canvas.get_pixel(x, y))
+            if self._enforce_constraints and self._platform_mode != 'none':
+                self._apply_cell_constraint(x, y)
+
+    def _apply_cell_constraint(self, px: int, py: int): #vers 1
+        """Enforce platform max-colours-per-cell by quantizing the affected cell."""
+        if not self.dp5_canvas: return
+        cw, ch, max_c = self._PLATFORM_CELLS.get(self._platform_mode, (1,1,256))
+        if max_c >= 256: return
+        # Find cell origin
+        cx = (px // cw) * cw
+        cy = (py // ch) * ch
+        w = self.dp5_canvas.tex_w
+        h = self.dp5_canvas.tex_h
+        # Collect unique colours in cell
+        colours = {}
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if 0 <= tx < w and 0 <= ty < h:
+                    i = (ty*w+tx)*4
+                    key = tuple(self.dp5_canvas.rgba[i:i+3])
+                    colours[key] = colours.get(key, 0) + 1
+        if len(colours) <= max_c: return
+        # Keep the most frequent max_c colours, remap others to nearest kept
+        kept = sorted(colours, key=lambda k: -colours[k])[:max_c]
+        def nearest(c):
+            return min(kept, key=lambda k: (k[0]-c[0])**2+(k[1]-c[1])**2+(k[2]-c[2])**2)
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if 0 <= tx < w and 0 <= ty < h:
+                    i = (ty*w+tx)*4
+                    key = tuple(self.dp5_canvas.rgba[i:i+3])
+                    if key not in kept:
+                        nr = nearest(key)
+                        self.dp5_canvas.rgba[i:i+3] = list(nr)
+        self.dp5_canvas.update()
 
     def _update_status(self, x: int, y: int, colour: QColor):
         zoom = self._canvas_zoom
@@ -4355,9 +4474,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
             if self.dp5_canvas:
                 self.dp5_canvas.show_grid = self.dp5_settings.get('show_pixel_grid')
+                self.dp5_canvas.show_cell_grid = self.dp5_settings.get('show_cell_grid')
                 self.dp5_canvas.update()
                 if self.dp5_settings.get('zoom_to_fit_resize'):
                     self._fit_canvas_to_viewport()
+            self._set_platform(self.dp5_settings.get('platform_mode'))
 
             if hasattr(self, '_menu_bar'):
                 show_mb = (self.dp5_settings.get('show_menubar') and
