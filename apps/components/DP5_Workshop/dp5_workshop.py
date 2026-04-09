@@ -1303,8 +1303,8 @@ class DP5Canvas(QWidget):
 
         # Platform cell grid
         if self.show_cell_grid:
-            cw = int(self.cell_w * z)
-            ch = int(self.cell_h * z)
+            cw = max(1, int(self.cell_w * z))
+            ch = max(1, int(self.cell_h * z))
             pen = QPen(QColor(255, 100, 0, 120), 1, Qt.PenStyle.DashLine)
             painter.setPen(pen)
             for x in range(0, sw+1, cw):
