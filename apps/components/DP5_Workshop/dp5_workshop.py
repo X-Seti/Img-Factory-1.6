@@ -1005,27 +1005,49 @@ class DP5Canvas(QWidget):
 
     # ── Drawing ops ───────────────────────────────────────────────────────────
 
-    def flood_fill(self, sx: int, sy: int, fill_col: QColor):
-        if not (0 <= sx < self.tex_w and 0 <= sy < self.tex_h):
-            return
-        target = self.get_pixel(sx, sy)
-        if (target.red()   == fill_col.red()  and
-                target.green() == fill_col.green() and
-                target.blue()  == fill_col.blue()  and
-                target.alpha() == fill_col.alpha()):
-            return
-        stack, visited = [(sx, sy)], set()
+    def flood_fill(self, sx: int, sy: int, fill_col: QColor): #vers 3
+        """Scanline flood fill — O(n) time, O(sqrt n) stack depth."""
+        if not (0 <= sx < self.tex_w and 0 <= sy < self.tex_h): return
+        w, h = self.tex_w, self.tex_h
+        ti = (sy*w+sx)*4
+        tr,tg,tb,ta = self.rgba[ti], self.rgba[ti+1], self.rgba[ti+2], self.rgba[ti+3]
+        fr,fg,fb,fa = fill_col.red(), fill_col.green(), fill_col.blue(), fill_col.alpha()
+        if (tr,tg,tb,ta) == (fr,fg,fb,fa): return
+
+        def match(x, y):
+            i = (y*w+x)*4
+            return (self.rgba[i]==tr and self.rgba[i+1]==tg and
+                    self.rgba[i+2]==tb and self.rgba[i+3]==ta)
+
+        stack = [(sx, sy)]
         while stack:
             x, y = stack.pop()
-            if (x, y) in visited: continue
-            if not (0 <= x < self.tex_w and 0 <= y < self.tex_h): continue
-            px = self.get_pixel(x, y)
-            if (px.red()!=target.red() or px.green()!=target.green() or
-                    px.blue()!=target.blue() or px.alpha()!=target.alpha()):
-                continue
-            visited.add((x, y))
-            self.set_pixel(x, y, fill_col)
-            stack.extend([(x+1,y),(x-1,y),(x,y+1),(x,y-1)])
+            if not (0 <= y < h): continue
+            if not (0 <= x < w and match(x, y)): continue
+            # Extend left
+            x1 = x
+            while x1 > 0 and match(x1-1, y): x1 -= 1
+            # Extend right
+            x2 = x
+            while x2 < w-1 and match(x2+1, y): x2 += 1
+            # Paint span
+            for xi in range(x1, x2+1):
+                i = (y*w+xi)*4
+                self.rgba[i]=fr; self.rgba[i+1]=fg
+                self.rgba[i+2]=fb; self.rgba[i+3]=fa
+            # Seed rows above and below — track entry/exit of matching regions
+            for dy in (-1, 1):
+                ny = y + dy
+                if not (0 <= ny < h): continue
+                in_span = False
+                for xi in range(x1, x2+1):
+                    if match(xi, ny):
+                        if not in_span:
+                            stack.append((xi, ny))
+                            in_span = True
+                    else:
+                        in_span = False
+        self.update()
 
     def draw_line(self, x0, y0, x1, y1, c: QColor):
         dx, dy = abs(x1-x0), abs(y1-y0)
@@ -4100,7 +4122,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if self.dp5_canvas:
             self._update_status(x, y, self.dp5_canvas.get_pixel(x, y))
             if self._enforce_constraints and self._platform_mode != 'none':
-                self._apply_cell_constraint(x, y)
+                # Debounce — only apply constraint after mouse settles
+                if not hasattr(self, '_constraint_timer'):
+                    from PyQt6.QtCore import QTimer
+                    self._constraint_timer = QTimer()
+                    self._constraint_timer.setSingleShot(True)
+                    self._constraint_timer.timeout.connect(self._apply_pending_constraint)
+                self._constraint_pending = (x, y)
+                self._constraint_timer.start(80)  # 80ms debounce
+
+    def _apply_pending_constraint(self): #vers 1
+        if hasattr(self, '_constraint_pending') and self.dp5_canvas:
+            x, y = self._constraint_pending
+            self._apply_cell_constraint(x, y)
 
     # Platform palettes for constraint snapping
     _ZX_PALETTE = [
@@ -5371,17 +5405,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "IFF Export Error", str(e))
 
-    def _export_iff_ham(self): #vers 1
-        """Export Amiga IFF ILBM in HAM6 mode (4096 colours via hold-and-modify)."""
+    def _export_iff_ham(self): #vers 2
+        """Export Amiga IFF ILBM in HAM6 mode (6 bitplanes, CAMG=0x800)."""
         if not self.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(
             self, "Export IFF HAM", "image_ham.iff", "IFF ILBM (*.iff)")
         if not path: return
         try:
-            from PIL import Image
-            from apps.methods.iff_ilbm import write_iff_ilbm
+            import struct
             w, h = self._canvas_width, self._canvas_height
-            # Build 16-colour HAM base palette from user palette
+            # Build 16-colour base palette
             if hasattr(self,'_user_pal_grid') and self._user_pal_grid._colors:
                 base_pal = [(c.red(),c.green(),c.blue())
                             for c in self._user_pal_grid._colors[:16]]
@@ -5391,42 +5424,70 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
             def nearest_base(r,g,b):
                 return min(range(16),
-                           key=lambda i:(base_pal[i][0]-r)**2+(base_pal[i][1]-g)**2+(base_pal[i][2]-b)**2)
+                    key=lambda i:(base_pal[i][0]-r)**2+(base_pal[i][1]-g)**2+(base_pal[i][2]-b)**2)
 
-            # HAM encode: produce 6-bit pixel data
-            # Bits 7-6: 00=use index 0-15, 01=mod B, 10=mod R, 11=mod G
-            # Bits 5-0: value (4-bit colour component in upper 4 bits, padded)
-            ham_pixels = []
+            # HAM6 encode — 6 bits per pixel, 6 bitplanes
+            # control bits 5-4: 00=palette, 01=mod B, 10=mod R, 11=mod G
+            # bits 3-0: 4-bit value
+            rows = []
             for ty in range(h):
                 pr,pg,pb = 0,0,0
+                row = []
                 for tx in range(w):
-                    i=(ty*w+tx)*4
+                    i = (ty*w+tx)*4
                     r,g,b = self.dp5_canvas.rgba[i:i+3]
-                    # Find best encoding
                     bi = nearest_base(r,g,b)
                     bc = base_pal[bi]
                     err_idx = (bc[0]-r)**2+(bc[1]-g)**2+(bc[2]-b)**2
-                    r4=(r>>4); g4=(g>>4); b4=(b>>4)
-                    err_r=(r4*17-r)**2+(pg-g)**2+(pb-b)**2
-                    err_g=(pr-r)**2+(g4*17-g)**2+(pb-b)**2
-                    err_b=(pr-r)**2+(pg-g)**2+(b4*17-b)**2
-                    best=min(err_idx,err_r,err_g,err_b)
-                    if best==err_idx:
-                        ham_pixels.append(bi); pr,pg,pb=bc
-                    elif best==err_r:
-                        ham_pixels.append(0x20|r4); pr=r4*17
-                    elif best==err_g:
-                        ham_pixels.append(0x30|g4); pg=g4*17
+                    r4,g4,b4 = r>>4, g>>4, b>>4
+                    err_r = (r4*17-r)**2+(pg-g)**2+(pb-b)**2
+                    err_g = (pr-r)**2+(g4*17-g)**2+(pb-b)**2
+                    err_b = (pr-r)**2+(pg-g)**2+(b4*17-b)**2
+                    best = min(err_idx,err_r,err_g,err_b)
+                    if best == err_idx:
+                        row.append(bi); pr,pg,pb = bc
+                    elif best == err_r:
+                        row.append(0x20|r4); pr = r4*17
+                    elif best == err_g:
+                        row.append(0x30|g4); pg = g4*17
                     else:
-                        ham_pixels.append(0x10|b4); pb=b4*17
+                        row.append(0x10|b4); pb = b4*17
+                rows.append(row)
 
-            # Write as IFF with CAMG chunk marking HAM mode (0x800)
-            # Use write_iff_ilbm and patch in CAMG
-            data = write_iff_ilbm(w, h, base_pal, bytes(ham_pixels))
-            open(path,'wb').write(data)
+            # Pack 6 bitplanes per row
+            n_planes = 6
+            row_bytes = (w + 15) // 16 * 2  # words per row
+            body = bytearray()
+            for row in rows:
+                planes = [bytearray(row_bytes) for _ in range(n_planes)]
+                for x, px in enumerate(row):
+                    for p in range(n_planes):
+                        if px & (1 << p):
+                            byte_i = x // 8
+                            planes[p][byte_i] |= 0x80 >> (x % 8)
+                for p in planes:
+                    body += bytes(p)
+
+            def chunk(tag, data):
+                d = bytes(data)
+                c = tag.encode() + struct.pack('>I', len(d)) + d
+                if len(d) % 2: c += b'\x00'
+                return c
+
+            bmhd = struct.pack('>HHhhBBBBHBBhh',
+                w, h, 0, 0, n_planes, 0, 0, 0, 1, 8, 8, w, h)
+            cmap = b''.join(bytes(c) for c in base_pal)
+            camg = struct.pack('>I', 0x0800)  # HAM mode flag
+            form_data = (b'ILBM' + chunk('BMHD', bmhd) +
+                         chunk('CMAP', cmap) + chunk('CAMG', camg) +
+                         chunk('BODY', body))
+            out = b'FORM' + struct.pack('>I', len(form_data)) + form_data
+            open(path,'wb').write(out)
             self._set_status(f"Exported IFF HAM: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "IFF HAM Export Error", str(e))
+
+    def _export_scr(self): #vers 1
         """Export ZX Spectrum SCR (256×192, 6144 bitmap + 768 attr bytes)."""
         if not self.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(
