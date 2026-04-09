@@ -3869,7 +3869,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         img = Image.frombytes('RGBA', (w, h), rgba)
 
         if mode == 'platform':
-            # Resize to platform resolution and snap palette
             plat = self._platform_mode
             plat_res = {
                 'c64':      (320, 200), 'c64m':     (160, 200),
@@ -3881,11 +3880,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             }
             if plat in plat_res:
                 pw, ph = plat_res[plat]
-                img = img.resize((pw, ph), Image.NEAREST)
+                img = img.resize((pw, ph), Image.LANCZOS)
                 self._canvas_width  = pw
                 self._canvas_height = ph
-            # Reduce to 8-bit for retro platforms
-            img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+            # Snap to platform palette then apply cell constraints
+            img = self._snap_image_to_platform_palette(img)
             self._canvas_bit_depth = 3
 
         elif mode == 'texture':
@@ -4221,6 +4220,57 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._apply_generic_constraint(cx, cy, cw, ch, w, h, max_c)
 
         self.dp5_canvas.update()
+
+    def _snap_image_to_platform_palette(self, img): #vers 1
+        """Snap every pixel in a PIL RGBA image to the nearest platform palette colour.
+        Returns the modified image. Used when loading an image in platform mode."""
+        mode = self._platform_mode
+        # Get the platform palette as a flat list of (r,g,b) tuples
+        pal_map = {
+            'c64':       self._C64_PALETTE,
+            'c64m':      self._C64_PALETTE,
+            'spectrum':  self._ZX_PALETTE,
+            'specnext':  None,   # 256 colour — no snap needed
+            'msx':       self._MSX_PALETTE,
+            'cpc':       self._CPC_PALETTE,
+            'cpc1':      self._CPC_PALETTE,
+            'atari_st':  self._ATARI_ST_PALETTE,
+            'amiga':     [(0,0,0),(255,255,255),(170,0,0),(85,255,255),
+                          (170,0,170),(85,255,85),(0,0,170),(255,255,85),
+                          (170,85,0),(85,85,0),(255,119,119),(85,85,85),
+                          (119,119,119),(170,255,170),(85,136,255),(170,170,170),
+                          (0,0,0),(17,17,17),(34,34,34),(51,51,51),
+                          (68,68,68),(85,85,85),(102,102,102),(119,119,119),
+                          (136,136,136),(153,153,153),(170,170,170),(187,187,187),
+                          (204,204,204),(221,221,221),(238,238,238),(255,255,255)],
+            'amiga_aga': None,   # 256 colour — no snap needed
+            'amiga_ham': None,   # handled by HAM constraint
+            'amiga_ham8':None,
+            'amiga_rtg': None,
+            'plus4':     self._C64_PALETTE,
+            'vic20':     self._C64_PALETTE,
+        }
+        palette = pal_map.get(mode)
+        if palette is None:
+            return img   # no snap for full-colour modes
+
+        from PIL import Image
+        rgb = img.convert('RGB')
+        px = list(rgb.getdata())
+        w, h = rgb.size
+
+        # Build a PIL palette image for fast quantization to platform colours
+        n = len(palette)
+        pal_img = Image.new('P', (1, 1))
+        flat = []
+        for r,g,b in palette:
+            flat += [r,g,b]
+        flat += [0] * (768 - len(flat))
+        pal_img.putpalette(flat)
+
+        # Quantize to platform palette (nearest colour, no dither)
+        snapped = rgb.quantize(palette=pal_img, dither=0).convert('RGB').convert('RGBA')
+        return snapped
 
     def _apply_spectrum_clash(self, cx, cy, cw, ch, w, h): #vers 1
         """Enforce ZX Spectrum colour clash: max 2 colours per 8×8 cell,
@@ -5052,7 +5102,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             locked = getattr(self, '_mode_locked', False)
 
             if locked and mode == 'platform':
-                # Resize to platform res, reduce bit depth to 8-bit, snap palette
+                # 1. Resize to platform resolution
                 plat = getattr(self, '_platform_mode', 'none')
                 plat_res = {
                     'c64':(320,200),'c64m':(160,200),'spectrum':(256,192),
@@ -5062,8 +5112,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 }
                 if plat in plat_res:
                     w, h = plat_res[plat]
-                    img = img.resize((w, h), Image.NEAREST)
-                img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+                    img = img.resize((w, h), Image.LANCZOS)
+                # 2. Snap every pixel to nearest platform palette colour
+                img = self._snap_image_to_platform_palette(img)
                 self._canvas_bit_depth = 3
 
             elif locked and mode == 'texture':
@@ -5126,17 +5177,34 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 if fit_z >= snap: fit_z = snap; break
             self._set_zoom(max(0.05, fit_z))
 
-            # Extract palette
-            p_img    = img.quantize(colors=256)
-            pal_flat = p_img.getpalette()
-            palette  = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
-            self.pal_bar.set_palette_raw(palette)
+            # Update image palette display
+            if locked and mode == 'platform' and self._platform_mode in (
+                    'c64','c64m','spectrum','msx','cpc','cpc1','atari_st',
+                    'amiga','plus4','vic20'):
+                # Show the actual platform palette
+                pal_src = {
+                    'c64':self._C64_PALETTE,'c64m':self._C64_PALETTE,
+                    'spectrum':self._ZX_PALETTE,'msx':self._MSX_PALETTE,
+                    'cpc':self._CPC_PALETTE,'cpc1':self._CPC_PALETTE,
+                    'atari_st':self._ATARI_ST_PALETTE,
+                    'plus4':self._C64_PALETTE,'vic20':self._C64_PALETTE,
+                }.get(self._platform_mode, [])
+                if pal_src:
+                    self.pal_bar.set_palette_raw(pal_src)
+            else:
+                p_img    = img.quantize(colors=256)
+                pal_flat = p_img.getpalette()
+                palette  = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
+                self.pal_bar.set_palette_raw(palette)
 
-            # Apply platform constraints if in platform mode
+            # Apply platform cell constraints across the whole image
             if locked and mode == 'platform' and self._enforce_constraints:
-                for py in range(0, h, max(1, self.dp5_canvas.cell_h)):
-                    for px in range(0, w, max(1, self.dp5_canvas.cell_w)):
-                        self._apply_cell_constraint(px, py)
+                cw = max(1, self.dp5_canvas.cell_w)
+                ch = max(1, self.dp5_canvas.cell_h)
+                for cy in range(0, h, ch):
+                    for cx in range(0, w, cw):
+                        self._apply_cell_constraint(cx, cy)
+                self.dp5_canvas.update()
 
             name = os.path.basename(path)
             self._bitmap_list.append({'name': name, 'rgba': new_rgba, 'w': w, 'h': h})
