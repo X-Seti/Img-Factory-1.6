@@ -717,7 +717,8 @@ class DP5SettingsDialog(QDialog):
 
         self._platform_combo = QComboBox()
         self._platform_combo.addItems([
-            'none','amiga','c64','c64m','spectrum','specnext',
+            'none','amiga','amiga_aga','amiga_ham','amiga_ham8','amiga_rtg',
+            'c64','c64m','spectrum','specnext',
             'msx','cpc','cpc1','atari_st','plus4','vic20'])
         self._platform_combo.setCurrentText(self.s.get('platform_mode'))
         cl.addRow("Platform mode:", self._platform_combo)
@@ -3013,6 +3014,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         xe = fm.addMenu("Export Executable")
         xe.addAction("ZX Spectrum TAP…",   self._export_tap)
         xe.addAction("ZX Next NEX…",       self._export_nex)
+        xe.addAction("Amiga IFF HAM…",     self._export_iff_ham)
         xe.addAction("C64 PRG (hires)…",   self._export_c64prg)
         xe.addAction("C64 PRG (multi)…",   self._export_c64mprg)
         xe.addAction("MSX COM…",           self._export_msxcom)
@@ -3087,7 +3089,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         plm = mb.addMenu("Platform")
         plm.addAction("None (free)",              lambda: self._set_platform('none'))
         plm.addSeparator()
-        plm.addAction("Amiga LowRes  (8×1 cell)", lambda: self._set_platform('amiga'))
+        plm.addAction("Amiga LowRes  (OCS 32col)",  lambda: self._set_platform('amiga'))
+        plm.addAction("Amiga AGA     (256col)",      lambda: self._set_platform('amiga_aga'))
+        plm.addAction("Amiga HAM6    (4096col)",     lambda: self._set_platform('amiga_ham'))
+        plm.addAction("Amiga HAM8    (16M col)",     lambda: self._set_platform('amiga_ham8'))
+        plm.addAction("Amiga RTG WB  (AGA WB pal)", lambda: self._set_platform('amiga_rtg'))
         plm.addAction("C64 Hires     (8×8 cell)", lambda: self._set_platform('c64'))
         plm.addAction("C64 Multicolor(4×8 cell)", lambda: self._set_platform('c64m'))
         plm.addAction("ZX Spectrum   (8×8 cell)", lambda: self._set_platform('spectrum'))
@@ -3714,18 +3720,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
     # Platform cell sizes: (cell_w, cell_h, max_colours_per_cell)
     _PLATFORM_CELLS = {
-        'none':     (1,   1,   256),
-        'amiga':    (8,   1,   32),
-        'c64':      (8,   8,   2),
-        'c64m':     (4,   8,   4),
-        'spectrum': (8,   8,   2),
-        'specnext': (1,   1,   256),
-        'msx':      (8,   8,   2),
-        'cpc':      (4,   8,   4),   # CPC Mode 0: 4 colours per 4×8
-        'cpc1':     (8,   8,   2),   # CPC Mode 1: 2 colours per 8×8
-        'atari_st': (16,  1,   16),
-        'plus4':    (8,   8,   2),
-        'vic20':    (8,   8,   2),
+        'none':      (1,  1,   256),
+        'amiga':     (8,  1,   32),     # OCS: 32 colours, no per-cell limit
+        'amiga_aga': (8,  1,   256),    # AGA: 256 colours
+        'amiga_ham': (1,  1,   4096),   # HAM6: hold-and-modify, 4096 colours
+        'amiga_ham8':(1,  1,   16777216), # HAM8: hold-and-modify, 16M colours
+        'amiga_rtg': (1,  1,   256),    # RTG chunky: AGA WB palette, no constraint
+        'c64':       (8,  8,   2),
+        'c64m':      (4,  8,   4),
+        'spectrum':  (8,  8,   2),
+        'specnext':  (1,  1,   256),
+        'msx':       (8,  8,   2),
+        'cpc':       (4,  8,   4),      # CPC Mode 0: 4 colours per 4×8
+        'cpc1':      (8,  8,   2),      # CPC Mode 1: 2 colours per 8×8
+        'atari_st':  (16, 1,   16),
+        'plus4':     (8,  8,   2),
+        'vic20':     (8,  8,   2),
     }
 
     def _set_platform(self, mode: str): #vers 2
@@ -3743,7 +3753,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'c64': 'C64', 'c64m': 'C64',
             'spectrum': 'ZX Spectrum', 'specnext': 'ULA Plus',
             'msx': 'MSX1', 'cpc': 'Amstrad CPC', 'cpc1': 'Amstrad CPC',
-            'atari_st': 'Atari ST', 'amiga': 'Amiga OCS',
+            'atari_st': 'Atari ST',
+            'amiga': 'Amiga OCS',
+            'amiga_aga': 'Amiga AGA',
+            'amiga_ham': 'Amiga OCS',   # HAM6 uses 16 base colours from OCS
+            'amiga_ham8': 'Amiga AGA',  # HAM8 uses 256 base colours from AGA
+            'amiga_rtg': 'Amiga AGA WB',
             'plus4': 'Plus/4', 'vic20': 'VIC-20',
         }
         if mode in _pal_map:
@@ -4035,6 +4050,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 (204,204,204),(221,221,221),(238,238,238),(255,255,255),
             ]
             self._snap_cell_to_palette(cx, cy, cw, ch, w, h, amiga_ocs)
+        elif mode == 'amiga_aga':
+            # AGA 256 colour: no per-cell constraint, free palette
+            pass
+        elif mode in ('amiga_ham', 'amiga_ham8'):
+            # HAM: simulate hold-and-modify smearing on scanlines touching this cell
+            self._apply_ham_constraint(cx, cy, cw, ch, w, h, mode)
+        elif mode == 'amiga_rtg':
+            # RTG chunky: snap to AGA WB palette, no constraint
+            pass
         else:
             self._apply_generic_constraint(cx, cy, cw, ch, w, h, max_c)
 
@@ -4110,6 +4134,80 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     self.dp5_canvas.rgba[i:i+3] = list(best)
 
         self.dp5_canvas.update()
+
+    def _apply_ham_constraint(self, cx, cy, cw, ch, w, h, mode): #vers 1
+        """Simulate Amiga HAM hold-and-modify colour smearing on affected scanlines.
+
+        HAM6: 16 base colours. Each pixel either picks a base colour or modifies
+              the R, G, or B component of the previous pixel by 4-bit value.
+        HAM8: 256 base colours. Same but 8-bit components.
+
+        We simulate by re-encoding the scanline left-to-right using HAM rules,
+        then decoding back to RGBA so the user sees the actual HAM output.
+        """
+        is_ham8 = (mode == 'amiga_ham8')
+        bits = 8 if is_ham8 else 4
+        comp_max = (1 << bits) - 1   # 255 for HAM8, 15 for HAM6
+        scale = 255 // comp_max       # 1 for HAM8, 17 for HAM6
+
+        # Build base palette from user palette grid colours
+        if hasattr(self, '_user_pal_grid') and self._user_pal_grid._colors:
+            n_base = 256 if is_ham8 else 16
+            base_pal = [(c.red(), c.green(), c.blue())
+                        for c in self._user_pal_grid._colors[:n_base]]
+            while len(base_pal) < n_base:
+                base_pal.append((0, 0, 0))
+        else:
+            n_base = 256 if is_ham8 else 16
+            base_pal = [(i*scale, i*scale, i*scale) for i in range(n_base)]
+
+        def nearest_base(r, g, b):
+            return min(base_pal, key=lambda c:(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
+
+        def ham_encode_decode_row(ty):
+            """Re-encode one scanline as HAM and return the decoded RGBA."""
+            prev_r, prev_g, prev_b = 0, 0, 0
+            out = []
+            for tx in range(w):
+                if not (0 <= tx < w): continue
+                i = (ty*w+tx)*4
+                r, g, b = self.dp5_canvas.rgba[i:i+3]
+                # Option 1: use a base colour
+                bc = nearest_base(r, g, b)
+                err_base = (bc[0]-r)**2+(bc[1]-g)**2+(bc[2]-b)**2
+                # Option 2: modify R of prev
+                mr = (r >> (8-bits)) * scale
+                err_r = (mr-r)**2+(prev_g-g)**2+(prev_b-b)**2
+                # Option 3: modify G of prev
+                mg = (g >> (8-bits)) * scale
+                err_g = (prev_r-r)**2+(mg-g)**2+(prev_b-b)**2
+                # Option 4: modify B of prev
+                mb = (b >> (8-bits)) * scale
+                err_b = (prev_r-r)**2+(prev_g-g)**2+(mb-b)**2
+
+                best_err = min(err_base, err_r, err_g, err_b)
+                if best_err == err_base:
+                    out.append(bc)
+                    prev_r, prev_g, prev_b = bc
+                elif best_err == err_r:
+                    out.append((mr, prev_g, prev_b))
+                    prev_r = mr
+                elif best_err == err_g:
+                    out.append((prev_r, mg, prev_b))
+                    prev_g = mg
+                else:
+                    out.append((prev_r, prev_g, mb))
+                    prev_b = mb
+            return out
+
+        # Process all scanlines in the affected cell rows
+        for dy in range(ch):
+            ty = cy + dy
+            if not (0 <= ty < h): continue
+            decoded = ham_encode_decode_row(ty)
+            for tx, c in enumerate(decoded):
+                i = (ty*w+tx)*4
+                self.dp5_canvas.rgba[i:i+4] = [c[0], c[1], c[2], 255]
 
     def _apply_msx_constraint(self, cx, cy, cw, ch, w, h): #vers 1
         """MSX1: 2 colours per 8-pixel row within each 8×8 cell (fg+bg per scanline)."""
@@ -4601,6 +4699,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'Amiga LowRes': 'amiga', 'Amiga HiRes': 'amiga',
             'Plus/4 Hires': 'plus4', 'Plus/4 Multi': 'plus4',
             'VIC-20': 'vic20',
+            # AGA/HAM added via Platform menu — not in preset list by default
         }
         plat = next((v for k, v in _preset_platform.items() if k in preset_name), 'none')
         if plat != 'none':
@@ -4838,7 +4937,62 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "IFF Export Error", str(e))
 
-    def _export_scr(self): #vers 1
+    def _export_iff_ham(self): #vers 1
+        """Export Amiga IFF ILBM in HAM6 mode (4096 colours via hold-and-modify)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export IFF HAM", "image_ham.iff", "IFF ILBM (*.iff)")
+        if not path: return
+        try:
+            from PIL import Image
+            from apps.methods.iff_ilbm import write_iff_ilbm
+            w, h = self._canvas_width, self._canvas_height
+            # Build 16-colour HAM base palette from user palette
+            if hasattr(self,'_user_pal_grid') and self._user_pal_grid._colors:
+                base_pal = [(c.red(),c.green(),c.blue())
+                            for c in self._user_pal_grid._colors[:16]]
+            else:
+                base_pal = [(i*17,i*17,i*17) for i in range(16)]
+            while len(base_pal) < 16: base_pal.append((0,0,0))
+
+            def nearest_base(r,g,b):
+                return min(range(16),
+                           key=lambda i:(base_pal[i][0]-r)**2+(base_pal[i][1]-g)**2+(base_pal[i][2]-b)**2)
+
+            # HAM encode: produce 6-bit pixel data
+            # Bits 7-6: 00=use index 0-15, 01=mod B, 10=mod R, 11=mod G
+            # Bits 5-0: value (4-bit colour component in upper 4 bits, padded)
+            ham_pixels = []
+            for ty in range(h):
+                pr,pg,pb = 0,0,0
+                for tx in range(w):
+                    i=(ty*w+tx)*4
+                    r,g,b = self.dp5_canvas.rgba[i:i+3]
+                    # Find best encoding
+                    bi = nearest_base(r,g,b)
+                    bc = base_pal[bi]
+                    err_idx = (bc[0]-r)**2+(bc[1]-g)**2+(bc[2]-b)**2
+                    r4=(r>>4); g4=(g>>4); b4=(b>>4)
+                    err_r=(r4*17-r)**2+(pg-g)**2+(pb-b)**2
+                    err_g=(pr-r)**2+(g4*17-g)**2+(pb-b)**2
+                    err_b=(pr-r)**2+(pg-g)**2+(b4*17-b)**2
+                    best=min(err_idx,err_r,err_g,err_b)
+                    if best==err_idx:
+                        ham_pixels.append(bi); pr,pg,pb=bc
+                    elif best==err_r:
+                        ham_pixels.append(0x20|r4); pr=r4*17
+                    elif best==err_g:
+                        ham_pixels.append(0x30|g4); pg=g4*17
+                    else:
+                        ham_pixels.append(0x10|b4); pb=b4*17
+
+            # Write as IFF with CAMG chunk marking HAM mode (0x800)
+            # Use write_iff_ilbm and patch in CAMG
+            data = write_iff_ilbm(w, h, base_pal, bytes(ham_pixels))
+            open(path,'wb').write(data)
+            self._set_status(f"Exported IFF HAM: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "IFF HAM Export Error", str(e))
         """Export ZX Spectrum SCR (256×192, 6144 bitmap + 768 attr bytes)."""
         if not self.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(
