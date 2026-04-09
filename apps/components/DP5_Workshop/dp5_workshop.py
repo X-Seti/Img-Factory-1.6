@@ -2619,6 +2619,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._enforce_constraints = False
         self._canvas_mode   = 'free'   # 'free'|'platform'|'texture'|'icon'
         self._mode_locked   = False    # lock prevents mode change without confirmation
+        self._mode_btns     = {}       # empty — mode set via menu only
         self._canvas_height = self.dp5_settings.get('default_height')
         self._canvas_zoom   = self.dp5_settings.get('default_zoom')
         self._undo_stack    = deque(maxlen=self.dp5_settings.get('undo_levels'))
@@ -2768,24 +2769,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
 
-        # ── Canvas mode selector ───────────────────────────────────────────
-        self._mode_btns = {}
-        for mode_id, mode_label, mode_tip in [
-            ('free',     'Free',     'Free canvas — no mode constraints'),
-            ('platform', 'Platform', 'Platform mode — retro computer constraints'),
-            ('texture',  'Texture',  'Texture mode — game texture sizes and bit depths'),
-            ('icon',     'Icon',     'Icon mode — icon sizes and formats'),
-        ]:
-            btn = QPushButton(mode_label)
-            btn.setFont(QFont("Arial", max(7, self.button_font.pointSize()-1)))
-            btn.setCheckable(True)
-            btn.setChecked(mode_id == 'free')
-            btn.setToolTip(mode_tip)
-            btn.setMinimumHeight(22); btn.setMaximumHeight(22)
-            btn.clicked.connect(lambda _, m=mode_id: self._set_canvas_mode(m))
-            layout.addWidget(btn)
-            self._mode_btns[mode_id] = btn
-
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
@@ -2820,9 +2803,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout.addStretch()
 
         # ── [New][Load][Save][Undo][Clear][Brushes] after title ──────────────
-        self.tb_new_btn    = _tb("New",    "New canvas…",
+        self.tb_new_btn    = _tb("New",    "New canvas… (right-click to set mode)",
                                   self._new_canvas,
                                   SVGIconFactory.new_icon)
+        self.tb_new_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tb_new_btn.customContextMenuRequested.connect(self._new_btn_context_menu)
         self.tb_load_btn   = _tb("Load",   "Load / open image file",
                                   self._import_bitmap,
                                   SVGIconFactory.open_icon)
@@ -3123,6 +3108,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         sb = vm.addAction("Status bar")
         sb.setCheckable(True); sb.setChecked(self.dp5_settings.get('show_statusbar'))
         sb.triggered.connect(self._toggle_statusbar)
+        vm.addSeparator()
+        # Canvas mode
+        cm = vm.addMenu("Canvas Mode")
+        for mode_id, mode_label in [
+            ('free',     'Free — no constraints'),
+            ('platform', 'Platform — retro computer'),
+            ('texture',  'Texture — game textures'),
+            ('icon',     'Icon — icons and sprites'),
+        ]:
+            a = cm.addAction(mode_label, lambda _, m=mode_id: self._set_canvas_mode(m, confirm=True))
+            a.setCheckable(True)
+            a.setChecked(mode_id == self._canvas_mode)
 
         # Platform menu
         plm = mb.addMenu("Platform")
@@ -4722,6 +4719,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             nw, nh = w_spin.value(), h_spin.value()
             self._pil_transform(lambda i, nw=nw, nh=nh, m=method:
                                 i.resize((nw, nh), m))
+
+    def _new_btn_context_menu(self, pos): #vers 1
+        """Right-click on New button — pick mode then open New Canvas on that tab."""
+        menu = QMenu(self)
+        menu.addAction("New — Free canvas",     lambda: (self._set_canvas_mode('free',     confirm=False), self._new_canvas()))
+        menu.addAction("New — Platform canvas", lambda: (self._set_canvas_mode('platform', confirm=False), self._new_canvas()))
+        menu.addAction("New — Texture canvas",  lambda: (self._set_canvas_mode('texture',  confirm=False), self._new_canvas()))
+        menu.addAction("New — Icon canvas",     lambda: (self._set_canvas_mode('icon',     confirm=False), self._new_canvas()))
+        btn = getattr(self, 'tb_new_btn', None)
+        menu.exec(btn.mapToGlobal(pos) if btn else self.cursor().pos())
 
     def _new_canvas(self): #vers 4
         """New canvas dialog — tabbed: Platform / Texture / Icon / Custom."""
