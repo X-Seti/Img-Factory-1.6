@@ -617,6 +617,8 @@ class DP5Settings:
         'show_statusbar':    True,     # show bottom status bar
         'ui_font_size':      10,       # toolbar/button font size
         'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
+        'show_anim_strip':   False,    # show animation timeline strip
+        'anim_fps':          12,       # default animation FPS
         'zoom_to_fit_resize': False,
         'show_menubar':       False,
         'menu_style':         'topbar',   # 'topbar' | 'dropdown'
@@ -896,7 +898,9 @@ class DP5Canvas(QWidget):
         self.show_cell_grid = False
         self.cell_w = 8
         self.cell_h = 8
-        self.grid_color = QColor(128, 128, 128, 60)  # overrideable from settings
+        self.grid_color = QColor(128, 128, 128, 60)
+        self.onion_skin = False
+        self.onion_rgba = None   # previous frame rgba for onion skin
         self._drawing   = False
         self._last_pt   = None
         self._preview_start = None
@@ -1331,6 +1335,16 @@ class DP5Canvas(QWidget):
                              Qt.TransformationMode.FastTransformation)
         # Draw at (0,0) — scroll area handles viewport offset via scrollbars
         painter.drawImage(0, 0, scaled)
+
+        # Onion skin — previous frame at 40% opacity
+        if self.onion_skin and self.onion_rgba and len(self.onion_rgba) == self.tex_w*self.tex_h*4:
+            onion_img = QImage(bytes(self.onion_rgba), self.tex_w, self.tex_h,
+                               self.tex_w*4, QImage.Format.Format_RGBA8888)
+            onion_scaled = onion_img.scaled(sw, sh, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                            Qt.TransformationMode.FastTransformation)
+            painter.setOpacity(0.4)
+            painter.drawImage(0, 0, onion_scaled)
+            painter.setOpacity(1.0)
 
         # Pixel grid (only at zoom ≥4)
         if self.show_grid and z >= 4:
@@ -2657,9 +2671,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._symmetry_mode = 'off'  # cycles: off → H → V → quad
         self._platform_mode = 'none'
         self._enforce_constraints = False
-        self._canvas_mode   = 'free'   # 'free'|'platform'|'texture'|'icon'
-        self._mode_locked   = False    # lock prevents mode change without confirmation
-        self._mode_btns     = {}       # empty — mode set via menu only
+        self._canvas_mode   = 'free'
+        self._mode_locked   = False
+        self._mode_btns     = {}
+        # Animation
+        self._frames        = []    # list of bytearray (rgba per frame)
+        self._frame_delays  = []    # ms delay per frame
+        self._current_frame = 0
+        self._anim_playing  = False
+        self._anim_timer    = None
         self._canvas_height = self.dp5_settings.get('default_height')
         self._canvas_zoom   = self.dp5_settings.get('default_zoom')
         self._undo_stack    = deque(maxlen=self.dp5_settings.get('undo_levels'))
@@ -3024,6 +3044,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             layout.addWidget(err)
             self.dp5_canvas = None
 
+        # Animation timeline strip
+        self._anim_strip = self._create_anim_strip()
+        self._anim_strip.setVisible(self.dp5_settings.get('show_anim_strip', False))
+        layout.addWidget(self._anim_strip)
+
         # Status bar — canvas-wide only, 22px fixed height
         self._status_bar = QStatusBar()
         self._status_bar.setSizeGripEnabled(False)
@@ -3042,6 +3067,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm.addAction("Open + snap to user palette…", self._import_bitmap_snap_user_pal)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
+        fm.addSeparator()
+        am = fm.addMenu("Animation")
+        am.addAction("Export animated GIF…",  self._anim_export_gif)
+        am.addAction("Export PNG sequence…",  self._anim_export_png_seq)
         fm.addSeparator()
 
         # ── Platform ──────────────────────────────────────────────────────
@@ -3156,6 +3185,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         sb = vm.addAction("Status bar")
         sb.setCheckable(True); sb.setChecked(self.dp5_settings.get('show_statusbar'))
         sb.triggered.connect(self._toggle_statusbar)
+        an = vm.addAction("Animation timeline")
+        an.setCheckable(True); an.setChecked(self.dp5_settings.get('show_anim_strip', False))
+        an.triggered.connect(self._toggle_anim_strip)
+        os_act = vm.addAction("Onion skin")
+        os_act.setCheckable(True); os_act.setChecked(False)
+        os_act.triggered.connect(self._toggle_onion_skin)
         vm.addSeparator()
         # Canvas mode
         cm = vm.addMenu("Canvas Mode")
@@ -3963,6 +3998,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.dp5_settings.save()
         if hasattr(self, '_status_bar'):
             self._status_bar.setVisible(on)
+
+    def _toggle_anim_strip(self, on: bool): #vers 1
+        self.dp5_settings.set('show_anim_strip', on)
+        self.dp5_settings.save()
+        if hasattr(self, '_anim_strip'):
+            self._anim_strip.setVisible(on)
+            if on and not self._frames:
+                self._anim_init_frames()
+
+    def _toggle_onion_skin(self, on: bool): #vers 1
+        if self.dp5_canvas:
+            self.dp5_canvas.onion_skin = on
+            self.dp5_canvas.onion_rgba = (
+                bytearray(self._frames[max(0, self._current_frame-1)])
+                if on and len(self._frames) > 1 else None)
+            self.dp5_canvas.update()
 
     def _toggle_colour_constraints(self): #vers 1
         """Toggle enforcement of per-cell colour limits for current platform."""
@@ -5084,6 +5135,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.rgba  = bytearray(fill * (w * h))
             self.dp5_canvas.update()
             self._fit_canvas_to_viewport()
+            # Reset animation to single blank frame
+            self._frames = [bytearray(self.dp5_canvas.rgba)]
+            self._frame_delays = [1000 // max(1, self.dp5_settings.get('anim_fps'))]
+            self._current_frame = 0
+            if hasattr(self, '_anim_strip'):
+                self._anim_refresh_thumbs()
 
         mode_labels = {'platform':'Platform','texture':'Texture','icon':'Icon','free':'Free'}
         self._set_status(f"New canvas: {w}\u00d7{h}  {depth_combo.currentText()}  [{mode_labels[tab_mode]}]")
@@ -5195,6 +5252,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
     def _import_bitmap_path(self, path: str): #vers 3
         """Load an image, auto-reduce to current mode constraints if locked."""
         if not path or not self.dp5_canvas: return
+        # Save current canvas state into animation frame before overwriting
+        if self._frames:
+            self._anim_save_current_frame()
         try:
             from PIL import Image
             img = Image.open(path).convert('RGBA')
@@ -6576,6 +6636,278 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "SVG Import Error", str(e))
 
+    # ── Animation ─────────────────────────────────────────────────────────────
+
+    def _create_anim_strip(self): #vers 1
+        """Create the animation timeline strip widget."""
+        from PyQt6.QtCore import QTimer
+        strip = QWidget()
+        strip.setFixedHeight(64)
+        strip.setStyleSheet("background:#1a1a1a;")
+        hl = QHBoxLayout(strip)
+        hl.setContentsMargins(4, 2, 4, 2)
+        hl.setSpacing(4)
+
+        # Transport buttons
+        def tbtn(label, tip, slot):
+            b = QPushButton(label)
+            b.setFixedSize(28, 28)
+            b.setToolTip(tip)
+            b.clicked.connect(slot)
+            b.setStyleSheet("QPushButton{background:#333;color:#eee;border:1px solid #555;border-radius:3px;}"
+                            "QPushButton:hover{background:#555;}")
+            return b
+
+        hl.addWidget(tbtn("|◀", "First frame",    self._anim_first))
+        hl.addWidget(tbtn("◀",  "Previous frame",  self._anim_prev))
+        self._anim_play_btn = tbtn("▶", "Play / Stop", self._anim_toggle_play)
+        hl.addWidget(self._anim_play_btn)
+        hl.addWidget(tbtn("▶|", "Next frame",     self._anim_next))
+        hl.addWidget(tbtn("|▶|","Last frame",     self._anim_last))
+        hl.addSpacing(6)
+        hl.addWidget(tbtn("+",  "Add frame (copy current)", self._anim_add_frame))
+        hl.addWidget(tbtn("×",  "Delete current frame",      self._anim_del_frame))
+        hl.addWidget(tbtn("⬆", "Duplicate frame",            self._anim_dup_frame))
+        hl.addSpacing(6)
+
+        # FPS
+        fps_lbl = QLabel("FPS:")
+        fps_lbl.setStyleSheet("color:#aaa; font-size:11px;")
+        self._anim_fps_spin = QSpinBox()
+        self._anim_fps_spin.setRange(1, 60)
+        self._anim_fps_spin.setValue(self.dp5_settings.get('anim_fps'))
+        self._anim_fps_spin.setFixedWidth(52)
+        self._anim_fps_spin.setStyleSheet("background:#333;color:#eee;border:1px solid #555;")
+        hl.addWidget(fps_lbl)
+        hl.addWidget(self._anim_fps_spin)
+        hl.addSpacing(6)
+
+        # Frame counter
+        self._anim_frame_lbl = QLabel("Frame 1/1")
+        self._anim_frame_lbl.setStyleSheet("color:#aaa; font-size:11px; min-width:70px;")
+        hl.addWidget(self._anim_frame_lbl)
+
+        # Frame thumbnail scroll
+        self._anim_thumb_area = QScrollArea()
+        self._anim_thumb_area.setFixedHeight(58)
+        self._anim_thumb_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self._anim_thumb_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._anim_thumb_area.setStyleSheet("background:#111; border:none;")
+        self._anim_thumb_container = QWidget()
+        self._anim_thumb_layout = QHBoxLayout(self._anim_thumb_container)
+        self._anim_thumb_layout.setContentsMargins(2,2,2,2)
+        self._anim_thumb_layout.setSpacing(3)
+        self._anim_thumb_area.setWidget(self._anim_thumb_container)
+        self._anim_thumb_area.setWidgetResizable(True)
+        hl.addWidget(self._anim_thumb_area, 1)
+
+        # Init with single frame from current canvas
+        self._anim_timer = QTimer()
+        self._anim_timer.timeout.connect(self._anim_tick)
+        self._anim_init_frames()
+
+        return strip
+
+    def _anim_init_frames(self): #vers 1
+        """Initialise animation with the current canvas as frame 0."""
+        if self.dp5_canvas and self.dp5_canvas.rgba:
+            self._frames = [bytearray(self.dp5_canvas.rgba)]
+        else:
+            w, h = self._canvas_width, self._canvas_height
+            self._frames = [bytearray(b'\x80\x80\x80\xff' * (w * h))]
+        self._frame_delays = [1000 // max(1, self.dp5_settings.get('anim_fps'))]
+        self._current_frame = 0
+        self._anim_refresh_thumbs()
+
+    def _anim_save_current_frame(self): #vers 1
+        """Write canvas rgba back into current frame buffer."""
+        if self.dp5_canvas and 0 <= self._current_frame < len(self._frames):
+            self._frames[self._current_frame] = bytearray(self.dp5_canvas.rgba)
+
+    def _anim_load_frame(self, idx: int): #vers 2
+        """Load frame idx onto the canvas."""
+        if not self.dp5_canvas: return
+        if not (0 <= idx < len(self._frames)): return
+        self._anim_save_current_frame()
+        self._current_frame = idx
+        rgba = self._frames[idx]
+        if len(rgba) == len(self.dp5_canvas.rgba):
+            self.dp5_canvas.rgba[:] = rgba
+        else:
+            self.dp5_canvas.rgba = bytearray(rgba)
+        # Update onion skin to previous frame
+        if self.dp5_canvas.onion_skin and idx > 0:
+            self.dp5_canvas.onion_rgba = bytearray(self._frames[idx-1])
+        elif self.dp5_canvas.onion_skin and len(self._frames) > 1:
+            self.dp5_canvas.onion_rgba = bytearray(self._frames[-1])
+        self.dp5_canvas.update()
+        self._anim_update_label()
+        self._anim_highlight_thumb(idx)
+
+    def _anim_update_label(self): #vers 1
+        if hasattr(self, '_anim_frame_lbl'):
+            self._anim_frame_lbl.setText(
+                f"Frame {self._current_frame+1}/{len(self._frames)}")
+
+    def _anim_refresh_thumbs(self): #vers 1
+        """Rebuild all frame thumbnails."""
+        if not hasattr(self, '_anim_thumb_layout'): return
+        # Clear
+        while self._anim_thumb_layout.count():
+            w = self._anim_thumb_layout.takeAt(0).widget()
+            if w: w.deleteLater()
+        # Rebuild
+        tw, th = 48, 36
+        for i, frame in enumerate(self._frames):
+            btn = QPushButton()
+            btn.setFixedSize(tw+4, th+4)
+            btn.setCheckable(True)
+            btn.setChecked(i == self._current_frame)
+            btn.setToolTip(f"Frame {i+1}")
+            # Draw thumbnail
+            from PyQt6.QtGui import QPixmap, QImage
+            w, h = self._canvas_width, self._canvas_height
+            if len(frame) == w*h*4:
+                qimg = QImage(bytes(frame), w, h, w*4, QImage.Format.Format_RGBA8888)
+                pix = QPixmap.fromImage(qimg).scaled(tw, th, Qt.AspectRatioMode.KeepAspectRatio)
+                btn.setIcon(QIcon(pix))
+                btn.setIconSize(pix.size())
+            btn.clicked.connect(lambda _, idx=i: self._anim_load_frame(idx))
+            btn.setStyleSheet(
+                f"QPushButton{{background:{'#4466aa' if i==self._current_frame else '#333'};"
+                "border:1px solid #666;border-radius:2px;padding:1px;}"
+                "QPushButton:checked{border:2px solid #88aaff;}")
+            self._anim_thumb_layout.addWidget(btn)
+        self._anim_thumb_layout.addStretch()
+        self._anim_update_label()
+
+    def _anim_highlight_thumb(self, idx: int): #vers 1
+        """Just update highlight without full rebuild."""
+        layout = self._anim_thumb_layout
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            if item and item.widget():
+                item.widget().setChecked(i == idx)
+                item.widget().setStyleSheet(
+                    f"QPushButton{{background:{'#4466aa' if i==idx else '#333'};"
+                    "border:1px solid #666;border-radius:2px;padding:1px;}"
+                    "QPushButton:checked{border:2px solid #88aaff;}")
+
+    def _anim_add_frame(self): #vers 1
+        """Add a new frame (copy of current)."""
+        self._anim_save_current_frame()
+        new_frame = bytearray(self._frames[self._current_frame])
+        fps = self._anim_fps_spin.value() if hasattr(self,'_anim_fps_spin') else 12
+        self._frames.insert(self._current_frame+1, new_frame)
+        self._frame_delays.insert(self._current_frame+1, 1000//fps)
+        self._current_frame += 1
+        self._anim_load_frame(self._current_frame)
+        self._anim_refresh_thumbs()
+
+    def _anim_dup_frame(self): #vers 1
+        """Duplicate current frame at end."""
+        self._anim_save_current_frame()
+        self._frames.append(bytearray(self._frames[self._current_frame]))
+        fps = self._anim_fps_spin.value() if hasattr(self,'_anim_fps_spin') else 12
+        self._frame_delays.append(1000//fps)
+        self._anim_refresh_thumbs()
+
+    def _anim_del_frame(self): #vers 1
+        """Delete current frame (min 1 frame)."""
+        if len(self._frames) <= 1:
+            self._set_status("Cannot delete the only frame")
+            return
+        self._frames.pop(self._current_frame)
+        self._frame_delays.pop(self._current_frame)
+        self._current_frame = max(0, self._current_frame-1)
+        self._anim_load_frame(self._current_frame)
+        self._anim_refresh_thumbs()
+
+    def _anim_first(self): #vers 1
+        self._anim_load_frame(0)
+
+    def _anim_last(self): #vers 1
+        self._anim_load_frame(len(self._frames)-1)
+
+    def _anim_prev(self): #vers 1
+        self._anim_load_frame(max(0, self._current_frame-1))
+
+    def _anim_next(self): #vers 1
+        self._anim_load_frame(min(len(self._frames)-1, self._current_frame+1))
+
+    def _anim_toggle_play(self): #vers 1
+        if self._anim_playing:
+            self._anim_playing = False
+            self._anim_timer.stop()
+            if hasattr(self, '_anim_play_btn'):
+                self._anim_play_btn.setText("▶")
+            self._set_status("Animation stopped")
+        else:
+            self._anim_save_current_frame()
+            self._anim_playing = True
+            fps = self._anim_fps_spin.value() if hasattr(self,'_anim_fps_spin') else 12
+            self._anim_timer.start(1000 // fps)
+            if hasattr(self, '_anim_play_btn'):
+                self._anim_play_btn.setText("⏹")
+            self._set_status(f"Playing {len(self._frames)} frames @ {fps}fps")
+
+    def _anim_tick(self): #vers 1
+        """Advance to next frame during playback."""
+        if not self._anim_playing: return
+        next_f = (self._current_frame + 1) % len(self._frames)
+        self._current_frame = next_f
+        if self.dp5_canvas and len(self._frames[next_f]) == len(self.dp5_canvas.rgba):
+            self.dp5_canvas.rgba[:] = self._frames[next_f]
+            self.dp5_canvas.update()
+        self._anim_update_label()
+        self._anim_highlight_thumb(next_f)
+
+    def _anim_export_gif(self): #vers 1
+        """Export all frames as an animated GIF."""
+        if not self._frames: return
+        fps = self._anim_fps_spin.value() if hasattr(self,'_anim_fps_spin') else 12
+        delay = 1000 // fps  # ms per frame
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Animated GIF", "animation.gif", "GIF (*.gif)")
+        if not path: return
+        try:
+            from PIL import Image
+            w, h = self._canvas_width, self._canvas_height
+            pil_frames = []
+            for frame in self._frames:
+                if len(frame) == w*h*4:
+                    img = Image.frombytes('RGBA', (w,h), bytes(frame)).convert('RGBA')
+                    pil_frames.append(img)
+            if not pil_frames: return
+            pil_frames[0].save(
+                path, format='GIF', save_all=True,
+                append_images=pil_frames[1:],
+                duration=delay, loop=0, optimize=True)
+            self._set_status(
+                f"Exported GIF: {os.path.basename(path)}  "
+                f"{len(pil_frames)} frames @ {fps}fps")
+        except Exception as e:
+            QMessageBox.warning(self, "GIF Export Error", str(e))
+
+    def _anim_export_png_seq(self): #vers 1
+        """Export all frames as a numbered PNG sequence."""
+        if not self._frames: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PNG Sequence (base name)", "frame_0001.png", "PNG (*.png)")
+        if not path: return
+        try:
+            from PIL import Image
+            import re as _re
+            base = _re.sub(r'\d+\.png$', '', path)
+            w, h = self._canvas_width, self._canvas_height
+            for i, frame in enumerate(self._frames):
+                if len(frame) == w*h*4:
+                    img = Image.frombytes('RGBA',(w,h),bytes(frame))
+                    img.save(f"{base}{i+1:04d}.png", 'PNG')
+            self._set_status(f"Exported {len(self._frames)} PNG frames")
+        except Exception as e:
+            QMessageBox.warning(self, "PNG Sequence Error", str(e))
+
     def _apply_theme(self):
         try:
             app_settings = self.app_settings
@@ -6746,6 +7078,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 self._fgbg_swatch.swap()
         elif k == Qt.Key.Key_Delete:
             self._cut_selection()
+        # Animation shortcuts (only when anim strip visible)
+        elif k == Qt.Key.Key_Comma and hasattr(self,'_anim_strip') and self._anim_strip.isVisible():
+            self._anim_prev()
+        elif k == Qt.Key.Key_Period and hasattr(self,'_anim_strip') and self._anim_strip.isVisible():
+            self._anim_next()
+        elif k == Qt.Key.Key_Space and hasattr(self,'_anim_strip') and self._anim_strip.isVisible():
+            self._anim_toggle_play()
         else:
             super().keyPressEvent(e)
 
