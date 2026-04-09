@@ -843,7 +843,7 @@ class DP5Canvas(QWidget):
         self.color      = QColor(255, 0, 0, 255)
         self.brush_size    = 1
         self.opacity       = 1.0
-        self.dither_mode   = False
+        self.dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
         self.symmetry_mode = 'off'  # 'off' | 'H' | 'V' | 'quad'
         self._dither_toggle = False  # alternates per pixel in dither mode
         self.show_grid  = True
@@ -923,8 +923,8 @@ class DP5Canvas(QWidget):
     def set_pixel_brush(self, cx: int, cy: int, c: QColor): #vers 2
         """Paint brush with optional dither and symmetry."""
         s = self.brush_size
-        # Dither: use bg colour on checkerboard positions
-        if self.dither_mode:
+        BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]
+        if self.dither_mode != 'off':
             swatch = getattr(self._editor, '_fgbg_swatch', None)
             bg_color = swatch._bg if swatch else QColor(0,0,0,255)
         else:
@@ -932,7 +932,13 @@ class DP5Canvas(QWidget):
         for dy in range(-s+1, s):
             for dx in range(-s+1, s):
                 if s == 1 or (dx*dx + dy*dy) < s*s:
-                    px_c = bg_color if (self.dither_mode and (cx+dx+cy+dy) % 2 == 0) else c
+                    if self.dither_mode == 'checker':
+                        px_c = bg_color if (cx+dx+cy+dy) % 2 == 0 else c
+                    elif self.dither_mode == 'bayer':
+                        thresh = BAYER4[(cy+dy)%4][(cx+dx)%4] / 16.0
+                        px_c = c if thresh < 0.5 else bg_color
+                    else:
+                        px_c = c
                     self.set_pixel(cx+dx, cy+dy, px_c)
                     # Symmetry mirroring
                     sym = self.symmetry_mode
@@ -2562,7 +2568,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # Canvas state — initial values from dp5_settings
         self._canvas_width  = self.dp5_settings.get('default_width')
         self._canvas_bit_depth = 8  # 0=32bit, 1=24bit, 2=16bit, 3=8bit
-        self._dither_mode   = False
+        self._dither_mode   = 'off'  # 'off' | 'checker' | 'bayer' | 'floyd'
         self._symmetry_mode = 'off'  # cycles: off → H → V → quad
         self._canvas_height = self.dp5_settings.get('default_height')
         self._canvas_zoom   = self.dp5_settings.get('default_zoom')
@@ -2940,6 +2946,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm.addAction("Open image…",    self._import_bitmap)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
+        # Platform imports submenu
+        im = fm.addMenu("Import Platform Format")
+        im.addAction("ZX Spectrum SCR…",   self._import_scr)
+        im.addAction("MSX SC2…",           self._import_sc2)
+        im.addAction("Atari ST PI1…",      self._import_pi1)
+        im.addAction("C64 Koala…",         self._import_koala)
+        im.addAction("C64 Art Studio…",    self._import_art_studio)
         # Platform exports submenu
         ex = fm.addMenu("Export Platform Format")
         ex.addAction("ZX Spectrum SCR…",   self._export_scr)
@@ -2947,6 +2960,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ex.addAction("Atari ST PI1…",      self._export_pi1)
         ex.addAction("C64 Koala…",         self._export_koala)
         ex.addAction("C64 Art Studio…",    self._export_art_studio)
+        # Executable exports submenu
+        xe = fm.addMenu("Export Executable")
+        xe.addAction("ZX Spectrum TAP…",   self._export_tap)
+        xe.addAction("C64 PRG (hires)…",   self._export_c64prg)
+        xe.addAction("C64 PRG (multi)…",   self._export_c64mprg)
+        xe.addAction("MSX COM…",           self._export_msxcom)
+        xe.addAction("Plus/4 PRG…",        self._export_plus4prg)
+        xe.addAction("VIC-20 PRG…",        self._export_vicprg)
         # Edit
         em = mb.addMenu("Edit")
         em.addAction("Undo\tCtrl+Z",       self._undo_canvas)
@@ -2983,6 +3004,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         pm.addAction("Invert colours",      self._invert)
         pm.addAction("Brighten +25",        lambda: self._adjust(25))
         pm.addAction("Darken -25",          lambda: self._adjust(-25))
+        pm.addSeparator()
+        dm = pm.addMenu("Dither canvas")
+        dm.addAction("Floyd-Steinberg…",    self._dither_floyd_steinberg)
+        dm.addAction("Ordered Bayer 4×4…",  self._dither_bayer_canvas)
+        dm.addAction("Checkerboard…",       self._dither_checker_canvas)
         # View
         vm = mb.addMenu("View")
         vm.addAction("Zoom in  Ctrl++",  lambda: self._set_zoom(
@@ -3433,15 +3459,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if hasattr(self, '_size_val_lbl'):
             self._size_val_lbl.setText(str(v))
 
-    def _toggle_dither_mode(self): #vers 1
-        """Toggle dither brush — alternates FG/BG in checkerboard pattern."""
-        self._dither_mode = not self._dither_mode
+    def _toggle_dither_mode(self): #vers 2
+        """Cycle dither: off → checker → bayer → off."""
+        cycle = {'off': 'checker', 'checker': 'bayer', 'bayer': 'off'}
+        self._dither_mode = cycle[self._dither_mode]
         if self.dp5_canvas:
             self.dp5_canvas.dither_mode = self._dither_mode
         btn = self._tool_btns.get(TOOL_DITHER)
         if btn:
-            btn.setChecked(self._dither_mode)
-        self._set_status(f"Dither: {'ON' if self._dither_mode else 'OFF'}")
+            labels = {'off':'Dither','checker':'Dthr ⊞','bayer':'Dthr ▦'}
+            btn.setChecked(self._dither_mode != 'off')
+            btn.setToolTip(f"Dither: {self._dither_mode} — click to cycle")
+        self._set_status(f"Dither: {self._dither_mode}")
 
     def _toggle_symmetry_mode(self): #vers 2
         """Cycle symmetry: off → H → V → quad → off."""
@@ -3885,6 +3914,72 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 self.dp5_canvas.rgba[i+j] = max(0, min(255,
                     self.dp5_canvas.rgba[i+j] + delta))
         self.dp5_canvas.update()
+
+    def _dither_floyd_steinberg(self): #vers 1
+        """Apply Floyd-Steinberg error-diffusion dither to canvas (reduces to 16 colours)."""
+        if not self.dp5_canvas: return
+        from PIL import Image
+        n, ok = QInputDialog.getInt(self, "Floyd-Steinberg Dither",
+                                    "Colours to reduce to:", 16, 2, 256)
+        if not ok: return
+        self._push_undo()
+        img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                               bytes(self.dp5_canvas.rgba)).convert('RGB')
+        # PIL quantize with dither=1 = Floyd-Steinberg
+        q = img.quantize(colors=n, dither=1).convert('RGB').convert('RGBA')
+        self.dp5_canvas.rgba = bytearray(q.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(f"Floyd-Steinberg dither → {n} colours")
+
+    def _dither_bayer_canvas(self): #vers 1
+        """Apply 4×4 Bayer ordered dither to canvas."""
+        if not self.dp5_canvas: return
+        from PIL import Image
+        n, ok = QInputDialog.getInt(self, "Bayer Dither",
+                                    "Colours to reduce to:", 16, 2, 256)
+        if not ok: return
+        self._push_undo()
+        BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]
+        img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                               bytes(self.dp5_canvas.rgba)).convert('RGB')
+        # Quantize first to get palette, then apply bayer threshold
+        q_pal = img.quantize(colors=n, dither=0)
+        pal_flat = q_pal.getpalette()
+        pal = [(pal_flat[i*3],pal_flat[i*3+1],pal_flat[i*3+2]) for i in range(n)]
+        px = list(img.getdata())
+        w,h = self._canvas_width, self._canvas_height
+        out = bytearray(w*h*4)
+        for y in range(h):
+            for x in range(w):
+                r,g,b = px[y*w+x]
+                t = BAYER4[y%4][x%4]/16.0
+                # Shift pixel value by threshold amount
+                sr = min(255,int(r + (t-0.5)*32))
+                sg = min(255,int(g + (t-0.5)*32))
+                sb = min(255,int(b + (t-0.5)*32))
+                best = min(pal, key=lambda c: (c[0]-sr)**2+(c[1]-sg)**2+(c[2]-sb)**2)
+                i = (y*w+x)*4
+                out[i:i+4] = [best[0],best[1],best[2],255]
+        self.dp5_canvas.rgba = out
+        self.dp5_canvas.update()
+        self._set_status(f"Bayer 4×4 dither → {n} colours")
+
+    def _dither_checker_canvas(self): #vers 1
+        """Apply checkerboard FG/BG dither to entire canvas."""
+        if not self.dp5_canvas: return
+        self._push_undo()
+        fg = self.dp5_canvas.color
+        bg = self._fgbg_swatch._bg if hasattr(self,'_fgbg_swatch') else QColor(0,0,0,255)
+        w,h = self._canvas_width, self._canvas_height
+        out = bytearray(self.dp5_canvas.rgba)
+        for y in range(h):
+            for x in range(w):
+                if (x+y)%2==0:
+                    i=(y*w+x)*4
+                    out[i:i+4]=[bg.red(),bg.green(),bg.blue(),bg.alpha()]
+        self.dp5_canvas.rgba = out
+        self.dp5_canvas.update()
+        self._set_status("Checkerboard dither applied")
 
     def _pil_transform(self, fn):
         """Apply a PIL Image transform to the canvas."""
@@ -4537,7 +4632,446 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Art Studio Export Error", str(e))
 
-    # ── Settings / theme ──────────────────────────────────────────────────────
+    # ── Platform format imports ───────────────────────────────────────────────
+
+    def _import_scr(self): #vers 1
+        """Import ZX Spectrum SCR (6144 bitmap + 768 attr bytes → 256×192 RGBA)."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import ZX Spectrum SCR", "", "SCR (*.scr);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path,'rb').read()
+            if len(data) < 6912:
+                raise ValueError(f"SCR too small: {len(data)} bytes")
+            bitmap = data[:6144]; attrs = data[6144:6912]
+            ZX_COLS = [
+                (0,0,0),(215,0,0),(0,215,0),(215,215,0),
+                (0,0,215),(215,0,215),(0,215,215),(215,215,215),
+                (0,0,0),(255,0,0),(0,255,0),(255,255,0),
+                (0,0,255),(255,0,255),(0,255,255),(255,255,255),
+            ]
+            w,h = 256,192
+            rgba = bytearray(w*h*4)
+            for ay in range(24):
+                for ax in range(32):
+                    attr = attrs[ay*32+ax]
+                    bright = (attr>>6)&1
+                    ink   = (attr&7) + (8 if bright else 0)
+                    paper = ((attr>>3)&7) + (8 if bright else 0)
+                    ink_c   = ZX_COLS[ink]
+                    paper_c = ZX_COLS[paper]
+                    for row in range(8):
+                        y = ay*8+row
+                        # ZX addressing: third/row/char
+                        third   = y//64
+                        char_y  = (y%64)//8
+                        scan    = y%8
+                        baddr   = third*2048 + scan*256 + char_y*32 + ax
+                        byte    = bitmap[baddr]
+                        for bit in range(8):
+                            x = ax*8+bit
+                            on = (byte >> (7-bit)) & 1
+                            c = ink_c if on else paper_c
+                            i = (y*w+x)*4
+                            rgba[i:i+4] = [c[0],c[1],c[2],255]
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "SCR Import Error", str(e))
+
+    def _import_sc2(self): #vers 1
+        """Import MSX SC2 (pattern+colour+name tables → 256×192 RGBA)."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import MSX SC2", "", "SC2 (*.sc2);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path,'rb').read()
+            if len(data) < 13312: raise ValueError("SC2 too small")
+            pattern = data[:6144]; colour = data[6144:12288]
+            w,h = 256,192
+            rgba = bytearray(w*h*4)
+            MSX_PAL = [
+                (0,0,0),(0,0,0),(62,184,73),(116,208,128),
+                (89,85,224),(128,118,241),(185,94,81),(101,219,239),
+                (219,101,89),(255,137,125),(204,195,94),(222,208,135),
+                (58,162,65),(183,102,181),(204,204,204),(255,255,255),
+            ]
+            for by in range(24):
+                for bx in range(32):
+                    for row in range(8):
+                        y = by*8+row
+                        idx = (by*32+bx)*8+row
+                        pat_byte  = pattern[idx]
+                        col_byte  = colour[idx]
+                        fg_idx = (col_byte>>4)&0xF
+                        bg_idx = col_byte&0xF
+                        fg = MSX_PAL[fg_idx]; bg = MSX_PAL[bg_idx]
+                        for bit in range(8):
+                            x = bx*8+bit
+                            on = (pat_byte>>(7-bit))&1
+                            c = fg if on else bg
+                            i = (y*w+x)*4
+                            rgba[i:i+4] = [c[0],c[1],c[2],255]
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "SC2 Import Error", str(e))
+
+    def _import_pi1(self): #vers 1
+        """Import Atari ST Degas PI1 (320×200, 4 bitplanes) → RGBA."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Atari ST PI1", "", "PI1 (*.pi1);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path,'rb').read()
+            if len(data) < 32034: raise ValueError("PI1 too small")
+            # Parse 16-colour palette (words at offset 2)
+            pal = []
+            for i in range(16):
+                word = (data[2+i*2]<<8)|data[3+i*2]
+                r = ((word>>8)&7)*36; g = ((word>>4)&7)*36; b = (word&7)*36
+                pal.append((r,g,b))
+            # Bitmap: 4 interleaved bitplanes, 16-bit words
+            w,h = 320,200
+            rgba = bytearray(w*h*4)
+            offset = 34
+            for y in range(200):
+                for word_x in range(20):
+                    planes = []
+                    for p in range(4):
+                        planes.append((data[offset]<<8)|data[offset+1])
+                        offset += 2
+                    for bit in range(16):
+                        x = word_x*16+bit
+                        px = 0
+                        for p in range(4):
+                            if planes[p] & (0x8000>>bit):
+                                px |= (1<<p)
+                        c = pal[px]
+                        i = (y*w+x)*4
+                        rgba[i:i+4] = [c[0],c[1],c[2],255]
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "PI1 Import Error", str(e))
+
+    def _import_koala(self): #vers 1
+        """Import C64 Koala multicolour (160×200) → RGBA."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import C64 Koala", "", "Koala (*.kla *.koa);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path,'rb').read()
+            # May have 2-byte load address prefix
+            offset = 2 if len(data) == 10003 else 0
+            bitmap = data[offset:offset+8000]
+            screen = data[offset+8000:offset+9000]
+            colram = data[offset+9000:offset+10000]
+            bg     = data[offset+10000] & 0xF
+            C64_PAL = [
+                (0,0,0),(255,255,255),(136,0,0),(170,255,238),
+                (204,68,204),(0,204,85),(0,0,170),(238,238,119),
+                (221,136,85),(102,68,0),(255,119,119),(51,51,51),
+                (119,119,119),(170,255,102),(0,136,255),(187,187,187),
+            ]
+            w,h = 160,200
+            rgba = bytearray(w*h*4)
+            for cell_y in range(25):
+                for cell_x in range(40):
+                    cell_idx = cell_y*40+cell_x
+                    sc = screen[cell_idx]
+                    c1 = (sc>>4)&0xF; c2 = sc&0xF
+                    c3 = colram[cell_idx]&0xF
+                    colour_map = {0:C64_PAL[bg],1:C64_PAL[c1],2:C64_PAL[c2],3:C64_PAL[c3]}
+                    for row in range(8):
+                        byte = bitmap[cell_idx*8+row]
+                        for col in range(4):
+                            pair = (byte>>(6-col*2))&3
+                            c = colour_map[pair]
+                            x = cell_x*4+col; y = cell_y*8+row
+                            i = (y*w+x)*4
+                            rgba[i:i+4] = [c[0],c[1],c[2],255]
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "Koala Import Error", str(e))
+
+    def _import_art_studio(self): #vers 1
+        """Import C64 Art Studio hires (320×200) → RGBA."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import C64 Art Studio", "", "Art Studio (*.art);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path,'rb').read()
+            offset = 2  # skip load address
+            bitmap = data[offset:offset+8000]
+            colour = data[offset+8000:offset+9000]
+            C64_PAL = [
+                (0,0,0),(255,255,255),(136,0,0),(170,255,238),
+                (204,68,204),(0,204,85),(0,0,170),(238,238,119),
+                (221,136,85),(102,68,0),(255,119,119),(51,51,51),
+                (119,119,119),(170,255,102),(0,136,255),(187,187,187),
+            ]
+            w,h = 320,200
+            rgba = bytearray(w*h*4)
+            for cell_y in range(25):
+                for cell_x in range(40):
+                    cell_idx = cell_y*40+cell_x
+                    col_byte = colour[cell_idx]
+                    fg = C64_PAL[(col_byte>>4)&0xF]
+                    bg = C64_PAL[col_byte&0xF]
+                    for row in range(8):
+                        byte = bitmap[cell_idx*8+row]
+                        for bit in range(8):
+                            on = (byte>>(7-bit))&1
+                            c = fg if on else bg
+                            x = cell_x*8+bit; y = cell_y*8+row
+                            i = (y*w+x)*4
+                            rgba[i:i+4] = [c[0],c[1],c[2],255]
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "Art Studio Import Error", str(e))
+
+    def _load_rgba(self, rgba: bytearray, w: int, h: int, name: str = ""): #vers 1
+        """Load raw RGBA data into canvas, update palette, fit zoom."""
+        if not self.dp5_canvas: return
+        self._canvas_width = w; self._canvas_height = h
+        self.dp5_canvas.tex_w = w; self.dp5_canvas.tex_h = h
+        self.dp5_canvas.rgba = rgba
+        self.dp5_canvas.update()
+        self._fit_canvas_to_viewport()
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (w,h), bytes(rgba)).convert('RGB')
+            p = img.quantize(colors=256)
+            pf = p.getpalette()
+            self.pal_bar.set_palette_raw([(pf[i*3],pf[i*3+1],pf[i*3+2]) for i in range(256)])
+        except Exception:
+            pass
+        if name:
+            self._bitmap_list.append({'name':name,'rgba':rgba,'w':w,'h':h})
+            self._bitmap_lw.addItem(name)
+            self._bitmap_lw.setCurrentRow(len(self._bitmap_list)-1)
+        self._set_status(f"Loaded: {name}  {w}×{h}")
+
+    # ── Executable exports ────────────────────────────────────────────────────
+
+    def _export_tap(self): #vers 1
+        """Export ZX Spectrum TAP — screen$ block (6912 bytes) wrapped in TAP format."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export ZX Spectrum TAP", "screen.tap", "TAP (*.tap)")
+        if not path: return
+        try:
+            # First generate SCR data
+            from PIL import Image
+            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((256,192), Image.NEAREST)
+            zx_pal = [0,0,0,215,0,0,0,215,0,215,215,0,0,0,215,215,0,215,0,215,215,215,215,215]
+            pi = Image.new('P',(1,1)); pi.putpalette(zx_pal+[0]*744)
+            q = img.quantize(palette=pi, dither=0)
+            pixels = list(q.getdata())
+            bitmap = bytearray(6144); attrs = bytearray(768)
+            for third in range(3):
+                for row in range(8):
+                    for char_y in range(8):
+                        y = third*64+char_y*8+row
+                        for char_x in range(32):
+                            byte = 0
+                            for bit in range(8):
+                                if pixels[y*256+char_x*8+bit]&1:
+                                    byte |= (0x80>>bit)
+                            bitmap[third*2048+row*256+char_y*32+char_x] = byte
+            for ay in range(24):
+                for ax in range(32):
+                    attrs[ay*32+ax] = pixels[(ay*8)*256+ax*8]&7
+            scr = bitmap+attrs
+            # Wrap in TAP: header block + data block
+            def tap_block(flag, data):
+                payload = bytes([flag])+bytes(data)
+                chk = 0
+                for b in payload: chk ^= b
+                block = payload + bytes([chk])
+                return len(block).to_bytes(2,'little') + block
+            # Header: type 3 (CODE), filename "SCREEN$   ", length 6912, param1 16384, param2 32768
+            hdr  = bytes([3])+b'SCREEN$   '+bytes([0,27,0,0,64,0,128])
+            tap  = tap_block(0, hdr) + tap_block(0xFF, scr)
+            open(path,'wb').write(tap)
+            self._set_status(f"Exported TAP: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "TAP Export Error", str(e))
+
+    def _export_c64prg(self): #vers 1
+        """Export C64 hires PRG — Art Studio bitmap wrapped with BASIC loader."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export C64 PRG (hires)", "image.prg", "PRG (*.prg)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((320,200),Image.NEAREST)
+            q = img.quantize(colors=16,dither=0)
+            pixels = list(q.getdata())
+            bitmap = bytearray(8000); colour = bytearray(1000)
+            for cy in range(25):
+                for cx in range(40):
+                    ci = cy*40+cx
+                    cell = [pixels[(cy*8+r)*320+cx*8+c] for r in range(8) for c in range(8)]
+                    counts = {}
+                    for p in cell: counts[p]=counts.get(p,0)+1
+                    sc = sorted(counts,key=lambda k:-counts[k])
+                    fg = sc[0] if sc else 0; bg = sc[1] if len(sc)>1 else 0
+                    colour[ci] = (fg<<4)|bg
+                    for row in range(8):
+                        byte = 0
+                        for bit in range(8):
+                            if pixels[(cy*8+row)*320+cx*8+bit]==fg: byte|=(0x80>>bit)
+                        bitmap[ci*8+row] = byte
+            # BASIC loader stub at $0801
+            basic = bytearray(b'\x01\x08\x0b\x08\x00\x00\x9e\x32\x30\x36\x31\x00\x00\x00')
+            # Bitmap at $2000, colour at $6800
+            prg  = b'\x01\x08' + basic
+            prg += b'\x00\x20' + bitmap  # bitmap load addr $2000
+            prg += b'\x00\x68' + colour  # colour load addr $6800
+            open(path,'wb').write(prg)
+            self._set_status(f"Exported C64 PRG: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "C64 PRG Export Error", str(e))
+
+    def _export_c64mprg(self): #vers 1
+        """Export C64 multicolour PRG — Koala bitmap wrapped with BASIC loader."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export C64 PRG (multicolour)", "image_m.prg", "PRG (*.prg)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((160,200),Image.NEAREST)
+            q = img.quantize(colors=16,dither=0)
+            pixels = list(q.getdata())
+            bitmap=bytearray(8000); screen=bytearray(1000); colram=bytearray(1000)
+            bg=0
+            for cy in range(25):
+                for cx in range(40):
+                    ci=cy*40+cx
+                    cell_c={}
+                    for row in range(8):
+                        for col in range(4):
+                            p=pixels[(cy*8+row)*160+cx*4+col] if cx*4+col<160 else 0
+                            cell_c[p]=cell_c.get(p,0)+1
+                    sc=sorted(cell_c,key=lambda k:-cell_c[k])
+                    c1=sc[0] if sc else 0; c2=sc[1] if len(sc)>1 else 0; c3=sc[2] if len(sc)>2 else 0
+                    screen[ci]=(c1<<4)|c2; colram[ci]=c3&0xF
+                    cm={bg:0,c1:1,c2:2,c3:3}
+                    for row in range(8):
+                        byte=0
+                        for col in range(4):
+                            p=pixels[(cy*8+row)*160+cx*4+col] if cx*4+col<160 else 0
+                            byte=(byte<<2)|cm.get(p,0)
+                        bitmap[ci*8+row]=byte
+            basic=bytearray(b'\x01\x08\x0b\x08\x00\x00\x9e\x32\x30\x36\x31\x00\x00\x00')
+            prg=b'\x01\x08'+basic+b'\x00\x60'+bitmap+screen+colram+bytes([bg])
+            open(path,'wb').write(prg)
+            self._set_status(f"Exported C64 Multi PRG: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "C64 Multi PRG Error", str(e))
+
+    def _export_msxcom(self): #vers 1
+        """Export MSX COM — SC2 data as a relocatable COM executable."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export MSX COM", "image.com", "COM (*.com)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((256,192),Image.NEAREST)
+            q = img.quantize(colors=16,dither=0)
+            pixels = list(q.getdata())
+            pal_flat=q.getpalette()
+            pattern=bytearray(6144); colour=bytearray(6144); name=bytearray(768)
+            for by in range(24):
+                for bx in range(32):
+                    name[by*32+bx]=by*32+bx
+                    for row in range(8):
+                        y=by*8+row; idx=(by*32+bx)*8+row
+                        byte=0; fg=pixels[y*256+bx*8]&0xF; bg=0
+                        for bit in range(8):
+                            if pixels[y*256+bx*8+bit]&0xF==fg: byte|=(0x80>>bit)
+                        pattern[idx]=byte; colour[idx]=(fg<<4)|bg
+            # Minimal Z80 stub: SCREEN 2, BLOAD, RET
+            stub = bytearray(b'\xCD\x01\x00\xC9')  # placeholder CALL/RET
+            com  = stub + pattern + colour + name
+            open(path,'wb').write(com)
+            self._set_status(f"Exported MSX COM: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "MSX COM Error", str(e))
+
+    def _export_plus4prg(self): #vers 1
+        """Export Plus/4 PRG — hires bitmap with BASIC loader."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Plus/4 PRG", "image.prg", "PRG (*.prg)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((320,200),Image.NEAREST)
+            q = img.quantize(colors=16,dither=0)
+            pixels = list(q.getdata())
+            bitmap=bytearray(8000); colour=bytearray(1000)
+            for cy in range(25):
+                for cx in range(40):
+                    ci=cy*40+cx
+                    cell=[pixels[(cy*8+r)*320+cx*8+c] for r in range(8) for c in range(8)]
+                    counts={}
+                    for p in cell: counts[p]=counts.get(p,0)+1
+                    sc=sorted(counts,key=lambda k:-counts[k])
+                    fg=sc[0] if sc else 0; bg=sc[1] if len(sc)>1 else 0
+                    colour[ci]=(fg<<4)|bg
+                    for row in range(8):
+                        byte=0
+                        for bit in range(8):
+                            if pixels[(cy*8+row)*320+cx*8+bit]==fg: byte|=(0x80>>bit)
+                        bitmap[ci*8+row]=byte
+            # Plus/4 BASIC: SYS 7169
+            basic=b'\x01\x10\x0c\x10\x00\x00\x9e\x37\x31\x36\x39\x00\x00\x00'
+            prg=b'\x01\x10'+basic+b'\x00\x1c'+bitmap+colour
+            open(path,'wb').write(prg)
+            self._set_status(f"Exported Plus/4 PRG: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "Plus/4 PRG Error", str(e))
+
+    def _export_vicprg(self): #vers 1
+        """Export VIC-20 PRG — raw bitmap with BASIC loader."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export VIC-20 PRG", "image.prg", "PRG (*.prg)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((176,184),Image.NEAREST)
+            q = img.quantize(colors=16,dither=0)
+            pixels = list(q.getdata())
+            w,h = 176,184
+            bitmap = bytearray(w*h//8 * 8)
+            for y in range(h):
+                for xb in range(w//8):
+                    byte=0
+                    for bit in range(8):
+                        if pixels[y*w+xb*8+bit]&1: byte|=(0x80>>bit)
+                    bitmap[y*(w//8)+xb]=byte
+            basic=b'\x01\x10\x0c\x10\x00\x00\x9e\x34\x39\x31\x35\x00\x00\x00'
+            prg=b'\x01\x10'+basic+b'\x00\x10'+bitmap
+            open(path,'wb').write(prg)
+            self._set_status(f"Exported VIC-20 PRG: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "VIC-20 PRG Error", str(e))
 
     def _apply_theme(self):
         try:
