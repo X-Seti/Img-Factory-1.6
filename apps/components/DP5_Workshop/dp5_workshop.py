@@ -615,6 +615,7 @@ class DP5Settings:
         'show_cell_grid':    False,    # show platform cell boundaries
         'show_statusbar':    True,     # show bottom status bar
         'ui_font_size':      10,       # toolbar/button font size
+        'canvas_mode':       'free',   # 'free'|'platform'|'texture'|'icon'
         'zoom_to_fit_resize': False,
         'show_menubar':       False,
         'menu_style':         'topbar',   # 'topbar' | 'dropdown'
@@ -2616,6 +2617,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._symmetry_mode = 'off'  # cycles: off → H → V → quad
         self._platform_mode = 'none'
         self._enforce_constraints = False
+        self._canvas_mode   = 'free'   # 'free'|'platform'|'texture'|'icon'
+        self._mode_locked   = False    # lock prevents mode change without confirmation
         self._canvas_height = self.dp5_settings.get('default_height')
         self._canvas_zoom   = self.dp5_settings.get('default_zoom')
         self._undo_stack    = deque(maxlen=self.dp5_settings.get('undo_levels'))
@@ -2769,6 +2772,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
         self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
+
+        # ── Canvas mode selector ───────────────────────────────────────────
+        self._mode_btns = {}
+        for mode_id, mode_label, mode_tip in [
+            ('free',     'Free',     'Free canvas — no mode constraints'),
+            ('platform', 'Platform', 'Platform mode — retro computer constraints'),
+            ('texture',  'Texture',  'Texture mode — game texture sizes and bit depths'),
+            ('icon',     'Icon',     'Icon mode — icon sizes and formats'),
+        ]:
+            btn = QPushButton(mode_label)
+            btn.setFont(QFont("Arial", max(7, self.button_font.pointSize()-1)))
+            btn.setCheckable(True)
+            btn.setChecked(mode_id == 'free')
+            btn.setToolTip(mode_tip)
+            btn.setMinimumHeight(22); btn.setMaximumHeight(22)
+            btn.clicked.connect(lambda _, m=mode_id: self._set_canvas_mode(m))
+            layout.addWidget(btn)
+            self._mode_btns[mode_id] = btn
 
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
@@ -2987,47 +3008,55 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # File
         fm = mb.addMenu("File")
         fm.addAction("New canvas…",    self._new_canvas)
+        fm.addSeparator()
         fm.addAction("Open image…",    self._import_bitmap)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
-        # Platform imports submenu
-        im = fm.addMenu("Import Platform Format")
-        im.addAction("ZX Spectrum SCR…",   self._import_scr)
-        im.addAction("MSX SC2…",           self._import_sc2)
-        im.addAction("Atari ST PI1…",      self._import_pi1)
-        im.addAction("C64 Koala…",         self._import_koala)
-        im.addAction("C64 Art Studio…",    self._import_art_studio)
-        im.addSeparator()
-        im.addAction("ZX Next NXI…",       self._import_nxi)
-        im.addAction("ZX Next PAL…",       self._import_pal)
-        # Platform exports submenu
-        ex = fm.addMenu("Export Platform Format")
-        ex.addAction("ZX Spectrum SCR…",   self._export_scr)
-        ex.addAction("MSX SC2…",           self._export_sc2)
-        ex.addAction("Atari ST PI1…",      self._export_pi1)
-        ex.addAction("C64 Koala…",         self._export_koala)
-        ex.addAction("C64 Art Studio…",    self._export_art_studio)
-        ex.addSeparator()
-        ex.addAction("ZX Next NXI…",       self._export_nxi)
-        ex.addAction("ZX Next PAL…",       self._export_pal)
-        # Executable exports submenu
-        xe = fm.addMenu("Export Executable")
-        xe.addAction("ZX Spectrum TAP…",   self._export_tap)
-        xe.addAction("ZX Next NEX…",       self._export_nex)
-        xe.addAction("Amiga IFF HAM…",     self._export_iff_ham)
-        xe.addAction("C64 PRG (hires)…",   self._export_c64prg)
-        xe.addAction("C64 PRG (multi)…",   self._export_c64mprg)
-        xe.addAction("MSX COM…",           self._export_msxcom)
-        xe.addAction("Plus/4 PRG…",        self._export_plus4prg)
-        xe.addAction("VIC-20 PRG…",        self._export_vicprg)
-        # Icon formats
-        ic = fm.addMenu("Icons")
-        ic.addAction("Export Windows ICO…", self._export_ico)
-        ic.addAction("Export Linux SVG…",   self._export_svg_icon)
-        ic.addAction("Export Amiga Icon…",  self._export_amiga_icon)
-        ic.addSeparator()
-        ic.addAction("Import Windows ICO…", self._import_ico)
-        ic.addAction("Import SVG…",         self._import_svg)
+        fm.addSeparator()
+
+        # ── Platform ──────────────────────────────────────────────────────
+        pm_menu = fm.addMenu("Platform")
+        pm_im = pm_menu.addMenu("Import")
+        pm_im.addAction("ZX Spectrum SCR…",  self._import_scr)
+        pm_im.addAction("MSX SC2…",          self._import_sc2)
+        pm_im.addAction("Atari ST PI1…",     self._import_pi1)
+        pm_im.addAction("C64 Koala…",        self._import_koala)
+        pm_im.addAction("C64 Art Studio…",   self._import_art_studio)
+        pm_im.addSeparator()
+        pm_im.addAction("ZX Next NXI…",      self._import_nxi)
+        pm_im.addAction("ZX Next PAL…",      self._import_pal)
+        pm_ex = pm_menu.addMenu("Export")
+        pm_ex.addAction("ZX Spectrum SCR…",  self._export_scr)
+        pm_ex.addAction("MSX SC2…",          self._export_sc2)
+        pm_ex.addAction("Atari ST PI1…",     self._export_pi1)
+        pm_ex.addAction("C64 Koala…",        self._export_koala)
+        pm_ex.addAction("C64 Art Studio…",   self._export_art_studio)
+        pm_ex.addSeparator()
+        pm_ex.addAction("ZX Next NXI…",      self._export_nxi)
+        pm_ex.addAction("ZX Next PAL…",      self._export_pal)
+        pm_xe = pm_menu.addMenu("Export Executable")
+        pm_xe.addAction("ZX Spectrum TAP…",  self._export_tap)
+        pm_xe.addAction("ZX Next NEX…",      self._export_nex)
+        pm_xe.addAction("Amiga IFF HAM…",    self._export_iff_ham)
+        pm_xe.addAction("C64 PRG (hires)…",  self._export_c64prg)
+        pm_xe.addAction("C64 PRG (multi)…",  self._export_c64mprg)
+        pm_xe.addAction("MSX COM…",          self._export_msxcom)
+        pm_xe.addAction("Plus/4 PRG…",       self._export_plus4prg)
+        pm_xe.addAction("VIC-20 PRG…",       self._export_vicprg)
+
+        # ── Texture ───────────────────────────────────────────────────────
+        tx_menu = fm.addMenu("Texture")
+        tx_menu.addAction("Export PNG (current depth)…", self._export_texture_png)
+        tx_menu.addAction("Export BMP…",                 self._export_texture_bmp)
+
+        # ── Icons ─────────────────────────────────────────────────────────
+        ic_menu = fm.addMenu("Icons")
+        ic_menu.addAction("Export Windows ICO…",   self._export_ico)
+        ic_menu.addAction("Export Linux SVG…",      self._export_svg_icon)
+        ic_menu.addAction("Export Amiga Icon…",     self._export_amiga_icon)
+        ic_menu.addSeparator()
+        ic_menu.addAction("Import Windows ICO…",   self._import_ico)
+        ic_menu.addAction("Import SVG…",            self._import_svg)
         # Edit
         em = mb.addMenu("Edit")
         em.addAction("Undo\tCtrl+Z",       self._undo_canvas)
@@ -3774,6 +3803,108 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if self.dp5_canvas and mode != 'none':
             self._fit_canvas_to_viewport()
         self._set_status(f"Platform: {mode.upper()}  cell {cw}×{ch}")
+
+    def _set_canvas_mode(self, mode: str, confirm: bool = True): #vers 1
+        """Switch canvas mode — platform/texture/icon/free.
+        If confirm=True and canvas has content, ask before converting."""
+        if mode == self._canvas_mode and self._mode_locked:
+            return
+        if confirm and self._mode_locked and self.dp5_canvas:
+            has_content = any(self.dp5_canvas.rgba[i] != 128
+                              for i in range(0, min(len(self.dp5_canvas.rgba), 400), 4))
+            if has_content:
+                reply = QMessageBox.question(
+                    self, "Switch Mode",
+                    f"Switch to {mode.title()} mode?\n"
+                    f"The canvas will be converted to match {mode} constraints.",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply != QMessageBox.StandardButton.Yes:
+                    # Restore button states
+                    self._update_mode_buttons()
+                    return
+
+        self._canvas_mode  = mode
+        self._mode_locked  = (mode != 'free')
+        self.dp5_settings.set('canvas_mode', mode)
+
+        # Update toolbar mode buttons
+        self._update_mode_buttons()
+
+        # Apply mode constraints to existing canvas
+        if self.dp5_canvas and self._mode_locked:
+            self._apply_mode_to_canvas(mode)
+
+        self._set_status(f"Mode: {mode.title()}")
+
+    def _update_mode_buttons(self): #vers 1
+        """Sync toolbar mode button checked states."""
+        for m, btn in self._mode_btns.items():
+            btn.setChecked(m == self._canvas_mode)
+
+    def _apply_mode_to_canvas(self, mode: str): #vers 1
+        """Convert current canvas to match mode constraints."""
+        if not self.dp5_canvas: return
+        from PIL import Image
+        rgba = bytes(self.dp5_canvas.rgba)
+        w, h = self._canvas_width, self._canvas_height
+        img = Image.frombytes('RGBA', (w, h), rgba)
+
+        if mode == 'platform':
+            # Resize to platform resolution and snap palette
+            plat = self._platform_mode
+            plat_res = {
+                'c64':      (320, 200), 'c64m':     (160, 200),
+                'spectrum': (256, 192), 'specnext': (320, 256),
+                'msx':      (256, 192), 'cpc':      (160, 200),
+                'cpc1':     (320, 200), 'atari_st': (320, 200),
+                'amiga':    (320, 256), 'amiga_aga':(320, 256),
+                'plus4':    (320, 200), 'vic20':    (176, 184),
+            }
+            if plat in plat_res:
+                pw, ph = plat_res[plat]
+                img = img.resize((pw, ph), Image.NEAREST)
+                self._canvas_width  = pw
+                self._canvas_height = ph
+            # Reduce to 8-bit for retro platforms
+            img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+            self._canvas_bit_depth = 3
+
+        elif mode == 'texture':
+            # Snap to nearest power-of-2 size
+            import math
+            pw = 2 ** round(math.log2(max(w, 1)))
+            ph = 2 ** round(math.log2(max(h, 1)))
+            if pw != w or ph != h:
+                img = img.resize((pw, ph), Image.LANCZOS)
+                self._canvas_width  = pw
+                self._canvas_height = ph
+            # Apply current bit depth
+            depth = self._canvas_bit_depth
+            if depth == 2:   # 16-bit
+                rgb = img.convert('RGB'); px = rgb.tobytes()
+                buf = bytearray(len(px))
+                for i in range(0, len(px), 3):
+                    buf[i]  = (px[i]   >> 3) << 3
+                    buf[i+1]= (px[i+1] >> 2) << 2
+                    buf[i+2]= (px[i+2] >> 3) << 3
+                img = Image.frombytes('RGB',(pw,ph),bytes(buf)).convert('RGBA')
+            elif depth == 3: # 8-bit
+                img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+
+        elif mode == 'icon':
+            # Snap to nearest standard icon size
+            ICON_SIZES = [16, 32, 48, 64, 128, 256]
+            best = min(ICON_SIZES, key=lambda s: abs(s - max(w, h)))
+            if best != w or best != h:
+                img = img.resize((best, best), Image.LANCZOS)
+                self._canvas_width  = best
+                self._canvas_height = best
+
+        self.dp5_canvas.tex_w = self._canvas_width
+        self.dp5_canvas.tex_h = self._canvas_height
+        self.dp5_canvas.rgba  = bytearray(img.tobytes())
+        self.dp5_canvas.update()
+        self._fit_canvas_to_viewport()
 
     def _toggle_cell_grid(self): #vers 1
         if not self.dp5_canvas: return
@@ -4590,129 +4721,168 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._pil_transform(lambda i, nw=nw, nh=nh, m=method:
                                 i.resize((nw, nh), m))
 
-    def _new_canvas(self): #vers 3
-        """New canvas dialog with platform presets, custom size, and bit depth."""
+    def _new_canvas(self): #vers 4
+        """New canvas dialog — tabbed: Platform / Texture / Icon / Custom."""
         dlg = QDialog(self)
         dlg.setWindowTitle("New Canvas")
-        dlg.setMinimumWidth(340)
-        layout = QVBoxLayout(dlg)
-        form = QFormLayout()
+        dlg.setMinimumWidth(380)
+        root = QVBoxLayout(dlg)
+        tabs = QTabWidget()
 
-        # ── Platform preset ───────────────────────────────────────────────
-        # PRESETS: (name, w, h, depth_idx)  0=32bit 1=24bit 2=16bit 3=8bit
-        PRESETS = [
-            ("Custom",                    0,    0,   0),
-            ("── Amiga ──",               0,    0,   0),
-            ("Amiga LowRes   320×256",  320,  256,   3),
-            ("Amiga HiRes    640×256",  640,  256,   3),
-            ("Amiga LowRes   320×200",  320,  200,   3),
-            ("Amiga HiRes    640×200",  640,  200,   3),
-            ("── Commodore 64 ──",         0,    0,   0),
-            ("C64 Hires      320×200",  320,  200,   3),
-            ("C64 Multicolor 160×200",  160,  200,   3),
-            ("── ZX Spectrum ──",          0,    0,   0),
-            ("Spectrum       256×192",  256,  192,   3),
-            ("Spectrum Next  320×256",  320,  256,   3),
-            ("── MSX ──",                  0,    0,   0),
-            ("MSX1           256×192",  256,  192,   3),
-            ("── Amstrad CPC ──",           0,    0,   0),
-            ("CPC Mode 0     160×200",  160,  200,   3),
-            ("CPC Mode 1     320×200",  320,  200,   3),
-            ("CPC Mode 2     640×200",  640,  200,   3),
-            ("── Atari ST ──",             0,    0,   0),
-            ("Atari ST Low   320×200",  320,  200,   3),
-            ("Atari ST Med   640×200",  640,  200,   3),
-            ("── Plus/4 ──",               0,    0,   0),
-            ("Plus/4 Hires   320×200",  320,  200,   3),
-            ("Plus/4 Multi   160×200",  160,  200,   3),
-            ("── VIC-20 ──",               0,    0,   0),
-            ("VIC-20         176×184",  176,  184,   3),
-            ("── Sinclair QL ──",           0,    0,   0),
-            ("QL Low         256×256",  256,  256,   3),
-            ("── Textures 8-bit ──",       0,    0,   0),
-            ("Texture 8b     16×16",     16,   16,   3),
-            ("Texture 8b     32×32",     32,   32,   3),
-            ("Texture 8b     64×64",     64,   64,   3),
-            ("Texture 8b    128×128",   128,  128,   3),
-            ("── Textures 16-bit ──",      0,    0,   0),
-            ("Texture 16b    32×32",     32,   32,   2),
-            ("Texture 16b    64×64",     64,   64,   2),
-            ("Texture 16b   128×128",   128,  128,   2),
-            ("Texture 16b   256×256",   256,  256,   2),
-            ("Texture 16b   512×512",   512,  512,   2),
-            ("── Textures 24/32-bit ──",   0,    0,   0),
-            ("Texture 32b    64×64",     64,   64,   0),
-            ("Texture 32b   128×128",   128,  128,   0),
-            ("Texture 32b   256×256",   256,  256,   0),
-            ("Texture 32b   512×512",   512,  512,   0),
-            ("Texture 32b  1024×1024", 1024, 1024,   0),
-            ("Texture 32b  2048×2048", 2048, 2048,   0),
-            ("── Icons ──",                0,    0,   0),
-            ("Icon  Win .ico  16×16",    16,   16,   0),
-            ("Icon  Win .ico  32×32",    32,   32,   0),
-            ("Icon  Win .ico  48×48",    48,   48,   0),
-            ("Icon  Win .ico  64×64",    64,   64,   0),
-            ("Icon  Win .ico 128×128",  128,  128,   0),
-            ("Icon  Win .ico 256×256",  256,  256,   0),
-            ("Icon  Amiga     32×32",    32,   32,   3),
-            ("Icon  Amiga     64×64",    64,   64,   3),
-            ("Sprite          32×64",    32,   64,   3),
-            ("── Common ──",               0,    0,   0),
-            ("HD              1280×720", 1280,  720,  1),
-            ("Full HD        1920×1080", 1920, 1080,  1),
-            ("4K             3840×2160", 3840, 2160,  1),
+        # ── Helper: build a preset combo + w/h/depth form ─────────────────
+        def make_preset_tab(presets, default_w, default_h, default_d):
+            w = QWidget(); fl = QFormLayout(w); fl.setSpacing(6)
+            pc = QComboBox()
+            for name, pw, ph, pd in presets:
+                pc.addItem(name, (pw, ph, pd))
+            fl.addRow("Preset:", pc)
+            ws = QSpinBox(); ws.setRange(1,4096); ws.setValue(default_w)
+            hs = QSpinBox(); hs.setRange(1,4096); hs.setValue(default_h)
+            dc = QComboBox()
+            dc.addItems(["32-bit RGBA","24-bit RGB","16-bit (R5G6B5)","8-bit indexed"])
+            dc.setCurrentIndex(default_d)
+            fl.addRow("Width:",     ws)
+            fl.addRow("Height:",    hs)
+            fl.addRow("Bit depth:", dc)
+            fc = QComboBox()
+            fc.addItems(["Grey (128,128,128)","Black","White","Transparent"])
+            fl.addRow("Fill:", fc)
+            def on_preset(idx):
+                data = pc.itemData(idx)
+                if data:
+                    pw,ph,pd = data
+                    if pw>0: ws.setValue(pw)
+                    if ph>0: hs.setValue(ph)
+                    if pd is not None: dc.setCurrentIndex(pd)
+            pc.currentIndexChanged.connect(on_preset)
+            return w, ws, hs, dc, fc, pc
+
+        # ── Platform tab ───────────────────────────────────────────────────
+        PLATFORM_PRESETS = [
+            ("Custom",                    0,   0,  3),
+            ("── Amiga ──",               0,   0,  0),
+            ("Amiga OCS LowRes 320×256", 320, 256,  3),
+            ("Amiga OCS HiRes  640×256", 640, 256,  3),
+            ("Amiga OCS LowRes 320×200", 320, 200,  3),
+            ("Amiga AGA        320×256", 320, 256,  3),
+            ("Amiga AGA HiRes  640×512", 640, 512,  3),
+            ("── Commodore 64 ──",         0,   0,  0),
+            ("C64 Hires      320×200",   320, 200,  3),
+            ("C64 Multicolor 160×200",   160, 200,  3),
+            ("── ZX Spectrum ──",          0,   0,  0),
+            ("Spectrum       256×192",   256, 192,  3),
+            ("Spectrum Next  320×256",   320, 256,  3),
+            ("── MSX ──",                  0,   0,  0),
+            ("MSX1           256×192",   256, 192,  3),
+            ("── Amstrad CPC ──",           0,   0,  0),
+            ("CPC Mode 0     160×200",   160, 200,  3),
+            ("CPC Mode 1     320×200",   320, 200,  3),
+            ("CPC Mode 2     640×200",   640, 200,  3),
+            ("── Atari ST ──",             0,   0,  0),
+            ("Atari ST Low   320×200",   320, 200,  3),
+            ("Atari ST Med   640×200",   640, 200,  3),
+            ("── Plus/4 ──",               0,   0,  0),
+            ("Plus/4 Hires   320×200",   320, 200,  3),
+            ("Plus/4 Multi   160×200",   160, 200,  3),
+            ("── VIC-20 ──",               0,   0,  0),
+            ("VIC-20         176×184",   176, 184,  3),
+            ("── Sinclair QL ──",           0,   0,  0),
+            ("QL Low         256×256",   256, 256,  3),
         ]
-        preset_combo = QComboBox()
-        for name, w, h, d in PRESETS:
-            preset_combo.addItem(name, (w, h, d))
-        form.addRow("Platform preset:", preset_combo)
+        plat_tab, plat_w, plat_h, plat_d, plat_f, plat_pc = make_preset_tab(
+            PLATFORM_PRESETS, 320, 200, 3)
+        tabs.addTab(plat_tab, "Platform")
 
-        # ── Width / Height ────────────────────────────────────────────────
-        w_spin = QSpinBox(); w_spin.setRange(1, 4096)
-        w_spin.setValue(self.dp5_settings.get('default_width'))
-        form.addRow("Width:", w_spin)
-        h_spin = QSpinBox(); h_spin.setRange(1, 4096)
-        h_spin.setValue(self.dp5_settings.get('default_height'))
-        form.addRow("Height:", h_spin)
+        # ── Texture tab ────────────────────────────────────────────────────
+        TEX_PRESETS = [
+            ("Custom",               0,    0,   0),
+            ("── 8-bit ──",          0,    0,   0),
+            ("8b   16×16",          16,   16,   3),
+            ("8b   32×32",          32,   32,   3),
+            ("8b   64×64",          64,   64,   3),
+            ("8b  128×128",        128,  128,   3),
+            ("── 16-bit ──",         0,    0,   0),
+            ("16b  32×32",          32,   32,   2),
+            ("16b  64×64",          64,   64,   2),
+            ("16b 128×128",        128,  128,   2),
+            ("16b 256×256",        256,  256,   2),
+            ("16b 512×512",        512,  512,   2),
+            ("── 24/32-bit ──",      0,    0,   0),
+            ("32b  64×64",          64,   64,   0),
+            ("32b 128×128",        128,  128,   0),
+            ("32b 256×256",        256,  256,   0),
+            ("32b 512×512",        512,  512,   0),
+            ("32b 1024×1024",     1024, 1024,   0),
+            ("32b 2048×2048",     2048, 2048,   0),
+        ]
+        tex_tab, tex_w, tex_h, tex_d, tex_f, tex_pc = make_preset_tab(
+            TEX_PRESETS, 256, 256, 0)
+        tabs.addTab(tex_tab, "Texture")
 
-        # ── Bit depth ─────────────────────────────────────────────────────
-        depth_combo = QComboBox()
-        depth_combo.addItems(["32-bit RGBA", "24-bit RGB", "16-bit (R5G6B5)", "8-bit indexed"])
-        form.addRow("Bit depth:", depth_combo)
+        # ── Icon tab ───────────────────────────────────────────────────────
+        ICON_PRESETS = [
+            ("Custom",               0,   0,  0),
+            ("── Windows ICO ──",    0,   0,  0),
+            ("ICO  16×16",          16,  16,  0),
+            ("ICO  32×32",          32,  32,  0),
+            ("ICO  48×48",          48,  48,  0),
+            ("ICO  64×64",          64,  64,  0),
+            ("ICO 128×128",        128, 128,  0),
+            ("ICO 256×256",        256, 256,  0),
+            ("── Linux / Web ──",    0,   0,  0),
+            ("SVG  32×32",          32,  32,  0),
+            ("SVG  64×64",          64,  64,  0),
+            ("SVG 128×128",        128, 128,  0),
+            ("── Amiga ──",          0,   0,  0),
+            ("Amiga  32×32",        32,  32,  3),
+            ("Amiga  64×64",        64,  64,  3),
+            ("── Sprites ──",        0,   0,  0),
+            ("Sprite 16×16",        16,  16,  3),
+            ("Sprite 16×32",        16,  32,  3),
+            ("Sprite 32×32",        32,  32,  3),
+            ("Sprite 32×64",        32,  64,  3),
+        ]
+        icon_tab, icon_w, icon_h, icon_d, icon_f, icon_pc = make_preset_tab(
+            ICON_PRESETS, 32, 32, 0)
+        tabs.addTab(icon_tab, "Icon")
 
-        # ── Fill colour ───────────────────────────────────────────────────
-        fill_combo = QComboBox()
-        fill_combo.addItems(["Grey (128,128,128)", "Black", "White", "Transparent"])
-        form.addRow("Fill:", fill_combo)
+        # ── Free tab ───────────────────────────────────────────────────────
+        FREE_PRESETS = [
+            ("Custom",               0,    0,  0),
+            ("HD     1280×720",   1280,  720,  1),
+            ("FHD   1920×1080",   1920, 1080,  1),
+            ("4K    3840×2160",   3840, 2160,  1),
+        ]
+        free_tab, free_w, free_h, free_d, free_f, free_pc = make_preset_tab(
+            FREE_PRESETS,
+            self.dp5_settings.get('default_width'),
+            self.dp5_settings.get('default_height'), 0)
+        tabs.addTab(free_tab, "Free")
 
-        layout.addLayout(form)
+        # Set active tab to current mode
+        mode_tab = {'platform':0,'texture':1,'icon':2,'free':3}
+        tabs.setCurrentIndex(mode_tab.get(self._canvas_mode, 3))
 
-        # Wire preset → w/h spinboxes
-        def on_preset(idx):
-            data = preset_combo.itemData(idx)
-            if data:
-                w, h, d = data
-                if w > 0 and h > 0:
-                    w_spin.setValue(w)
-                    h_spin.setValue(h)
-                if d is not None:
-                    depth_combo.setCurrentIndex(d)
-        preset_combo.currentIndexChanged.connect(on_preset)
-
-        btns = QHBoxLayout()
-        btns.addStretch()
-        ok  = QPushButton("Create"); ok.setDefault(True)
+        root.addWidget(tabs)
+        btns = QHBoxLayout(); btns.addStretch()
+        ok = QPushButton("Create"); ok.setDefault(True)
         can = QPushButton("Cancel")
-        ok.clicked.connect(dlg.accept)
-        can.clicked.connect(dlg.reject)
+        ok.clicked.connect(dlg.accept); can.clicked.connect(dlg.reject)
         btns.addWidget(ok); btns.addWidget(can)
-        layout.addLayout(btns)
+        root.addLayout(btns)
 
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
+        if dlg.exec() != QDialog.DialogCode.Accepted: return
 
-        w = w_spin.value()
-        h = h_spin.value()
+        tab_idx = tabs.currentIndex()
+        tab_mode = ['platform','texture','icon','free'][tab_idx]
+        w_spin, h_spin, depth_combo, fill_combo, preset_combo = [
+            (plat_w, plat_h, plat_d, plat_f, plat_pc),
+            (tex_w,  tex_h,  tex_d,  tex_f,  tex_pc),
+            (icon_w, icon_h, icon_d, icon_f, icon_pc),
+            (free_w, free_h, free_d, free_f, free_pc),
+        ][tab_idx]
+
+        w = w_spin.value(); h = h_spin.value()
         fill_idx = fill_combo.currentIndex()
         if   fill_idx == 0: fill = b'\x80\x80\x80\xff'
         elif fill_idx == 1: fill = b'\x00\x00\x00\xff'
@@ -4723,7 +4893,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._canvas_height = h
         self._canvas_bit_depth = depth_combo.currentIndex()
 
-        # Map preset to platform mode and auto-enable constraints
+        # Lock mode and apply platform if needed
+        self._set_canvas_mode(tab_mode, confirm=False)
+
         preset_name = preset_combo.currentText()
         _preset_platform = {
             'C64 Hires': 'c64', 'C64 Multicolor': 'c64m',
@@ -4731,13 +4903,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'MSX1': 'msx',
             'CPC Mode 0': 'cpc', 'CPC Mode 1': 'cpc1', 'CPC Mode 2': 'cpc1',
             'Atari ST Low': 'atari_st', 'Atari ST Med': 'atari_st',
-            'Amiga LowRes': 'amiga', 'Amiga HiRes': 'amiga',
+            'Amiga OCS': 'amiga', 'Amiga AGA': 'amiga_aga',
             'Plus/4 Hires': 'plus4', 'Plus/4 Multi': 'plus4',
             'VIC-20': 'vic20',
-            # AGA/HAM added via Platform menu — not in preset list by default
         }
-        plat = next((v for k, v in _preset_platform.items() if k in preset_name), 'none')
-        if plat != 'none':
+        plat = next((v for k,v in _preset_platform.items() if k in preset_name), 'none')
+        if tab_mode == 'platform' and plat != 'none':
             self._set_platform(plat)
             self._enforce_constraints = True
 
@@ -4747,7 +4918,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.rgba  = bytearray(fill * (w * h))
             self.dp5_canvas.update()
             self._fit_canvas_to_viewport()
-        self._set_status(f"New canvas: {w}×{h}  {depth_combo.currentText()}")
+
+        mode_labels = {'platform':'Platform','texture':'Texture','icon':'Icon','free':'Free'}
+        self._set_status(f"New canvas: {w}\u00d7{h}  {depth_combo.currentText()}  [{mode_labels[tab_mode]}]")
 
     def _crop_to_selection(self): #vers 1
         """Crop canvas to the current selection rect."""
@@ -4838,27 +5011,75 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
 
-    def _import_bitmap_path(self, path: str): #vers 2
-        """Load an image, downscale bit depth if platform/texture mode requires it."""
+    def _import_bitmap_path(self, path: str): #vers 3
+        """Load an image, auto-reduce to current mode constraints if locked."""
         if not path or not self.dp5_canvas: return
         try:
             from PIL import Image
             img = Image.open(path).convert('RGBA')
             w, h = img.size
-            # Apply bit-depth reduction based on current _canvas_bit_depth
-            depth = getattr(self, '_canvas_bit_depth', 0)
-            if depth == 1:  # 24-bit
-                img = img.convert('RGB').convert('RGBA')
-            elif depth == 2:  # 16-bit R5G6B5
-                rgb = img.convert('RGB'); px = rgb.tobytes()
-                buf = bytearray(len(px))
-                for i in range(0, len(px), 3):
-                    buf[i]   = (px[i]   >> 3) << 3
-                    buf[i+1] = (px[i+1] >> 2) << 2
-                    buf[i+2] = (px[i+2] >> 3) << 3
-                img = Image.frombytes('RGB', (w,h), bytes(buf)).convert('RGBA')
-            elif depth == 3:  # 8-bit indexed
+
+            mode = getattr(self, '_canvas_mode', 'free')
+            locked = getattr(self, '_mode_locked', False)
+
+            if locked and mode == 'platform':
+                # Resize to platform res, reduce bit depth to 8-bit, snap palette
+                plat = getattr(self, '_platform_mode', 'none')
+                plat_res = {
+                    'c64':(320,200),'c64m':(160,200),'spectrum':(256,192),
+                    'specnext':(320,256),'msx':(256,192),'cpc':(160,200),
+                    'cpc1':(320,200),'atari_st':(320,200),'amiga':(320,256),
+                    'amiga_aga':(320,256),'plus4':(320,200),'vic20':(176,184),
+                }
+                if plat in plat_res:
+                    w, h = plat_res[plat]
+                    img = img.resize((w, h), Image.NEAREST)
                 img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+                self._canvas_bit_depth = 3
+
+            elif locked and mode == 'texture':
+                import math
+                pw = 2 ** round(math.log2(max(w, 1)))
+                ph = 2 ** round(math.log2(max(h, 1)))
+                if pw != w or ph != h:
+                    img = img.resize((pw, ph), Image.LANCZOS)
+                    w, h = pw, ph
+                depth = self._canvas_bit_depth
+                if depth == 1:
+                    img = img.convert('RGB').convert('RGBA')
+                elif depth == 2:
+                    rgb = img.convert('RGB'); px = rgb.tobytes()
+                    buf = bytearray(len(px))
+                    for i in range(0, len(px), 3):
+                        buf[i]  = (px[i]   >> 3) << 3
+                        buf[i+1]= (px[i+1] >> 2) << 2
+                        buf[i+2]= (px[i+2] >> 3) << 3
+                    img = Image.frombytes('RGB',(w,h),bytes(buf)).convert('RGBA')
+                elif depth == 3:
+                    img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+
+            elif locked and mode == 'icon':
+                ICON_SIZES = [16, 32, 48, 64, 128, 256]
+                best = min(ICON_SIZES, key=lambda s: abs(s - max(w, h)))
+                img = img.resize((best, best), Image.LANCZOS)
+                w, h = best, best
+
+            else:
+                # Free mode: apply bit depth only
+                depth = getattr(self, '_canvas_bit_depth', 0)
+                if depth == 1:
+                    img = img.convert('RGB').convert('RGBA')
+                elif depth == 2:
+                    rgb = img.convert('RGB'); px = rgb.tobytes()
+                    buf = bytearray(len(px))
+                    for i in range(0, len(px), 3):
+                        buf[i]  = (px[i]   >> 3) << 3
+                        buf[i+1]= (px[i+1] >> 2) << 2
+                        buf[i+2]= (px[i+2] >> 3) << 3
+                    img = Image.frombytes('RGB',(w,h),bytes(buf)).convert('RGBA')
+                elif depth == 3:
+                    img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+
             self._canvas_width  = w
             self._canvas_height = h
             new_rgba = bytearray(img.tobytes())
@@ -4867,29 +5088,27 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.rgba  = new_rgba
             self.dp5_canvas.update()
 
-            # Auto-fit zoom
+            # Auto-fit zoom — pixel-perfect for small canvases
             sa = getattr(self, '_canvas_scroll', None)
-            if sa:
-                vw = sa.viewport().width()
-                vh = sa.viewport().height()
-            else:
-                vw, vh = 800, 600
-            z_w = (vw * 0.9) / max(1, w)
-            z_h = (vh * 0.9) / max(1, h)
-            fit_z = min(z_w, z_h)
-            for snap in (16, 8, 4, 2, 1):
-                if fit_z >= snap:
-                    fit_z = snap; break
+            vw = sa.viewport().width()  if sa else 800
+            vh = sa.viewport().height() if sa else 600
+            fit_z = min(vw/max(1,w), vh/max(1,h))
+            for snap in (16,8,4,2,1):
+                if fit_z >= snap: fit_z = snap; break
             self._set_zoom(max(0.05, fit_z))
 
             # Extract palette
             p_img    = img.quantize(colors=256)
             pal_flat = p_img.getpalette()
-            palette  = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2])
-                        for i in range(256)]
+            palette  = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
             self.pal_bar.set_palette_raw(palette)
 
-            # Add to bitmap list
+            # Apply platform constraints if in platform mode
+            if locked and mode == 'platform' and self._enforce_constraints:
+                for py in range(0, h, max(1, self.dp5_canvas.cell_h)):
+                    for px in range(0, w, max(1, self.dp5_canvas.cell_w)):
+                        self._apply_cell_constraint(px, py)
+
             name = os.path.basename(path)
             self._bitmap_list.append({'name': name, 'rgba': new_rgba, 'w': w, 'h': h})
             self._bitmap_lw.addItem(name)
@@ -5934,6 +6153,53 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         from PIL import Image
         return Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
                                bytes(self.dp5_canvas.rgba))
+
+    def _export_texture_png(self): #vers 1
+        """Export texture as PNG at current bit depth."""
+        if not self.dp5_canvas: return
+        depth_names = {0:'32bit', 1:'24bit', 2:'16bit', 3:'8bit'}
+        d = depth_names.get(self._canvas_bit_depth, '32bit')
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Texture PNG",
+            f"texture_{w}x{h}_{d}.png", "PNG (*.png)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = self._get_canvas_pil()
+            depth = self._canvas_bit_depth
+            if depth == 1:
+                img = img.convert('RGB').convert('RGBA')
+            elif depth == 2:
+                rgb = img.convert('RGB'); px = rgb.tobytes()
+                buf = bytearray(len(px))
+                for i in range(0, len(px), 3):
+                    buf[i]  =(px[i]   >>3)<<3
+                    buf[i+1]=(px[i+1] >>2)<<2
+                    buf[i+2]=(px[i+2] >>3)<<3
+                img = Image.frombytes('RGB',(w,h),bytes(buf)).convert('RGBA')
+            elif depth == 3:
+                img = img.convert('RGB').quantize(colors=256).convert('RGB').convert('RGBA')
+            img.save(path, 'PNG')
+            self._set_status(f"Exported texture: {os.path.basename(path)}  {w}×{h} {d}")
+        except Exception as e:
+            QMessageBox.warning(self, "Texture Export Error", str(e))
+
+    def _export_texture_bmp(self): #vers 1
+        """Export texture as BMP at current bit depth."""
+        if not self.dp5_canvas: return
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Texture BMP", f"texture_{w}x{h}.bmp", "BMP (*.bmp)")
+        if not path: return
+        try:
+            img = self._get_canvas_pil().convert('RGB')
+            if self._canvas_bit_depth == 3:
+                img = img.quantize(colors=256).convert('RGB')
+            img.save(path, 'BMP')
+            self._set_status(f"Exported BMP: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "BMP Export Error", str(e))
 
     def _export_ico(self): #vers 1
         """Export Windows ICO — multiple sizes embedded (16,32,48,64,128,256)."""
