@@ -3803,9 +3803,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._fit_canvas_to_viewport()
         self._set_status(f"Platform: {mode.upper()}  cell {cw}×{ch}")
 
-    def _set_canvas_mode(self, mode: str, confirm: bool = True): #vers 1
-        """Switch canvas mode — platform/texture/icon/free.
-        If confirm=True and canvas has content, ask before converting."""
+    def _set_canvas_mode(self, mode: str, confirm: bool = True, apply: bool = True): #vers 2
+        """Switch canvas mode — platform/texture/icon/free."""
         if mode == self._canvas_mode and self._mode_locked:
             return
         if confirm and self._mode_locked and self.dp5_canvas:
@@ -3818,20 +3817,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     f"The canvas will be converted to match {mode} constraints.",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                 if reply != QMessageBox.StandardButton.Yes:
-                    # Restore button states
                     self._update_mode_buttons()
                     return
 
         self._canvas_mode  = mode
         self._mode_locked  = (mode != 'free')
         self.dp5_settings.set('canvas_mode', mode)
-
-        # Update toolbar mode buttons
         self._update_mode_buttons()
 
-        # Apply mode constraints to existing canvas
-        if self.dp5_canvas and self._mode_locked:
-            self._apply_mode_to_canvas(mode)
+        # Only apply to existing canvas when not creating a new one
+        if apply and self.dp5_canvas and self._mode_locked:
+            rgba = bytes(self.dp5_canvas.rgba)
+            if len(rgba) == self._canvas_width * self._canvas_height * 4:
+                self._apply_mode_to_canvas(mode)
 
         self._set_status(f"Mode: {mode.title()}")
 
@@ -4723,10 +4721,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
     def _new_btn_context_menu(self, pos): #vers 1
         """Right-click on New button — pick mode then open New Canvas on that tab."""
         menu = QMenu(self)
-        menu.addAction("New — Free canvas",     lambda: (self._set_canvas_mode('free',     confirm=False), self._new_canvas()))
-        menu.addAction("New — Platform canvas", lambda: (self._set_canvas_mode('platform', confirm=False), self._new_canvas()))
-        menu.addAction("New — Texture canvas",  lambda: (self._set_canvas_mode('texture',  confirm=False), self._new_canvas()))
-        menu.addAction("New — Icon canvas",     lambda: (self._set_canvas_mode('icon',     confirm=False), self._new_canvas()))
+        menu.addAction("New — Free canvas",     lambda: (self._set_canvas_mode('free',     confirm=False, apply=False), self._new_canvas()))
+        menu.addAction("New — Platform canvas", lambda: (self._set_canvas_mode('platform', confirm=False, apply=False), self._new_canvas()))
+        menu.addAction("New — Texture canvas",  lambda: (self._set_canvas_mode('texture',  confirm=False, apply=False), self._new_canvas()))
+        menu.addAction("New — Icon canvas",     lambda: (self._set_canvas_mode('icon',     confirm=False, apply=False), self._new_canvas()))
         btn = getattr(self, 'tb_new_btn', None)
         menu.exec(btn.mapToGlobal(pos) if btn else self.cursor().pos())
 
@@ -4902,8 +4900,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._canvas_height = h
         self._canvas_bit_depth = depth_combo.currentIndex()
 
-        # Lock mode and apply platform if needed
-        self._set_canvas_mode(tab_mode, confirm=False)
+        # Lock mode — don't apply to canvas (we're about to write fresh rgba)
+        self._set_canvas_mode(tab_mode, confirm=False, apply=False)
 
         preset_name = preset_combo.currentText()
         _preset_platform = {
