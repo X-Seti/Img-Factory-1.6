@@ -5084,6 +5084,40 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "SCR Export Error", str(e))
 
+    def _export_scr(self): #vers 1
+        """Export ZX Spectrum SCR (256×192, 6144 bitmap + 768 attr bytes)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export ZX Spectrum SCR", "screen.scr", "SCR (*.scr)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
+            img = img.resize((256,192), Image.NEAREST)
+            zx_pal = [0,0,0,215,0,0,0,215,0,215,215,0,0,0,215,215,0,215,0,215,215,215,215,215]
+            pi = Image.new('P',(1,1)); pi.putpalette(zx_pal+[0]*744)
+            q = img.quantize(palette=pi, dither=0)
+            pixels = list(q.getdata())
+            bitmap = bytearray(6144); attrs = bytearray(768)
+            for third in range(3):
+                for row in range(8):
+                    for char_y in range(8):
+                        y = third*64+char_y*8+row
+                        for char_x in range(32):
+                            byte = 0
+                            for bit in range(8):
+                                if pixels[y*256+char_x*8+bit]&1:
+                                    byte |= (0x80>>bit)
+                            bitmap[third*2048+row*256+char_y*32+char_x] = byte
+            for ay in range(24):
+                for ax in range(32):
+                    attrs[ay*32+ax] = pixels[(ay*8)*256+ax*8]&7
+            open(path,'wb').write(bitmap+attrs)
+            self._set_status(f"Exported SCR: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "SCR Export Error", str(e))
+
     def _export_sc2(self): #vers 1
         """Export MSX SC2 raw (256×192, 6144 pattern + 6144 colour + 768 name)."""
         if not self.dp5_canvas: return
