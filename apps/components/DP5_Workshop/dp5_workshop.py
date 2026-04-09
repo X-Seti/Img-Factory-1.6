@@ -2715,11 +2715,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         main_layout.addWidget(self._splitter)
 
-        # Status bar
-        self._status_bar = QStatusBar()
-        show_sb = self.dp5_settings.get('show_statusbar')
-        self._status_bar.setVisible(show_sb)
-        main_layout.addWidget(self._status_bar)
         self._set_status(f"Canvas: {self._canvas_width}×{self._canvas_height}")
 
         # Initial tool
@@ -2993,7 +2988,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.pixel_changed.connect(self._on_canvas_changed)
             scroll = QScrollArea()
             scroll.setWidget(self.dp5_canvas)
-            scroll.setWidgetResizable(False)   # canvas sizeHint drives size
+            scroll.setWidgetResizable(False)
             scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._canvas_scroll = scroll
             layout.addWidget(scroll, 1)
@@ -3001,6 +2996,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             err = QLabel(f"Canvas error: {e}")
             layout.addWidget(err)
             self.dp5_canvas = None
+
+        # Status bar — canvas-wide only, 22px fixed height
+        self._status_bar = QStatusBar()
+        self._status_bar.setSizeGripEnabled(False)
+        self._status_bar.setFixedHeight(22)
+        self._status_bar.setVisible(self.dp5_settings.get('show_statusbar'))
+        layout.addWidget(self._status_bar)
 
         return panel
 
