@@ -3862,25 +3862,41 @@ def get_ide_editor_icon(size: int = 24, color: str = None, bg_color: str = None)
 #  DP5 Workshop icons — paint editor suite
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
-    """DP5 Workshop — bold paint palette, readable at all sizes from 16px up"""
-    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <!-- Palette — solid filled shape, very readable at small sizes -->
-        <path d="M12 3C7 3 3 7 3 12c0 2.2.8 4.2 2.1 5.8.4.5 1 .5 1.5.1
-                 1-.8 2.4-.9 3.5-.2.6.3 1.2.5 1.9.5.8 0 1.5-.2 2-.6
-                 1.4-.9 2-2.6 2-4.4 0-4.4-3.6-8.2-8-8.2z"
-              fill="currentColor"/>
-        <!-- 4 bold colour dots on palette -->
-        <circle cx="8.5"  cy="9.5"  r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <circle cx="12"   cy="7.5"  r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <circle cx="15.5" cy="9.5"  r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <circle cx="15.5" cy="13.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <!-- Bold brush handle — diagonal, very visible -->
-        <line x1="17" y1="4" x2="21" y2="8"
-              stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-        <line x1="14" y1="7" x2="17" y2="4"
-              stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    </svg>''', size, color, bg_color)
+def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 3
+    """DP5 Workshop — colourful paint palette icon, visible on any background."""
+    svg = '''<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <!-- Dark outline palette body -->
+        <path d="M24 4C13 4 4 13 4 24c0 5 1.8 9.5 4.8 13 1 1.2 2.8 1.2 4 .2
+                 2.2-1.8 5.4-2 7.8-.4 1.2.8 2.6 1.2 4.2 1.2 1.6 0 3.2-.5 4.4-1.4
+                 3-2.2 4.8-6 4.8-10C44 12.9 34.9 4 24 4z"
+              fill="#1a1a2e" stroke="#000" stroke-width="1"/>
+        <!-- Palette highlight -->
+        <path d="M24 8C15 8 8 15 8 24c0 3.5 1.1 6.8 3 9.4.6.8 1.8.9 2.6.2
+                 1.6-1.4 3.8-1.6 5.6-.4.8.6 1.8.9 2.8.9s2-.3 2.8-.9
+                 2.2-1.6 4-4.5 4-7.7C28.8 14.8 21.8 8 14.8 8z"
+              fill="#2d2d5e" opacity="0.4"/>
+        <!-- Colour dots — bright, distinct colours -->
+        <circle cx="16" cy="18" r="4.5" fill="#FF4444" stroke="#fff" stroke-width="1.2"/>
+        <circle cx="24" cy="13" r="4.5" fill="#44BB44" stroke="#fff" stroke-width="1.2"/>
+        <circle cx="32" cy="18" r="4.5" fill="#4444FF" stroke="#fff" stroke-width="1.2"/>
+        <circle cx="32" cy="27" r="4.5" fill="#FFCC00" stroke="#fff" stroke-width="1.2"/>
+        <!-- Brush — white handle with dark tip -->
+        <line x1="36" y1="6" x2="44" y2="14"
+              stroke="#eeeeee" stroke-width="5" stroke-linecap="round"/>
+        <line x1="30" y1="12" x2="36" y2="6"
+              stroke="#cccccc" stroke-width="4" stroke-linecap="round"/>
+        <ellipse cx="31.5" cy="13.5" rx="3" ry="2"
+                 fill="#8B4513" stroke="#5C2D0A" stroke-width="1"
+                 transform="rotate(-45 31.5 13.5)"/>
+    </svg>'''
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    renderer = QSvgRenderer(svg.encode())
+    from PyQt6.QtGui import QPainter
+    p = QPainter(px)
+    renderer.render(p)
+    p.end()
+    return QIcon(px)
 
 
 # Attach as static method on SVGIconFactory for consistency
