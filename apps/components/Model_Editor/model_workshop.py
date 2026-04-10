@@ -89,6 +89,11 @@ class _DFFGeometryAdapter:
     @property
     def face_count(self):     return len(self.faces)
 
+    @property
+    def materials(self):
+        """Expose DFF geometry materials for use by the viewport renderer."""
+        return getattr(self._geometry, 'materials', [])
+
     def __repr__(self):
         return f"<_DFFGeometryAdapter {self.name} {self.vertex_count}v {self.face_count}f>"
 
@@ -773,16 +778,27 @@ class COL3DViewport(QWidget): #vers 2
             p.drawLine(int(x0), int(y0), int(x1), int(y1))
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        # ── Material colours — from col_materials group palette ───────────
-        try:
-            from apps.methods.col_materials import get_material_qcolor, COLGame
-            _game = COLGame.VC if getattr(getattr(model,'version',None),'value',3)==1 else COLGame.SA
+        # ── Material colours ──────────────────────────────────────────────
+        # For DFF geometries use actual material colours; fall back to COL palette
+        # _DFFGeometryAdapter exposes .materials from the underlying DFF Geometry
+        _dff_mats = getattr(model, 'materials', [])
+
+        if _dff_mats:
             def mat_col(mat_id):
-                c = get_material_qcolor(mat_id, _game)
-                return c if c else QColor(120,120,120)
-        except Exception:
-            def mat_col(mat_id):
-                return QColor(120,120,120)
+                if 0 <= mat_id < len(_dff_mats):
+                    c = _dff_mats[mat_id].color
+                    return QColor(c.r, c.g, c.b, max(80, c.a) if c.a else 200)
+                return QColor(160, 160, 160)
+        else:
+            try:
+                from apps.methods.col_materials import get_material_qcolor, COLGame
+                _game = COLGame.VC if getattr(getattr(model,'version',None),'value',3)==1 else COLGame.SA
+                def mat_col(mat_id):
+                    c = get_material_qcolor(mat_id, _game)
+                    return c if c else QColor(120,120,120)
+            except Exception:
+                def mat_col(mat_id):
+                    return QColor(120,120,120)
 
         # ── Mesh faces ────────────────────────────────────────────────────
         rs = self._render_style  # 'wireframe' | 'semi' | 'solid'
@@ -4433,6 +4449,15 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         self.export_col_btn.setEnabled(True)
         btn_layout.addWidget(self.export_col_btn)
 
+        self.export_obj_btn = QPushButton("OBJ")
+        self.export_obj_btn.setFont(self.button_font)
+        self.export_obj_btn.setIcon(self.icon_factory.export_icon(color=icon_color))
+        self.export_obj_btn.setIconSize(QSize(20, 20))
+        self.export_obj_btn.setToolTip("Export DFF as Wavefront OBJ")
+        self.export_obj_btn.clicked.connect(self._export_dff_obj)
+        self.export_obj_btn.setEnabled(False)   # enabled on DFF load
+        btn_layout.addWidget(self.export_obj_btn)
+
         self.undo_col_btn = QPushButton()
         self.undo_col_btn.setFont(self.button_font)
         self.undo_col_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
@@ -4494,6 +4519,42 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         self.mod_compact_list.setWordWrap(True)
         self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
         layout.addWidget(self.mod_compact_list)
+
+        # ── Frame / Bone hierarchy tree (DFF only) ───────────────────────
+        from PyQt6.QtWidgets import QTreeWidget
+        self._frame_tree_panel = QFrame()
+        self._frame_tree_panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        ft_lay = QVBoxLayout(self._frame_tree_panel)
+        ft_lay.setContentsMargins(2, 2, 2, 2)
+        ft_lay.setSpacing(2)
+
+        ft_hdr = QHBoxLayout()
+        ft_lbl = QLabel("Frame Hierarchy")
+        ft_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        ft_hdr.addWidget(ft_lbl)
+        ft_hdr.addStretch()
+        ft_collapse = QPushButton("▾")
+        ft_collapse.setFixedSize(20, 18)
+        ft_collapse.setFlat(True)
+        ft_collapse.setToolTip("Collapse/expand frame tree")
+        ft_collapse.clicked.connect(lambda: (
+            self._frame_tree.setVisible(not self._frame_tree.isVisible()),
+            ft_collapse.setText("▸" if not self._frame_tree.isVisible() else "▾")
+        ))
+        ft_hdr.addWidget(ft_collapse)
+        ft_lay.addLayout(ft_hdr)
+
+        self._frame_tree = QTreeWidget()
+        self._frame_tree.setHeaderLabels(["Frame", "Parent", "Position"])
+        self._frame_tree.setAlternatingRowColors(True)
+        self._frame_tree.setMaximumHeight(180)
+        self._frame_tree.setMinimumHeight(60)
+        self._frame_tree.setFont(self.panel_font)
+        self._frame_tree.itemClicked.connect(self._on_frame_tree_clicked)
+        ft_lay.addWidget(self._frame_tree)
+
+        self._frame_tree_panel.setVisible(False)  # hidden until DFF loaded
+        layout.addWidget(self._frame_tree_panel)
 
         return panel
 
@@ -6068,12 +6129,17 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
             self.setWindowTitle(f"{App_name}: {name} "
                                 f"[{model.geometry_count} geometries, "
                                 f"{model.frame_count} frames]")
+            # Enable OBJ export toolbar button
+            if hasattr(self, 'export_obj_btn'):
+                self.export_obj_btn.setEnabled(True)
             self._set_status(f"Opened DFF: {name}  — "
                              f"{model.geometry_count} geometries, "
                              f"{model.frame_count} frames, "
                              f"{model.atomic_count} atomics")
             # Populate mesh list + viewport
             self._display_dff_model(model)
+            # Populate frame/bone hierarchy tree
+            self._populate_frame_tree(model)
             # Populate detail table with geometry info
             self._populate_dff_detail_table(model)
         except Exception as e:
@@ -6112,6 +6178,61 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         item = QTableWidgetItem(str(text))
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         return item
+
+    def _populate_frame_tree(self, model): #vers 1
+        """Populate the frame/bone hierarchy tree widget."""
+        tree = getattr(self, '_frame_tree', None)
+        if tree is None:
+            return
+        tree.clear()
+        tree.setHeaderLabels(["Frame", "Parent", "Pos"])
+
+        from PyQt6.QtWidgets import QTreeWidgetItem
+        items = {}
+        for i, frame in enumerate(model.frames):
+            name = frame.name or f"Frame_{i}"
+            pos = frame.position
+            pos_str = f"({pos.x:.2f}, {pos.y:.2f}, {pos.z:.2f})"
+            parent_str = str(frame.parent_index) if frame.parent_index >= 0 else "—"
+            item = QTreeWidgetItem([name, parent_str, pos_str])
+            item.setData(0, 0x0100, i)  # store frame index
+            items[i] = item
+            if frame.parent_index < 0 or frame.parent_index not in items:
+                tree.addTopLevelItem(item)
+            else:
+                items[frame.parent_index].addChild(item)
+        tree.expandAll()
+        tree.resizeColumnToContents(0)
+
+        # Show the frame tree panel
+        panel = getattr(self, '_frame_tree_panel', None)
+        if panel:
+            panel.setVisible(True)
+
+    def _on_frame_tree_clicked(self, item, column): #vers 1
+        """When user clicks a frame in the tree, highlight the associated geometry."""
+        frame_idx = item.data(0, 0x0100)
+        if frame_idx is None:
+            return
+        model = getattr(self, '_current_dff_model', None)
+        if not model:
+            return
+        # Find geometry linked to this frame via atomics
+        atomic = next((a for a in model.atomics if a.frame_index == frame_idx), None)
+        if atomic is not None:
+            geom_idx = atomic.geometry_index
+            adapters = getattr(self, '_dff_adapters', [])
+            if 0 <= geom_idx < len(adapters):
+                self._show_dff_geometry(geom_idx)
+                # Also select the row in the compact list
+                self.mod_compact_list.setCurrentRow(geom_idx)
+            frame = model.frames[frame_idx]
+            name = frame.name or f"Frame_{frame_idx}"
+            pos = frame.position
+            self._set_status(
+                f"Frame [{frame_idx}]: '{name}'  "
+                f"pos=({pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f})  "
+                f"parent={frame.parent_index}")
 
     def _display_dff_model(self, model): #vers 2
         """Populate the workshop UI with a loaded DFF model.
@@ -6180,6 +6301,143 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
             )
 
 
+
+    def _export_dff_obj(self): #vers 1
+        """Export the currently loaded DFF model to Wavefront OBJ + MTL."""
+        model = getattr(self, '_current_dff_model', None)
+        if not model or not model.geometries:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Model", "Open a DFF file first.")
+            return
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        import os
+
+        base_name = os.path.splitext(
+            os.path.basename(getattr(self, '_current_dff_path', 'model.dff'))
+        )[0]
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Export OBJ", base_name + ".obj",
+            "Wavefront OBJ (*.obj);;All Files (*)")
+        if not out_path:
+            return
+
+        mtl_path = os.path.splitext(out_path)[0] + ".mtl"
+        mtl_name = os.path.basename(mtl_path)
+
+        try:
+            lines_obj = [
+                f"# Exported by {App_name}",
+                f"# Source: {getattr(self, '_current_dff_path', 'unknown')}",
+                f"mtllib {mtl_name}",
+                "",
+            ]
+            lines_mtl = [f"# Material library — {App_name}", ""]
+
+            vertex_offset = 1   # OBJ is 1-indexed
+            uv_offset     = 1
+
+            for geom_idx, geom in enumerate(model.geometries):
+                # Find frame name via atomics
+                atomic = next(
+                    (a for a in model.atomics if a.geometry_index == geom_idx), None)
+                frame_name = (model.get_frame_name(atomic.frame_index)
+                              if atomic else f"geometry_{geom_idx}")
+                safe_name = frame_name.replace(' ', '_').replace('/', '_')
+
+                lines_obj.append(f"o {safe_name}")
+
+                # Vertices
+                for v in geom.vertices:
+                    lines_obj.append(f"v {v.x:.6f} {v.y:.6f} {v.z:.6f}")
+
+                # Normals
+                has_normals = bool(geom.normals)
+                if has_normals:
+                    for n in geom.normals:
+                        lines_obj.append(f"vn {n.x:.6f} {n.y:.6f} {n.z:.6f}")
+
+                # UV coordinates (first layer only)
+                has_uvs = bool(geom.uv_layers)
+                if has_uvs:
+                    for uv in geom.uv_layers[0]:
+                        lines_obj.append(f"vt {uv.u:.6f} {1.0 - uv.v:.6f}")
+
+                # Materials
+                for mat_idx, mat in enumerate(geom.materials):
+                    mat_id = f"{safe_name}_mat{mat_idx}"
+                    lines_mtl.append(f"newmtl {mat_id}")
+                    r = mat.color.r / 255.0
+                    g = mat.color.g / 255.0
+                    b = mat.color.b / 255.0
+                    lines_mtl.append(f"Kd {r:.4f} {g:.4f} {b:.4f}")
+                    lines_mtl.append(f"Ka {mat.ambient:.4f} {mat.ambient:.4f} {mat.ambient:.4f}")
+                    lines_mtl.append(f"Ks {mat.specular:.4f} {mat.specular:.4f} {mat.specular:.4f}")
+                    lines_mtl.append(f"d 1.0")
+                    if mat.texture_name:
+                        lines_mtl.append(f"map_Kd {mat.texture_name}.png")
+                    lines_mtl.append("")
+
+                # Faces — grouped by material
+                from itertools import groupby
+                tris_by_mat = {}
+                for tri in geom.triangles:
+                    tris_by_mat.setdefault(tri.material_id, []).append(tri)
+
+                for mat_id_idx, tris in sorted(tris_by_mat.items()):
+                    if geom.materials and mat_id_idx < len(geom.materials):
+                        mat_obj_name = f"{safe_name}_mat{mat_id_idx}"
+                        lines_obj.append(f"usemtl {mat_obj_name}")
+                    else:
+                        lines_obj.append("usemtl default")
+
+                    for tri in tris:
+                        v1 = tri.v1 + vertex_offset
+                        v2 = tri.v2 + vertex_offset
+                        v3 = tri.v3 + vertex_offset
+                        if has_uvs and has_normals:
+                            uv1 = tri.v1 + uv_offset
+                            uv2 = tri.v2 + uv_offset
+                            uv3 = tri.v3 + uv_offset
+                            lines_obj.append(
+                                f"f {v1}/{uv1}/{v1} {v2}/{uv2}/{v2} {v3}/{uv3}/{v3}")
+                        elif has_uvs:
+                            uv1 = tri.v1 + uv_offset
+                            uv2 = tri.v2 + uv_offset
+                            uv3 = tri.v3 + uv_offset
+                            lines_obj.append(
+                                f"f {v1}/{uv1} {v2}/{uv2} {v3}/{uv3}")
+                        elif has_normals:
+                            lines_obj.append(
+                                f"f {v1}//{v1} {v2}//{v2} {v3}//{v3}")
+                        else:
+                            lines_obj.append(f"f {v1} {v2} {v3}")
+
+                vertex_offset += len(geom.vertices)
+                if has_uvs:
+                    uv_offset += len(geom.uv_layers[0])
+                lines_obj.append("")
+
+            # Write files
+            with open(out_path, 'w') as f:
+                f.write("\n".join(lines_obj))
+            with open(mtl_path, 'w') as f:
+                f.write("\n".join(lines_mtl))
+
+            total_v = sum(len(g.vertices) for g in model.geometries)
+            total_f = sum(len(g.triangles) for g in model.geometries)
+            QMessageBox.information(
+                self, "OBJ Exported",
+                f"Exported {len(model.geometries)} geometr{'y' if len(model.geometries)==1 else 'ies'}\n"
+                f"{total_v:,} vertices  {total_f:,} triangles\n"
+                f"→ {os.path.basename(out_path)}\n"
+                f"→ {os.path.basename(mtl_path)}")
+            self._set_status(
+                f"Exported OBJ: {os.path.basename(out_path)}  "
+                f"({total_v:,}v {total_f:,}f)")
+
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "OBJ Export Error", str(e))
 
     def _toggle_col_view(self): #vers 1
         """Toggle between detail table and compact thumbnail+name list."""
@@ -7631,6 +7889,11 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
             # ── Export / Replace ──────────────────────────────────────────
             export_action = menu.addAction("Export Model as COL...")
             export_action.triggered.connect(lambda: self._export_col_model(model, row))
+
+            # DFF-specific export (when a DFF is loaded)
+            if getattr(self, '_current_dff_model', None):
+                obj_action = menu.addAction("Export DFF as OBJ / MTL…")
+                obj_action.triggered.connect(self._export_dff_obj)
 
             import_action = menu.addAction("Replace with COL file...")
             import_action.triggered.connect(lambda: self._import_replace_col_model(row))
