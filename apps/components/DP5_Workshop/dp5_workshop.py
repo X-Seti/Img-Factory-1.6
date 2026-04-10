@@ -2627,23 +2627,147 @@ class ColorPalPresetsMixin:
             "#0000FF","#FF00FF","#00FFFF","#FFFFFF",
         ]
 
+        # BBC Micro / Acorn — 8 colours (SAA5050 / 6845 ULA)
+        bbc_micro = [
+            "#000000","#FF0000","#00FF00","#FFFF00",
+            "#0000FF","#FF00FF","#00FFFF","#FFFFFF",
+        ]
+
+        # Apple II Lo-Res — 16 colours
+        apple2_lores = [
+            "#000000","#9D0948","#FF0000","#FF6A00",
+            "#00A308","#555555","#2FB702","#E6D217",
+            "#7B4900","#D94BD5","#AAAAAA","#FF9BFF",
+            "#0D2DFF","#11A9D7","#5DD6FF","#FFFFFF",
+        ]
+
+        # Apple II Hi-Res — 6 artefact colours (NTSC)
+        apple2_hires = [
+            "#000000","#2FB702","#D94BD5",
+            "#FFFFFF","#FF6A00","#0D2DFF",
+        ]
+
+        # NES/Famicom — 64 entry palette (54 visible, Nestopia NTSC)
+        nes = [
+            "#626262","#002E98","#0C11C2","#3B008E","#710070","#890024","#7E0000","#591A00",
+            "#243400","#004A00","#005200","#004816","#003B5B","#000000","#000000","#000000",
+            "#ABABAB","#1266D3","#4040FF","#7B1AFF","#B400CB","#CC0065","#C71220","#9D3200",
+            "#5C5200","#177200","#007E00","#007944","#006D99","#000000","#000000","#000000",
+            "#FFFFFF","#63B8FF","#8B8BFF","#C065FF","#EE4CFF","#FF4DA6","#FF6257","#FF8229",
+            "#E6BA00","#90D300","#42E100","#34DB68","#40CBE3","#494949","#000000","#000000",
+            "#FFFFFF","#BEE0FF","#C9C9FF","#E3B7FF","#F7ADFF","#FFADE2","#FFBAB7","#FFCB9D",
+            "#F5E58A","#D5F09A","#ADEEAF","#ABEBCC","#A8E5EE","#AEAEAE","#000000","#000000",
+        ]
+
+        # Game Boy — 4 shades (original green LCD)
+        game_boy = [
+            "#0F380F","#306230","#8BAC0F","#9BBC0F",
+        ]
+
+        # Game Boy Pocket — 4 shades (grey LCD)
+        game_boy_pocket = [
+            "#000000","#555555","#AAAAAA","#FFFFFF",
+        ]
+
+        # Mega Drive / Genesis — 64 on-screen from 512 (Sega 9-bit palette, common defaults)
+        mega_drive = [
+            "#000000","#AAAAAA","#FFFFFF","#550000","#FF0000","#FF5500","#AA5500","#FFAA00",
+            "#FFFF00","#005500","#00AA00","#00FF00","#005555","#00AAAA","#00FFFF","#000055",
+            "#0000AA","#0000FF","#550055","#AA00AA","#FF00FF","#FF00AA","#AA0055","#FF5555",
+            "#FFAAAA","#55FF55","#AAFFAA","#55FFFF","#AAFFFF","#5555FF","#AAAAFF","#FF55FF",
+            "#555500","#888800","#AAAA00","#CCCC00","#005500","#008800","#00AA00","#00CC00",
+            "#000055","#000088","#0000AA","#0000CC","#550000","#880000","#AA0000","#CC0000",
+            "#333333","#555555","#777777","#999999","#BBBBBB","#DDDDDD","#222222","#444444",
+            "#666666","#888888","#AAAAAA","#CCCCCC","#EEEEEE","#FF8800","#FF4400","#FF0044",
+        ]
+
+        # SAM Coupé — 128 colours (16 hues × 8 brightness)
+        sam_coupe = [
+            "#000000","#000099","#0000CC","#0000FF",
+            "#990000","#990099","#9900CC","#9900FF",
+            "#CC0000","#CC0099","#CC00CC","#CC00FF",
+            "#FF0000","#FF0099","#FF00CC","#FF00FF",
+            "#009900","#009999","#0099CC","#0099FF",
+            "#999900","#999999","#9999CC","#9999FF",
+            "#CC9900","#CC9999","#CC99CC","#CC99FF",
+            "#FF9900","#FF9999","#FF99CC","#FF99FF",
+            "#00CC00","#00CC99","#00CCCC","#00CCFF",
+            "#99CC00","#99CC99","#99CCCC","#99CCFF",
+            "#CCCC00","#CCCC99","#CCCCCC","#CCCCFF",
+            "#FFCC00","#FFCC99","#FFCCCC","#FFCCFF",
+            "#00FF00","#00FF99","#00FFCC","#00FFFF",
+            "#99FF00","#99FF99","#99FFCC","#99FFFF",
+            "#CCFF00","#CCFF99","#CCFFCC","#CCFFFF",
+            "#FFFF00","#FFFF99","#FFFFCC","#FFFFFF",
+            # Darker variants (half brightness)
+            "#000000","#00004C","#000066","#000080",
+            "#4C0000","#4C004C","#4C0066","#4C0080",
+            "#660000","#66004C","#660066","#660080",
+            "#800000","#80004C","#800066","#800080",
+            "#004C00","#004C4C","#004C66","#004C80",
+            "#4C4C00","#4C4C4C","#4C4C66","#4C4C80",
+            "#664C00","#664C4C","#664C66","#664C80",
+            "#804C00","#804C4C","#804C66","#804C80",
+            "#006600","#00664C","#006666","#006680",
+            "#4C6600","#4C664C","#4C6666","#4C6680",
+            "#666600","#66664C","#666666","#666680",
+            "#806600","#80664C","#806666","#806680",
+            "#008000","#00804C","#008066","#008080",
+            "#4C8000","#4C804C","#4C8066","#4C8080",
+            "#668000","#66804C","#668066","#668080",
+            "#808000","#80804C","#808066","#808080",
+        ]
+
+        # MSX2 — V9938, 512 colour palette (9-bit), default 16
+        msx2 = [
+            "#000000","#010101","#3EB849","#74D07D",
+            "#5955E0","#8076F1","#B95E51","#65DBEF",
+            "#DB6559","#FF897D","#CCC35E","#DED087",
+            "#3AA241","#B766B5","#CCCCCC","#FFFFFF",
+            # Extra colours available in V9938 256-colour mode
+            "#000000","#330000","#660000","#990000",
+            "#CC0000","#FF0000","#003300","#333300",
+            "#663300","#993300","#CC3300","#FF3300",
+            "#006600","#336600","#666600","#996600",
+        ]
+
+        # PC Engine / TurboGrafx-16 — 512 colours (9-bit), 16 palettes of 16
+        pc_engine = [
+            "#000000","#1C1C1C","#393939","#555555","#717171","#8E8E8E","#AAAAAA","#C6C6C6",
+            "#E2E2E2","#FFFFFF","#00001C","#001C1C","#001C00","#1C1C00","#1C0000","#1C001C",
+            "#FF0000","#FF3939","#FF7171","#FFAAAA","#00FF00","#39FF39","#71FF71","#AAFFAA",
+            "#0000FF","#3939FF","#7171FF","#AAAAFF","#FFFF00","#FF00FF","#00FFFF","#FF7100",
+        ]
+
+        # Commodore 128 (same C64 colours but noting different VDC chip for 80-col)
+        # VDC 80-col mode has 16 colours same as C64 for compatibility
+
         # Registry: name -> (hex_list, cols)
-        # cols = how many swatches wide the grid should be for this palette
         self.retro_palettes = {
-            "Amiga OCS":       (amiga_ocs,    8),   # 32 colours — 4 rows × 8
-            "Amiga AGA":       (amiga_aga,   16),   # 256 colours — 16×16
-            "Amiga AGA WB":    (amiga_aga_wb,16),   # 256 colours — 16×16
-            "C64":             (commodore_64, 8),   # 16 colours — 2 rows × 8
-            "ZX Spectrum":     (zx_spectrum,  8),   # 16 colours — 2 rows × 8
-            "Amstrad CPC":     (amstrad_cpc,  9),   # 27 colours — 3 rows × 9
-            "Atari 800":       (atari_800,   16),   # 256 colours (GTIA) — 16 rows × 16
-            "Atari 2600 NTSC": (atari_2600,   8),   # 128 colours — 16 rows × 8
-            "MSX1":            (msx1,         8),   # 16 colours — 2 rows × 8
-            "Atari ST":        (atari_st,     8),   # 16 colours — 2 rows × 8
-            "Plus/4":          (plus4,        8),   # 16 colours — 2 rows × 8
-            "VIC-20":          (vic20,        8),   # 16 colours — 2 rows × 8
-            "Sinclair QL":     (sinclair_ql,  8),   # 8 colours — 1 row × 8
-            "ULA Plus":        (ula_plus,    16),   # 256 colours — 16×16
+            "Amiga OCS":        (amiga_ocs,       8),   # 32 colours — 4 rows × 8
+            "Amiga AGA":        (amiga_aga,       16),  # 256 colours — 16×16
+            "Amiga AGA WB":     (amiga_aga_wb,    16),  # 256 colours — 16×16
+            "C64":              (commodore_64,     8),   # 16 colours — 2 rows × 8
+            "ZX Spectrum":      (zx_spectrum,      8),   # 16 colours — 2 rows × 8
+            "Amstrad CPC":      (amstrad_cpc,      9),   # 27 colours — 3 rows × 9
+            "Atari 800":        (atari_800,       16),  # 256 colours GTIA — 16×16
+            "Atari 2600 NTSC":  (atari_2600,       8),  # 128 colours — 16 rows × 8
+            "Atari ST":         (atari_st,         8),  # 16 colours — 2 rows × 8
+            "MSX1":             (msx1,             8),  # 16 colours TMS9918
+            "MSX2":             (msx2,             8),  # 32 sample colours V9938
+            "Plus/4":           (plus4,            8),  # 16 colours TED chip
+            "VIC-20":           (vic20,            8),  # 16 colours
+            "Sinclair QL":      (sinclair_ql,      8),  # 8 colours
+            "ULA Plus":         (ula_plus,        16),  # 256 colours
+            "BBC Micro":        (bbc_micro,        8),  # 8 colours 6845 ULA
+            "Apple II Lo-Res":  (apple2_lores,     8),  # 16 colours
+            "Apple II Hi-Res":  (apple2_hires,     6),  # 6 artefact colours
+            "NES":              (nes,               8),  # 64 colours — 8×8
+            "Game Boy":         (game_boy,          4),  # 4 shades green LCD
+            "Game Boy Pocket":  (game_boy_pocket,   4),  # 4 shades grey LCD
+            "Mega Drive":       (mega_drive,        8),  # 64 from 512
+            "SAM Coupé":        (sam_coupe,        16),  # 128 colours — 8×16
+            "PC Engine":        (pc_engine,         8),  # 32 sample colours
         }
         self.current_retro_palette = "Amiga OCS"
 
