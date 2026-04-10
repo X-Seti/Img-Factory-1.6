@@ -3419,9 +3419,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                                   SVGIconFactory.new_icon)
         self.tb_new_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tb_new_btn.customContextMenuRequested.connect(self._new_btn_context_menu)
-        self.tb_load_btn   = _tb("Load",   "Load / open image file",
-                                  self._import_bitmap,
-                                  SVGIconFactory.open_icon)
+        self.tb_load_btn = _tb("Load", "Load image — right-click for snap options",
+                                self._import_bitmap,
+                                SVGIconFactory.open_icon)
+        self.tb_load_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tb_load_btn.customContextMenuRequested.connect(self._load_btn_context_menu)
         self.tb_save_btn   = _tb("Save",   "Save canvas as PNG",
                                   self._export_bitmap,
                                   SVGIconFactory.save_icon)
@@ -3614,9 +3616,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm = mb.addMenu("File")
         fm.addAction("New canvas…",    self._new_canvas)
         fm.addSeparator()
-        fm.addAction("Open image…",    self._import_bitmap)
-        fm.addAction("Open + snap to palette…",          self._import_bitmap_snap_user_pal)
-        fm.addAction("Open + snap to palette (dithered)…", self._import_bitmap_snap_dither)
+        fm.addAction("Open image…",                           self._import_bitmap)
+        fm.addAction("Snap to pal…",                          self._import_bitmap_snap_user_pal)
+        fm.addAction("Snap to pal (dither)…",                 self._import_bitmap_snap_dither)
+        fm.addAction("Snap to pal, canvas size…",             self._import_bitmap_snap_canvas_size)
+        fm.addAction("Snap to pal, canvas size (dither)…",    self._import_bitmap_snap_canvas_size_dither)
         # Import submenu — all supported formats
         fim = fm.addMenu("Import")
         fim.addAction("PNG / BMP / JPEG / WebP…",  self._import_bitmap)
@@ -4334,7 +4338,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.color = c
         self._fgbg_swatch.set_fg(c)
 
-    def _apply_bit_depth(self): #vers 2
+    def _apply_bit_depth(self): #vers 3
         """Quantize canvas RGBA to selected bit depth and update palette grid."""
         if not self.dp5_canvas: return
         depth = self._bit_depth_combo.currentText()
@@ -4343,29 +4347,28 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
             img = Image.frombytes('RGBA', (w, h), bytes(self.dp5_canvas.rgba))
 
-            if depth == "32b":
-                out_img = img  # no change to canvas
-            elif depth == "24b":
-                out_img = img.convert('RGB').convert('RGBA')
-            elif depth == "16b":
+            if depth == "32bit":
+                out_img = img                              # no change
+            elif depth == "24bit":
+                out_img = img.convert('RGB').convert('RGBA')  # drop alpha
+            elif depth == "16bit":
                 rgb = img.convert('RGB')
                 pixels = rgb.tobytes()
                 buf = bytearray(len(pixels))
                 for i in range(0, len(pixels), 3):
-                    buf[i]   = (pixels[i]   >> 3) << 3
-                    buf[i+1] = (pixels[i+1] >> 2) << 2
-                    buf[i+2] = (pixels[i+2] >> 3) << 3
+                    buf[i]   = (pixels[i]   >> 3) << 3    # 5-bit R
+                    buf[i+1] = (pixels[i+1] >> 2) << 2    # 6-bit G
+                    buf[i+2] = (pixels[i+2] >> 3) << 3    # 5-bit B
                 out_img = Image.frombytes('RGB', (w, h), bytes(buf)).convert('RGBA')
-            elif depth == "8b":
-                rgb = img.convert('RGB')
-                q = rgb.quantize(colors=256)
+            elif depth == "8bit":
+                q = img.convert('RGB').quantize(colors=256)
                 out_img = q.convert('RGB').convert('RGBA')
+            else:
+                return
 
-            # Write back to canvas
             self.dp5_canvas.rgba = bytearray(out_img.tobytes())
             self.dp5_canvas.update()
 
-            # Update palette grid
             p_img = out_img.convert('RGB').quantize(colors=256)
             pal_flat = p_img.getpalette()
             palette = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
@@ -6405,6 +6408,70 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.iff);;All Files (*)")
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
+
+    def _load_btn_context_menu(self, pos): #vers 1
+        """Right-click Load button — 4 open options."""
+        menu = QMenu(self)
+        menu.addAction("Open…",                          self._import_bitmap)
+        menu.addAction("Snap to pal…",                  self._import_bitmap_snap_user_pal)
+        menu.addAction("Snap to pal (dither)…",         self._import_bitmap_snap_dither)
+        menu.addAction("Snap to pal, canvas size…",     self._import_bitmap_snap_canvas_size)
+        menu.addAction("Snap to pal, canvas size (dither)…", self._import_bitmap_snap_canvas_size_dither)
+        btn = self.tb_load_btn
+        menu.exec(btn.mapToGlobal(pos))
+
+    def _import_bitmap_snap_canvas_size(self): #vers 1
+        """Open image, resize to current canvas size, hard-snap to user palette."""
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap to Palette",
+                                "No user palette loaded. Load a palette first.")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open + Snap to Pal, Canvas Size", "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.tga *.tiff *.gif *.dds *.psd);;All Files (*)")
+        if not path or not self.dp5_canvas: return
+        from PIL import Image
+        img = Image.open(path).convert('RGBA')
+        img = img.resize((self._canvas_width, self._canvas_height), Image.LANCZOS)
+        self._push_undo()
+        snapped = self._snap_image_to_user_palette(img)
+        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(
+            f"Opened + snapped {self._canvas_width}×{self._canvas_height}: {os.path.basename(path)}")
+
+    def _import_bitmap_snap_canvas_size_dither(self): #vers 1
+        """Open image, resize to current canvas size, dithered snap to user palette."""
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap + Dither",
+                                "No user palette loaded. Load a palette first.")
+            return
+        # Ask dither method
+        method, ok = QInputDialog.getItem(
+            self, "Dither Method", "Choose dither:",
+            ["Floyd-Steinberg", "Bayer 4×4", "Checkerboard"], 0, False)
+        if not ok: return
+        mode_map = {"Floyd-Steinberg":"floyd","Bayer 4×4":"bayer","Checkerboard":"checker"}
+        mode = mode_map[method]
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Open + Snap, Canvas Size ({method})", "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.tga *.tiff *.gif *.dds *.psd);;All Files (*)")
+        if not path or not self.dp5_canvas: return
+        from PIL import Image
+        img = Image.open(path).convert('RGBA')
+        img = img.resize((self._canvas_width, self._canvas_height), Image.LANCZOS)
+        self._push_undo()
+        old_mode = getattr(self, '_pal_dither_mode', 'off')
+        self._pal_dither_mode = mode
+        snapped = self._apply_user_palette_dither(img)
+        self._pal_dither_mode = old_mode
+        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(
+            f"Opened + {mode} dither {self._canvas_width}×{self._canvas_height}: {os.path.basename(path)}")
 
     def _import_bitmap_snap_user_pal(self): #vers 3
         """Open image then hard-snap every pixel to nearest user palette colour."""
