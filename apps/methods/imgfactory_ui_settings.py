@@ -448,6 +448,22 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.show_menu_bar_check.setChecked(self.img_settings.get("show_menu_bar", True))
         appearance_layout.addWidget(self.show_menu_bar_check)
 
+        # ── DP5 Paint menu style ──────────────────────────────────────────
+        from PyQt6.QtWidgets import QGroupBox as _GB, QVBoxLayout as _VL, QRadioButton as _RB
+        dp5_group = _GB("DP5 Paint — Menu Style")
+        dp5_layout = _VL(dp5_group)
+
+        dp5_style = self.img_settings.get("dp5_menu_style", "dropdown")
+        self.dp5_menu_topbar_radio  = _RB("Topbar  (inside the DP5 canvas panel)")
+        self.dp5_menu_dropdown_radio = _RB("Dropdown  (in the imgfactory menubar as DP5 Paint menu)")
+        self.dp5_menu_topbar_radio.setChecked(dp5_style == "topbar")
+        self.dp5_menu_dropdown_radio.setChecked(dp5_style != "topbar")
+
+        dp5_layout.addWidget(self.dp5_menu_topbar_radio)
+        dp5_layout.addWidget(self.dp5_menu_dropdown_radio)
+        dp5_group.setLayout(dp5_layout)
+        appearance_layout.addWidget(dp5_group)
+
         appearance_group.setLayout(appearance_layout)
         layout.addWidget(appearance_group)
 
@@ -671,6 +687,35 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.img_settings.set("show_toolbar", self.show_toolbar_check.isChecked())
         self.img_settings.set("show_status_bar", self.show_status_bar_check.isChecked())
         self.img_settings.set("show_menu_bar", self.show_menu_bar_check.isChecked())
+
+        # DP5 menu style
+        dp5_style = "topbar" if getattr(self, 'dp5_menu_topbar_radio', None) and self.dp5_menu_topbar_radio.isChecked() else "dropdown"
+        self.img_settings.set("dp5_menu_style", dp5_style)
+        # Apply immediately to any open DP5 workshop
+        try:
+            mw = self.main_window
+            if hasattr(mw, 'menu_bar_system') and hasattr(mw.menu_bar_system, '_create_dp5_menu'):
+                # Find open docked workshop
+                dp5_ws = None
+                if hasattr(mw, 'main_tab_widget'):
+                    from apps.components.DP5_Workshop.dp5_workshop import DP5Workshop
+                    for i in range(mw.main_tab_widget.count()):
+                        w = mw.main_tab_widget.widget(i)
+                        if w:
+                            ws = w.findChildren(DP5Workshop)
+                            if ws:
+                                dp5_ws = ws[0]
+                                break
+                if dp5_ws:
+                    dp5_ws.dp5_settings.set('menu_style', dp5_style)
+                    dp5_ws.dp5_settings.set('show_menubar', dp5_style == 'topbar')
+                    if hasattr(dp5_ws, '_menu_bar'):
+                        dp5_ws._menu_bar.setVisible(dp5_style == 'topbar')
+                        dp5_ws._menu_bar.setMaximumHeight(16777215 if dp5_style == 'topbar' else 0)
+                    # Re-inject with updated style
+                    mw.menu_bar_system._create_dp5_menu(dp5_ws)
+        except Exception:
+            pass
 
         # File Window tab
         self.img_settings.set("autoload_directory_tree", self.autoload_tree_cb.isChecked())

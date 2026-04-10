@@ -711,7 +711,10 @@ class IMGFactoryMenuBar:
 
         # ── Launch actions (always present) ────────────────────────────────
         open_docked = QAction("Open / Switch to DP5 (docked)", mw)
-        open_docked.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        try:
+            open_docked.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        except Exception:
+            pass
         open_docked.triggered.connect(
             lambda: getattr(mw, 'open_dp5_workshop_docked', lambda: None)())
         dp5_menu.addAction(open_docked)
@@ -765,21 +768,15 @@ class IMGFactoryMenuBar:
 
         dp5_menu.addSeparator()
 
-        # ── Canvas actions (from workshop) ─────────────────────────────────
-        # Build a proxy QMenuBar, populate it, then lift the actions into dp5_menu
-        from PyQt6.QtWidgets import QMenuBar as _QMenuBar
-        proxy = _QMenuBar()
-        workshop._build_canvas_menus(proxy)
+        # ── Canvas actions — built directly into dp5_menu submenus ──────────
+        # _build_menus_into_qmenu avoids proxy QMenuBar reparenting issues
+        # (proxy approach lost actions during setParent / reparenting)
+        workshop._build_menus_into_qmenu(dp5_menu)
 
-        for top_action in proxy.actions():
-            submenu = top_action.menu()
-            if submenu:
-                submenu.setParent(dp5_menu)
-                dp5_menu.addMenu(submenu)
-            else:
-                dp5_menu.addAction(top_action)
-
-        proxy.setParent(None)
+        # Keep DP5 internal menubar hidden — host bar carries it now
+        if hasattr(workshop, '_menu_bar'):
+            workshop._menu_bar.setMaximumHeight(0)
+            workshop._menu_bar.setVisible(False)
 
         # Ensure host menubar is visible (needed in custom UI mode)
         ui_mode = getattr(getattr(mw, 'img_settings', None), 'get',

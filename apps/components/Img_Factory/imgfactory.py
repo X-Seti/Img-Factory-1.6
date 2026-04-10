@@ -1354,7 +1354,7 @@ class IMGFactory(QMainWindow):
                 from apps.gui.gui_layout import _register_tool_taskbar
                 _register_tool_taskbar(self, "dp5", "Paint",
                                        lambda sz, col: get_dp5_workshop_icon(sz, col),
-                                       tab_container, "DP5 Paint Workshop")
+                                       "DP5 Paint Workshop", tab_container)
             except Exception:
                 pass
 
