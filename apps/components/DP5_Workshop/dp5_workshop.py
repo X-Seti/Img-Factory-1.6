@@ -8161,43 +8161,166 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "SVG Export Error", str(e))
 
-    def _export_amiga_icon(self): #vers 1
-        """Export Amiga .info icon — simple IFF-based icon (NewIcon style PNG embedded)."""
+    def _export_amiga_icon(self): #vers 2
+        """Export Amiga .info DiskObject — any canvas size, 2-4 bitplanes, correct structure."""
         if not self.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Amiga Icon", "icon.info", "Amiga Icon (*.info)")
         if not path: return
         try:
-            import struct, io
+            import struct
             from PIL import Image
-            img = self._get_canvas_pil().resize((32,32), Image.NEAREST)
-            # Quantize to 4 colours (Amiga WB standard)
-            q = img.convert('RGB').quantize(colors=4, dither=0)
+            w, h = self._canvas_width, self._canvas_height
+            img = self._get_canvas_pil().convert('RGB')
+
+            # Quantize to 4 colours (2 bitplanes) — standard WB icon palette
+            WB_PAL = [(0,0,0),(255,255,255),(85,170,255),(255,136,0)]
+            pal_img = Image.new('P', (1,1))
+            flat = sum([list(c) for c in WB_PAL], []) + [0]*756
+            pal_img.putpalette(flat)
+            q = img.quantize(palette=pal_img, dither=0)
             pixels = list(q.getdata())
-            pal = q.getpalette()
-            # Amiga DiskObject header (68 bytes) — simplified magic
-            # Real .info files need full DiskObject struct — we write a minimal valid one
-            # Magic: 0xE310 (WB_MAGIC), version 1
-            hdr = bytearray(78)
-            hdr[0:2] = b'\xE3\x10'  # WBDISK magic
-            hdr[2:4] = b'\x00\x01'  # version
-            # Gadget image: 32×32, 2 bitplanes
-            hdr[12:14] = (32).to_bytes(2,'big')  # width
-            hdr[14:16] = (32).to_bytes(2,'big')  # height
-            hdr[16:18] = (2).to_bytes(2,'big')   # depth
-            # Encode 2 bitplanes
-            plane_size = 32*32//8
-            planes = [bytearray(plane_size), bytearray(plane_size)]
-            for i,p in enumerate(pixels):
-                byte_idx = i//8; bit = 7-(i%8)
-                if p&1: planes[0][byte_idx] |= (1<<bit)
-                if (p>>1)&1: planes[1][byte_idx] |= (1<<bit)
-            # Write minimal icon file
-            out = bytes(hdr) + bytes(planes[0]) + bytes(planes[1])
-            open(path,'wb').write(out)
-            self._set_status(f"Exported Amiga icon: {os.path.basename(path)}")
+            n_planes = 2
+
+            # Pack bitplanes — word-aligned rows
+            row_words = (w + 15) // 16
+            row_bytes = row_words * 2
+            planes = [bytearray(row_bytes * h) for _ in range(n_planes)]
+            for y in range(h):
+                for x in range(w):
+                    px = pixels[y*w+x] & 3
+                    for p in range(n_planes):
+                        if (px >> p) & 1:
+                            byte_off = y*row_bytes + x//8
+                            planes[p][byte_off] |= 0x80 >> (x % 8)
+
+            image_data = b''.join(bytes(pl) for pl in planes)
+
+            # Build full DiskObject structure (78 bytes)
+            # struct DiskObject { UWORD magic; UWORD version; struct Gadget gadget;
+            #                     UBYTE type; ... }
+            # struct Gadget is 44 bytes starting at offset 4
+            do = bytearray(78)
+            struct.pack_into('>H', do, 0,  0xE310)   # WB_MAGIC
+            struct.pack_into('>H', do, 2,  1)         # version
+            # Gadget struct at offset 4:
+            # NextGadget(4) Left(2) Top(2) Width(2) Height(2)
+            # Flags(2) Activation(2) GadgetType(2)
+            # GadgetRender(4) SelectRender(4) GadgetText(4)
+            # MutualExclude(4) SpecialInfo(4) GadgetID(2) UserData(4)
+            struct.pack_into('>H', do, 12, w)          # Width
+            struct.pack_into('>H', do, 14, h)          # Height
+            struct.pack_into('>H', do, 16, 0x0006)     # Flags: GADGHCOMP|GADGIMAGE
+            struct.pack_into('>H', do, 20, 0x0001)     # GadgetType: BOOLGADGET
+            # GadgetRender ptr placeholder (non-null so WB reads it)
+            struct.pack_into('>I', do, 22, 0x00000001)
+            # Type = WBPROJECT (3) at offset 48
+            do[48] = 3
+            # DefaultTool ptr = NULL (50-53)
+            # ToolTypes ptr = NULL (54-57)
+            # CurrentX/Y = NO_ICON_POSITION
+            struct.pack_into('>i', do, 58, 0x80000000)  # CurrentX = NO_ICON_POSITION
+            struct.pack_into('>i', do, 62, 0x80000000)  # CurrentY
+
+            # ImageData structure (40 bytes) follows DiskObject
+            img_hdr = bytearray(40)
+            struct.pack_into('>H', img_hdr, 4, w)        # Width (in words)
+            struct.pack_into('>H', img_hdr, 6, h)        # Height
+            struct.pack_into('>H', img_hdr, 8, n_planes) # Depth
+            # PlanePick = all planes, PlaneOnOff = 0
+            img_hdr[12] = (1 << n_planes) - 1
+
+            out = bytes(do) + bytes(img_hdr) + image_data
+            open(path, 'wb').write(out)
+            self._set_status(
+                f"Exported Amiga icon: {os.path.basename(path)}  {w}×{h} {n_planes}bp")
         except Exception as e:
-            QMessageBox.warning(self, "Amiga Icon Error", str(e))
+            QMessageBox.warning(self, "Amiga Icon Export Error", str(e))
+
+    def _import_amiga_info(self): #vers 2
+        """Import Amiga .info — handles classic DiskObject bitplane icons and NewIcon PNG."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Amiga .info Icon", "",
+            "Amiga Icon (*.info);;All Files (*)")
+        if not path: return
+        try:
+            import struct
+            data = open(path, 'rb').read()
+
+            if len(data) < 4:
+                raise ValueError("File too small")
+            if data[0:2] != b'\xE3\x10':
+                raise ValueError("Not an Amiga DiskObject (.info) — magic bytes not found")
+
+            # ── Try NewIcon first (PNG embedded in ToolTypes) ────────────────
+            # NewIcon stores PNG data in IM1/IM2 ToolType strings
+            # Search for PNG header in file
+            png_sig = b'\x89PNG\r\n\x1a\n'
+            png_off = data.find(png_sig)
+            if png_off != -1:
+                # Find end of PNG (IEND chunk)
+                iend = data.find(b'IEND', png_off)
+                if iend != -1:
+                    png_end = iend + 8
+                    png_data = data[png_off:png_end]
+                    import io
+                    from PIL import Image
+                    img = Image.open(io.BytesIO(png_data)).convert('RGBA')
+                    self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                                   os.path.basename(path) + " [NewIcon]")
+                    return
+
+            # ── Classic DiskObject bitplane icon ────────────────────────────
+            # DiskObject is 78 bytes, then ImageData struct (if GadgetRender != NULL)
+            # Gadget.Width at offset 12, Gadget.Height at 14
+            w = struct.unpack_from('>H', data, 12)[0]
+            h = struct.unpack_from('>H', data, 14)[0]
+
+            if w == 0 or h == 0 or w > 1024 or h > 1024:
+                raise ValueError(f"Invalid or unsupported dimensions: {w}×{h}")
+
+            # ImageData struct starts at offset 78
+            # struct Image { SHORT LeftEdge, TopEdge, Width, Height, Depth;
+            #                UWORD *ImageData; UBYTE PlanePick, PlaneOnOff;
+            #                struct Image *NextImage; } — 20 bytes
+            img_off = 78
+            if img_off + 20 > len(data):
+                raise ValueError("File truncated before ImageData")
+
+            depth = struct.unpack_from('>H', img_off + 8, data)[0] if False else \
+                    struct.unpack_from('>H', data, img_off + 8)[0]
+            depth = max(1, min(depth, 8))
+
+            # Bitplane data starts after 20-byte Image struct... but
+            # many tools put ImageData immediately after DiskObject (offset 78+20=98)
+            # and some put it at 78. Use depth from Image struct.
+            plane_off = img_off + 20
+            row_bytes = ((w + 15) // 16) * 2
+
+            # Standard 4-colour WB icon palette
+            WB_PAL = [
+                (0,0,0),(255,255,255),(85,170,255),(255,136,0),
+                (170,170,170),(0,0,170),(255,85,0),(170,0,170),
+            ]
+
+            rgba = bytearray(w * h * 4)
+            for y in range(h):
+                for x in range(w):
+                    px = 0
+                    for p in range(depth):
+                        off = plane_off + p * (row_bytes * h) + y * row_bytes + x // 8
+                        if off < len(data):
+                            if data[off] & (0x80 >> (x % 8)):
+                                px |= (1 << p)
+                    c = WB_PAL[px % len(WB_PAL)]
+                    i = (y * w + x) * 4
+                    rgba[i:i+4] = [c[0], c[1], c[2], 255]
+
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "Amiga Info Import Error",
+                f"{e}\n\nNote: Some .info files use proprietary formats\n"
+                f"(MagicWB, GlowIcon) that may not load correctly.")
 
     def _import_ico(self): #vers 1
         """Import Windows ICO — load largest frame into canvas."""
