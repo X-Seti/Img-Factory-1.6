@@ -5394,6 +5394,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     lines.append(f'OL,{100+row+1},{line_str}')
                 open(path,'w',encoding='utf-8').write('\n'.join(lines)+'\n')
 
+    def _snap_canvas_to_user_palette(self): #vers 3
+        """Hard-snap entire canvas to current user palette (no dither)."""
+        if not self.dp5_canvas: return
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap to Palette", "No user palette loaded.")
+            return
+        self._push_undo()
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        snapped = self._snap_image_to_user_palette(img)
+        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(f"Snapped to palette: {len(palette)} colours")
+
     def _snap_canvas_to_user_palette_dither(self): #vers 1
         """Snap canvas to user palette with dither — asks which method."""
         palette = self._get_user_palette_rgb()
