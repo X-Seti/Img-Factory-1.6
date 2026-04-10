@@ -3821,9 +3821,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fim.addAction("Windows ICO…",               self._import_ico)
         fim.addAction("SVG…",                       self._import_svg)
         fm.addSeparator()
-        bm = fm.addMenu("Batch Convert")
-        bm.addAction("Icons…",    self._batch_convert_icons)
-        bm.addAction("Textures…", self._batch_convert_textures)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
         fm.addSeparator()
@@ -3891,6 +3888,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ic_menu.addAction("Import SVG…",           self._import_svg)
         ic_menu.addSeparator()
         ic_menu.addAction("Snap to user palette",   self._snap_canvas_to_user_palette)
+
         # Edit
         em = mb.addMenu("Edit")
         em.addAction("Undo\tCtrl+Z",       self._undo_canvas)
@@ -3931,12 +3929,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         pm.addAction("Snap to user palette",          self._snap_canvas_to_user_palette)
         pm.addAction("Snap to user palette (dithered)…", self._snap_canvas_to_user_palette_dither)
         pm.addSeparator()
-        rm = pm.addMenu("Render as")
-        rm.addAction("ASCII art",     self._render_as_ascii)
-        rm.addAction("ANSI art",      self._render_as_ansi)
-        rm.addAction("PETSCII",       self._render_as_petscii)
-        rm.addAction("Teletext",      self._render_as_teletext)
-        pm.addSeparator()
         dm = pm.addMenu("Dither canvas")
         dm.addAction("Floyd-Steinberg…",    self._dither_floyd_steinberg)
         dm.addAction("Ordered Bayer 4×4…",  self._dither_bayer_canvas)
@@ -3975,9 +3967,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         clash_act.triggered.connect(self._toggle_clash_visualiser)
         self._clash_act = clash_act
         vm.addSeparator()
-        vm.addAction("Character/Font Editor…", self._open_char_editor)
-        vm.addAction("Sprite Editor…",         self._open_sprite_editor)
-        vm.addSeparator()
+
         # Canvas mode
         cm = vm.addMenu("Canvas Mode")
         for mode_id, mode_label in [
@@ -3989,6 +3979,33 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             a = cm.addAction(mode_label, lambda _, m=mode_id: self._set_canvas_mode(m, confirm=True))
             a.setCheckable(True)
             a.setChecked(mode_id == self._canvas_mode)
+
+        # Tools menu (Renamed variable to 'tm' to avoid shadowing File 'fm')
+        tm = mb.addMenu("Tools")
+        bm = tm.addMenu("Batch Convert")
+        bm.addAction("Icons…",    self._batch_convert_icons)
+        bm.addAction("Textures…", self._batch_convert_textures)
+        bm.addSeparator()
+
+        # Correctly attaching these to 'tm' instead of 'vm'
+        tm.addAction("Character/Font Editor…", self._open_char_editor)
+        tm.addAction("Sprite Editor…",         self._open_sprite_editor)
+        tm.addSeparator()
+
+        # Correctly attaching 'Render as' to 'tm' instead of 'pm'
+        rm = tm.addMenu("Render as")
+        rm.addAction("ASCII art",     self._render_as_ascii)
+        rm.addAction("ANSI art",      self._render_as_ansi)
+        rm.addAction("PETSCII",       self._render_as_petscii)
+        rm.addAction("Teletext",      self._render_as_teletext)
+
+        # ... later in the _pm helper ...
+
+        def _pm(label, items):
+            sub = plm.addMenu(label)
+            for name, mode in items:
+                # Use 'checked' as a throwaway variable to catch the signal's boolean
+                sub.addAction(name, lambda checked, m=mode: self._set_platform(m))
 
         # Platform menu
         plm = mb.addMenu("Platform")
@@ -4621,6 +4638,31 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._set_status(f"Applied {depth} quantization")
         except Exception as e:
             QMessageBox.warning(self, "Bit Depth Error", str(e))
+
+    def _apply_palette0_alpha(self, img): #vers 1
+        """Make palette index 0 (or first colour) transparent."""
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+
+        px = img.load()
+        w, h = img.size
+
+        # Get first palette colour (fallback to pure black if none)
+        pal = self._get_user_palette_rgb() or []
+        if pal:
+            key = tuple(pal[0][:3])
+        else:
+            key = (0, 0, 0)
+
+        for y in range(h):
+            for x in range(w):
+                r, g, b, a = px[x, y]
+                if (r, g, b) == key:
+                    px[x, y] = (r, g, b, 0)
+                else:
+                    px[x, y] = (r, g, b, 255)
+
+        return img
 
     def _group_palette(self): #vers 3
         """Sort current image palette by hue, toggling asc/desc each click."""
@@ -8681,15 +8723,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
     # ── Batch Converters ──────────────────────────────────────────────────────
 
-    def _batch_convert_icons(self): #vers 1
-        """Batch convert icons between formats — asks source dir, formats, output dir."""
+    def _batch_convert_icons(self):  # vers 4 (alpha + recursive + preview)
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                                     QComboBox, QPushButton, QFileDialog,
-                                     QLineEdit, QProgressBar, QTextEdit)
+                                    QComboBox, QPushButton, QFileDialog,
+                                    QLineEdit, QProgressBar, QTextEdit,
+                                    QCheckBox, QSpinBox, QApplication)
+        from PyQt6.QtGui import QImage, QPixmap
+        from PyQt6.QtCore import Qt
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Batch Convert Icons")
-        dlg.setMinimumWidth(480)
+        dlg.setMinimumWidth(520)
         vl = QVBoxLayout(dlg)
 
         # Source
@@ -8701,6 +8745,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hl_src.addWidget(QLabel("From:")); hl_src.addWidget(src_edit); hl_src.addWidget(src_btn)
         vl.addLayout(hl_src)
 
+        # Recursive scan
+        scan_recursive_chk = QCheckBox("Scan recursive folders")
+        scan_recursive_chk.setChecked(True)
+        vl.addWidget(scan_recursive_chk)
+
         # Input format
         hl_ifmt = QHBoxLayout()
         ifmt = QComboBox()
@@ -8708,27 +8757,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hl_ifmt.addWidget(QLabel("Input format:")); hl_ifmt.addWidget(ifmt)
         vl.addLayout(hl_ifmt)
 
-        # Amiga palette selector — shown when input is .info
-        hl_apal = QHBoxLayout()
-        apal_lbl = QLabel(".info palette:")
-        apal = QComboBox()
-        apal.addItems(["WB 3.9 AGA (256col)", "WB 3.9 XL AGA (256col)",
-                       "AGA standard (16col)", "MagicWB (8col)", "OCS/ECS WB3 (4col)", "User palette"])
-        hl_apal.addWidget(apal_lbl); hl_apal.addWidget(apal); hl_apal.addStretch()
-        vl.addLayout(hl_apal)
-        # show/hide based on input format
-        def _update_apal_vis():
-            vis = ifmt.currentText() in ("Amiga .info", "Any image")
-            apal_lbl.setVisible(vis); apal.setVisible(vis)
-        ifmt.currentTextChanged.connect(lambda _: _update_apal_vis())
-        _update_apal_vis()
-
         # Output format
         hl_ofmt = QHBoxLayout()
         ofmt = QComboBox()
         ofmt.addItems(["PNG","BMP","ICO (Windows)","ICNS (Apple)",
-                       "Amiga .info (AGA WB)","Amiga .info (MagicWB)","Amiga .info (OCS)",
-                       "TGA","SVG"])
+                    "Amiga .info (AGA WB)","Amiga .info (MagicWB)","Amiga .info (OCS)",
+                    "TGA","SVG"])
         hl_ofmt.addWidget(QLabel("Output format:")); hl_ofmt.addWidget(ofmt)
         vl.addLayout(hl_ofmt)
 
@@ -8743,30 +8777,72 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hl_dst.addWidget(dst_btn)
         vl.addLayout(hl_dst)
 
-        # Palette snap option
-        hl_pal = QHBoxLayout()
-        snap_chk = QCheckBox("Snap to user palette after decode")
-        snap_chk.setToolTip(
-            "After loading each icon, snap colours to the current user palette.\n"
-            "Useful when converting .info icons to a specific platform palette.")
-        cur_pal = getattr(self, 'current_retro_palette', 'none')
-        pal_count = len(self._get_user_palette_rgb() or [])
-        snap_chk.setEnabled(pal_count > 0)
-        if pal_count == 0:
-            snap_chk.setToolTip("No user palette loaded — load one from the palette button first")
-        dither_combo = QComboBox()
-        dither_combo.addItems(["Hard snap", "Floyd-Steinberg", "Bayer 4×4", "Checkerboard"])
-        dither_combo.setEnabled(False)
-        snap_chk.toggled.connect(dither_combo.setEnabled)
-        hl_pal.addWidget(snap_chk); hl_pal.addWidget(dither_combo); hl_pal.addStretch()
-        if pal_count > 0:
-            hl_pal.addWidget(QLabel(f"({cur_pal}, {pal_count}col)"))
-        vl.addLayout(hl_pal)
+        # Preview name
+        preview_name = QLabel("")
+        preview_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vl.addWidget(preview_name)
+
+        # Preview image
+        preview_lbl = QLabel("Preview")
+        preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_lbl.setFixedSize(128, 128)
+        preview_lbl.setStyleSheet("border:1px solid #444; background:#222;")
+        vl.addWidget(preview_lbl)
+
+        # Resize
+        hl_sz = QHBoxLayout()
+        resize_chk = QCheckBox("Resize to:")
+        sz_w = QSpinBox(); sz_w.setRange(1,4096); sz_w.setValue(256)
+        sz_h = QSpinBox(); sz_h.setRange(1,4096); sz_h.setValue(256)
+        keep_aspect = QCheckBox("Keep aspect")
+
+        resize_chk.toggled.connect(lambda v: (sz_w.setEnabled(v), sz_h.setEnabled(v), keep_aspect.setEnabled(v)))
+        sz_w.setEnabled(False); sz_h.setEnabled(False); keep_aspect.setEnabled(False)
+
+        hl_sz.addWidget(resize_chk)
+        hl_sz.addWidget(sz_w)
+        hl_sz.addWidget(QLabel("×"))
+        hl_sz.addWidget(sz_h)
+        hl_sz.addWidget(keep_aspect)
+        hl_sz.addStretch()
+        vl.addLayout(hl_sz)
+
+        # Scale
+        hl_scale = QHBoxLayout()
+        scale_chk = QCheckBox("Scale:")
+        scale_combo = QComboBox()
+        scale_combo.addItems(["×2","×3","×4"])
+        scale_combo.setEnabled(False)
+        scale_chk.toggled.connect(scale_combo.setEnabled)
+
+        hl_scale.addWidget(scale_chk)
+        hl_scale.addWidget(scale_combo)
+        hl_scale.addStretch()
+        vl.addLayout(hl_scale)
+
+        # Power-of-two
+        pot_chk = QCheckBox("Snap to nearest power-of-two")
+        vl.addWidget(pot_chk)
+
+        # Alpha palette 0
+        hl_alpha = QHBoxLayout()
+        alpha_chk = QCheckBox("Alpha palette color 0")
+        hl_alpha.addWidget(alpha_chk)
+        hl_alpha.addStretch()
+        vl.addLayout(hl_alpha)
 
         # Progress + log
         prog  = QProgressBar(); prog.setValue(0)
         log   = QTextEdit(); log.setReadOnly(True); log.setFixedHeight(120)
         vl.addWidget(prog); vl.addWidget(log)
+
+        from PyQt6.QtWidgets import QLabel
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+
+        preview = QLabel()
+        preview.setFixedSize(96, 96)
+        preview.setStyleSheet("background: #222; border: 1px solid #555;")
+        vl.addWidget(preview)
 
         # Buttons
         hl_btn = QHBoxLayout()
@@ -8775,157 +8851,118 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hl_btn.addStretch(); hl_btn.addWidget(run_btn); hl_btn.addWidget(can_btn)
         vl.addLayout(hl_btn)
 
+        # Helpers
+        def nearest_pot(x):
+            return 1 << (x - 1).bit_length()
+
+        def pil_to_qpixmap(pil_img):
+            rgba = pil_img.convert("RGBA")
+            data = rgba.tobytes("raw", "RGBA")
+            qimg = QImage(data, rgba.width, rgba.height, QImage.Format.Format_RGBA8888)
+            return QPixmap.fromImage(qimg)
+
+        def update_preview(img):
+            pix = pil_to_qpixmap(img)
+            preview_lbl.setPixmap(
+                pix.scaled(preview_lbl.size(),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.FastTransformation)
+            )
+            QApplication.processEvents()
+
         def run():
             src = src_edit.text(); dst = dst_edit.text()
+            #if do_snap and snap_pal: TODO alpha color as palette colour 0
+
+            # Apply palette[0] as alpha
+            #if alpha_chk.isChecked():
+            #    img = self._apply_palette0_alpha(img)
+
             if not src or not dst:
                 log.append("ERROR: set source and output folders"); return
-            import os, io
+
+            import os
             from PIL import Image
 
-            do_snap   = snap_chk.isChecked()
-            snap_mode = {
-                "Hard snap": "hard", "Floyd-Steinberg": "floyd",
-                "Bayer 4×4": "bayer", "Checkerboard": "checker"
-            }.get(dither_combo.currentText(), "hard")
-            snap_pal = self._get_user_palette_rgb() if do_snap else None
-
-            # Amiga .info input palette mode
-            apal_mode = {
-                "WB 3.9 AGA (256col)":    "wb39",
-                "WB 3.9 XL AGA (256col)": "wb39xl",
-                "AGA standard (16col)":   "aga",
-                "MagicWB (8col)":         "magicwb",
-                "OCS/ECS WB3 (4col)":     "ocs",
-                "User palette":           "user",
-            }.get(apal.currentText(), "wb39")
-
-            EXT_MAP = {
-                "Amiga .info":  [".info"],
-                "Windows ICO":  [".ico"],
-                "Apple ICNS":   [".icns"],
-                "PNG":          [".png"],
-                "BMP":          [".bmp"],
-                "SVG":          [".svg"],
-                "Any image":    [".png",".bmp",".jpg",".jpeg",".tga",
-                                 ".tiff",".gif",".ico",".icns",".info",
-                                 ".dds",".pcx"],
-            }
-            OUT_EXT = {
-                "PNG": ".png", "BMP": ".bmp",
-                "ICO (Windows)": ".ico", "ICNS (Apple)": ".icns",
-                "Amiga .info (AGA WB)":  ".info",
-                "Amiga .info (MagicWB)": ".info",
-                "Amiga .info (OCS)":     ".info",
-                "TGA": ".tga", "SVG": ".svg",
-            }
-            # Map output format to Amiga palette mode for .info export
-            INFO_OUT_PAL = {
-                "Amiga .info (AGA WB)":  "aga_wb",
-                "Amiga .info (MagicWB)": "magicwb",
-                "Amiga .info (OCS)":     "ocs",
-            }
-
-            exts   = EXT_MAP[ifmt.currentText()]
-            out_e  = OUT_EXT.get(ofmt.currentText(), ".png")
-            out_info_pal = INFO_OUT_PAL.get(ofmt.currentText(), None)
-            files  = [f for f in os.listdir(src)
-                      if os.path.splitext(f)[1].lower() in exts]
-            if not files:
-                log.append(f"No matching files found in {src}"); return
+            # Gather files
+            files = []
+            if scan_recursive_chk.isChecked():
+                for root, _, filenames in os.walk(src):
+                    for f in filenames:
+                        files.append(os.path.join(root, f))
+            else:
+                for f in os.listdir(src):
+                    files.append(os.path.join(src, f))
 
             prog.setMaximum(len(files)); prog.setValue(0)
-            ok = err = 0
 
-            for idx, fname in enumerate(files):
+            for idx, path in enumerate(files):
                 prog.setValue(idx)
                 QApplication.processEvents()
-                src_path = os.path.join(src, fname)
-                base = os.path.splitext(fname)[0]
-                dst_path = os.path.join(dst, base + out_e)
-                try:
-                    # Load
-                    fdata = open(src_path,'rb').read()
-                    if fname.lower().endswith('.info'):
-                        rgba, w, h, fmt_name = self._decode_amiga_info(fdata, apal_mode)
-                        if rgba is None:
-                            log.append(f"SKIP {fname}: {fmt_name}"); err+=1; continue
-                        img = Image.frombytes('RGBA',(w,h),rgba)
-                    elif fname.lower().endswith('.svg'):
-                        from PyQt6.QtSvg import QSvgRenderer
-                        from PyQt6.QtGui import QPainter, QPixmap
-                        from PyQt6.QtCore import QSize
-                        r = QSvgRenderer(fdata)
-                        sz = r.defaultSize()
-                        px = QPixmap(sz)
-                        px.fill(Qt.GlobalColor.transparent)
-                        p = QPainter(px); r.render(p); p.end()
-                        buf = io.BytesIO()
-                        px.toImage().save(buf, 'PNG')
-                        buf.seek(0)
-                        img = Image.open(buf).convert('RGBA')
-                    else:
-                        img = Image.open(src_path).convert('RGBA')
 
-                    # Palette snap (if enabled)
-                    if do_snap and snap_pal:
-                        old_mode = getattr(self, '_pal_dither_mode', 'off')
-                        if snap_mode == 'hard':
-                            img = self._snap_image_to_user_palette(img)
-                        else:
-                            self._pal_dither_mode = snap_mode
-                            img = self._apply_user_palette_dither(img)
-                            self._pal_dither_mode = old_mode
+                try:
+                    fname = os.path.basename(path)
+                    img = Image.open(path).convert("RGBA")
+
+                    preview_name.setText(fname)
+                    update_preview(img)  # BEFORE
+
+                    # Resize / Scale
+                    if resize_chk.isChecked():
+                        w,h = img.size
+                        nw, nh = sz_w.value(), sz_h.value()
+
+                        if keep_aspect.isChecked():
+                            r = min(nw/w, nh/h)
+                            nw, nh = int(w*r), int(h*r)
+
+                        img = img.resize((nw,nh), Image.LANCZOS)
+
+                    elif scale_chk.isChecked():
+                        factor = int(scale_combo.currentText().replace("×",""))
+                        w,h = img.size
+                        img = img.resize((w*factor,h*factor), Image.NEAREST)
+
+                    if pot_chk.isChecked():
+                        w,h = img.size
+                        img = img.resize((nearest_pot(w), nearest_pot(h)), Image.NEAREST)
+
+                    update_preview(img)  # AFTER
+
+                    # Output path (preserve structure)
+                    rel = os.path.relpath(path, src)
+                    out_path = os.path.join(dst, rel)
+                    os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
                     # Save
-                    if out_e == '.info':
-                        tmp_w, tmp_h = img.size
-                        # If exporting as MagicWB or OCS, quantize to that palette first
-                        if out_info_pal == 'magicwb':
-                            MAGIC = [(0,0,0),(0,0,0),(255,255,255),(59,103,162),
-                                     (123,123,123),(149,149,149),(170,144,124),(255,169,0)]
-                            from PIL import Image as _PI
-                            pal_img = _PI.new('P',(1,1))
-                            flat = sum([list(c3) for c3 in MAGIC],[]) + [0]*(768-len(MAGIC)*3)
-                            pal_img.putpalette(flat)
-                            img = img.convert('RGB').quantize(palette=pal_img,dither=0).convert('RGBA')
-                        elif out_info_pal == 'ocs':
-                            OCS = [(0,0,0),(255,255,255),(0,0,0),(102,136,187)]
-                            from PIL import Image as _PI
-                            pal_img = _PI.new('P',(1,1))
-                            flat = sum([list(c3) for c3 in OCS],[]) + [0]*(768-len(OCS)*3)
-                            pal_img.putpalette(flat)
-                            img = img.convert('RGB').quantize(palette=pal_img,dither=0).convert('RGBA')
-                        self._write_amiga_info(dst_path, img.tobytes(), tmp_w, tmp_h)
-                    elif out_e == '.ico':
-                        sizes = [s for s in [16,32,48,64,128,256] if s <= max(img.size)*2]
-                        frames = [img.resize((s,s),Image.LANCZOS) for s in sizes]
-                        frames[0].save(dst_path,'ICO',sizes=[(s,s) for s in sizes],
-                                       append_images=frames[1:])
-                    elif out_e == '.icns':
-                        self._write_icns(dst_path, img)
-                    elif out_e == '.svg':
-                        w2,h2 = img.size
-                        import base64, io as _io
-                        buf2 = _io.BytesIO()
-                        img.save(buf2,'PNG'); b64 = base64.b64encode(buf2.getvalue()).decode()
-                        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" '
-                               f'width="{w2}" height="{h2}">'
-                               f'<image width="{w2}" height="{h2}" '
-                               f'href="data:image/png;base64,{b64}"/></svg>')
-                        open(dst_path,'w').write(svg)
+                    if ofmt.currentText().startswith("Amiga .info"):
+                        rgba = bytearray(img.tobytes())
+
+                        if alpha_chk.isChecked():
+                            pal = self._get_user_palette_rgb()
+                            pal0 = pal[0] if pal else (0,0,0)
+
+                            for i in range(0, len(rgba), 4):
+                                r,g,b,a = rgba[i:i+4]
+                                if (r,g,b)==pal0 or a==0:
+                                    rgba[i+3]=0
+                                else:
+                                    rgba[i+3]=255
+
+                        self._write_amiga_info(out_path, bytes(rgba), *img.size)
                     else:
-                        img.save(dst_path)
+                        img.save(out_path)
 
-                    log.append(f"OK  {fname} → {os.path.basename(dst_path)}")
-                    ok += 1
-                except Exception as ex:
-                    log.append(f"ERR {fname}: {ex}"); err += 1
+                    log.append(f"OK {fname}")
 
-            prog.setValue(len(files))
-            log.append(f"\nDone: {ok} converted, {err} skipped/errors")
+                except Exception as e:
+                    log.append(f"ERR {path}: {e}")
+
+            log.append("Done")
 
         run_btn.clicked.connect(run)
         dlg.exec()
+
 
     def _batch_convert_textures(self): #vers 1
         """Batch convert textures between formats with optional resize."""
@@ -9088,6 +9125,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         run_btn.clicked.connect(run)
         dlg.exec()
+
+    def _make_checkerboard(self, w, h, size=8):
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+
+        pm = QPixmap(w, h)
+        pm.fill(QColor(200, 200, 200))
+        p = QPainter(pm)
+
+        alt = QColor(160, 160, 160)
+        for y in range(0, h, size):
+            for x in range(0, w, size):
+                if (x//size + y//size) % 2:
+                    p.fillRect(x, y, size, size, alt)
+
+        p.end()
+        return pm
 
     def _export_amiga_icon(self): #vers 2
         """Export Amiga .info DiskObject — any canvas size, correct structure."""
