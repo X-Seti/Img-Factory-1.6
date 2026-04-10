@@ -8429,6 +8429,31 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         total = 8+len(chunks)
         open(path,'wb').write(b'icns'+struct.pack('>I',total)+bytes(chunks))
 
+    def _import_icns(self): #vers 1
+        """Import Apple ICNS — loads largest available size."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Apple ICNS", "", "ICNS (*.icns);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.open(path).convert('RGBA')
+            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                           os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "ICNS Import Error", str(e))
+
+    def _export_icns(self): #vers 1
+        """Export Apple ICNS — macOS icon bundle with multiple sizes."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Apple ICNS", "icon.icns", "ICNS (*.icns)")
+        if not path: return
+        try:
+            self._write_icns(path, self._get_canvas_pil())
+            self._set_status(f"Exported ICNS: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "ICNS Export Error", str(e))
+
     def _import_ico(self): #vers 1
         """Import Windows ICO — load largest frame into canvas."""
         path, _ = QFileDialog.getOpenFileName(
