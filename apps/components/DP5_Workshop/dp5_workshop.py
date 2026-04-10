@@ -3863,12 +3863,21 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 sub.addAction(name, lambda m=mode: self._set_platform(m))
 
         _pm("Amiga", [
-            ("OCS LowRes  320×256  32col",   'amiga'),
-            ("ECS          320×256  64col",   'amiga_ecs'),
-            ("AGA          320×256  256col",  'amiga_aga'),
-            ("HAM6         320×256  4096col", 'amiga_ham'),
-            ("HAM8         320×256  16Mcol",  'amiga_ham8'),
-            ("RTG WB       640×480",          'amiga_rtg'),
+            ("OCS PAL LowRes  320×256  32col",  'amiga'),
+            ("OCS NTSC LowRes 320×200  32col",  'amiga_ntsc'),
+            ("OCS PAL HiRes   640×256  32col",  'amiga_hi'),
+            ("OCS PAL LoRes interlace 320×512", 'amiga_lace'),
+            ("ECS PAL          320×256  64col", 'amiga_ecs'),
+            ("ECS PAL HiRes    640×256  64col", 'amiga_ecs_hi'),
+            ("AGA PAL          320×256  256col",'amiga_aga'),
+            ("AGA PAL HiRes    640×256  256col",'amiga_aga_hi'),
+            ("HAM6             320×256  4096col",'amiga_ham'),
+            ("HAM8             320×256  16Mcol", 'amiga_ham8'),
+            ("RTG 640×480",                      'amiga_rtg'),
+            ("RTG 800×600",                      'amiga_rtg_800'),
+            ("RTG 1024×768",                     'amiga_rtg_1024'),
+            ("RTG 720×576 PAL broadcast",        'amiga_rtg_pal'),
+            ("RTG 720×480 NTSC broadcast",       'amiga_rtg_ntsc'),
         ])
         _pm("Commodore", [
             ("C64 Hires    320×200  2col/cell", 'c64'),
@@ -4553,6 +4562,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         'amiga_ham':   (1,  1,   4096),
         'amiga_ham8':  (1,  1,   16777216),
         'amiga_rtg':   (1,  1,   256),
+        'amiga_ntsc':  (8,  1,   32),    # OCS NTSC 320×200
+        'amiga_hi':    (16, 1,   32),    # OCS HiRes 640×256
+        'amiga_lace':  (8,  1,   32),    # OCS PAL interlace 320×512
+        'amiga_ecs_hi':(16, 1,   64),    # ECS HiRes 640×256
+        'amiga_aga_hi':(16, 1,   256),   # AGA HiRes 640×256
+        'amiga_rtg_800':  (1,1,  256),   # RTG 800×600
+        'amiga_rtg_1024': (1,1,  256),   # RTG 1024×768
+        'amiga_rtg_pal':  (1,1,  256),   # RTG 720×576 PAL
+        'amiga_rtg_ntsc': (1,1,  256),   # RTG 720×480 NTSC
         'c64':         (8,  8,   2),
         'c64m':        (4,  8,   4),
         'spectrum':    (8,  8,   2),
@@ -4584,6 +4602,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         'plus4':       (8,  8,   2),
         'vic20':       (8,  8,   2),
         'nimbus':      (4,  4,   16),
+        'nimbus_hi':   (4,  4,   16),   # Nimbus 640×250
+        'nes':         (8,  8,   4),    # NES 256×240, 4col/8×8 tile
+        'snes':        (8,  8,   16),   # SNES 256×224, 16col/8×8 tile
+        'game_boy':    (8,  8,   4),    # GB 160×144, 4 shades
+        'game_boy_pocket':(8,8,  4),
+        'game_boy_color': (8,8,  4),    # GBC 160×144
+        'game_boy_advance':(8,8, 4),    # GBA 240×160
+        'sg1000':      (8,  8,   16),   # SG-1000 256×192
+        'master_sys':  (8,  8,   16),   # Master System 256×192
+        'mega_drive':  (8,  8,   16),   # Mega Drive 320×224
+        'game_gear':   (8,  8,   16),   # Game Gear 160×144
+        'pc_engine':   (8,  8,   16),   # PC Engine 256×240
     }
 
     def _set_platform(self, mode: str): #vers 4
@@ -4618,7 +4648,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'atari_lynx': 'Atari Lynx',
             'atari_falcon': 'Atari Falcon',
             'atari_jaguar': 'Atari Jaguar',
-            'amiga': 'Amiga OCS', 'amiga_ecs': 'Amiga ECS',
+            'amiga': 'Amiga OCS', 'amiga_ntsc': 'Amiga OCS',
+            'amiga_hi': 'Amiga OCS', 'amiga_lace': 'Amiga OCS',
+            'amiga_ecs': 'Amiga ECS', 'amiga_ecs_hi': 'Amiga ECS',
+            'amiga_aga_hi': 'Amiga AGA',
+            'amiga_rtg_800': 'Amiga AGA WB', 'amiga_rtg_1024': 'Amiga AGA WB',
+            'amiga_rtg_pal': 'Amiga AGA WB', 'amiga_rtg_ntsc': 'Amiga AGA WB',
             'amiga_aga': 'Amiga AGA',
             'amiga_ham': 'Amiga OCS',
             'amiga_ham8': 'Amiga AGA',
@@ -4641,16 +4676,30 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'cpc':         (160, 200), 'cpc1':        (320, 200),
             'cpc_plus':    (320, 200), 'pcw':         (720, 256),
             'nc':          (480, 128),
-            'atari_2600':  (160,  96), 'atari_st':    (320, 200),
+            'atari_2600':  (160, 192),  # NTSC standard kernel 'atari_st':    (320, 200),
             'atari_ste':   (320, 200), 'atari_800':   (320, 192),
-            'atari_5200':  (320, 192), 'atari_7800':  (320, 200),
-            'atari_lynx':  (160, 102), 'atari_falcon': (320, 200),
+            'atari_5200':  (320, 192), 'atari_7800':  (160, 240),  # 160×240 NTSC most common
+            'atari_lynx':  (160, 102), 'atari_falcon': (320, 200), 'atari_falcon_hi': (640, 480),
             'atari_jaguar': (320, 240),
-            'amiga':       (320, 256), 'amiga_ecs':   (320, 256),
+            'amiga':       (320, 256), 'amiga_ntsc':  (320, 200),
+            'amiga_hi':    (640, 256), 'amiga_lace':  (320, 512),
+            'amiga_ecs':   (320, 256), 'amiga_ecs_hi':(640, 256),
+            'amiga_aga_hi':(640, 256),
+            'amiga_rtg_800':  (800, 600), 'amiga_rtg_1024': (1024, 768),
+            'amiga_rtg_pal':  (720, 576), 'amiga_rtg_ntsc': (720, 480),
             'amiga_aga':   (320, 256), 'amiga_ham':   (320, 256),
             'amiga_ham8':  (320, 256), 'amiga_rtg':   (640, 480),
             'plus4':       (320, 200), 'vic20':       (176, 184),
-            'nimbus':      (320, 250),
+            'nes':         (256, 240), 'snes':        (256, 224),
+            'game_boy':    (160, 144), 'game_boy_pocket': (160, 144),
+            'game_boy_color': (160, 144), 'game_boy_advance': (240, 160),
+            'nimbus':      (320, 250), 'nimbus_hi':   (640, 250),
+            'nes':         (256, 240), 'snes':        (256, 224),
+            'game_boy':    (160, 144), 'game_boy_pocket': (160, 144),
+            'game_boy_color': (160, 144), 'game_boy_advance': (240, 160),
+            'sg1000':      (256, 192), 'master_sys':  (256, 192),
+            'mega_drive':  (320, 224), 'game_gear':   (160, 144),
+            'pc_engine':   (256, 240), 'nimbus_hi': (640, 250),
         }
         if mode in _plat_res and self.dp5_canvas:
             pw, ph = _plat_res[mode]
@@ -6324,15 +6373,23 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # ── Platform tab ───────────────────────────────────────────────────
         PLATFORM_PRESETS = [
             ("Custom",                    0,   0,  3),
-            ("── Amiga ──",               0,   0,  0),
-            ("Amiga OCS LowRes 320×256", 320, 256,  3),
-            ("Amiga OCS HiRes  640×256", 640, 256,  3),
-            ("Amiga OCS LowRes 320×200", 320, 200,  3),
-            ("Amiga AGA        320×256", 320, 256,  3),
-            ("Amiga AGA HiRes  640×512", 640, 512,  3),
-            ("── Commodore 64 ──",         0,   0,  0),
-            ("C64 Hires      320×200",   320, 200,  3),
-            ("C64 Multicolor 160×200",   160, 200,  3),
+            ("── Amiga ──",                    0,   0,  0),
+            ("OCS PAL LowRes    320×256",   320, 256,  3),
+            ("OCS NTSC LowRes   320×200",   320, 200,  3),
+            ("OCS PAL HiRes     640×256",   640, 256,  3),
+            ("OCS PAL Lace      320×512",   320, 512,  3),
+            ("ECS PAL LowRes    320×256",   320, 256,  3),
+            ("ECS PAL HiRes     640×256",   640, 256,  3),
+            ("AGA PAL LowRes    320×256",   320, 256,  3),
+            ("AGA PAL HiRes     640×256",   640, 256,  3),
+            ("RTG 640×480",                 640, 480,  3),
+            ("RTG 800×600",                 800, 600,  3),
+            ("RTG 1024×768",               1024, 768,  3),
+            ("RTG 720×576 PAL broadcast",   720, 576,  3),
+            ("RTG 720×480 NTSC broadcast",  720, 480,  3),
+            ("── Commodore 64 ──",            0,   0,  0),
+            ("C64 Hires      320×200",      320, 200,  3),
+            ("C64 Multicolor 160×200",      160, 200,  3),
             ("── ZX Spectrum ──",          0,   0,  0),
             ("Spectrum 48K   256×192",   256, 192,  3),
             ("Spectrum 128K  256×192",   256, 192,  3),
@@ -6356,15 +6413,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             ("PCW            720×256",   720, 256,  3),
             ("NC100/200      480×128",   480, 128,  3),
             ("── Atari ──",                0,   0,  0),
-            ("Atari 2600     160×96",    160,  96,  3),
+            ("Atari 2600 NTSC 160×192",  160, 192,  3),
             ("Atari 800/XL   320×192",   320, 192,  3),
             ("Atari 5200     320×192",   320, 192,  3),
-            ("Atari 7800     320×200",   320, 200,  3),
+            ("Atari 7800      160×240",  160, 240,  3),
             ("Atari ST Low   320×200",   320, 200,  3),
             ("Atari ST Med   640×200",   640, 200,  3),
             ("Atari STe Low  320×200",   320, 200,  3),
             ("Atari Lynx     160×102",   160, 102,  3),
-            ("Atari Falcon   320×200",   320, 200,  3),
+            ("Atari Falcon LowRes 320×200", 320, 200, 3),
+            ("Atari Falcon HiRes  640×480", 640, 480, 3),
             ("Atari Jaguar   320×240",   320, 240,  3),
             ("── Plus/4 ──",               0,   0,  0),
             ("Plus/4 Hires   320×200",   320, 200,  3),
@@ -6373,8 +6431,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             ("VIC-20         176×184",   176, 184,  3),
             ("── Sinclair QL ──",           0,   0,  0),
             ("QL Low         256×256",   256, 256,  3),
+            ("── Nintendo ──",              0,   0,  0),
+            ("NES            256×240",   256, 240,  3),
+            ("SNES           256×224",   256, 224,  3),
+            ("SNES HiRes     512×224",   512, 224,  3),
+            ("Game Boy        160×144",  160, 144,  3),
+            ("Game Boy Color  160×144",  160, 144,  3),
+            ("Game Boy Adv    240×160",  240, 160,  3),
+            ("── Sega ──",                  0,   0,  0),
+            ("SG-1000        256×192",   256, 192,  3),
+            ("Master System  256×192",   256, 192,  3),
+            ("Mega Drive     320×224",   320, 224,  3),
+            ("Game Gear      160×144",   160, 144,  3),
+            ("── NEC ──",                   0,   0,  0),
+            ("PC Engine      256×240",   256, 240,  3),
+            ("PC Engine CD   256×240",   256, 240,  3),
             ("── RM Nimbus ──",             0,   0,  0),
             ("Nimbus LowRes  320×250",   320, 250,  3),
+            ("Nimbus HiRes   640×250",   640, 250,  3),
         ]
         plat_tab, plat_w, plat_h, plat_d, plat_f, plat_pc = make_preset_tab(
             PLATFORM_PRESETS, 320, 200, 3)
