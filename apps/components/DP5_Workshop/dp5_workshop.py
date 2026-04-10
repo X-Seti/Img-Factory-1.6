@@ -7451,19 +7451,172 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
     # ── Extended format imports / exports ─────────────────────────────────────
 
-    def _import_iff(self): #vers 1
-        """Import Amiga IFF ILBM file."""
+    def _import_iff(self): #vers 2
+        """Import Amiga IFF ILBM — supports 8-bit indexed, 24-bit true colour,
+        HAM6/HAM8, with or without palette, PackBits or uncompressed BODY."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Import IFF ILBM", "",
             "IFF (*.iff *.lbm *.ilbm);;All Files (*)")
         if not path: return
         try:
-            from PIL import Image
-            img = Image.open(path).convert('RGBA')
-            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
-                           os.path.basename(path))
+            data = open(path, 'rb').read()
+            rgba = self._decode_iff_ilbm(data)
+            if rgba is None:
+                # Fall back to PIL for formats it understands
+                from PIL import Image
+                img = Image.open(path).convert('RGBA')
+                rgba = bytearray(img.tobytes())
+                w, h = img.size
+            else:
+                import struct
+                bmhd = self._iff_find_chunk(data, b'BMHD')
+                w, h = struct.unpack_from('>HH', bmhd)
+            self._load_rgba(rgba, w, h, os.path.basename(path))
         except Exception as e:
             QMessageBox.warning(self, "IFF Import Error", str(e))
+
+    def _iff_find_chunk(self, data: bytes, tag: bytes) -> bytes:
+        """Find and return data of first matching IFF chunk."""
+        import struct
+        offset = 12  # skip FORM+size+subtype
+        while offset < len(data) - 8:
+            ctag = data[offset:offset+4]
+            csize = struct.unpack_from('>I', data, offset+4)[0]
+            if ctag == tag:
+                return data[offset+8:offset+8+csize]
+            offset += 8 + csize + (csize % 2)
+        return b''
+
+    def _iff_unpack_body(self, body: bytes, row_bytes: int, n_rows: int,
+                         compression: int) -> bytes:
+        """Unpack IFF BODY — compression 0=raw, 1=PackBits/ByteRun1."""
+        if compression == 0:
+            return body
+        # PackBits (ByteRun1) decompression
+        out = bytearray()
+        i = 0
+        total = row_bytes * n_rows
+        while i < len(body) and len(out) < total:
+            n = body[i]; i += 1
+            if n <= 127:
+                # Copy n+1 literal bytes
+                out += body[i:i+n+1]; i += n+1
+            elif n >= 129:
+                # Repeat next byte (257-n) times
+                out += bytes([body[i]]) * (257-n); i += 1
+            # n==128 is NOP
+        return bytes(out)
+
+    def _decode_iff_ilbm(self, data: bytes):
+        """Decode IFF ILBM to RGBA bytearray. Returns None if unsupported."""
+        import struct
+        if data[0:4] != b'FORM' or data[8:12] != b'ILBM':
+            return None
+
+        bmhd_raw = self._iff_find_chunk(data, b'BMHD')
+        if len(bmhd_raw) < 20: return None
+        w, h       = struct.unpack_from('>HH', bmhd_raw, 0)
+        planes     = bmhd_raw[8]
+        masking    = bmhd_raw[9]
+        compression= bmhd_raw[10]
+
+        cmap_raw = self._iff_find_chunk(data, b'CMAP')
+        camg_raw = self._iff_find_chunk(data, b'CAMG')
+        body_raw = self._iff_find_chunk(data, b'BODY')
+
+        camg = struct.unpack_from('>I', camg_raw)[0] if len(camg_raw)>=4 else 0
+        is_ham  = bool(camg & 0x0800)
+        is_ehb  = bool(camg & 0x0080)
+        is_ham8 = is_ham and planes == 8
+
+        # Build palette from CMAP (3 bytes per entry)
+        palette = []
+        if cmap_raw:
+            for i in range(0, len(cmap_raw)-2, 3):
+                palette.append((cmap_raw[i], cmap_raw[i+1], cmap_raw[i+2]))
+        # EHB: duplicate palette at half brightness
+        if is_ehb and len(palette) == 32:
+            palette += [(r>>1, g>>1, b>>1) for r,g,b in palette]
+
+        # Row bytes — always word-aligned per bitplane
+        row_bytes = ((w + 15) // 16) * 2
+        # Total body rows — includes mask plane if masking==1
+        n_planes_body = planes + (1 if masking == 1 else 0)
+        body = self._iff_unpack_body(body_raw, row_bytes * n_planes_body, h, compression)
+
+        rgba = bytearray(w * h * 4)
+
+        if planes == 24:
+            # 24-bit true colour: 8 planes R, 8 planes G, 8 planes B interleaved per row
+            for y in range(h):
+                row_off = y * row_bytes * n_planes_body
+                # Extract each channel from bitplanes
+                channels = []
+                for p in range(24):
+                    plane_row = body[row_off + p*row_bytes : row_off + p*row_bytes + row_bytes]
+                    channels.append(plane_row)
+                for x in range(w):
+                    byte_idx = x // 8
+                    bit_mask = 0x80 >> (x % 8)
+                    # Planes 0-7 = Red, 8-15 = Green, 16-23 = Blue
+                    r = sum(((1 if (channels[p][byte_idx] & bit_mask) else 0) << p)
+                             for p in range(8))
+                    g = sum(((1 if (channels[8+p][byte_idx] & bit_mask) else 0) << p)
+                             for p in range(8))
+                    b = sum(((1 if (channels[16+p][byte_idx] & bit_mask) else 0) << p)
+                             for p in range(8))
+                    i = (y*w+x)*4
+                    rgba[i:i+4] = [r, g, b, 255]
+
+        elif is_ham:
+            # HAM6 or HAM8
+            bits = 8 if is_ham8 else 6
+            base_planes = bits - 2
+            base_n = 1 << base_planes  # 16 for HAM6, 64 for HAM8
+            if not palette:
+                palette = [(i*17, i*17, i*17) for i in range(16)]
+            for y in range(h):
+                row_off = y * row_bytes * n_planes_body
+                plane_rows = [body[row_off + p*row_bytes : row_off + p*row_bytes + row_bytes]
+                              for p in range(planes)]
+                pr, pg, pb = 0, 0, 0
+                for x in range(w):
+                    byte_idx = x // 8
+                    bit_mask = 0x80 >> (x % 8)
+                    px = sum(((1 if (plane_rows[p][byte_idx] & bit_mask) else 0) << p)
+                              for p in range(planes))
+                    ctrl = px >> base_planes
+                    val  = px & (base_n - 1)
+                    if ctrl == 0:
+                        if val < len(palette): pr,pg,pb = palette[val]
+                    elif ctrl == 1:  # modify blue
+                        pb = val << (8-base_planes) if is_ham8 else val*17
+                    elif ctrl == 2:  # modify red
+                        pr = val << (8-base_planes) if is_ham8 else val*17
+                    elif ctrl == 3:  # modify green
+                        pg = val << (8-base_planes) if is_ham8 else val*17
+                    i = (y*w+x)*4
+                    rgba[i:i+4] = [pr, pg, pb, 255]
+
+        else:
+            # Indexed (1-8 bit planes)
+            if not palette:
+                n = 1 << planes
+                palette = [(i*255//(n-1),)*3 for i in range(n)]
+            for y in range(h):
+                row_off = y * row_bytes * n_planes_body
+                plane_rows = [body[row_off + p*row_bytes : row_off + p*row_bytes + row_bytes]
+                              for p in range(planes)]
+                for x in range(w):
+                    byte_idx = x // 8
+                    bit_mask = 0x80 >> (x % 8)
+                    px = sum(((1 if (plane_rows[p][byte_idx] & bit_mask) else 0) << p)
+                              for p in range(planes))
+                    c = palette[px] if px < len(palette) else (0,0,0)
+                    i = (y*w+x)*4
+                    rgba[i:i+4] = [c[0], c[1], c[2], 255]
+
+        return rgba
 
     def _import_tiff(self): #vers 1
         """Import TIFF (single or multi-page — loads first page)."""
