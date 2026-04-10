@@ -3117,10 +3117,59 @@ class ColorPalPresetsMixin:
             return self._snap_image_to_user_palette(img)
 
     def _show_retro_menu(self):
+        """Show user palette picker as hierarchical platform submenus."""
         menu = QMenu(self)
-        for name in self.retro_palettes:
-            act = menu.addAction(name)
-            act.triggered.connect(lambda _, n=name: self._apply_retro_palette(n))
+
+        # Structure: {submenu_label: [palette_name, ...]}
+        GROUPS = [
+            ("Amiga", [
+                "Amiga OCS", "Amiga ECS", "Amiga AGA", "Amiga AGA WB",
+            ]),
+            ("Commodore", [
+                "C64", "VIC-20", "Plus/4",
+            ]),
+            ("Sinclair / ZX", [
+                "ZX Spectrum", "ZX80", "ZX81", "ULA Plus", "Sinclair QL",
+            ]),
+            ("Atari", [
+                "Atari 2600 NTSC", "Atari 800 GTIA",
+                "Atari ST", "Atari STe", "Atari Falcon",
+            ]),
+            ("Amstrad", [
+                "Amstrad CPC",
+            ]),
+            ("Acorn", [
+                "BBC Micro", "Acorn Electron", "Acorn Archimedes",
+            ]),
+            ("Tandy / Dragon", [
+                "CoCo 1/2", "CoCo 3", "Dragon 32/64",
+            ]),
+            ("MSX", [
+                "MSX1", "MSX2",
+            ]),
+            ("Nintendo", [
+                "NES", "SNES",
+                "Game Boy", "Game Boy Pocket", "Game Boy Color", "Game Boy Advance",
+            ]),
+            ("Sega", [
+                "Sega SG-1000", "Sega Master System",
+                "Sega Mega Drive", "Sega Game Gear",
+            ]),
+            ("NEC / Hudson", [
+                "PC Engine",
+            ]),
+            ("Other", [
+                "SAM Coupé", "Apple II Lo-Res", "Apple II Hi-Res",
+            ]),
+        ]
+
+        for group_name, palette_names in GROUPS:
+            sub = menu.addMenu(group_name)
+            for name in palette_names:
+                if name in self.retro_palettes:
+                    act = sub.addAction(name)
+                    act.triggered.connect(lambda _, n=name: self._apply_retro_palette(n))
+
         if hasattr(self, '_retro_btn'):
             menu.exec(self._retro_btn.mapToGlobal(
                 self._retro_btn.rect().bottomLeft()))
