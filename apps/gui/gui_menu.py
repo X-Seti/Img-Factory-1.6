@@ -689,6 +689,118 @@ class IMGFactoryMenuBar:
         self.menus['Tools'] = tools_menu
 
 
+    def _create_dp5_menu(self, workshop=None): #vers 1
+        """Create or update the DP5 Paint menu in the imgfactory menubar.
+        If workshop is None, creates a stub menu with launch actions only.
+        If workshop is a DP5Workshop instance, wires all its canvas actions.
+        Supports menu/toolbar style toggle matching the DP5 settings toggle.
+        """
+        from PyQt6.QtGui import QAction, QKeySequence
+
+        # Remove any existing DP5 menu first
+        existing = self.menus.get('DP5 Paint')
+        if existing:
+            self.menu_bar.removeAction(existing.menuAction())
+            del self.menus['DP5 Paint']
+
+        dp5_menu = self.menu_bar.addMenu("DP5 Paint")
+        self.menus['DP5 Paint'] = dp5_menu
+
+        mw = self.main_window
+
+        # ── Launch actions (always present) ────────────────────────────────
+        open_docked = QAction("Open / Switch to DP5 (docked)", mw)
+        open_docked.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        open_docked.triggered.connect(
+            lambda: getattr(mw, 'open_dp5_workshop_docked', lambda: None)())
+        dp5_menu.addAction(open_docked)
+
+        open_standalone = QAction("Open DP5 standalone…", mw)
+        open_standalone.triggered.connect(
+            lambda: getattr(mw, 'open_dp5_workshop_standalone', lambda: None)())
+        dp5_menu.addAction(open_standalone)
+
+        dp5_menu.addSeparator()
+
+        if workshop is None:
+            # Stub — no canvas open yet
+            stub = QAction("(No canvas open)", mw)
+            stub.setEnabled(False)
+            dp5_menu.addAction(stub)
+            return dp5_menu
+
+        # ── Menu display style toggle ───────────────────────────────────────
+        style_menu = dp5_menu.addMenu("Menu style")
+
+        topbar_act = QAction("Topbar (show inside DP5)", mw, checkable=True)
+        dropdown_act = QAction("Dropdown (this menu)", mw, checkable=True)
+
+        current_style = workshop.dp5_settings.get('menu_style', 'dropdown')
+        topbar_act.setChecked(current_style == 'topbar')
+        dropdown_act.setChecked(current_style != 'topbar')
+
+        def _set_topbar():
+            workshop.dp5_settings.set('menu_style', 'topbar')
+            workshop.dp5_settings.set('show_menubar', True)
+            if hasattr(workshop, '_menu_bar'):
+                workshop._menu_bar.setMaximumHeight(16777215)
+                workshop._menu_bar.setVisible(True)
+            topbar_act.setChecked(True)
+            dropdown_act.setChecked(False)
+
+        def _set_dropdown():
+            workshop.dp5_settings.set('menu_style', 'dropdown')
+            workshop.dp5_settings.set('show_menubar', False)
+            if hasattr(workshop, '_menu_bar'):
+                workshop._menu_bar.setMaximumHeight(0)
+                workshop._menu_bar.setVisible(False)
+            topbar_act.setChecked(False)
+            dropdown_act.setChecked(True)
+
+        topbar_act.triggered.connect(_set_topbar)
+        dropdown_act.triggered.connect(_set_dropdown)
+        style_menu.addAction(topbar_act)
+        style_menu.addAction(dropdown_act)
+
+        dp5_menu.addSeparator()
+
+        # ── Canvas actions (from workshop) ─────────────────────────────────
+        # Build a proxy QMenuBar, populate it, then lift the actions into dp5_menu
+        from PyQt6.QtWidgets import QMenuBar as _QMenuBar
+        proxy = _QMenuBar()
+        workshop._build_canvas_menus(proxy)
+
+        for top_action in proxy.actions():
+            submenu = top_action.menu()
+            if submenu:
+                submenu.setParent(dp5_menu)
+                dp5_menu.addMenu(submenu)
+            else:
+                dp5_menu.addAction(top_action)
+
+        proxy.setParent(None)
+
+        # Ensure host menubar is visible (needed in custom UI mode)
+        ui_mode = getattr(getattr(mw, 'img_settings', None), 'get',
+                          lambda k, d=None: d)('ui_mode', 'system')
+        if ui_mode == 'custom':
+            self.menu_bar.setMaximumHeight(16777215)
+            self.menu_bar.setVisible(True)
+            mw._dp5_showed_menubar = True
+
+        return dp5_menu
+
+    def remove_dp5_menu(self, restore_menubar: bool = True): #vers 1
+        """Remove the DP5 Paint menu and optionally hide the menubar again."""
+        existing = self.menus.pop('DP5 Paint', None)
+        if existing:
+            self.menu_bar.removeAction(existing.menuAction())
+
+        if restore_menubar and getattr(self.main_window, '_dp5_showed_menubar', False):
+            self.menu_bar.setVisible(False)
+            self.menu_bar.setMaximumHeight(0)
+            self.main_window._dp5_showed_menubar = False
+
     def _analyze_img(self):
         """Analyze IMG file"""
         if hasattr(self.main_window, 'analyze_img_corruption'):

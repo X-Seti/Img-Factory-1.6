@@ -514,6 +514,11 @@ class IMGFactory(QMainWindow):
         # Menu system
         self.menubar = self.menuBar()
         self.menu_bar_system = IMGFactoryMenuBar(self)
+        # Add DP5 Paint menu stub (shows launch actions before DP5 is opened)
+        try:
+            self.menu_bar_system._create_dp5_menu(None)
+        except Exception:
+            pass
 
         # Menu callbacks
         callbacks = {
@@ -1280,8 +1285,10 @@ class IMGFactory(QMainWindow):
             self.log_message(f"COL workshop error: {str(e)}")
 
 
-    def open_dp5_workshop_docked(self, file_path=None): #vers 1
-        """Open DP5 Paint Workshop embedded as a tab in IMG Factory."""
+    def open_dp5_workshop_docked(self, file_path=None): #vers 2
+        """Open DP5 Paint Workshop embedded as a tab in IMG Factory.
+        Injects DP5 menus into imgfactory menubar when docked.
+        """
         try:
             from apps.components.DP5_Workshop.dp5_workshop import DP5Workshop
             from PyQt6.QtWidgets import QVBoxLayout, QWidget
@@ -1306,6 +1313,7 @@ class IMGFactory(QMainWindow):
             tab_container = QWidget()
             tab_layout = QVBoxLayout(tab_container)
             tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
 
             workshop = DP5Workshop(tab_container, self)
             workshop.setWindowFlags(Qt.WindowType.Widget)
@@ -1325,6 +1333,19 @@ class IMGFactory(QMainWindow):
 
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
+
+            # Inject DP5 menus into imgfactory menubar via menu_bar_system
+            try:
+                if hasattr(self, 'menu_bar_system'):
+                    self.menu_bar_system._create_dp5_menu(workshop)
+                    # Clean up when tab is closed
+                    def _on_tab_close(close_idx):
+                        if self.main_tab_widget.widget(close_idx) is tab_container:
+                            self.menu_bar_system.remove_dp5_menu(restore_menubar=True)
+                    self.main_tab_widget.tabCloseRequested.connect(_on_tab_close)
+            except Exception as me:
+                self.log_message(f"DP5 menu inject warning: {me}")
+
             self.log_message("DP5 Workshop opened (docked)")
 
             # Register in tool taskbar

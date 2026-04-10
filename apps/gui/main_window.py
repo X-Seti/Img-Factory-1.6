@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 try:
-    from PyQt6.QtGui import QAction
+    from PyQt6.QtGui import QAction, QKeySequence
 except ImportError:
     from PyQt6.QtWidgets import QAction
 

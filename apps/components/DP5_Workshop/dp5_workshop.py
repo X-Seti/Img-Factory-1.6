@@ -4082,6 +4082,44 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
     # ── Right panel: gadget bar + palettes ────────────────────────────────────
 
+    def inject_into_menubar(self, host_menubar, menu_title: str = "DP5 Paint"): #vers 1
+        """
+        Inject DP5 menus into a host QMenuBar (e.g. imgfactory's menubar).
+        Used when docked — the DP5 internal menubar is hidden so this bridges it.
+        Returns the top-level QMenu added, so caller can remove it on close.
+        """
+        # Remove any previously injected DP5 menu from this host bar
+        self._remove_from_menubar(host_menubar)
+
+        # Create a proxy QMenuBar that we populate, then steal its menus
+        from PyQt6.QtWidgets import QMenuBar, QMenu
+        proxy = QMenuBar()
+        self._build_canvas_menus(proxy)
+
+        # Wrap all proxy top-level menus under one "DP5 Paint" parent menu
+        dp5_menu = host_menubar.addMenu(menu_title)
+        self._injected_menu   = dp5_menu
+        self._injected_hostmb = host_menubar
+
+        for action in proxy.actions():
+            dp5_menu.addAction(action)
+            # Re-parent the QMenu so it stays alive with host_menubar
+            submenu = action.menu()
+            if submenu:
+                submenu.setParent(dp5_menu)
+
+        proxy.setParent(None)   # detach proxy; actions now owned by dp5_menu
+        return dp5_menu
+
+    def _remove_from_menubar(self, host_menubar=None): #vers 1
+        """Remove the previously injected DP5 menu from a host menubar."""
+        mb = host_menubar or getattr(self, '_injected_hostmb', None)
+        menu = getattr(self, '_injected_menu', None)
+        if mb and menu:
+            mb.removeAction(menu.menuAction())
+        self._injected_menu   = None
+        self._injected_hostmb = None
+
     def _create_right_panel(self):
         """Right panel: adaptive-column gadget bar, FGBGSwatch, palettes."""
         panel = QFrame()
