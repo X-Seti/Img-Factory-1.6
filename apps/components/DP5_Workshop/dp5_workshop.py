@@ -8458,8 +8458,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             QMessageBox.warning(self, "PSD Import Error",
                 f"{e}\n\nFor PSD support install: pip install psd-tools")
 
-    def _import_amiga_info(self): #vers 3
-        """Import Amiga .info icon — supports Classic bitplane and NewIcon-IM1 formats."""
+    def _import_amiga_info(self): #vers 4
+        """Import Amiga .info icon — supports Classic bitplane and NewIcon-IM1 formats.
+        Optionally snaps to user palette after decode."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Import Amiga .info Icon", "",
             "Amiga Icon (*.info);;All Files (*)")
@@ -8473,7 +8474,25 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     "Supported: Classic bitplane, NewIcon (IM1=)\n"
                     "Unsupported: OS3.5 ICONFACE, GlowIcon ARGB")
                 return
-            self._load_rgba(bytearray(rgba), w, h, f"{os.path.basename(path)} [{fmt}]")
+            # Offer palette snap if a user palette is loaded
+            palette = self._get_user_palette_rgb()
+            if palette:
+                reply = QMessageBox.question(
+                    self, "Snap to Palette?",
+                    f"Snap to current user palette ({self.current_retro_palette}, "
+                    f"{len(palette)} colours)?\n\nChoose No to keep AGA WB colours.",
+                    QMessageBox.StandardButton.Yes |
+                    QMessageBox.StandardButton.No  |
+                    QMessageBox.StandardButton.Cancel)
+                if reply == QMessageBox.StandardButton.Cancel:
+                    return
+                if reply == QMessageBox.StandardButton.Yes:
+                    from PIL import Image
+                    img = Image.frombytes('RGBA', (w, h), bytes(rgba))
+                    snapped = self._snap_image_to_user_palette(img)
+                    rgba = bytearray(snapped.tobytes())
+            self._load_rgba(bytearray(rgba), w, h,
+                           f"{os.path.basename(path)} [{fmt}]")
         except Exception as e:
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
 
@@ -8608,6 +8627,26 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hl_dst.addWidget(dst_btn)
         vl.addLayout(hl_dst)
 
+        # Palette snap option
+        hl_pal = QHBoxLayout()
+        snap_chk = QCheckBox("Snap to user palette after decode")
+        snap_chk.setToolTip(
+            "After loading each icon, snap colours to the current user palette.\n"
+            "Useful when converting .info icons to a specific platform palette.")
+        cur_pal = getattr(self, 'current_retro_palette', 'none')
+        pal_count = len(self._get_user_palette_rgb() or [])
+        snap_chk.setEnabled(pal_count > 0)
+        if pal_count == 0:
+            snap_chk.setToolTip("No user palette loaded — load one from the palette button first")
+        dither_combo = QComboBox()
+        dither_combo.addItems(["Hard snap", "Floyd-Steinberg", "Bayer 4×4", "Checkerboard"])
+        dither_combo.setEnabled(False)
+        snap_chk.toggled.connect(dither_combo.setEnabled)
+        hl_pal.addWidget(snap_chk); hl_pal.addWidget(dither_combo); hl_pal.addStretch()
+        if pal_count > 0:
+            hl_pal.addWidget(QLabel(f"({cur_pal}, {pal_count}col)"))
+        vl.addLayout(hl_pal)
+
         # Progress + log
         prog  = QProgressBar(); prog.setValue(0)
         log   = QTextEdit(); log.setReadOnly(True); log.setFixedHeight(120)
@@ -8626,6 +8665,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 log.append("ERROR: set source and output folders"); return
             import os, io
             from PIL import Image
+
+            do_snap   = snap_chk.isChecked()
+            snap_mode = {
+                "Hard snap": "hard", "Floyd-Steinberg": "floyd",
+                "Bayer 4×4": "bayer", "Checkerboard": "checker"
+            }.get(dither_combo.currentText(), "hard")
+            snap_pal = self._get_user_palette_rgb() if do_snap else None
 
             EXT_MAP = {
                 "Amiga .info":  [".info"],
@@ -8683,6 +8729,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                         img = Image.open(buf).convert('RGBA')
                     else:
                         img = Image.open(src_path).convert('RGBA')
+
+                    # Palette snap (if enabled)
+                    if do_snap and snap_pal:
+                        old_mode = getattr(self, '_pal_dither_mode', 'off')
+                        if snap_mode == 'hard':
+                            img = self._snap_image_to_user_palette(img)
+                        else:
+                            self._pal_dither_mode = snap_mode
+                            img = self._apply_user_palette_dither(img)
+                            self._pal_dither_mode = old_mode
 
                     # Save
                     if out_e == '.info':
