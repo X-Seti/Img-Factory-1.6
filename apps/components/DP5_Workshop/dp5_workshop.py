@@ -1959,21 +1959,25 @@ class PaletteGrid(QWidget):
         rows = max(1, (len(self._colors) + self._cols - 1) // self._cols)
         self.setFixedHeight(rows * self._cell + 1)
 
-    def set_colors(self, colors: List[QColor], cols: int = None): #vers 2
-        """Load a new colour list, optionally changing column count. Auto-scales cell size."""
-        if cols is not None:
-            self._cols = cols
+    def set_colors(self, colors: List[QColor], cols: int = None): #vers 3
+        """Load a new colour list, optionally changing column count. Auto-scales cell+cols."""
         self._colors   = list(colors)
         self._selected = -1
         n = len(colors)
-        if n > 512:  self._cell = 1
-        elif n > 256: self._cell = 4
-        elif n > 64:  self._cell = 8
-        else:         self._cell = 13
+        if n >= 4096:
+            self._cell = 1; self._cols = 64    # 4096 = 64×64 at 1px = 64×64px
+        elif n >= 512:
+            self._cell = 2; self._cols = 32    # 512 = 32×16 at 2px = 64×32px
+        elif n > 256:
+            self._cell = 4; self._cols = cols if cols else 16
+        elif n > 64:
+            self._cell = 8; self._cols = cols if cols else 16
+        else:
+            self._cell = 13; self._cols = cols if cols else 16
         self._recalc_height()
         self.update()
 
-    def set_palette_raw(self, palette_data): #vers 2
+    def set_palette_raw(self, palette_data): #vers 3
         """Accept list of (r,g,b) tuples, QColors or hex strings. No size limit."""
         out = []
         for entry in palette_data:
@@ -1985,10 +1989,11 @@ class PaletteGrid(QWidget):
                 out.append(QColor(int(entry[0]), int(entry[1]), int(entry[2])))
         self._colors   = out
         self._selected = -1
-        # Auto-scale cell size: 1px for >512 colours, 4px for >256, else 13px
         n = len(out)
-        if n > 512:
-            self._cell = 1
+        if n >= 4096:
+            self._cell = 1; self._cols = 64
+        elif n >= 512:
+            self._cell = 2; self._cols = 32
         elif n > 256:
             self._cell = 4
         elif n > 64:
@@ -2977,20 +2982,21 @@ class ColorPalPresetsMixin:
         colors = [QColor(h) for h in data]
         return colors, cols
 
-    def _apply_retro_palette(self, name: str): #vers 3
+    def _apply_retro_palette(self, name: str): #vers 4
         """Load a retro preset into the user palette grid."""
         self.current_retro_palette = name
         colors, cols = self._get_retro_colors(name)
         if hasattr(self, '_user_pal_grid'):
             self._user_pal_grid.set_colors(colors, cols)
+            # Use actual _cols/_cell after auto-scaling
             grid_w = self._user_pal_grid._cols * self._user_pal_grid._cell
-            self._user_pal_grid.setFixedWidth(grid_w)
+            self._user_pal_grid.setFixedWidth(max(grid_w, 32))
             if hasattr(self, '_user_pal_scroll'):
                 sb_w = self._user_pal_scroll.verticalScrollBar().sizeHint().width()
-                self._user_pal_scroll.setFixedWidth(grid_w + sb_w + 4)
+                self._user_pal_scroll.setFixedWidth(max(grid_w, 32) + sb_w + 4)
         if hasattr(self, '_retro_btn'):
             self._retro_btn.setText(f"{name}")
-        # Show dither button for palettes with fewer than 16 colours
+        # Show dither button only for small palettes
         if hasattr(self, '_pal_dither_btn'):
             self._pal_dither_btn.setVisible(len(colors) < 16)
 
@@ -3694,8 +3700,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         plm.addAction("C64 Hires     (8×8 cell)", lambda: self._set_platform('c64'))
         plm.addAction("C64 Multicolor(4×8 cell)", lambda: self._set_platform('c64m'))
         plm.addAction("ZX Spectrum   (8×8 cell)", lambda: self._set_platform('spectrum'))
-        plm.addAction("ZX80          (B&W 8×8)",  lambda: self._set_platform('zx80'))
-        plm.addAction("ZX81          (B&W 8×8)",  lambda: self._set_platform('zx81'))
+        plm.addAction("ZX80          (B&W char cells)", lambda: self._set_platform('zx80'))
+        plm.addAction("ZX81 WRX      (B&W Bayer dither)",lambda: self._set_platform('zx81'))
         plm.addAction("ZX Next 256   (free)",     lambda: self._set_platform('specnext'))
         plm.addAction("ZX Next 320   (free)",     lambda: self._set_platform('specnext'))
         plm.addAction("MSX1          (8×8 cell)", lambda: self._set_platform('msx'))
@@ -4807,7 +4813,20 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         if mode == 'spectrum':
             self._apply_spectrum_clash(cx, cy, cw, ch, w, h)
-        elif mode in ('zx80', 'zx81'):
+        elif mode == 'zx80':
+            # ZX80: hard B&W per 8×8 character cell — no sub-pixel, just average brightness
+            for dy in range(ch):
+                for dx in range(cw):
+                    tx, ty = cx+dx, cy+dy
+                    if not (0 <= tx < w and 0 <= ty < h): continue
+                    i = (ty*w+tx)*4
+                    r,g,b = self.dp5_canvas.rgba[i:i+3]
+                    lum = int(0.299*r + 0.587*g + 0.114*b)
+                    v = 255 if lum >= 128 else 0
+                    self.dp5_canvas.rgba[i:i+3] = [v, v, v]
+            self.dp5_canvas.update()
+        elif mode == 'zx81':
+            # ZX81 WRX mode: Bayer ordered dither — simulates grey via pixel patterns
             self._apply_zx8x_dither(cx, cy, cw, ch, w, h)
         elif mode in ('c64', 'c64m'):
             self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._C64_PALETTE)
@@ -5269,8 +5288,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'c64':       self._C64_PALETTE,
             'c64m':      self._C64_PALETTE,
             'spectrum': self._ZX_PALETTE,
-            'zx80':     'bayer_bw',   # B&W with Bayer dither
-            'zx81':     'bayer_bw',   # B&W with Bayer dither
+            'zx80':     'threshold_bw', # Hard threshold — character cell mode
+            'zx81':     'bayer_bw',     # Bayer dither — WRX hi-res mode
             'specnext':  None,   # 256 colour — no snap needed
             'msx':       self._MSX_PALETTE,
             'cpc':       self._CPC_PALETTE,
@@ -5314,6 +5333,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     thresh = int(BAYER[y%4][x%4] / 16.0 * 255)
                     v = 255 if lum > thresh else 0
                     px_out[x, y] = (v, v, v)
+            return out.convert('RGBA')
+        if palette == 'threshold_bw':
+            # ZX80: hard threshold — average per 8×8 block then B&W
+            from PIL import Image as PILImage
+            rgb = img.convert('L')  # greyscale
+            out = PILImage.new('L', rgb.size)
+            px = rgb.load(); po = out.load()
+            w2, h2 = rgb.size
+            for y in range(h2):
+                for x in range(w2):
+                    po[x, y] = 255 if px[x, y] >= 128 else 0
             return out.convert('RGBA')
 
         from PIL import Image
