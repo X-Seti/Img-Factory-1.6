@@ -4639,8 +4639,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Bit Depth Error", str(e))
 
-    def _apply_palette0_alpha(self, img): #vers 1
-        """Make palette index 0 (or first colour) transparent."""
+    def _apply_palette0_alpha(self, img): #vers 2
+        """Make palette index 0 (or first colour) transparent.
+        Pixels matching pal[0] RGB OR already fully transparent become alpha=0;
+        everything else gets alpha=255.
+        """
         if img.mode != 'RGBA':
             img = img.convert('RGBA')
 
@@ -4649,15 +4652,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         # Get first palette colour (fallback to pure black if none)
         pal = self._get_user_palette_rgb() or []
-        if pal:
-            key = tuple(pal[0][:3])
-        else:
-            key = (0, 0, 0)
+        key = tuple(pal[0][:3]) if pal else (0, 0, 0)
 
         for y in range(h):
             for x in range(w):
                 r, g, b, a = px[x, y]
-                if (r, g, b) == key:
+                if (r, g, b) == key or a == 0:
                     px[x, y] = (r, g, b, 0)
                 else:
                     px[x, y] = (r, g, b, 255)
@@ -8872,11 +8872,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         def run():
             src = src_edit.text(); dst = dst_edit.text()
-            #if do_snap and snap_pal: TODO alpha color as palette colour 0
-
-            # Apply palette[0] as alpha
-            #if alpha_chk.isChecked():
-            #    img = self._apply_palette0_alpha(img)
 
             if not src or not dst:
                 log.append("ERROR: set source and output folders"); return
@@ -8929,6 +8924,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
                     update_preview(img)  # AFTER
 
+                    # Apply alpha-as-palette-0 (all output formats)
+                    if alpha_chk.isChecked():
+                        img = self._apply_palette0_alpha(img)
+
                     # Output path (preserve structure)
                     rel = os.path.relpath(path, src)
                     out_path = os.path.join(dst, rel)
@@ -8936,20 +8935,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
                     # Save
                     if ofmt.currentText().startswith("Amiga .info"):
-                        rgba = bytearray(img.tobytes())
-
-                        if alpha_chk.isChecked():
-                            pal = self._get_user_palette_rgb()
-                            pal0 = pal[0] if pal else (0,0,0)
-
-                            for i in range(0, len(rgba), 4):
-                                r,g,b,a = rgba[i:i+4]
-                                if (r,g,b)==pal0 or a==0:
-                                    rgba[i+3]=0
-                                else:
-                                    rgba[i+3]=255
-
-                        self._write_amiga_info(out_path, bytes(rgba), *img.size)
+                        self._write_amiga_info(out_path, img.tobytes(), *img.size)
                     else:
                         img.save(out_path)
 
