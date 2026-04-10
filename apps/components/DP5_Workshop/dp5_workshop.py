@@ -3516,6 +3516,21 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm.addSeparator()
         fm.addAction("Open image…",    self._import_bitmap)
         fm.addAction("Open + snap to user palette…", self._import_bitmap_snap_user_pal)
+        # Import submenu — all supported formats
+        fim = fm.addMenu("Import")
+        fim.addAction("PNG / BMP / JPEG / WebP…",  self._import_bitmap)
+        fim.addAction("TIFF…",                      self._import_tiff)
+        fim.addAction("GIF (incl. animated)…",      self._import_gif)
+        fim.addAction("TGA (Targa)…",               self._import_tga)
+        fim.addAction("PCX…",                       self._import_pcx)
+        fim.addAction("DDS (DirectDraw Surface)…",  self._import_dds)
+        fim.addAction("PSD (Photoshop read)…",      self._import_psd)
+        fim.addAction("IFF ILBM (Amiga)…",          self._import_iff)
+        fim.addAction("Amiga .info Icon…",          self._import_amiga_info)
+        fim.addSeparator()
+        fim.addAction("Apple ICNS…",                self._import_icns)
+        fim.addAction("Windows ICO…",               self._import_ico)
+        fim.addAction("SVG…",                       self._import_svg)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
         fm.addSeparator()
@@ -3558,6 +3573,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         tx_menu = fm.addMenu("Texture")
         tx_menu.addAction("Export PNG (current depth)…", self._export_texture_png)
         tx_menu.addAction("Export BMP…",                 self._export_texture_bmp)
+        tx_menu.addAction("Export TGA…",                 self._export_tga)
+        tx_menu.addAction("Export DDS…",                 self._export_dds)
+        tx_menu.addAction("Export PCX…",                 self._export_pcx)
         tx_menu.addSeparator()
         tx_menu.addAction("Snap to user palette",        self._snap_canvas_to_user_palette)
 
@@ -3565,9 +3583,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ic_menu = fm.addMenu("Icons")
         ic_menu.addAction("Export Windows ICO…",   self._export_ico)
         ic_menu.addAction("Export Linux SVG…",      self._export_svg_icon)
+        ic_menu.addAction("Export Apple ICNS…",     self._export_icns)
         ic_menu.addAction("Export Amiga Icon…",     self._export_amiga_icon)
         ic_menu.addSeparator()
         ic_menu.addAction("Import Windows ICO…",   self._import_ico)
+        ic_menu.addAction("Import Apple ICNS…",    self._import_icns)
+        ic_menu.addAction("Import Amiga .info…",   self._import_amiga_info)
         ic_menu.addAction("Import SVG…",            self._import_svg)
         ic_menu.addSeparator()
         ic_menu.addAction("Snap to user palette",   self._snap_canvas_to_user_palette)
@@ -6533,40 +6554,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "SCR Export Error", str(e))
 
-    def _export_scr(self): #vers 1
-        """Export ZX Spectrum SCR (256×192, 6144 bitmap + 768 attr bytes)."""
-        if not self.dp5_canvas: return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export ZX Spectrum SCR", "screen.scr", "SCR (*.scr)")
-        if not path: return
-        try:
-            from PIL import Image
-            img = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
-                                  bytes(self.dp5_canvas.rgba)).convert('RGB')
-            img = img.resize((256,192), Image.NEAREST)
-            zx_pal = [0,0,0,215,0,0,0,215,0,215,215,0,0,0,215,215,0,215,0,215,215,215,215,215]
-            pi = Image.new('P',(1,1)); pi.putpalette(zx_pal+[0]*744)
-            q = img.quantize(palette=pi, dither=0)
-            pixels = list(q.getdata())
-            bitmap = bytearray(6144); attrs = bytearray(768)
-            for third in range(3):
-                for row in range(8):
-                    for char_y in range(8):
-                        y = third*64+char_y*8+row
-                        for char_x in range(32):
-                            byte = 0
-                            for bit in range(8):
-                                if pixels[y*256+char_x*8+bit]&1:
-                                    byte |= (0x80>>bit)
-                            bitmap[third*2048+row*256+char_y*32+char_x] = byte
-            for ay in range(24):
-                for ax in range(32):
-                    attrs[ay*32+ax] = pixels[(ay*8)*256+ax*8]&7
-            open(path,'wb').write(bitmap+attrs)
-            self._set_status(f"Exported SCR: {os.path.basename(path)}")
-        except Exception as e:
-            QMessageBox.warning(self, "SCR Export Error", str(e))
-
     def _export_sc2(self): #vers 1
         """Export MSX SC2 raw (256×192, 6144 pattern + 6144 colour + 768 name)."""
         if not self.dp5_canvas: return
@@ -7430,6 +7417,293 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self._set_status(f"Exported BMP: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "BMP Export Error", str(e))
+
+
+    # ── Extended format imports / exports ─────────────────────────────────────
+
+    def _import_iff(self): #vers 1
+        """Import Amiga IFF ILBM file."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import IFF ILBM", "",
+            "IFF (*.iff *.lbm *.ilbm);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.open(path).convert('RGBA')
+            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                           os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "IFF Import Error", str(e))
+
+    def _import_tiff(self): #vers 1
+        """Import TIFF (single or multi-page — loads first page)."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import TIFF", "",
+            "TIFF (*.tif *.tiff);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.open(path)
+            img.seek(0)
+            img = img.convert('RGBA')
+            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                           os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "TIFF Import Error", str(e))
+
+    def _import_gif(self): #vers 1
+        """Import GIF — animated GIF loads all frames into animation timeline."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import GIF", "",
+            "GIF (*.gif);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            gif = Image.open(path)
+            frames = []
+            try:
+                while True:
+                    f = gif.copy().convert('RGBA')
+                    frames.append(f)
+                    gif.seek(gif.tell()+1)
+            except EOFError:
+                pass
+            if not frames: return
+            # Load first frame to canvas
+            img = frames[0]
+            self._canvas_width  = img.width
+            self._canvas_height = img.height
+            self.dp5_canvas.tex_w = img.width
+            self.dp5_canvas.tex_h = img.height
+            self.dp5_canvas.rgba  = bytearray(img.tobytes())
+            self.dp5_canvas.update()
+            self._fit_canvas_to_viewport()
+            # Load all frames into animation if >1
+            if len(frames) > 1 and hasattr(self, '_frames'):
+                self._frames = [bytearray(f.resize(
+                    (img.width, img.height), Image.NEAREST).convert('RGBA').tobytes())
+                    for f in frames]
+                self._frame_delays = [gif.info.get('duration', 100)] * len(frames)
+                self._current_frame = 0
+                if hasattr(self, '_anim_strip') and self._anim_strip.isVisible():
+                    self._anim_refresh_thumbs()
+                self._set_status(
+                    f"Loaded GIF: {os.path.basename(path)}  {len(frames)} frames")
+            else:
+                self._set_status(f"Loaded GIF: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "GIF Import Error", str(e))
+
+    def _import_tga(self): #vers 1
+        """Import TGA (Targa) — common in game textures."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import TGA", "",
+            "TGA (*.tga *.targa);;All Files (*)")
+        if not path: return
+        self._import_bitmap_path(path)
+
+    def _import_pcx(self): #vers 1
+        """Import PCX — classic DOS bitmap format."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import PCX", "",
+            "PCX (*.pcx);;All Files (*)")
+        if not path: return
+        self._import_bitmap_path(path)
+
+    def _import_dds(self): #vers 1
+        """Import DDS (DirectDraw Surface) — GTA and game engine textures."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import DDS", "",
+            "DDS (*.dds);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            # Try PIL first (needs pillow-dds or wand)
+            try:
+                img = Image.open(path).convert('RGBA')
+            except Exception:
+                # Fallback: try imageio
+                import imageio
+                arr = imageio.imread(path)
+                from PIL import Image as PILImage
+                img = PILImage.fromarray(arr).convert('RGBA')
+            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                           os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "DDS Import Error",
+                f"{e}\n\nFor DDS support install: pip install pillow-dds")
+
+    def _import_psd(self): #vers 1
+        """Import PSD (Photoshop) — reads merged composite layer."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import PSD", "",
+            "PSD (*.psd *.psb);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.open(path).convert('RGBA')
+            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                           os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "PSD Import Error",
+                f"{e}\n\nFor PSD support install: pip install psd-tools")
+
+    def _import_amiga_info(self): #vers 1
+        """Import Amiga .info icon — extract first image plane."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Amiga .info Icon", "",
+            "Amiga Icon (*.info);;All Files (*)")
+        if not path: return
+        try:
+            data = open(path, 'rb').read()
+            if data[0:2] != b'\xE3\x10':
+                raise ValueError("Not a valid Amiga DiskObject (.info file)")
+            # Parse DiskObject header
+            import struct
+            w = struct.unpack_from('>H', data, 12)[0]
+            h = struct.unpack_from('>H', data, 14)[0]
+            depth = struct.unpack_from('>H', data, 16)[0]
+            if w == 0 or h == 0 or depth == 0:
+                raise ValueError(f"Invalid dimensions: {w}×{h} depth={depth}")
+            # Read bitplane data after 78-byte header
+            plane_bytes = (w + 15) // 16 * 2
+            row_bytes = plane_bytes * depth
+            # OCS 4-colour palette for icons
+            icon_pal = [(0,0,0),(255,255,255),(85,170,255),(255,170,0)]
+            rgba = bytearray(w*h*4)
+            offset = 78
+            for y in range(h):
+                for x in range(w):
+                    px = 0
+                    for p in range(min(depth, 4)):
+                        byte_off = offset + y*row_bytes + p*plane_bytes + x//8
+                        if byte_off < len(data):
+                            bit = (data[byte_off] >> (7-(x%8))) & 1
+                            px |= bit << p
+                    c = icon_pal[px % len(icon_pal)]
+                    i = (y*w+x)*4
+                    rgba[i:i+4] = [c[0],c[1],c[2],255]
+            self._load_rgba(rgba, w, h, os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "Amiga Info Import Error", str(e))
+
+    def _import_icns(self): #vers 1
+        """Import Apple ICNS icon — loads largest available size."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Apple ICNS", "",
+            "ICNS (*.icns);;All Files (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = Image.open(path)
+            # PIL returns the largest size for ICNS
+            img = img.convert('RGBA')
+            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
+                           os.path.basename(path))
+        except Exception as e:
+            QMessageBox.warning(self, "ICNS Import Error",
+                f"{e}\n\nICNS requires: pip install Pillow (with ICNS support)")
+
+    def _export_icns(self): #vers 1
+        """Export Apple ICNS — macOS icon bundle with multiple sizes."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Apple ICNS", "icon.icns", "ICNS (*.icns)")
+        if not path: return
+        try:
+            from PIL import Image
+            import struct, io
+            img = self._get_canvas_pil()
+            # ICNS format: 4-byte type + 4-byte size (big-endian) + data
+            # Standard sizes and their type codes
+            sizes = [
+                (16,  b'icp4'), (32,  b'icp5'), (64,  b'icp6'),
+                (128, b'ic07'), (256, b'ic08'), (512, b'ic09'),
+                (1024,b'ic10'),
+            ]
+            chunks = bytearray()
+            for sz, code in sizes:
+                if sz <= max(self._canvas_width, self._canvas_height) * 2:
+                    frame = img.resize((sz, sz), Image.LANCZOS)
+                    buf = io.BytesIO()
+                    frame.save(buf, 'PNG')
+                    png_data = buf.getvalue()
+                    chunk_size = 8 + len(png_data)
+                    chunks += code + struct.pack('>I', chunk_size) + png_data
+            total = 8 + len(chunks)
+            icns = b'icns' + struct.pack('>I', total) + bytes(chunks)
+            open(path, 'wb').write(icns)
+            self._set_status(f"Exported ICNS: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "ICNS Export Error", str(e))
+
+    def _export_tga(self): #vers 1
+        """Export TGA (Targa) — uncompressed RGBA."""
+        if not self.dp5_canvas: return
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export TGA", f"texture_{w}x{h}.tga", "TGA (*.tga)")
+        if not path: return
+        try:
+            self._get_canvas_pil().save(path, 'TGA')
+            self._set_status(f"Exported TGA: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "TGA Export Error", str(e))
+
+    def _export_dds(self): #vers 1
+        """Export DDS (DirectDraw Surface) — uncompressed RGBA8."""
+        if not self.dp5_canvas: return
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export DDS", f"texture_{w}x{h}.dds", "DDS (*.dds)")
+        if not path: return
+        try:
+            import struct
+            # Write minimal DDS header (DXT not compressed — RGBA8)
+            rgba = bytes(self.dp5_canvas.rgba)
+            # DDS header: 128 bytes
+            hdr = bytearray(128)
+            hdr[0:4]   = b'DDS '
+            struct.pack_into('>I', hdr, 4, 124)   # header size
+            # Flags: CAPS|HEIGHT|WIDTH|PIXELFORMAT|LINEARSIZE
+            struct.pack_into('<I', hdr, 8, 0x00021007)
+            struct.pack_into('<I', hdr, 12, h)     # height
+            struct.pack_into('<I', hdr, 16, w)     # width
+            struct.pack_into('<I', hdr, 20, w*4)   # pitch
+            struct.pack_into('<I', hdr, 28, 1)     # mip count
+            # Pixel format at offset 76
+            struct.pack_into('<I', hdr, 76, 32)    # pfSize
+            struct.pack_into('<I', hdr, 80, 0x41)  # pfFlags: ALPHA|RGB
+            struct.pack_into('<I', hdr, 88, 32)    # RGB bit count
+            struct.pack_into('<I', hdr, 92, 0x00FF0000)  # R mask
+            struct.pack_into('<I', hdr, 96, 0x0000FF00)  # G mask
+            struct.pack_into('<I', hdr, 100, 0x000000FF) # B mask
+            struct.pack_into('<I', hdr, 104, 0xFF000000) # A mask
+            struct.pack_into('<I', hdr, 108, 0x00001000) # caps: TEXTURE
+            # Swap RGBA → BGRA for DDS
+            bgra = bytearray(len(rgba))
+            for i in range(0, len(rgba), 4):
+                bgra[i]   = rgba[i+2]
+                bgra[i+1] = rgba[i+1]
+                bgra[i+2] = rgba[i]
+                bgra[i+3] = rgba[i+3]
+            open(path, 'wb').write(bytes(hdr) + bytes(bgra))
+            self._set_status(f"Exported DDS: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "DDS Export Error", str(e))
+
+    def _export_pcx(self): #vers 1
+        """Export PCX — classic DOS bitmap."""
+        if not self.dp5_canvas: return
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PCX", f"image_{w}x{h}.pcx", "PCX (*.pcx)")
+        if not path: return
+        try:
+            self._get_canvas_pil().convert('RGB').save(path, 'PCX')
+            self._set_status(f"Exported PCX: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "PCX Export Error", str(e))
 
     def _export_ico(self): #vers 1
         """Export Windows ICO — multiple sizes embedded (16,32,48,64,128,256)."""
