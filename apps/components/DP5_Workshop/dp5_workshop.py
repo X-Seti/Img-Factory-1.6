@@ -2621,6 +2621,155 @@ class ColorPalPresetsMixin:
             "#CE8DF6","#9DE88B","#8080E0","#E0E084",
         ]
 
+        # VIC-20 — 16 colours
+        vic20 = [
+            "#000000","#FFFFFF","#782922","#87D6DD",
+            "#AA5FB6","#55A049","#40318D","#BFCE72",
+            "#AA7449","#C9B887","#EA9090","#B2D4DC",
+            "#CE8DF6","#9DE88B","#8080E0","#E0E084",
+        ]
+
+        # Atari ST — 9-bit palette (3R 3G 3B) 512 colours, show 64 representative
+        # 16 on screen in low-res. Scale: val*36 + val//2
+        def _st9(v): return v*36 + v//2
+        atari_st_512 = [f"#{_st9(r):02X}{_st9(g):02X}{_st9(b):02X}"
+                        for r in range(8) for g in range(8) for b in range(8)]
+        # Show 64 evenly-sampled colours (every 8th) for swatch display
+        atari_st_full = atari_st_512[::8]
+
+        # Atari STe — 12-bit palette (4R 4G 4B) = 4096 colours, same as Amiga OCS
+        # 16 on screen. Scale: val*17
+        atari_ste = [f"#{r*17:02X}{g*17:02X}{b*17:02X}"
+                     for r in range(16) for g in range(16) for b in range(16)]
+        # Show 64 sample colours for swatch
+        atari_ste_sample = atari_ste[::64]
+
+        # Atari Falcon — 16-bit (65536 colours), show 64 samples
+        atari_falcon = [f"#{r:02X}{g:02X}{b:02X}"
+                        for r in range(0,256,36) for g in range(0,256,36) for b in range(0,256,36)][:64]
+
+        # Amiga ECS — Extra Half-Brite: 64 colours (32 + 32 half-brightness)
+        # Same 12-bit OCS palette, but 32 extra are half-brightness of first 32
+        amiga_ecs = [
+            "#000000","#FFFFFF","#888888","#FF8800",
+            "#CC0000","#0000CC","#00AAAA","#CC00CC",
+            "#00CC00","#EEEE00","#FF6600","#AA4400",
+            "#4488FF","#AA00AA","#00BBBB","#AAAAAA",
+            "#222222","#444444","#666666","#999999",
+            "#BBBBBB","#DDDDDD","#1166CC","#CC4400",
+            "#006600","#BB8800","#880000","#004488",
+            "#CC8844","#448844","#884488","#44AACC",
+            # Half-brightness versions of above (EHB registers 32-63)
+            "#000000","#7F7F7F","#444444","#7F4400",
+            "#660000","#000066","#005555","#660066",
+            "#006600","#777700","#7F3300","#552200",
+            "#2244AA","#550055","#005D5D","#555555",
+            "#111111","#222222","#333333","#4C4C4C",
+            "#5D5D5D","#6E6E6E","#0833BB","#662200",
+            "#003300","#5D4400","#440000","#002244",
+            "#664422","#224422","#442244","#225566",
+        ]
+
+        # Sega Master System — 6-bit (2R 2G 2B), 64 colours
+        sega_ms = [f"#{r:02X}{g:02X}{b:02X}"
+                   for r in [0,85,170,255] for g in [0,85,170,255] for b in [0,85,170,255]]
+
+        # Sega Mega Drive / Genesis — 9-bit (3R 3G 3B), 512 colours, 64 on screen
+        # Scale: 0,36,73,109,146,182,219,255
+        _md_v = [0,36,73,109,146,182,219,255]
+        sega_md = [f"#{r:02X}{g:02X}{b:02X}"
+                   for r in _md_v for g in _md_v for b in _md_v]
+        # Show 64 sample colours
+        sega_md_sample = sega_md[::8]
+
+        # Sega Game Gear — 12-bit (4R 4G 4B), 4096 colours, 32 on screen
+        # Same 12-bit scale as Amiga OCS
+        sega_gg = [f"#{r*17:02X}{g*17:02X}{b*17:02X}"
+                   for r in range(16) for g in range(16) for b in range(16)]
+        sega_gg_sample = sega_gg[::64]  # 64 samples
+
+        # Sega SG-1000 — TMS9918 (same as MSX1)
+        sega_sg1000 = [
+            "#000000","#010101","#3EB849","#74D07D",
+            "#5955E0","#8076F1","#B95E51","#65DBEF",
+            "#DB6559","#FF897D","#CCC35E","#DED087",
+            "#3AA241","#B766B5","#CCCCCC","#FFFFFF",
+        ]
+
+        # SNES — 15-bit (5R 5G 5B), 32768 colours — show 64 samples
+        _snes_v = [0,8,16,25,33,41,49,58,66,74,82,90,99,107,115,123,
+                   132,140,148,156,165,173,181,189,197,206,214,222,230,239,247,255]
+        snes = [f"#{r:02X}{g:02X}{b:02X}"
+                for r in _snes_v[::4] for g in _snes_v[::4] for b in _snes_v[::4]][:64]
+
+        # Game Boy Color — 15-bit, 32768 colours — show representative palette
+        game_boy_color = [
+            "#FFFFFF","#FFEEAA","#FFCC55","#FFAA00",
+            "#FF8800","#FF5500","#FF0000","#CC0000",
+            "#AA0000","#880000","#550000","#330000",
+            "#FF88AA","#FF55AA","#FF00AA","#CC0088",
+            "#AA0066","#880044","#550022","#FF88FF",
+            "#FF55FF","#FF00FF","#CC00CC","#AA00AA",
+            "#8800AA","#5500AA","#2200AA","#0000FF",
+            "#0000CC","#0000AA","#000088","#000055",
+            "#0055FF","#0088FF","#00AAFF","#00CCFF",
+            "#00FFFF","#00FFCC","#00FFAA","#00FF88",
+            "#00FF55","#00FF00","#00CC00","#00AA00",
+            "#008800","#005500","#003300","#AAFFAA",
+            "#AAAAFF","#FFAAAA","#FFFFAA","#AAFFFF",
+            "#FFAAFF","#DDDDDD","#BBBBBB","#999999",
+            "#777777","#555555","#333333","#111111",
+            "#000000","#1A1A2E","#16213E","#0F3460",
+        ]
+
+        # Game Boy Advance — 15-bit, 240×160
+        # Same palette space as GBC, different screen
+        game_boy_advance = game_boy_color  # same colour space
+
+        # Motorola 6847 — CoCo 1/2, Dragon 32/64, BBC Micro (semi-graphics modes)
+        m6847 = [
+            "#000000","#00FF00","#FFFF00","#0000FF",
+            "#FF0000","#00FFFF","#FF00FF","#FFFFFF",
+        ]
+
+        # TRS-80 CoCo 3 GIME — 64 colours (6-bit: 2R 2G 2B)
+        coco3 = [f"#{r:02X}{g:02X}{b:02X}"
+                 for r in [0,85,170,255] for g in [0,85,170,255] for b in [0,85,170,255]]
+
+        # Dragon 32/64 — identical to CoCo 1/2 (same Motorola 6847)
+        dragon = m6847
+
+        # Acorn BBC Micro — 8 colours (ULA chip)
+        bbc_micro = [
+            "#000000","#FF0000","#00FF00","#FFFF00",
+            "#0000FF","#FF00FF","#00FFFF","#FFFFFF",
+        ]
+
+        # Acorn Electron — same 8 colours as BBC
+        acorn_electron = bbc_micro
+
+        # Acorn Archimedes VIDC — 256 from 16.7M, show 64 samples
+        acorn_archimedes = [
+            "#000000","#111111","#222222","#333333","#444444","#555555","#666666","#777777",
+            "#888888","#999999","#AAAAAA","#BBBBBB","#CCCCCC","#DDDDDD","#EEEEEE","#FFFFFF",
+            "#FF0000","#CC0000","#990000","#660000","#330000","#FF3300","#FF6600","#FF9900",
+            "#FFCC00","#FFFF00","#CCFF00","#99FF00","#66FF00","#33FF00","#00FF00","#00CC00",
+            "#009900","#006600","#003300","#00FF33","#00FF66","#00FF99","#00FFCC","#00FFFF",
+            "#00CCFF","#0099FF","#0066FF","#0033FF","#0000FF","#3300FF","#6600FF","#9900FF",
+            "#CC00FF","#FF00FF","#FF00CC","#FF0099","#FF0066","#FF0033","#FF8888","#88FF88",
+            "#8888FF","#FFFF88","#FF88FF","#88FFFF","#FFAA88","#AAFFAA","#AAAABB","#CCAACC",
+        ]
+
+        # MSX2 V9938 — 9-bit palette (3R 3G 3B), 512 colours
+        # Same 3-bit scale as Atari ST / Mega Drive
+        msx2_full = atari_st_512  # identical scale
+        msx2_sample = atari_st_full  # same 64 samples
+
+        # PC Engine / TurboGrafx-16 — 9-bit (3R 3G 3B), 512 colours
+        # Scale: 0,36,73,109,146,182,219,255 (same as MD)
+        pc_engine_full = sega_md
+        pc_engine_sample = sega_md_sample
+
         # Sinclair QL — 8 colours
         sinclair_ql = [
             "#000000","#FF0000","#00FF00","#FFFF00",
@@ -2749,32 +2898,60 @@ class ColorPalPresetsMixin:
 
         # Registry: name -> (hex_list, cols)
         self.retro_palettes = {
-            "Amiga OCS":        (amiga_ocs,       8),   # 32 colours — 4 rows × 8
-            "Amiga AGA":        (amiga_aga,       16),  # 256 colours — 16×16
-            "Amiga AGA WB":     (amiga_aga_wb,    16),  # 256 colours — 16×16
-            "C64":              (commodore_64,     8),   # 16 colours — 2 rows × 8
-            "ZX Spectrum":      (zx_spectrum,      8),   # 16 colours — 2 rows × 8
-            "ZX80":             (zx80,              2),   # 2 colours — B&W
-            "ZX81":             (zx81,              2),   # 2 colours — B&W
-            "Amstrad CPC":      (amstrad_cpc,      9),   # 27 colours — 3 rows × 9
-            "Atari 800":        (atari_800,       16),  # 256 colours GTIA — 16×16
-            "Atari 2600 NTSC":  (atari_2600,       8),  # 128 colours — 16 rows × 8
-            "Atari ST":         (atari_st,         8),  # 16 colours — 2 rows × 8
-            "MSX1":             (msx1,             8),  # 16 colours TMS9918
-            "MSX2":             (msx2,             8),  # 32 sample colours V9938
-            "Plus/4":           (plus4,            8),  # 16 colours TED chip
-            "VIC-20":           (vic20,            8),  # 16 colours
-            "Sinclair QL":      (sinclair_ql,      8),  # 8 colours
-            "ULA Plus":         (ula_plus,        16),  # 256 colours
-            "BBC Micro":        (bbc_micro,        8),  # 8 colours 6845 ULA
-            "Apple II Lo-Res":  (apple2_lores,     8),  # 16 colours
-            "Apple II Hi-Res":  (apple2_hires,     6),  # 6 artefact colours
-            "NES":              (nes,               8),  # 64 colours — 8×8
-            "Game Boy":         (game_boy,          4),  # 4 shades green LCD
-            "Game Boy Pocket":  (game_boy_pocket,   4),  # 4 shades grey LCD
-            "Mega Drive":       (mega_drive,        8),  # 64 from 512
-            "SAM Coupé":        (sam_coupe,        16),  # 128 colours — 8×16
-            "PC Engine":        (pc_engine,         8),  # 32 sample colours
+            # ── Amiga ────────────────────────────────────────────────────
+            "Amiga OCS":          (amiga_ocs,           8),  # 32col 12-bit 4096
+            "Amiga ECS":          (amiga_ecs,           8),  # 64col EHB mode
+            "Amiga AGA":          (amiga_aga,          16),  # 256col 24-bit
+            "Amiga AGA WB":       (amiga_aga_wb,       16),  # AGA Workbench
+            # ── Commodore ────────────────────────────────────────────────
+            "C64":                (commodore_64,         8),  # 16col VIC-II
+            "VIC-20":             (vic20,                8),  # 16col VIC-I
+            "Plus/4":             (plus4,                8),  # 16col TED
+            # ── Sinclair / ZX ────────────────────────────────────────────
+            "ZX Spectrum":        (zx_spectrum,          8),  # 16col ULA
+            "ZX80":               (zx80,                 2),  # B&W
+            "ZX81":               (zx81,                 2),  # B&W
+            "ULA Plus":           (ula_plus,            16),  # 256col
+            "Sinclair QL":        (sinclair_ql,          8),  # 8col
+            # ── Atari ────────────────────────────────────────────────────
+            "Atari 2600 NTSC":    (atari_2600,           8),  # 128col TIA
+            "Atari 800 GTIA":     (atari_800,           16),  # 256col GTIA
+            "Atari ST":           (atari_st_full,        8),  # 64 of 512 (9-bit)
+            "Atari STe":          (atari_ste_sample,     8),  # 64 of 4096 (12-bit)
+            "Atari Falcon":       (atari_falcon,         8),  # 64 of 65536 (16-bit)
+            # ── Amstrad ──────────────────────────────────────────────────
+            "Amstrad CPC":        (amstrad_cpc,          9),  # 27col hardware
+            # ── Acorn ────────────────────────────────────────────────────
+            "BBC Micro":          (bbc_micro,            8),  # 8col 6845 ULA
+            "Acorn Electron":     (acorn_electron,       8),  # 8col
+            "Acorn Archimedes":   (acorn_archimedes,     8),  # 64 of 16.7M VIDC
+            # ── Tandy / Dragon ───────────────────────────────────────────
+            "CoCo 1/2":           (m6847,                8),  # 8col 6847
+            "CoCo 3":             (coco3,                8),  # 64col GIME
+            "Dragon 32/64":       (dragon,               8),  # 8col 6847
+            # ── MSX ──────────────────────────────────────────────────────
+            "MSX1":               (msx1,                 8),  # 16col TMS9918
+            "MSX2":               (msx2_sample,          8),  # 64 of 512 V9938
+            # ── NES / Nintendo ───────────────────────────────────────────
+            "NES":                (nes,                  8),  # 64col PPU
+            "SNES":               (snes,                 8),  # 64 of 32768
+            # ── Game Boy ─────────────────────────────────────────────────
+            "Game Boy":           (game_boy,             4),  # 4 shades green
+            "Game Boy Pocket":    (game_boy_pocket,      4),  # 4 shades grey
+            "Game Boy Color":     (game_boy_color,       8),  # 64 of 32768
+            "Game Boy Advance":   (game_boy_advance,     8),  # 64 of 32768
+            # ── Sega ─────────────────────────────────────────────────────
+            "Sega SG-1000":       (sega_sg1000,          8),  # 16col TMS9918
+            "Sega Master System": (sega_ms,              8),  # 64col 6-bit
+            "Sega Mega Drive":    (sega_md_sample,       8),  # 64 of 512 (9-bit)
+            "Sega Game Gear":     (sega_gg_sample,       8),  # 64 of 4096 (12-bit)
+            # ── PC Engine / TurboGrafx ───────────────────────────────────
+            "PC Engine":          (pc_engine_sample,     8),  # 64 of 512 (9-bit)
+            # ── SAM Coupé ────────────────────────────────────────────────
+            "SAM Coupé":          (sam_coupe,           16),  # 128col
+            # ── Apple ────────────────────────────────────────────────────
+            "Apple II Lo-Res":    (apple2_lores,         8),  # 16col
+            "Apple II Hi-Res":    (apple2_hires,         6),  # 6 artefact col
         }
         self.current_retro_palette = "Amiga OCS"
 
