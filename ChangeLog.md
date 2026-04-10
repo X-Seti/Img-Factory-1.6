@@ -1,3 +1,93 @@
+#this belongs in root /ChangeLog.md - Version: 35
+
+## April 2026 — DP5 Workshop: Build 249–292b
+
+### Build 292b — Restore wiped export methods
+- `dp5_workshop.py`: restored `_export_amiga_icon`, `_export_ico`, `_export_svg_icon`, `_export_tga`, `_export_dds`, `_export_pcx`, `_import_icns`, `_export_icns` — all lost in batch convertor insertion
+
+### Build 292+ — Amiga .info import fix + batch converters
+- `_import_amiga_info` v3: correct bitplane offset formula — `DiskObject(78) + DrawerData(56 if present) + 2×Image_struct(40)` — confirmed against icon collection
+- `_decode_amiga_info`: detects Classic-bitplane (68 icons), NewIcon IM1= (1), OS3.5 ICONFACE (45, reported unsupported), GlowIcon ARGB
+- `_decode_newicon_im1`: decodes ASCII-encoded NewIcon IM1=/IM2= ToolType image data
+- `_batch_convert_icons`: File → Batch Convert → Icons dialog — source folder, input/output format, progress + log
+- `_batch_convert_textures`: File → Batch Convert → Textures dialog — resize option, power-of-two snap, DDS/TGA/PCX/PNG/BMP/JPG/TIFF
+- `_write_amiga_info`, `_write_icns`: shared helpers used by batch convertor and export methods
+
+### Build 292 — Amiga icon any-size export + IFF 24-bit import
+- `_export_amiga_icon` v2: any canvas size (was hard-coded 32×32), correct DiskObject+Gadget+Image struct, word-aligned 4-plane encoding, WB 16-colour palette
+- `_import_iff` v2: delegates to full custom decoder
+- `_decode_iff_ilbm`: handles 24-bit true colour (tested on ps2_modscr.iff 1024×768), 8-bit indexed, HAM6/HAM8/EHB, PackBits decompression
+- `_iff_find_chunk`, `_iff_unpack_body`: IFF ILBM parsing helpers
+
+### Build 291a — Fix missing _snap_canvas_to_user_palette
+- Restored method deleted during dither refactor
+
+### Build 291 — Hierarchical palette menu
+- `_show_retro_menu`: flat list replaced with 12 family submenus — Amiga/Commodore/Sinclair/Atari/Amstrad/Acorn/Tandy-Dragon/MSX/Nintendo/Sega/NEC/Other
+
+### Build 290 — Two clear snap-to-palette load options
+- File menu: `Open + snap to palette…` (hard snap) and `Open + snap to palette (dithered)…` (asks Floyd-Steinberg/Bayer/Checkerboard)
+- Picture menu: `Snap to user palette` and `Snap to user palette (dithered)…`
+- `_snap_canvas_to_user_palette_dither`: QInputDialog method picker
+- Palette dither hidden button removed — dither via menu only
+
+### Build 289a — Fix crashes
+- `_import_amiga_info` v2: QPoint unpacking crash fixed — `_preview_start/end` stored as `(tx,ty)` tuples not QPoint
+- `get_dp5_workshop_icon` v4: SVG path data on single lines — fixes `qt.svg: Invalid path data; path truncated` warnings
+
+### Build 289 — Zoom tool right-click mode menu + Open+snap dither
+- `_zoom_mode_menu`: right-click zoom gadget → Zoom In / Zoom Out / Box Zoom / Zoom to Fit
+- `_set_zoom_mode`: sets mode, updates tooltip, cursor (CrossCursor for box, SizeAll for out)
+- Box zoom: drag cyan dashed rectangle → zoom to fit selection, scroll to centre
+- `_import_bitmap_snap_user_pal` v2: uses current dither mode in title + snap
+
+### Build 288 — Full IFF ILBM decoder
+- Custom decoder handles 24-bit, 8-bit, HAM6/HAM8/EHB, PackBits — PIL only used as fallback
+
+### Build 287 — Palette grid fix + ZX80/81 differentiated
+- `PaletteGrid.set_colors/set_palette_raw` v3: 4096-colour palettes use 64 cols×1px = 64×64px square (was 16px wide — invisible)
+- ZX80: hard threshold B&W (character cell mode); ZX81 WRX: Bayer 4×4 dither
+
+### Build 286 — Extended import/export formats
+- Import: IFF, TIFF, GIF (animated→timeline), TGA, PCX, DDS, PSD, Amiga .info, Apple ICNS, Windows ICO, SVG
+- Export: TGA, DDS (BGRA8 128-byte header), PCX, Apple ICNS (multi-size PNG chunks)
+- File → Import submenu; File → Batch Convert submenu added
+- Removed duplicate `_export_scr`
+
+### Build 285 — Palette dither toggle (later moved to menu in Build 290)
+- `_apply_user_palette_dither`: Floyd-Steinberg, Bayer 4×4, Checkerboard implementations
+
+### Build 284 — PaletteGrid large palette support + ZX dithering
+- Auto-scale cell size: 1px for 4096+, 2px for 512+, 4px for 256+, 8px for 64+
+- `_apply_zx8x_dither`: Bayer ordered dither for ZX81 WRX platform mode
+- `threshold_bw` / `bayer_bw` sentinel in platform palette snap
+
+### Build 283 — Accurate platform palettes
+- Atari ST: 9-bit (512 colours); Atari STe: 12-bit (4096); Atari Falcon: 16-bit
+- Amiga ECS: 64 colours (32 + EHB half-brightness)
+- Sega MS: 6-bit 64col; Mega Drive: 9-bit 512col; Game Gear: 12-bit 4096col
+- CoCo 1/2 + Dragon 32/64: Motorola 6847 8-colour; CoCo 3: GIME 64-colour
+- Acorn BBC/Electron: 8-colour; Archimedes: 64 of 16.7M
+- GBC/GBA: 15-bit 32768; SNES: 15-bit sample; NES PPU: 64 entries
+- MSX2 V9938: 512-colour (same scale as Atari ST)
+
+### Build 282 — Picture → Render As
+- ASCII art (brightness→character ramp), ANSI block art (▀ half-blocks 16col), PETSCII (C64 2×2 quad blocks), Teletext (2×3 mosaic 8col)
+- All offer text/binary export (.txt, .ans, .prg, .tti)
+
+### Build 281 — ZX80 + ZX81 added
+- `zx80`: B&W 2-colour palette, hard threshold constraint, 256×192 canvas preset
+- `zx81`: B&W 2-colour palette, Bayer dither (WRX mode), menu label clarified
+
+### Build 280 — New platform palettes
+- NES, Game Boy (green + grey pocket), Mega Drive, SAM Coupé (128col), MSX2, PC Engine, Apple II Lo/Hi-Res, BBC Micro
+
+### Build 279 — Palette corrections
+- Amiga OCS: corrected (was greyscale ramp); Amstrad CPC: correct 27-colour 3×3×3 grid; Atari ST: correct midtones; Plus/4: correct TED chip colours
+
+### Build 278 — Standalone repo synced; drop-in folder structure
+- `X-Seti/Deluxe-Paint-Clone---Img-Factory` updated to Build 292; README updated with full feature list; header updated to reflect standalone/drop-in usage
+
 #this belongs in root /ChangeLog.md - Version: 34
 
 ## April 2026 — DP5 Workshop: full paint editor suite, imgfactory integration
