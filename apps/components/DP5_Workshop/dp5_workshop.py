@@ -3343,6 +3343,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         pm.addSeparator()
         pm.addAction("Snap to user palette", self._snap_canvas_to_user_palette)
         pm.addSeparator()
+        rm = pm.addMenu("Render as")
+        rm.addAction("ASCII art",     self._render_as_ascii)
+        rm.addAction("ANSI art",      self._render_as_ansi)
+        rm.addAction("PETSCII",       self._render_as_petscii)
+        rm.addAction("Teletext",      self._render_as_teletext)
+        pm.addSeparator()
         dm = pm.addMenu("Dither canvas")
         dm.addAction("Floyd-Steinberg…",    self._dither_floyd_steinberg)
         dm.addAction("Ordered Bayer 4×4…",  self._dither_bayer_canvas)
@@ -4572,6 +4578,369 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         flat += [0] * (768 - len(flat))
         pal_img.putpalette(flat)
         return img.convert('RGB').quantize(palette=pal_img, dither=0).convert('RGB').convert('RGBA')
+
+    # ── Render As ────────────────────────────────────────────────────────────
+
+    def _render_as_ascii(self): #vers 1
+        """Convert canvas to ASCII art — map brightness to characters, render back to canvas."""
+        if not self.dp5_canvas: return
+        from PIL import Image, ImageDraw, ImageFont
+
+        # ASCII ramp — dark to light
+        RAMP = ' .\'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$'
+
+        cols, ok = QInputDialog.getInt(self, "ASCII Art", "Characters wide:", 80, 10, 320)
+        if not ok: return
+
+        self._push_undo()
+        from PIL import Image
+        src = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                              bytes(self.dp5_canvas.rgba)).convert('L')
+
+        char_w, char_h = 6, 10   # monospace character size in pixels
+        rows = int(cols * (self._canvas_height / self._canvas_width) * (char_w / char_h))
+        rows = max(4, rows)
+
+        # Resize to character grid
+        small = src.resize((cols, rows), Image.LANCZOS)
+        pixels = list(small.getdata())
+
+        # Map brightness to character
+        chars = []
+        for px in pixels:
+            idx = int(px / 255 * (len(RAMP)-1))
+            chars.append(RAMP[idx])
+
+        # Render back to canvas as pixel art
+        cell_pw = self._canvas_width  // cols
+        cell_ph = self._canvas_height // rows
+        cell_pw = max(1, cell_pw); cell_ph = max(1, cell_ph)
+
+        out_w = cols * cell_pw
+        out_h = rows * cell_ph
+        out = Image.new('RGB', (out_w, out_h), (20, 20, 20))
+        draw = ImageDraw.Draw(out)
+
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", cell_ph)
+        except Exception:
+            font = ImageFont.load_default()
+
+        for i, ch in enumerate(chars):
+            col = i % cols; row = i // cols
+            x = col * cell_pw; y = row * cell_ph
+            # Brightness-based grey
+            brightness = int(list(small.getdata())[i])
+            grey = (brightness, brightness, brightness)
+            draw.text((x, y), ch, fill=grey, font=font)
+
+        out_rgba = out.convert('RGBA')
+        self._canvas_width  = out_w
+        self._canvas_height = out_h
+        self.dp5_canvas.tex_w = out_w
+        self.dp5_canvas.tex_h = out_h
+        self.dp5_canvas.rgba  = bytearray(out_rgba.tobytes())
+        self.dp5_canvas.update()
+        self._fit_canvas_to_viewport()
+        self._set_status(f"ASCII art: {cols}×{rows} chars → {out_w}×{out_h}px")
+
+        # Offer text export
+        if QMessageBox.question(self, "Export ASCII", "Export as text file?",
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            path, _ = QFileDialog.getSaveFileName(self,"Save ASCII","art.txt","Text (*.txt)")
+            if path:
+                lines = [''.join(chars[r*cols:(r+1)*cols]) for r in range(rows)]
+                open(path,'w').write('\n'.join(lines))
+
+    def _render_as_ansi(self): #vers 1
+        """Convert canvas to ANSI art using block chars █▌▐▄▀ with 16 ANSI colours."""
+        if not self.dp5_canvas: return
+        from PIL import Image
+
+        cols, ok = QInputDialog.getInt(self, "ANSI Art", "Characters wide:", 80, 10, 320)
+        if not ok: return
+
+        self._push_undo()
+
+        # ANSI 16-colour palette (standard terminal)
+        ANSI_PAL = [
+            (0,0,0),(170,0,0),(0,170,0),(170,170,0),
+            (0,0,170),(170,0,170),(0,170,170),(170,170,170),
+            (85,85,85),(255,85,85),(85,255,85),(255,255,85),
+            (85,85,255),(255,85,255),(85,255,255),(255,255,255),
+        ]
+
+        # Block characters — each char cell is split top/bottom half
+        # Use upper-half block '▀' with fg=top colour, bg=bottom colour
+        # This gives 2 vertical pixels per character row
+
+        char_w = 8; char_h = 8
+        rows = max(4, int(cols * (self._canvas_height / self._canvas_width) * (char_w / char_h) * 2))
+
+        src = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                              bytes(self.dp5_canvas.rgba)).convert('RGB')
+        # Resize to cols × rows (each row = half-block = 2 pixel rows)
+        small = src.resize((cols, rows), Image.LANCZOS)
+        pixels = list(small.getdata())
+
+        def nearest_ansi(r,g,b):
+            return min(range(16), key=lambda i:(ANSI_PAL[i][0]-r)**2+(ANSI_PAL[i][1]-g)**2+(ANSI_PAL[i][2]-b)**2)
+
+        # Build ANSI escape sequence string
+        ansi_lines = []
+        char_rows = rows // 2
+        ansi_out = []
+        for row in range(char_rows):
+            line = ''
+            ansi_row = []
+            for col in range(cols):
+                top = pixels[(row*2)*cols+col]
+                bot = pixels[(row*2+1)*cols+col] if (row*2+1)*cols+col < len(pixels) else top
+                fg = nearest_ansi(*top)
+                bg = nearest_ansi(*bot)
+                ansi_row.append((fg, bg))
+                # ANSI escape: \033[38;5;{fg}m\033[48;5;{bg}m▀
+                line += f'\033[38;5;{fg}m\033[48;5;{bg}m▀'
+            line += '\033[0m'
+            ansi_lines.append(line)
+            ansi_out.append(ansi_row)
+
+        # Render to canvas
+        from PIL import ImageDraw, ImageFont
+        cell_ph = max(4, self._canvas_height // char_rows)
+        cell_pw = max(4, self._canvas_width  // cols)
+        out_w = cols * cell_pw
+        out_h = char_rows * cell_ph
+        out = Image.new('RGB', (out_w, out_h), (0,0,0))
+
+        for row, row_data in enumerate(ansi_out):
+            for col, (fg, bg) in enumerate(row_data):
+                x = col * cell_pw; y = row * cell_ph
+                top_c = ANSI_PAL[fg]; bot_c = ANSI_PAL[bg]
+                # Top half
+                for py in range(cell_ph//2):
+                    for px in range(cell_pw):
+                        out.putpixel((x+px, y+py), top_c)
+                # Bottom half
+                for py in range(cell_ph//2, cell_ph):
+                    for px in range(cell_pw):
+                        out.putpixel((x+px, y+py), bot_c)
+
+        out_rgba = out.convert('RGBA')
+        self._canvas_width  = out_w
+        self._canvas_height = out_h
+        self.dp5_canvas.tex_w = out_w
+        self.dp5_canvas.tex_h = out_h
+        self.dp5_canvas.rgba  = bytearray(out_rgba.tobytes())
+        self.dp5_canvas.update()
+        self._fit_canvas_to_viewport()
+        self._set_status(f"ANSI art: {cols}×{char_rows} chars → {out_w}×{out_h}px")
+
+        if QMessageBox.question(self, "Export ANSI", "Export as .ans file?",
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            path, _ = QFileDialog.getSaveFileName(self,"Save ANSI","art.ans","ANSI (*.ans)")
+            if path:
+                open(path,'w').write('\n'.join(ansi_lines)+'\n')
+
+    def _render_as_petscii(self): #vers 1
+        """Convert canvas to PETSCII block art using C64 16-colour palette and block chars."""
+        if not self.dp5_canvas: return
+        from PIL import Image
+
+        cols, ok = QInputDialog.getInt(self, "PETSCII", "Characters wide (max 40):", 40, 10, 80)
+        if not ok: return
+
+        self._push_undo()
+
+        C64_PAL = [
+            (0,0,0),(255,255,255),(136,0,0),(170,255,238),
+            (204,68,204),(0,204,85),(0,0,170),(238,238,119),
+            (221,136,85),(102,68,0),(255,119,119),(51,51,51),
+            (119,119,119),(170,255,102),(0,136,255),(187,187,187),
+        ]
+
+        # PETSCII block chars rendered as 2×2 sub-cell pixel blocks
+        # Each char cell = 8×8px, split into 4 quadrants: TL TR BL BR
+        # Characters: space=0000, ▘=1000, ▝=0100, ▀=1100,
+        #             ▖=0010, ▌=1010, ▞=0110, ▛=1110,
+        #             ▗=0001, ▚=1001, ▐=0101, ▜=1101,
+        #             ▄=0011, ▙=1011, ▟=0111, █=1111
+        BLOCKS = [' ','▘','▝','▀','▖','▌','▞','▛','▗','▚','▐','▜','▄','▙','▟','█']
+
+        char_w = 8; char_h = 8
+        rows = max(4, int(cols * (self._canvas_height / self._canvas_width)))
+
+        src = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                              bytes(self.dp5_canvas.rgba)).convert('RGB')
+        # Resize to cols*2 × rows*2 (2×2 sub-pixels per char)
+        small = src.resize((cols*2, rows*2), Image.LANCZOS)
+        pixels = list(small.getdata())
+        sw = cols*2
+
+        def nearest_c64(r,g,b):
+            return min(range(16), key=lambda i:(C64_PAL[i][0]-r)**2+(C64_PAL[i][1]-g)**2+(C64_PAL[i][2]-b)**2)
+
+        # For each char cell, pick dominant fg/bg from 4 sub-pixels
+        cell_data = []  # (fg_idx, bg_idx, block_bits)
+        for row in range(rows):
+            for col in range(cols):
+                # 4 sub-pixels: TL, TR, BL, BR
+                quads = [
+                    pixels[(row*2)*sw   + col*2],
+                    pixels[(row*2)*sw   + col*2+1],
+                    pixels[(row*2+1)*sw + col*2],
+                    pixels[(row*2+1)*sw + col*2+1],
+                ]
+                idxs = [nearest_c64(*q) for q in quads]
+                # Find 2 most common colours
+                from collections import Counter
+                counts = Counter(idxs)
+                top2 = [c for c,_ in counts.most_common(2)]
+                fg = top2[0]; bg = top2[1] if len(top2)>1 else fg
+                # Assign bits: 1=fg, 0=bg for TL,TR,BL,BR
+                bits = sum((1<<(3-i)) for i,idx in enumerate(idxs) if idx==fg)
+                cell_data.append((fg, bg, bits))
+
+        # Render to canvas
+        cell_pw = char_w; cell_ph = char_h
+        out_w = cols * cell_pw; out_h = rows * cell_ph
+        out = Image.new('RGB', (out_w, out_h), (0,0,0))
+        px_data = out.load()
+
+        for row in range(rows):
+            for col in range(cols):
+                fg, bg, bits = cell_data[row*cols+col]
+                fc = C64_PAL[fg]; bc = C64_PAL[bg]
+                x0 = col*cell_pw; y0 = row*cell_ph
+                hw = cell_pw//2; hh = cell_ph//2
+                sub = [(bits>>3)&1,(bits>>2)&1,(bits>>1)&1,bits&1]
+                quadrants = [(0,0,hw,hh),(hw,0,cell_pw,hh),(0,hh,hw,cell_ph),(hw,hh,cell_pw,cell_ph)]
+                for (x1,y1,x2,y2),on in zip(quadrants,sub):
+                    c = fc if on else bc
+                    for py in range(y1,y2):
+                        for px in range(x1,x2):
+                            px_data[x0+px, y0+py] = c
+
+        out_rgba = out.convert('RGBA')
+        self._canvas_width  = out_w; self._canvas_height = out_h
+        self.dp5_canvas.tex_w = out_w; self.dp5_canvas.tex_h = out_h
+        self.dp5_canvas.rgba  = bytearray(out_rgba.tobytes())
+        self.dp5_canvas.update()
+        self._fit_canvas_to_viewport()
+        self._set_status(f"PETSCII: {cols}×{rows} chars → {out_w}×{out_h}px")
+
+        if QMessageBox.question(self, "Export PETSCII", "Export as C64 PRG?",
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            path, _ = QFileDialog.getSaveFileName(self,"Save PETSCII PRG","petscii.prg","PRG (*.prg)")
+            if path:
+                # Screen RAM + colour RAM format (screen codes + colour)
+                screen = bytearray(1000); colour = bytearray(1000)
+                for i,(fg,bg,bits) in enumerate(cell_data[:1000]):
+                    screen[i] = bits  # approximate PETSCII screen code
+                    colour[i] = fg & 0xF
+                # BASIC stub + screen data at $0400
+                prg = b'\x01\x08' + bytearray(14) + b'\x00\x04' + screen + b'\xD8\x07' + colour
+                open(path,'wb').write(prg)
+
+    def _render_as_teletext(self): #vers 1
+        """Convert canvas to Teletext mosaic block art (2×3 sub-blocks per cell, 8 colours)."""
+        if not self.dp5_canvas: return
+        from PIL import Image
+
+        cols, ok = QInputDialog.getInt(self, "Teletext", "Characters wide (40=standard):", 40, 10, 80)
+        if not ok: return
+
+        self._push_undo()
+
+        # Teletext 8 colours (RGB combinations)
+        TT_PAL = [
+            (0,0,0),(255,0,0),(0,255,0),(255,255,0),
+            (0,0,255),(255,0,255),(0,255,255),(255,255,255),
+        ]
+
+        def nearest_tt(r,g,b):
+            return min(range(8), key=lambda i:(TT_PAL[i][0]-r)**2+(TT_PAL[i][1]-g)**2+(TT_PAL[i][2]-b)**2)
+
+        # Teletext mosaic: each char cell = 2×3 grid of sub-blocks
+        # Cell size: 6×10 pixels (or 12×20 for 2x rendering)
+        # 6 bits → 64 possible mosaic characters
+        # Sub-block layout:
+        #  [0][1]
+        #  [2][3]
+        #  [4][5]
+        rows = max(4, int(cols * (self._canvas_height / self._canvas_width) * (2/3)))
+
+        src = Image.frombytes('RGBA',(self._canvas_width,self._canvas_height),
+                              bytes(self.dp5_canvas.rgba)).convert('RGB')
+        small = src.resize((cols*2, rows*3), Image.LANCZOS)
+        pixels = list(small.getdata())
+        sw = cols*2
+
+        cell_data = []  # (fg_idx, bits6)
+        for row in range(rows):
+            for col in range(cols):
+                # 6 sub-pixels (2 wide × 3 tall)
+                subs = [
+                    pixels[(row*3+sr)*sw + col*2+sc]
+                    for sr in range(3) for sc in range(2)
+                ]
+                idxs = [nearest_tt(*s) for s in subs]
+                from collections import Counter
+                counts = Counter(idxs)
+                fg = counts.most_common(1)[0][0]
+                # Bit = 1 if matches fg colour, 0 = background (black)
+                bits = sum((1<<i) for i,idx in enumerate(idxs) if idx==fg)
+                cell_data.append((fg, bits))
+
+        # Render — cell pixel size
+        cell_pw = 12; cell_ph = 20  # 2× for readability
+        out_w = cols * cell_pw; out_h = rows * cell_ph
+        out = Image.new('RGB', (out_w, out_h), (0,0,0))
+        px_data = out.load()
+
+        for row in range(rows):
+            for col in range(cols):
+                fg, bits = cell_data[row*cols+col]
+                fc = TT_PAL[fg]; bc = (0,0,0)
+                x0 = col*cell_pw; y0 = row*cell_ph
+                bw = cell_pw//2; bh = cell_ph//3
+                for si in range(6):
+                    sr = si//2; sc = si%2
+                    on = (bits>>si)&1
+                    c = fc if on else bc
+                    for py in range(bh):
+                        for px in range(bw):
+                            px_data[x0+sc*bw+px, y0+sr*bh+py] = c
+
+        out_rgba = out.convert('RGBA')
+        self._canvas_width  = out_w; self._canvas_height = out_h
+        self.dp5_canvas.tex_w = out_w; self.dp5_canvas.tex_h = out_h
+        self.dp5_canvas.rgba  = bytearray(out_rgba.tobytes())
+        self.dp5_canvas.update()
+        self._fit_canvas_to_viewport()
+        self._set_status(f"Teletext: {cols}×{rows} chars → {out_w}×{out_h}px")
+
+        if QMessageBox.question(self, "Export Teletext", "Export as .tti file?",
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            path, _ = QFileDialog.getSaveFileName(self,"Save Teletext","page.tti","TTI (*.tti)")
+            if path:
+                # TTI format: simple text with colour codes
+                lines = ['OL,100']  # page header
+                TT_CODES = ['\\0','\\1','\\2','\\3','\\4','\\5','\\6','\\7']
+                for row in range(rows):
+                    row_cells = cell_data[row*cols:(row+1)*cols]
+                    # Build teletext line with colour changes
+                    line_str = ''
+                    cur_fg = -1
+                    for fg, bits in row_cells:
+                        if fg != cur_fg:
+                            line_str += TT_CODES[fg]
+                            cur_fg = fg
+                        # Map 6-bit mosaic to Unicode block char
+                        mosaic_char = chr(0x23A0 + bits) if bits > 0 else ' '
+                        line_str += mosaic_char
+                    lines.append(f'OL,{100+row+1},{line_str}')
+                open(path,'w',encoding='utf-8').write('\n'.join(lines)+'\n')
 
     def _snap_canvas_to_user_palette(self): #vers 1
         """Menu action — snap entire canvas to current user palette."""
