@@ -3804,13 +3804,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fim.addAction("PSD (Photoshop read)…",      self._import_psd)
         fim.addAction("IFF ILBM (Amiga)…",          self._import_iff)
         amiga_im = fim.addMenu("Amiga .info Icon")
-        amiga_im.addAction("AGA WB palette (default)…",
-            lambda: self._import_amiga_info('aga_wb'))
-        amiga_im.addAction("AGA standard palette…",
+        amiga_im.addAction("WB 3.9 AGA (256col) — default…",
+            lambda: self._import_amiga_info('wb39'))
+        amiga_im.addAction("WB 3.9 XL AGA (256col)…",
+            lambda: self._import_amiga_info('wb39xl'))
+        amiga_im.addAction("AGA standard (16col)…",
             lambda: self._import_amiga_info('aga'))
-        amiga_im.addAction("MagicWB palette (8col)…",
+        amiga_im.addAction("MagicWB (8col)…",
             lambda: self._import_amiga_info('magicwb'))
-        amiga_im.addAction("OCS/ECS WB3 palette (4col)…",
+        amiga_im.addAction("OCS/ECS WB3 (4col)…",
             lambda: self._import_amiga_info('ocs'))
         amiga_im.addAction("User palette…",
             lambda: self._import_amiga_info('user'))
@@ -3878,11 +3880,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ic_menu.addAction("Export Amiga Icon…",     self._export_amiga_icon)
         ic_menu.addSeparator()
         amiga_ic = ic_menu.addMenu("Import Amiga .info")
-        amiga_ic.addAction("AGA WB palette…",    lambda: self._import_amiga_info('aga_wb'))
-        amiga_ic.addAction("AGA standard…",      lambda: self._import_amiga_info('aga'))
-        amiga_ic.addAction("MagicWB (8col)…",    lambda: self._import_amiga_info('magicwb'))
-        amiga_ic.addAction("OCS/ECS WB3…",       lambda: self._import_amiga_info('ocs'))
-        amiga_ic.addAction("User palette…",      lambda: self._import_amiga_info('user'))
+        amiga_ic.addAction("WB 3.9 AGA (256col) — default…", lambda: self._import_amiga_info('wb39'))
+        amiga_ic.addAction("WB 3.9 XL AGA (256col)…",        lambda: self._import_amiga_info('wb39xl'))
+        amiga_ic.addAction("AGA standard (16col)…",           lambda: self._import_amiga_info('aga'))
+        amiga_ic.addAction("MagicWB (8col)…",                 lambda: self._import_amiga_info('magicwb'))
+        amiga_ic.addAction("OCS/ECS WB3 (4col)…",            lambda: self._import_amiga_info('ocs'))
+        amiga_ic.addAction("User palette…",                   lambda: self._import_amiga_info('user'))
         ic_menu.addAction("Import Windows ICO…",   self._import_ico)
         ic_menu.addAction("Import Apple ICNS…",    self._import_icns)
         ic_menu.addAction("Import SVG…",           self._import_svg)
@@ -8478,11 +8481,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         palette_mode: 'aga_wb' | 'aga' | 'magicwb' | 'ocs' | 'user'
         """
         mode_labels = {
-            'aga_wb':  'AGA WB (256col)',
-            'aga':     'AGA standard',
-            'magicwb': 'MagicWB (8col)',
-            'ocs':     'OCS/ECS WB3 (4col)',
-            'user':    f'User palette ({self.current_retro_palette})',
+            'wb39':   'WB 3.9 AGA (256col)',
+            'wb39xl': 'WB 3.9 XL AGA (256col)',
+            'aga':    'AGA standard (16col)',
+            'magicwb':'MagicWB (8col)',
+            'ocs':    'OCS/ECS WB3 (4col)',
+            'user':   f'User palette ({self.current_retro_palette})',
         }
         path, _ = QFileDialog.getOpenFileName(
             self, f"Import Amiga .info — {mode_labels.get(palette_mode,'')}",
@@ -8502,17 +8506,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
 
-    def _decode_amiga_info(self, data: bytes, palette_mode: str = 'aga_wb'): #vers 3
+    def _decode_amiga_info(self, data: bytes, palette_mode: str = 'aga_wb'): #vers 4
         """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason).
-        palette_mode: 'aga_wb' | 'aga' | 'magicwb' | 'ocs' | 'user'
-        Based on official AmigaOS SDK DiskObject/Gadget/Image struct layout."""
+        palette_mode: 'wb39' | 'wb39xl' | 'aga' | 'magicwb' | 'ocs' | 'user'
+        Palettes extracted from real WB3.9 and WB3.9XL palette.prefs files."""
         import struct
         if len(data) < 78 or data[0:2] != bytes([0xE3, 0x10]):
             return None, 0, 0, "Not a valid .info file"
         w = struct.unpack_from('>H', data, 12)[0]
         h = struct.unpack_from('>H', data, 14)[0]
         if w == 0 or h == 0 or w > 1024 or h > 1024:
-            return None, 0, 0, f"Invalid dimensions {w}×{h}"
+            return None, 0, 0, f"Invalid dimensions {w}\xd7{h}"
         drawer_ptr = struct.unpack_from('>I', data, 66)[0]
 
         # ── NewIcon ───────────────────────────────────────────────────
@@ -8522,60 +8526,106 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 if rgba: return rgba, w, h, 'NewIcon-IM1'
             except Exception:
                 pass
-
         # ── OS3.5 ICONFACE ────────────────────────────────────────────
         if b':ICONFACE' in data:
             return None, 0, 0, "OS3.5-ICONFACE (proprietary format)"
 
-        # ── Select palette ────────────────────────────────────────────
-        # OCS/ECS WB3: 4-colour (2bp)
-        OCS_PAL = [
-            (0,0,0,0),             # 0 transparent/background
-            (0xFF,0xFF,0xFF,255),  # 1 white
-            (0x00,0x00,0x00,255),  # 2 black
-            (0x66,0x88,0xBB,255),  # 3 WB3 blue
+        # ── Real WB3.9 256-colour palette (from actual WB3_9.pal prefs) ──
+        WB39 = [
+            (144,148,149),(43,0,0),(255,255,255),(0,98,255),(120,120,120),(175,175,175),(170,144,124),(255,169,151),  # 0
+            (149,149,149),(238,85,0),(153,255,17),(238,187,0),(85,85,255),(153,34,255),(0,255,136),(204,204,204),  # 8
+            (0,0,0),(219,117,65),(0,0,0),(255,255,255),(68,68,68),(85,85,85),(102,102,102),(119,119,119),  # 16
+            (136,136,136),(153,153,153),(170,170,170),(187,187,187),(204,204,204),(221,221,221),(238,238,238),(255,255,255),  # 24
+            (0,0,255),(39,79,68),(120,106,253),(255,255,171),(122,110,68),(177,149,93),(249,255,255),(222,253,255),  # 32
+            (194,250,255),(166,247,255),(138,244,255),(111,242,255),(83,239,255),(55,236,255),(27,233,255),(0,230,255),  # 40
+            (57,56,56),(49,49,49),(41,42,42),(34,34,35),(27,27,27),(14,14,12),(0,0,255),(0,0,152),  # 48
+            (0,0,83),(0,10,0),(0,220,255),(0,186,255),(255,68,255),(255,57,213),(255,45,170),(255,34,128),  # 56
+            (255,23,85),(255,11,43),(255,0,0),(255,13,0),(255,26,0),(255,38,0),(255,51,0),(255,64,0),  # 64
+            (255,77,0),(255,89,0),(255,102,0),(255,115,0),(255,128,0),(255,140,0),(255,153,0),(255,166,0),  # 72
+            (255,179,0),(255,191,0),(255,204,0),(255,217,0),(255,230,0),(255,242,0),(255,255,0),(241,255,0),  # 80
+            (227,255,0),(213,255,0),(199,255,0),(184,255,0),(170,255,0),(156,255,0),(142,255,0),(128,255,0),  # 88
+            (113,255,0),(99,255,0),(85,255,0),(71,255,0),(56,255,0),(42,255,0),(28,255,0),(14,255,0),  # 96
+            (0,255,0),(0,247,0),(0,239,0),(0,231,0),(0,223,0),(0,215,0),(0,207,0),(0,199,0),  # 104
+            (0,191,0),(0,183,0),(0,175,0),(0,167,0),(0,159,0),(0,151,0),(0,143,0),(0,135,0),  # 112
+            (0,127,0),(0,119,0),(0,111,0),(0,103,0),(0,95,0),(0,87,0),(0,79,0),(0,71,0),  # 120
+            (0,63,0),(0,55,0),(0,47,0),(0,39,0),(0,31,0),(0,23,0),(43,0,0),(64,0,0),  # 128
+            (85,0,0),(107,0,0),(128,0,0),(149,0,0),(170,0,0),(192,0,0),(213,0,0),(234,0,0),  # 136
+            (255,0,0),(238,0,25),(221,0,49),(204,0,74),(187,0,98),(170,0,123),(153,0,147),(136,0,172),  # 144
+            (119,0,196),(102,0,221),(102,204,102),(34,68,34),(170,255,170),(203,192,12),(186,171,16),(168,149,20),  # 152
+            (151,128,23),(134,107,27),(117,86,31),(99,65,35),(82,44,39),(0,62,255),(0,72,255),(0,79,255),  # 160
+            (0,92,255),(0,102,255),(0,112,255),(0,121,255),(0,131,255),(0,141,255),(0,151,255),(0,161,255),  # 168
+            (47,34,34),(255,170,170),(228,255,175),(197,255,145),(147,255,106),(125,255,73),(110,255,52),(76,255,10),  # 176
+            (170,170,170),(238,238,238),(34,0,32),(54,3,40),(74,6,49),(94,9,58),(114,12,67),(134,15,75),  # 184
+            (155,18,84),(175,21,93),(195,24,102),(215,27,110),(235,31,119),(255,34,128),(85,170,170),(119,238,238),  # 192
+            (255,204,136),(136,102,68),(255,255,204),(204,153,102),(68,51,0),(255,255,170),(255,255,238),(136,204,136),  # 200
+            (68,102,68),(204,255,204),(102,153,102),(34,51,34),(170,255,170),(238,255,238),(204,204,136),(102,102,68),  # 208
+            (255,255,204),(153,150,102),(51,51,46),(255,255,170),(215,220,218),(68,204,136),(40,62,95),(38,71,152),  # 216
+            (104,95,91),(144,144,144),(170,144,124),(172,157,151),(255,68,136),(136,34,68),(255,102,204),(204,51,102),  # 224
+            (68,17,34),(255,85,255),(255,119,238),(136,68,136),(68,34,68),(204,102,204),(102,51,102),(34,0,32),  # 232
+            (170,85,170),(238,119,238),(223,0,0),(206,0,0),(190,0,0),(174,0,0),(158,0,0),(142,0,0),  # 240
+            (125,0,0),(109,0,0),(62,162,190),(144,148,149),(123,123,123),(175,175,175),(170,144,124),(255,169,151),  # 248
         ]
-        # MagicWB: 8-colour
-        MAGIC_PAL = [
-            (0,0,0,0),              # 0 transparent
-            (0x00,0x00,0x00,255),   # 1 black
-            (0xFF,0xFF,0xFF,255),   # 2 white
-            (0x3B,0x67,0xA2,255),   # 3 WB blue
-            (0x7B,0x7B,0x7B,255),   # 4 dark grey
-            (0x95,0x95,0x95,255),   # 5 medium grey
-            (0xAA,0x90,0x7C,255),   # 6 tan
-            (0xFF,0xA9,0x00,255),   # 7 gold/orange
+        # ── Real WB3.9 XL 256-colour palette (from amigaos3_9xl.pal) ──
+        WB39_XL = [
+            (144,148,149),(43,0,0),(255,255,255),(0,98,255),(123,121,123),(175,175,175),(170,144,124),(255,169,151),  # 0
+            (149,149,149),(238,85,0),(153,255,17),(238,187,0),(85,85,255),(153,34,255),(0,255,136),(204,204,204),  # 8
+            (0,0,0),(224,4,64),(0,0,0),(224,224,192),(68,68,68),(85,85,85),(102,102,102),(119,119,119),  # 16
+            (136,136,136),(153,153,153),(170,170,170),(187,187,187),(204,204,204),(221,221,221),(238,238,238),(255,255,255),  # 24
+            (0,0,255),(39,79,68),(120,106,253),(255,255,171),(122,110,68),(177,149,93),(249,255,255),(222,253,255),  # 32
+            (194,250,255),(166,247,255),(138,244,255),(111,242,255),(83,239,255),(55,236,255),(27,233,255),(0,230,255),  # 40
+            (57,56,56),(49,49,49),(41,42,42),(34,34,35),(27,27,27),(14,14,12),(0,0,255),(0,0,152),  # 48
+            (0,0,83),(0,10,0),(0,220,255),(0,186,255),(255,68,255),(255,57,213),(255,45,170),(255,34,128),  # 56
+            (255,23,85),(255,11,43),(255,0,0),(255,13,0),(255,26,0),(255,38,0),(255,51,0),(255,64,0),  # 64
+            (255,77,0),(255,89,0),(255,102,0),(255,115,0),(255,128,0),(255,140,0),(255,153,0),(255,166,0),  # 72
+            (255,179,0),(255,191,0),(255,204,0),(255,217,0),(255,230,0),(255,242,0),(255,255,0),(241,255,0),  # 80
+            (227,255,0),(213,255,0),(199,255,0),(184,255,0),(170,255,0),(156,255,0),(142,255,0),(128,255,0),  # 88
+            (113,255,0),(99,255,0),(85,255,0),(71,255,0),(56,255,0),(42,255,0),(28,255,0),(14,255,0),  # 96
+            (0,255,0),(0,247,0),(0,239,0),(0,231,0),(0,223,0),(0,215,0),(0,207,0),(0,199,0),  # 104
+            (0,191,0),(0,183,0),(0,175,0),(0,167,0),(0,159,0),(0,151,0),(0,143,0),(0,135,0),  # 112
+            (0,127,0),(0,119,0),(0,111,0),(0,103,0),(0,95,0),(0,87,0),(0,79,0),(0,71,0),  # 120
+            (0,63,0),(0,55,0),(0,47,0),(0,39,0),(0,31,0),(0,23,0),(43,0,0),(64,0,0),  # 128
+            (85,0,0),(107,0,0),(128,0,0),(149,0,0),(170,0,0),(192,0,0),(213,0,0),(234,0,0),  # 136
+            (255,0,0),(238,0,25),(221,0,49),(204,0,74),(187,0,98),(170,0,123),(153,0,147),(136,0,172),  # 144
+            (119,0,196),(102,0,221),(102,204,102),(34,68,34),(170,255,170),(203,192,12),(186,171,16),(168,149,20),  # 152
+            (151,128,23),(134,107,27),(117,86,31),(99,65,35),(82,44,39),(0,62,255),(0,72,255),(0,79,255),  # 160
+            (0,92,255),(0,102,255),(0,112,255),(0,121,255),(0,131,255),(0,141,255),(0,151,255),(0,161,255),  # 168
+            (47,34,34),(255,170,170),(228,255,175),(197,255,145),(147,255,106),(125,255,73),(110,255,52),(76,255,10),  # 176
+            (170,170,170),(238,238,238),(34,0,32),(54,3,40),(74,6,49),(94,9,58),(114,12,67),(134,15,75),  # 184
+            (155,18,84),(175,21,93),(195,24,102),(215,27,110),(235,31,119),(255,34,128),(85,170,170),(119,238,238),  # 192
+            (255,204,136),(136,102,68),(255,255,204),(204,153,102),(68,51,0),(255,255,170),(255,255,238),(136,204,136),  # 200
+            (68,102,68),(204,255,204),(102,153,102),(34,51,34),(170,255,170),(238,255,238),(204,204,136),(102,102,68),  # 208
+            (255,255,204),(153,150,102),(51,51,46),(255,255,170),(215,220,218),(68,204,136),(40,62,95),(38,71,152),  # 216
+            (104,95,91),(144,144,144),(170,144,124),(172,157,151),(255,68,136),(136,34,68),(255,102,204),(204,51,102),  # 224
+            (68,17,34),(255,85,255),(255,119,238),(136,68,136),(68,34,68),(204,102,204),(102,51,102),(34,0,32),  # 232
+            (170,85,170),(238,119,238),(223,0,0),(206,0,0),(190,0,0),(174,0,0),(158,0,0),(142,0,0),  # 240
+            (125,0,0),(109,0,0),(62,162,190),(144,148,149),(123,123,123),(175,175,175),(170,144,124),(255,169,151),  # 248
         ]
-        # AGA WB4: 16-colour base (colour 0 = transparent)
-        AGA_WB = [
-            (0,0,0,0),
-            (0xFF,0xFF,0xFF,255),(0x55,0xAA,0xFF,255),(0xFF,0x88,0x00,255),
-            (0xAA,0xAA,0xAA,255),(0x00,0x00,0xAA,255),(0xFF,0x55,0x00,255),(0xAA,0x00,0xAA,255),
-            (0x55,0x55,0x55,255),(0x00,0xAA,0xAA,255),(0xAA,0x55,0x00,255),(0x00,0xAA,0x00,255),
-            (0xAA,0x00,0x00,255),(0x00,0x55,0xAA,255),(0xFF,0xFF,0x55,255),(0xFF,0x55,0x55,255),
-        ]
-        # AGA WB full 256-colour palette (first 16 = AGA_WB, rest = RGB332 approximation)
-        AGA_WB_256 = list(AGA_WB)
-        for i in range(16, 256):
-            r = ((i>>5)&7)*36; g = ((i>>2)&7)*36; b = (i&3)*85
-            AGA_WB_256.append((r, g, b, 255))
+        # ── OCS/ECS WB3 4-colour ─────────────────────────────────────
+        OCS = [(0,0,0),(255,255,255),(0,0,0),(102,136,187)]
+        # ── MagicWB 8-colour ──────────────────────────────────────────
+        MAGIC = [(0,0,0),(0,0,0),(255,255,255),(59,103,162),
+                 (123,123,123),(149,149,149),(170,144,124),(255,169,0)]
+        # ── AGA WB 16-colour ──────────────────────────────────────────
+        AGA16 = [(144,148,149),(43,0,0),(255,255,255),(0,98,255),
+                 (120,120,120),(175,175,175),(170,144,124),(255,169,151),
+                 (149,149,149),(238,85,0),(153,255,17),(238,187,0),
+                 (85,85,255),(153,34,255),(0,255,136),(204,204,204)]
 
         if palette_mode == 'ocs':
-            palette = OCS_PAL
+            palette = OCS
         elif palette_mode == 'magicwb':
-            palette = MAGIC_PAL
+            palette = MAGIC
         elif palette_mode == 'aga':
-            palette = AGA_WB
+            palette = AGA16
+        elif palette_mode == 'wb39xl':
+            palette = WB39_XL
         elif palette_mode == 'user':
             user = self._get_user_palette_rgb()
-            if user:
-                palette = [(r,g,b,0 if i==0 else 255) for i,(r,g,b) in enumerate(user)]
-            else:
-                palette = AGA_WB_256
-        else:  # 'aga_wb' default
-            palette = AGA_WB_256
+            palette = [(r,g,b) for r,g,b in user] if user else WB39
+        else:  # 'wb39' or 'aga_wb' — default to real WB3.9 palette
+            palette = WB39
 
-        # ── Classic bitplane icon ─────────────────────────────────────
+        # ── Classic bitplane decode ───────────────────────────────────
         base = 78 + (56 if drawer_ptr else 0)
         if base + 20 > len(data):
             return None, 0, 0, "File truncated at Image struct"
@@ -8603,7 +8653,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                         px |= (1 << p)
                 c = palette[px % n_pal]
                 i = (y * w + x) * 4
-                rgba[i:i+4] = c
+                rgba[i:i+4] = [c[0], c[1], c[2], 0 if px == 0 else 255]
         return bytes(rgba), w, h, f'Classic-{depth}bp-{palette_mode}'
 
     def _decode_newicon_im1(self, data: bytes, w: int, h: int): #vers 1
@@ -8662,8 +8712,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hl_apal = QHBoxLayout()
         apal_lbl = QLabel(".info palette:")
         apal = QComboBox()
-        apal.addItems(["AGA WB (256col)", "AGA standard (16col)",
-                       "MagicWB (8col)", "OCS/ECS WB3 (4col)", "User palette"])
+        apal.addItems(["WB 3.9 AGA (256col)", "WB 3.9 XL AGA (256col)",
+                       "AGA standard (16col)", "MagicWB (8col)", "OCS/ECS WB3 (4col)", "User palette"])
         hl_apal.addWidget(apal_lbl); hl_apal.addWidget(apal); hl_apal.addStretch()
         vl.addLayout(hl_apal)
         # show/hide based on input format
@@ -8741,12 +8791,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
             # Amiga .info input palette mode
             apal_mode = {
-                "AGA WB (256col)":   "aga_wb",
-                "AGA standard (16col)": "aga",
-                "MagicWB (8col)":    "magicwb",
-                "OCS/ECS WB3 (4col)":"ocs",
-                "User palette":      "user",
-            }.get(apal.currentText(), "aga_wb")
+                "WB 3.9 AGA (256col)":    "wb39",
+                "WB 3.9 XL AGA (256col)": "wb39xl",
+                "AGA standard (16col)":   "aga",
+                "MagicWB (8col)":         "magicwb",
+                "OCS/ECS WB3 (4col)":     "ocs",
+                "User palette":           "user",
+            }.get(apal.currentText(), "wb39")
 
             EXT_MAP = {
                 "Amiga .info":  [".info"],
