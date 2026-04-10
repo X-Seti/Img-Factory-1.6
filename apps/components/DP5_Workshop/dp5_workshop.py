@@ -1347,9 +1347,9 @@ class DP5Canvas(QWidget):
             painter.drawImage(0, 0, onion_scaled)
             painter.setOpacity(1.0)
 
-        # Pixel grid (only at zoom ≥4)
-        if self.show_grid and z >= 4:
-            iz = int(z)
+        # Pixel grid (visible at zoom ≥2)
+        if self.show_grid and z >= 2:
+            iz = max(1, int(z))
             pen = QPen(self.grid_color, 1)
             painter.setPen(pen)
             for x in range(0, sw, iz):
@@ -2760,35 +2760,15 @@ class ColorPalPresetsMixin:
             "#3AA241","#B766B5","#CCCCCC","#FFFFFF",
         ]
 
-        # SNES — 15-bit (5R 5G 5B), 32768 colours — show 64 samples
-        _snes_v = [0,8,16,25,33,41,49,58,66,74,82,90,99,107,115,123,
-                   132,140,148,156,165,173,181,189,197,206,214,222,230,239,247,255]
-        snes = [f"#{r:02X}{g:02X}{b:02X}"
-                for r in _snes_v[::4] for g in _snes_v[::4] for b in _snes_v[::4]][:64]
+        # SNES — 15-bit (5R 5G 5B), 32768 colours
+        # Correct 5-bit scale: val*8 + val//4 gives exact GameBoy/SNES levels
+        def _snes5(v): return min(255, v * 8 + v // 4)
+        _sv = [_snes5(i) for i in range(32)]
+        snes = [f"#{r:02X}{g:02X}{b:02X}" for r in _sv for g in _sv for b in _sv]
 
-        # Game Boy Color — 15-bit, 32768 colours — show representative palette
-        game_boy_color = [
-            "#FFFFFF","#FFEEAA","#FFCC55","#FFAA00",
-            "#FF8800","#FF5500","#FF0000","#CC0000",
-            "#AA0000","#880000","#550000","#330000",
-            "#FF88AA","#FF55AA","#FF00AA","#CC0088",
-            "#AA0066","#880044","#550022","#FF88FF",
-            "#FF55FF","#FF00FF","#CC00CC","#AA00AA",
-            "#8800AA","#5500AA","#2200AA","#0000FF",
-            "#0000CC","#0000AA","#000088","#000055",
-            "#0055FF","#0088FF","#00AAFF","#00CCFF",
-            "#00FFFF","#00FFCC","#00FFAA","#00FF88",
-            "#00FF55","#00FF00","#00CC00","#00AA00",
-            "#008800","#005500","#003300","#AAFFAA",
-            "#AAAAFF","#FFAAAA","#FFFFAA","#AAFFFF",
-            "#FFAAFF","#DDDDDD","#BBBBBB","#999999",
-            "#777777","#555555","#333333","#111111",
-            "#000000","#1A1A2E","#16213E","#0F3460",
-        ]
-
-        # Game Boy Advance — 15-bit, 240×160
-        # Same palette space as GBC, different screen
-        game_boy_advance = game_boy_color  # same colour space
+        # Game Boy Color / GBA — 15-bit (5R 5G 5B), 32768 colours — same scale as SNES
+        game_boy_color = snes   # identical colour space
+        game_boy_advance = snes  # identical colour space, different screen size
 
         # Motorola 6847 — CoCo 1/2, Dragon 32/64, BBC Micro (semi-graphics modes)
         m6847 = [
@@ -2824,15 +2804,14 @@ class ColorPalPresetsMixin:
             "#8888FF","#FFFF88","#FF88FF","#88FFFF","#FFAA88","#AAFFAA","#AAAABB","#CCAACC",
         ]
 
-        # MSX2 V9938 — 9-bit palette (3R 3G 3B), 512 colours
-        # Same 3-bit scale as Atari ST / Mega Drive
-        msx2_full = atari_st_512  # identical scale
-        msx2_sample = atari_st_full  # same 64 samples
+        # MSX2 V9938 — 9-bit (3R 3G 3B), 512 colours
+        # Same colour space as Atari ST, Mega Drive, PC Engine — all 9-bit RGB
+        msx2_full = atari_st_512
 
-        # PC Engine / TurboGrafx-16 — 9-bit (3R 3G 3B), 512 colours
-        # Scale: 0,36,73,109,146,182,219,255 (same as MD)
-        pc_engine_full = sega_md
-        pc_engine_sample = sega_md_sample
+        # PC Engine HuC6260 — 9-bit (3R 3G 3B), 512 colours
+        # Same colour space as MSX2/Atari ST/Mega Drive — identical 9-bit RGB encoding
+        # Difference is on-screen layout: 16 sprite palettes + 16 BG palettes of 16col each
+        pc_engine_full = atari_st_512
 
         # Sinclair QL — 8 colours
         sinclair_ql = [
@@ -2936,26 +2915,7 @@ class ColorPalPresetsMixin:
             "#808000","#80804C","#808066","#808080",
         ]
 
-        # MSX2 — V9938, 512 colour palette (9-bit), default 16
-        msx2 = [
-            "#000000","#010101","#3EB849","#74D07D",
-            "#5955E0","#8076F1","#B95E51","#65DBEF",
-            "#DB6559","#FF897D","#CCC35E","#DED087",
-            "#3AA241","#B766B5","#CCCCCC","#FFFFFF",
-            # Extra colours available in V9938 256-colour mode
-            "#000000","#330000","#660000","#990000",
-            "#CC0000","#FF0000","#003300","#333300",
-            "#663300","#993300","#CC3300","#FF3300",
-            "#006600","#336600","#666600","#996600",
-        ]
-
-        # PC Engine / TurboGrafx-16 — 512 colours (9-bit), 16 palettes of 16
-        pc_engine = [
-            "#000000","#1C1C1C","#393939","#555555","#717171","#8E8E8E","#AAAAAA","#C6C6C6",
-            "#E2E2E2","#FFFFFF","#00001C","#001C1C","#001C00","#1C1C00","#1C0000","#1C001C",
-            "#FF0000","#FF3939","#FF7171","#FFAAAA","#00FF00","#39FF39","#71FF71","#AAFFAA",
-            "#0000FF","#3939FF","#7171FF","#AAAAFF","#FFFF00","#FF00FF","#00FFFF","#FF7100",
-        ]
+        # MSX2 and PC Engine use msx2_full / pc_engine_full (full 9-bit 512-colour palettes)
 
         # Commodore 128 (same C64 colours but noting different VDC chip for 80-col)
         # VDC 80-col mode has 16 colours same as C64 for compatibility
@@ -3056,12 +3016,12 @@ class ColorPalPresetsMixin:
             "MSX2":               (msx2_full,            16),  # 512col full V9938
             # ── NES / Nintendo ───────────────────────────────────────────
             "NES":                (nes,                  8),  # 64col PPU
-            "SNES":               (snes,                 8),  # 64 of 32768
+            "SNES":               (snes,               128),  # 32768col full (15-bit)
             # ── Game Boy ─────────────────────────────────────────────────
             "Game Boy":           (game_boy,             4),  # 4 shades green
             "Game Boy Pocket":    (game_boy_pocket,      4),  # 4 shades grey
-            "Game Boy Color":     (game_boy_color,       8),  # 64 of 32768
-            "Game Boy Advance":   (game_boy_advance,     8),  # 64 of 32768
+            "Game Boy Color":     (game_boy_color,     128),  # 32768col full (15-bit)
+            "Game Boy Advance":   (game_boy_advance,   128),  # 32768col full (15-bit)
             # ── Sega ─────────────────────────────────────────────────────
             "Sega SG-1000":       (sega_sg1000,          8),  # 16col TMS9918
             "Sega Master System": (sega_ms,              8),  # 64col 6-bit
