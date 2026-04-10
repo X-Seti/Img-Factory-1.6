@@ -3803,7 +3803,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fim.addAction("DDS (DirectDraw Surface)…",  self._import_dds)
         fim.addAction("PSD (Photoshop read)…",      self._import_psd)
         fim.addAction("IFF ILBM (Amiga)…",          self._import_iff)
-        fim.addAction("Amiga .info Icon…",          self._import_amiga_info)
+        amiga_im = fim.addMenu("Amiga .info Icon")
+        amiga_im.addAction("AGA WB palette (default)…",
+            lambda: self._import_amiga_info('aga_wb'))
+        amiga_im.addAction("AGA standard palette…",
+            lambda: self._import_amiga_info('aga'))
+        amiga_im.addAction("MagicWB palette (8col)…",
+            lambda: self._import_amiga_info('magicwb'))
+        amiga_im.addAction("OCS/ECS WB3 palette (4col)…",
+            lambda: self._import_amiga_info('ocs'))
+        amiga_im.addAction("User palette…",
+            lambda: self._import_amiga_info('user'))
         fim.addSeparator()
         fim.addAction("Apple ICNS…",                self._import_icns)
         fim.addAction("Windows ICO…",               self._import_ico)
@@ -3867,10 +3877,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         ic_menu.addAction("Export Apple ICNS…",     self._export_icns)
         ic_menu.addAction("Export Amiga Icon…",     self._export_amiga_icon)
         ic_menu.addSeparator()
+        amiga_ic = ic_menu.addMenu("Import Amiga .info")
+        amiga_ic.addAction("AGA WB palette…",    lambda: self._import_amiga_info('aga_wb'))
+        amiga_ic.addAction("AGA standard…",      lambda: self._import_amiga_info('aga'))
+        amiga_ic.addAction("MagicWB (8col)…",    lambda: self._import_amiga_info('magicwb'))
+        amiga_ic.addAction("OCS/ECS WB3…",       lambda: self._import_amiga_info('ocs'))
+        amiga_ic.addAction("User palette…",      lambda: self._import_amiga_info('user'))
         ic_menu.addAction("Import Windows ICO…",   self._import_ico)
         ic_menu.addAction("Import Apple ICNS…",    self._import_icns)
-        ic_menu.addAction("Import Amiga .info…",   self._import_amiga_info)
-        ic_menu.addAction("Import SVG…",            self._import_svg)
+        ic_menu.addAction("Import SVG…",           self._import_svg)
         ic_menu.addSeparator()
         ic_menu.addAction("Snap to user palette",   self._snap_canvas_to_user_palette)
         # Edit
@@ -8458,58 +8473,48 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             QMessageBox.warning(self, "PSD Import Error",
                 f"{e}\n\nFor PSD support install: pip install psd-tools")
 
-    def _import_amiga_info(self): #vers 4
-        """Import Amiga .info icon — supports Classic bitplane and NewIcon-IM1 formats.
-        Optionally snaps to user palette after decode."""
+    def _import_amiga_info(self, palette_mode: str = 'aga_wb'): #vers 5
+        """Import Amiga .info icon with named palette.
+        palette_mode: 'aga_wb' | 'aga' | 'magicwb' | 'ocs' | 'user'
+        """
+        mode_labels = {
+            'aga_wb':  'AGA WB (256col)',
+            'aga':     'AGA standard',
+            'magicwb': 'MagicWB (8col)',
+            'ocs':     'OCS/ECS WB3 (4col)',
+            'user':    f'User palette ({self.current_retro_palette})',
+        }
         path, _ = QFileDialog.getOpenFileName(
-            self, "Import Amiga .info Icon", "",
-            "Amiga Icon (*.info);;All Files (*)")
+            self, f"Import Amiga .info — {mode_labels.get(palette_mode,'')}",
+            "", "Amiga Icon (*.info);;All Files (*)")
         if not path: return
         try:
             data = open(path, 'rb').read()
-            rgba, w, h, fmt = self._decode_amiga_info(data)
+            rgba, w, h, fmt = self._decode_amiga_info(data, palette_mode)
             if rgba is None:
                 QMessageBox.warning(self, "Amiga Icon Import",
                     f"Format not supported: {fmt}\n\n"
                     "Supported: Classic bitplane, NewIcon (IM1=)\n"
                     "Unsupported: OS3.5 ICONFACE, GlowIcon ARGB")
                 return
-            # Offer palette snap if a user palette is loaded
-            palette = self._get_user_palette_rgb()
-            if palette:
-                reply = QMessageBox.question(
-                    self, "Snap to Palette?",
-                    f"Snap to current user palette ({self.current_retro_palette}, "
-                    f"{len(palette)} colours)?\n\nChoose No to keep AGA WB colours.",
-                    QMessageBox.StandardButton.Yes |
-                    QMessageBox.StandardButton.No  |
-                    QMessageBox.StandardButton.Cancel)
-                if reply == QMessageBox.StandardButton.Cancel:
-                    return
-                if reply == QMessageBox.StandardButton.Yes:
-                    from PIL import Image
-                    img = Image.frombytes('RGBA', (w, h), bytes(rgba))
-                    snapped = self._snap_image_to_user_palette(img)
-                    rgba = bytearray(snapped.tobytes())
             self._load_rgba(bytearray(rgba), w, h,
                            f"{os.path.basename(path)} [{fmt}]")
         except Exception as e:
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
 
-    def _decode_amiga_info(self, data: bytes): #vers 2
+    def _decode_amiga_info(self, data: bytes, palette_mode: str = 'aga_wb'): #vers 3
         """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason).
+        palette_mode: 'aga_wb' | 'aga' | 'magicwb' | 'ocs' | 'user'
         Based on official AmigaOS SDK DiskObject/Gadget/Image struct layout."""
         import struct
         if len(data) < 78 or data[0:2] != bytes([0xE3, 0x10]):
             return None, 0, 0, "Not a valid .info file"
-        # DiskObject: Gadget.Width @12, Gadget.Height @14
-        # Gadget.GadgetRender @22, Gadget.SelectRender @26
-        # do_DrawerData @66 — if non-null, 56-byte DrawerData follows DiskObject
         w = struct.unpack_from('>H', data, 12)[0]
         h = struct.unpack_from('>H', data, 14)[0]
         if w == 0 or h == 0 or w > 1024 or h > 1024:
             return None, 0, 0, f"Invalid dimensions {w}×{h}"
         drawer_ptr = struct.unpack_from('>I', data, 66)[0]
+
         # ── NewIcon ───────────────────────────────────────────────────
         if b'IM1=' in data:
             try:
@@ -8517,12 +8522,60 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 if rgba: return rgba, w, h, 'NewIcon-IM1'
             except Exception:
                 pass
+
         # ── OS3.5 ICONFACE ────────────────────────────────────────────
         if b':ICONFACE' in data:
             return None, 0, 0, "OS3.5-ICONFACE (proprietary format)"
+
+        # ── Select palette ────────────────────────────────────────────
+        # OCS/ECS WB3: 4-colour (2bp)
+        OCS_PAL = [
+            (0,0,0,0),             # 0 transparent/background
+            (0xFF,0xFF,0xFF,255),  # 1 white
+            (0x00,0x00,0x00,255),  # 2 black
+            (0x66,0x88,0xBB,255),  # 3 WB3 blue
+        ]
+        # MagicWB: 8-colour
+        MAGIC_PAL = [
+            (0,0,0,0),              # 0 transparent
+            (0x00,0x00,0x00,255),   # 1 black
+            (0xFF,0xFF,0xFF,255),   # 2 white
+            (0x3B,0x67,0xA2,255),   # 3 WB blue
+            (0x7B,0x7B,0x7B,255),   # 4 dark grey
+            (0x95,0x95,0x95,255),   # 5 medium grey
+            (0xAA,0x90,0x7C,255),   # 6 tan
+            (0xFF,0xA9,0x00,255),   # 7 gold/orange
+        ]
+        # AGA WB4: 16-colour base (colour 0 = transparent)
+        AGA_WB = [
+            (0,0,0,0),
+            (0xFF,0xFF,0xFF,255),(0x55,0xAA,0xFF,255),(0xFF,0x88,0x00,255),
+            (0xAA,0xAA,0xAA,255),(0x00,0x00,0xAA,255),(0xFF,0x55,0x00,255),(0xAA,0x00,0xAA,255),
+            (0x55,0x55,0x55,255),(0x00,0xAA,0xAA,255),(0xAA,0x55,0x00,255),(0x00,0xAA,0x00,255),
+            (0xAA,0x00,0x00,255),(0x00,0x55,0xAA,255),(0xFF,0xFF,0x55,255),(0xFF,0x55,0x55,255),
+        ]
+        # AGA WB full 256-colour palette (first 16 = AGA_WB, rest = RGB332 approximation)
+        AGA_WB_256 = list(AGA_WB)
+        for i in range(16, 256):
+            r = ((i>>5)&7)*36; g = ((i>>2)&7)*36; b = (i&3)*85
+            AGA_WB_256.append((r, g, b, 255))
+
+        if palette_mode == 'ocs':
+            palette = OCS_PAL
+        elif palette_mode == 'magicwb':
+            palette = MAGIC_PAL
+        elif palette_mode == 'aga':
+            palette = AGA_WB
+        elif palette_mode == 'user':
+            user = self._get_user_palette_rgb()
+            if user:
+                palette = [(r,g,b,0 if i==0 else 255) for i,(r,g,b) in enumerate(user)]
+            else:
+                palette = AGA_WB_256
+        else:  # 'aga_wb' default
+            palette = AGA_WB_256
+
         # ── Classic bitplane icon ─────────────────────────────────────
-        # After DiskObject: [DrawerData(56)] + Image struct(20) + bitplanes
-        # Image struct: [4:6]=Width [6:8]=Height [8:10]=Depth [14]=PlanePick
         base = 78 + (56 if drawer_ptr else 0)
         if base + 20 > len(data):
             return None, 0, 0, "File truncated at Image struct"
@@ -8538,12 +8591,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 depth = try_d; break
         else:
             return None, 0, 0, "File too small for bitplane data"
-        AGA_WB = [
-            (0,0,0,0),(255,255,255,255),(85,170,255,255),(255,136,0,255),
-            (170,170,170,255),(0,0,170,255),(255,85,0,255),(170,0,170,255),
-            (85,85,85,255),(0,170,170,255),(170,85,0,255),(0,170,0,255),
-            (170,0,0,255),(0,85,170,255),(255,255,85,255),(255,85,85,255),
-        ]
+
+        n_pal = len(palette)
         rgba = bytearray(w * h * 4)
         for y in range(h):
             for x in range(w):
@@ -8552,10 +8601,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     off = data_off + p * plane_size + y * row_bytes + x // 8
                     if off < len(data) and data[off] & (0x80 >> (x % 8)):
                         px |= (1 << p)
-                c = AGA_WB[px % 16]
+                c = palette[px % n_pal]
                 i = (y * w + x) * 4
                 rgba[i:i+4] = c
-        return bytes(rgba), w, h, f'Classic-{depth}bp'
+        return bytes(rgba), w, h, f'Classic-{depth}bp-{palette_mode}'
 
     def _decode_newicon_im1(self, data: bytes, w: int, h: int): #vers 1
         """Decode NewIcon IM1=/IM2= encoded image from ToolTypes."""
@@ -8609,10 +8658,27 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         hl_ifmt.addWidget(QLabel("Input format:")); hl_ifmt.addWidget(ifmt)
         vl.addLayout(hl_ifmt)
 
+        # Amiga palette selector — shown when input is .info
+        hl_apal = QHBoxLayout()
+        apal_lbl = QLabel(".info palette:")
+        apal = QComboBox()
+        apal.addItems(["AGA WB (256col)", "AGA standard (16col)",
+                       "MagicWB (8col)", "OCS/ECS WB3 (4col)", "User palette"])
+        hl_apal.addWidget(apal_lbl); hl_apal.addWidget(apal); hl_apal.addStretch()
+        vl.addLayout(hl_apal)
+        # show/hide based on input format
+        def _update_apal_vis():
+            vis = ifmt.currentText() in ("Amiga .info", "Any image")
+            apal_lbl.setVisible(vis); apal.setVisible(vis)
+        ifmt.currentTextChanged.connect(lambda _: _update_apal_vis())
+        _update_apal_vis()
+
         # Output format
         hl_ofmt = QHBoxLayout()
         ofmt = QComboBox()
-        ofmt.addItems(["PNG","BMP","ICO (Windows)","ICNS (Apple)","Amiga .info","TGA","SVG"])
+        ofmt.addItems(["PNG","BMP","ICO (Windows)","ICNS (Apple)",
+                       "Amiga .info (AGA WB)","Amiga .info (MagicWB)","Amiga .info (OCS)",
+                       "TGA","SVG"])
         hl_ofmt.addWidget(QLabel("Output format:")); hl_ofmt.addWidget(ofmt)
         vl.addLayout(hl_ofmt)
 
@@ -8673,6 +8739,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             }.get(dither_combo.currentText(), "hard")
             snap_pal = self._get_user_palette_rgb() if do_snap else None
 
+            # Amiga .info input palette mode
+            apal_mode = {
+                "AGA WB (256col)":   "aga_wb",
+                "AGA standard (16col)": "aga",
+                "MagicWB (8col)":    "magicwb",
+                "OCS/ECS WB3 (4col)":"ocs",
+                "User palette":      "user",
+            }.get(apal.currentText(), "aga_wb")
+
             EXT_MAP = {
                 "Amiga .info":  [".info"],
                 "Windows ICO":  [".ico"],
@@ -8687,11 +8762,21 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             OUT_EXT = {
                 "PNG": ".png", "BMP": ".bmp",
                 "ICO (Windows)": ".ico", "ICNS (Apple)": ".icns",
-                "Amiga .info": ".info", "TGA": ".tga", "SVG": ".svg",
+                "Amiga .info (AGA WB)":  ".info",
+                "Amiga .info (MagicWB)": ".info",
+                "Amiga .info (OCS)":     ".info",
+                "TGA": ".tga", "SVG": ".svg",
+            }
+            # Map output format to Amiga palette mode for .info export
+            INFO_OUT_PAL = {
+                "Amiga .info (AGA WB)":  "aga_wb",
+                "Amiga .info (MagicWB)": "magicwb",
+                "Amiga .info (OCS)":     "ocs",
             }
 
             exts   = EXT_MAP[ifmt.currentText()]
-            out_e  = OUT_EXT[ofmt.currentText()]
+            out_e  = OUT_EXT.get(ofmt.currentText(), ".png")
+            out_info_pal = INFO_OUT_PAL.get(ofmt.currentText(), None)
             files  = [f for f in os.listdir(src)
                       if os.path.splitext(f)[1].lower() in exts]
             if not files:
@@ -8710,7 +8795,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     # Load
                     fdata = open(src_path,'rb').read()
                     if fname.lower().endswith('.info'):
-                        rgba, w, h, fmt_name = self._decode_amiga_info(fdata)
+                        rgba, w, h, fmt_name = self._decode_amiga_info(fdata, apal_mode)
                         if rgba is None:
                             log.append(f"SKIP {fname}: {fmt_name}"); err+=1; continue
                         img = Image.frombytes('RGBA',(w,h),rgba)
@@ -8742,10 +8827,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
                     # Save
                     if out_e == '.info':
-                        # Export as Amiga icon at original size
                         tmp_w, tmp_h = img.size
-                        tmp_canvas = img.tobytes()
-                        self._write_amiga_info(dst_path, tmp_canvas, tmp_w, tmp_h)
+                        # If exporting as MagicWB or OCS, quantize to that palette first
+                        if out_info_pal == 'magicwb':
+                            MAGIC = [(0,0,0),(0,0,0),(255,255,255),(59,103,162),
+                                     (123,123,123),(149,149,149),(170,144,124),(255,169,0)]
+                            from PIL import Image as _PI
+                            pal_img = _PI.new('P',(1,1))
+                            flat = sum([list(c3) for c3 in MAGIC],[]) + [0]*(768-len(MAGIC)*3)
+                            pal_img.putpalette(flat)
+                            img = img.convert('RGB').quantize(palette=pal_img,dither=0).convert('RGBA')
+                        elif out_info_pal == 'ocs':
+                            OCS = [(0,0,0),(255,255,255),(0,0,0),(102,136,187)]
+                            from PIL import Image as _PI
+                            pal_img = _PI.new('P',(1,1))
+                            flat = sum([list(c3) for c3 in OCS],[]) + [0]*(768-len(OCS)*3)
+                            pal_img.putpalette(flat)
+                            img = img.convert('RGB').quantize(palette=pal_img,dither=0).convert('RGBA')
+                        self._write_amiga_info(dst_path, img.tobytes(), tmp_w, tmp_h)
                     elif out_e == '.ico':
                         sizes = [s for s in [16,32,48,64,128,256] if s <= max(img.size)*2]
                         frames = [img.resize((s,s),Image.LANCZOS) for s in sizes]
