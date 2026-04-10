@@ -3566,7 +3566,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm.addAction("New canvas…",    self._new_canvas)
         fm.addSeparator()
         fm.addAction("Open image…",    self._import_bitmap)
-        fm.addAction("Open + snap to palette (use Dith button)…", self._import_bitmap_snap_user_pal)
+        fm.addAction("Open + snap to palette…",          self._import_bitmap_snap_user_pal)
+        fm.addAction("Open + snap to palette (dithered)…", self._import_bitmap_snap_dither)
         # Import submenu — all supported formats
         fim = fm.addMenu("Import")
         fim.addAction("PNG / BMP / JPEG / WebP…",  self._import_bitmap)
@@ -3680,7 +3681,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         pm.addAction("Brighten +25",        lambda: self._adjust(25))
         pm.addAction("Darken -25",          lambda: self._adjust(-25))
         pm.addSeparator()
-        pm.addAction("Snap to user palette", self._snap_canvas_to_user_palette)
+        pm.addAction("Snap to user palette",          self._snap_canvas_to_user_palette)
+        pm.addAction("Snap to user palette (dithered)…", self._snap_canvas_to_user_palette_dither)
         pm.addSeparator()
         rm = pm.addMenu("Render as")
         rm.addAction("ASCII art",     self._render_as_ascii)
@@ -4054,19 +4056,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._retro_btn.setToolTip("User palette — choose retro preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
         user_pal_hdr.addWidget(self._retro_btn)
-        # Dither toggle — shown when palette has < 16 colours
         self._pal_dither_btn = QPushButton("Dith")
-        self._pal_dither_btn.setFont(QFont("Arial", self.fonthsize))
-        self._pal_dither_btn.setFixedHeight(24)
-        self._pal_dither_btn.setFixedWidth(36)
-        self._pal_dither_btn.setCheckable(True)
-        self._pal_dither_btn.setChecked(False)
-        self._pal_dither_btn.setToolTip(
-            "Dither when snapping to this palette\n"
-            "Cycles: Off → Floyd-Steinberg → Bayer 4×4 → Checkerboard")
-        self._pal_dither_btn.clicked.connect(self._cycle_pal_dither)
-        self._pal_dither_mode = 'off'   # 'off'|'floyd'|'bayer'|'checker'
-        user_pal_hdr.addWidget(self._pal_dither_btn)
+        self._pal_dither_btn.setVisible(False)  # dither via File menu instead
         layout.addLayout(user_pal_hdr)
 
         user_cols = self.dp5_settings.get('user_pal_cols')
@@ -5354,7 +5345,30 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     lines.append(f'OL,{100+row+1},{line_str}')
                 open(path,'w',encoding='utf-8').write('\n'.join(lines)+'\n')
 
-    def _snap_canvas_to_user_palette(self): #vers 2
+    def _snap_canvas_to_user_palette_dither(self): #vers 1
+        """Snap canvas to user palette with dither — asks which method."""
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap + Dither", "No user palette loaded.")
+            return
+        # Quick pick via input dialog
+        method, ok = QInputDialog.getItem(
+            self, "Dither Method", "Choose dither:",
+            ["Floyd-Steinberg", "Bayer 4×4", "Checkerboard"], 0, False)
+        if not ok: return
+        mode_map = {"Floyd-Steinberg": "floyd", "Bayer 4×4": "bayer", "Checkerboard": "checker"}
+        mode = mode_map[method]
+        self._push_undo()
+        old_mode = getattr(self, '_pal_dither_mode', 'off')
+        self._pal_dither_mode = mode
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        snapped = self._apply_user_palette_dither(img)
+        self._pal_dither_mode = old_mode
+        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(f"Snapped ({mode}): {len(palette)} colours")
         """Snap entire canvas to current user palette, with optional dithering."""
         if not self.dp5_canvas: return
         palette = self._get_user_palette_rgb()
@@ -6323,40 +6337,75 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
 
-    def _import_bitmap_snap_user_pal(self): #vers 2
-        """Open image + snap to user palette with current dither mode applied."""
+    def _import_bitmap_snap_user_pal(self): #vers 3
+        """Open image then hard-snap every pixel to nearest user palette colour."""
         palette = self._get_user_palette_rgb()
         if not palette:
-            QMessageBox.warning(self, "Snap to User Palette",
+            QMessageBox.warning(self, "Snap to Palette",
                                 "No user palette loaded. Load a palette first.")
             return
-        mode = getattr(self, '_pal_dither_mode', 'off')
-        dither_labels = {
-            'off':     'Hard snap (no dither)',
-            'floyd':   'Floyd-Steinberg dither',
-            'bayer':   'Bayer 4×4 dither',
-            'checker': 'Checkerboard dither',
-        }
-        title = f"Open + Snap [{dither_labels[mode]}]"
         path, _ = QFileDialog.getOpenFileName(
-            self, title, "",
+            self, "Open + Snap to Palette", "",
             "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.tga *.tiff *.gif *.dds *.psd);;All Files (*)")
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
-        # Apply dither-aware snap
-        if mode != 'off':
-            from PIL import Image
-            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
-                                  bytes(self.dp5_canvas.rgba))
-            snapped = self._apply_user_palette_dither(img)
-        else:
-            from PIL import Image
-            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
-                                  bytes(self.dp5_canvas.rgba))
-            snapped = self._snap_image_to_user_palette(img)
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        snapped = self._snap_image_to_user_palette(img)
         self.dp5_canvas.rgba = bytearray(snapped.tobytes())
         self.dp5_canvas.update()
-        self._set_status(f"Opened + snapped [{mode}]: {os.path.basename(path)}")
+        self._set_status(f"Opened + snapped: {os.path.basename(path)}")
+
+    def _import_bitmap_snap_dither(self): #vers 1
+        """Open image, snap to user palette with dithering — ask which dither type."""
+        palette = self._get_user_palette_rgb()
+        if not palette:
+            QMessageBox.warning(self, "Snap + Dither",
+                                "No user palette loaded. Load a palette first.")
+            return
+        # Ask dither type
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Dither Method")
+        vl = QVBoxLayout(dlg)
+        vl.addWidget(QLabel(f"Palette: {self.current_retro_palette}  ({len(palette)} colours)\n\nDither method:"))
+        from PyQt6.QtWidgets import QRadioButton, QButtonGroup
+        bg = QButtonGroup(dlg)
+        opts = [
+            ('floyd',   'Floyd-Steinberg  — smooth gradients, best for photos'),
+            ('bayer',   'Bayer 4×4 ordered — crisp pattern, retro look'),
+            ('checker', 'Checkerboard — hard alternating pattern'),
+        ]
+        radios = []
+        for mode_id, label in opts:
+            rb = QRadioButton(label)
+            bg.addButton(rb)
+            vl.addWidget(rb)
+            radios.append((mode_id, rb))
+        radios[0][1].setChecked(True)
+        btns = QHBoxLayout(); ok = QPushButton("Open…"); can = QPushButton("Cancel")
+        ok.clicked.connect(dlg.accept); can.clicked.connect(dlg.reject)
+        btns.addStretch(); btns.addWidget(ok); btns.addWidget(can)
+        vl.addLayout(btns)
+        if dlg.exec() != QDialog.DialogCode.Accepted: return
+        mode = next(m for m, rb in radios if rb.isChecked())
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Open + Snap ({mode} dither)", "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.tga *.tiff *.gif *.dds *.psd);;All Files (*)")
+        if not path or not self.dp5_canvas: return
+        self._import_bitmap_path(path)
+        # Apply chosen dither
+        old_mode = getattr(self, '_pal_dither_mode', 'off')
+        self._pal_dither_mode = mode
+        from PIL import Image
+        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                              bytes(self.dp5_canvas.rgba))
+        snapped = self._apply_user_palette_dither(img)
+        self._pal_dither_mode = old_mode  # restore
+        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(f"Opened + {mode} dither: {os.path.basename(path)}")
 
     def _import_bitmap_path(self, path: str): #vers 3
         """Load an image, auto-reduce to current mode constraints if locked."""
