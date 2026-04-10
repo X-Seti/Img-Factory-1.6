@@ -2389,19 +2389,29 @@ class ColorPalPresetsMixin:
             "#7B7B7B","#A9FF9F","#706DEB","#B2B2B2",
         ]
 
+        # Amstrad CPC — 27 hardware colours (3 levels each of R,G,B)
         amstrad_cpc = [
-            "#000000","#000080","#0000FF","#800000","#800080","#8000FF",
-            "#FF0000","#FF0080","#FF00FF","#008000","#008080","#0080FF",
-            "#808000","#808080","#8080FF","#00FF00","#00FF80","#00FFFF",
-            "#FF8000","#FF8080","#FF80FF","#FFFF00","#FFFF80","#FFFFFF",
-            "#008000","#00C000","#C0C000",
+            "#000000","#000080","#0000FF",
+            "#800000","#800080","#8000FF",
+            "#FF0000","#FF0080","#FF00FF",
+            "#008000","#008080","#0080FF",
+            "#808000","#808080","#8080FF",
+            "#FF8000","#FF8080","#FF80FF",
+            "#00FF00","#00FF80","#00FFFF",
+            "#80FF00","#80FF80","#80FFFF",
+            "#FFFF00","#FFFF80","#FFFFFF",
         ]
 
+        # Amiga OCS — 32 colour default Workbench palette (4096 colour HAM space, 32 registers)
         amiga_ocs = [
-            "#000000","#111111","#222222","#333333","#444444","#555555","#666666","#777777",
-            "#888888","#999999","#AAAAAA","#BBBBBB","#CCCCCC","#DDDDDD","#EEEEEE","#FFFFFF",
-            "#0000AA","#AA0000","#00AA00","#AAAA00","#00AAAA","#AA00AA","#AAAAAA","#FF0000",
-            "#00FF00","#0000FF","#FFFF00","#00FFFF","#FF00FF","#FF8800","#FF0088","#8888FF",
+            "#000000","#FFFFFF","#888888","#FF8800",
+            "#CC0000","#0000CC","#00AAAA","#CC00CC",
+            "#00CC00","#EEEE00","#FF6600","#AA4400",
+            "#4488FF","#AA00AA","#00BBBB","#AAAAAA",
+            "#222222","#444444","#666666","#999999",
+            "#BBBBBB","#DDDDDD","#1166CC","#CC4400",
+            "#006600","#BB8800","#880000","#004488",
+            "#CC8844","#448844","#884488","#44AACC",
         ]
 
         amiga_aga = [
@@ -2587,20 +2597,20 @@ class ColorPalPresetsMixin:
             "#3AA241","#B766B5","#CCCCCC","#FFFFFF",
         ]
 
-        # Atari ST — 16 colours from default palette
+        # Atari ST — 16 standard colours (default low-res Workbench palette)
         atari_st = [
             "#FFFFFF","#FF0000","#00FF00","#FFFF00",
-            "#0000FF","#FF00FF","#00FFFF","#AAAAAA",
-            "#555555","#FF5555","#55FF55","#FFFF55",
-            "#5555FF","#FF55FF","#55FFFF","#000000",
+            "#0000FF","#FF00FF","#00FFFF","#BBBBBB",
+            "#888888","#FF8888","#88FF88","#FFFF88",
+            "#8888FF","#FF88FF","#88FFFF","#000000",
         ]
 
-        # Commodore Plus/4 — 16 base colours (luma 0)
+        # Commodore Plus/4 — 16 base colours (standard luma 7 approximation)
         plus4 = [
-            "#000000","#FFFFFF","#2B2B2B","#D4D4D4",
-            "#FF0000","#00FF00","#0000FF","#00FFFF",
-            "#FF00FF","#FFFF00","#FF5500","#00AA55",
-            "#5500FF","#FF55AA","#55AAFF","#AAAA00",
+            "#000000","#FFFFFF","#F36C6C","#73C3C3",
+            "#D36CD3","#73C373","#6C6CD3","#D3D373",
+            "#D38B6C","#8B8B6C","#F38BC3","#6C6C6C",
+            "#8B8B8B","#B3F3B3","#9B9BF3","#B3B3B3",
         ]
 
         # VIC-20 — 16 colours
@@ -4260,10 +4270,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         (58,162,65),(183,102,181),(204,204,204),(255,255,255),
     ]
     _ATARI_ST_PALETTE = [
-        (0,0,0),(0,0,168),(0,168,0),(0,168,168),
-        (168,0,0),(168,0,168),(168,84,0),(168,168,168),
-        (84,84,84),(84,84,255),(84,255,84),(84,255,255),
-        (255,84,84),(255,84,255),(255,255,84),(255,255,255),
+        (255,255,255),(255,0,0),(0,255,0),(255,255,0),
+        (0,0,255),(255,0,255),(0,255,255),(187,187,187),
+        (136,136,136),(255,136,136),(136,255,136),(255,255,136),
+        (136,136,255),(255,136,255),(136,255,255),(0,0,0),
     ]
 
     # Full 256-colour Atari 8-bit GTIA palette (from image reference)
