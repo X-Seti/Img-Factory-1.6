@@ -900,7 +900,8 @@ class DP5Canvas(QWidget):
         self.cell_h = 8
         self.grid_color = QColor(128, 128, 128, 60)
         self.onion_skin = False
-        self.onion_rgba = None   # previous frame rgba for onion skin
+        self.onion_rgba = None
+        self._zoom_mode = 'in'   # 'in'|'out'|'box'|'fit'  — set by gadget right-click
         self._drawing   = False
         self._last_pt   = None
         self._preview_start = None
@@ -1374,8 +1375,12 @@ class DP5Canvas(QWidget):
                        TOOL_TRIANGLE, TOOL_FILLED_TRIANGLE,
                        TOOL_STAR,     TOOL_FILLED_STAR,
                        TOOL_SELECT)
-        if self._preview_start and self._preview_end and self.tool in shape_tools:
-            pen = QPen(self.color, 1, Qt.PenStyle.DashLine)
+        # Also draw box-zoom preview
+        is_box_zoom = (self.tool == TOOL_ZOOM and self._zoom_mode == 'box')
+        if self._preview_start and self._preview_end and \
+                (self.tool in shape_tools or is_box_zoom):
+            pen = QPen(QColor(0,200,255) if is_box_zoom else self.color,
+                       1, Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             s = self._tex_to_widget(*self._preview_start)
@@ -1563,7 +1568,19 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_ZOOM:
             ed = self._editor
-            if ed: ed._set_zoom(min(16, self._editor._canvas_zoom * 2))
+            if not ed: pass
+            elif self._zoom_mode == 'out':
+                ed._set_zoom(max(0.05, ed._canvas_zoom * 0.5))
+            elif self._zoom_mode == 'fit':
+                ed._fit_canvas_to_viewport()
+            elif self._zoom_mode == 'box':
+                # Start box-zoom drag — handled in mouseMoveEvent/mouseReleaseEvent
+                self._box_zoom_start = (tx, ty)
+                self._box_zoom_end   = (tx, ty)
+                self._preview_start  = QPoint(*self._tex_to_widget(tx, ty))
+                self._preview_end    = QPoint(*self._tex_to_widget(tx, ty))
+            else:  # 'in'
+                ed._set_zoom(min(16, ed._canvas_zoom * 2))
 
         elif self.tool == TOOL_MOVE:
             if self._sel_buffer and self._sel_buf_w > 0:
@@ -1775,6 +1792,11 @@ class DP5Canvas(QWidget):
                            TOOL_POLYGON,  TOOL_FILLED_POLYGON):
             self._preview_end = (tx, ty); self.update()
 
+        elif self.tool == TOOL_ZOOM and self._zoom_mode == 'box' and                 hasattr(self, '_box_zoom_start') and self._box_zoom_start:
+            self._box_zoom_end = (tx, ty)
+            self._preview_end  = (tx, ty)
+            self.update()
+
         elif self.tool in (TOOL_LASSO, TOOL_FILLED_LASSO):
             self._lasso_pts.append(e.position().toPoint()); self.update()
 
@@ -1799,6 +1821,29 @@ class DP5Canvas(QWidget):
                 self._sel_drag_start = None   # end drag, float stays
             else:
                 self._pan_start = None
+
+        elif self.tool == TOOL_ZOOM and self._zoom_mode == 'box' and \
+                hasattr(self, '_box_zoom_start') and self._box_zoom_start:
+            # Box zoom — calculate zoom to fit selection into viewport
+            ed = self._editor
+            if ed:
+                x0, y0 = self._box_zoom_start
+                x1, y1 = tx, ty
+                bw = max(1, abs(x1-x0)); bh = max(1, abs(y1-y0))
+                sa = getattr(ed, '_canvas_scroll', None)
+                vw = sa.viewport().width()  if sa else 800
+                vh = sa.viewport().height() if sa else 600
+                z = min(vw/bw, vh/bh, 16)
+                ed._set_zoom(max(0.05, z))
+                # Scroll to centre the zoomed region
+                if sa:
+                    cx = (min(x0,x1) + bw//2) * z
+                    cy = (min(y0,y1) + bh//2) * z
+                    sa.horizontalScrollBar().setValue(int(cx - vw//2))
+                    sa.verticalScrollBar().setValue(int(cy - vh//2))
+            self._box_zoom_start = None
+            self._preview_start  = None
+            self._preview_end    = None
 
         elif self.tool == TOOL_LINE and ps:
             self._push_undo_canvas()
@@ -3521,7 +3566,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fm.addAction("New canvas…",    self._new_canvas)
         fm.addSeparator()
         fm.addAction("Open image…",    self._import_bitmap)
-        fm.addAction("Open + snap to user palette…", self._import_bitmap_snap_user_pal)
+        fm.addAction("Open + snap to palette (use Dith button)…", self._import_bitmap_snap_user_pal)
         # Import submenu — all supported formats
         fim = fm.addMenu("Import")
         fim.addAction("PNG / BMP / JPEG / WebP…",  self._import_bitmap)
@@ -3814,6 +3859,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             btn.clicked.connect(lambda _, t=tool_id: self._select_tool(t))
             self._tool_btns[tool_id] = btn
             gadget_grid.addWidget(btn, row, col)
+            # Zoom button gets right-click mode selector
+            if tool_id == TOOL_ZOOM:
+                btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                btn.customContextMenuRequested.connect(self._zoom_mode_menu)
+                btn.setToolTip("Zoom — left-click to zoom in\nRight-click to select zoom mode")
 
         layout.addLayout(gadget_grid)
 
@@ -4104,6 +4154,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             self.dp5_canvas.tool = actual_tool
             self.dp5_canvas._curve_pts = []
             self.dp5_canvas._poly_pts  = []
+            # Set cursor for zoom mode
+            if tool_id == TOOL_ZOOM:
+                zm = getattr(self.dp5_canvas, '_zoom_mode', 'in')
+                if zm == 'box':
+                    self.dp5_canvas.setCursor(Qt.CursorShape.CrossCursor)
+                elif zm == 'out':
+                    self.dp5_canvas.setCursor(Qt.CursorShape.SizeAllCursor)
+                else:
+                    self.dp5_canvas.setCursor(Qt.CursorShape.ArrowCursor)
             # When switching to TOOL_MOVE with a buffer, auto-float it
             if tool_id == TOOL_MOVE:
                 c = self.dp5_canvas
@@ -4503,6 +4562,42 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self.dp5_settings.save()
         if hasattr(self, '_status_bar'):
             self._status_bar.setVisible(on)
+
+    def _zoom_mode_menu(self, pos): #vers 1
+        """Right-click context menu on zoom gadget — select zoom mode."""
+        menu = QMenu(self)
+        modes = [
+            ('in',  '🔍  Zoom In      (click to zoom in 2×)'),
+            ('out', '🔎  Zoom Out     (click to zoom out ½×)'),
+            ('box', '⬚   Box Zoom     (drag to zoom to selection)'),
+            ('fit', '⊡   Zoom to Fit  (click to fit canvas in view)'),
+        ]
+        current = getattr(self.dp5_canvas, '_zoom_mode', 'in') if self.dp5_canvas else 'in'
+        for mode_id, label in modes:
+            a = menu.addAction(label)
+            a.setCheckable(True)
+            a.setChecked(mode_id == current)
+            a.triggered.connect(lambda _, m=mode_id: self._set_zoom_mode(m))
+        btn = self._tool_btns.get(TOOL_ZOOM)
+        menu.exec(btn.mapToGlobal(pos) if btn else self.cursor().pos())
+
+    def _set_zoom_mode(self, mode: str): #vers 1
+        """Set the zoom tool sub-mode and update tooltip."""
+        if self.dp5_canvas:
+            self.dp5_canvas._zoom_mode = mode
+        labels = {'in':'Zoom In','out':'Zoom Out','box':'Box Zoom','fit':'Fit'}
+        tips = {
+            'in':  'Zoom In — click to zoom in 2×\nRight-click to change mode',
+            'out': 'Zoom Out — click to zoom out ½×\nRight-click to change mode',
+            'box': 'Box Zoom — drag a rectangle to zoom to it\nRight-click to change mode',
+            'fit': 'Zoom to Fit — click to fit canvas in view\nRight-click to change mode',
+        }
+        btn = self._tool_btns.get(TOOL_ZOOM)
+        if btn:
+            btn.setToolTip(tips[mode])
+        self._set_status(f"Zoom mode: {labels[mode]}")
+        # Also activate the zoom tool
+        self._select_tool(TOOL_ZOOM)
 
     def _toggle_anim_strip(self, on: bool): #vers 1
         self.dp5_settings.set('show_anim_strip', on)
@@ -6228,20 +6323,40 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
 
-    def _import_bitmap_snap_user_pal(self): #vers 1
-        """Open an image then immediately snap it to the current user palette."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open Image + Snap to User Palette", "",
-            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm);;All Files (*)")
-        if not path or not self.dp5_canvas: return
+    def _import_bitmap_snap_user_pal(self): #vers 2
+        """Open image + snap to user palette with current dither mode applied."""
         palette = self._get_user_palette_rgb()
         if not palette:
             QMessageBox.warning(self, "Snap to User Palette",
                                 "No user palette loaded. Load a palette first.")
             return
+        mode = getattr(self, '_pal_dither_mode', 'off')
+        dither_labels = {
+            'off':     'Hard snap (no dither)',
+            'floyd':   'Floyd-Steinberg dither',
+            'bayer':   'Bayer 4×4 dither',
+            'checker': 'Checkerboard dither',
+        }
+        title = f"Open + Snap [{dither_labels[mode]}]"
+        path, _ = QFileDialog.getOpenFileName(
+            self, title, "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.tga *.tiff *.gif *.dds *.psd);;All Files (*)")
+        if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
-        # Snap after load (works on whatever mode reduced it to)
-        self._snap_canvas_to_user_palette()
+        # Apply dither-aware snap
+        if mode != 'off':
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba))
+            snapped = self._apply_user_palette_dither(img)
+        else:
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba))
+            snapped = self._snap_image_to_user_palette(img)
+        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+        self.dp5_canvas.update()
+        self._set_status(f"Opened + snapped [{mode}]: {os.path.basename(path)}")
 
     def _import_bitmap_path(self, path: str): #vers 3
         """Load an image, auto-reduce to current mode constraints if locked."""
