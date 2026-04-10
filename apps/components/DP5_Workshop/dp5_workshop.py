@@ -1959,27 +1959,42 @@ class PaletteGrid(QWidget):
         rows = max(1, (len(self._colors) + self._cols - 1) // self._cols)
         self.setFixedHeight(rows * self._cell + 1)
 
-    def set_colors(self, colors: List[QColor], cols: int = None):
-        """Load a new colour list, optionally changing column count."""
+    def set_colors(self, colors: List[QColor], cols: int = None): #vers 2
+        """Load a new colour list, optionally changing column count. Auto-scales cell size."""
         if cols is not None:
             self._cols = cols
         self._colors   = list(colors)
         self._selected = -1
+        n = len(colors)
+        if n > 512:  self._cell = 1
+        elif n > 256: self._cell = 4
+        elif n > 64:  self._cell = 8
+        else:         self._cell = 13
         self._recalc_height()
         self.update()
 
-    def set_palette_raw(self, palette_data):
-        """Accept list of (r,g,b) tuples, QColors or hex strings."""
+    def set_palette_raw(self, palette_data): #vers 2
+        """Accept list of (r,g,b) tuples, QColors or hex strings. No size limit."""
         out = []
-        for entry in palette_data[:256]:
+        for entry in palette_data:
             if isinstance(entry, QColor):
                 out.append(entry)
             elif isinstance(entry, str):
                 out.append(QColor(entry))
             elif hasattr(entry, '__len__') and len(entry) >= 3:
-                out.append(QColor(entry[0], entry[1], entry[2]))
+                out.append(QColor(int(entry[0]), int(entry[1]), int(entry[2])))
         self._colors   = out
         self._selected = -1
+        # Auto-scale cell size: 1px for >512 colours, 4px for >256, else 13px
+        n = len(out)
+        if n > 512:
+            self._cell = 1
+        elif n > 256:
+            self._cell = 4
+        elif n > 64:
+            self._cell = 8
+        else:
+            self._cell = 13
         self._recalc_height()
         self.update()
 
@@ -2916,8 +2931,8 @@ class ColorPalPresetsMixin:
             # ── Atari ────────────────────────────────────────────────────
             "Atari 2600 NTSC":    (atari_2600,           8),  # 128col TIA
             "Atari 800 GTIA":     (atari_800,           16),  # 256col GTIA
-            "Atari ST":           (atari_st_full,        8),  # 64 of 512 (9-bit)
-            "Atari STe":          (atari_ste_sample,     8),  # 64 of 4096 (12-bit)
+            "Atari ST":           (atari_st_512,         16),  # 512col full (9-bit)
+            "Atari STe":          (atari_ste,            16),  # 4096col full (12-bit)
             "Atari Falcon":       (atari_falcon,         8),  # 64 of 65536 (16-bit)
             # ── Amstrad ──────────────────────────────────────────────────
             "Amstrad CPC":        (amstrad_cpc,          9),  # 27col hardware
@@ -2931,7 +2946,7 @@ class ColorPalPresetsMixin:
             "Dragon 32/64":       (dragon,               8),  # 8col 6847
             # ── MSX ──────────────────────────────────────────────────────
             "MSX1":               (msx1,                 8),  # 16col TMS9918
-            "MSX2":               (msx2_sample,          8),  # 64 of 512 V9938
+            "MSX2":               (msx2_full,            16),  # 512col full V9938
             # ── NES / Nintendo ───────────────────────────────────────────
             "NES":                (nes,                  8),  # 64col PPU
             "SNES":               (snes,                 8),  # 64 of 32768
@@ -2943,10 +2958,10 @@ class ColorPalPresetsMixin:
             # ── Sega ─────────────────────────────────────────────────────
             "Sega SG-1000":       (sega_sg1000,          8),  # 16col TMS9918
             "Sega Master System": (sega_ms,              8),  # 64col 6-bit
-            "Sega Mega Drive":    (sega_md_sample,       8),  # 64 of 512 (9-bit)
-            "Sega Game Gear":     (sega_gg_sample,       8),  # 64 of 4096 (12-bit)
+            "Sega Mega Drive":    (sega_md,              16),  # 512col full (9-bit)
+            "Sega Game Gear":     (sega_gg,              16),  # 4096col full (12-bit)
             # ── PC Engine / TurboGrafx ───────────────────────────────────
-            "PC Engine":          (pc_engine_sample,     8),  # 64 of 512 (9-bit)
+            "PC Engine":          (pc_engine_full,       16),  # 512col full (9-bit)
             # ── SAM Coupé ────────────────────────────────────────────────
             "SAM Coupé":          (sam_coupe,           16),  # 128col
             # ── Apple ────────────────────────────────────────────────────
@@ -4684,10 +4699,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         if mode == 'spectrum':
             self._apply_spectrum_clash(cx, cy, cw, ch, w, h)
         elif mode in ('zx80', 'zx81'):
-            # B&W only — snap to nearest of white/black, then limit to 2 per 8×8 cell
-            bw = [(255,255,255),(0,0,0)]
-            self._snap_cell_to_palette(cx, cy, cw, ch, w, h, bw)
-            self._limit_cell_colours(cx, cy, cw, ch, w, h, 2)
+            self._apply_zx8x_dither(cx, cy, cw, ch, w, h)
         elif mode in ('c64', 'c64m'):
             self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._C64_PALETTE)
             self._limit_cell_colours(cx, cy, cw, ch, w, h, max_c)
@@ -5145,8 +5157,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'c64':       self._C64_PALETTE,
             'c64m':      self._C64_PALETTE,
             'spectrum': self._ZX_PALETTE,
-            'zx80':     [(255,255,255),(0,0,0)],
-            'zx81':     [(255,255,255),(0,0,0)],
+            'zx80':     'bayer_bw',   # B&W with Bayer dither
+            'zx81':     'bayer_bw',   # B&W with Bayer dither
             'specnext':  None,   # 256 colour — no snap needed
             'msx':       self._MSX_PALETTE,
             'cpc':       self._CPC_PALETTE,
@@ -5176,6 +5188,21 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             user_pal = self._get_user_palette_rgb()
             if not user_pal: return img
             palette = user_pal
+        if palette == 'bayer_bw':
+            from PIL import Image as PILImage
+            BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]
+            rgb = img.convert('RGB')
+            w2, h2 = rgb.size
+            out = PILImage.new('RGB', (w2, h2))
+            px_in = rgb.load(); px_out = out.load()
+            for y in range(h2):
+                for x in range(w2):
+                    r, g, b = px_in[x, y]
+                    lum = int(0.299*r + 0.587*g + 0.114*b)
+                    thresh = int(BAYER[y%4][x%4] / 16.0 * 255)
+                    v = 255 if lum > thresh else 0
+                    px_out[x, y] = (v, v, v)
+            return out.convert('RGBA')
 
         from PIL import Image
         rgb = img.convert('RGB')
@@ -5339,6 +5366,44 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             for tx, c in enumerate(decoded):
                 i = (ty*w+tx)*4
                 self.dp5_canvas.rgba[i:i+4] = [c[0], c[1], c[2], 255]
+
+    def _apply_zx8x_dither(self, cx, cy, cw, ch, w, h): #vers 1
+        """ZX80/ZX81 B&W constraint with Bayer ordered dithering to simulate grey tones.
+        Each 8×8 character cell gets dithered using the cell's average brightness.
+        The ZX machines used character patterns to fake grey — we simulate that."""
+        # 4×4 Bayer threshold matrix (normalised 0-1)
+        BAYER = [
+            [ 0/16,  8/16,  2/16, 10/16],
+            [12/16,  4/16, 14/16,  6/16],
+            [ 3/16, 11/16,  1/16,  9/16],
+            [15/16,  7/16, 13/16,  5/16],
+        ]
+        # ZX81 character block patterns for different grey levels
+        # These mimic the actual ZX81 character ROM grey patterns
+        ZX_PATTERNS = {
+            0:   [[0,0,0,0,0,0,0,0]]*8,  # black
+            1:   [[0x80,0,0,0,0,0,0,0]]*8,  # ~6%
+            2:   [[0x88,0,0,0,0,0,0,0]]*8,  # ~12%
+            3:   [[0x88,0,0x22,0,0,0,0,0,0]]*8,
+            4:   [[0x88,0,0x22,0]*2]*8,  # ~25% checkerboard-like
+            8:   [[0xAA,0x55]*4]*8,  # 50% medium grey
+            12:  [[0xFF,0x55,0xFF,0xAA]*2]*8,  # ~75%
+            15:  [[0xFF]*8]*8,  # white
+        }
+        for dy in range(ch):
+            for dx in range(cw):
+                tx, ty = cx+dx, cy+dy
+                if not (0 <= tx < w and 0 <= ty < h): continue
+                i = (ty*w+tx)*4
+                r,g,b = self.dp5_canvas.rgba[i:i+3]
+                # Convert to luminance
+                lum = (0.299*r + 0.587*g + 0.114*b) / 255.0
+                # Bayer threshold
+                thresh = BAYER[dy%4][dx%4]
+                pixel_on = lum > thresh
+                val = 255 if pixel_on else 0
+                self.dp5_canvas.rgba[i:i+3] = [val, val, val]
+        self.dp5_canvas.update()
 
     def _apply_msx_constraint(self, cx, cy, cw, ch, w, h): #vers 1
         """MSX1: 2 colours per 8-pixel row within each 8×8 cell (fg+bg per scanline)."""
