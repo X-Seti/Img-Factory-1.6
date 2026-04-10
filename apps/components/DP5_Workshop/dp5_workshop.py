@@ -8374,6 +8374,117 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         run_btn.clicked.connect(run)
         dlg.exec()
 
+    def _export_amiga_icon(self): #vers 2
+        """Export Amiga .info DiskObject — any canvas size, correct structure."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Amiga Icon", "icon.info", "Amiga Icon (*.info)")
+        if not path: return
+        try:
+            self._write_amiga_info(path, bytes(self.dp5_canvas.rgba),
+                                   self._canvas_width, self._canvas_height)
+            self._set_status(f"Exported Amiga icon: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "Amiga Icon Export Error", str(e))
+
+    def _export_ico(self): #vers 1
+        """Export Windows ICO — multiple sizes embedded (16,32,48,64,128,256)."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Windows ICO", "icon.ico", "ICO (*.ico)")
+        if not path: return
+        try:
+            from PIL import Image
+            img = self._get_canvas_pil()
+            sizes = [s for s in [16,32,48,64,128,256]
+                     if s <= max(self._canvas_width, self._canvas_height) * 2]
+            frames = [img.resize((s,s), Image.LANCZOS) for s in sizes]
+            frames[0].save(path, 'ICO', sizes=[(s,s) for s in sizes],
+                           append_images=frames[1:])
+            self._set_status(f"Exported ICO: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "ICO Export Error", str(e))
+
+    def _export_svg_icon(self): #vers 1
+        """Export canvas as SVG — embeds canvas as base64 PNG."""
+        if not self.dp5_canvas: return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export SVG Icon", "icon.svg", "SVG (*.svg)")
+        if not path: return
+        try:
+            import base64, io
+            buf = io.BytesIO()
+            self._get_canvas_pil().save(buf, 'PNG')
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            w, h = self._canvas_width, self._canvas_height
+            svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}">'
+                   f'<image width="{w}" height="{h}" href="data:image/png;base64,{b64}"/></svg>')
+            open(path, 'w').write(svg)
+            self._set_status(f"Exported SVG: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "SVG Export Error", str(e))
+
+    def _export_tga(self): #vers 1
+        """Export TGA (Targa) — uncompressed RGBA."""
+        if not self.dp5_canvas: return
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export TGA", f"texture_{w}x{h}.tga", "TGA (*.tga)")
+        if not path: return
+        try:
+            self._get_canvas_pil().save(path, 'TGA')
+            self._set_status(f"Exported TGA: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "TGA Export Error", str(e))
+
+    def _export_dds(self): #vers 1
+        """Export DDS (DirectDraw Surface) — uncompressed BGRA8."""
+        if not self.dp5_canvas: return
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export DDS", f"texture_{w}x{h}.dds", "DDS (*.dds)")
+        if not path: return
+        try:
+            import struct
+            rgba = bytes(self.dp5_canvas.rgba)
+            bgra = bytearray(len(rgba))
+            for i in range(0, len(rgba), 4):
+                bgra[i]=rgba[i+2]; bgra[i+1]=rgba[i+1]
+                bgra[i+2]=rgba[i]; bgra[i+3]=rgba[i+3]
+            hdr = bytearray(128)
+            hdr[0:4] = b'DDS '
+            struct.pack_into('<I',hdr,4,124)
+            struct.pack_into('<I',hdr,8,0x00021007)
+            struct.pack_into('<I',hdr,12,h)
+            struct.pack_into('<I',hdr,16,w)
+            struct.pack_into('<I',hdr,20,w*4)
+            struct.pack_into('<I',hdr,28,1)
+            struct.pack_into('<I',hdr,76,32)
+            struct.pack_into('<I',hdr,80,0x41)
+            struct.pack_into('<I',hdr,88,32)
+            struct.pack_into('<I',hdr,92,0x00FF0000)
+            struct.pack_into('<I',hdr,96,0x0000FF00)
+            struct.pack_into('<I',hdr,100,0x000000FF)
+            struct.pack_into('<I',hdr,104,0xFF000000)
+            struct.pack_into('<I',hdr,108,0x00001000)
+            open(path,'wb').write(bytes(hdr)+bytes(bgra))
+            self._set_status(f"Exported DDS: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "DDS Export Error", str(e))
+
+    def _export_pcx(self): #vers 1
+        """Export PCX — classic DOS bitmap."""
+        if not self.dp5_canvas: return
+        w, h = self._canvas_width, self._canvas_height
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PCX", f"image_{w}x{h}.pcx", "PCX (*.pcx)")
+        if not path: return
+        try:
+            self._get_canvas_pil().convert('RGB').save(path, 'PCX')
+            self._set_status(f"Exported PCX: {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.warning(self, "PCX Export Error", str(e))
+
     def _write_amiga_info(self, path: str, rgba: bytes, w: int, h: int): #vers 1
         """Write Amiga .info DiskObject from RGBA pixel data."""
         import struct
