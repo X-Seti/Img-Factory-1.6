@@ -1577,8 +1577,8 @@ class DP5Canvas(QWidget):
                 # Start box-zoom drag — handled in mouseMoveEvent/mouseReleaseEvent
                 self._box_zoom_start = (tx, ty)
                 self._box_zoom_end   = (tx, ty)
-                self._preview_start  = QPoint(*self._tex_to_widget(tx, ty))
-                self._preview_end    = QPoint(*self._tex_to_widget(tx, ty))
+                self._preview_start  = (tx, ty)
+                self._preview_end    = (tx, ty)
             else:  # 'in'
                 ed._set_zoom(min(16, ed._canvas_zoom * 2))
 
