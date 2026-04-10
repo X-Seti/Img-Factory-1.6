@@ -722,7 +722,7 @@ class DP5SettingsDialog(QDialog):
         self._platform_combo = QComboBox()
         self._platform_combo.addItems([
             'none','amiga','amiga_aga','amiga_ham','amiga_ham8','amiga_rtg',
-            'c64','c64m','spectrum','specnext',
+            'c64','c64m','spectrum','zx80','zx81','specnext',
             'msx','cpc','cpc1','atari_st','atari_800','plus4','vic20'])
         self._platform_combo.setCurrentText(self.s.get('platform_mode'))
         cl.addRow("Platform mode:", self._platform_combo)
@@ -2627,6 +2627,11 @@ class ColorPalPresetsMixin:
             "#0000FF","#FF00FF","#00FFFF","#FFFFFF",
         ]
 
+        # ZX80 / ZX81 — black and white only, no colour hardware
+        # TV RF output: paper=white, ink=black, inverse video swaps them
+        zx80 = ["#FFFFFF","#000000"]
+        zx81 = ["#FFFFFF","#000000"]  # identical — same display hardware
+
         # BBC Micro / Acorn — 8 colours (SAA5050 / 6845 ULA)
         bbc_micro = [
             "#000000","#FF0000","#00FF00","#FFFF00",
@@ -2749,6 +2754,8 @@ class ColorPalPresetsMixin:
             "Amiga AGA WB":     (amiga_aga_wb,    16),  # 256 colours — 16×16
             "C64":              (commodore_64,     8),   # 16 colours — 2 rows × 8
             "ZX Spectrum":      (zx_spectrum,      8),   # 16 colours — 2 rows × 8
+            "ZX80":             (zx80,              2),   # 2 colours — B&W
+            "ZX81":             (zx81,              2),   # 2 colours — B&W
             "Amstrad CPC":      (amstrad_cpc,      9),   # 27 colours — 3 rows × 9
             "Atari 800":        (atari_800,       16),  # 256 colours GTIA — 16×16
             "Atari 2600 NTSC":  (atari_2600,       8),  # 128 colours — 16 rows × 8
@@ -3393,6 +3400,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         plm.addAction("C64 Hires     (8×8 cell)", lambda: self._set_platform('c64'))
         plm.addAction("C64 Multicolor(4×8 cell)", lambda: self._set_platform('c64m'))
         plm.addAction("ZX Spectrum   (8×8 cell)", lambda: self._set_platform('spectrum'))
+        plm.addAction("ZX80          (B&W 8×8)",  lambda: self._set_platform('zx80'))
+        plm.addAction("ZX81          (B&W 8×8)",  lambda: self._set_platform('zx81'))
         plm.addAction("ZX Next 256   (free)",     lambda: self._set_platform('specnext'))
         plm.addAction("ZX Next 320   (free)",     lambda: self._set_platform('specnext'))
         plm.addAction("MSX1          (8×8 cell)", lambda: self._set_platform('msx'))
@@ -4029,6 +4038,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         'c64':       (8,  8,   2),
         'c64m':      (4,  8,   4),
         'spectrum':  (8,  8,   2),
+        'zx80':      (8,  8,   2),   # ZX80 — B&W only, 8×8 char cells, 32×24 chars
+        'zx81':      (8,  8,   2),   # ZX81 — B&W only, 32×24 chars (WRX: 256×192)
         'specnext':  (1,  1,   256),
         'msx':       (8,  8,   2),
         'cpc':       (4,  8,   4),      # CPC Mode 0: 4 colours per 4×8
@@ -4053,6 +4064,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         _pal_map = {
             'c64': 'C64', 'c64m': 'C64',
             'spectrum': 'ZX Spectrum', 'specnext': 'ULA Plus',
+            'zx80': 'ZX80', 'zx81': 'ZX81',
             'msx': 'MSX1', 'cpc': 'Amstrad CPC', 'cpc1': 'Amstrad CPC',
             'atari_st': 'Atari ST',
             'atari_800': 'Atari 800',
@@ -4116,7 +4128,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             plat = self._platform_mode
             plat_res = {
                 'c64':      (320, 200), 'c64m':     (160, 200),
-                'spectrum': (256, 192), 'specnext': (320, 256),
+                'spectrum': (256, 192), 'zx80': (256, 192), 'zx81': (256, 192), 'specnext': (320, 256),
                 'msx':      (256, 192), 'cpc':      (160, 200),
                 'cpc1':     (320, 200), 'atari_st': (320, 200),
                 'amiga':    (320, 256), 'amiga_aga':(320, 256),
@@ -4488,6 +4500,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         if mode == 'spectrum':
             self._apply_spectrum_clash(cx, cy, cw, ch, w, h)
+        elif mode in ('zx80', 'zx81'):
+            # B&W only — snap to nearest of white/black, then limit to 2 per 8×8 cell
+            bw = [(255,255,255),(0,0,0)]
+            self._snap_cell_to_palette(cx, cy, cw, ch, w, h, bw)
+            self._limit_cell_colours(cx, cy, cw, ch, w, h, 2)
         elif mode in ('c64', 'c64m'):
             self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._C64_PALETTE)
             self._limit_cell_colours(cx, cy, cw, ch, w, h, max_c)
@@ -4581,7 +4598,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         pal_map = {
             'c64':       self._C64_PALETTE,
             'c64m':      self._C64_PALETTE,
-            'spectrum':  self._ZX_PALETTE,
+            'spectrum': self._ZX_PALETTE,
+            'zx80':     [(255,255,255),(0,0,0)],
+            'zx81':     [(255,255,255),(0,0,0)],
             'specnext':  None,   # 256 colour — no snap needed
             'msx':       self._MSX_PALETTE,
             'cpc':       self._CPC_PALETTE,
@@ -5209,6 +5228,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             ("── ZX Spectrum ──",          0,   0,  0),
             ("Spectrum       256×192",   256, 192,  3),
             ("Spectrum Next  320×256",   320, 256,  3),
+            ("ZX80           256×192",   256, 192,  3),   # nominal — 32×24 chars
+            ("ZX81           256×192",   256, 192,  3),   # WRX hires mode
             ("── MSX ──",                  0,   0,  0),
             ("MSX1           256×192",   256, 192,  3),
             ("── Amstrad CPC ──",           0,   0,  0),
@@ -5487,7 +5508,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                 # 1. Resize to platform resolution
                 plat = getattr(self, '_platform_mode', 'none')
                 plat_res = {
-                    'c64':(320,200),'c64m':(160,200),'spectrum':(256,192),
+                    'c64':(320,200),'c64m':(160,200),'spectrum':(256,192),'zx80':(256,192),'zx81':(256,192),
                     'specnext':(320,256),'msx':(256,192),'cpc':(160,200),
                     'cpc1':(320,200),'atari_st':(320,200),'amiga':(320,256),
                     'amiga_aga':(320,256),'plus4':(320,200),'vic20':(176,184),
