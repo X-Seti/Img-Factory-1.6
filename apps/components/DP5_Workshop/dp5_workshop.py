@@ -2977,7 +2977,7 @@ class ColorPalPresetsMixin:
         colors = [QColor(h) for h in data]
         return colors, cols
 
-    def _apply_retro_palette(self, name: str): #vers 2
+    def _apply_retro_palette(self, name: str): #vers 3
         """Load a retro preset into the user palette grid."""
         self.current_retro_palette = name
         colors, cols = self._get_retro_colors(name)
@@ -2990,6 +2990,80 @@ class ColorPalPresetsMixin:
                 self._user_pal_scroll.setFixedWidth(grid_w + sb_w + 4)
         if hasattr(self, '_retro_btn'):
             self._retro_btn.setText(f"{name}")
+        # Show dither button for palettes with fewer than 16 colours
+        if hasattr(self, '_pal_dither_btn'):
+            self._pal_dither_btn.setVisible(len(colors) < 16)
+
+    def _cycle_pal_dither(self): #vers 1
+        """Cycle palette dither mode: off → floyd → bayer → checker → off."""
+        cycle = {'off':'floyd','floyd':'bayer','bayer':'checker','checker':'off'}
+        self._pal_dither_mode = cycle.get(self._pal_dither_mode, 'off')
+        labels = {'off':'Dith','floyd':'F-S','bayer':'Bayr','checker':'Chkr'}
+        tips = {
+            'off':     'Dither: Off — hard snap to palette',
+            'floyd':   'Dither: Floyd-Steinberg error diffusion',
+            'bayer':   'Dither: Bayer 4×4 ordered',
+            'checker': 'Dither: Checkerboard FG/BG',
+        }
+        if hasattr(self, '_pal_dither_btn'):
+            self._pal_dither_btn.setText(labels[self._pal_dither_mode])
+            self._pal_dither_btn.setChecked(self._pal_dither_mode != 'off')
+            self._pal_dither_btn.setToolTip(tips[self._pal_dither_mode])
+        self._set_status(f"Palette dither: {self._pal_dither_mode}")
+
+    def _apply_user_palette_dither(self, img): #vers 1
+        """Apply current palette dither mode when snapping to user palette."""
+        from PIL import Image
+        palette = self._get_user_palette_rgb()
+        if not palette: return img
+        n = min(len(palette), 256)
+        mode = getattr(self, '_pal_dither_mode', 'off')
+
+        if mode == 'floyd':
+            # Floyd-Steinberg via PIL quantize dither=1
+            pal_img = Image.new('P', (1,1))
+            flat = []
+            for r,g,b in palette[:n]: flat += [r,g,b]
+            flat += [0]*(768-len(flat))
+            pal_img.putpalette(flat)
+            return img.convert('RGB').quantize(palette=pal_img, dither=1).convert('RGB').convert('RGBA')
+
+        elif mode == 'bayer':
+            BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]
+            rgb = img.convert('RGB')
+            w, h = rgb.size
+            out = Image.new('RGB', (w,h))
+            px_in = rgb.load(); px_out = out.load()
+            for y in range(h):
+                for x in range(w):
+                    r,g,b = px_in[x,y]
+                    t = BAYER[y%4][x%4]/16.0
+                    # Shift pixel by threshold then snap
+                    sr = min(255,int(r+(t-0.5)*48))
+                    sg = min(255,int(g+(t-0.5)*48))
+                    sb = min(255,int(b+(t-0.5)*48))
+                    best = min(palette[:n],
+                               key=lambda c:(c[0]-sr)**2+(c[1]-sg)**2+(c[2]-sb)**2)
+                    px_out[x,y] = best
+            return out.convert('RGBA')
+
+        elif mode == 'checker':
+            # Checkerboard — alternate between nearest and second-nearest
+            rgb = img.convert('RGB')
+            w, h = rgb.size
+            out = Image.new('RGB', (w,h))
+            px_in = rgb.load(); px_out = out.load()
+            for y in range(h):
+                for x in range(w):
+                    r,g,b = px_in[x,y]
+                    dists = sorted(palette[:n],
+                                   key=lambda c:(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
+                    px_out[x,y] = dists[0] if (x+y)%2==0 else (dists[1] if len(dists)>1 else dists[0])
+            return out.convert('RGBA')
+
+        else:
+            # No dither — hard snap
+            return self._snap_image_to_user_palette(img)
 
     def _show_retro_menu(self):
         menu = QMenu(self)
@@ -3047,6 +3121,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._symmetry_mode = 'off'  # cycles: off → H → V → quad
         self._platform_mode = 'none'
         self._enforce_constraints = False
+        self._pal_dither_mode = 'off'   # 'off'|'floyd'|'bayer'|'checker'
         self._canvas_mode   = 'free'
         self._mode_locked   = False
         self._mode_btns     = {}
@@ -3902,6 +3977,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._retro_btn.setToolTip("User palette — choose retro preset")
         self._retro_btn.clicked.connect(self._show_retro_menu)
         user_pal_hdr.addWidget(self._retro_btn)
+        # Dither toggle — shown when palette has < 16 colours
+        self._pal_dither_btn = QPushButton("Dith")
+        self._pal_dither_btn.setFont(QFont("Arial", self.fonthsize))
+        self._pal_dither_btn.setFixedHeight(24)
+        self._pal_dither_btn.setFixedWidth(36)
+        self._pal_dither_btn.setCheckable(True)
+        self._pal_dither_btn.setChecked(False)
+        self._pal_dither_btn.setToolTip(
+            "Dither when snapping to this palette\n"
+            "Cycles: Off → Floyd-Steinberg → Bayer 4×4 → Checkerboard")
+        self._pal_dither_btn.clicked.connect(self._cycle_pal_dither)
+        self._pal_dither_mode = 'off'   # 'off'|'floyd'|'bayer'|'checker'
+        user_pal_hdr.addWidget(self._pal_dither_btn)
         layout.addLayout(user_pal_hdr)
 
         user_cols = self.dp5_settings.get('user_pal_cols')
@@ -5131,22 +5219,25 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     lines.append(f'OL,{100+row+1},{line_str}')
                 open(path,'w',encoding='utf-8').write('\n'.join(lines)+'\n')
 
-    def _snap_canvas_to_user_palette(self): #vers 1
-        """Menu action — snap entire canvas to current user palette."""
+    def _snap_canvas_to_user_palette(self): #vers 2
+        """Snap entire canvas to current user palette, with optional dithering."""
         if not self.dp5_canvas: return
         palette = self._get_user_palette_rgb()
         if not palette:
-            QMessageBox.warning(self, "Snap to User Palette",
-                                "No user palette loaded.")
+            QMessageBox.warning(self, "Snap to User Palette", "No user palette loaded.")
             return
         self._push_undo()
         from PIL import Image
         img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
                               bytes(self.dp5_canvas.rgba))
-        snapped = self._snap_image_to_user_palette(img)
+        mode = getattr(self, '_pal_dither_mode', 'off')
+        if mode != 'off':
+            snapped = self._apply_user_palette_dither(img)
+        else:
+            snapped = self._snap_image_to_user_palette(img)
         self.dp5_canvas.rgba = bytearray(snapped.tobytes())
         self.dp5_canvas.update()
-        self._set_status(f"Snapped to user palette ({len(palette)} colours)")
+        self._set_status(f"Snapped to user palette ({len(palette)} colours, dither:{mode})")
 
     def _snap_image_to_platform_palette(self, img): #vers 1
         """Snap every pixel in a PIL RGBA image to the nearest platform palette colour.
