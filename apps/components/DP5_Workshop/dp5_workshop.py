@@ -8477,50 +8477,64 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
 
-    def _decode_amiga_info(self, data: bytes): #vers 1
-        """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason)."""
+    def _decode_amiga_info(self, data: bytes): #vers 2
+        """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason).
+        Based on official AmigaOS SDK DiskObject/Gadget/Image struct layout."""
         import struct
-        if len(data) < 80 or data[0:2] != bytes([0xE3, 0x10]):
+        if len(data) < 78 or data[0:2] != bytes([0xE3, 0x10]):
             return None, 0, 0, "Not a valid .info file"
+        # DiskObject: Gadget.Width @12, Gadget.Height @14
+        # Gadget.GadgetRender @22, Gadget.SelectRender @26
+        # do_DrawerData @66 — if non-null, 56-byte DrawerData follows DiskObject
         w = struct.unpack_from('>H', data, 12)[0]
         h = struct.unpack_from('>H', data, 14)[0]
         if w == 0 or h == 0 or w > 1024 or h > 1024:
-            return None, 0, 0, f"Invalid dimensions {w}x{h}"
-        AGA_WB = [
-            (0,0,0,0),(255,255,255,255),(85,170,255,255),(255,136,0,255),
-            (170,170,170,255),(0,0,170,255),(255,85,0,255),(170,0,170,255),
-            (85,85,85,255),(0,170,170,255),(170,85,0,255),(0,170,0,255),
-            (170,0,0,255),(0,85,170,255),(255,255,85,255),(255,85,85,255),
-        ]
+            return None, 0, 0, f"Invalid dimensions {w}×{h}"
+        drawer_ptr = struct.unpack_from('>I', data, 66)[0]
+        # ── NewIcon ───────────────────────────────────────────────────
         if b'IM1=' in data:
             try:
                 rgba = self._decode_newicon_im1(data, w, h)
                 if rgba: return rgba, w, h, 'NewIcon-IM1'
             except Exception:
                 pass
+        # ── OS3.5 ICONFACE ────────────────────────────────────────────
         if b':ICONFACE' in data:
-            return None, 0, 0, "OS3.5-ICONFACE (proprietary, not supported)"
-        drawer_ptr = struct.unpack_from('>I', data, 66)[0]
+            return None, 0, 0, "OS3.5-ICONFACE (proprietary format)"
+        # ── Classic bitplane icon ─────────────────────────────────────
+        # After DiskObject: [DrawerData(56)] + Image struct(20) + bitplanes
+        # Image struct: [4:6]=Width [6:8]=Height [8:10]=Depth [14]=PlanePick
         base = 78 + (56 if drawer_ptr else 0)
-        img_offset = base + 40
+        if base + 20 > len(data):
+            return None, 0, 0, "File truncated at Image struct"
+        img_depth = struct.unpack_from('>H', data, base + 8)[0]
+        if img_depth == 0 or img_depth > 8:
+            img_depth = 4
+        data_off = base + 20
         row_bytes = ((w + 15) // 16) * 2
-        depth = 4
-        needed = row_bytes * h * depth
-        if img_offset + needed > len(data):
-            depth = 2
-            needed = row_bytes * h * depth
-            if img_offset + needed > len(data):
-                return None, 0, 0, "File too small for bitplane data"
+        plane_size = row_bytes * h
+        depth = img_depth
+        for try_d in [img_depth, 4, 2]:
+            if data_off + plane_size * try_d <= len(data):
+                depth = try_d; break
+        else:
+            return None, 0, 0, "File too small for bitplane data"
+        AGA_WB = [
+            (0,0,0,0),(255,255,255,255),(85,170,255,255),(255,136,0,255),
+            (170,170,170,255),(0,0,170,255),(255,85,0,255),(170,0,170,255),
+            (85,85,85,255),(0,170,170,255),(170,85,0,255),(0,170,0,255),
+            (170,0,0,255),(0,85,170,255),(255,255,85,255),(255,85,85,255),
+        ]
         rgba = bytearray(w * h * 4)
         for y in range(h):
             for x in range(w):
                 px = 0
                 for p in range(depth):
-                    off = img_offset + p*(row_bytes*h) + y*row_bytes + x//8
+                    off = data_off + p * plane_size + y * row_bytes + x // 8
                     if off < len(data) and data[off] & (0x80 >> (x % 8)):
                         px |= (1 << p)
-                c = AGA_WB[px % len(AGA_WB)]
-                i = (y*w+x)*4
+                c = AGA_WB[px % 16]
+                i = (y * w + x) * 4
                 rgba[i:i+4] = c
         return bytes(rgba), w, h, f'Classic-{depth}bp'
 
