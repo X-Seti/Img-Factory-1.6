@@ -6018,9 +6018,16 @@ class IMGFactory(QMainWindow):
         """Open vehicles editor"""
         self.log_message("Vehicles editor functionality coming soon")
 
-    def open_radar_map(self): #vers 1
-        """Open radar map editor"""
-        self.log_message("Radar map functionality coming soon")
+    def open_radar_map(self): #vers 2
+        """Open Radar Workshop — standalone window, DP5Canvas based."""
+        try:
+            from apps.components.DP5_Workshop.radar_workshop import open_radar_workshop
+            workshop = open_radar_workshop(self)
+            if workshop:
+                self._radar_workshop = workshop  # keep reference alive
+                self.log_message("Radar Workshop opened")
+        except Exception as e:
+            self.log_message(f"Radar Workshop error: {e}")
 
     def open_paths_map(self): #vers 1
         """Open paths map editor"""
