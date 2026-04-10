@@ -2824,6 +2824,26 @@ class ColorPalPresetsMixin:
         zx80 = ["#FFFFFF","#000000"]
         zx81 = ["#FFFFFF","#000000"]  # identical — same display hardware
 
+        # ZX Spectrum Next — 9-bit palette (3R 3G 3B), 512 colours, 256 active
+        # Layer 2: 320×256 or 640×256 at up to 256 colours
+        # Same 9-bit colour space as Atari ST, MSX2, Mega Drive
+        specnext_9bit = atari_st_512  # same 9-bit scale
+
+        # Timex Sinclair 2068 / TC2048 — adds HiRes 512×192 B&W and column-colour mode
+        # Standard mode: same 16 colours as ZX Spectrum
+        # Column colour mode: 8 colours per 8-pixel column (not 8×8 cell)
+        # HiRes mode: 512×192 monochrome — reuse zx80 2-colour palette
+        timex_colour = zx_spectrum   # same 16 ULA colours
+        timex_hires  = zx80          # B&W only in 512×192 mode
+
+        # Pentagon / Soviet Spectrum clones
+        # Pentagon 128/512/1024, Scorpion ZS, Kay, Profi — all identical ULA display
+        # Same 16-colour palette as ZX Spectrum — no display differences
+        pentagon = zx_spectrum
+
+        # Jupiter Ace — B&W character mode only (Forth machine)
+        jupiter_ace = ["#000000","#FFFFFF"]
+
         # BBC Micro / Acorn — 8 colours (SAA5050 / 6845 ULA)
         bbc_micro = [
             "#000000","#FF0000","#00FF00","#FFFF00",
@@ -2983,9 +3003,15 @@ class ColorPalPresetsMixin:
             "Plus/4":             (plus4,                8),  # 16col TED
             # ── Sinclair / ZX ────────────────────────────────────────────
             "ZX Spectrum":        (zx_spectrum,          8),  # 16col ULA
+            "ZX Spectrum 128K":   (zx_spectrum,          8),  # same display
             "ZX80":               (zx80,                 2),  # B&W
             "ZX81":               (zx81,                 2),  # B&W
             "ULA Plus":           (ula_plus,            16),  # 256col
+            "ZX Spectrum Next":   (specnext_9bit,       16),  # 512col 9-bit
+            "Timex TS2068":       (timex_colour,         8),  # 16col standard mode
+            "Timex HiRes":        (timex_hires,          2),  # B&W 512×192 mode
+            "Pentagon":           (pentagon,             8),  # 16col — same as Spectrum
+            "Jupiter Ace":        (jupiter_ace,          2),  # B&W char mode
             "Sinclair QL":        (sinclair_ql,          8),  # 8col
             # ── Atari ────────────────────────────────────────────────────
             "Atari 2600 NTSC":    (atari_2600,           8),  # 128col TIA
@@ -3147,7 +3173,12 @@ class ColorPalPresetsMixin:
                 "C64", "VIC-20", "Plus/4",
             ]),
             ("Sinclair / ZX", [
-                "ZX Spectrum", "ZX80", "ZX81", "ULA Plus", "Sinclair QL",
+                "ZX Spectrum", "ZX Spectrum 128K",
+                "ZX80", "ZX81", "ULA Plus",
+                "ZX Spectrum Next",
+                "Timex TS2068", "Timex HiRes",
+                "Pentagon", "Jupiter Ace",
+                "Sinclair QL",
             ]),
             ("Atari", [
                 "Atari 2600 NTSC", "Atari 2600 PAL",
@@ -3846,10 +3877,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             ("Plus/4       320×200",             'plus4'),
         ])
         _pm("Sinclair / ZX", [
-            ("ZX Spectrum  256×192  8×8 cell",  'spectrum'),
-            ("ZX80         256×192  B&W hard",  'zx80'),
-            ("ZX81 WRX     256×192  B&W dither",'zx81'),
-            ("ZX Next      320×256",             'specnext'),
+            ("Spectrum 48K   256×192  2col/cell", 'spectrum'),
+            ("Spectrum 128K  256×192  same disp", 'spectrum128'),
+            ("ZX80           256×192  B&W hard",  'zx80'),
+            ("ZX81 WRX       256×192  B&W dither",'zx81'),
+            ("ZX Next L2     320×256  256col",    'specnext'),
+            ("ZX Next ULA    256×192  classic",   'specnext_ul'),
+            ("Timex TS2068   256×192  standard",  'timex'),
+            ("Timex HiRes    512×192  B&W",       'timex_hi'),
+            ("Pentagon       256×192  like Spec", 'pentagon'),
+            ("Jupiter Ace    256×192  B&W Forth", 'jupiter'),
         ])
         _pm("Atari", [
             ("2600 NTSC    160×96",              'atari_2600'),
@@ -4519,9 +4556,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         'c64':         (8,  8,   2),
         'c64m':        (4,  8,   4),
         'spectrum':    (8,  8,   2),
+        'spectrum128': (8,  8,   2),   # same display as 48K
         'zx80':        (8,  8,   2),
         'zx81':        (8,  8,   2),
-        'specnext':    (1,  1,   256),
+        'specnext':    (1,  1,   256), # Layer 2 free pixel mode
+        'specnext_ul': (8,  8,   2),   # Next classic ULA mode
+        'timex':       (8,  8,   2),   # TS2068 standard mode
+        'timex_hi':    (1,  1,   2),   # TS2068 HiRes 512×192 B&W
+        'pentagon':    (8,  8,   2),   # same as Spectrum
+        'jupiter':     (8,  8,   2),   # Jupiter Ace B&W
         'msx':         (8,  8,   2),
         'msx2':        (8,  8,   16),
         'cpc':         (4,  8,   4),
@@ -4557,8 +4600,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         _pal_map = {
             'c64': 'C64', 'c64m': 'C64',
-            'spectrum': 'ZX Spectrum', 'specnext': 'ULA Plus',
+            'spectrum': 'ZX Spectrum', 'spectrum128': 'ZX Spectrum 128K',
+            'specnext': 'ZX Spectrum Next', 'specnext_ul': 'ZX Spectrum',
             'zx80': 'ZX80', 'zx81': 'ZX81',
+            'timex': 'Timex TS2068', 'timex_hi': 'Timex HiRes',
+            'pentagon': 'Pentagon', 'jupiter': 'Jupiter Ace',
             'msx': 'MSX1', 'msx2': 'MSX2',
             'cpc': 'Amstrad CPC', 'cpc1': 'Amstrad CPC',
             'cpc_plus': 'Amstrad CPC+',
@@ -4586,8 +4632,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         # Resize canvas to platform native resolution
         _plat_res = {
             'c64':         (320, 200), 'c64m':        (160, 200),
-            'spectrum':    (256, 192), 'zx80':        (256, 192),
-            'zx81':        (256, 192), 'specnext':    (320, 256),
+            'spectrum':    (256, 192), 'spectrum128': (256, 192),
+            'zx80':        (256, 192), 'zx81':        (256, 192),
+            'specnext':    (320, 256), 'specnext_ul': (256, 192),
+            'timex':       (256, 192), 'timex_hi':    (512, 192),
+            'pentagon':    (256, 192), 'jupiter':     (256,  192),
             'msx':         (256, 192), 'msx2':        (256, 212),
             'cpc':         (160, 200), 'cpc1':        (320, 200),
             'cpc_plus':    (320, 200), 'pcw':         (720, 256),
@@ -5076,10 +5125,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         h = self.dp5_canvas.tex_h
         mode = self._platform_mode
 
-        if mode == 'spectrum':
+        if mode in ('spectrum', 'spectrum128', 'timex', 'pentagon'):
             self._apply_spectrum_clash(cx, cy, cw, ch, w, h)
-        elif mode == 'zx80':
-            # ZX80: hard B&W per 8×8 character cell — no sub-pixel, just average brightness
+        elif mode in ('zx80', 'jupiter'):
+            # Hard B&W — ZX80/Jupiter Ace character cell mode
             for dy in range(ch):
                 for dx in range(cw):
                     tx, ty = cx+dx, cy+dy
@@ -5090,8 +5139,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     v = 255 if lum >= 128 else 0
                     self.dp5_canvas.rgba[i:i+3] = [v, v, v]
             self.dp5_canvas.update()
-        elif mode == 'zx81':
-            # ZX81 WRX mode: Bayer ordered dither — simulates grey via pixel patterns
+        elif mode in ('zx81', 'timex_hi'):
+            # Bayer dither — ZX81 WRX / Timex HiRes B&W modes
             self._apply_zx8x_dither(cx, cy, cw, ch, w, h)
         elif mode in ('c64', 'c64m'):
             self._snap_cell_to_palette(cx, cy, cw, ch, w, h, self._C64_PALETTE)
@@ -5592,8 +5641,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             'c64':       self._C64_PALETTE,
             'c64m':      self._C64_PALETTE,
             'spectrum': self._ZX_PALETTE,
-            'zx80':     'threshold_bw', # Hard threshold — character cell mode
-            'zx81':     'bayer_bw',     # Bayer dither — WRX hi-res mode
+            'zx80':        'threshold_bw',
+            'zx81':        'bayer_bw',
+            'timex_hi':    'threshold_bw',  # HiRes mode is B&W
+            'jupiter':     'threshold_bw',  # Jupiter Ace is B&W
             'specnext':  None,   # 256 colour — no snap needed
             'msx':       self._MSX_PALETTE,
             'cpc':       self._CPC_PALETTE,
@@ -6283,10 +6334,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             ("C64 Hires      320×200",   320, 200,  3),
             ("C64 Multicolor 160×200",   160, 200,  3),
             ("── ZX Spectrum ──",          0,   0,  0),
-            ("Spectrum       256×192",   256, 192,  3),
-            ("Spectrum Next  320×256",   320, 256,  3),
+            ("Spectrum 48K   256×192",   256, 192,  3),
+            ("Spectrum 128K  256×192",   256, 192,  3),
             ("ZX80           256×192",   256, 192,  3),
             ("ZX81           256×192",   256, 192,  3),
+            ("ZX Next L2     320×256",   320, 256,  3),
+            ("ZX Next L2 640 640×256",   640, 256,  3),
+            ("ZX Next ULA    256×192",   256, 192,  3),
+            ("Timex TS2068   256×192",   256, 192,  3),
+            ("Timex HiRes    512×192",   512, 192,  3),
+            ("Pentagon       256×192",   256, 192,  3),
+            ("Jupiter Ace    256×192",   256, 192,  3),
             ("── MSX ──",                  0,   0,  0),
             ("MSX1           256×192",   256, 192,  3),
             ("MSX2           256×212",   256, 212,  3),
