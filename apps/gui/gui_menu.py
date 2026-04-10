@@ -453,6 +453,7 @@ class IMGFactoryMenuBar:
         self.menu_definition = MenuDefinition()
         self._create_menus()
         self._create_tools_menu()
+        self._create_dp5_menu()   # stub — no workshop open yet
         #self.col_menu()
 
         # Set up default callbacks

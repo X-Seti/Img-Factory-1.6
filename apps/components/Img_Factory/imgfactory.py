@@ -514,12 +514,6 @@ class IMGFactory(QMainWindow):
         # Menu system
         self.menubar = self.menuBar()
         self.menu_bar_system = IMGFactoryMenuBar(self)
-        # Add DP5 Paint menu stub (shows launch actions before DP5 is opened)
-        try:
-            self.menu_bar_system._create_dp5_menu(None)
-        except Exception:
-            pass
-
         # Menu callbacks
         callbacks = {
             "about": self.show_about,
@@ -1334,17 +1328,23 @@ class IMGFactory(QMainWindow):
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
 
-            # Inject DP5 menus into imgfactory menubar via menu_bar_system
+            # Add DP5 Paint menu to imgfactory menubar via menu_bar_system
             try:
                 if hasattr(self, 'menu_bar_system'):
                     self.menu_bar_system._create_dp5_menu(workshop)
-                    # Clean up when tab is closed
-                    def _on_tab_close(close_idx):
-                        if self.main_tab_widget.widget(close_idx) is tab_container:
-                            self.menu_bar_system.remove_dp5_menu(restore_menubar=True)
+                    # Remove DP5 menu when tab closes (disconnect after first match)
+                    def _on_tab_close(close_idx, _tc=tab_container):
+                        if self.main_tab_widget.widget(close_idx) is _tc:
+                            if hasattr(self, 'menu_bar_system'):
+                                self.menu_bar_system.remove_dp5_menu(restore_menubar=True)
+                            try:
+                                self.main_tab_widget.tabCloseRequested.disconnect(_on_tab_close)
+                            except Exception:
+                                pass
                     self.main_tab_widget.tabCloseRequested.connect(_on_tab_close)
             except Exception as me:
-                self.log_message(f"DP5 menu inject warning: {me}")
+                self.log_message(f"DP5 menu error: {me}")
+                import traceback; traceback.print_exc()
 
             self.log_message("DP5 Workshop opened (docked)")
 
