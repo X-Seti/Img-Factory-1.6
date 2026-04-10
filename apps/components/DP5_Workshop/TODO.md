@@ -51,3 +51,15 @@
 - [ ] OS3.5 ICONFACE import (needs format research)
 - [ ] IFF animation (ANIM) import/export
 
+
+## Side Projects
+
+### KDE6 Amiga .info Thumbnail/Display Handler
+- [ ] KDE6 thumbnail plugin — show .info icon previews in Dolphin/KDE file manager
+- [ ] Uses KIO/KDE thumbnail framework (C++ plugin or Python via KF6)
+- [ ] Extract bitplane image from DiskObject using same decoder logic
+- [ ] Support Classic bitplane (2/4/8bp) and NewIcon (IM1= PNG)
+- [ ] Report icon type in file properties (WBTOOL/WBPROJECT/WBDRAWER etc)
+- [ ] Optional: context menu "View .info details" showing ToolTypes, DefaultTool, stack size
+- [ ] Package as .so thumbnail plugin for KDE6
+- [ ] Possible Python approach via dolphin-plugins or kio-extras extension

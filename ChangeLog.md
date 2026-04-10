@@ -1,3 +1,100 @@
+#this belongs in root /ChangeLog.md - Version: 36
+
+## April 2026 — DP5 Workshop: Builds 278-299
+
+### Build 299 — Amiga .info import rewritten from SDK docs
+- `_decode_amiga_info` v2: correct DiskObject/Gadget/Image struct offsets per official AmigaOS SDK
+- Reads Image.Depth from struct at `base+8` — handles 2bp/4bp/8bp correctly
+- DrawerData offset: 78 + (56 if do_DrawerData != NULL)
+- Bitplane data at `base + 20` (immediately after single Image struct, not after two)
+- Fallback depth: tries img_depth, then 4, then 2
+
+### Build 298 — Inline text, clash visualiser, character editor, sprite editor
+- `_CanvasTextOverlay`: floating widget on canvas at click point — type directly, Enter commits, Escape cancels. No dialog.
+- Colour clash visualiser (View menu, toggleable): red overlay on 8×8 cells with >2 colours — ZX Spectrum/C64/MSX
+- `_CharFontEditor`: 8×8 or 8×16 bit grid editor, 128-char set, shift/invert/clear, load binary, export binary/C header/ASM
+- `_CharGrid`: click+drag bit toggle widget
+- `_SpriteEditor`: slice canvas into sprite frames, platform presets (ZX/C64/Amiga/NES/Sega etc), zoom, export sprite sheet PNG
+- `_SpriteView`: zoomed sprite display with transparency checkerboard and pixel grid
+- TODO.md added to DP5_Workshop folder
+
+### Build 297 — Amiga PAL/NTSC/HiRes/RTG + canvas size fixes
+- Amiga platform submenu: OCS PAL/NTSC LowRes, OCS HiRes 640×256, OCS PAL interlace 320×512
+- ECS PAL/HiRes, AGA PAL/HiRes variants
+- RTG: 640×480, 800×600, 1024×768, 720×576 PAL broadcast, 720×480 NTSC broadcast
+- Fixed Atari 2600: 160×96 → 160×192 (correct NTSC kernel)
+- Fixed Atari 7800: 320×200 → 160×240 (correct NTSC)
+- Added NES 256×240, SNES 256×224, GB/GBC 160×144, GBA 240×160 canvas sizes
+- Added Mega Drive 320×224, Master System/SG-1000 256×192, Game Gear 160×144, PC Engine 256×240
+- Atari Falcon: added 640×480 hi-res variant
+- Nimbus: added 640×250 hi-res variant
+
+### Build 296 — ZX Spectrum family complete
+- Spectrum 128K, ZX Next L2 (320×256, 640×256), ZX Next ULA (256×192)
+- Timex TS2068 standard + HiRes 512×192 B&W mode (Bayer dither)
+- Pentagon (Soviet clone — identical to Spectrum)
+- Jupiter Ace (B&W Forth machine)
+- All with correct palettes, constraints, canvas presets
+
+### Build 295 — SNES/GBC/GBA correct 15-bit palettes
+- SNES: full 32768-colour palette with correct 5-bit scale (val*8+val//4)
+- GBC and GBA: same 32768-colour space as SNES (same S-PPU hardware)
+- Pixel grid visible at zoom ≥2 (was ≥4)
+- 9-bit colour space shared by ST/MD/MSX2/PCE documented and confirmed correct
+
+### Build 294 — Platform menu submenus + new machines
+- Platform menu reorganised into submenus: Amiga/Commodore/Sinclair-ZX/Atari/Amstrad/MSX/Other
+- Added: Atari 5200, 7800, Lynx 160×102, Falcon 320×200, Jaguar 320×240
+- Added: Amstrad CPC+ 4096col, PCW 720×256 green phosphor, NC100/200 480×128
+- Added: RM Nimbus 320×250 16-colour
+- PaletteGrid paint fix: no gap for cells <4px (invisible 2px cells fixed)
+- Status bar refreshes canvas size/colour profile on every _set_status call
+
+### Build 293 — Load button options + snap-to-canvas-size
+- Load button: left-click shows 4-option menu (was single action)
+- New: "Snap to pal, canvas size…" — resizes to canvas size then snaps
+- New: "Snap to pal, canvas size (dither)…" — same with dither picker
+- Fixed _apply_bit_depth: string mismatch "32bit" vs "32b" caused out_img unbound crash
+
+### Build 292b/c — Restore wiped methods + PIL fixes
+- Restored: _export_amiga_icon, _export_ico, _export_svg_icon, _export_tga, _export_dds, _export_pcx, _import_icns, _export_icns
+- Fixed: img.LANCZOS → Image.LANCZOS in _write_icns
+- Fixed: SVG buf walrus operator in batch convert
+
+### Build 292+ — Amiga .info + batch converters
+- Correct bitplane offset formula confirmed against icon collection
+- NewIcon IM1= ASCII-encoded format decoded
+- OS3.5 ICONFACE: clean "not supported" message
+- Batch Convert Icons: .info ↔ ICO ↔ ICNS ↔ PNG ↔ SVG
+- Batch Convert Textures: resize, power-of-two snap, DDS/TGA/PCX/PNG/BMP/JPG/TIFF
+
+### Build 291 — Hierarchical palette menu
+- User palette button: 12 family submenus (Amiga/Commodore/Sinclair/Atari/Amstrad/Acorn/Tandy/MSX/Nintendo/Sega/NEC/Other)
+
+### Build 290 — Two clear snap load options
+- File: "Snap to pal…" (hard) and "Snap to pal (dither)…" (asks method)
+- Picture: same two options for existing canvas
+- Palette dither hidden button removed — menu-only
+
+### Build 289 — Zoom right-click + IFF 24-bit
+- Zoom gadget right-click: Zoom In / Out / Box Zoom / Fit
+- Box zoom: drag cyan rectangle, zoom to fit selection
+- Custom IFF ILBM decoder: 24-bit true colour, HAM6/HAM8/EHB, PackBits
+
+### Builds 283-288 — Palettes and formats
+- 45 retro platform palettes with accurate hardware colour spaces
+- SNES, GBC, GBA, Sega GG, STe all corrected
+- Full 4096-colour palettes at 2px cells (STe, GG, Amiga OCS)
+- Full 32768-colour palettes at 1px cells (SNES, GBC, GBA)
+- Import: IFF, TIFF, GIF (animated→frames), TGA, PCX, DDS, PSD, Amiga .info, ICNS
+- Export: TGA, DDS BGRA8, PCX, ICNS multi-size
+
+### Builds 279-282 — Render As + palette fixes
+- Picture → Render As: ASCII art, ANSI blocks, PETSCII (C64), Teletext mosaic
+- ZX80/ZX81 palettes: B&W with correct constraints
+- NES, Game Boy, Mega Drive, SAM Coupé, MSX2, PC Engine, Apple II added
+- Amiga OCS, Amstrad CPC, Atari ST, Plus/4 all corrected to hardware-accurate values
+
 #this belongs in root /ChangeLog.md - Version: 35
 
 ## April 2026 — DP5 Workshop: Build 249–292b
