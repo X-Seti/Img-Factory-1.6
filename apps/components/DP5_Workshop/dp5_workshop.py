@@ -3632,6 +3632,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         fim.addAction("Apple ICNS…",                self._import_icns)
         fim.addAction("Windows ICO…",               self._import_ico)
         fim.addAction("SVG…",                       self._import_svg)
+        fm.addSeparator()
+        bm = fm.addMenu("Batch Convert")
+        bm.addAction("Icons…",    self._batch_convert_icons)
+        bm.addAction("Textures…", self._batch_convert_textures)
         fm.addAction("Save as PNG…",   self._export_bitmap)
         fm.addAction("Export IFF…",    self._export_iff)
         fm.addSeparator()
@@ -7960,367 +7964,470 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
             QMessageBox.warning(self, "PSD Import Error",
                 f"{e}\n\nFor PSD support install: pip install psd-tools")
 
-    def _import_amiga_info(self): #vers 1
-        """Import Amiga .info icon — extract first image plane."""
+    def _import_amiga_info(self): #vers 3
+        """Import Amiga .info icon — supports Classic bitplane and NewIcon-IM1 formats."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Import Amiga .info Icon", "",
             "Amiga Icon (*.info);;All Files (*)")
         if not path: return
         try:
             data = open(path, 'rb').read()
-            if data[0:2] != b'\xE3\x10':
-                raise ValueError("Not a valid Amiga DiskObject (.info file)")
-            # Parse DiskObject header
-            import struct
-            w = struct.unpack_from('>H', data, 12)[0]
-            h = struct.unpack_from('>H', data, 14)[0]
-            depth = struct.unpack_from('>H', data, 16)[0]
-            if w == 0 or h == 0 or depth == 0:
-                raise ValueError(f"Invalid dimensions: {w}×{h} depth={depth}")
-            # Read bitplane data after 78-byte header
-            plane_bytes = (w + 15) // 16 * 2
-            row_bytes = plane_bytes * depth
-            # OCS 4-colour palette for icons
-            icon_pal = [(0,0,0),(255,255,255),(85,170,255),(255,170,0)]
-            rgba = bytearray(w*h*4)
-            offset = 78
-            for y in range(h):
-                for x in range(w):
-                    px = 0
-                    for p in range(min(depth, 4)):
-                        byte_off = offset + y*row_bytes + p*plane_bytes + x//8
-                        if byte_off < len(data):
-                            bit = (data[byte_off] >> (7-(x%8))) & 1
-                            px |= bit << p
-                    c = icon_pal[px % len(icon_pal)]
-                    i = (y*w+x)*4
-                    rgba[i:i+4] = [c[0],c[1],c[2],255]
-            self._load_rgba(rgba, w, h, os.path.basename(path))
+            rgba, w, h, fmt = self._decode_amiga_info(data)
+            if rgba is None:
+                QMessageBox.warning(self, "Amiga Icon Import",
+                    f"Format not supported: {fmt}\n\n"
+                    "Supported: Classic bitplane, NewIcon (IM1=)\n"
+                    "Unsupported: OS3.5 ICONFACE, GlowIcon ARGB")
+                return
+            self._load_rgba(bytearray(rgba), w, h, f"{os.path.basename(path)} [{fmt}]")
         except Exception as e:
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
 
-    def _import_icns(self): #vers 1
-        """Import Apple ICNS icon — loads largest available size."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import Apple ICNS", "",
-            "ICNS (*.icns);;All Files (*)")
-        if not path: return
-        try:
+    def _decode_amiga_info(self, data: bytes): #vers 1
+        """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason)."""
+        import struct
+        if len(data) < 80 or data[0:2] != bytes([0xE3, 0x10]):
+            return None, 0, 0, "Not a valid .info file"
+        w = struct.unpack_from('>H', data, 12)[0]
+        h = struct.unpack_from('>H', data, 14)[0]
+        if w == 0 or h == 0 or w > 1024 or h > 1024:
+            return None, 0, 0, f"Invalid dimensions {w}x{h}"
+        AGA_WB = [
+            (0,0,0,0),(255,255,255,255),(85,170,255,255),(255,136,0,255),
+            (170,170,170,255),(0,0,170,255),(255,85,0,255),(170,0,170,255),
+            (85,85,85,255),(0,170,170,255),(170,85,0,255),(0,170,0,255),
+            (170,0,0,255),(0,85,170,255),(255,255,85,255),(255,85,85,255),
+        ]
+        if b'IM1=' in data:
+            try:
+                rgba = self._decode_newicon_im1(data, w, h)
+                if rgba: return rgba, w, h, 'NewIcon-IM1'
+            except Exception:
+                pass
+        if b':ICONFACE' in data:
+            return None, 0, 0, "OS3.5-ICONFACE (proprietary, not supported)"
+        drawer_ptr = struct.unpack_from('>I', data, 66)[0]
+        base = 78 + (56 if drawer_ptr else 0)
+        img_offset = base + 40
+        row_bytes = ((w + 15) // 16) * 2
+        depth = 4
+        needed = row_bytes * h * depth
+        if img_offset + needed > len(data):
+            depth = 2
+            needed = row_bytes * h * depth
+            if img_offset + needed > len(data):
+                return None, 0, 0, "File too small for bitplane data"
+        rgba = bytearray(w * h * 4)
+        for y in range(h):
+            for x in range(w):
+                px = 0
+                for p in range(depth):
+                    off = img_offset + p*(row_bytes*h) + y*row_bytes + x//8
+                    if off < len(data) and data[off] & (0x80 >> (x % 8)):
+                        px |= (1 << p)
+                c = AGA_WB[px % len(AGA_WB)]
+                i = (y*w+x)*4
+                rgba[i:i+4] = c
+        return bytes(rgba), w, h, f'Classic-{depth}bp'
+
+    def _decode_newicon_im1(self, data: bytes, w: int, h: int): #vers 1
+        """Decode NewIcon IM1=/IM2= encoded image from ToolTypes."""
+        import re
+        chunks = []
+        for m in re.finditer(rb'IM\d=([^\x00]+)', data):
+            chunks.append(m.group(1))
+        if not chunks: return None
+        raw = b''.join(chunks)
+        decoded = bytes(b - 0x21 for b in raw if b >= 0x21)
+        if len(decoded) < 4: return None
+        n_col = decoded[0]
+        if len(decoded) < 1 + n_col*3: return None
+        pal = []
+        for i in range(n_col):
+            r,g,b = decoded[1+i*3], decoded[2+i*3], decoded[3+i*3]
+            pal.append((r*4, g*4, b*4, 0 if i==0 else 255))
+        px_data = decoded[1+n_col*3:]
+        rgba = bytearray(w*h*4)
+        for i in range(min(w*h, len(px_data))):
+            c = pal[px_data[i] % len(pal)]
+            rgba[i*4:i*4+4] = c
+        return bytes(rgba)
+
+    # ── Batch Converters ──────────────────────────────────────────────────────
+
+    def _batch_convert_icons(self): #vers 1
+        """Batch convert icons between formats — asks source dir, formats, output dir."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                     QComboBox, QPushButton, QFileDialog,
+                                     QLineEdit, QProgressBar, QTextEdit)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Batch Convert Icons")
+        dlg.setMinimumWidth(480)
+        vl = QVBoxLayout(dlg)
+
+        # Source
+        hl_src = QHBoxLayout()
+        src_edit = QLineEdit(); src_edit.setPlaceholderText("Source folder…")
+        src_btn  = QPushButton("Browse…")
+        src_btn.clicked.connect(lambda: src_edit.setText(
+            QFileDialog.getExistingDirectory(dlg, "Source folder")))
+        hl_src.addWidget(QLabel("From:")); hl_src.addWidget(src_edit); hl_src.addWidget(src_btn)
+        vl.addLayout(hl_src)
+
+        # Input format
+        hl_ifmt = QHBoxLayout()
+        ifmt = QComboBox()
+        ifmt.addItems(["Amiga .info","Windows ICO","Apple ICNS","PNG","BMP","SVG","Any image"])
+        hl_ifmt.addWidget(QLabel("Input format:")); hl_ifmt.addWidget(ifmt)
+        vl.addLayout(hl_ifmt)
+
+        # Output format
+        hl_ofmt = QHBoxLayout()
+        ofmt = QComboBox()
+        ofmt.addItems(["PNG","BMP","ICO (Windows)","ICNS (Apple)","Amiga .info","TGA","SVG"])
+        hl_ofmt.addWidget(QLabel("Output format:")); hl_ofmt.addWidget(ofmt)
+        vl.addLayout(hl_ofmt)
+
+        # Destination
+        hl_dst = QHBoxLayout()
+        dst_edit = QLineEdit(); dst_edit.setPlaceholderText("Output folder…")
+        dst_btn  = QPushButton("Browse…")
+        dst_btn.clicked.connect(lambda: dst_edit.setText(
+            QFileDialog.getExistingDirectory(dlg, "Output folder")))
+        hl_dst.addWidget(QLabel("To:"))
+        hl_dst.addWidget(dst_edit)
+        hl_dst.addWidget(dst_btn)
+        vl.addLayout(hl_dst)
+
+        # Progress + log
+        prog  = QProgressBar(); prog.setValue(0)
+        log   = QTextEdit(); log.setReadOnly(True); log.setFixedHeight(120)
+        vl.addWidget(prog); vl.addWidget(log)
+
+        # Buttons
+        hl_btn = QHBoxLayout()
+        run_btn = QPushButton("Convert"); can_btn = QPushButton("Close")
+        can_btn.clicked.connect(dlg.reject)
+        hl_btn.addStretch(); hl_btn.addWidget(run_btn); hl_btn.addWidget(can_btn)
+        vl.addLayout(hl_btn)
+
+        def run():
+            src = src_edit.text(); dst = dst_edit.text()
+            if not src or not dst:
+                log.append("ERROR: set source and output folders"); return
+            import os, io
             from PIL import Image
-            img = Image.open(path)
-            # PIL returns the largest size for ICNS
-            img = img.convert('RGBA')
-            self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
-                           os.path.basename(path))
-        except Exception as e:
-            QMessageBox.warning(self, "ICNS Import Error",
-                f"{e}\n\nICNS requires: pip install Pillow (with ICNS support)")
 
-    def _export_icns(self): #vers 1
-        """Export Apple ICNS — macOS icon bundle with multiple sizes."""
-        if not self.dp5_canvas: return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Apple ICNS", "icon.icns", "ICNS (*.icns)")
-        if not path: return
-        try:
+            EXT_MAP = {
+                "Amiga .info":  [".info"],
+                "Windows ICO":  [".ico"],
+                "Apple ICNS":   [".icns"],
+                "PNG":          [".png"],
+                "BMP":          [".bmp"],
+                "SVG":          [".svg"],
+                "Any image":    [".png",".bmp",".jpg",".jpeg",".tga",
+                                 ".tiff",".gif",".ico",".icns",".info",
+                                 ".dds",".pcx"],
+            }
+            OUT_EXT = {
+                "PNG": ".png", "BMP": ".bmp",
+                "ICO (Windows)": ".ico", "ICNS (Apple)": ".icns",
+                "Amiga .info": ".info", "TGA": ".tga", "SVG": ".svg",
+            }
+
+            exts   = EXT_MAP[ifmt.currentText()]
+            out_e  = OUT_EXT[ofmt.currentText()]
+            files  = [f for f in os.listdir(src)
+                      if os.path.splitext(f)[1].lower() in exts]
+            if not files:
+                log.append(f"No matching files found in {src}"); return
+
+            prog.setMaximum(len(files)); prog.setValue(0)
+            ok = err = 0
+
+            for idx, fname in enumerate(files):
+                prog.setValue(idx)
+                QApplication.processEvents()
+                src_path = os.path.join(src, fname)
+                base = os.path.splitext(fname)[0]
+                dst_path = os.path.join(dst, base + out_e)
+                try:
+                    # Load
+                    fdata = open(src_path,'rb').read()
+                    if fname.lower().endswith('.info'):
+                        rgba, w, h, fmt_name = self._decode_amiga_info(fdata)
+                        if rgba is None:
+                            log.append(f"SKIP {fname}: {fmt_name}"); err+=1; continue
+                        img = Image.frombytes('RGBA',(w,h),rgba)
+                    elif fname.lower().endswith('.svg'):
+                        from PyQt6.QtSvg import QSvgRenderer
+                        from PyQt6.QtGui import QPainter, QPixmap
+                        from PyQt6.QtCore import QSize
+                        r = QSvgRenderer(fdata)
+                        sz = r.defaultSize()
+                        px = QPixmap(sz)
+                        px.fill(Qt.GlobalColor.transparent)
+                        p = QPainter(px); r.render(p); p.end()
+                        buf = io.BytesIO()
+                        px.toImage().save(buf := io.BytesIO(), 'PNG')  # type: ignore
+                        img = Image.open(buf).convert('RGBA')
+                    else:
+                        img = Image.open(src_path).convert('RGBA')
+
+                    # Save
+                    if out_e == '.info':
+                        # Export as Amiga icon at original size
+                        tmp_w, tmp_h = img.size
+                        tmp_canvas = img.tobytes()
+                        self._write_amiga_info(dst_path, tmp_canvas, tmp_w, tmp_h)
+                    elif out_e == '.ico':
+                        sizes = [s for s in [16,32,48,64,128,256] if s <= max(img.size)*2]
+                        frames = [img.resize((s,s),Image.LANCZOS) for s in sizes]
+                        frames[0].save(dst_path,'ICO',sizes=[(s,s) for s in sizes],
+                                       append_images=frames[1:])
+                    elif out_e == '.icns':
+                        self._write_icns(dst_path, img)
+                    elif out_e == '.svg':
+                        w2,h2 = img.size
+                        import base64, io as _io
+                        buf2 = _io.BytesIO()
+                        img.save(buf2,'PNG'); b64 = base64.b64encode(buf2.getvalue()).decode()
+                        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" '
+                               f'width="{w2}" height="{h2}">'
+                               f'<image width="{w2}" height="{h2}" '
+                               f'href="data:image/png;base64,{b64}"/></svg>')
+                        open(dst_path,'w').write(svg)
+                    else:
+                        img.save(dst_path)
+
+                    log.append(f"OK  {fname} → {os.path.basename(dst_path)}")
+                    ok += 1
+                except Exception as ex:
+                    log.append(f"ERR {fname}: {ex}"); err += 1
+
+            prog.setValue(len(files))
+            log.append(f"\nDone: {ok} converted, {err} skipped/errors")
+
+        run_btn.clicked.connect(run)
+        dlg.exec()
+
+    def _batch_convert_textures(self): #vers 1
+        """Batch convert textures between formats with optional resize."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                     QComboBox, QPushButton, QFileDialog,
+                                     QLineEdit, QProgressBar, QTextEdit,
+                                     QCheckBox, QSpinBox)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Batch Convert Textures")
+        dlg.setMinimumWidth(480)
+        vl = QVBoxLayout(dlg)
+
+        # Source
+        hl_src = QHBoxLayout()
+        src_edit = QLineEdit(); src_edit.setPlaceholderText("Source folder…")
+        src_btn  = QPushButton("Browse…")
+        src_btn.clicked.connect(lambda: src_edit.setText(
+            QFileDialog.getExistingDirectory(dlg, "Source folder")))
+        hl_src.addWidget(QLabel("From:")); hl_src.addWidget(src_edit); hl_src.addWidget(src_btn)
+        vl.addLayout(hl_src)
+
+        # Input format
+        hl_ifmt = QHBoxLayout()
+        ifmt = QComboBox()
+        ifmt.addItems(["Any image","PNG","BMP","TGA","DDS","JPG","TIFF","PCX","Any"])
+        hl_ifmt.addWidget(QLabel("Input:")); hl_ifmt.addWidget(ifmt)
+        vl.addLayout(hl_ifmt)
+
+        # Output format
+        hl_ofmt = QHBoxLayout()
+        ofmt = QComboBox()
+        ofmt.addItems(["PNG","BMP","TGA","DDS","JPG","TIFF","PCX"])
+        hl_ofmt.addWidget(QLabel("Output:")); hl_ofmt.addWidget(ofmt)
+        vl.addLayout(hl_ofmt)
+
+        # Resize option
+        hl_sz = QHBoxLayout()
+        resize_chk = QCheckBox("Resize to:")
+        sz_w = QSpinBox(); sz_w.setRange(1,4096); sz_w.setValue(256)
+        sz_h = QSpinBox(); sz_h.setRange(1,4096); sz_h.setValue(256)
+        resize_chk.toggled.connect(lambda v: (sz_w.setEnabled(v), sz_h.setEnabled(v)))
+        sz_w.setEnabled(False); sz_h.setEnabled(False)
+        hl_sz.addWidget(resize_chk); hl_sz.addWidget(sz_w)
+        hl_sz.addWidget(QLabel("×")); hl_sz.addWidget(sz_h)
+        hl_sz.addStretch()
+        vl.addLayout(hl_sz)
+
+        # Power-of-two snap
+        pot_chk = QCheckBox("Snap to nearest power-of-two")
+        vl.addWidget(pot_chk)
+
+        # Destination
+        hl_dst = QHBoxLayout()
+        dst_edit = QLineEdit(); dst_edit.setPlaceholderText("Output folder…")
+        dst_btn  = QPushButton("Browse…")
+        dst_btn.clicked.connect(lambda: dst_edit.setText(
+            QFileDialog.getExistingDirectory(dlg, "Output folder")))
+        hl_dst.addWidget(QLabel("To:"))
+        hl_dst.addWidget(dst_edit)
+        hl_dst.addWidget(dst_btn)
+        vl.addLayout(hl_dst)
+
+        prog = QProgressBar(); log = QTextEdit()
+        log.setReadOnly(True); log.setFixedHeight(120)
+        vl.addWidget(prog); vl.addWidget(log)
+
+        hl_btn = QHBoxLayout()
+        run_btn = QPushButton("Convert"); can_btn = QPushButton("Close")
+        can_btn.clicked.connect(dlg.reject)
+        hl_btn.addStretch(); hl_btn.addWidget(run_btn); hl_btn.addWidget(can_btn)
+        vl.addLayout(hl_btn)
+
+        def nearest_pot(n):
+            p = 1
+            while p < n: p <<= 1
+            return p if (p-n) < (n-p//2) else p//2
+
+        def run():
+            src = src_edit.text(); dst = dst_edit.text()
+            if not src or not dst:
+                log.append("ERROR: set source and output folders"); return
+            import os, struct
             from PIL import Image
-            import struct, io
-            img = self._get_canvas_pil()
-            # ICNS format: 4-byte type + 4-byte size (big-endian) + data
-            # Standard sizes and their type codes
-            sizes = [
-                (16,  b'icp4'), (32,  b'icp5'), (64,  b'icp6'),
-                (128, b'ic07'), (256, b'ic08'), (512, b'ic09'),
-                (1024,b'ic10'),
-            ]
-            chunks = bytearray()
-            for sz, code in sizes:
-                if sz <= max(self._canvas_width, self._canvas_height) * 2:
-                    frame = img.resize((sz, sz), Image.LANCZOS)
-                    buf = io.BytesIO()
-                    frame.save(buf, 'PNG')
-                    png_data = buf.getvalue()
-                    chunk_size = 8 + len(png_data)
-                    chunks += code + struct.pack('>I', chunk_size) + png_data
-            total = 8 + len(chunks)
-            icns = b'icns' + struct.pack('>I', total) + bytes(chunks)
-            open(path, 'wb').write(icns)
-            self._set_status(f"Exported ICNS: {os.path.basename(path)}")
-        except Exception as e:
-            QMessageBox.warning(self, "ICNS Export Error", str(e))
 
-    def _export_tga(self): #vers 1
-        """Export TGA (Targa) — uncompressed RGBA."""
-        if not self.dp5_canvas: return
-        w, h = self._canvas_width, self._canvas_height
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export TGA", f"texture_{w}x{h}.tga", "TGA (*.tga)")
-        if not path: return
-        try:
-            self._get_canvas_pil().save(path, 'TGA')
-            self._set_status(f"Exported TGA: {os.path.basename(path)}")
-        except Exception as e:
-            QMessageBox.warning(self, "TGA Export Error", str(e))
+            EXT_MAP = {
+                "Any image": [".png",".bmp",".tga",".dds",".jpg",".jpeg",
+                              ".tiff",".tif",".pcx",".gif",".webp"],
+                "PNG":  [".png"], "BMP":  [".bmp"], "TGA":  [".tga"],
+                "DDS":  [".dds"], "JPG":  [".jpg",".jpeg"],
+                "TIFF": [".tiff",".tif"], "PCX":  [".pcx"], "Any": [".png",".bmp",".tga",".dds",".jpg",".jpeg",".tiff",".tif",".pcx"],
+            }
+            OUT_EXT = {"PNG":".png","BMP":".bmp","TGA":".tga","DDS":".dds",
+                       "JPG":".jpg","TIFF":".tiff","PCX":".pcx"}
 
-    def _export_dds(self): #vers 1
-        """Export DDS (DirectDraw Surface) — uncompressed RGBA8."""
-        if not self.dp5_canvas: return
-        w, h = self._canvas_width, self._canvas_height
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export DDS", f"texture_{w}x{h}.dds", "DDS (*.dds)")
-        if not path: return
-        try:
-            import struct
-            # Write minimal DDS header (DXT not compressed — RGBA8)
-            rgba = bytes(self.dp5_canvas.rgba)
-            # DDS header: 128 bytes
-            hdr = bytearray(128)
-            hdr[0:4]   = b'DDS '
-            struct.pack_into('>I', hdr, 4, 124)   # header size
-            # Flags: CAPS|HEIGHT|WIDTH|PIXELFORMAT|LINEARSIZE
-            struct.pack_into('<I', hdr, 8, 0x00021007)
-            struct.pack_into('<I', hdr, 12, h)     # height
-            struct.pack_into('<I', hdr, 16, w)     # width
-            struct.pack_into('<I', hdr, 20, w*4)   # pitch
-            struct.pack_into('<I', hdr, 28, 1)     # mip count
-            # Pixel format at offset 76
-            struct.pack_into('<I', hdr, 76, 32)    # pfSize
-            struct.pack_into('<I', hdr, 80, 0x41)  # pfFlags: ALPHA|RGB
-            struct.pack_into('<I', hdr, 88, 32)    # RGB bit count
-            struct.pack_into('<I', hdr, 92, 0x00FF0000)  # R mask
-            struct.pack_into('<I', hdr, 96, 0x0000FF00)  # G mask
-            struct.pack_into('<I', hdr, 100, 0x000000FF) # B mask
-            struct.pack_into('<I', hdr, 104, 0xFF000000) # A mask
-            struct.pack_into('<I', hdr, 108, 0x00001000) # caps: TEXTURE
-            # Swap RGBA → BGRA for DDS
-            bgra = bytearray(len(rgba))
-            for i in range(0, len(rgba), 4):
-                bgra[i]   = rgba[i+2]
-                bgra[i+1] = rgba[i+1]
-                bgra[i+2] = rgba[i]
-                bgra[i+3] = rgba[i+3]
-            open(path, 'wb').write(bytes(hdr) + bytes(bgra))
-            self._set_status(f"Exported DDS: {os.path.basename(path)}")
-        except Exception as e:
-            QMessageBox.warning(self, "DDS Export Error", str(e))
+            exts  = EXT_MAP[ifmt.currentText()]
+            out_e = OUT_EXT[ofmt.currentText()]
+            do_resize = resize_chk.isChecked()
+            do_pot    = pot_chk.isChecked()
+            files = [f for f in os.listdir(src)
+                     if os.path.splitext(f)[1].lower() in exts]
+            if not files:
+                log.append("No matching files found"); return
 
-    def _export_pcx(self): #vers 1
-        """Export PCX — classic DOS bitmap."""
-        if not self.dp5_canvas: return
-        w, h = self._canvas_width, self._canvas_height
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export PCX", f"image_{w}x{h}.pcx", "PCX (*.pcx)")
-        if not path: return
-        try:
-            self._get_canvas_pil().convert('RGB').save(path, 'PCX')
-            self._set_status(f"Exported PCX: {os.path.basename(path)}")
-        except Exception as e:
-            QMessageBox.warning(self, "PCX Export Error", str(e))
+            prog.setMaximum(len(files)); prog.setValue(0)
+            ok = err = 0
 
-    def _export_ico(self): #vers 1
-        """Export Windows ICO — multiple sizes embedded (16,32,48,64,128,256)."""
-        if not self.dp5_canvas: return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Windows ICO", "icon.ico", "ICO (*.ico)")
-        if not path: return
-        try:
-            from PIL import Image
-            img = self._get_canvas_pil()
-            sizes = [s for s in [16,32,48,64,128,256]
-                     if s <= min(self._canvas_width, self._canvas_height)]
-            if not sizes: sizes = [16]
-            # PIL saves ICO with multiple sizes from one image
-            frames = [img.resize((s,s), Image.LANCZOS) for s in sizes]
-            frames[0].save(path, format='ICO', sizes=[(s,s) for s in sizes],
-                           append_images=frames[1:])
-            self._set_status(f"Exported ICO: {os.path.basename(path)}  sizes:{sizes}")
-        except Exception as e:
-            QMessageBox.warning(self, "ICO Export Error", str(e))
+            for idx, fname in enumerate(files):
+                prog.setValue(idx)
+                QApplication.processEvents()
+                src_path = os.path.join(src, fname)
+                base = os.path.splitext(fname)[0]
+                dst_path = os.path.join(dst, base + out_e)
+                try:
+                    img = Image.open(src_path).convert('RGBA')
+                    w2, h2 = img.size
 
-    def _export_svg_icon(self): #vers 1
-        """Export Linux/Web SVG icon — embeds canvas as base64 PNG inside SVG."""
-        if not self.dp5_canvas: return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export SVG Icon", "icon.svg", "SVG (*.svg)")
-        if not path: return
-        try:
-            import base64, io
-            from PIL import Image
-            img = self._get_canvas_pil()
-            buf = io.BytesIO()
-            img.save(buf, format='PNG')
-            b64 = base64.b64encode(buf.getvalue()).decode()
-            w, h = self._canvas_width, self._canvas_height
-            svg = f'''<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="{w}" height="{h}" viewBox="0 0 {w} {h}">
-  <image width="{w}" height="{h}" xlink:href="data:image/png;base64,{b64}"/>
-</svg>'''
-            open(path, 'w').write(svg)
-            self._set_status(f"Exported SVG: {os.path.basename(path)}")
-        except Exception as e:
-            QMessageBox.warning(self, "SVG Export Error", str(e))
+                    if do_resize:
+                        w2, h2 = sz_w.value(), sz_h.value()
+                    if do_pot:
+                        w2, h2 = nearest_pot(w2), nearest_pot(h2)
+                    if (w2, h2) != img.size:
+                        img = img.resize((w2, h2), Image.LANCZOS)
 
-    def _export_amiga_icon(self): #vers 2
-        """Export Amiga .info DiskObject — any canvas size, 2-4 bitplanes, correct structure."""
-        if not self.dp5_canvas: return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Amiga Icon", "icon.info", "Amiga Icon (*.info)")
-        if not path: return
-        try:
-            import struct
-            from PIL import Image
-            w, h = self._canvas_width, self._canvas_height
-            img = self._get_canvas_pil().convert('RGB')
+                    if out_e == '.dds':
+                        rgba = img.convert('RGBA').tobytes()
+                        bgra = bytearray(len(rgba))
+                        for i in range(0,len(rgba),4):
+                            bgra[i]=rgba[i+2]; bgra[i+1]=rgba[i+1]
+                            bgra[i+2]=rgba[i]; bgra[i+3]=rgba[i+3]
+                        hdr = bytearray(128)
+                        hdr[0:4] = b'DDS '
+                        struct.pack_into('<I',hdr,4,124)
+                        struct.pack_into('<I',hdr,8,0x00021007)
+                        struct.pack_into('<I',hdr,12,h2)
+                        struct.pack_into('<I',hdr,16,w2)
+                        struct.pack_into('<I',hdr,20,w2*4)
+                        struct.pack_into('<I',hdr,28,1)
+                        struct.pack_into('<I',hdr,76,32)
+                        struct.pack_into('<I',hdr,80,0x41)
+                        struct.pack_into('<I',hdr,88,32)
+                        struct.pack_into('<I',hdr,92,0x00FF0000)
+                        struct.pack_into('<I',hdr,96,0x0000FF00)
+                        struct.pack_into('<I',hdr,100,0x000000FF)
+                        struct.pack_into('<I',hdr,104,0xFF000000)
+                        struct.pack_into('<I',hdr,108,0x00001000)
+                        open(dst_path,'wb').write(bytes(hdr)+bytes(bgra))
+                    elif out_e == '.jpg':
+                        img.convert('RGB').save(dst_path,'JPEG',quality=92)
+                    else:
+                        img.save(dst_path)
 
-            # Quantize to 4 colours (2 bitplanes) — standard WB icon palette
-            WB_PAL = [(0,0,0),(255,255,255),(85,170,255),(255,136,0)]
-            pal_img = Image.new('P', (1,1))
-            flat = sum([list(c) for c in WB_PAL], []) + [0]*756
-            pal_img.putpalette(flat)
-            q = img.quantize(palette=pal_img, dither=0)
-            pixels = list(q.getdata())
-            n_planes = 2
+                    log.append(f"OK  {fname} → {os.path.basename(dst_path)}  ({w2}×{h2})")
+                    ok += 1
+                except Exception as ex:
+                    log.append(f"ERR {fname}: {ex}"); err += 1
 
-            # Pack bitplanes — word-aligned rows
-            row_words = (w + 15) // 16
-            row_bytes = row_words * 2
-            planes = [bytearray(row_bytes * h) for _ in range(n_planes)]
-            for y in range(h):
-                for x in range(w):
-                    px = pixels[y*w+x] & 3
-                    for p in range(n_planes):
-                        if (px >> p) & 1:
-                            byte_off = y*row_bytes + x//8
-                            planes[p][byte_off] |= 0x80 >> (x % 8)
+            prog.setValue(len(files))
+            log.append(f"\nDone: {ok} converted, {err} errors")
 
-            image_data = b''.join(bytes(pl) for pl in planes)
+        run_btn.clicked.connect(run)
+        dlg.exec()
 
-            # Build full DiskObject structure (78 bytes)
-            # struct DiskObject { UWORD magic; UWORD version; struct Gadget gadget;
-            #                     UBYTE type; ... }
-            # struct Gadget is 44 bytes starting at offset 4
-            do = bytearray(78)
-            struct.pack_into('>H', do, 0,  0xE310)   # WB_MAGIC
-            struct.pack_into('>H', do, 2,  1)         # version
-            # Gadget struct at offset 4:
-            # NextGadget(4) Left(2) Top(2) Width(2) Height(2)
-            # Flags(2) Activation(2) GadgetType(2)
-            # GadgetRender(4) SelectRender(4) GadgetText(4)
-            # MutualExclude(4) SpecialInfo(4) GadgetID(2) UserData(4)
-            struct.pack_into('>H', do, 12, w)          # Width
-            struct.pack_into('>H', do, 14, h)          # Height
-            struct.pack_into('>H', do, 16, 0x0006)     # Flags: GADGHCOMP|GADGIMAGE
-            struct.pack_into('>H', do, 20, 0x0001)     # GadgetType: BOOLGADGET
-            # GadgetRender ptr placeholder (non-null so WB reads it)
-            struct.pack_into('>I', do, 22, 0x00000001)
-            # Type = WBPROJECT (3) at offset 48
-            do[48] = 3
-            # DefaultTool ptr = NULL (50-53)
-            # ToolTypes ptr = NULL (54-57)
-            # CurrentX/Y = NO_ICON_POSITION
-            struct.pack_into('>i', do, 58, 0x80000000)  # CurrentX = NO_ICON_POSITION
-            struct.pack_into('>i', do, 62, 0x80000000)  # CurrentY
+    def _write_amiga_info(self, path: str, rgba: bytes, w: int, h: int): #vers 1
+        """Write Amiga .info DiskObject from RGBA pixel data."""
+        import struct
+        from PIL import Image
+        img = Image.frombytes('RGBA',(w,h),rgba).convert('RGB')
+        WB_PAL = [(0,0,0),(255,255,255),(85,170,255),(255,136,0),
+                  (170,170,170),(0,0,170),(255,85,0),(170,0,170),
+                  (85,85,85),(0,170,170),(170,85,0),(0,170,0),
+                  (170,0,0),(0,85,170),(255,255,85),(255,85,85)]
+        pal_img = Image.new('P',(1,1))
+        flat = sum([list(c) for c in WB_PAL],[]) + [0]*720
+        pal_img.putpalette(flat)
+        q = img.quantize(palette=pal_img, dither=0)
+        pixels = list(q.getdata())
+        n_planes = 4
+        row_bytes = ((w+15)//16)*2
+        planes = [bytearray(row_bytes*h) for _ in range(n_planes)]
+        for y in range(h):
+            for x in range(w):
+                px = pixels[y*w+x] & 15
+                for p in range(n_planes):
+                    if (px>>p)&1:
+                        planes[p][y*row_bytes+x//8] |= 0x80>>(x%8)
+        do = bytearray(78)
+        struct.pack_into('>H',do,0,0xE310)
+        struct.pack_into('>H',do,2,1)
+        struct.pack_into('>H',do,12,w)
+        struct.pack_into('>H',do,14,h)
+        struct.pack_into('>H',do,16,0x0006)
+        struct.pack_into('>H',do,20,0x0001)
+        struct.pack_into('>I',do,22,0x00000001)
+        do[48]=3
+        struct.pack_into('>i',do,58,0x80000000)
+        struct.pack_into('>i',do,62,0x80000000)
+        img_hdr = bytearray(40)
+        struct.pack_into('>H',img_hdr,4,w)
+        struct.pack_into('>H',img_hdr,6,h)
+        struct.pack_into('>H',img_hdr,8,n_planes)
+        img_hdr[12] = (1<<n_planes)-1
+        open(path,'wb').write(bytes(do)+bytes(img_hdr)+b''.join(bytes(p) for p in planes))
 
-            # ImageData structure (40 bytes) follows DiskObject
-            img_hdr = bytearray(40)
-            struct.pack_into('>H', img_hdr, 4, w)        # Width (in words)
-            struct.pack_into('>H', img_hdr, 6, h)        # Height
-            struct.pack_into('>H', img_hdr, 8, n_planes) # Depth
-            # PlanePick = all planes, PlaneOnOff = 0
-            img_hdr[12] = (1 << n_planes) - 1
-
-            out = bytes(do) + bytes(img_hdr) + image_data
-            open(path, 'wb').write(out)
-            self._set_status(
-                f"Exported Amiga icon: {os.path.basename(path)}  {w}×{h} {n_planes}bp")
-        except Exception as e:
-            QMessageBox.warning(self, "Amiga Icon Export Error", str(e))
-
-    def _import_amiga_info(self): #vers 2
-        """Import Amiga .info — handles classic DiskObject bitplane icons and NewIcon PNG."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import Amiga .info Icon", "",
-            "Amiga Icon (*.info);;All Files (*)")
-        if not path: return
-        try:
-            import struct
-            data = open(path, 'rb').read()
-
-            if len(data) < 4:
-                raise ValueError("File too small")
-            if data[0:2] != b'\xE3\x10':
-                raise ValueError("Not an Amiga DiskObject (.info) — magic bytes not found")
-
-            # ── Try NewIcon first (PNG embedded in ToolTypes) ────────────────
-            # NewIcon stores PNG data in IM1/IM2 ToolType strings
-            # Search for PNG header in file
-            png_sig = b'\x89PNG\r\n\x1a\n'
-            png_off = data.find(png_sig)
-            if png_off != -1:
-                # Find end of PNG (IEND chunk)
-                iend = data.find(b'IEND', png_off)
-                if iend != -1:
-                    png_end = iend + 8
-                    png_data = data[png_off:png_end]
-                    import io
-                    from PIL import Image
-                    img = Image.open(io.BytesIO(png_data)).convert('RGBA')
-                    self._load_rgba(bytearray(img.tobytes()), img.width, img.height,
-                                   os.path.basename(path) + " [NewIcon]")
-                    return
-
-            # ── Classic DiskObject bitplane icon ────────────────────────────
-            # DiskObject is 78 bytes, then ImageData struct (if GadgetRender != NULL)
-            # Gadget.Width at offset 12, Gadget.Height at 14
-            w = struct.unpack_from('>H', data, 12)[0]
-            h = struct.unpack_from('>H', data, 14)[0]
-
-            if w == 0 or h == 0 or w > 1024 or h > 1024:
-                raise ValueError(f"Invalid or unsupported dimensions: {w}×{h}")
-
-            # ImageData struct starts at offset 78
-            # struct Image { SHORT LeftEdge, TopEdge, Width, Height, Depth;
-            #                UWORD *ImageData; UBYTE PlanePick, PlaneOnOff;
-            #                struct Image *NextImage; } — 20 bytes
-            img_off = 78
-            if img_off + 20 > len(data):
-                raise ValueError("File truncated before ImageData")
-
-            depth = struct.unpack_from('>H', img_off + 8, data)[0] if False else \
-                    struct.unpack_from('>H', data, img_off + 8)[0]
-            depth = max(1, min(depth, 8))
-
-            # Bitplane data starts after 20-byte Image struct... but
-            # many tools put ImageData immediately after DiskObject (offset 78+20=98)
-            # and some put it at 78. Use depth from Image struct.
-            plane_off = img_off + 20
-            row_bytes = ((w + 15) // 16) * 2
-
-            # Standard 4-colour WB icon palette
-            WB_PAL = [
-                (0,0,0),(255,255,255),(85,170,255),(255,136,0),
-                (170,170,170),(0,0,170),(255,85,0),(170,0,170),
-            ]
-
-            rgba = bytearray(w * h * 4)
-            for y in range(h):
-                for x in range(w):
-                    px = 0
-                    for p in range(depth):
-                        off = plane_off + p * (row_bytes * h) + y * row_bytes + x // 8
-                        if off < len(data):
-                            if data[off] & (0x80 >> (x % 8)):
-                                px |= (1 << p)
-                    c = WB_PAL[px % len(WB_PAL)]
-                    i = (y * w + x) * 4
-                    rgba[i:i+4] = [c[0], c[1], c[2], 255]
-
-            self._load_rgba(rgba, w, h, os.path.basename(path))
-        except Exception as e:
-            QMessageBox.warning(self, "Amiga Info Import Error",
-                f"{e}\n\nNote: Some .info files use proprietary formats\n"
-                f"(MagicWB, GlowIcon) that may not load correctly.")
+    def _write_icns(self, path: str, img): #vers 1
+        """Write Apple ICNS file from PIL image."""
+        import struct, io
+        sizes = [(16,b'icp4'),(32,b'icp5'),(64,b'icp6'),
+                 (128,b'ic07'),(256,b'ic08'),(512,b'ic09'),(1024,b'ic10')]
+        chunks = bytearray()
+        for sz, code in sizes:
+            frame = img.resize((sz,sz), img.LANCZOS)
+            buf = io.BytesIO(); frame.save(buf,'PNG')
+            png = buf.getvalue()
+            chunks += code + struct.pack('>I', 8+len(png)) + png
+        total = 8+len(chunks)
+        open(path,'wb').write(b'icns'+struct.pack('>I',total)+bytes(chunks))
 
     def _import_ico(self): #vers 1
         """Import Windows ICO — load largest frame into canvas."""
