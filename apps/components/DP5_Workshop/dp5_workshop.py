@@ -8839,11 +8839,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         from PyQt6.QtWidgets import QLabel
         from PyQt6.QtGui import QPixmap, QPainter, QColor
 
-        preview = QLabel()
-        preview.setFixedSize(96, 96)
-        preview.setStyleSheet("background: #222; border: 1px solid #555;")
-        vl.addWidget(preview)
-
         # Buttons
         hl_btn = QHBoxLayout()
         run_btn = QPushButton("Convert"); can_btn = QPushButton("Close")
@@ -8897,7 +8892,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
                 try:
                     fname = os.path.basename(path)
-                    img = Image.open(path).convert("RGBA")
+                    ext = os.path.splitext(fname)[1].lower()
+
+                    # Route .info through our own decoder; PIL can't handle it
+                    if ifmt.currentText().startswith("Amiga .info") or ext == ".info":
+                        pal_mode = "wb39"
+                        out_fmt = ofmt.currentText()
+                        if "MagicWB" in out_fmt: pal_mode = "magicwb"
+                        elif "OCS"    in out_fmt: pal_mode = "ocs"
+                        elif "XL"     in out_fmt: pal_mode = "wb39xl"
+                        raw_data = open(path, "rb").read()
+                        rgba_bytes, iw, ih, fmt_name = self._decode_amiga_info(raw_data, pal_mode)
+                        if rgba_bytes is None:
+                            log.append(f"SKIP {fname}: {fmt_name}"); continue
+                        img = Image.frombytes("RGBA", (iw, ih), bytes(rgba_bytes))
+                    else:
+                        img = Image.open(path).convert("RGBA")
 
                     preview_name.setText(fname)
                     update_preview(img)  # BEFORE
@@ -8928,13 +8938,25 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                     if alpha_chk.isChecked():
                         img = self._apply_palette0_alpha(img)
 
-                    # Output path (preserve structure)
+                    # Output path (preserve structure), fix extension
                     rel = os.path.relpath(path, src)
                     out_path = os.path.join(dst, rel)
+                    out_fmt_str = ofmt.currentText()
+                    ext_map = {
+                        "PNG": ".png", "BMP": ".bmp", "TGA": ".tga",
+                        "ICO (Windows)": ".ico", "ICNS (Apple)": ".icns", "SVG": ".svg",
+                    }
+                    for fmt_label, new_ext in ext_map.items():
+                        if out_fmt_str == fmt_label:
+                            out_path = os.path.splitext(out_path)[0] + new_ext
+                            break
+                    else:
+                        if out_fmt_str.startswith("Amiga .info"):
+                            out_path = os.path.splitext(out_path)[0] + ".info"
                     os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
                     # Save
-                    if ofmt.currentText().startswith("Amiga .info"):
+                    if out_fmt_str.startswith("Amiga .info"):
                         self._write_amiga_info(out_path, img.tobytes(), *img.size)
                     else:
                         img.save(out_path)
