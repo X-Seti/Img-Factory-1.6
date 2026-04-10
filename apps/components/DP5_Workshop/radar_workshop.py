@@ -21,8 +21,9 @@ from PyQt6.QtWidgets import (
     QScrollArea, QFileDialog, QMessageBox, QStatusBar,
     QGroupBox, QCheckBox, QProgressDialog, QFrame,
     QGridLayout, QSizePolicy, QTabWidget, QToolBar,
-    QToolButton, QMenu, QAction, QLineEdit
+    QToolButton, QMenu, QLineEdit
 )
+from PyQt6.QtGui import QAction
 
 App_name = "Radar Workshop"
 Build    = "1"
@@ -199,7 +200,7 @@ class RadarTxdReader:
         # Native texture struct (D3D8 PC DXT1)
         native = bytearray()
         native += struct.pack('<I', 8)            # platform D3D8
-        native += struct.pack('<I', 0x00001102)   # filter flags
+        native += struct.pack('<I', 0x00000000)   # filter flags (match original radar TXDs)
         native += name_bytes
         native += alpha_bytes
         native += struct.pack('<I', 0x00000200)   # raster format (DXT1)
