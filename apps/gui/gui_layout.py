@@ -662,6 +662,20 @@ class IMGFactoryGUILayout:
             return False
 
 
+    def _show_system_popup_menu(self, btn): #vers 1
+        """Show the imgfactory popup menu anchored to the Menu button (system UI mode)."""
+        try:
+            from apps.gui.gui_menu_custom import show_popup_menu_at_button
+            show_popup_menu_at_button(self.main_window, btn)
+        except Exception as e:
+            # Fallback — show the standalone menubar menu under button
+            try:
+                mb = getattr(self.main_window, '_standalone_menu_bar', None)
+                if mb:
+                    mb.setVisible(not mb.isVisible())
+            except Exception:
+                pass
+
     def refresh_icons(self, color: str): #vers 2
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
         try:
@@ -1432,9 +1446,57 @@ class IMGFactoryGUILayout:
         return short_map.get(localized_label, localized_label)
 
 
-    def create_main_ui_with_splitters(self, main_layout): #vers 4
+    def create_main_ui_with_splitters(self, main_layout): #vers 5
 
         """Create the main UI with 3-panel layout similar to COL Workshop"""
+
+        # ── Minimal top bar: Menu + Settings (system UI mode only) ───────────
+        # No gadgets — those are in the right panel already.
+        # No title / window controls — OS frame handles those in system mode.
+        try:
+            from PyQt6.QtWidgets import QPushButton, QHBoxLayout, QWidget as _QW
+            from PyQt6.QtCore import QSize
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+
+            top_bar = _QW()
+            top_bar.setFixedHeight(28)
+            top_hl = QHBoxLayout(top_bar)
+            top_hl.setContentsMargins(4, 0, 4, 0)
+            top_hl.setSpacing(4)
+
+            icon_color = '#cccccc'
+            if hasattr(self.main_window, 'app_settings'):
+                tc = self.main_window.app_settings.get_theme_colors() or {}
+                icon_color = tc.get('text_primary', '#cccccc')
+
+            # Menu button — opens popup menu
+            menu_btn = QPushButton("Menu")
+            menu_btn.setFixedHeight(24)
+            menu_btn.setIcon(SVGIconFactory.menu_m_icon(16, icon_color))
+            menu_btn.setIconSize(QSize(16, 16))
+            menu_btn.clicked.connect(
+                lambda: self._show_system_popup_menu(menu_btn))
+            menu_btn.setToolTip("Main menu")
+            top_hl.addWidget(menu_btn)
+            self.menu_btn = menu_btn
+
+            # Settings button
+            settings_btn = QPushButton("Settings")
+            settings_btn.setFixedHeight(24)
+            settings_btn.setIcon(SVGIconFactory.settings_icon(16, icon_color))
+            settings_btn.setIconSize(QSize(16, 16))
+            settings_btn.clicked.connect(
+                lambda: getattr(self.main_window, 'show_gui_settings', lambda: None)())
+            settings_btn.setToolTip("IMG Factory Settings")
+            top_hl.addWidget(settings_btn)
+            self.settings_btn = settings_btn
+
+            top_hl.addStretch()
+            main_layout.addWidget(top_bar)
+            self._system_top_bar = top_bar
+        except Exception as _e:
+            print(f"System top bar error: {_e}")
+
         # Create main horizontal splitter for 3 panels
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
