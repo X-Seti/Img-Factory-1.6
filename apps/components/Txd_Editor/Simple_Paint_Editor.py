@@ -3,6 +3,7 @@
 # X-Seti - Apr 2026 - IMG Factory 1.6
 # Simple paint editor — standalone + embedded
 
+
 App_name = "Simple Paint"
 
 import os, sys
