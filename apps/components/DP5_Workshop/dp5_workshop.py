@@ -3476,30 +3476,36 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         toolbar.setVisible(self.standalone_mode)
         main_layout.addWidget(toolbar)
 
-        # Menu bar — sits between toolbar and canvas splitter
-        # Visible in topbar orientation; hidden in dropdown orientation
-        mb = QMenuBar(self)
+        # Menu bar container — wraps QMenuBar in a plain QWidget so Qt does NOT
+        # promote it to the QMainWindow menubar area when docked (Qt auto-promotes
+        # a bare QMenuBar that is a direct child of a QMainWindow-hosted widget).
+        from PyQt6.QtWidgets import QHBoxLayout as _QHL
+        self._menu_bar_container = QWidget(self)
+        self._menu_bar_container.setObjectName("dp5_menu_bar_container")
+        _chl = _QHL(self._menu_bar_container)
+        _chl.setContentsMargins(0, 0, 0, 0)
+        _chl.setSpacing(0)
+
+        mb = QMenuBar(self._menu_bar_container)   # parent = container, NOT self
         self._menu_bar = mb
         self._build_canvas_menus(mb)
-        # Ensure readable in both light and dark themes
         mb.setStyleSheet("""
             QMenuBar {
                 background-color: palette(window);
                 color: palette(window-text);
                 border-bottom: 1px solid palette(mid);
-                min-height: 22px;
-                max-height: 26px;
-                padding: 1px 0px;
             }
             QMenuBar::item:selected { background: palette(highlight); color: palette(highlighted-text); }
         """)
+        _chl.addWidget(mb)
+
         show_mb = (self.dp5_settings.get('show_menubar') and
                    self.dp5_settings.get('menu_style') == 'topbar')
-        mb.setVisible(show_mb)
+        self._menu_bar_container.setVisible(show_mb)
         if not show_mb:
-            mb.setMinimumHeight(0)
-            mb.setMaximumHeight(0)
-        main_layout.addWidget(mb)
+            self._menu_bar_container.setMinimumHeight(0)
+            self._menu_bar_container.setMaximumHeight(0)
+        main_layout.addWidget(self._menu_bar_container)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -4351,19 +4357,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_settings.set('menu_style', style)
         self.dp5_settings.set('show_menubar', style == 'topbar')
 
-        if hasattr(self, '_menu_bar'):
+        # Toggle the container (not the bare QMenuBar) so Qt doesn't promote it
+        container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
+        if container:
             if style == 'topbar':
-                # Restore internal menubar
-                self._menu_bar.setMinimumHeight(0)
-                self._menu_bar.setMaximumHeight(16777215)
-                self._menu_bar.setVisible(True)
-                self._menu_bar.updateGeometry()
-                self._menu_bar.parentWidget().updateGeometry() if self._menu_bar.parentWidget() else None
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(16777215)
+                container.setVisible(True)
+                container.updateGeometry()
             else:
-                # Hide internal menubar
-                self._menu_bar.setVisible(False)
-                self._menu_bar.setMinimumHeight(0)
-                self._menu_bar.setMaximumHeight(0)
+                container.setVisible(False)
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(0)
 
     def _create_right_panel(self):
         """Right panel: adaptive-column gadget bar, FGBGSwatch, palettes."""
@@ -4982,10 +4987,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             on = not self.dp5_settings.get('show_menubar')
             self.dp5_settings.set('show_menubar', on)
             self.dp5_settings.save()
-            if hasattr(self, '_menu_bar'):
-                self._menu_bar.setMaximumHeight(16777215 if on else 0)
-                self._menu_bar.setFixedHeight(16777215 if on else 0)
-                self._menu_bar.setVisible(on)
+            c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+            if c:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(16777215 if on else 0)
+                c.setVisible(on)
 
     def _show_dropdown_menu(self): #vers 1
         """Pop up the canvas menus as a single QMenu dropdown."""
@@ -4997,11 +5003,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         else:
             menu.exec(self.cursor().pos())
 
-    def _toggle_menubar(self, on: bool): #vers 2
+    def _toggle_menubar(self, on: bool): #vers 3
         self.dp5_settings.set('show_menubar', on)
         self.dp5_settings.save()
-        if hasattr(self, '_menu_bar'):
-            self._menu_bar.setVisible(on)
+        c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+        if c:
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(16777215 if on else 0)
+            c.setVisible(on)
 
     def _set_snap_grid(self, on: bool):
         if self.dp5_canvas:
@@ -7465,11 +7474,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                     self._fit_canvas_to_viewport()
             self._set_platform(self.dp5_settings.get('platform_mode'))
 
-            if hasattr(self, '_menu_bar'):
-                show_mb = (self.dp5_settings.get('show_menubar') and
-                           self.dp5_settings.get('menu_style') == 'topbar')
-                self._menu_bar.setVisible(show_mb)
-                self._menu_bar.setMaximumHeight(0 if not show_mb else 30)
+            show_mb = (self.dp5_settings.get('show_menubar') and
+                       self.dp5_settings.get('menu_style') == 'topbar')
+            c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+            if c:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(16777215 if show_mb else 0)
+                c.setVisible(show_mb)
 
             # If icon size or column count changed, rebuild the right panel
             new_icon_sz = self.dp5_settings.get('tool_icon_size')
