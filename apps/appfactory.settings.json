@@ -72,5 +72,8 @@
   "rename_notify_popup": true,
   "rename_notify_log": true,
   "debug_log_functions": [],
-  "tab_content_mode": "both"
+  "tab_content_mode": "both",
+  "button_height": 32,
+  "button_spacing_vertical": 8,
+  "button_spacing_horizontal": 6
 }

@@ -125,9 +125,8 @@ except ImportError:
     SettingsDialog = None
 
 
-#  Tool icon renderer — Photoshop-style white silhouettes on dark tile
-
-def _load_tool_icon(shape: str, size: int = 42, active: bool = False) -> QIcon:
+# - Tool icon renderer — Photoshop-style white silhouettes on dark tile
+def _load_tool_icon(shape: str, size: int = 42, active: bool = False) -> QIcon:  #vers 2
     """
     Load tool icon: checks DP5_Workshop/icons/{shape}.png then .svg,
     falls back to _make_tool_icon SVG/QPainter renderer.
@@ -146,7 +145,7 @@ def _load_tool_icon(shape: str, size: int = 42, active: bool = False) -> QIcon:
 
 
 def _make_tool_icon(shape: str, size: int = 42,
-                    active: bool = False) -> QIcon:
+                    active: bool = False) -> QIcon: #vers 2
     """
     Render a tool icon.  Uses SVGIconFactory.dp_*_icon() when available
     (icons defined in imgfactory_svg_icons.py), otherwise falls back to the
@@ -208,7 +207,7 @@ def _make_tool_icon(shape: str, size: int = 42,
             except Exception:
                 pass  # fall through to QPainter
 
-    # ── QPainter fallback (shapes, lasso, select, text, etc.) ────────────────
+# - QPainter fallback (shapes, lasso, select, text, etc.) ────────────────
     import math as _m
 
     tile_bg = QColor('#1e1e24') if not active else QColor('#d8d8e0')
@@ -228,13 +227,13 @@ def _make_tool_icon(shape: str, size: int = 42,
 
     # Helpers in 48-unit space
     def mk_pen(w=2.5, cap=Qt.PenCapStyle.RoundCap,
-               join=Qt.PenJoinStyle.RoundJoin):
+               join=Qt.PenJoinStyle.RoundJoin): #vers 1
         return QPen(ink, w, Qt.PenStyle.SolidLine, cap, join)
 
-    def solid_brush():
+    def solid_brush(): #vers 1
         return QBrush(ink)
 
-    def poly(*args):
+    def poly(*args): #vers 1
         """Accept poly((x,y),(x,y)...) or poly([(x,y),...]) or poly(x,y,x,y...)."""
         from PyQt6.QtGui import QPolygonF
         from PyQt6.QtCore import QPointF
@@ -249,7 +248,8 @@ def _make_tool_icon(shape: str, size: int = 42,
             pts = list(args)
         return QPolygonF([QPointF(x, y) for x, y in pts])
 
-    def path_from(*segments):
+
+    def path_from(*segments): #vers 1
         """Build QPainterPath from ('M',x,y), ('L',x,y), ('C',x1,y1,x2,y2,x,y),
         ('Q',x1,y1,x,y), ('Z',) tuples."""
         from PyQt6.QtCore import QPointF
@@ -625,21 +625,22 @@ class DP5Settings:
         'show_anim_strip':   False,    # show animation timeline strip
         'anim_fps':          12,       # default animation FPS
         'zoom_to_fit_resize': False,
-        'show_menubar':       False,
+        'show_menubar':       True,
         'menu_style':         'topbar',   # 'topbar' | 'dropdown'
         'menu_bar_font_size':  9,         # topbar menubar font size (pt)
         'menu_bar_height':     22,        # topbar menubar height (px)
         'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
     }
 
-    def __init__(self):
+    def __init__(self): #vers 1
         cfg_dir = Path.home() / '.config' / 'imgfactory'
         cfg_dir.mkdir(parents=True, exist_ok=True)
         self._path = cfg_dir / 'dp5_workshop.json'
         self._data = dict(self.DEFAULTS)
         self._load()
 
-    def _load(self):
+
+    def _load(self): #vers 1
         try:
             if self._path.exists():
                 loaded = json.loads(self._path.read_text())
@@ -648,17 +649,17 @@ class DP5Settings:
         except Exception:
             pass
 
-    def save(self):
+    def save(self): #vers 1
         try:
             self._path.write_text(json.dumps(self._data, indent=2))
         except Exception:
             pass
 
-    def get(self, key, default=None):
+    def get(self, key, default=None): #vers 1
         return self._data.get(key, default if default is not None
                               else self.DEFAULTS.get(key))
 
-    def set(self, key, value):
+    def set(self, key, value): #vers 1
         if key in self.DEFAULTS:
             self._data[key] = value
 
@@ -666,7 +667,7 @@ class DP5Settings:
 class DP5SettingsDialog(QDialog):
     """Settings dialog for DP5 Workshop — does NOT touch global AppSettings."""
 
-    def __init__(self, dp5_settings: DP5Settings, parent=None):
+    def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 3
         super().__init__(parent)
         self.s = dp5_settings
         self.setWindowTitle("DP5 Workshop — Settings")
@@ -877,7 +878,7 @@ class DP5SettingsDialog(QDialog):
         btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
         root.addLayout(btns)
 
-    def _accept(self):
+    def _accept(self): #vers 1
         self.s.set('default_width',    self._w_spin.value())
         self.s.set('default_height',   self._h_spin.value())
         self.s.set('default_zoom',     self._zoom_spin.value())
@@ -910,13 +911,12 @@ class DP5SettingsDialog(QDialog):
 
 #  DP5 Canvas — pixel-accurate zoomable paint surface
 
-
 class DP5Canvas(QWidget):
     """Zoomable pixel-accurate paint canvas (inlined from dp5_functions.py)."""
 
     pixel_changed = pyqtSignal(int, int)
 
-    def __init__(self, width: int, height: int, rgba: bytearray, parent=None):
+    def __init__(self, width: int, height: int, rgba: bytearray, parent=None): #vers 1
         super().__init__(parent)
         self.tex_w      = width
         self.tex_h      = height
@@ -975,7 +975,7 @@ class DP5Canvas(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setMinimumSize(200, 200)
 
-    def sizeHint(self):
+    def sizeHint(self): #vers 1
         """Tell the scroll area exactly how big the zoomed canvas is."""
         z = max(0.01, self.zoom)
         return QSize(max(200, int(self.tex_w * z)),
@@ -983,7 +983,7 @@ class DP5Canvas(QWidget):
 
     # ── Coordinate helpers ────────────────────────────────────────────────────
 
-    def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]:
+    def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]: #vers 1
         z = max(0.01, self.zoom)
         x = int(p.x() / z)
         y = int(p.y() / z)
@@ -993,20 +993,20 @@ class DP5Canvas(QWidget):
             y = (y // snap) * snap
         return x, y
 
-    def _tex_to_widget(self, tx: int, ty: int) -> QPoint:
+    def _tex_to_widget(self, tx: int, ty: int) -> QPoint: #vers 1
         z = max(0.01, self.zoom)
         return QPoint(int(tx * z), int(ty * z))
 
     # ── Pixel access ──────────────────────────────────────────────────────────
 
-    def get_pixel(self, x: int, y: int) -> QColor:
+    def get_pixel(self, x: int, y: int) -> QColor: #vers 1
         if 0 <= x < self.tex_w and 0 <= y < self.tex_h:
             i = (y * self.tex_w + x) * 4
             return QColor(self.rgba[i], self.rgba[i+1],
                           self.rgba[i+2], self.rgba[i+3])
         return QColor(0, 0, 0, 0)
 
-    def set_pixel(self, x: int, y: int, c: QColor):
+    def set_pixel(self, x: int, y: int, c: QColor): #vers 1
         if 0 <= x < self.tex_w and 0 <= y < self.tex_h:
             i = (y * self.tex_w + x) * 4
             self.rgba[i:i+4] = [c.red(), c.green(), c.blue(), c.alpha()]
@@ -1090,7 +1090,7 @@ class DP5Canvas(QWidget):
                         in_span = False
         self.update()
 
-    def draw_line(self, x0, y0, x1, y1, c: QColor):
+    def draw_line(self, x0, y0, x1, y1, c: QColor): #vers 1
         dx, dy = abs(x1-x0), abs(y1-y0)
         sx = 1 if x0 < x1 else -1
         sy = 1 if y0 < y1 else -1
@@ -3308,7 +3308,7 @@ class ColorPalPresetsMixin:
             # No dither — hard snap
             return self._snap_image_to_user_palette(img)
 
-    def _show_retro_menu(self):
+    def _show_retro_menu(self): #vers 1
         """Show user palette picker as hierarchical platform submenus."""
         menu = QMenu(self)
 
@@ -3387,7 +3387,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Init ──────────────────────────────────────────────────────────────────
 
-    def __init__(self, parent=None, main_window=None):
+    def __init__(self, parent=None, main_window=None): #vers 1
         super().__init__(parent)
 
         self.main_window     = main_window
@@ -3497,9 +3497,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── UI construction ───────────────────────────────────────────────────────
 
-    def setup_ui(self):
+    def setup_ui(self): #vers 1
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setContentsMargins(1, 1, 1, 1)
         main_layout.setSpacing(4)
 
         toolbar = self._create_toolbar()
@@ -3525,10 +3525,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         show_mb = (self.dp5_settings.get('show_menubar') and
                    self.dp5_settings.get('menu_style') == 'topbar')
+
         self._menu_bar_container.setVisible(show_mb)
+
         if not show_mb:
             self._menu_bar_container.setMinimumHeight(0)
             self._menu_bar_container.setMaximumHeight(0)
+
         main_layout.addWidget(self._menu_bar_container)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -3559,7 +3562,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Toolbar (standalone titlebar) ─────────────────────────────────────────
 
-    def _create_toolbar(self):
+
+    def _create_toolbar(self): #vers 1
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
         self.titlebar.setFixedHeight(45)
@@ -3711,7 +3715,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Left panel: bitmap list ───────────────────────────────────────────────
 
-    def _create_left_panel(self):
+    def _create_left_panel(self): #vers 1
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(150)
@@ -3761,7 +3765,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         return panel
 
-    def _on_bitmap_selected(self, row: int):
+    def _on_bitmap_selected(self, row: int): #vers 1
         if 0 <= row < len(self._bitmap_list):
             self._current_bitmap = row
             bm = self._bitmap_list[row]
@@ -3772,7 +3776,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 self.dp5_canvas.update()
                 self._set_status(f"{bm['name']}  {bm['w']}×{bm['h']}")
 
-    def _delete_bitmap(self):
+    def _delete_bitmap(self): #vers 1
         row = self._bitmap_lw.currentRow()
         if 0 <= row < len(self._bitmap_list):
             self._bitmap_list.pop(row)
@@ -3783,7 +3787,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Centre panel: canvas ──────────────────────────────────────────────────
 
-    def _create_centre_panel(self):
+    def _create_centre_panel(self): #vers 1
         panel = QGroupBox("")
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(2, 2, 2, 2)
@@ -3830,7 +3834,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         return panel
 
-    def _build_canvas_menus(self, mb: QMenuBar):
+    def _build_canvas_menus(self, mb: QMenuBar): #vers 1
         # File
         fm = mb.addMenu("File")
         fm.addAction("New canvas…",    self._new_canvas)
@@ -4336,6 +4340,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         plm.addSeparator()
         plm.addAction("Enforce colour constraints", self._toggle_colour_constraints)
 
+
     def _apply_menu_bar_style(self): #vers 1
         """Apply font size, height and colours to the topbar menubar from dp5_settings."""
         mb = getattr(self, '_menu_bar', None)
@@ -4344,30 +4349,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         bar_h  = self.dp5_settings.get('menu_bar_height', 22)
         bar_fs = self.dp5_settings.get('menu_bar_font_size', 9)
         dd_fs  = self.dp5_settings.get('menu_dropdown_font_size', 9)
-        mb.setStyleSheet(f"""
-            QMenuBar {{
-                background-color: palette(window);
-                color: palette(window-text);
-                border-bottom: 1px solid palette(mid);
-                font-size: {bar_fs}pt;
-                min-height: {bar_h}px;
-                max-height: {bar_h}px;
-            }}
-            QMenuBar::item:selected {{
-                background: palette(highlight);
-                color: palette(highlighted-text);
-            }}
-            QMenu {{
-                font-size: {dd_fs}pt;
-            }}
-        """)
-        # Also size the container
-        c = getattr(self, '_menu_bar_container', None)
-        if c and c.isVisible():
-            c.setMinimumHeight(0)
-            c.setMaximumHeight(bar_h)
 
-    def set_menu_orientation(self, style: str): #vers 2
+        # Also size the container
+        #c = getattr(self, '_menu_bar_container', None)
+        #if c and c.isVisible():
+            #c.setMinimumHeight(0)
+            #c.setMaximumHeight(bar_h)
+
+
+    def set_menu_orientation(self, style: str): #vers 4
         """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
         Called from imgfactory Settings when the orientation radio changes.
         """
@@ -4378,16 +4368,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
         if container:
             if style == 'topbar':
-                container.setMinimumHeight(0)
-                container.setMaximumHeight(16777215)
                 container.setVisible(True)
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(20)
                 container.updateGeometry()
             else:
                 container.setVisible(False)
                 container.setMinimumHeight(0)
-                container.setMaximumHeight(0)
+                container.setMaximumHeight(20)
 
-    def _create_right_panel(self):
+
+    def _create_right_panel(self): #vers 2
         """Right panel: adaptive-column gadget bar, FGBGSwatch, palettes."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -4709,7 +4700,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Tool / colour helpers ─────────────────────────────────────────────────
 
-    def _toggle_shape_fill(self, primary_tool_id: str):
+    def _toggle_shape_fill(self, primary_tool_id: str): #vers 2
         """Right-click handler — flip fill mode and update button icon + canvas tool."""
         if primary_tool_id not in self._shape_fill_state:
             return
@@ -4742,6 +4733,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             actual = SHAPE_FILL_PAIRS[primary_tool_id] if filled else primary_tool_id
             if self.dp5_canvas:
                 self.dp5_canvas.tool = actual
+
 
     def _select_tool(self, tool_id: str): #vers 2
         """Select a tool, resolving fill state for shape tools."""
@@ -4827,11 +4819,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         if hasattr(self, '_brush_thumb'):
             self._brush_thumb.set_active(tool_id == TOOL_STAMP)
 
-    def _set_brush_size(self, v: int):
+
+    def _set_brush_size(self, v: int):  #vers 2
         if self.dp5_canvas:
             self.dp5_canvas.brush_size = v
         if hasattr(self, '_size_val_lbl'):
             self._size_val_lbl.setText(str(v))
+
 
     def _toggle_dither_mode(self): #vers 2
         """Cycle dither: off → checker → bayer → off."""
@@ -4845,6 +4839,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             btn.setChecked(self._dither_mode != 'off')
             btn.setToolTip(f"Dither: {self._dither_mode} — click to cycle")
         self._set_status(f"Dither: {self._dither_mode}")
+
 
     def _toggle_symmetry_mode(self): #vers 2
         """Cycle symmetry: off → H → V → quad → off."""
@@ -4895,12 +4890,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         # Background colour stored in swatch; eraser uses it in future
         pass
 
-    def _on_image_palette_color(self, c: QColor):
+    def _on_image_palette_color(self, c: QColor): #vers 1
         if self.dp5_canvas:
             self.dp5_canvas.color = c
         self._fgbg_swatch.set_fg(c)
 
-    def _on_user_palette_color(self, c: QColor):
+    def _on_user_palette_color(self, c: QColor): #vers 1
         if self.dp5_canvas:
             self.dp5_canvas.color = c
         self._fgbg_swatch.set_fg(c)
@@ -4989,12 +4984,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Group Error", str(e))
 
-    def _update_color_swatches(self):
+
+    def _update_color_swatches(self): #vers 1
         """Sync FGBGSwatch after colour changes (e.g. picker tool)."""
         if not hasattr(self, '_fgbg_swatch'): return
         if self.dp5_canvas:
             self._fgbg_swatch.set_fg(self.dp5_canvas.color)
             self.pal_bar.set_selection_by_color(self.dp5_canvas.color)
+
 
     def _on_menu_btn_clicked(self): #vers 3
         style = self.dp5_settings.get('menu_style')
@@ -5010,6 +5007,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 c.setMaximumHeight(16777215 if on else 0)
                 c.setVisible(on)
 
+
     def _show_dropdown_menu(self): #vers 1
         """Pop up the canvas menus as a single QMenu dropdown."""
         menu = QMenu(self)
@@ -5020,6 +5018,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         else:
             menu.exec(self.cursor().pos())
 
+
     def _toggle_menubar(self, on: bool): #vers 3
         self.dp5_settings.set('show_menubar', on)
         self.dp5_settings.save()
@@ -5029,9 +5028,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             c.setMaximumHeight(16777215 if on else 0)
             c.setVisible(on)
 
-    def _set_snap_grid(self, on: bool):
+
+    def _set_snap_grid(self, on: bool): #vers 1
         if self.dp5_canvas:
             self.dp5_canvas.snap_grid = on
+
 
     def _set_show_grid(self, on: bool): #vers 2
         if self.dp5_canvas:
@@ -5104,6 +5105,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         'game_gear':   (8,  8,   16),   # Game Gear 160×144
         'pc_engine':   (8,  8,   16),   # PC Engine 256×240
     }
+
 
     def _set_platform(self, mode: str): #vers 4
         """Set platform mode — cell grid, auto-load palette, resize canvas, fit zoom."""
@@ -5210,6 +5212,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._set_status(
             f"Platform: {mode.upper()}  {self._canvas_width}×{self._canvas_height}  cell {cw}×{ch}")
 
+
     def _set_canvas_mode(self, mode: str, confirm: bool = True, apply: bool = True): #vers 2
         """Switch canvas mode — platform/texture/icon/free."""
         if mode == self._canvas_mode and self._mode_locked:
@@ -5240,10 +5243,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         self._set_status(f"Mode: {mode.title()}")
 
+
     def _update_mode_buttons(self): #vers 1
         """Sync toolbar mode button checked states."""
         for m, btn in self._mode_btns.items():
             btn.setChecked(m == self._canvas_mode)
+
 
     def _apply_mode_to_canvas(self, mode: str): #vers 1
         """Convert current canvas to match mode constraints."""
@@ -5309,16 +5314,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.update()
         self._fit_canvas_to_viewport()
 
+
     def _toggle_cell_grid(self): #vers 1
         if not self.dp5_canvas: return
         self.dp5_canvas.show_cell_grid = not self.dp5_canvas.show_cell_grid
         self.dp5_canvas.update()
+
 
     def _toggle_statusbar(self, on: bool): #vers 1
         self.dp5_settings.set('show_statusbar', on)
         self.dp5_settings.save()
         if hasattr(self, '_status_bar'):
             self._status_bar.setVisible(on)
+
 
     def _zoom_mode_menu(self, pos): #vers 1
         """Right-click context menu on zoom gadget — select zoom mode."""
@@ -5338,6 +5346,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         btn = self._tool_btns.get(TOOL_ZOOM)
         menu.exec(btn.mapToGlobal(pos) if btn else self.cursor().pos())
 
+
     def _set_zoom_mode(self, mode: str): #vers 1
         """Set the zoom tool sub-mode and update tooltip."""
         if self.dp5_canvas:
@@ -5356,6 +5365,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         # Also activate the zoom tool
         self._select_tool(TOOL_ZOOM)
 
+
     # ── Colour Clash Visualiser ───────────────────────────────────────────────
 
     def _toggle_clash_visualiser(self, on: bool): #vers 1
@@ -5368,12 +5378,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         else:
             self._set_status("Clash visualiser OFF")
 
+
     # ── Character / Font Editor ───────────────────────────────────────────────
 
     def _open_char_editor(self): #vers 1
         """Open the character/font editor — edit 8×8 or 8×16 pixel character sets."""
         dlg = _CharFontEditor(self)
         dlg.show()
+
 
     # ── Sprite Editor ─────────────────────────────────────────────────────────
 
@@ -5430,7 +5442,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         overlay.show()
         overlay.setFocus()
 
-    def _toggle_brush_manager(self):
+    def _toggle_brush_manager(self): #vers 1
         """Show/hide the brush manager as a floating panel."""
         if not hasattr(self, '_brush_mgr_panel'):
             self._brush_mgr_panel = BrushManager(self)
@@ -5448,7 +5460,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._brush_mgr_panel.show()
             self._brush_mgr_panel.raise_()
 
-    def _on_brush_mgr_selected(self, buf: bytearray, w: int, h: int):
+    def _on_brush_mgr_selected(self, buf: bytearray, w: int, h: int): #vers 1
         """Handle brush_selected signal — load brush OR save current buffer."""
         if not buf or w == 0:
             # Empty emit = save request
@@ -5467,14 +5479,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._activate_stamp_mode()
         self._set_status(f"Brush loaded ({w}×{h}) — click to stamp")
 
-    def _activate_stamp_mode(self):
+    def _activate_stamp_mode(self): #vers 1
         """Switch to stamp tool so user clicks anywhere to place the buffer."""
         if not self.dp5_canvas or not self.dp5_canvas._sel_buffer:
             return
         self._select_tool(TOOL_STAMP)
         self._set_status("Stamp mode — click to place, press Esc to exit")
 
-    def _clear_brush(self):
+    def _clear_brush(self): #vers 1
         """Clear the copy buffer and brush thumbnail."""
         if self.dp5_canvas:
             self.dp5_canvas._sel_buffer  = None
@@ -5486,27 +5498,27 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._brush_thumb.set_active(False)
         self._set_status("Brush cleared")
 
-    def _sync_brush_thumb(self):
+    def _sync_brush_thumb(self): #vers 1
         """Update the brush thumbnail from the current copy buffer."""
         if not hasattr(self, '_brush_thumb') or not self.dp5_canvas:
             return
         c = self.dp5_canvas
         self._brush_thumb.set_buffer(c._sel_buffer, c._sel_buf_w, c._sel_buf_h)
 
-    def _cut_selection(self):
+    def _cut_selection(self): #vers 1
         if not self.dp5_canvas: return
         self._push_undo()
         self.dp5_canvas.cut_selection()
         self._sync_brush_thumb()
         self._set_status("Selection cut — click Brush thumbnail to stamp")
 
-    def _copy_selection(self):
+    def _copy_selection(self): #vers 1
         if not self.dp5_canvas: return
         self.dp5_canvas.copy_selection()
         self._sync_brush_thumb()
         self._set_status("Selection copied — click Brush thumbnail to stamp")
 
-    def _paste_selection(self):
+    def _paste_selection(self): #vers 1
         """Paste: activate stamp mode so user clicks to place."""
         if not self.dp5_canvas: return
         c = self.dp5_canvas
@@ -5526,7 +5538,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._select_tool(TOOL_SELECT)
         self._set_status("All selected")
 
-    def _deselect(self):
+    def _deselect(self): #vers 1
         if not self.dp5_canvas: return
         c = self.dp5_canvas
         if c._sel_floating:
@@ -5537,16 +5549,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         c._selection_rect    = None
         c.update()
 
-    def _set_polygon_sides(self):
+    def _set_polygon_sides(self): #vers 1
         if not self.dp5_canvas: return
         n, ok = QInputDialog.getInt(self, "Polygon", "Number of sides:", 6, 3, 32)
         if ok:
             self.dp5_canvas._polygon_sides = n
             self._set_status(f"Polygon: {n} sides")
 
+
     # ── Canvas signal callbacks ───────────────────────────────────────────────
 
-    def _on_canvas_changed(self, x: int, y: int):
+    def _on_canvas_changed(self, x: int, y: int): #vers 1
         if self.dp5_canvas:
             self._update_status(x, y, self.dp5_canvas.get_pixel(x, y))
             if self._enforce_constraints and self._platform_mode != 'none':
@@ -5633,11 +5646,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         (116,107,6),(128,121,7),(147,138,7),(167,157,8),(182,175,6),(200,191,0),(211,212,14),(213,214,25),
     ]
 
-    def _nearest_in_palette(self, r: int, g: int, b: int, palette: list) -> tuple:
+    def _nearest_in_palette(self, r: int, g: int, b: int, palette: list) -> tuple: #vers 1
         return min(palette, key=lambda c:(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2)
 
-    def _nearest_zx_colour(self, r: int, g: int, b: int) -> tuple:
+
+    def _nearest_zx_colour(self, r: int, g: int, b: int) -> tuple: #vers 1
         return self._nearest_in_palette(r, g, b, self._ZX_PALETTE)
+
 
     def _snap_cell_to_palette(self, cx, cy, cw, ch, w, h, palette): #vers 1
         """Snap all pixels in cell to nearest colour from given palette."""
@@ -5649,6 +5664,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 r,g,b = self.dp5_canvas.rgba[i:i+3]
                 best = self._nearest_in_palette(r, g, b, palette)
                 self.dp5_canvas.rgba[i:i+3] = list(best)
+
 
     def _limit_cell_colours(self, cx, cy, cw, ch, w, h, max_c): #vers 1
         """After palette snap, enforce max_c colours per cell."""
@@ -5671,6 +5687,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 if key not in kept:
                     best = min(kept, key=lambda k:(k[0]-key[0])**2+(k[1]-key[1])**2+(k[2]-key[2])**2)
                     self.dp5_canvas.rgba[i:i+3] = list(best)
+
 
     def _apply_cell_constraint(self, px: int, py: int): #vers 3
         """Dispatch platform-specific colour constraint for the cell at (px,py)."""
@@ -5744,12 +5761,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         self.dp5_canvas.update()
 
+
     def _get_user_palette_rgb(self): #vers 1
         """Return current user palette as list of (r,g,b) tuples, or None if empty."""
         if not hasattr(self, '_user_pal_grid'): return None
         colors = getattr(self._user_pal_grid, '_colors', [])
         if not colors: return None
         return [(c.red(), c.green(), c.blue()) for c in colors if c.isValid()]
+
 
     def _snap_image_to_user_palette(self, img): #vers 1
         """Snap every pixel in a PIL RGBA image to nearest colour in the user palette."""
@@ -5767,6 +5786,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         flat += [0] * (768 - len(flat))
         pal_img.putpalette(flat)
         return img.convert('RGB').quantize(palette=pal_img, dither=0).convert('RGB').convert('RGBA')
+
 
     # ── Render As ────────────────────────────────────────────────────────────
 
@@ -5840,6 +5860,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             if path:
                 lines = [''.join(chars[r*cols:(r+1)*cols]) for r in range(rows)]
                 open(path,'w').write('\n'.join(lines))
+
 
     def _render_as_ansi(self): #vers 1
         """Convert canvas to ANSI art using block chars █▌▐▄▀ with 16 ANSI colours."""
@@ -5931,6 +5952,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             if path:
                 open(path,'w').write('\n'.join(ansi_lines)+'\n')
 
+
     def _render_as_petscii(self): #vers 1
         """Convert canvas to PETSCII block art using C64 16-colour palette and block chars."""
         if not self.dp5_canvas: return
@@ -5954,6 +5976,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         #             ▖=0010, ▌=1010, ▞=0110, ▛=1110,
         #             ▗=0001, ▚=1001, ▐=0101, ▜=1101,
         #             ▄=0011, ▙=1011, ▟=0111, █=1111
+
         BLOCKS = [' ','▘','▝','▀','▖','▌','▞','▛','▗','▚','▐','▜','▄','▙','▟','█']
 
         char_w = 8; char_h = 8
@@ -6030,6 +6053,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 # BASIC stub + screen data at $0400
                 prg = b'\x01\x08' + bytearray(14) + b'\x00\x04' + screen + b'\xD8\x07' + colour
                 open(path,'wb').write(prg)
+
 
     def _render_as_teletext(self): #vers 1
         """Convert canvas to Teletext mosaic block art (2×3 sub-blocks per cell, 8 colours)."""
@@ -6131,6 +6155,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                     lines.append(f'OL,{100+row+1},{line_str}')
                 open(path,'w',encoding='utf-8').write('\n'.join(lines)+'\n')
 
+
     def _snap_canvas_to_user_palette(self): #vers 3
         """Hard-snap entire canvas to current user palette (no dither)."""
         if not self.dp5_canvas: return
@@ -6146,6 +6171,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.rgba = bytearray(snapped.tobytes())
         self.dp5_canvas.update()
         self._set_status(f"Snapped to palette: {len(palette)} colours")
+
 
     def _snap_canvas_to_user_palette_dither(self): #vers 1
         """Snap canvas to user palette with dither — asks which method."""
@@ -6189,6 +6215,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.rgba = bytearray(snapped.tobytes())
         self.dp5_canvas.update()
         self._set_status(f"Snapped to user palette ({len(palette)} colours, dither:{mode})")
+
 
     def _snap_image_to_platform_palette(self, img): #vers 1
         """Snap every pixel in a PIL RGBA image to the nearest platform palette colour.
@@ -6277,6 +6304,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         snapped = rgb.quantize(palette=pal_img, dither=0).convert('RGB').convert('RGBA')
         return snapped
 
+
     def _apply_spectrum_clash(self, cx, cy, cw, ch, w, h): #vers 1
         """Enforce ZX Spectrum colour clash: max 2 colours per 8×8 cell,
         both snapped to ZX palette, both from same brightness group."""
@@ -6347,6 +6375,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                     self.dp5_canvas.rgba[i:i+3] = list(best)
 
         self.dp5_canvas.update()
+
 
     def _apply_ham_constraint(self, cx, cy, cw, ch, w, h, mode): #vers 1
         """Simulate Amiga HAM hold-and-modify colour smearing on affected scanlines.
@@ -6422,6 +6451,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 i = (ty*w+tx)*4
                 self.dp5_canvas.rgba[i:i+4] = [c[0], c[1], c[2], 255]
 
+
     def _apply_zx8x_dither(self, cx, cy, cw, ch, w, h): #vers 1
         """ZX80/ZX81 B&W constraint with Bayer ordered dithering to simulate grey tones.
         Each 8×8 character cell gets dithered using the cell's average brightness.
@@ -6460,6 +6490,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 self.dp5_canvas.rgba[i:i+3] = [val, val, val]
         self.dp5_canvas.update()
 
+
     def _apply_msx_constraint(self, cx, cy, cw, ch, w, h): #vers 1
         """MSX1: 2 colours per 8-pixel row within each 8×8 cell (fg+bg per scanline)."""
         # First snap all to MSX palette
@@ -6486,6 +6517,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                     best = min(kept, key=lambda k:(k[0]-key[0])**2+(k[1]-key[1])**2+(k[2]-key[2])**2)
                     self.dp5_canvas.rgba[i:i+3] = list(best)
 
+
     def _apply_atari_st_constraint(self, cx, cy, cw, ch, w, h): #vers 1
         """Atari ST: 16 colours per scanline from ST palette."""
         # Snap to Atari ST palette first
@@ -6507,6 +6539,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 if key not in kept:
                     best = min(kept, key=lambda k:(k[0]-key[0])**2+(k[1]-key[1])**2+(k[2]-key[2])**2)
                     self.dp5_canvas.rgba[i:i+3] = list(best)
+
 
     def _apply_generic_constraint(self, cx, cy, cw, ch, w, h, max_c): #vers 1
         """Enforce generic max-colours-per-cell constraint."""
@@ -6533,7 +6566,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.update()
         self.dp5_canvas.update()
 
-    def _update_status(self, x: int, y: int, colour: QColor):
+
+    def _update_status(self, x: int, y: int, colour: QColor): #vers 1
         zoom = self._canvas_zoom
         tool = getattr(self.dp5_canvas, 'tool', '?') if self.dp5_canvas else '?'
         self._set_status(
@@ -6541,7 +6575,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             f"RGBA({colour.red()},{colour.green()},{colour.blue()},{colour.alpha()})  |  "
             f"Zoom: {zoom}×  |  Tool: {tool}")
 
-    def _update_zoom_label(self):
+
+    def _update_zoom_label(self): #vers 1
         if self.dp5_canvas:
             self._canvas_zoom = self.dp5_canvas.zoom
         if hasattr(self, '_zoom_lbl'):
@@ -6550,36 +6585,42 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Canvas operations ─────────────────────────────────────────────────────
 
+
     def _push_undo(self):
-        if self.dp5_canvas:
+        if self.dp5_canvas: #vers 1
             self._undo_stack.append(bytes(self.dp5_canvas.rgba))
             self._redo_stack.clear()
 
-    def _undo_canvas(self):
+
+    def _undo_canvas(self): #vers 1
         if self.dp5_canvas and self._undo_stack:
             self._redo_stack.append(bytes(self.dp5_canvas.rgba))
             self.dp5_canvas.rgba[:] = self._undo_stack.pop()
             self.dp5_canvas.update()
 
-    def _redo_canvas(self):
+
+    def _redo_canvas(self): #vers 1
         if self.dp5_canvas and self._redo_stack:
             self._undo_stack.append(bytes(self.dp5_canvas.rgba))
             self.dp5_canvas.rgba[:] = self._redo_stack.pop()
             self.dp5_canvas.update()
 
-    def _clear_canvas(self):
+
+    def _clear_canvas(self): #vers 1
         if not self.dp5_canvas: return
         self._push_undo()
         self.dp5_canvas.rgba[:] = b'\x00' * len(self.dp5_canvas.rgba)
         self.dp5_canvas.update()
 
-    def _fill_canvas(self):
+
+    def _fill_canvas(self): #vers 1
         if not self.dp5_canvas: return
         self._push_undo()
         c = self.dp5_canvas.color
         for i in range(self._canvas_width * self._canvas_height):
             self.dp5_canvas.rgba[i*4:i*4+4] = [c.red(),c.green(),c.blue(),c.alpha()]
         self.dp5_canvas.update()
+
 
     def _fit_canvas_to_viewport(self): #vers 1
         if not self.dp5_canvas: return
@@ -6594,12 +6635,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 fit_z = snap; break
         self._set_zoom(max(0.05, fit_z))
 
+
     def resizeEvent(self, event): #vers 1
         super().resizeEvent(event)
         if self.dp5_settings.get('zoom_to_fit_resize'):
             self._fit_canvas_to_viewport()
 
-    def _set_zoom(self, z, anchor_widget_pos=None):
+
+    def _set_zoom(self, z, anchor_widget_pos=None): #vers 1
         """
         Set zoom level.  anchor_widget_pos: QPoint in scroll-area viewport
         coordinates to keep fixed.  If None, anchors to viewport centre.
@@ -6638,10 +6681,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         self.dp5_canvas.update()
 
+
     def _flip_h(self):   self._mirror_h()   # legacy alias
     def _flip_v(self):   self._mirror_v()   # legacy alias
 
-    def _invert(self):
+
+    def _invert(self): #vers 1
         from PIL import Image, ImageOps
         def _inv(img):
             r, g, b, a = img.split()
@@ -6649,7 +6694,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                                         ImageOps.invert(b), a))
         self._pil_transform(_inv)
 
-    def _adjust(self, delta: int):
+
+    def _adjust(self, delta: int): #vers 1
         if not self.dp5_canvas: return
         self._push_undo()
         for i in range(0, len(self.dp5_canvas.rgba), 4):
@@ -6657,6 +6703,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 self.dp5_canvas.rgba[i+j] = max(0, min(255,
                     self.dp5_canvas.rgba[i+j] + delta))
         self.dp5_canvas.update()
+
 
     def _dither_floyd_steinberg(self): #vers 1
         """Apply Floyd-Steinberg error-diffusion dither to canvas (reduces to 16 colours)."""
@@ -6673,6 +6720,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.rgba = bytearray(q.tobytes())
         self.dp5_canvas.update()
         self._set_status(f"Floyd-Steinberg dither → {n} colours")
+
 
     def _dither_bayer_canvas(self): #vers 1
         """Apply 4×4 Bayer ordered dither to canvas."""
@@ -6707,6 +6755,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.update()
         self._set_status(f"Bayer 4×4 dither → {n} colours")
 
+
     def _dither_checker_canvas(self): #vers 1
         """Apply checkerboard FG/BG dither to entire canvas."""
         if not self.dp5_canvas: return
@@ -6724,7 +6773,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.update()
         self._set_status("Checkerboard dither applied")
 
-    def _pil_transform(self, fn):
+
+    def _pil_transform(self, fn): #vers 1
         """Apply a PIL Image transform to the canvas."""
         if not self.dp5_canvas: return
         self._push_undo()
@@ -6744,19 +6794,23 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.update()
         self._set_status(f"Canvas: {w2}×{h2}")
 
-    def _rotate_90_cw(self):
+
+    def _rotate_90_cw(self): #vers 1
         from PIL import Image
         self._pil_transform(lambda i: i.transpose(Image.Transpose.ROTATE_270))
 
-    def _rotate_90_ccw(self):
+
+    def _rotate_90_ccw(self): #vers 1
         from PIL import Image
         self._pil_transform(lambda i: i.transpose(Image.Transpose.ROTATE_90))
 
-    def _rotate_180(self):
+
+    def _rotate_180(self): #vers 1
         from PIL import Image
         self._pil_transform(lambda i: i.transpose(Image.Transpose.ROTATE_180))
 
-    def _rotate_arbitrary(self):
+
+    def _rotate_arbitrary(self): #vers 1
         deg, ok = QInputDialog.getInt(self, "Rotate", "Degrees (clockwise):",
                                       45, -359, 359)
         if not ok: return
@@ -6764,15 +6818,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._pil_transform(lambda i: i.rotate(-deg, expand=True,
                                                resample=Image.Resampling.BILINEAR))
 
-    def _mirror_h(self):
+    def _mirror_h(self): #vers 1
         from PIL import Image
         self._pil_transform(lambda i: i.transpose(Image.Transpose.FLIP_LEFT_RIGHT))
 
-    def _mirror_v(self):
+
+    def _mirror_v(self): #vers 1
         from PIL import Image
         self._pil_transform(lambda i: i.transpose(Image.Transpose.FLIP_TOP_BOTTOM))
 
-    def _scale_canvas(self):
+
+    def _scale_canvas(self): #vers 1
         """Scale canvas to a new size with a dialog offering presets."""
         if not self.dp5_canvas: return
         dlg = QDialog(self)
@@ -7098,6 +7154,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         mode_labels = {'platform':'Platform','texture':'Texture','icon':'Icon','free':'Free'}
         self._set_status(f"New canvas: {w}\u00d7{h}  {depth_combo.currentText()}  [{mode_labels[tab_mode]}]")
 
+
     def _crop_to_selection(self): #vers 1
         """Crop canvas to the current selection rect."""
         if not self.dp5_canvas: return
@@ -7122,6 +7179,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Cropped to {w}×{h}")
         except Exception as e:
             QMessageBox.warning(self, "Crop Error", str(e))
+
 
     def _resize_canvas_dialog(self): #vers 2
         """Resize canvas — single dialog with width, height, bit depth and resampling."""
@@ -7178,14 +7236,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Resize Error", str(e))
 
+
     # ── File I/O ──────────────────────────────────────────────────────────────
 
-    def _import_bitmap(self):
+    def _import_bitmap(self): #vers 1
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Image", "",
             "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.iff);;All Files (*)")
         if not path or not self.dp5_canvas: return
         self._import_bitmap_path(path)
+
 
     def _show_load_menu(self): #vers 1
         """Show load options menu from Load button left-click."""
@@ -7196,10 +7256,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         else:
             menu.exec(self.cursor().pos())
 
+
     def _show_load_menu_at(self, pos): #vers 1
         """Show load options menu at right-click position."""
         btn = self.tb_load_btn
         self._build_load_menu().exec(btn.mapToGlobal(pos))
+
 
     def _build_load_menu(self): #vers 1
         """Build the 4-option load menu."""
@@ -7211,9 +7273,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         menu.addAction("Snap to pal, canvas size (dither)…",  self._import_bitmap_snap_canvas_size_dither)
         return menu
 
+
     def _load_btn_context_menu(self, pos): #vers 2
         """Right-click Load button — delegates to _show_load_menu_at."""
         self._show_load_menu_at(pos)
+
 
     def _import_bitmap_snap_canvas_size(self): #vers 1
         """Open image, resize to current canvas size, hard-snap to user palette."""
@@ -7235,6 +7299,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.update()
         self._set_status(
             f"Opened + snapped {self._canvas_width}×{self._canvas_height}: {os.path.basename(path)}")
+
 
     def _import_bitmap_snap_canvas_size_dither(self): #vers 1
         """Open image, resize to current canvas size, dithered snap to user palette."""
@@ -7268,6 +7333,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._set_status(
             f"Opened + {mode} dither {self._canvas_width}×{self._canvas_height}: {os.path.basename(path)}")
 
+
     def _import_bitmap_snap_user_pal(self): #vers 3
         """Open image then hard-snap every pixel to nearest user palette colour."""
         palette = self._get_user_palette_rgb()
@@ -7287,6 +7353,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.rgba = bytearray(snapped.tobytes())
         self.dp5_canvas.update()
         self._set_status(f"Opened + snapped: {os.path.basename(path)}")
+
 
     def _import_bitmap_snap_dither(self): #vers 1
         """Open image, snap to user palette with dithering — ask which dither type."""
@@ -7337,6 +7404,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.rgba = bytearray(snapped.tobytes())
         self.dp5_canvas.update()
         self._set_status(f"Opened + {mode} dither: {os.path.basename(path)}")
+
 
     def _import_bitmap_path(self, path: str): #vers 3
         """Load an image, auto-reduce to current mode constraints if locked."""
@@ -7466,9 +7534,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Open Error", str(e))
 
+
     # ── Settings / theme ──────────────────────────────────────────────────────
 
-    def _show_workshop_settings(self):
+    def _show_workshop_settings(self): #vers 1
         """Open DP5-specific settings dialog (NOT the global theme dialog)."""
         old_icon_sz = self.dp5_settings.get('tool_icon_size')
         old_cols    = self.dp5_settings.get('tool_columns')
@@ -7512,7 +7581,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
             self._set_status("Settings saved.")
 
-    def _rebuild_right_panel(self):
+
+    def _rebuild_right_panel(self): #vers 1
         """Tear down and reconstruct the right panel in-place after settings change."""
         if not hasattr(self, '_splitter'): return
         old_panel = self._splitter.widget(2)
@@ -7526,7 +7596,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._update_color_swatches()
         self._sync_brush_thumb()   # restore thumbnail after rebuild
 
-    def _export_bitmap(self):
+
+    def _export_bitmap(self): #vers 1
         if not self.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(
             self, "Save PNG", "untitled.png", "PNG (*.png);;BMP (*.bmp)")
@@ -7540,7 +7611,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Save Error", str(e))
 
-    def _export_iff(self):
+
+    def _export_iff(self): #vers 1
         if not self.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(
             self, "Export IFF ILBM", "untitled.iff", "IFF ILBM (*.iff)")
@@ -7560,6 +7632,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported IFF: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "IFF Export Error", str(e))
+
 
     def _export_iff_ham(self): #vers 2
         """Export Amiga IFF ILBM in HAM6 mode (6 bitplanes, CAMG=0x800)."""
@@ -7643,6 +7716,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "IFF HAM Export Error", str(e))
 
+
     def _export_scr(self): #vers 1
         """Export ZX Spectrum SCR (256×192, 6144 bitmap + 768 attr bytes)."""
         if not self.dp5_canvas: return
@@ -7686,6 +7760,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "SCR Export Error", str(e))
 
+
     def _export_sc2(self): #vers 1
         """Export MSX SC2 raw (256×192, 6144 pattern + 6144 colour + 768 name)."""
         if not self.dp5_canvas: return
@@ -7722,6 +7797,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported SC2: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "SC2 Export Error", str(e))
+
 
     def _export_pi1(self): #vers 1
         """Export Atari ST Degas PI1 (320×200, 16 colours, 4 bitplanes)."""
@@ -7762,6 +7838,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported PI1: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "PI1 Export Error", str(e))
+
 
     def _export_koala(self): #vers 1
         """Export C64 Koala multicolour (160×200, 3 colours+bg per 4×8 cell)."""
@@ -7813,6 +7890,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Koala Export Error", str(e))
 
+
     def _export_art_studio(self): #vers 1
         """Export C64 Art Studio hires (320×200, 2 colours per 8×8 cell)."""
         if not self.dp5_canvas: return
@@ -7852,6 +7930,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported Art Studio: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "Art Studio Export Error", str(e))
+
 
     # ── Platform format imports ───────────────────────────────────────────────
 
@@ -7899,6 +7978,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "SCR Import Error", str(e))
 
+
     def _import_sc2(self): #vers 1
         """Import MSX SC2 (pattern+colour+name tables → 256×192 RGBA)."""
         path, _ = QFileDialog.getOpenFileName(
@@ -7936,6 +8016,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "SC2 Import Error", str(e))
 
+
     def _import_pi1(self): #vers 1
         """Import Atari ST Degas PI1 (320×200, 4 bitplanes) → RGBA."""
         path, _ = QFileDialog.getOpenFileName(
@@ -7972,6 +8053,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._load_rgba(rgba, w, h, os.path.basename(path))
         except Exception as e:
             QMessageBox.warning(self, "PI1 Import Error", str(e))
+
 
     def _import_koala(self): #vers 1
         """Import C64 Koala multicolour (160×200) → RGBA."""
@@ -8013,6 +8095,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Koala Import Error", str(e))
 
+
     def _import_art_studio(self): #vers 1
         """Import C64 Art Studio hires (320×200) → RGBA."""
         path, _ = QFileDialog.getOpenFileName(
@@ -8049,6 +8132,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Art Studio Import Error", str(e))
 
+
     def _load_rgba(self, rgba: bytearray, w: int, h: int, name: str = ""): #vers 2
         """Load raw RGBA data into canvas, update palette, fit zoom."""
         if not self.dp5_canvas: return
@@ -8071,6 +8155,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._bitmap_lw.addItem(name)
             self._bitmap_lw.setCurrentRow(len(self._bitmap_list)-1)
         self._set_status(f"Loaded: {name}  {w}×{h}")
+
 
     # ── Executable exports ────────────────────────────────────────────────────
 
@@ -8120,6 +8205,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "TAP Export Error", str(e))
 
+
     def _export_c64prg(self): #vers 1
         """Export C64 hires PRG — Art Studio bitmap wrapped with BASIC loader."""
         if not self.dp5_canvas: return
@@ -8158,6 +8244,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported C64 PRG: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "C64 PRG Export Error", str(e))
+
 
     def _export_c64mprg(self): #vers 1
         """Export C64 multicolour PRG — Koala bitmap wrapped with BASIC loader."""
@@ -8199,6 +8286,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "C64 Multi PRG Error", str(e))
 
+
     def _export_msxcom(self): #vers 1
         """Export MSX COM — SC2 data as a relocatable COM executable."""
         if not self.dp5_canvas: return
@@ -8230,6 +8318,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported MSX COM: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "MSX COM Error", str(e))
+
 
     def _export_plus4prg(self): #vers 1
         """Export Plus/4 PRG — hires bitmap with BASIC loader."""
@@ -8267,6 +8356,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Plus/4 PRG Error", str(e))
 
+
     def _export_vicprg(self): #vers 1
         """Export VIC-20 PRG — raw bitmap with BASIC loader."""
         if not self.dp5_canvas: return
@@ -8295,23 +8385,26 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "VIC-20 PRG Error", str(e))
 
+
     # ── ZX Spectrum Next formats ──────────────────────────────────────────────
 
-    def _rgb_to_9bit(self, r: int, g: int, b: int):
+    def _rgb_to_9bit(self, r: int, g: int, b: int): #vers 1
         """Convert 8-bit RGB to ZX Next 9-bit palette bytes (RRRGGGBB + B LSB)."""
         r3 = r // 36; g3 = g // 36; b3 = b // 36
         hi = (r3 << 5) | (g3 << 2) | (b3 >> 1)
         lo = b3 & 1
         return hi, lo
 
-    def _9bit_to_rgb(self, hi: int, lo: int):
+
+    def _9bit_to_rgb(self, hi: int, lo: int): #vers 2
         """Convert ZX Next 9-bit palette bytes back to 8-bit RGB."""
         r3 = (hi >> 5) & 7; g3 = (hi >> 2) & 7; b3 = ((hi & 3) << 1) | (lo & 1)
         # Scale 3-bit to 8-bit: val*36 + val//2
         r = r3*36 + r3//2; g = g3*36 + g3//2; b = b3*36 + b3//2
         return min(255,r), min(255,g), min(255,b)
 
-    def _canvas_to_256colour_indexed(self, w: int, h: int):
+
+    def _canvas_to_256colour_indexed(self, w: int, h: int): #vers 1
         """Quantize canvas to 256 colours, return (pixels_list, palette_rgb_list)."""
         from PIL import Image
         img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
@@ -8322,6 +8415,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         pf = q.getpalette()
         palette = [(pf[i*3], pf[i*3+1], pf[i*3+2]) for i in range(256)]
         return pixels, palette
+
 
     def _export_nxi(self): #vers 1
         """Export ZX Spectrum Next NXI (256×192 or 320×256, 9-bit palette + indexed pixels)."""
@@ -8363,6 +8457,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported NXI: {os.path.basename(path)}  {w}×{h}")
         except Exception as e:
             QMessageBox.warning(self, "NXI Export Error", str(e))
+
 
     def _import_nxi(self): #vers 1
         """Import ZX Spectrum Next NXI file."""
@@ -8411,6 +8506,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "NXI Import Error", str(e))
 
+
     def _export_pal(self): #vers 1
         """Export ZX Spectrum Next 9-bit PAL palette (512 bytes)."""
         if not self.dp5_canvas: return
@@ -8433,6 +8529,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "PAL Export Error", str(e))
 
+
     def _import_pal(self): #vers 1
         """Import ZX Spectrum Next 9-bit PAL palette into user palette grid."""
         path, _ = QFileDialog.getOpenFileName(
@@ -8451,6 +8548,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Loaded PAL: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "PAL Import Error", str(e))
+
 
     def _export_nex(self): #vers 1
         """Export ZX Spectrum Next NEX executable (loading screen, 256×192)."""
@@ -8496,9 +8594,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "NEX Export Error", str(e))
 
+
     # ── Icon export / import ──────────────────────────────────────────────────
 
-    def _get_canvas_pil(self):
+    def _get_canvas_pil(self): #vers 1
         """Return current canvas as PIL RGBA Image."""
         from PIL import Image
         return Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
@@ -8534,6 +8633,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported texture: {os.path.basename(path)}  {w}×{h} {d}")
         except Exception as e:
             QMessageBox.warning(self, "Texture Export Error", str(e))
+
 
     def _export_texture_bmp(self): #vers 1
         """Export texture as BMP at current bit depth."""
@@ -8578,7 +8678,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "IFF Import Error", str(e))
 
-    def _iff_find_chunk(self, data: bytes, tag: bytes) -> bytes:
+
+    def _iff_find_chunk(self, data: bytes, tag: bytes) -> bytes: #vers 1
         """Find and return data of first matching IFF chunk."""
         import struct
         offset = 12  # skip FORM+size+subtype
@@ -8590,8 +8691,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             offset += 8 + csize + (csize % 2)
         return b''
 
+
     def _iff_unpack_body(self, body: bytes, row_bytes: int, n_rows: int,
-                         compression: int) -> bytes:
+                         compression: int) -> bytes: #vers 1
         """Unpack IFF BODY — compression 0=raw, 1=PackBits/ByteRun1."""
         if compression == 0:
             return body
@@ -8610,7 +8712,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             # n==128 is NOP
         return bytes(out)
 
-    def _decode_iff_ilbm(self, data: bytes):
+
+    def _decode_iff_ilbm(self, data: bytes): #vers 1
         """Decode IFF ILBM to RGBA bytearray. Returns None if unsupported."""
         import struct
         if data[0:4] != b'FORM' or data[8:12] != b'ILBM':
@@ -8721,6 +8824,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         return rgba
 
+
     def _import_tiff(self): #vers 1
         """Import TIFF (single or multi-page — loads first page)."""
         path, _ = QFileDialog.getOpenFileName(
@@ -8736,6 +8840,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                            os.path.basename(path))
         except Exception as e:
             QMessageBox.warning(self, "TIFF Import Error", str(e))
+
 
     def _import_gif(self): #vers 1
         """Import GIF — animated GIF loads all frames into animation timeline."""
@@ -8780,6 +8885,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "GIF Import Error", str(e))
 
+
     def _import_tga(self): #vers 1
         """Import TGA (Targa) — common in game textures."""
         path, _ = QFileDialog.getOpenFileName(
@@ -8788,6 +8894,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         if not path: return
         self._import_bitmap_path(path)
 
+
     def _import_pcx(self): #vers 1
         """Import PCX — classic DOS bitmap format."""
         path, _ = QFileDialog.getOpenFileName(
@@ -8795,6 +8902,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             "PCX (*.pcx);;All Files (*)")
         if not path: return
         self._import_bitmap_path(path)
+
 
     def _import_dds(self): #vers 1
         """Import DDS (DirectDraw Surface) — GTA and game engine textures."""
@@ -8819,6 +8927,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             QMessageBox.warning(self, "DDS Import Error",
                 f"{e}\n\nFor DDS support install: pip install pillow-dds")
 
+
     def _import_psd(self): #vers 1
         """Import PSD (Photoshop) — reads merged composite layer."""
         path, _ = QFileDialog.getOpenFileName(
@@ -8833,6 +8942,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "PSD Import Error",
                 f"{e}\n\nFor PSD support install: pip install psd-tools")
+
 
     def _import_amiga_info(self, palette_mode: str = 'aga_wb'): #vers 5
         """Import Amiga .info icon with named palette.
@@ -8863,6 +8973,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                            f"{os.path.basename(path)} [{fmt}]")
         except Exception as e:
             QMessageBox.warning(self, "Amiga Info Import Error", str(e))
+
 
     def _decode_amiga_info(self, data: bytes, palette_mode: str = 'aga_wb'): #vers 4
         """Decode Amiga .info to (rgba, w, h, format_name) or (None,0,0,reason).
@@ -9014,6 +9125,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 rgba[i:i+4] = [c[0], c[1], c[2], 0 if px == 0 else 255]
         return bytes(rgba), w, h, f'Classic-{depth}bp-{palette_mode}'
 
+
     def _decode_newicon_im1(self, data: bytes, w: int, h: int): #vers 1
         """Decode NewIcon IM1=/IM2= encoded image from ToolTypes."""
         import re
@@ -9038,6 +9150,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         return bytes(rgba)
 
     # ── Batch Converters ──────────────────────────────────────────────────────
+
 
     def _batch_convert_icons(self):  # vers 4 (alpha + recursive + preview)
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
@@ -9450,7 +9563,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         run_btn.clicked.connect(run)
         dlg.exec()
 
-    def _make_checkerboard(self, w, h, size=8):
+
+    def _make_checkerboard(self, w, h, size=8): #vers 1
         from PyQt6.QtGui import QPixmap, QPainter, QColor
 
         pm = QPixmap(w, h)
@@ -9466,6 +9580,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         p.end()
         return pm
 
+
     def _export_amiga_icon(self): #vers 2
         """Export Amiga .info DiskObject — any canvas size, correct structure."""
         if not self.dp5_canvas: return
@@ -9478,6 +9593,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported Amiga icon: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "Amiga Icon Export Error", str(e))
+
 
     def _export_ico(self): #vers 1
         """Export Windows ICO — multiple sizes embedded (16,32,48,64,128,256)."""
@@ -9496,6 +9612,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported ICO: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "ICO Export Error", str(e))
+
 
     def _export_svg_icon(self): #vers 1
         """Export canvas as SVG — embeds canvas as base64 PNG."""
@@ -9516,6 +9633,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "SVG Export Error", str(e))
 
+
     def _export_tga(self): #vers 1
         """Export TGA (Targa) — uncompressed RGBA."""
         if not self.dp5_canvas: return
@@ -9528,6 +9646,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported TGA: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "TGA Export Error", str(e))
+
 
     def _export_dds(self): #vers 1
         """Export DDS (DirectDraw Surface) — uncompressed BGRA8."""
@@ -9564,6 +9683,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "DDS Export Error", str(e))
 
+
     def _export_pcx(self): #vers 1
         """Export PCX — classic DOS bitmap."""
         if not self.dp5_canvas: return
@@ -9576,6 +9696,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported PCX: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "PCX Export Error", str(e))
+
 
     def _write_amiga_info(self, path: str, rgba: bytes, w: int, h: int): #vers 1
         """Write Amiga .info DiskObject from RGBA pixel data."""
@@ -9618,6 +9739,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         img_hdr[12] = (1<<n_planes)-1
         open(path,'wb').write(bytes(do)+bytes(img_hdr)+b''.join(bytes(p) for p in planes))
 
+
     def _write_icns(self, path: str, img): #vers 2
         """Write Apple ICNS file from PIL image."""
         import struct, io
@@ -9633,6 +9755,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         total = 8+len(chunks)
         open(path,'wb').write(b'icns'+struct.pack('>I',total)+bytes(chunks))
 
+
     def _import_icns(self): #vers 1
         """Import Apple ICNS — loads largest available size."""
         path, _ = QFileDialog.getOpenFileName(
@@ -9646,6 +9769,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "ICNS Import Error", str(e))
 
+
     def _export_icns(self): #vers 1
         """Export Apple ICNS — macOS icon bundle with multiple sizes."""
         if not self.dp5_canvas: return
@@ -9657,6 +9781,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status(f"Exported ICNS: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.warning(self, "ICNS Export Error", str(e))
+
 
     def _import_ico(self): #vers 1
         """Import Windows ICO — load largest frame into canvas."""
@@ -9691,6 +9816,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "ICO Import Error", str(e))
 
+
     def _import_svg(self): #vers 1
         """Import SVG icon — rasterize to current canvas size."""
         path, _ = QFileDialog.getOpenFileName(
@@ -9723,6 +9849,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._load_rgba(bytearray(img.tobytes()), w, h, os.path.basename(path))
         except Exception as e:
             QMessageBox.warning(self, "SVG Import Error", str(e))
+
 
     # ── Animation ─────────────────────────────────────────────────────────────
 
@@ -9796,6 +9923,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         return strip
 
+
     def _anim_init_frames(self): #vers 1
         """Initialise animation with the current canvas as frame 0."""
         if self.dp5_canvas and self.dp5_canvas.rgba:
@@ -9807,10 +9935,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._current_frame = 0
         self._anim_refresh_thumbs()
 
+
     def _anim_save_current_frame(self): #vers 1
         """Write canvas rgba back into current frame buffer."""
         if self.dp5_canvas and 0 <= self._current_frame < len(self._frames):
             self._frames[self._current_frame] = bytearray(self.dp5_canvas.rgba)
+
 
     def _anim_load_frame(self, idx: int): #vers 2
         """Load frame idx onto the canvas."""
@@ -9832,10 +9962,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._anim_update_label()
         self._anim_highlight_thumb(idx)
 
+
     def _anim_update_label(self): #vers 1
         if hasattr(self, '_anim_frame_lbl'):
             self._anim_frame_lbl.setText(
                 f"Frame {self._current_frame+1}/{len(self._frames)}")
+
 
     def _anim_refresh_thumbs(self): #vers 1
         """Rebuild all frame thumbnails."""
@@ -9869,6 +10001,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._anim_thumb_layout.addStretch()
         self._anim_update_label()
 
+
     def _anim_highlight_thumb(self, idx: int): #vers 1
         """Just update highlight without full rebuild."""
         layout = self._anim_thumb_layout
@@ -9881,6 +10014,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                     "border:1px solid #666;border-radius:2px;padding:1px;}"
                     "QPushButton:checked{border:2px solid #88aaff;}")
 
+
     def _anim_add_frame(self): #vers 1
         """Add a new frame (copy of current)."""
         self._anim_save_current_frame()
@@ -9892,6 +10026,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._anim_load_frame(self._current_frame)
         self._anim_refresh_thumbs()
 
+
     def _anim_dup_frame(self): #vers 1
         """Duplicate current frame at end."""
         self._anim_save_current_frame()
@@ -9899,6 +10034,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         fps = self._anim_fps_spin.value() if hasattr(self,'_anim_fps_spin') else 12
         self._frame_delays.append(1000//fps)
         self._anim_refresh_thumbs()
+
 
     def _anim_del_frame(self): #vers 1
         """Delete current frame (min 1 frame)."""
@@ -9911,17 +10047,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._anim_load_frame(self._current_frame)
         self._anim_refresh_thumbs()
 
+
     def _anim_first(self): #vers 1
         self._anim_load_frame(0)
+
 
     def _anim_last(self): #vers 1
         self._anim_load_frame(len(self._frames)-1)
 
+
     def _anim_prev(self): #vers 1
         self._anim_load_frame(max(0, self._current_frame-1))
 
+
     def _anim_next(self): #vers 1
         self._anim_load_frame(min(len(self._frames)-1, self._current_frame+1))
+
 
     def _anim_toggle_play(self): #vers 1
         if self._anim_playing:
@@ -9939,6 +10080,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 self._anim_play_btn.setText("⏹")
             self._set_status(f"Playing {len(self._frames)} frames @ {fps}fps")
 
+
     def _anim_tick(self): #vers 1
         """Advance to next frame during playback."""
         if not self._anim_playing: return
@@ -9949,6 +10091,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self.dp5_canvas.update()
         self._anim_update_label()
         self._anim_highlight_thumb(next_f)
+
 
     def _anim_export_gif(self): #vers 1
         """Export all frames as an animated GIF."""
@@ -9977,6 +10120,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "GIF Export Error", str(e))
 
+
     def _anim_export_png_seq(self): #vers 1
         """Export all frames as a numbered PNG sequence."""
         if not self._frames: return
@@ -9996,7 +10140,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "PNG Sequence Error", str(e))
 
-    def _apply_theme(self):
+
+    def _apply_theme(self): #vers 1
         try:
             app_settings = self.app_settings
             if not app_settings and self.main_window:
@@ -10019,7 +10164,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             print(f"[DP5 Workshop] Theme error: {e}")
 
-    def _refresh_icons(self):
+
+    def _refresh_icons(self): #vers 1
         SVGIconFactory.clear_cache()
         color = self._get_icon_color()
         for attr, method in [
@@ -10036,7 +10182,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 getattr(self, attr).setIcon(
                     getattr(SVGIconFactory, method)(20, color))
 
-    def _launch_theme_settings(self):
+
+    def _launch_theme_settings(self): #vers 1
         try:
             if not APPSETTINGS_AVAILABLE: return
             dialog = SettingsDialog(self.app_settings, self)
@@ -10046,15 +10193,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Theme Error", str(e))
 
-    def _get_icon_color(self) -> str:
+
+    def _get_icon_color(self) -> str: #vers 1
         if self.app_settings:
             colors = self.app_settings.get_theme_colors()
             return colors.get('text_primary', '#ffffff')
         return '#ffffff'
 
+
     # ── Window management ─────────────────────────────────────────────────────
 
-    def _set_status(self, msg: str):
+    def _set_status(self, msg: str): #vers 1
         if hasattr(self, '_status_bar'):
             self._status_bar.showMessage(msg)
         # Always refresh permanent info labels
@@ -10067,11 +10216,13 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             labels = {0:'RGBA32', 1:'RGB24', 2:'RGB16', 3:'Idx8'}
             self._status_depth_lbl.setText(labels.get(depth, 'RGBA32'))
 
-    def _toggle_maximize(self):
+
+    def _toggle_maximize(self): #vers 1
         if self.isMaximized(): self.showNormal()
         else: self.showMaximized()
 
-    def keyPressEvent(self, e):
+
+    def keyPressEvent(self, e): #vers 1
         k   = e.key()
         mod = e.modifiers()
         Ctrl  = Qt.KeyboardModifier.ControlModifier
@@ -10185,13 +10336,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         else:
             super().keyPressEvent(e)
 
-    def closeEvent(self, event):
+
+    def closeEvent(self, event): #vers 1
         self.window_closed.emit()
         event.accept()
 
+
     # ── Corner resize + dragging (COL Workshop pattern) ───────────────────────
 
-    def _get_resize_corner(self, pos):
+    def _get_resize_corner(self, pos): #vers 1
         size = self.corner_size; w = self.width(); h = self.height()
         if pos.x() < size and pos.y() < size:           return "top-left"
         if pos.x() > w - size and pos.y() < size:       return "top-right"
@@ -10199,7 +10352,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         if pos.x() > w - size and pos.y() > h - size:   return "bottom-right"
         return None
 
-    def _update_cursor(self, direction):
+
+    def _update_cursor(self, direction): #vers 1
         cursors = {
             "top-left":     Qt.CursorShape.SizeFDiagCursor,
             "bottom-right": Qt.CursorShape.SizeFDiagCursor,
@@ -10208,7 +10362,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         }
         self.setCursor(cursors.get(direction, Qt.CursorShape.ArrowCursor))
 
-    def _is_on_draggable_area(self, pos):
+
+    def _is_on_draggable_area(self, pos): #vers 1
         if not hasattr(self, 'titlebar'):
             return False
         if not self.titlebar.rect().contains(pos):
@@ -10218,7 +10373,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 return False
         return True
 
-    def mousePressEvent(self, event):
+
+    def mousePressEvent(self, event): #vers 1
         if event.button() != Qt.MouseButton.LeftButton:
             return super().mousePressEvent(event)
         pos = event.pos()
@@ -10236,7 +10392,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 event.accept(); return
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event):
+
+    def mouseMoveEvent(self, event): #vers 1
         if event.buttons() == Qt.MouseButton.LeftButton:
             if self.resizing and self.resize_corner:
                 self._handle_corner_resize(event.globalPosition().toPoint())
@@ -10249,14 +10406,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._update_cursor(corner)
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event):
+
+    def mouseReleaseEvent(self, event): #vers 1
         if event.button() == Qt.MouseButton.LeftButton:
             self.dragging = self.resizing = False
             self.resize_corner = None
             self.setCursor(Qt.CursorShape.ArrowCursor)
             event.accept()
 
-    def _handle_corner_resize(self, global_pos):
+
+    def _handle_corner_resize(self, global_pos): #vers 1
         if not self.resize_corner or not self.drag_position: return
         delta    = global_pos - self.drag_position
         geometry = self.initial_geometry
@@ -10285,7 +10444,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             if nw >= min_w and nh >= min_h:
                 self.setGeometry(nx, ny, nw, nh)
 
-    def paintEvent(self, event):
+
+    def paintEvent(self, event): #vers 1
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -10313,10 +10473,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         painter.end()
 
 
-
 #  Public factory function
 
-def open_dp5_workshop(main_window=None) -> DP5Workshop:
+def open_dp5_workshop(main_window=None) -> DP5Workshop: #vers 1
     """Open DP5 Workshop standalone or embedded."""
     try:
         workshop = DP5Workshop(None, main_window)
@@ -10336,7 +10495,6 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop:
         return None
 
 
-
 #  Character / Font Editor
 
 class _CharFontEditor(QDialog):
@@ -10345,7 +10503,7 @@ class _CharFontEditor(QDialog):
 
     CELL = 24   # display pixels per bit-cell
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self.setWindowTitle("Character / Font Editor")
         self.setMinimumSize(700, 520)
@@ -10359,7 +10517,8 @@ class _CharFontEditor(QDialog):
         self._refresh_grid()
         self._refresh_char_list()
 
-    def _build_ui(self):
+
+    def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
 
         # ── Left: character list ─────────────────────────────────────
@@ -10434,43 +10593,49 @@ class _CharFontEditor(QDialog):
         right.addWidget(close_btn)
         lay.addLayout(right)
 
-    def _on_size_change(self, txt):
+
+    def _on_size_change(self, txt): #vers 1
         self._char_h = 16 if txt == "8×16" else 8
         self._chars = [[0]*self._char_h for _ in range(self._n_chars)]
         self._grid_widget.set_size(self._char_w, self._char_h)
         self._refresh_char_list()
         self._on_char_select(0)
 
-    def _on_char_select(self, idx):
+
+    def _on_char_select(self, idx): #vers 1
         if 0 <= idx < self._n_chars:
             self._current = idx
             self._grid_widget.set_data(self._chars[idx])
             self._refresh_hex()
             self._refresh_preview()
 
-    def _on_bit_toggle(self, row, col, val):
+    def _on_bit_toggle(self, row, col, val): #vers 1
         ch = self._chars[self._current]
         if val: ch[row] |=  (0x80 >> col)
         else:   ch[row] &= ~(0x80 >> col)
         self._refresh_hex()
         self._refresh_preview()
 
-    def _refresh_grid(self):
+
+    def _refresh_grid(self): #vers 1
         self._grid_widget.set_size(self._char_w, self._char_h)
         self._grid_widget.set_data(self._chars[self._current])
 
-    def _refresh_char_list(self):
+
+    def _refresh_char_list(self): #vers 1
         self._char_list.clear()
         for i in range(self._n_chars):
             ch = chr(i) if 32 <= i < 127 else f"[{i}]"
             self._char_list.addItem(f"{i:3d} {ch}")
         self._char_list.setCurrentRow(self._current)
 
-    def _refresh_hex(self):
+
+    def _refresh_hex(self): #vers 1
         ch = self._chars[self._current]
         self._hex_label.setText("Hex: " + " ".join(f"{b:02X}" for b in ch))
 
-    def _refresh_preview(self):
+
+    def _refresh_preview(self): #vers 1
         from PIL import Image
         ch = self._chars[self._current]
         img = Image.new('RGB', (self._char_w, self._char_h), (0,0,0))
@@ -10486,39 +10651,46 @@ class _CharFontEditor(QDialog):
         pm = QPixmap(); pm.loadFromData(buf.read())
         self._preview.setPixmap(pm)
 
-    def _clear_char(self):
+
+    def _clear_char(self): #vers 1
         self._chars[self._current] = [0]*self._char_h
         self._grid_widget.set_data(self._chars[self._current])
         self._refresh_hex(); self._refresh_preview()
 
-    def _invert_char(self):
+
+    def _invert_char(self): #vers 1
         ch = self._chars[self._current]
         mask = (1<<self._char_w)-1
         self._chars[self._current] = [((~b) & 0xFF) for b in ch]
         self._grid_widget.set_data(self._chars[self._current])
         self._refresh_hex(); self._refresh_preview()
 
-    def _shift_l(self):
+
+    def _shift_l(self): #vers 1
         ch = self._chars[self._current]
         self._chars[self._current] = [((b<<1)&0xFF) for b in ch]
         self._grid_widget.set_data(self._chars[self._current]); self._refresh_hex()
 
-    def _shift_r(self):
+
+    def _shift_r(self): #vers 1
         ch = self._chars[self._current]
         self._chars[self._current] = [(b>>1) for b in ch]
         self._grid_widget.set_data(self._chars[self._current]); self._refresh_hex()
 
-    def _shift_u(self):
+
+    def _shift_u(self): #vers 1
         ch = self._chars[self._current]
         self._chars[self._current] = ch[1:] + [0]
         self._grid_widget.set_data(self._chars[self._current]); self._refresh_hex()
 
-    def _shift_d(self):
+
+    def _shift_d(self): #vers 1
         ch = self._chars[self._current]
         self._chars[self._current] = [0] + ch[:-1]
         self._grid_widget.set_data(self._chars[self._current]); self._refresh_hex()
 
-    def _load_binary(self):
+
+    def _load_binary(self): #vers 1
         path, _ = QFileDialog.getOpenFileName(self,"Load charset","","Binary (*.bin *.chr *.fnt);;All Files (*)")
         if not path: return
         data = open(path,'rb').read()
@@ -10528,14 +10700,16 @@ class _CharFontEditor(QDialog):
             self._chars[i] = list(data[i*char_size:(i+1)*char_size])
         self._on_char_select(self._current)
 
-    def _save_binary(self):
+
+    def _save_binary(self): #vers 1
         path, _ = QFileDialog.getSaveFileName(self,"Save charset","charset.bin","Binary (*.bin);;All (*)")
         if not path: return
         data = bytearray()
         for ch in self._chars: data += bytearray(ch)
         open(path,'wb').write(data)
 
-    def _export_c(self):
+
+    def _export_c(self): #vers 1
         path, _ = QFileDialog.getSaveFileName(self,"Export C header","charset.h","C Header (*.h)")
         if not path: return
         lines = [f"/* {self._char_w}×{self._char_h} character set — {self._n_chars} chars */",
@@ -10547,7 +10721,8 @@ class _CharFontEditor(QDialog):
         lines.append("};")
         open(path,'w').write('\n'.join(lines)+'\n')
 
-    def _export_asm(self):
+
+    def _export_asm(self): #vers 1
         path, _ = QFileDialog.getSaveFileName(self,"Export ASM","charset.asm","ASM (*.asm *.s)")
         if not path: return
         lines = [f"; {self._char_w}×{self._char_h} charset — {self._n_chars} chars","charset:"]
@@ -10557,7 +10732,8 @@ class _CharFontEditor(QDialog):
             lines.append(f"    defb {hex_row}  ; {comment}")
         open(path,'w').write('\n'.join(lines)+'\n')
 
-    def _stamp_to_canvas(self):
+
+    def _stamp_to_canvas(self): #vers 1
         """Stamp current character onto the parent paint canvas."""
         p = self.parent()
         if not p or not hasattr(p,'dp5_canvas') or not p.dp5_canvas: return
@@ -10580,23 +10756,23 @@ class _CharGrid(QWidget):
     bit_toggled = pyqtSignal(int, int, bool)
     CELL = 24
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self._w = 8; self._h = 8
         self._data = [0]*8
         self._drawing = False; self._draw_val = True
 
-    def set_size(self, w, h):
+    def set_size(self, w, h): #vers 1
         self._w = w; self._h = h
         self._data = [0]*h
         self.setFixedSize(w*self.CELL+1, h*self.CELL+1)
         self.update()
 
-    def set_data(self, data):
+    def set_data(self, data): #vers 1
         self._data = list(data)
         self.update()
 
-    def paintEvent(self, _):
+    def paintEvent(self, _): #vers 1
         p = QPainter(self)
         for row in range(self._h):
             for col in range(self._w):
@@ -10607,10 +10783,10 @@ class _CharGrid(QWidget):
                 p.setPen(QPen(QColor(60,60,60)))
                 p.drawRect(x, y, self.CELL-1, self.CELL-1)
 
-    def _cell(self, pos):
+    def _cell(self, pos): #vers 1
         return pos.x()//self.CELL, pos.y()//self.CELL
 
-    def mousePressEvent(self, e):
+    def mousePressEvent(self, e): #vers 1
         col, row = self._cell(e.position().toPoint())
         if 0<=col<self._w and 0<=row<self._h:
             bit = bool(self._data[row] & (0x80>>col))
@@ -10619,7 +10795,7 @@ class _CharGrid(QWidget):
             self.bit_toggled.emit(row, col, self._draw_val)
             self.update()
 
-    def mouseMoveEvent(self, e):
+    def mouseMoveEvent(self, e): #vers 1
         if not self._drawing: return
         col, row = self._cell(e.position().toPoint())
         if 0<=col<self._w and 0<=row<self._h:
@@ -10628,7 +10804,7 @@ class _CharGrid(QWidget):
                 self.bit_toggled.emit(row, col, self._draw_val)
                 self.update()
 
-    def mouseReleaseEvent(self, e):
+    def mouseReleaseEvent(self, e): #vers 1
         self._drawing = False
 
 
@@ -10638,7 +10814,7 @@ class _SpriteEditor(QDialog):
     """View and edit sprites with platform native size constraints.
     Shows the canvas sliced into sprite-sized frames."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self.setWindowTitle("Sprite Editor")
         self.setMinimumSize(640, 480)
@@ -10649,7 +10825,7 @@ class _SpriteEditor(QDialog):
         self._build_ui()
         self._refresh_frames()
 
-    def _build_ui(self):
+    def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
 
         # ── Left: frame list ─────────────────────────────────────────
@@ -10715,22 +10891,22 @@ class _SpriteEditor(QDialog):
         right.addWidget(close_btn)
         lay.addLayout(right)
 
-    def _on_size_change(self, txt):
+    def _on_size_change(self, txt): #vers 1
         w,h = map(int, txt.split("×"))
         self._set_sprite_size(w, h)
 
-    def _set_sprite_size(self, w, h):
+    def _set_sprite_size(self, w, h): #vers 1
         self._sprite_w = w; self._sprite_h = h
         self._size_combo.setCurrentText(f"{w}×{h}" if f"{w}×{h}" in
             [self._size_combo.itemText(i) for i in range(self._size_combo.count())] else
             self._size_combo.currentText())
         self._refresh_frames()
 
-    def _on_zoom(self, z):
+    def _on_zoom(self, z): #vers 1
         self._zoom = z
         self._sprite_view.set_zoom(z)
 
-    def _refresh_frames(self):
+    def _refresh_frames(self): #vers 1
         ed = self._editor
         if not ed or not hasattr(ed,'dp5_canvas') or not ed.dp5_canvas: return
         cw = ed._canvas_width; ch = ed._canvas_height
@@ -10748,7 +10924,7 @@ class _SpriteEditor(QDialog):
             self._frame_list.setCurrentRow(0)
             self._on_frame_select(0)
 
-    def _on_frame_select(self, idx):
+    def _on_frame_select(self, idx): #vers 1
         if idx < 0 or idx >= len(self._frames): return
         self._current_frame = idx
         ox, oy = self._frames[idx]
@@ -10769,7 +10945,7 @@ class _SpriteEditor(QDialog):
         self._info_lbl.setText(
             f"Frame {idx}  —  {ox},{oy}  ({sw}×{sh}px)")
 
-    def _export_sheet(self):
+    def _export_sheet(self): #vers 1
         ed = self._editor
         if not ed or not ed.dp5_canvas: return
         path, _ = QFileDialog.getSaveFileName(self,"Export Sprite Sheet",
@@ -10792,7 +10968,7 @@ class _SpriteEditor(QDialog):
 
 class _SpriteView(QWidget):
     """Zoomed sprite display widget."""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self._rgba = None; self._w = 16; self._h = 16; self._zoom = 4
         self.setMinimumSize(200,200)
@@ -10802,13 +10978,13 @@ class _SpriteView(QWidget):
         self.setFixedSize(w*zoom+2, h*zoom+2)
         self.update()
 
-    def set_zoom(self, z):
+    def set_zoom(self, z): #vers 1
         self._zoom=z
         if self._rgba:
             self.setFixedSize(self._w*z+2, self._h*z+2)
         self.update()
 
-    def paintEvent(self, _):
+    def paintEvent(self, _): #vers 1
         if not self._rgba: return
         p = QPainter(self)
         z = self._zoom; w = self._w; h = self._h
@@ -10830,7 +11006,7 @@ class _SpriteView(QWidget):
 
 #  Standalone entry point
 
-if __name__ == "__main__":
+if __name__ == "__main__": #vers 1
     import traceback
 
     print(f"{App_name} starting…")
