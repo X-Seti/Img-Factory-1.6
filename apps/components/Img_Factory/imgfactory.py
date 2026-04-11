@@ -511,12 +511,6 @@ class IMGFactory(QMainWindow):
         # Apply UI mode settings to the newly created layout
         self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
-        # Hide system top bar when in custom mode (custom has its own titlebar)
-        if ui_mode == "custom":
-            gl = getattr(self, 'gui_layout', None)
-            if gl and hasattr(gl, '_system_top_bar'):
-                gl._system_top_bar.setVisible(False)
-
         # Menu system — initially uses self.menuBar() (Qt system bar)
         # After _create_ui(), re-pointed to _standalone_menu_bar if it exists
         self.menubar = self.menuBar()
