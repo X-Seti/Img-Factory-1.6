@@ -662,19 +662,29 @@ class IMGFactoryGUILayout:
             return False
 
 
-    def _show_system_popup_menu(self, btn): #vers 1
-        """Show the imgfactory popup menu anchored to the Menu button (system UI mode)."""
+    def _show_system_popup_menu(self, btn): #vers 2
+        """Show the imgfactory popup menu anchored to the Menu button (system UI mode).
+        Creates custom_menu_manager on demand if not already present.
+        """
         try:
-            from apps.gui.gui_menu_custom import show_popup_menu_at_button
-            show_popup_menu_at_button(self.main_window, btn)
+            from apps.gui.gui_menu_custom import CustomMenuManager
+            # Create manager on demand if not already set up (system mode skips this)
+            if not hasattr(self.main_window, 'custom_menu_manager') or                not self.main_window.custom_menu_manager:
+                self.main_window.custom_menu_manager = CustomMenuManager(self.main_window)
+            pos = btn.mapToGlobal(btn.rect().bottomLeft())
+            self.main_window.custom_menu_manager.show_popup_menu(pos)
         except Exception as e:
-            # Fallback — show the standalone menubar menu under button
-            try:
-                mb = getattr(self.main_window, '_standalone_menu_bar', None)
-                if mb:
-                    mb.setVisible(not mb.isVisible())
-            except Exception:
-                pass
+            print(f"System menu error: {e}")
+            import traceback; traceback.print_exc()
+
+    def _show_system_settings(self): #vers 1
+        """Open the IMG Factory settings dialog (not the app theme dialog)."""
+        try:
+            from apps.methods.imgfactory_ui_settings import show_imgfactory_settings_dialog
+            show_imgfactory_settings_dialog(self.main_window)
+        except Exception as e:
+            print(f"Settings error: {e}")
+            import traceback; traceback.print_exc()
 
     def refresh_icons(self, color: str): #vers 2
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
@@ -1474,19 +1484,17 @@ class IMGFactoryGUILayout:
             menu_btn.setFixedHeight(24)
             menu_btn.setIcon(SVGIconFactory.menu_m_icon(16, icon_color))
             menu_btn.setIconSize(QSize(16, 16))
-            menu_btn.clicked.connect(
-                lambda: self._show_system_popup_menu(menu_btn))
+            menu_btn.clicked.connect(lambda: self._show_system_popup_menu(menu_btn))
             menu_btn.setToolTip("Main menu")
             top_hl.addWidget(menu_btn)
             self.menu_btn = menu_btn
 
-            # Settings button
+            # Settings button — opens IMG Factory settings (not app theme settings)
             settings_btn = QPushButton("Settings")
             settings_btn.setFixedHeight(24)
             settings_btn.setIcon(SVGIconFactory.settings_icon(16, icon_color))
             settings_btn.setIconSize(QSize(16, 16))
-            settings_btn.clicked.connect(
-                lambda: getattr(self.main_window, 'show_gui_settings', lambda: None)())
+            settings_btn.clicked.connect(self._show_system_settings)
             settings_btn.setToolTip("IMG Factory Settings")
             top_hl.addWidget(settings_btn)
             self.settings_btn = settings_btn
