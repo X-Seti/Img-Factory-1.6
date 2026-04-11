@@ -448,6 +448,19 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.show_menu_bar_check.setChecked(self.img_settings.get("show_menu_bar", True))
         appearance_layout.addWidget(self.show_menu_bar_check)
 
+        # ── IMG Factory menu orientation ──────────────────────────────────
+        img_orient_group = _GB("IMG Factory — Menu Orientation")
+        img_orient_layout = _VL(img_orient_group)
+        img_orient = self.img_settings.get("img_menu_orientation", "topbar")
+        self.img_menu_topbar_radio   = _RB("Topbar  (menubar below titlebar)")
+        self.img_menu_dropdown_radio = _RB("Dropdown  (Menu button popup)")
+        self.img_menu_topbar_radio.setChecked(img_orient == "topbar")
+        self.img_menu_dropdown_radio.setChecked(img_orient != "topbar")
+        img_orient_layout.addWidget(self.img_menu_topbar_radio)
+        img_orient_layout.addWidget(self.img_menu_dropdown_radio)
+        img_orient_group.setLayout(img_orient_layout)
+        appearance_layout.addWidget(img_orient_group)
+
         # ── DP5 Paint menu style ──────────────────────────────────────────
         from PyQt6.QtWidgets import QGroupBox as _GB, QVBoxLayout as _VL, QRadioButton as _RB
         dp5_group = _GB("DP5 Paint — Menu Orientation")
@@ -687,6 +700,15 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.img_settings.set("show_toolbar", self.show_toolbar_check.isChecked())
         self.img_settings.set("show_status_bar", self.show_status_bar_check.isChecked())
         self.img_settings.set("show_menu_bar", self.show_menu_bar_check.isChecked())
+
+        # IMG Factory menu orientation — live apply
+        img_orient = "topbar" if getattr(self, 'img_menu_topbar_radio', None) and self.img_menu_topbar_radio.isChecked() else "dropdown"
+        self.img_settings.set("img_menu_orientation", img_orient)
+        try:
+            if hasattr(self.main_window, 'set_img_menu_orientation'):
+                self.main_window.set_img_menu_orientation(img_orient)
+        except Exception:
+            pass
 
         # DP5 menu style
         dp5_style = "topbar" if getattr(self, 'dp5_menu_topbar_radio', None) and self.dp5_menu_topbar_radio.isChecked() else "dropdown"

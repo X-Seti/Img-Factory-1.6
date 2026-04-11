@@ -755,27 +755,22 @@ class IMGFactory(QMainWindow):
             self.show()
 
 
-    def apply_ui_mode(self, ui_mode, show_toolbar=True, show_status_bar=True, show_menu_bar=True): #vers 6
-        """Apply UI mode settings - custom or system UI"""
+    def apply_ui_mode(self, ui_mode, show_toolbar=True, show_status_bar=True, show_menu_bar=True): #vers 7
+        """Apply UI mode settings — custom or system UI.
+        Menu orientation (topbar/dropdown) is read from img_settings independently
+        so it works the same way in both UI modes, mirroring DP5 behaviour.
+        """
         current_geometry = self.geometry()
         was_visible = self.isVisible()
 
-        # In custom mode section:
+        # Resolve menu orientation setting
+        menu_orient = getattr(self, 'img_settings', None)
+        menu_orient = menu_orient.get('img_menu_orientation', 'topbar') if menu_orient else 'topbar'
+        want_topbar = (menu_orient == 'topbar')
+
         if ui_mode == "custom":
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-
-            # FORCE HIDE menu bar in custom mode
-            menu_bar = self.menuBar()
-            menu_bar.setVisible(False)
-            menu_bar.setMaximumHeight(0)  # Collapse it completely
-
-            # HIDE menu bar in custom mode (toolbar has Settings button)
-            if hasattr(self, 'menuBar') and callable(self.menuBar):
-                menu_bar = self.menuBar()
-                if menu_bar:
-                    menu_bar.setVisible(False)  # Always hidden in custom mode
         else:
-            # Use system window
             self.setWindowFlags(
                 Qt.WindowType.Window |
                 Qt.WindowType.WindowMinimizeButtonHint |
@@ -783,11 +778,19 @@ class IMGFactory(QMainWindow):
                 Qt.WindowType.WindowCloseButtonHint
             )
 
-            # Show menu bar in system mode
-            if hasattr(self, 'menuBar') and callable(self.menuBar):
-                menu_bar = self.menuBar()
-                if menu_bar:
-                    menu_bar.setVisible(show_menu_bar)
+        # Menu bar visibility — driven by orientation, not ui_mode
+        menu_bar = self.menuBar()
+        if menu_bar:
+            if want_topbar:
+                menu_bar.setMaximumHeight(16777215)
+                menu_bar.setVisible(True)
+            else:
+                menu_bar.setVisible(False)
+                menu_bar.setMaximumHeight(0)
+
+        # Menu button in custom titlebar — opposite of topbar
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'menu_btn'):
+            self.gui_layout.menu_btn.setVisible(not want_topbar)
 
         # Status bar visibility
         if hasattr(self, 'statusBar') and callable(self.statusBar):
@@ -802,6 +805,16 @@ class IMGFactory(QMainWindow):
         self.setGeometry(current_geometry)
         if was_visible:
             self.show()
+
+    def set_img_menu_orientation(self, orientation: str): #vers 1
+        """Switch imgfactory menu between 'topbar' and 'dropdown'.
+        Mirrors DP5's set_menu_orientation. Saves to img_settings and applies live.
+        """
+        if hasattr(self, 'img_settings'):
+            self.img_settings.set('img_menu_orientation', orientation)
+        ui_mode = getattr(self, 'img_settings', None)
+        ui_mode = ui_mode.get('ui_mode', 'system') if ui_mode else 'system'
+        self.apply_ui_mode(ui_mode)
 
 
     def autoload_game_root(self): #vers 5
