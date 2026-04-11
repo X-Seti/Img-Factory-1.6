@@ -3480,7 +3480,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
                    self.dp5_settings.get('menu_style') == 'topbar')
         mb.setVisible(show_mb)
         if not show_mb:
-            mb.setFixedHeight(0)
+            mb.setMinimumHeight(0)
             mb.setMaximumHeight(0)
         main_layout.addWidget(mb)
 
@@ -4328,17 +4328,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
 
         if hasattr(self, '_menu_bar'):
             if style == 'topbar':
-                # Restore internal menubar — must undo setFixedHeight(0)
+                # Restore internal menubar
                 self._menu_bar.setMinimumHeight(0)
                 self._menu_bar.setMaximumHeight(16777215)
-                self._menu_bar.setSizePolicy(
-                    self._menu_bar.sizePolicy().horizontalPolicy(),
-                    __import__('PyQt6.QtWidgets', fromlist=['QSizePolicy']).QSizePolicy.Policy.Preferred)
                 self._menu_bar.setVisible(True)
                 self._menu_bar.updateGeometry()
+                self._menu_bar.parentWidget().updateGeometry() if self._menu_bar.parentWidget() else None
             else:
                 # Hide internal menubar
                 self._menu_bar.setVisible(False)
+                self._menu_bar.setMinimumHeight(0)
                 self._menu_bar.setMaximumHeight(0)
 
     def _create_right_panel(self):
