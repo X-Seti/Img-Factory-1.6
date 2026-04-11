@@ -3573,18 +3573,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
     # ── Toolbar (standalone titlebar) ─────────────────────────────────────────
 
 
-    def _create_toolbar(self): #vers 1
-        self.titlebar = QFrame()
-        self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.titlebar.setFixedHeight(45)
-        self.titlebar.setObjectName("titlebar")
-        self.titlebar.installEventFilter(self)
-        self.titlebar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.titlebar.setMouseTracking(True)
-
+    def _create_toolbar(self): #vers 2
+        # titlebar and toolbar are the SAME widget — avoids a floating 45px ghost
+        # that was rendering at (0,0) and creating blank space above the canvas.
         self.toolbar = QFrame()
         self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
         self.toolbar.setMaximumHeight(50)
+        self.toolbar.setObjectName("titlebar")
+        self.toolbar.installEventFilter(self)
+        self.toolbar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.toolbar.setMouseTracking(True)
+        self.titlebar = self.toolbar   # alias — drag detection uses self.titlebar
 
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
