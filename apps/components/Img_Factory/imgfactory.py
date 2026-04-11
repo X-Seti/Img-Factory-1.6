@@ -511,7 +511,8 @@ class IMGFactory(QMainWindow):
         # Apply UI mode settings to the newly created layout
         self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
-        # Menu system
+        # Menu system — initially uses self.menuBar() (Qt system bar)
+        # After _create_ui(), re-pointed to _standalone_menu_bar if it exists
         self.menubar = self.menuBar()
         self.menu_bar_system = IMGFactoryMenuBar(self)
         # Menu callbacks
@@ -530,8 +531,24 @@ class IMGFactory(QMainWindow):
         self.menu_bar_system.set_callbacks(callbacks)
         integrate_drag_drop_system(self)
 
-        # Create main UI (includes tab system setup)
+        # Create main UI (includes tab system setup + _standalone_menu_bar)
         self._create_ui()
+
+        # Re-point menu_bar_system to the standalone widget and rebuild
+        # so menus appear in the layout-controlled bar, not the Qt system bar
+        try:
+            if hasattr(self, '_standalone_menu_bar'):
+                self.menuBar().setVisible(False)
+                self.menuBar().setMaximumHeight(0)
+                self.menu_bar_system.menu_bar = self._standalone_menu_bar
+                self._standalone_menu_bar.clear()
+                self.menu_bar_system._create_menus()
+                self.menu_bar_system._create_tools_menu()
+                self.menu_bar_system._create_dp5_menu()
+                self.menu_bar_system.set_callbacks(callbacks)
+                self._apply_img_menu_orientation()
+        except Exception as _me:
+            print(f"Standalone menubar setup error: {_me}")
 
         # Stub for selection callbacks before full button system loads
         if not hasattr(self, '_update_button_states'):
@@ -763,11 +780,6 @@ class IMGFactory(QMainWindow):
         current_geometry = self.geometry()
         was_visible = self.isVisible()
 
-        # Resolve menu orientation setting
-        menu_orient = getattr(self, 'img_settings', None)
-        menu_orient = menu_orient.get('img_menu_orientation', 'topbar') if menu_orient else 'topbar'
-        want_topbar = (menu_orient == 'topbar')
-
         if ui_mode == "custom":
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         else:
@@ -778,19 +790,17 @@ class IMGFactory(QMainWindow):
                 Qt.WindowType.WindowCloseButtonHint
             )
 
-        # Menu bar visibility — driven by orientation, not ui_mode
-        menu_bar = self.menuBar()
-        if menu_bar:
-            if want_topbar:
-                menu_bar.setMaximumHeight(16777215)
-                menu_bar.setVisible(True)
-            else:
-                menu_bar.setVisible(False)
-                menu_bar.setMaximumHeight(0)
+        # Always hide Qt system menubar — standalone bar handles orientation
+        try:
+            mb = self.menuBar()
+            mb.setVisible(False)
+            mb.setMaximumHeight(0)
+        except Exception:
+            pass
 
-        # Menu button in custom titlebar — opposite of topbar
-        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'menu_btn'):
-            self.gui_layout.menu_btn.setVisible(not want_topbar)
+        # Apply standalone menubar orientation
+        if hasattr(self, '_standalone_menu_bar'):
+            self._apply_img_menu_orientation()
 
         # Status bar visibility
         if hasattr(self, 'statusBar') and callable(self.statusBar):
@@ -806,15 +816,35 @@ class IMGFactory(QMainWindow):
         if was_visible:
             self.show()
 
-    def set_img_menu_orientation(self, orientation: str): #vers 1
+    def _apply_img_menu_orientation(self): #vers 1
+        """Show/hide _standalone_menu_bar and Menu button per saved orientation."""
+        orient = getattr(self, 'img_settings', None)
+        orient = orient.get('img_menu_orientation', 'topbar') if orient else 'topbar'
+        want_topbar = (orient == 'topbar')
+
+        if hasattr(self, '_standalone_menu_bar'):
+            self._standalone_menu_bar.setMaximumHeight(16777215 if want_topbar else 0)
+            self._standalone_menu_bar.setVisible(want_topbar)
+
+        # Always hide Qt system menubar — standalone bar handles it
+        try:
+            mb = self.menuBar()
+            mb.setVisible(False)
+            mb.setMaximumHeight(0)
+        except Exception:
+            pass
+
+        # Show/hide Menu button in custom titlebar
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'menu_btn'):
+            self.gui_layout.menu_btn.setVisible(not want_topbar)
+
+    def set_img_menu_orientation(self, orientation: str): #vers 2
         """Switch imgfactory menu between 'topbar' and 'dropdown'.
         Mirrors DP5's set_menu_orientation. Saves to img_settings and applies live.
         """
         if hasattr(self, 'img_settings'):
             self.img_settings.set('img_menu_orientation', orientation)
-        ui_mode = getattr(self, 'img_settings', None)
-        ui_mode = ui_mode.get('ui_mode', 'system') if ui_mode else 'system'
-        self.apply_ui_mode(ui_mode)
+        self._apply_img_menu_orientation()
 
 
     def autoload_game_root(self): #vers 5
@@ -3043,6 +3073,20 @@ class IMGFactory(QMainWindow):
                         print(f"Tool taskbar theme apply failed: {_te}")
             except Exception as e:
                 print(f"Toolbar creation failed: {e}")
+
+        # ── Standalone menubar widget (orientation-controlled) ───────────────
+        # This is a plain QMenuBar widget in the layout — NOT self.menuBar().
+        # Sits between the custom titlebar and the content splitter.
+        # Shown in topbar mode, hidden in dropdown mode.
+        from PyQt6.QtWidgets import QMenuBar as _QMenuBar
+        self._standalone_menu_bar = _QMenuBar(central_widget)
+        # Populate with the same menus as menu_bar_system (built later),
+        # so we wire it after menu_bar_system is created — for now just add it hidden.
+        img_orient = self.img_settings.get('img_menu_orientation', 'topbar')
+        self._standalone_menu_bar.setVisible(img_orient == 'topbar')
+        if img_orient != 'topbar':
+            self._standalone_menu_bar.setMaximumHeight(0)
+        main_layout.addWidget(self._standalone_menu_bar)
 
         # Build the persistent shell: right panel + log live OUTSIDE the tab widget
         # so they are always visible regardless of which tab is active.
