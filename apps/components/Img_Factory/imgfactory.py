@@ -546,8 +546,11 @@ class IMGFactory(QMainWindow):
                 self.menu_bar_system._create_tools_menu()
                 self.menu_bar_system._create_dp5_menu()
                 self.menu_bar_system.set_callbacks(callbacks)
+                print(f"DEBUG standalone menubar: actions={len(self._standalone_menu_bar.actions())} visible={self._standalone_menu_bar.isVisible()} h={self._standalone_menu_bar.height()}")
                 self._apply_img_menu_orientation()
+                print(f"DEBUG after orient: visible={self._standalone_menu_bar.isVisible()} h={self._standalone_menu_bar.height()} maxH={self._standalone_menu_bar.maximumHeight()}")
         except Exception as _me:
+            import traceback; traceback.print_exc()
             print(f"Standalone menubar setup error: {_me}")
 
         # Stub for selection callbacks before full button system loads
