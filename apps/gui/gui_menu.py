@@ -768,15 +768,18 @@ class IMGFactoryMenuBar:
 
         dp5_menu.addSeparator()
 
-        # ── Canvas actions — built directly into dp5_menu submenus ──────────
-        # _build_menus_into_qmenu avoids proxy QMenuBar reparenting issues
-        # (proxy approach lost actions during setParent / reparenting)
-        workshop._build_menus_into_qmenu(dp5_menu)
+        # ── Canvas actions — only added when orientation is dropdown ─────────
+        # In topbar mode the internal DP5 menubar carries all canvas menus.
+        # In dropdown mode we build them into the host menubar via dp5_menu.
+        current_style = workshop.dp5_settings.get('menu_style', 'dropdown')
 
-        # Keep DP5 internal menubar hidden — host bar carries it now
-        if hasattr(workshop, '_menu_bar'):
-            workshop._menu_bar.setMaximumHeight(0)
-            workshop._menu_bar.setVisible(False)
+        if current_style == 'topbar':
+            # Show the internal DP5 menubar; host menu carries launch+orient only
+            workshop.set_menu_orientation('topbar')
+        else:
+            # Hide internal bar; build all canvas menus into host dp5_menu
+            workshop.set_menu_orientation('dropdown')
+            workshop._build_menus_into_qmenu(dp5_menu)
 
         # Ensure host menubar is visible (needed in custom UI mode)
         ui_mode = getattr(getattr(mw, 'img_settings', None), 'get',

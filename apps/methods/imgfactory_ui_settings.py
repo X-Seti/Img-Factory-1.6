@@ -707,12 +707,9 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
                                 dp5_ws = ws[0]
                                 break
                 if dp5_ws:
-                    dp5_ws.dp5_settings.set('menu_style', dp5_style)
-                    dp5_ws.dp5_settings.set('show_menubar', dp5_style == 'topbar')
-                    if hasattr(dp5_ws, '_menu_bar'):
-                        dp5_ws._menu_bar.setVisible(dp5_style == 'topbar')
-                        dp5_ws._menu_bar.setMaximumHeight(16777215 if dp5_style == 'topbar' else 0)
-                    # Re-inject with updated style
+                    # set_menu_orientation handles the internal bar correctly
+                    dp5_ws.set_menu_orientation(dp5_style)
+                    # Rebuild the host DP5 Paint menu to match new orientation
                     mw.menu_bar_system._create_dp5_menu(dp5_ws)
         except Exception:
             pass

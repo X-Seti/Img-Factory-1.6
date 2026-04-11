@@ -1331,6 +1331,10 @@ class IMGFactory(QMainWindow):
             # Add DP5 Paint menu to imgfactory menubar via menu_bar_system
             try:
                 if hasattr(self, 'menu_bar_system'):
+                    # Apply saved menu orientation before building the host menu
+                    saved_style = getattr(self, 'img_settings', None)
+                    saved_style = saved_style.get('dp5_menu_style', 'dropdown') if saved_style else 'dropdown'
+                    workshop.set_menu_orientation(saved_style)
                     self.menu_bar_system._create_dp5_menu(workshop)
                     # Remove DP5 menu when tab closes (disconnect after first match)
                     def _on_tab_close(close_idx, _tc=tab_container):

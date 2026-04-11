@@ -4319,6 +4319,28 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         self._injected_menu   = None
         self._injected_hostmb = None
 
+    def set_menu_orientation(self, style: str): #vers 1
+        """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
+        Called from imgfactory Settings when the orientation radio changes.
+        """
+        self.dp5_settings.set('menu_style', style)
+        self.dp5_settings.set('show_menubar', style == 'topbar')
+
+        if hasattr(self, '_menu_bar'):
+            if style == 'topbar':
+                # Restore internal menubar — must undo setFixedHeight(0)
+                self._menu_bar.setMinimumHeight(0)
+                self._menu_bar.setMaximumHeight(16777215)
+                self._menu_bar.setSizePolicy(
+                    self._menu_bar.sizePolicy().horizontalPolicy(),
+                    __import__('PyQt6.QtWidgets', fromlist=['QSizePolicy']).QSizePolicy.Policy.Preferred)
+                self._menu_bar.setVisible(True)
+                self._menu_bar.updateGeometry()
+            else:
+                # Hide internal menubar
+                self._menu_bar.setVisible(False)
+                self._menu_bar.setMaximumHeight(0)
+
     def _create_right_panel(self):
         """Right panel: adaptive-column gadget bar, FGBGSwatch, palettes."""
         panel = QFrame()
