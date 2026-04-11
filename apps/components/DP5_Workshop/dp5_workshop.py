@@ -4347,36 +4347,72 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         plm.addAction("Enforce colour constraints", self._toggle_colour_constraints)
 
 
-    def _apply_menu_bar_style(self): #vers 2
-        """Apply font size, height and colours to the topbar menubar from dp5_settings."""
+    def _apply_menu_bar_style(self): #vers 3
+        """Apply font size, height and colours to the topbar menubar.
+        Uses explicit colours so it stays readable regardless of app theme.
+        """
         mb = getattr(self, '_menu_bar', None)
         if not mb:
             return
         bar_h  = self.dp5_settings.get('menu_bar_height', 22)
         bar_fs = self.dp5_settings.get('menu_bar_font_size', 9)
         dd_fs  = self.dp5_settings.get('menu_dropdown_font_size', 9)
+
+        # Get theme colours if available, otherwise use sensible defaults
+        bg   = '#2b2b2b'
+        fg   = '#e0e0e0'
+        sel  = '#1976d2'
+        selfg = '#ffffff'
+        border = '#555555'
+        try:
+            app_settings = getattr(self, 'app_settings', None)
+            if not app_settings and self.main_window:
+                app_settings = getattr(self.main_window, 'app_settings', None)
+            if app_settings:
+                tc = app_settings.get_theme_colors() or {}
+                bg    = tc.get('bg_primary',   bg)
+                fg    = tc.get('text_primary',  fg)
+                sel   = tc.get('accent',        sel)
+                border = tc.get('border',       border)
+        except Exception:
+            pass
+
         mb.setStyleSheet(f"""
             QMenuBar {{
-                background-color: palette(window);
-                color: palette(window-text);
-                border-bottom: 1px solid palette(mid);
+                background-color: {bg};
+                color: {fg};
+                border-bottom: 1px solid {border};
                 font-size: {bar_fs}pt;
                 min-height: {bar_h}px;
                 max-height: {bar_h}px;
             }}
+            QMenuBar::item {{
+                background-color: transparent;
+                padding: 2px 6px;
+            }}
             QMenuBar::item:selected {{
-                background: palette(highlight);
-                color: palette(highlighted-text);
+                background-color: {sel};
+                color: {selfg};
             }}
             QMenu {{
+                background-color: {bg};
+                color: {fg};
+                border: 1px solid {border};
                 font-size: {dd_fs}pt;
             }}
+            QMenu::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
         """)
-        # Size the container only when visible
+
+        # Size the container to match
         c = getattr(self, '_menu_bar_container', None)
-        if c and c.isVisible():
-            c.setMinimumHeight(0)
-            c.setMaximumHeight(bar_h)
+        if c:
+            if c.isVisible():
+                c.setFixedHeight(bar_h)
+            else:
+                c.setFixedHeight(0)
 
 
     def set_menu_orientation(self, style: str): #vers 4
@@ -10166,7 +10202,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             QMessageBox.warning(self, "PNG Sequence Error", str(e))
 
 
-    def _apply_theme(self): #vers 1
+    def _apply_theme(self): #vers 2
         try:
             app_settings = self.app_settings
             if not app_settings and self.main_window:
@@ -10186,6 +10222,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                     QPushButton:hover   { background-color: #4a4d50; }
                 """)
             self._update_color_swatches()
+            # Re-apply menubar style after theme so colours match
+            self._apply_menu_bar_style()
         except Exception as e:
             print(f"[DP5 Workshop] Theme error: {e}")
 
