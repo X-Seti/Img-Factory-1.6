@@ -625,8 +625,8 @@ class DP5Settings:
         'show_anim_strip':   False,    # show animation timeline strip
         'anim_fps':          12,       # default animation FPS
         'zoom_to_fit_resize': False,
-        'show_menubar':       True,
-        'menu_style':         'topbar',   # 'topbar' | 'dropdown'
+        'show_menubar':       False,     # hidden by default — enable in Settings > Menu
+        'menu_style':         'dropdown', # 'topbar' | 'dropdown'
         'menu_bar_font_size':  9,         # topbar menubar font size (pt)
         'menu_bar_height':     22,        # topbar menubar height (px)
         'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
@@ -3528,18 +3528,15 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._apply_menu_bar_style()   # applies font size, height, colours
         _chl.addWidget(mb)
 
-        show_mb = (self.dp5_settings.get('show_menubar') and
-                   self.dp5_settings.get('menu_style') == 'topbar')
+        show_mb = (self.dp5_settings.get('show_menubar', False) and
+                   self.dp5_settings.get('menu_style', 'dropdown') == 'topbar')
 
         if show_mb:
-            self._menu_bar_container.setVisible(True)
             self._menu_bar_container.setMinimumHeight(0)
             self._menu_bar_container.setMaximumHeight(16777215)
+            self._menu_bar_container.setVisible(True)
         else:
-            # Collapse completely — setVisible(False) alone leaves space in layout
             self._menu_bar_container.setVisible(False)
-            self._menu_bar_container.setMinimumHeight(0)
-            self._menu_bar_container.setMaximumHeight(0)
             self._menu_bar_container.setFixedHeight(0)
 
         main_layout.addWidget(self._menu_bar_container)
