@@ -3500,11 +3500,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
     def setup_ui(self): #vers 1
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
-        main_layout.setSpacing(4)
+        main_layout.setSpacing(0)   # no gaps — each widget manages its own margin
 
         toolbar = self._create_toolbar()
         self._workshop_toolbar = toolbar
-        toolbar.setVisible(self.standalone_mode)
+        if self.standalone_mode:
+            toolbar.setVisible(True)
+        else:
+            # Collapse toolbar completely when docked — setVisible alone leaves space
+            toolbar.setVisible(False)
+            toolbar.setMaximumHeight(0)
         main_layout.addWidget(toolbar)
 
         # Menu bar container — wraps QMenuBar in a plain QWidget so Qt does NOT
@@ -3526,11 +3531,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         show_mb = (self.dp5_settings.get('show_menubar') and
                    self.dp5_settings.get('menu_style') == 'topbar')
 
-        self._menu_bar_container.setVisible(show_mb)
-
-        if not show_mb:
+        if show_mb:
+            self._menu_bar_container.setVisible(True)
+            self._menu_bar_container.setMinimumHeight(0)
+            self._menu_bar_container.setMaximumHeight(16777215)
+        else:
+            # Collapse completely — setVisible(False) alone leaves space in layout
+            self._menu_bar_container.setVisible(False)
             self._menu_bar_container.setMinimumHeight(0)
             self._menu_bar_container.setMaximumHeight(0)
+            self._menu_bar_container.setFixedHeight(0)
 
         main_layout.addWidget(self._menu_bar_container)
 
@@ -4341,7 +4351,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         plm.addAction("Enforce colour constraints", self._toggle_colour_constraints)
 
 
-    def _apply_menu_bar_style(self): #vers 1
+    def _apply_menu_bar_style(self): #vers 2
         """Apply font size, height and colours to the topbar menubar from dp5_settings."""
         mb = getattr(self, '_menu_bar', None)
         if not mb:
@@ -4349,12 +4359,28 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         bar_h  = self.dp5_settings.get('menu_bar_height', 22)
         bar_fs = self.dp5_settings.get('menu_bar_font_size', 9)
         dd_fs  = self.dp5_settings.get('menu_dropdown_font_size', 9)
-
-        # Also size the container
-        #c = getattr(self, '_menu_bar_container', None)
-        #if c and c.isVisible():
-            #c.setMinimumHeight(0)
-            #c.setMaximumHeight(bar_h)
+        mb.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: palette(window);
+                color: palette(window-text);
+                border-bottom: 1px solid palette(mid);
+                font-size: {bar_fs}pt;
+                min-height: {bar_h}px;
+                max-height: {bar_h}px;
+            }}
+            QMenuBar::item:selected {{
+                background: palette(highlight);
+                color: palette(highlighted-text);
+            }}
+            QMenu {{
+                font-size: {dd_fs}pt;
+            }}
+        """)
+        # Size the container only when visible
+        c = getattr(self, '_menu_bar_container', None)
+        if c and c.isVisible():
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(bar_h)
 
 
     def set_menu_orientation(self, style: str): #vers 4
