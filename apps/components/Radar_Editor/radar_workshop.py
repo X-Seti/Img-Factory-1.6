@@ -34,7 +34,11 @@ except ImportError:
 try:
     from apps.gui.tool_menu_mixin import ToolMenuMixin
 except ImportError:
-    ToolMenuMixin = object
+    class ToolMenuMixin:
+        """Fallback no-op mixin when tool_menu_mixin is unavailable."""
+        def get_menu_title(self): return "Radar Workshop"
+        def _build_menus_into_qmenu(self, parent_menu): pass
+        def _get_tool_menu_style(self): return "dropdown"
 
 # ── Game presets ──────────────────────────────────────────────────────────────
 def _radar_name_sa(idx):  return f"RADAR{idx:02d}"

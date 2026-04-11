@@ -91,7 +91,8 @@ SHAPE_FILL_PAIRS = {
 try:
     from apps.gui.tool_menu_mixin import ToolMenuMixin as _ToolMenuMixin
 except Exception:
-    _ToolMenuMixin = object
+    class _ToolMenuMixin:
+        pass
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
