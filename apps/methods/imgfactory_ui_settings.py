@@ -450,12 +450,12 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
         # ── DP5 Paint menu style ──────────────────────────────────────────
         from PyQt6.QtWidgets import QGroupBox as _GB, QVBoxLayout as _VL, QRadioButton as _RB
-        dp5_group = _GB("DP5 Paint — Menu Style")
+        dp5_group = _GB("DP5 Paint — Menu Orientation")
         dp5_layout = _VL(dp5_group)
 
         dp5_style = self.img_settings.get("dp5_menu_style", "dropdown")
-        self.dp5_menu_topbar_radio  = _RB("Topbar  (inside the DP5 canvas panel)")
-        self.dp5_menu_dropdown_radio = _RB("Dropdown  (in the imgfactory menubar as DP5 Paint menu)")
+        self.dp5_menu_topbar_radio  = _RB("Topbar  (inside DP5 canvas)")
+        self.dp5_menu_dropdown_radio = _RB("Dropdown  (in imgfactory menubar)")
         self.dp5_menu_topbar_radio.setChecked(dp5_style == "topbar")
         self.dp5_menu_dropdown_radio.setChecked(dp5_style != "topbar")
 

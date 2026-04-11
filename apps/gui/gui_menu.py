@@ -734,10 +734,10 @@ class IMGFactoryMenuBar:
             return dp5_menu
 
         # ── Menu display style toggle ───────────────────────────────────────
-        style_menu = dp5_menu.addMenu("Menu style")
+        style_menu = dp5_menu.addMenu("Menu Orientation")
 
-        topbar_act = QAction("Topbar (show inside DP5)", mw, checkable=True)
-        dropdown_act = QAction("Dropdown (this menu)", mw, checkable=True)
+        topbar_act = QAction("Topbar  (inside DP5 canvas)", mw, checkable=True)
+        dropdown_act = QAction("Dropdown  (in imgfactory menubar)", mw, checkable=True)
 
         current_style = workshop.dp5_settings.get('menu_style', 'dropdown')
         topbar_act.setChecked(current_style == 'topbar')
