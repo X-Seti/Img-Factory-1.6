@@ -448,7 +448,9 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.show_menu_bar_check.setChecked(self.img_settings.get("show_menu_bar", True))
         appearance_layout.addWidget(self.show_menu_bar_check)
 
-        # ── IMG Factory menu orientation ──────────────────────────────────
+        # ── IMG Factory + DP5 menu orientation ───────────────────────────
+        from PyQt6.QtWidgets import QGroupBox as _GB, QVBoxLayout as _VL, QRadioButton as _RB
+
         img_orient_group = _GB("IMG Factory — Menu Orientation")
         img_orient_layout = _VL(img_orient_group)
         img_orient = self.img_settings.get("img_menu_orientation", "topbar")
@@ -461,8 +463,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         img_orient_group.setLayout(img_orient_layout)
         appearance_layout.addWidget(img_orient_group)
 
-        # ── DP5 Paint menu style ──────────────────────────────────────────
-        from PyQt6.QtWidgets import QGroupBox as _GB, QVBoxLayout as _VL, QRadioButton as _RB
+        # ── DP5 Paint menu orientation ────────────────────────────────────
         dp5_group = _GB("DP5 Paint — Menu Orientation")
         dp5_layout = _VL(dp5_group)
 
