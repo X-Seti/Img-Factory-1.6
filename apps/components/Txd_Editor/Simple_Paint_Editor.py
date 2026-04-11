@@ -1,27 +1,9 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Txd_Editor/dp5_paint_editor.py - Version: 2
+#this belongs in apps/components/Txd_Editor/simple_paint_editor.py - Version: 2
 # X-Seti - Apr 2026 - IMG Factory 1.6
-# Deluxe Paint 5 style texture paint editor — standalone + embedded
-"""
-Deluxe Paint 5 inspired paint editor for TXD Workshop.
+# Simple paint editor — standalone + embedded
 
-Standalone:  python3 dp5_paint_editor.py [image.png]
-Embedded:    DP5PaintEditor(tex_dict, parent=txd_workshop_widget)
-
-Theme-aware: reads app_settings from parent chain; falls back to system theme
-             when run standalone.  Reconnects on theme_changed signal.
-
-Layout mirrors DP5:
-  - Top menubar: File | Edit | Picture | View
-  - Left toolbar: 8 tools + brush-size slider + Undo/CLR
-  - Centre: zoomable scrollable canvas
-  - Right: foreground swatch, 256-colour palette strip, Apply/Cancel
-  - Bottom: status bar (pos, RGBA, zoom, tool)
-
-File I/O: IFF ILBM (Amiga Deluxe Paint native), BMP, PNG
-"""
-
-App_name = "DP5 Paint"
+App_name = "Simple Paint"
 
 import os, sys
 from collections import deque
