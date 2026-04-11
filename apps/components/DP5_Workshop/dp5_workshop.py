@@ -3471,6 +3471,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         toolbar.setVisible(self.standalone_mode)
         main_layout.addWidget(toolbar)
 
+        # Menu bar — sits between toolbar and canvas splitter
+        # Visible in topbar orientation; hidden in dropdown orientation
+        mb = QMenuBar(self)
+        self._menu_bar = mb
+        self._build_canvas_menus(mb)
+        show_mb = (self.dp5_settings.get('show_menubar') and
+                   self.dp5_settings.get('menu_style') == 'topbar')
+        mb.setVisible(show_mb)
+        if not show_mb:
+            mb.setFixedHeight(0)
+            mb.setMaximumHeight(0)
+        main_layout.addWidget(mb)
+
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self._left_panel  = self._create_left_panel()
@@ -3728,19 +3741,6 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
-
-        # Menu bar — hidden if dropdown mode or show_menubar is off
-        mb = QMenuBar(panel)
-        self._menu_bar = mb
-        self._build_canvas_menus(mb)
-        show_mb = (self.dp5_settings.get('show_menubar') and
-                   self.dp5_settings.get('menu_style') == 'topbar')
-        mb.setVisible(show_mb)
-        if not show_mb:
-            mb.setFixedHeight(0)
-            mb.setMaximumHeight(0)
-        layout.addWidget(mb)
-        layout.setSpacing(0)
 
         # Canvas
         try:
