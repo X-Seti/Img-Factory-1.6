@@ -68,6 +68,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         tabs.addTab(self._create_ui_tab(), "UI")
         tabs.addTab(self._create_file_window_tab(), "File Window")
         tabs.addTab(self._create_advanced_tab(), "Advanced")
+        tabs.addTab(self._create_right_panel_tab(), "Right Panel")
         tabs.addTab(self._create_debug_log_tab(), "Debug Log")
 
         main_layout.addWidget(tabs)
@@ -604,6 +605,82 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
         return button_layout
 
+    def _create_right_panel_tab(self): #vers 1
+        """Right Panel — button height, spacing, display mode for the IMG/Entries/Options sections."""
+        from PyQt6.QtWidgets import QSlider
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(8)
+
+        # Read from app_settings (where gui_layout reads them)
+        app_s = getattr(self.main_window, 'app_settings', None)
+        cs = app_s.current_settings if app_s else {}
+
+        # ── Button Size & Spacing ──────────────────────────────────────────
+        size_grp = QGroupBox("Button Size && Spacing")
+        size_lay = QVBoxLayout(size_grp); size_lay.setSpacing(6)
+
+        def spin_row(label, attr, lo, hi, val, suffix=' px'):
+            from PyQt6.QtWidgets import QSpinBox
+            row = QHBoxLayout()
+            row.addWidget(QLabel(label))
+            sp = QSpinBox(); sp.setRange(lo, hi); sp.setValue(val)
+            sp.setSuffix(suffix); sp.setMaximumWidth(80)
+            setattr(self, attr, sp)
+            row.addWidget(sp); row.addStretch()
+            return row
+
+        size_lay.addLayout(spin_row("Button height:",
+            'rp_btn_height', 16, 60, cs.get('button_height', 32)))
+        size_lay.addLayout(spin_row("Vertical spacing:",
+            'rp_v_spacing', 0, 30, cs.get('button_spacing_vertical', 8)))
+        size_lay.addLayout(spin_row("Horizontal spacing:",
+            'rp_h_spacing', 0, 30, cs.get('button_spacing_horizontal', 6)))
+        layout.addWidget(size_grp)
+
+        # ── Button Display Mode ────────────────────────────────────────────
+        mode_grp = QGroupBox("Button Display Mode")
+        mode_lay = QVBoxLayout(mode_grp); mode_lay.setSpacing(4)
+        cur_mode = cs.get('button_display_mode', 'text_only')
+        self.rp_mode_icon   = QRadioButton("Icon only")
+        self.rp_mode_text   = QRadioButton("Text only")
+        self.rp_mode_both   = QRadioButton("Icon + Text")
+        self.rp_mode_icon.setChecked(cur_mode == 'icon_only')
+        self.rp_mode_text.setChecked(cur_mode == 'text_only')
+        self.rp_mode_both.setChecked(cur_mode == 'both')
+        for rb in (self.rp_mode_icon, self.rp_mode_text, self.rp_mode_both):
+            mode_lay.addWidget(rb)
+        layout.addWidget(mode_grp)
+
+        layout.addStretch()
+        return widget
+
+    def _save_right_panel_tab(self): #vers 1
+        """Save right panel settings back to app_settings and apply live."""
+        app_s = getattr(self.main_window, 'app_settings', None)
+        if not app_s:
+            return
+        if hasattr(self, 'rp_btn_height'):
+            app_s.current_settings['button_height'] = self.rp_btn_height.value()
+        if hasattr(self, 'rp_v_spacing'):
+            app_s.current_settings['button_spacing_vertical'] = self.rp_v_spacing.value()
+        if hasattr(self, 'rp_h_spacing'):
+            app_s.current_settings['button_spacing_horizontal'] = self.rp_h_spacing.value()
+        mode = ('icon_only' if getattr(self, 'rp_mode_icon', None) and self.rp_mode_icon.isChecked()
+                else 'both' if getattr(self, 'rp_mode_both', None) and self.rp_mode_both.isChecked()
+                else 'text_only')
+        app_s.current_settings['button_display_mode'] = mode
+        app_s.save_settings()
+        # Apply live
+        try:
+            gl = getattr(self.main_window, 'gui_layout', None)
+            if gl:
+                gl.button_display_mode = mode
+                if hasattr(gl, '_update_all_buttons_display_mode'):
+                    gl._update_all_buttons_display_mode()
+        except Exception:
+            pass
+
     def _create_debug_log_tab(self): #vers 2
         """Create Debug Log tab - output destinations + per-feature toggles."""
         from PyQt6.QtWidgets import QGridLayout, QScrollArea, QGroupBox
@@ -737,6 +814,9 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
             img_debugger.set_main_window(self.main_window)
         except Exception:
             pass
+
+        # Right Panel tab
+        self._save_right_panel_tab()
 
         self.img_settings.save_settings()
 
