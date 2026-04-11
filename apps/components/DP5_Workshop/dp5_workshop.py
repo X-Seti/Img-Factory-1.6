@@ -4377,14 +4377,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception:
             pass
 
+        # Height controlled by container — NOT by stylesheet min/max-height
+        # (stylesheet height properties override Qt layout and prevent the bar showing)
         mb.setStyleSheet(f"""
             QMenuBar {{
                 background-color: {bg};
                 color: {fg};
                 border-bottom: 1px solid {border};
                 font-size: {bar_fs}pt;
-                min-height: {bar_h}px;
-                max-height: {bar_h}px;
             }}
             QMenuBar::item {{
                 background-color: transparent;
