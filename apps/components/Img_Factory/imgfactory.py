@@ -823,8 +823,12 @@ class IMGFactory(QMainWindow):
         want_topbar = (orient == 'topbar')
 
         if hasattr(self, '_standalone_menu_bar'):
-            self._standalone_menu_bar.setMaximumHeight(16777215 if want_topbar else 0)
-            self._standalone_menu_bar.setVisible(want_topbar)
+            if want_topbar:
+                self._standalone_menu_bar.setFixedHeight(20)
+                self._standalone_menu_bar.setVisible(True)
+            else:
+                self._standalone_menu_bar.setVisible(False)
+                self._standalone_menu_bar.setMaximumHeight(0)
 
         # Always hide Qt system menubar — standalone bar handles it
         try:
@@ -3039,7 +3043,8 @@ class IMGFactory(QMainWindow):
 
         # Main layout
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setContentsMargins(5, 0, 5, 5)
+        main_layout.setSpacing(0)
 
         # IN CUSTOM UI MODE: Add toolbar FIRST (before tabs)
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, '_create_toolbar'):
@@ -3080,12 +3085,14 @@ class IMGFactory(QMainWindow):
         # Shown in topbar mode, hidden in dropdown mode.
         from PyQt6.QtWidgets import QMenuBar as _QMenuBar
         self._standalone_menu_bar = _QMenuBar(central_widget)
-        # Populate with the same menus as menu_bar_system (built later),
-        # so we wire it after menu_bar_system is created — for now just add it hidden.
+        # Fix height to 20px — eliminates gap between menubar and tab bar
+        self._standalone_menu_bar.setFixedHeight(20)
+        self._standalone_menu_bar.setContentsMargins(0, 0, 0, 0)
         img_orient = self.img_settings.get('img_menu_orientation', 'topbar')
         self._standalone_menu_bar.setVisible(img_orient == 'topbar')
         if img_orient != 'topbar':
             self._standalone_menu_bar.setMaximumHeight(0)
+        main_layout.setSpacing(0)
         main_layout.addWidget(self._standalone_menu_bar)
 
         # Build the persistent shell: right panel + log live OUTSIDE the tab widget
