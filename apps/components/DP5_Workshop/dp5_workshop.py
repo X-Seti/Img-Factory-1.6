@@ -3481,6 +3481,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         mb = QMenuBar(self)
         self._menu_bar = mb
         self._build_canvas_menus(mb)
+        # Ensure readable in both light and dark themes
+        mb.setStyleSheet("""
+            QMenuBar {
+                background-color: palette(window);
+                color: palette(window-text);
+                border-bottom: 1px solid palette(mid);
+                min-height: 22px;
+                max-height: 26px;
+                padding: 1px 0px;
+            }
+            QMenuBar::item:selected { background: palette(highlight); color: palette(highlighted-text); }
+        """)
         show_mb = (self.dp5_settings.get('show_menubar') and
                    self.dp5_settings.get('menu_style') == 'topbar')
         mb.setVisible(show_mb)

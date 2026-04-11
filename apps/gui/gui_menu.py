@@ -744,22 +744,18 @@ class IMGFactoryMenuBar:
         dropdown_act.setChecked(current_style != 'topbar')
 
         def _set_topbar():
-            workshop.dp5_settings.set('menu_style', 'topbar')
-            workshop.dp5_settings.set('show_menubar', True)
-            if hasattr(workshop, '_menu_bar'):
-                workshop._menu_bar.setMaximumHeight(16777215)
-                workshop._menu_bar.setVisible(True)
+            workshop.set_menu_orientation('topbar')
             topbar_act.setChecked(True)
             dropdown_act.setChecked(False)
+            # Rebuild dp5_menu to remove canvas submenus (topbar carries them)
+            self._create_dp5_menu(workshop)
 
         def _set_dropdown():
-            workshop.dp5_settings.set('menu_style', 'dropdown')
-            workshop.dp5_settings.set('show_menubar', False)
-            if hasattr(workshop, '_menu_bar'):
-                workshop._menu_bar.setMaximumHeight(0)
-                workshop._menu_bar.setVisible(False)
+            workshop.set_menu_orientation('dropdown')
             topbar_act.setChecked(False)
             dropdown_act.setChecked(True)
+            # Rebuild dp5_menu to add canvas submenus
+            self._create_dp5_menu(workshop)
 
         topbar_act.triggered.connect(_set_topbar)
         dropdown_act.triggered.connect(_set_dropdown)
