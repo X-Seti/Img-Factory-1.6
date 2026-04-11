@@ -4406,13 +4406,16 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             }}
         """)
 
-        # Size the container to match
+        # Size the container based on settings, not isVisible() 
+        # (isVisible() is False during __init__ even if widget will be shown)
         c = getattr(self, '_menu_bar_container', None)
         if c:
-            if c.isVisible():
-                c.setFixedHeight(bar_h)
-            else:
-                c.setFixedHeight(0)
+            show = (self.dp5_settings.get('show_menubar', False) and
+                    self.dp5_settings.get('menu_style', 'dropdown') == 'topbar')
+            if show:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(bar_h)
+            # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
 
 
     def set_menu_orientation(self, style: str): #vers 4
