@@ -3797,11 +3797,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Centre panel: canvas ──────────────────────────────────────────────────
 
-    def _create_centre_panel(self): #vers 1
-        panel = QGroupBox("")
+    def _create_centre_panel(self): #vers 2
+        panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(2)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # Canvas
         try:
@@ -4394,14 +4394,17 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
         if container:
             if style == 'topbar':
-                container.setVisible(True)
                 container.setMinimumHeight(0)
-                container.setMaximumHeight(20)
+                container.setMaximumHeight(16777215)
+                container.setVisible(True)
                 container.updateGeometry()
+                # Re-apply style so height/font are correct
+                self._apply_menu_bar_style()
             else:
                 container.setVisible(False)
                 container.setMinimumHeight(0)
-                container.setMaximumHeight(20)
+                container.setMaximumHeight(0)
+                container.setFixedHeight(0)
 
 
     def _create_right_panel(self): #vers 2
