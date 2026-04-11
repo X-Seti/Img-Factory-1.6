@@ -745,26 +745,153 @@ class RadarWorkshop(ToolMenuMixin, QWidget):
         except Exception as e:
             print(f"[{App_name}] Theme error: {e}")
 
-    # ── Stub actions (wired, logic TODO) ─────────────────────────────────────
+    # ── Info / Settings / Theme ────────────────────────────────────────────────
     def _show_info(self):  # vers 1
-        QMessageBox.information(self, App_name, f"{App_name} Build {Build}\nAuthor: {App_auth}\nGTA radar tile editor — SA/VC/VCS/LC/LCS/SOL")
+        lines = [
+            f"<b>{App_name}</b>  Build {Build}",
+            f"Author: {App_auth}  —  {App_build}",
+            "",
+            "GTA radar tile editor",
+            "Supports: SA · VC · VCS · LC · LCS · SOL · Custom",
+            "",
+            f"IMG loaded: {Path(self._img_path).name if self._img_path else 'None'}",
+            f"Tiles loaded: {len(self._tile_rgba)}",
+            f"Modified tiles: {len(self._dirty_tiles)}",
+        ]
+        QMessageBox.information(self, App_name + " — Info", "\n".join(lines))
 
-    def _show_settings_dialog(self):  # vers 1
+    def _show_settings_dialog(self):  # vers 1  (theme button → launch global theme engine)
         try:
-            if APPSETTINGS_AVAILABLE and self.app_settings:
-                dlg=SettingsDialog(self.app_settings,self)
-                dlg.themeChanged.connect(lambda _: self._apply_theme())
-                dlg.exec()
+            from apps.utils.app_settings_system import AppSettings, SettingsDialog
+            if not hasattr(self, 'app_settings') or self.app_settings is None:
+                self.app_settings = AppSettings()
+            dlg = SettingsDialog(self.app_settings, self)
+            dlg.themeChanged.connect(lambda _: self._apply_theme())
+            if dlg.exec():
+                self._apply_theme()
         except Exception as e:
-            QMessageBox.warning(self,"Settings Error",str(e))
+            QMessageBox.warning(self, "Theme Error", str(e))
 
     def _show_settings_context_menu(self, pos):  # vers 1
-        menu=QMenu(self); menu.addAction("Move Window",self._enable_move_mode)
-        menu.addAction("Maximize",self._toggle_maximize); menu.addAction("Minimize",self.showMinimized)
+        menu = QMenu(self)
+        menu.addAction("Move Window",      self._enable_move_mode)
+        menu.addAction("Maximize/Restore", self._toggle_maximize)
+        menu.addAction("Minimize",         self.showMinimized)
         menu.exec(self.properties_btn.mapToGlobal(pos))
 
     def _show_workshop_settings(self):  # vers 1
-        QMessageBox.information(self,"Settings","Radar Workshop settings — coming soon.")
+        """Workshop-local settings dialog — Fonts, Display, Radar tabs."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
+                                     QSpinBox, QComboBox, QLabel, QFontComboBox)
+        from PyQt6.QtGui import QFont
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"{App_name} Settings")
+        dlg.setMinimumWidth(520)
+        dlg.setMinimumHeight(420)
+        layout = QVBoxLayout(dlg)
+        tabs = QTabWidget()
+
+        # ── TAB 1: Fonts ──────────────────────────────────────────────────────
+        fonts_tab = QWidget()
+        fl = QVBoxLayout(fonts_tab)
+
+        def _font_row(label, current_font):
+            grp = QGroupBox(label)
+            hl  = QHBoxLayout(grp)
+            combo = QFontComboBox(); combo.setCurrentFont(current_font)
+            spin  = QSpinBox(); spin.setRange(7, 32); spin.setValue(current_font.pointSize())
+            spin.setSuffix(" pt"); spin.setFixedWidth(70)
+            hl.addWidget(combo); hl.addWidget(spin)
+            return grp, combo, spin
+
+        title_grp,  title_combo,  title_sz  = _font_row("Title Font",   self.title_font)
+        panel_grp,  panel_combo,  panel_sz  = _font_row("Panel Font",   self.panel_font)
+        button_grp, button_combo, button_sz = _font_row("Button Font",  self.button_font)
+        info_grp,   info_combo,   info_sz   = _font_row("Info Bar Font",self.infobar_font)
+        for g in [title_grp, panel_grp, button_grp, info_grp]: fl.addWidget(g)
+        fl.addStretch()
+        tabs.addTab(fonts_tab, "Fonts")
+
+        # ── TAB 2: Display ────────────────────────────────────────────────────
+        disp_tab = QWidget()
+        dl = QVBoxLayout(disp_tab)
+
+        btn_grp = QGroupBox("Button Display Mode")
+        bl = QVBoxLayout(btn_grp)
+        mode_combo = QComboBox(); mode_combo.addItems(["Icons + Text", "Icons Only", "Text Only"])
+        mode_combo.setCurrentIndex({'both':0,'icons':1,'text':2}.get(self.button_display_mode, 0))
+        bl.addWidget(mode_combo)
+        dl.addWidget(btn_grp)
+
+        thumb_grp = QGroupBox("Tile List Thumbnail Size")
+        thl = QHBoxLayout(thumb_grp)
+        thumb_spin = QSpinBox(); thumb_spin.setRange(16, 128); thumb_spin.setValue(THUMB); thumb_spin.setSuffix(" px")
+        thl.addWidget(thumb_spin)
+        dl.addWidget(thumb_grp)
+        dl.addStretch()
+        tabs.addTab(disp_tab, "Display")
+
+        # ── TAB 3: Radar ──────────────────────────────────────────────────────
+        radar_tab = QWidget()
+        rl = QVBoxLayout(radar_tab)
+
+        game_grp = QGroupBox("Default Game Preset")
+        gl = QHBoxLayout(game_grp)
+        game_combo_s = QComboBox(); game_combo_s.addItems(list(GAME_PRESETS))
+        game_combo_s.setCurrentText(self._game_combo.currentText())
+        gl.addWidget(game_combo_s)
+        rl.addWidget(game_grp)
+        rl.addStretch()
+        tabs.addTab(radar_tab, "Radar")
+
+        layout.addWidget(tabs)
+
+        # ── Buttons ───────────────────────────────────────────────────────────
+        btn_row = QHBoxLayout(); btn_row.addStretch()
+
+        def apply_all():
+            self.title_font   = QFont(title_combo.currentFont().family(),  title_sz.value())
+            self.panel_font   = QFont(panel_combo.currentFont().family(),  panel_sz.value())
+            self.button_font  = QFont(button_combo.currentFont().family(), button_sz.value())
+            self.infobar_font = QFont(info_combo.currentFont().family(),   info_sz.value())
+            self._apply_title_font()
+            self._apply_panel_font()
+            self._apply_button_font()
+            self._apply_infobar_font()
+            self.button_display_mode = {0:'both',1:'icons',2:'text'}[mode_combo.currentIndex()]
+            # Switch game preset if changed
+            new_game = game_combo_s.currentText()
+            if new_game != self._game_combo.currentText():
+                self._on_game_changed(new_game)
+
+        apply_btn = QPushButton("Apply")
+        apply_btn.clicked.connect(apply_all)
+        ok_btn = QPushButton("OK")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(lambda: (apply_all(), dlg.accept()))
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(dlg.reject)
+        for b in [cancel_btn, apply_btn, ok_btn]: btn_row.addWidget(b)
+        layout.addLayout(btn_row)
+        dlg.exec()
+
+    # ── Font apply helpers (template pattern) ──────────────────────────────────
+    def _apply_title_font(self):  # vers 1
+        if hasattr(self, 'title_label'): self.title_label.setFont(self.title_font)
+
+    def _apply_panel_font(self):  # vers 1
+        for lbl in self.findChildren(QLabel):
+            if lbl.objectName() in ('panel_header',) or lbl.text() in ("Tiles","Modified: 0"):
+                lbl.setFont(self.panel_font)
+
+    def _apply_button_font(self):  # vers 1
+        for btn in self.findChildren(QPushButton): btn.setFont(self.button_font)
+
+    def _apply_infobar_font(self):  # vers 1
+        if hasattr(self,'status_label'): self.status_label.setFont(self.infobar_font)
+        if hasattr(self,'_dirty_lbl'):   self._dirty_lbl.setFont(self.infobar_font)
 
     def _enable_move_mode(self):  # vers 1
         h=self.windowHandle()
