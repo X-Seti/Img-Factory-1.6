@@ -95,6 +95,7 @@ except Exception:
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
+    ICONS_AVAILABLE = True
 except ImportError:
     ICONS_AVAILABLE = False
     class SVGIconFactory:
