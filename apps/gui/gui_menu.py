@@ -453,7 +453,6 @@ class IMGFactoryMenuBar:
         self.menu_definition = MenuDefinition()
         self._create_menus()
         self._create_tools_menu()
-        self._create_dp5_menu()   # stub — no workshop open yet
         #self.col_menu()
 
         # Set up default callbacks
@@ -690,69 +689,9 @@ class IMGFactoryMenuBar:
         self.menus['Tools'] = tools_menu
 
 
-    def _create_dp5_menu(self, workshop=None): #vers 2
-        """Create or update the DP5 Paint entry in the imgfactory menubar.
-        Stub only (launch + orientation) — canvas menus go through _inject_tool_menu.
-        """
-        from PyQt6.QtGui import QAction, QKeySequence
-
-        # Remove existing DP5 stub menu
-        existing = self.menus.get('DP5 Paint')
-        if existing:
-            self.menu_bar.removeAction(existing.menuAction())
-            del self.menus['DP5 Paint']
-
-        dp5_menu = self.menu_bar.addMenu("DP5 Paint")
-        self.menus['DP5 Paint'] = dp5_menu
-        mw = self.main_window
-
-        # Launch actions
-        open_docked = QAction("Open / Switch to DP5 (docked)", mw)
-        try:
-            open_docked.setShortcut(QKeySequence("Ctrl+Shift+P"))
-        except Exception:
-            pass
-        open_docked.triggered.connect(
-            lambda: getattr(mw, 'open_dp5_workshop_docked', lambda: None)())
-        dp5_menu.addAction(open_docked)
-
-        open_standalone = QAction("Open DP5 standalone…", mw)
-        open_standalone.triggered.connect(
-            lambda: getattr(mw, 'open_dp5_workshop_standalone', lambda: None)())
-        dp5_menu.addAction(open_standalone)
-
-        if workshop is None:
-            dp5_menu.addSeparator()
-            stub = QAction("(No canvas open)", mw)
-            stub.setEnabled(False)
-            dp5_menu.addAction(stub)
-            return dp5_menu
-
-        # Orientation toggle
-        dp5_menu.addSeparator()
-        style_menu = dp5_menu.addMenu("Menu Orientation")
-        current_style = workshop._get_tool_menu_style()
-        topbar_act  = QAction("Topbar  (inside DP5 canvas)", mw, checkable=True)
-        dropdown_act = QAction("Dropdown  (in imgfactory menubar)", mw, checkable=True)
-        topbar_act.setChecked(current_style == 'topbar')
-        dropdown_act.setChecked(current_style != 'topbar')
-
-        def _set_topbar():
-            workshop.set_menu_orientation('topbar')
-            self._remove_tool_menu()          # remove canvas menus from host bar
-            self._create_dp5_menu(workshop)   # rebuild stub only
-        def _set_dropdown():
-            workshop.set_menu_orientation('dropdown')
-            self._inject_tool_menu(workshop)  # inject canvas menus into host bar
-            self._create_dp5_menu(workshop)   # rebuild stub with orientation shown
-
-        topbar_act.triggered.connect(_set_topbar)
-        dropdown_act.triggered.connect(_set_dropdown)
-        style_menu.addAction(topbar_act)
-        style_menu.addAction(dropdown_act)
-
-        # Canvas menus are handled by _inject_tool_menu — not duplicated here
-        return dp5_menu
+    def _create_dp5_menu(self, workshop=None): #vers 3
+        """Disabled — DP5 docked menu removed. DP5 uses its own internal topbar."""
+        pass
 
     def _inject_tool_menu(self, workshop, restore_menubar: bool = True): #vers 1
         """Inject a docked tool's menus into the imgfactory menu bar.
@@ -788,16 +727,9 @@ class IMGFactoryMenuBar:
         self._injected_tool_menu  = None
         self._injected_tool_title = None
 
-    def remove_dp5_menu(self, restore_menubar: bool = True): #vers 2
-        """Remove DP5 stub menu and any injected tool canvas menus."""
-        existing = self.menus.pop('DP5 Paint', None)
-        if existing:
-            self.menu_bar.removeAction(existing.menuAction())
+    def remove_dp5_menu(self, restore_menubar: bool = True): #vers 3
+        """Disabled — DP5 docked menu removed."""
         self._remove_tool_menu()
-        if restore_menubar and getattr(self.main_window, '_dp5_showed_menubar', False):
-            self.menu_bar.setVisible(False)
-            self.menu_bar.setMaximumHeight(0)
-            self.main_window._dp5_showed_menubar = False
 
     def _analyze_img(self):
         """Analyze IMG file"""

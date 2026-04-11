@@ -550,7 +550,6 @@ class IMGFactory(QMainWindow):
                 smb.clear()
                 self.menu_bar_system._create_menus()
                 self.menu_bar_system._create_tools_menu()
-                self.menu_bar_system._create_dp5_menu()
                 self.menu_bar_system.set_callbacks(callbacks)
         except Exception as _me:
             import traceback; traceback.print_exc()
@@ -1417,31 +1416,8 @@ class IMGFactory(QMainWindow):
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
 
-            # Wire DP5 menus into imgfactory menubar via unified tool menu system
-            try:
-                if hasattr(self, 'menu_bar_system'):
-                    # Apply saved orientation
-                    saved_style = getattr(self, 'img_settings', None)
-                    saved_style = saved_style.get('dp5_menu_style', 'dropdown') if saved_style else 'dropdown'
-                    workshop.set_menu_orientation(saved_style)
-                    # Stub menu (launch + orientation toggle) always in host bar
-                    self.menu_bar_system._create_dp5_menu(workshop)
-                    # Canvas menus injected via unified path if dropdown mode
-                    if saved_style == 'dropdown':
-                        self.menu_bar_system._inject_tool_menu(workshop)
-                    # Clean up both on tab close
-                    def _on_tab_close(close_idx, _tc=tab_container):
-                        if self.main_tab_widget.widget(close_idx) is _tc:
-                            if hasattr(self, 'menu_bar_system'):
-                                self.menu_bar_system.remove_dp5_menu(restore_menubar=True)
-                            try:
-                                self.main_tab_widget.tabCloseRequested.disconnect(_on_tab_close)
-                            except Exception:
-                                pass
-                    self.main_tab_widget.tabCloseRequested.connect(_on_tab_close)
-            except Exception as me:
-                self.log_message(f"DP5 menu error: {me}")
-                import traceback; traceback.print_exc()
+            # DP5 docked menu disabled — use DP5's own internal topbar menu
+            # (The _menu_bar_container inside DP5Workshop handles this)
 
             self.log_message("DP5 Workshop opened (docked)")
 
