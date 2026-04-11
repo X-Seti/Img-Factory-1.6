@@ -690,15 +690,13 @@ class IMGFactoryMenuBar:
         self.menus['Tools'] = tools_menu
 
 
-    def _create_dp5_menu(self, workshop=None): #vers 1
-        """Create or update the DP5 Paint menu in the imgfactory menubar.
-        If workshop is None, creates a stub menu with launch actions only.
-        If workshop is a DP5Workshop instance, wires all its canvas actions.
-        Supports menu/toolbar style toggle matching the DP5 settings toggle.
+    def _create_dp5_menu(self, workshop=None): #vers 2
+        """Create or update the DP5 Paint entry in the imgfactory menubar.
+        Stub only (launch + orientation) — canvas menus go through _inject_tool_menu.
         """
         from PyQt6.QtGui import QAction, QKeySequence
 
-        # Remove any existing DP5 menu first
+        # Remove existing DP5 stub menu
         existing = self.menus.get('DP5 Paint')
         if existing:
             self.menu_bar.removeAction(existing.menuAction())
@@ -706,10 +704,9 @@ class IMGFactoryMenuBar:
 
         dp5_menu = self.menu_bar.addMenu("DP5 Paint")
         self.menus['DP5 Paint'] = dp5_menu
-
         mw = self.main_window
 
-        # ── Launch actions (always present) ────────────────────────────────
+        # Launch actions
         open_docked = QAction("Open / Switch to DP5 (docked)", mw)
         try:
             open_docked.setShortcut(QKeySequence("Ctrl+Shift+P"))
@@ -724,67 +721,37 @@ class IMGFactoryMenuBar:
             lambda: getattr(mw, 'open_dp5_workshop_standalone', lambda: None)())
         dp5_menu.addAction(open_standalone)
 
-        dp5_menu.addSeparator()
-
         if workshop is None:
-            # Stub — no canvas open yet
+            dp5_menu.addSeparator()
             stub = QAction("(No canvas open)", mw)
             stub.setEnabled(False)
             dp5_menu.addAction(stub)
             return dp5_menu
 
-        # ── Menu display style toggle ───────────────────────────────────────
+        # Orientation toggle
+        dp5_menu.addSeparator()
         style_menu = dp5_menu.addMenu("Menu Orientation")
-
-        topbar_act = QAction("Topbar  (inside DP5 canvas)", mw, checkable=True)
+        current_style = workshop._get_tool_menu_style()
+        topbar_act  = QAction("Topbar  (inside DP5 canvas)", mw, checkable=True)
         dropdown_act = QAction("Dropdown  (in imgfactory menubar)", mw, checkable=True)
-
-        current_style = workshop.dp5_settings.get('menu_style', 'dropdown')
         topbar_act.setChecked(current_style == 'topbar')
         dropdown_act.setChecked(current_style != 'topbar')
 
         def _set_topbar():
             workshop.set_menu_orientation('topbar')
-            topbar_act.setChecked(True)
-            dropdown_act.setChecked(False)
-            # Rebuild dp5_menu to remove canvas submenus (topbar carries them)
-            self._create_dp5_menu(workshop)
-
+            self._remove_tool_menu()          # remove canvas menus from host bar
+            self._create_dp5_menu(workshop)   # rebuild stub only
         def _set_dropdown():
             workshop.set_menu_orientation('dropdown')
-            topbar_act.setChecked(False)
-            dropdown_act.setChecked(True)
-            # Rebuild dp5_menu to add canvas submenus
-            self._create_dp5_menu(workshop)
+            self._inject_tool_menu(workshop)  # inject canvas menus into host bar
+            self._create_dp5_menu(workshop)   # rebuild stub with orientation shown
 
         topbar_act.triggered.connect(_set_topbar)
         dropdown_act.triggered.connect(_set_dropdown)
         style_menu.addAction(topbar_act)
         style_menu.addAction(dropdown_act)
 
-        dp5_menu.addSeparator()
-
-        # ── Canvas actions — only added when orientation is dropdown ─────────
-        # In topbar mode the internal DP5 menubar carries all canvas menus.
-        # In dropdown mode we build them into the host menubar via dp5_menu.
-        current_style = workshop.dp5_settings.get('menu_style', 'dropdown')
-
-        if current_style == 'topbar':
-            # Show the internal DP5 menubar; host menu carries launch+orient only
-            workshop.set_menu_orientation('topbar')
-        else:
-            # Hide internal bar; build all canvas menus into host dp5_menu
-            workshop.set_menu_orientation('dropdown')
-            workshop._build_menus_into_qmenu(dp5_menu)
-
-        # Ensure host menubar is visible (needed in custom UI mode)
-        ui_mode = getattr(getattr(mw, 'img_settings', None), 'get',
-                          lambda k, d=None: d)('ui_mode', 'system')
-        if ui_mode == 'custom':
-            self.menu_bar.setMaximumHeight(16777215)
-            self.menu_bar.setVisible(True)
-            mw._dp5_showed_menubar = True
-
+        # Canvas menus are handled by _inject_tool_menu — not duplicated here
         return dp5_menu
 
     def _inject_tool_menu(self, workshop, restore_menubar: bool = True): #vers 1
@@ -821,12 +788,12 @@ class IMGFactoryMenuBar:
         self._injected_tool_menu  = None
         self._injected_tool_title = None
 
-    def remove_dp5_menu(self, restore_menubar: bool = True): #vers 1
-        """Remove the DP5 Paint menu and optionally hide the menubar again."""
+    def remove_dp5_menu(self, restore_menubar: bool = True): #vers 2
+        """Remove DP5 stub menu and any injected tool canvas menus."""
         existing = self.menus.pop('DP5 Paint', None)
         if existing:
             self.menu_bar.removeAction(existing.menuAction())
-
+        self._remove_tool_menu()
         if restore_menubar and getattr(self.main_window, '_dp5_showed_menubar', False):
             self.menu_bar.setVisible(False)
             self.menu_bar.setMaximumHeight(0)

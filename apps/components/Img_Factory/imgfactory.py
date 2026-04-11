@@ -1417,15 +1417,19 @@ class IMGFactory(QMainWindow):
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
 
-            # Add DP5 Paint menu to imgfactory menubar via menu_bar_system
+            # Wire DP5 menus into imgfactory menubar via unified tool menu system
             try:
                 if hasattr(self, 'menu_bar_system'):
-                    # Apply saved menu orientation before building the host menu
+                    # Apply saved orientation
                     saved_style = getattr(self, 'img_settings', None)
                     saved_style = saved_style.get('dp5_menu_style', 'dropdown') if saved_style else 'dropdown'
                     workshop.set_menu_orientation(saved_style)
+                    # Stub menu (launch + orientation toggle) always in host bar
                     self.menu_bar_system._create_dp5_menu(workshop)
-                    # Remove DP5 menu when tab closes (disconnect after first match)
+                    # Canvas menus injected via unified path if dropdown mode
+                    if saved_style == 'dropdown':
+                        self.menu_bar_system._inject_tool_menu(workshop)
+                    # Clean up both on tab close
                     def _on_tab_close(close_idx, _tc=tab_container):
                         if self.main_tab_widget.widget(close_idx) is _tc:
                             if hasattr(self, 'menu_bar_system'):
