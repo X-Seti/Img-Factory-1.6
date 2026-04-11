@@ -511,6 +511,12 @@ class IMGFactory(QMainWindow):
         # Apply UI mode settings to the newly created layout
         self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
+        # Hide system top bar when in custom mode (custom has its own titlebar)
+        if ui_mode == "custom":
+            gl = getattr(self, 'gui_layout', None)
+            if gl and hasattr(gl, '_system_top_bar'):
+                gl._system_top_bar.setVisible(False)
+
         # Menu system — initially uses self.menuBar() (Qt system bar)
         # After _create_ui(), re-pointed to _standalone_menu_bar if it exists
         self.menubar = self.menuBar()
@@ -534,24 +540,27 @@ class IMGFactory(QMainWindow):
         # Create main UI (includes tab system setup + _standalone_menu_bar)
         self._create_ui()
 
-        # Re-point menu_bar_system to the standalone widget and rebuild
-        # so menus appear in the layout-controlled bar, not the Qt system bar
+        # Point menu_bar_system at the inline system menu bar (created by gui_layout)
+        # In custom mode there's no system menu bar so this is skipped.
         try:
-            if hasattr(self, '_standalone_menu_bar'):
+            smb = getattr(self, '_standalone_menu_bar', None)
+            if smb is None and hasattr(self, 'gui_layout'):
+                smb = getattr(self.gui_layout, '_system_menu_bar', None)
+                if smb:
+                    self._standalone_menu_bar = smb
+
+            if smb is not None and hasattr(self, 'menu_bar_system'):
                 self.menuBar().setVisible(False)
                 self.menuBar().setMaximumHeight(0)
-                self.menu_bar_system.menu_bar = self._standalone_menu_bar
-                self._standalone_menu_bar.clear()
+                self.menu_bar_system.menu_bar = smb
+                smb.clear()
                 self.menu_bar_system._create_menus()
                 self.menu_bar_system._create_tools_menu()
                 self.menu_bar_system._create_dp5_menu()
                 self.menu_bar_system.set_callbacks(callbacks)
-                print(f"DEBUG standalone menubar: actions={len(self._standalone_menu_bar.actions())} visible={self._standalone_menu_bar.isVisible()} h={self._standalone_menu_bar.height()}")
-                self._apply_img_menu_orientation()
-                print(f"DEBUG after orient: visible={self._standalone_menu_bar.isVisible()} h={self._standalone_menu_bar.height()} maxH={self._standalone_menu_bar.maximumHeight()}")
         except Exception as _me:
             import traceback; traceback.print_exc()
-            print(f"Standalone menubar setup error: {_me}")
+            print(f"Menu bar setup error: {_me}")
 
         # Stub for selection callbacks before full button system loads
         if not hasattr(self, '_update_button_states'):
@@ -3081,22 +3090,6 @@ class IMGFactory(QMainWindow):
                         print(f"Tool taskbar theme apply failed: {_te}")
             except Exception as e:
                 print(f"Toolbar creation failed: {e}")
-
-        # ── Standalone menubar widget (orientation-controlled) ───────────────
-        # This is a plain QMenuBar widget in the layout — NOT self.menuBar().
-        # Sits between the custom titlebar and the content splitter.
-        # Shown in topbar mode, hidden in dropdown mode.
-        from PyQt6.QtWidgets import QMenuBar as _QMenuBar
-        self._standalone_menu_bar = _QMenuBar(central_widget)
-        # Fix height to 20px — eliminates gap between menubar and tab bar
-        self._standalone_menu_bar.setFixedHeight(20)
-        self._standalone_menu_bar.setContentsMargins(0, 0, 0, 0)
-        img_orient = self.img_settings.get('img_menu_orientation', 'topbar')
-        self._standalone_menu_bar.setVisible(img_orient == 'topbar')
-        if img_orient != 'topbar':
-            self._standalone_menu_bar.setMaximumHeight(0)
-        main_layout.setSpacing(0)
-        main_layout.addWidget(self._standalone_menu_bar)
 
         # Build the persistent shell: right panel + log live OUTSIDE the tab widget
         # so they are always visible regardless of which tab is active.

@@ -275,6 +275,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         ui_mode_layout = QVBoxLayout(ui_mode_group)
 
         self.ui_mode_button_group = QButtonGroup(self)
+        self._original_ui_mode = self.img_settings.get("ui_mode", "system")
 
         # System UI option
         system_container = QWidget()
@@ -283,6 +284,12 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
         self.system_ui_radio = QRadioButton("System UI")
         system_layout.addWidget(self.system_ui_radio)
+
+        # Restart required notice
+        from PyQt6.QtWidgets import QLabel as _QL
+        self._restart_notice = _QL("⚠  Restart required for UI mode changes to take effect")
+        self._restart_notice.setStyleSheet("color: #f90; font-size: 10px; padding: 4px;")
+        self._restart_notice.setVisible(False)
 
         system_desc = QLabel("Standard window with menu bar")
         system_desc.setStyleSheet("color: #888; font-size: 10px; margin-left: 25px;")
@@ -429,6 +436,17 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
             self.custom_ui_radio.setChecked(True)
         else:
             self.system_ui_radio.setChecked(True)
+
+        # Connect radios to show restart notice
+        def _on_mode_changed():
+            if hasattr(self, '_restart_notice') and hasattr(self, '_original_ui_mode'):
+                new_mode = "custom" if self.custom_ui_radio.isChecked() else "system"
+                self._restart_notice.setVisible(new_mode != self._original_ui_mode)
+        self.system_ui_radio.toggled.connect(_on_mode_changed)
+        self.custom_ui_radio.toggled.connect(_on_mode_changed)
+
+        if hasattr(self, '_restart_notice'):
+            ui_mode_layout.addWidget(self._restart_notice)
 
         ui_mode_group.setLayout(ui_mode_layout)
         layout.addWidget(ui_mode_group)
@@ -853,11 +871,73 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
         QMessageBox.information(self, "Settings Applied", "Settings have been applied successfully.")
 
-    def _save_and_close(self): #vers 1
-        """Save settings and close dialog"""
+    def _save_and_close(self): #vers 2
+        """Save settings, handle restart if UI mode changed, then close."""
         self._save_settings()
         self._apply_settings()
         self.accept()
+
+        # Check if UI mode changed — requires restart
+        new_mode = "custom" if self.custom_ui_radio.isChecked() else "system"
+        if new_mode != self._original_ui_mode:
+            self._prompt_restart()
+
+    def _prompt_restart(self): #vers 1
+        """If files are open, ask user to save first, then restart."""
+        mw = self.main_window
+
+        # Check for open files
+        open_files = getattr(mw, 'open_files', {})
+        has_open = bool(open_files)
+
+        if has_open:
+            reply = QMessageBox.question(
+                mw,
+                "Restart Required",
+                ("UI mode has changed — a restart is required.\n\n"
+                 "You have files open. Please save all work before restarting.\n\n"
+                 "Save all and restart now?"),
+                QMessageBox.StandardButton.Yes |
+                QMessageBox.StandardButton.No |
+                QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel
+            )
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+            if reply == QMessageBox.StandardButton.Yes:
+                # Try to save all open files
+                try:
+                    if hasattr(mw, 'save_all_open_files'):
+                        mw.save_all_open_files()
+                    elif hasattr(mw, 'save_img_file'):
+                        mw.save_img_file()
+                except Exception as _se:
+                    QMessageBox.warning(mw, "Save Error",
+                        f"Could not save all files: {_se}\n\nPlease save manually then restart.")
+                    return
+        else:
+            reply = QMessageBox.question(
+                mw,
+                "Restart Required",
+                "UI mode has changed — a restart is required to apply changes.\n\nRestart now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        self._do_restart(mw)
+
+    def _do_restart(self, mw): #vers 1
+        """Restart the application."""
+        import sys, os
+        from PyQt6.QtWidgets import QApplication
+        try:
+            QApplication.quit()
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception as e:
+            QMessageBox.critical(mw, "Restart Failed",
+                f"Could not restart automatically: {e}\n\nPlease close and reopen IMG Factory.")
 
     def _reset_settings(self): #vers 1
         """Reset to default settings"""

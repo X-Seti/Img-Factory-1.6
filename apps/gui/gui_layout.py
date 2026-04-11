@@ -662,6 +662,23 @@ class IMGFactoryGUILayout:
             return False
 
 
+    def _show_rw_reference(self): #vers 1
+        """Show RW reference — delegate to custom layout method or open directly."""
+        try:
+            if hasattr(self, 'main_window'):
+                # Try opening via gui_layout_custom method if available
+                gl = getattr(self.main_window, 'gui_layout', None)
+                if gl and hasattr(gl, '_show_rw_reference'):
+                    gl._show_rw_reference()
+                    return
+            # Fallback: open the RW reference dialog directly
+            from apps.gui.gui_layout_custom import IMGFactoryGUILayoutCustom
+            tmp = IMGFactoryGUILayoutCustom.__new__(IMGFactoryGUILayoutCustom)
+            tmp.main_window = self.main_window
+            tmp._show_rw_reference()
+        except Exception as e:
+            print(f"RW Ref error: {e}")
+
     def _show_system_popup_menu(self, btn): #vers 2
         """Show the imgfactory popup menu anchored to the Menu button (system UI mode).
         Creates custom_menu_manager on demand if not already present.
@@ -1460,49 +1477,104 @@ class IMGFactoryGUILayout:
 
         """Create the main UI with 3-panel layout similar to COL Workshop"""
 
-        # ── Minimal top bar: Menu + Settings (system UI mode only) ───────────
-        # No gadgets — those are in the right panel already.
-        # No title / window controls — OS frame handles those in system mode.
+        # ── System UI top bar ────────────────────────────────────────────────
+        # Layout: [Settings] [RW Ref] | inline QMenuBar | <Taskbar> | [Undo] [Info] [Theme] [AI]
+        # Only added in system UI mode — custom UI has its own titlebar.
         try:
-            from PyQt6.QtWidgets import QPushButton, QHBoxLayout, QWidget as _QW
+            from PyQt6.QtWidgets import (QPushButton, QHBoxLayout, QWidget as _QW,
+                                          QMenuBar as _QMB)
             from PyQt6.QtCore import QSize
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
             top_bar = _QW()
-            top_bar.setFixedHeight(28)
+            top_bar.setFixedHeight(30)
             top_hl = QHBoxLayout(top_bar)
-            top_hl.setContentsMargins(4, 0, 4, 0)
-            top_hl.setSpacing(4)
+            top_hl.setContentsMargins(4, 1, 4, 1)
+            top_hl.setSpacing(2)
 
             icon_color = '#cccccc'
             if hasattr(self.main_window, 'app_settings'):
                 tc = self.main_window.app_settings.get_theme_colors() or {}
                 icon_color = tc.get('text_primary', '#cccccc')
 
-            # Menu button — opens popup menu
-            menu_btn = QPushButton("Menu")
-            menu_btn.setFixedHeight(24)
-            menu_btn.setIcon(SVGIconFactory.menu_m_icon(16, icon_color))
-            menu_btn.setIconSize(QSize(16, 16))
-            menu_btn.clicked.connect(lambda: self._show_system_popup_menu(menu_btn))
-            menu_btn.setToolTip("Main menu")
-            top_hl.addWidget(menu_btn)
-            self.menu_btn = menu_btn
+            def _mk_btn(text, icon_fn, tip, slot, w=None):
+                btn = QPushButton(text)
+                btn.setFixedHeight(26)
+                if w: btn.setFixedWidth(w)
+                try: btn.setIcon(icon_fn(16, icon_color)); btn.setIconSize(QSize(16,16))
+                except Exception: pass
+                btn.setToolTip(tip)
+                btn.clicked.connect(slot)
+                return btn
 
-            # Settings button — opens IMG Factory settings (not app theme settings)
-            settings_btn = QPushButton("Settings")
-            settings_btn.setFixedHeight(24)
-            settings_btn.setIcon(SVGIconFactory.settings_icon(16, icon_color))
-            settings_btn.setIconSize(QSize(16, 16))
-            settings_btn.clicked.connect(self._show_system_settings)
-            settings_btn.setToolTip("IMG Factory Settings")
-            top_hl.addWidget(settings_btn)
-            self.settings_btn = settings_btn
+            # Left buttons
+            self.settings_btn = _mk_btn("Settings", SVGIconFactory.settings_icon,
+                "IMG Factory Settings", self._show_system_settings)
+            top_hl.addWidget(self.settings_btn)
 
-            top_hl.addStretch()
+            self.rw_ref_btn = _mk_btn("RW Ref", SVGIconFactory.info_icon,
+                "RenderWare Format Reference",
+                lambda: self._show_rw_reference())
+            top_hl.addWidget(self.rw_ref_btn)
+
+            # Inline menu bar — populated after menu_bar_system is built
+            self._system_menu_bar = _QMB(top_bar)
+            self._system_menu_bar.setSizePolicy(
+                __import__('PyQt6.QtWidgets', fromlist=['QSizePolicy']).QSizePolicy.Policy.Preferred,
+                __import__('PyQt6.QtWidgets', fromlist=['QSizePolicy']).QSizePolicy.Policy.Preferred)
+            top_hl.addWidget(self._system_menu_bar)
+            # Also expose as _standalone_menu_bar for menu_bar_system compat
+            self.main_window._standalone_menu_bar = self._system_menu_bar
+
+            # Stretch — pushes right buttons to far right
+            top_hl.addStretch(1)
+
+            # Tool taskbar slot (populated when tools open)
+            # Lazy import to avoid circular dependency with gui_layout_custom
+            try:
+                from apps.gui.gui_layout_custom import ToolTaskbar as _TT
+                self._inline_taskbar = _TT(self.main_window, top_bar)
+                self._inline_taskbar.setVisible(False)
+                top_hl.addWidget(self._inline_taskbar)
+                self.main_window.tool_taskbar = self._inline_taskbar
+            except Exception as _tte:
+                print(f"ToolTaskbar unavailable in system mode: {_tte}")
+                self._inline_taskbar = None
+
+            top_hl.addStretch(1)
+
+            # Right buttons: Undo, Info, Theme, AI
+            self.undo_btn = _mk_btn("", SVGIconFactory.undo_icon,
+                "Undo last change", lambda: getattr(
+                    getattr(self.main_window, 'undo_manager', None),
+                    'undo', lambda: None)(), w=34)
+            self.undo_btn.setEnabled(False)
+            top_hl.addWidget(self.undo_btn)
+
+            self.info_btn = _mk_btn("", SVGIconFactory.info_icon,
+                "Application Information",
+                lambda: getattr(self.main_window, 'show_about',
+                    lambda: None)(), w=34)
+            top_hl.addWidget(self.info_btn)
+
+            self.properties_btn = _mk_btn("", SVGIconFactory.properties_icon,
+                "Theme Settings",
+                lambda: getattr(self.main_window, 'show_gui_settings',
+                    lambda: None)(), w=34)
+            top_hl.addWidget(self.properties_btn)
+
+            self.ai_btn = _mk_btn("AI", SVGIconFactory.ai_icon,
+                "AI Workshop",
+                lambda: getattr(self.main_window, 'open_ai_workshop_docked',
+                    lambda: None)(), w=44)
+            top_hl.addWidget(self.ai_btn)
+
             main_layout.addWidget(top_bar)
             self._system_top_bar = top_bar
+            self.menu_btn = None  # no separate menu button in system UI
+
         except Exception as _e:
+            import traceback; traceback.print_exc()
             print(f"System top bar error: {_e}")
 
         # Create main horizontal splitter for 3 panels
