@@ -627,6 +627,9 @@ class DP5Settings:
         'zoom_to_fit_resize': False,
         'show_menubar':       False,
         'menu_style':         'topbar',   # 'topbar' | 'dropdown'
+        'menu_bar_font_size':  9,         # topbar menubar font size (pt)
+        'menu_bar_height':     22,        # topbar menubar height (px)
+        'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
     }
 
     def __init__(self):
@@ -702,11 +705,6 @@ class DP5SettingsDialog(QDialog):
         self._fit_resize_chk.setChecked(self.s.get('zoom_to_fit_resize'))
         self._fit_resize_chk.setToolTip("Always scale canvas to fill the viewport on window resize")
         cl.addRow("Zoom to fit on resize:", self._fit_resize_chk)
-
-        self._menu_style_combo = QComboBox()
-        self._menu_style_combo.addItems(['topbar', 'dropdown'])
-        self._menu_style_combo.setCurrentText(self.s.get('menu_style'))
-        cl.addRow("Menu button style:", self._menu_style_combo)
 
         self._img_pal_cols_spin = QSpinBox(); self._img_pal_cols_spin.setRange(4, 32)
         self._img_pal_cols_spin.setValue(self.s.get('img_pal_cols'))
@@ -834,6 +832,36 @@ class DP5SettingsDialog(QDialog):
             self._gadget_chks[tool_id] = btn
         gl.addWidget(grid_w)
         gl.addStretch()
+        # ── Menu tab ─────────────────────────────────────────────────────────
+        menu_tab = QWidget()
+        ml = QFormLayout(menu_tab)
+        ml.setSpacing(8)
+
+        self._menu_style_combo = QComboBox()
+        self._menu_style_combo.addItems(['topbar', 'dropdown'])
+        self._menu_style_combo.setCurrentText(self.s.get('menu_style'))
+        ml.addRow("Menu orientation:", self._menu_style_combo)
+
+        self._menu_bar_height_spin = QSpinBox()
+        self._menu_bar_height_spin.setRange(16, 40)
+        self._menu_bar_height_spin.setValue(self.s.get('menu_bar_height'))
+        self._menu_bar_height_spin.setSuffix(" px")
+        ml.addRow("Topbar height:", self._menu_bar_height_spin)
+
+        self._menu_bar_font_spin = QSpinBox()
+        self._menu_bar_font_spin.setRange(7, 16)
+        self._menu_bar_font_spin.setValue(self.s.get('menu_bar_font_size'))
+        self._menu_bar_font_spin.setSuffix(" pt")
+        ml.addRow("Topbar font size:", self._menu_bar_font_spin)
+
+        self._menu_dropdown_font_spin = QSpinBox()
+        self._menu_dropdown_font_spin.setRange(7, 16)
+        self._menu_dropdown_font_spin.setValue(self.s.get('menu_dropdown_font_size'))
+        self._menu_dropdown_font_spin.setSuffix(" pt")
+        ml.addRow("Dropdown font size:", self._menu_dropdown_font_spin)
+
+        tabs.addTab(menu_tab, "Menu")
+
         tabs.addTab(gadgets_tab, "Gadgets")
 
         root.addWidget(tabs)
@@ -856,7 +884,10 @@ class DP5SettingsDialog(QDialog):
         self.s.set('undo_levels',      self._undo_spin.value())
         self.s.set('show_pixel_grid',  self._grid_chk.isChecked())
         self.s.set('zoom_to_fit_resize', self._fit_resize_chk.isChecked())
-        self.s.set('menu_style',         self._menu_style_combo.currentText())
+        self.s.set('menu_style',              self._menu_style_combo.currentText())
+        self.s.set('menu_bar_height',         self._menu_bar_height_spin.value())
+        self.s.set('menu_bar_font_size',      self._menu_bar_font_spin.value())
+        self.s.set('menu_dropdown_font_size', self._menu_dropdown_font_spin.value())
         self.s.set('img_pal_cols',       self._img_pal_cols_spin.value())
         self.s.set('img_pal_rows',       self._img_pal_rows_spin.value())
         self.s.set('user_pal_cols',      self._user_pal_cols_spin.value())
@@ -3489,14 +3520,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         mb = QMenuBar(self._menu_bar_container)   # parent = container, NOT self
         self._menu_bar = mb
         self._build_canvas_menus(mb)
-        mb.setStyleSheet("""
-            QMenuBar {
-                background-color: palette(window);
-                color: palette(window-text);
-                border-bottom: 1px solid palette(mid);
-            }
-            QMenuBar::item:selected { background: palette(highlight); color: palette(highlighted-text); }
-        """)
+        self._apply_menu_bar_style()   # applies font size, height, colours
         _chl.addWidget(mb)
 
         show_mb = (self.dp5_settings.get('show_menubar') and
@@ -4311,6 +4335,37 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         ])
         plm.addSeparator()
         plm.addAction("Enforce colour constraints", self._toggle_colour_constraints)
+
+    def _apply_menu_bar_style(self): #vers 1
+        """Apply font size, height and colours to the topbar menubar from dp5_settings."""
+        mb = getattr(self, '_menu_bar', None)
+        if not mb:
+            return
+        bar_h  = self.dp5_settings.get('menu_bar_height', 22)
+        bar_fs = self.dp5_settings.get('menu_bar_font_size', 9)
+        dd_fs  = self.dp5_settings.get('menu_dropdown_font_size', 9)
+        mb.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: palette(window);
+                color: palette(window-text);
+                border-bottom: 1px solid palette(mid);
+                font-size: {bar_fs}pt;
+                min-height: {bar_h}px;
+                max-height: {bar_h}px;
+            }}
+            QMenuBar::item:selected {{
+                background: palette(highlight);
+                color: palette(highlighted-text);
+            }}
+            QMenu {{
+                font-size: {dd_fs}pt;
+            }}
+        """)
+        # Also size the container
+        c = getattr(self, '_menu_bar_container', None)
+        if c and c.isVisible():
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(bar_h)
 
     def set_menu_orientation(self, style: str): #vers 2
         """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
@@ -7420,6 +7475,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         dlg = DP5SettingsDialog(self.dp5_settings, self)
         if dlg.exec():
+            # Apply menu bar style changes live
+            self._apply_menu_bar_style()
+            # Also apply orientation change if it changed
+            self.set_menu_orientation(self.dp5_settings.get('menu_style', 'topbar'))
+
             # Apply changed settings live
             show_left = self.dp5_settings.get('show_bitmap_list')
             if hasattr(self, '_left_panel'):
