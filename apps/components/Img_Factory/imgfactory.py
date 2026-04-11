@@ -848,6 +848,42 @@ class IMGFactory(QMainWindow):
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'menu_btn'):
             self.gui_layout.menu_btn.setVisible(not want_topbar)
 
+    def _update_tool_menu_for_tab(self, tab_widget): #vers 1
+        """Inject or remove tool menu based on which tool is in the active tab.
+        Any tool implementing ToolMenuMixin with dropdown style gets injected.
+        """
+        if not hasattr(self, 'menu_bar_system'):
+            return
+
+        # Remove previous tool menu
+        self.menu_bar_system._remove_tool_menu()
+
+        if not tab_widget:
+            return
+
+        # Find a ToolMenuMixin widget in the tab
+        from apps.gui.tool_menu_mixin import ToolMenuMixin
+        tool = None
+
+        # Direct check first
+        if isinstance(tab_widget, ToolMenuMixin):
+            tool = tab_widget
+        else:
+            # Search all QWidget children for ToolMenuMixin instances
+            from PyQt6.QtWidgets import QWidget as _QW
+            for child in tab_widget.findChildren(_QW):
+                if isinstance(child, ToolMenuMixin):
+                    tool = child
+                    break
+
+        if not tool:
+            return
+
+        # Only inject if tool prefers dropdown mode
+        style = tool._get_tool_menu_style()
+        if style == 'dropdown':
+            self.menu_bar_system._inject_tool_menu(tool)
+
     def set_img_menu_orientation(self, orientation: str): #vers 2
         """Switch imgfactory menu between 'topbar' and 'dropdown'.
         Mirrors DP5's set_menu_orientation. Saves to img_settings and applies live.
@@ -3300,7 +3336,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error logging tab state: {str(e)}")
 
 
-    def _on_tab_changed(self, index): #vers 9
+    def _on_tab_changed(self, index): #vers 10
         """Handle tab switching - DIR Tree, IMG, COL, TXD tabs"""
         try:
             current_tab = self.main_tab_widget.widget(index)
@@ -3316,6 +3352,11 @@ class IMGFactory(QMainWindow):
             tab_table = getattr(current_tab, 'table_ref', None)
             if tab_table and hasattr(self, 'gui_layout'):
                 self.gui_layout.table = tab_table
+
+            # ── Tool menu injection ───────────────────────────────────────
+            # Remove any previously injected tool menu, then inject the
+            # active tab's tool menu if it implements ToolMenuMixin.
+            self._update_tool_menu_for_tab(current_tab)
 
             # Check if this tab contains an embedded TXD Workshop
             from apps.components.Txd_Editor.txd_workshop import TXDWorkshop

@@ -25,6 +25,7 @@ from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, Q
 from PyQt6.QtSvg import QSvgRenderer
 
 # Fallback to standalone depends folder
+from apps.gui.tool_menu_mixin import ToolMenuMixin
 from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, get_game_from_version, get_version_capabilities, get_platform_capabilities, is_mipmap_supported, is_bumpmap_supported, validate_txd_format, TXDPlatform, detect_platform_from_data)
 
 from apps.methods.txd_versions import (detect_txd_version, get_version_string, get_platform_name, get_platform_capabilities, TXDPlatform, TXDVersion)
@@ -427,7 +428,7 @@ class PlatformConversionDialog(QDialog): #vers 1
         return self.config
 
 
-class TXDWorkshop(QWidget): #vers 3
+class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
     """TXD Workshop - Main texture editing window"""
 
     workshop_closed = pyqtSignal()
@@ -582,6 +583,38 @@ class TXDWorkshop(QWidget): #vers 3
         if DEBUG_STANDALONE and self.standalone_mode:
             print(App_name + " initialized")
 
+
+    # ── ToolMenuMixin implementation ─────────────────────────────────────
+
+    def get_menu_title(self) -> str: #vers 1
+        """Return menu label for imgfactory menu bar."""
+        return "TXD Workshop"
+
+    def _build_menus_into_qmenu(self, parent_menu): #vers 1
+        """Populate parent_menu with TXD Workshop actions for imgfactory injection."""
+        from PyQt6.QtGui import QAction
+
+        # File
+        fm = parent_menu.addMenu("File")
+        fm.addAction("Open TXD…",           self._open_txd_file if hasattr(self, '_open_txd_file') else lambda: None)
+        fm.addAction("Save TXD",             self._save_txd_file)
+        fm.addAction("Save TXD As…",         self._save_as_txd_file)
+        fm.addSeparator()
+        fm.addAction("New TXD",              self._create_new_txd)
+        fm.addSeparator()
+        fm.addAction("Close TXD",            lambda: None)
+
+        # Texture
+        tm = parent_menu.addMenu("Texture")
+        tm.addAction("Import Texture…",      self._import_textures)
+        tm.addAction("Export Selected…",     self.export_selected_texture)
+        tm.addAction("Export All…",          self.export_all_textures)
+        tm.addSeparator()
+        tm.addAction("Convert Format…",      self._show_convert_dialog if hasattr(self, '_show_convert_dialog') else lambda: None)
+
+        # View
+        vm = parent_menu.addMenu("View")
+        vm.addAction("TXD Info",             self._show_txd_info)
 
     def setup_ui(self): #vers 8
         """Setup the main UI layout"""

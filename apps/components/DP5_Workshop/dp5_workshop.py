@@ -89,8 +89,12 @@ SHAPE_FILL_PAIRS = {
 
 # ── Try importing shared infrastructure ───────────────────────────────────────
 try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin as _ToolMenuMixin
+except Exception:
+    _ToolMenuMixin = object
+
+try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
-    ICONS_AVAILABLE = True
 except ImportError:
     ICONS_AVAILABLE = False
     class SVGIconFactory:
@@ -3343,7 +3347,7 @@ class ColorPalPresetsMixin:
 #  DP5Workshop — main container (DPaint5-faithful layout)
 
 
-class DP5Workshop(ColorPalPresetsMixin, QWidget):
+class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
 
     workshop_closed = pyqtSignal()
@@ -4081,6 +4085,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):
         plm.addAction("Enforce colour constraints (toggle)", self._toggle_colour_constraints)
 
     # ── Right panel: gadget bar + palettes ────────────────────────────────────
+
+    def get_menu_title(self) -> str: #vers 1
+        """Return menu label for imgfactory menu bar."""
+        return "DP5 Paint"
+
+    def _get_tool_menu_style(self) -> str: #vers 1
+        """Read menu_style from dp5_settings."""
+        return self.dp5_settings.get('menu_style', 'dropdown')
 
     def _build_menus_into_qmenu(self, parent_menu): #vers 1
         """Populate a QMenu with all DP5 canvas submenus.

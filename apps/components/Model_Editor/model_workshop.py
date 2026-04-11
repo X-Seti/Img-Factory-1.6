@@ -51,6 +51,7 @@ from apps.methods.col_workshop_classes import (
 from apps.methods.col_workshop_structures import setup_col_table_structure, populate_col_table
 from apps.methods.col_workshop_parser import COLParser
 from apps.methods.col_workshop_loader import COLFile
+from apps.gui.tool_menu_mixin import ToolMenuMixin
 
 
 # Temporary 3D viewport placeholder
@@ -1402,8 +1403,26 @@ class _ModelListDelegate(QStyledItemDelegate): #vers 1
             Qt.TextFlag.TextWordWrap | Qt.AlignmentFlag.AlignTop, text)
         return QSize(w, max(72, r.height() + 12))
 
-class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
-    """COL Workshop - Main window"""
+class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorkshop
+    """Model Workshop - Main window"""
+
+    # ── ToolMenuMixin implementation ─────────────────────────────────────
+
+    def get_menu_title(self) -> str: #vers 1
+        """Return menu label for imgfactory menu bar."""
+        return "Model Workshop"
+
+    def _build_menus_into_qmenu(self, parent_menu): #vers 1
+        """Populate parent_menu with Model Workshop actions."""
+        fm = parent_menu.addMenu("File")
+        fm.addAction("Open…",    self._open_file if hasattr(self, '_open_file') else lambda: None)
+        fm.addAction("Save",     self._save_file if hasattr(self, '_save_file') else lambda: None)
+        fm.addAction("Save As…", self._save_file_as if hasattr(self, '_save_file_as') else lambda: None)
+        fm.addSeparator()
+        fm.addAction("Export…",  self._export_col_data if hasattr(self, '_export_col_data') else lambda: None)
+
+        vm = parent_menu.addMenu("View")
+        vm.addAction("Sort",     self._show_sort_menu if hasattr(self, '_show_sort_menu') else lambda: None)
 
     workshop_closed = pyqtSignal()
     window_closed = pyqtSignal()

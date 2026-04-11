@@ -791,6 +791,40 @@ class IMGFactoryMenuBar:
 
         return dp5_menu
 
+    def _inject_tool_menu(self, workshop, restore_menubar: bool = True): #vers 1
+        """Inject a docked tool's menus into the imgfactory menu bar.
+        Removes any previously injected tool menu first.
+        Works for any tool implementing ToolMenuMixin.
+        """
+        self._remove_tool_menu()
+
+        title = workshop.get_menu_title() if hasattr(workshop, 'get_menu_title') else "Tool"
+        tool_menu = self.menu_bar.addMenu(title)
+        self._injected_tool_menu   = tool_menu
+        self._injected_tool_title  = title
+
+        if hasattr(workshop, '_build_menus_into_qmenu'):
+            workshop._build_menus_into_qmenu(tool_menu)
+
+        # Ensure host menubar visible in custom UI mode
+        mw = self.main_window
+        ui_mode = getattr(getattr(mw, 'img_settings', None), 'get',
+                          lambda k, d=None: d)('ui_mode', 'system')
+        if ui_mode == 'custom':
+            self.menu_bar.setMaximumHeight(16777215)
+            self.menu_bar.setVisible(True)
+            mw._dp5_showed_menubar = True
+
+        return tool_menu
+
+    def _remove_tool_menu(self): #vers 1
+        """Remove the currently injected tool menu from the host menu bar."""
+        menu = getattr(self, '_injected_tool_menu', None)
+        if menu:
+            self.menu_bar.removeAction(menu.menuAction())
+        self._injected_tool_menu  = None
+        self._injected_tool_title = None
+
     def remove_dp5_menu(self, restore_menubar: bool = True): #vers 1
         """Remove the DP5 Paint menu and optionally hide the menubar again."""
         existing = self.menus.pop('DP5 Paint', None)
