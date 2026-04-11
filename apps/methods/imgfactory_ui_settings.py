@@ -51,7 +51,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         )
         self.setMinimumWidth(540)
         self.setMinimumHeight(440)
-        self.resize(580, 520)
+        self.resize(696, 624)
 
         self._create_ui()
 
