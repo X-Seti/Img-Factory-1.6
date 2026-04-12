@@ -787,6 +787,59 @@ class RadarPaletteWidget(QWidget):
 
 
 
+class _TileZoomView(QWidget):
+    """Tile zoom view — sits inside a _view_tabs tab, scales tile to fill space.
+    All sidebar tools in RadarWorkshop operate on self._tile_idx via _current_idx."""
+
+    def __init__(self, tile_idx: int, tile_name: str, rgba: bytes, workshop): #vers 1
+        super().__init__()
+        self._tile_idx  = tile_idx
+        self._tile_name = tile_name
+        self._workshop  = workshop
+        self._rgba      = rgba
+        self._pixmap    = None
+        self.setMinimumSize(128, 128)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding)
+        self._rebuild_pixmap()
+
+    def _rebuild_pixmap(self): #vers 1
+        img = QImage(self._rgba, TILE_W, TILE_H, TILE_W*4,
+                     QImage.Format.Format_RGBA8888)
+        self._pixmap = QPixmap.fromImage(img)
+        self.update()
+
+    def refresh(self, rgba: bytes): #vers 1
+        self._rgba = rgba
+        self._rebuild_pixmap()
+
+    def paintEvent(self, ev): #vers 1
+        if not self._pixmap: return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        # Scale to fill, keep aspect ratio, centre
+        sz  = self._pixmap.size().scaled(
+            self.width(), self.height(),
+            Qt.AspectRatioMode.KeepAspectRatio)
+        x = (self.width()  - sz.width())  // 2
+        y = (self.height() - sz.height()) // 2
+        p.drawPixmap(x, y, self._pixmap.scaled(
+            sz, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+        # Tile info overlay at bottom
+        p.setPen(QColor(255, 255, 255, 180))
+        p.setFont(QFont("monospace", 9))
+        info = f"{self._tile_idx}: {self._tile_name}  {TILE_W}×{TILE_H}"
+        p.drawText(x + 4, y + sz.height() - 6, info)
+        p.end()
+
+    def resizeEvent(self, ev): #vers 1
+        super().resizeEvent(ev)
+        self.update()
+
+
+
 class _CornerOverlay(QWidget):
     """Transparent overlay that draws corner resize triangles on top of all children.
     Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
@@ -1243,11 +1296,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(0)
 
-        # ── Centre: grid + palette strip ─────────────────────────────────────
-        centre = QWidget()
-        cl = QVBoxLayout(centre)
-        cl.setContentsMargins(0, 0, 0, 0)
-        cl.setSpacing(2)
+        # ── Centre: tab widget — Map tab + tile zoom tabs ────────────────────
+        self._view_tabs = QTabWidget()
+        self._view_tabs.setDocumentMode(True)
+        self._view_tabs.setTabsClosable(False)  # Map tab never closable
+        self._view_tabs.tabCloseRequested.connect(self._on_view_tab_close)
+
+        # Tab 0: Full radar map
+        map_container = QWidget()
+        map_layout = QVBoxLayout(map_container)
+        map_layout.setContentsMargins(0, 0, 0, 0)
+        map_layout.setSpacing(0)
 
         self._radar = RadarGridWidget()
         self._radar.tile_clicked.connect(self._on_grid_click)
@@ -1255,10 +1314,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sc.setWidget(self._radar)
         sc.setWidgetResizable(True)
         sc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._radar_scroll = sc          # keep ref for zoom
-        cl.addWidget(sc, 1)
+        self._radar_scroll = sc
+        map_layout.addWidget(sc, 1)
 
-        hl.addWidget(centre, 1)
+        self._view_tabs.addTab(map_container, "🗺 Map")
+        self._view_tabs.setTabsClosable(True)
+        # Make the Map tab non-closable by removing its close button
+        self._view_tabs.tabBar().setTabButton(0, self._view_tabs.tabBar().ButtonPosition.RightSide, None)
+
+        self._view_tabs.currentChanged.connect(self._on_view_tab_changed)
+        hl.addWidget(self._view_tabs, 1)
 
         # ── Right sidebar ─────────────────────────────────────────────────────
         sidebar = QFrame()
@@ -1453,6 +1518,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if hasattr(self, '_palette_widget'):
             self._palette_widget.set_colors_from_rgba(new_rgba, TILE_W, TILE_H)
         self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+        self._refresh_tile_tab(self._current_idx)
         self._set_status(f"Tile {idx} transformed — {len(self._dirty_tiles)} modified")
 
     def _rotate_cw(self): #vers 1
@@ -2056,135 +2122,68 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     # - Tile selection
 
-    def _edit_tile_popup(self, idx: int = -1): #vers 2
-        """Open the tile editor window — non-modal, stays open while you use the tools.
-        Tabs for each opened tile. All draw/transform tools operate on the active tab tile."""
+    def _edit_tile_popup(self, idx: int = -1): #vers 3
+        """Open a tile as a zoom tab in the main view area.
+        Sidebar tools work directly — no separate window needed."""
         if idx < 0:
             idx = self._current_idx
         if idx < 0:
-            self._set_status("Select a tile first (click list or grid)"); return
+            self._set_status("Select a tile first"); return
         if idx not in self._tile_rgba:
-            self._set_status(f"Tile {idx} not yet loaded — click it in the grid first"); return
+            self._set_status(f"Tile {idx} not yet loaded"); return
+        self._open_tile_tab(idx)
 
-        # Reuse existing editor window if open, else create
-        if not hasattr(self, '_tile_editor_win') or self._tile_editor_win is None:
-            self._tile_editor_win = self._create_tile_editor_win()
+    def _open_tile_tab(self, idx: int): #vers 1
+        """Open tile idx as a zoom tab in the main view area.
+        Tab is named 'idx: TILENAM'. Switching tabs auto-selects the tile."""
+        if not hasattr(self, '_view_tabs'): return
 
-        win = self._tile_editor_win
-        win.show(); win.raise_(); win.activateWindow()
-        self._tile_editor_open_tab(idx)
-
-    def _create_tile_editor_win(self): #vers 1
-        """Create the non-modal tile editor window with tab strip."""
-        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-                                     QTabWidget, QToolButton, QLabel, QSizePolicy)
-        win = QWidget(self, Qt.WindowType.Window)
-        win.setWindowTitle("Tile Editor")
-        win.resize(620, 660)
-        win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-        try:
-            from apps.core.theme_utils import apply_dialog_theme
-            apply_dialog_theme(win, self.main_window)
-        except Exception: pass
-
-        layout = QVBoxLayout(win)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
-
-        # Tab widget — one tab per opened tile
-        tabs = QTabWidget()
-        tabs.setTabsClosable(True)
-        tabs.tabCloseRequested.connect(lambda i: tabs.removeTab(i))
-        tabs.setDocumentMode(True)
-        layout.addWidget(tabs, 1)
-
-        # Bottom toolbar — actions for the active tab
-        icon_color = self._get_icon_color()
-        bar = QHBoxLayout()
-
-        def _tbtn(icon_fn, tip, slot):
-            b = QToolButton()
-            b.setFixedSize(32, 32)
-            try:
-                b.setIcon(getattr(SVGIconFactory, icon_fn)(18, icon_color))
-                b.setIconSize(QSize(18, 18))
-            except Exception: b.setText(tip[0])
-            b.setToolTip(tip)
-            b.clicked.connect(slot)
-            bar.addWidget(b)
-            return b
-
-        def _active_idx():
-            w = tabs.currentWidget()
-            return getattr(w, '_tile_idx', -1) if w else -1
-
-        _tbtn('rotate_cw_icon',  "Rotate +90°",          lambda: self._rotate_cw()  or self._editor_refresh(tabs))
-        _tbtn('rotate_ccw_icon', "Rotate -90°",           lambda: self._rotate_ccw() or self._editor_refresh(tabs))
-        _tbtn('flip_horz_icon',  "Flip horizontal",       lambda: self._flip_horz()  or self._editor_refresh(tabs))
-        _tbtn('flip_vert_icon',  "Flip vertical",         lambda: self._flip_vert()  or self._editor_refresh(tabs))
-        bar.addSpacing(8)
-        _tbtn('import_icon', "Import PNG into this tile", lambda: (self._import_single_tile(_active_idx()), self._editor_refresh(tabs)))
-        _tbtn('export_icon', "Export this tile as PNG",   lambda: self._export_single_tile(_active_idx()))
-        bar.addStretch()
-        _tbtn('delete_icon', "Reset tile to blank",       lambda: (self._delete_single_tile(_active_idx()), self._editor_refresh(tabs)))
-        layout.addLayout(bar)
-
-        win._tabs = tabs
-        return win
-
-    def _tile_editor_open_tab(self, idx: int): #vers 1
-        """Add or switch to tab for tile idx in the editor window."""
-        from PyQt6.QtWidgets import QLabel, QScrollArea, QSizePolicy
-        win = self._tile_editor_win
-        tabs = win._tabs
-
-        # Check if tab already open
-        for i in range(tabs.count()):
-            w = tabs.widget(i)
+        # Check if already open
+        for i in range(1, self._view_tabs.count()):
+            w = self._view_tabs.widget(i)
             if getattr(w, '_tile_idx', -1) == idx:
-                tabs.setCurrentIndex(i); return
+                self._view_tabs.setCurrentIndex(i)
+                return
 
-        # Create new tab
-        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        name = (self._tile_entries[idx]["name"]
+                if idx < len(self._tile_entries) else f"tile_{idx}")
         rgba = self._tile_rgba[idx]
 
-        container = QLabel()
-        container._tile_idx = idx
-        container.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        container.setMinimumSize(256, 256)
-        self._editor_set_pixmap(container, rgba)
-
-        sc = QScrollArea()  # wrap in scroll so large tiles can be zoomed later
-        sc.setWidget(container)
-        sc.setWidgetResizable(True)
-        sc._tile_idx = idx
-
+        # Create a tile canvas widget that scales to fill the tab
+        tile_view = _TileZoomView(idx, name, rgba, self)
         tab_label = f"{idx}: {name}"
-        tabs.addTab(sc, tab_label)
-        tabs.setCurrentWidget(sc)
+        self._view_tabs.addTab(tile_view, tab_label)
+        self._view_tabs.setCurrentWidget(tile_view)
 
-    def _editor_set_pixmap(self, lbl, rgba): #vers 1
-        """Update a tile editor tab label with current rgba data."""
-        from PyQt6.QtGui import QImage, QPixmap
-        img = QImage(rgba, TILE_W, TILE_H, TILE_W*4, QImage.Format.Format_RGBA8888)
-        sz  = min(lbl.width() or 512, lbl.height() or 512, 512)
-        sz  = max(sz, 256)
-        px  = QPixmap.fromImage(img).scaled(sz, sz,
-              Qt.AspectRatioMode.KeepAspectRatio,
-              Qt.TransformationMode.SmoothTransformation)
-        lbl.setPixmap(px)
+    def _on_view_tab_changed(self, tab_idx: int): #vers 1
+        """When user switches tabs — sync tile selection if it's a tile tab."""
+        if tab_idx == 0: return  # Map tab — no tile to select
+        w = self._view_tabs.widget(tab_idx)
+        tile_idx = getattr(w, '_tile_idx', -1)
+        if tile_idx >= 0 and tile_idx != self._current_idx:
+            self._current_idx = tile_idx
+            self._radar.set_selected(tile_idx)
+            self._tile_list.setCurrentRow(tile_idx)
 
-    def _editor_refresh(self, tabs=None): #vers 1
-        """Refresh the active tab in the tile editor after a transform or import."""
-        if not hasattr(self, '_tile_editor_win') or self._tile_editor_win is None: return
-        if tabs is None: tabs = self._tile_editor_win._tabs
-        sc = tabs.currentWidget()
-        if sc is None: return
-        idx = getattr(sc, '_tile_idx', -1)
-        if idx < 0 or idx not in self._tile_rgba: return
-        lbl = sc.widget()
-        self._editor_set_pixmap(lbl, self._tile_rgba[idx])
+    def _on_view_tab_close(self, tab_idx: int): #vers 1
+        """Close a tile tab (Map tab at index 0 is never closable)."""
+        if tab_idx == 0: return
+        self._view_tabs.removeTab(tab_idx)
+
+    def _refresh_tile_tab(self, idx: int): #vers 1
+        """Refresh a tile tab's pixmap after a transform or import."""
+        if not hasattr(self, '_view_tabs'): return
+        if idx not in self._tile_rgba: return
+        rgba = self._tile_rgba[idx]
+        for i in range(1, self._view_tabs.count()):
+            w = self._view_tabs.widget(i)
+            if getattr(w, '_tile_idx', -1) == idx:
+                w.refresh(rgba)
+                break
+
+    def _editor_refresh(self, tabs=None): #vers 2
+        """Refresh the current tile tab — called after transforms."""
+        self._refresh_tile_tab(self._current_idx)
 
     def _on_tile_list_context(self, pos): #vers 1
         """Right-click context menu on tile list item."""
