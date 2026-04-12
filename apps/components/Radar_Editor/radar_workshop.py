@@ -1777,73 +1777,43 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         try: self._img_reader = ImgReader(path); self._img_path = path
         except Exception as e: QMessageBox.critical(self, "Load Error", str(e)); return
 
-        # Auto-switch preset based on filename before searching
+        # Search using a broad pattern first — find ALL radar*.txd entries
+        # Then use tile COUNT to auto-detect the game (authoritative)
         fname = Path(path).name.lower()
-        preset_by_file = {
-            'radartex.img': 'SOL',
-            'gta3.img':     'SA PC',   # SA PC uses gta3.img
-            'gta.img':      'SA PC',   # some mods use gta.img
-        }
-        auto_preset = preset_by_file.get(fname)
-        filename_matched = False
-        if auto_preset and auto_preset != self._game_combo.currentText():
-            self._on_game_changed(auto_preset)
-            filename_matched = True
-        elif auto_preset:
-            filename_matched = True  # already on correct preset
 
-        entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
-
-        # If no entries AND filename was NOT matched, try fallback patterns
-        # NEVER fall back if filename was matched — trust the preset
-        if not entries and not filename_matched:
-            # Try PC/PVR presets first (prefer over Android/mobile)
-            pc_first = [p for p in GAME_PRESETS if GAME_PRESETS[p].get("img_source") in ("img","pvr")
-                        and p != self._game_combo.currentText()
-                        and "And" not in p and "iOS" not in p and "PSP" not in p]
-            other    = [p for p in GAME_PRESETS if GAME_PRESETS[p].get("img_source") in ("img","pvr")
-                        and p != self._game_combo.currentText()
-                        and p not in pc_first]
-            for pname in pc_first + other:
-                found = self._img_reader.find_radar_entries(GAME_PRESETS[pname]["img_pattern"])
-                if found:
-                    self._on_game_changed(pname)
-                    entries = found
-                    break
-        elif not entries and filename_matched:
-            # Filename matched but no entries found — show debug info
-            hint_msg = self._game_preset.get('hint', '')
-            # List what radar-like entries actually exist
-            radar_like = self._img_reader.list_radar_like('radar')
-            sample = ', '.join(radar_like[:8]) if radar_like else 'none'
-            extra = f' (+{len(radar_like)-8} more)' if len(radar_like) > 8 else ''
-            QMessageBox.warning(self, "No Radar Tiles",
-                f"No radar TXDs matched pattern in {Path(path).name}\n\n"
-                f"Hint: {hint_msg}\n\n"
-                f"Expected preset: {self._game_preset['label']}\n\n"
-                f"Radar-like entries found: {sample}{extra}\n"
-                f"(Check names match pattern: {self._game_preset['img_pattern']})")
-            return
+        # Use broad search pattern to find everything
+        broad_pat = r'^radar(\d{2,4})\.txd$'
+        entries = self._img_reader.find_radar_entries(broad_pat)
 
         if not entries:
-            hint_msg = f"\n\nHint: {hint}" if hint else ""
-            QMessageBox.warning(self, "No Radar Tiles",
-                f"No radar TXDs found in {Path(path).name}.{hint_msg}")
-            return
-        entries.sort(key=lambda e:e["name"].lower())
+            # Nothing found — try current preset pattern as fallback
+            entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
 
-        if filename_matched:
-            # Known filename — cap to preset count, apply preset grid
+        if not entries:
+            radar_like = self._img_reader.list_radar_like('radar')
+            sample = ', '.join(radar_like[:6]) if radar_like else 'none'
+            QMessageBox.warning(self, "No Radar Tiles",
+                f"No radar TXDs found in {Path(path).name}\n\n"
+                f"Radar-like entries: {sample}\n"
+                f"Ensure you are loading the correct .img file for your game.")
+            return
+
+        entries.sort(key=lambda e: e["name"].lower())
+
+        # Auto-detect game by tile count — most reliable signal
+        self._autodetect(len(entries))
+
+        # Cap to detected preset count (removes extra files like radarmap, radardisc etc)
+        p = self._game_preset
+        entries = entries[:p["count"]]
+
+        # For SOL, override with correct radartex pattern to avoid non-radar files
+        if fname == 'radartex.img':
+            self._on_game_changed('SOL')
             p = self._game_preset
-            entries = entries[:p["count"]]
-            self._apply_preset(self._game_combo.currentText())
-        else:
-            # Unknown filename — detect by tile count
-            self._autodetect(len(entries))
-            # Cap to detected preset count
-            p = self._game_preset
-            if len(entries) > p["count"]:
-                entries = entries[:p["count"]]
+            entries_sol = self._img_reader.find_radar_entries(r'^radar\d{4}\.txd$')
+            if entries_sol:
+                entries = entries_sol[:p["count"]]
 
         self._tile_entries = entries
         prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
