@@ -466,7 +466,8 @@ class ImgReader:
 # - Radar grid widget
 class RadarGridWidget(QWidget):
     """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
-    tile_clicked = pyqtSignal(int)
+    tile_clicked        = pyqtSignal(int)
+    grid_right_clicked  = pyqtSignal(int, QPoint)   # idx, global pos
 
     def __init__(self,parent=None): #vers 1
         super().__init__(parent)
@@ -529,10 +530,14 @@ class RadarGridWidget(QWidget):
     def leaveEvent(self,ev): #vers 1
         self._hover=-1; self.update()
 
-    def mousePressEvent(self,ev): #vers 1
-        if ev.button()==Qt.MouseButton.LeftButton:
-            idx=self._idx_at(ev.pos())
-            if idx>=0: self._sel=idx; self.tile_clicked.emit(idx); self.update()
+    def mousePressEvent(self,ev): #vers 2
+        idx = self._idx_at(ev.pos())
+        if idx < 0: return
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self._sel = idx; self.tile_clicked.emit(idx); self.update()
+        elif ev.button() == Qt.MouseButton.RightButton:
+            self._sel = idx; self.tile_clicked.emit(idx); self.update()
+            self.grid_right_clicked.emit(idx, ev.globalPosition().toPoint())
 
 # - Tile list item
 
@@ -1511,6 +1516,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         self._radar = RadarGridWidget()
         self._radar.tile_clicked.connect(self._on_grid_click)
+        self._radar.grid_right_clicked.connect(self._on_grid_right_click)
         sc = QScrollArea()
         sc.setWidget(self._radar)
         sc.setWidgetResizable(True)
@@ -2052,7 +2058,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._apply_preset("Custom")
 
 
-    def _apply_preset(self, game): #vers 3
+    def _apply_preset(self, game): #vers 4
         self._game_preset = GAME_PRESETS[game]
         cols  = self._game_preset["cols"]
         count = self._game_preset["count"]
@@ -2060,6 +2066,11 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._tile_rgba = {}; self._dirty_tiles = set(); self._current_idx = -1
         names = [self._game_preset["name_fn"](i) for i in range(count)]
         self._radar.setup(cols, count, names)
+
+        # Block tile_list signals entirely while rebuilding — prevents
+        # addItem() firing currentRowChanged(0) → _on_list_row(0) which
+        # would set _current_idx=0 (the RADAR00 bug)
+        self._tile_list.blockSignals(True)
         self._tile_list.clear()
         self._tile_list.setIconSize(QSize(THUMB, THUMB))
         self._list_items = []
@@ -2067,6 +2078,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             item = TileListItem(i, names[i], game_label=label)
             self._tile_list.addItem(item)
             self._list_items.append(item)
+        self._tile_list.blockSignals(False)
+        self._tile_list.setCurrentRow(-1)   # no selection after load
+
+        # Close any stale tile-zoom tabs from a previous file
+        if hasattr(self, '_view_tabs'):
+            self._view_tabs.blockSignals(True)
+            while self._view_tabs.count() > 1:
+                self._view_tabs.removeTab(self._view_tabs.count() - 1)
+            self._view_tabs.blockSignals(False)
+            self._view_tabs.setCurrentIndex(0)
+
         hint = self._game_preset.get("hint", "")
         self._set_status(f"{label} — {hint}" if hint else
                          f"{label} — {count} tiles ({cols}×{self._game_preset['rows']})")
@@ -2537,6 +2559,91 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._tile_list.setCurrentRow(idx)
         self._tile_list.blockSignals(False)
         self._on_list_row(idx)           # update palette, status bar etc.
+
+    def _on_grid_right_click(self, idx: int, gpos): #vers 1
+        """Right-click on grid tile — context menu with edit/colour/export."""
+        from PyQt6.QtWidgets import QMenu
+        name = (self._tile_entries[idx]["name"]
+                if idx < len(self._tile_entries) else f"tile_{idx}")
+        icon_c = self._get_icon_color()
+
+        menu = QMenu(self)
+        menu.addSection(f"Tile {idx}: {name}")
+        act_edit   = menu.addAction(SVGIconFactory.search_icon(16, icon_c),  "Open in tile editor (E)")
+        menu.addSeparator()
+        act_copy   = menu.addAction(SVGIconFactory.open_icon(16, icon_c),    "Copy tile")
+        act_paste  = menu.addAction(SVGIconFactory.save_icon(16, icon_c),    "Paste tile")
+        act_paste.setEnabled(bool(getattr(self, '_clipboard_tile', None)))
+        menu.addSeparator()
+        act_swap   = menu.addAction("Replace dominant colour with FG")
+        act_fill   = menu.addAction("Fill tile solid with FG colour")
+        menu.addSeparator()
+        act_export = menu.addAction(SVGIconFactory.export_icon(16, icon_c),  "Export tile as PNG…")
+        act_import = menu.addAction(SVGIconFactory.import_icon(16, icon_c),  "Import tile from PNG…")
+        menu.addSeparator()
+        act_delete = menu.addAction(SVGIconFactory.delete_icon(16, icon_c),  "Reset tile to blank")
+
+        chosen = menu.exec(gpos)
+        if chosen is None: return
+        if chosen == act_edit:
+            self._current_idx = idx; self._edit_tile_popup(idx)
+        elif chosen == act_copy:
+            self._clipboard_tile = self._tile_rgba.get(idx)
+            self._set_status(f"Copied tile {idx}: {name}")
+        elif chosen == act_paste:
+            if getattr(self, '_clipboard_tile', None):
+                self._apply_tile_data(idx, self._clipboard_tile)
+                self._set_status(f"Pasted to tile {idx}: {name}")
+        elif chosen == act_swap:
+            self._grid_swap_color(idx, self._fg_color)
+        elif chosen == act_fill:
+            self._grid_fill_solid(idx, self._fg_color)
+        elif chosen == act_export:
+            self._export_single_tile(idx)
+        elif chosen == act_import:
+            self._import_single_tile(idx)
+        elif chosen == act_delete:
+            self._delete_single_tile(idx)
+
+    def _apply_tile_data(self, idx: int, rgba: bytes): #vers 1
+        """Apply rgba bytes to a tile slot — updates grid, list thumb, dirty."""
+        self._push_undo(idx)
+        self._tile_rgba[idx] = rgba
+        self._dirty_tiles.add(idx)
+        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        self._radar.set_dirty(idx, True)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+        self._refresh_tile_tab(idx)
+        self.save_btn.setEnabled(True)
+        self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+
+    def _grid_swap_color(self, idx: int, new_color: QColor): #vers 1
+        """Replace the most dominant colour in a tile with new_color."""
+        if idx not in self._tile_rgba: return
+        from collections import Counter
+        rgba = bytearray(self._tile_rgba[idx])
+        nr, ng, nb_v = new_color.red(), new_color.green(), new_color.blue()
+        buckets = Counter()
+        for i in range(0, len(rgba)-3, 4):
+            if rgba[i+3] > 16:
+                buckets[(rgba[i]>>4, rgba[i+1]>>4, rgba[i+2]>>4)] += 1
+        if not buckets: return
+        dom = buckets.most_common(1)[0][0]
+        dr, dg, db_v = dom[0]<<4, dom[1]<<4, dom[2]<<4
+        for i in range(0, len(rgba)-3, 4):
+            if (rgba[i+3] > 16 and abs(rgba[i]-dr) < 32
+                    and abs(rgba[i+1]-dg) < 32 and abs(rgba[i+2]-db_v) < 32):
+                rgba[i], rgba[i+1], rgba[i+2] = nr, ng, nb_v
+        self._apply_tile_data(idx, bytes(rgba))
+        self._set_status(f"Swapped dominant colour in tile {idx}")
+
+    def _grid_fill_solid(self, idx: int, color: QColor): #vers 1
+        """Fill entire tile with a solid colour."""
+        if idx not in self._tile_rgba: return
+        r, g, b = color.red(), color.green(), color.blue()
+        self._apply_tile_data(idx, bytes([r, g, b, 255] * (TILE_W * TILE_H)))
+        self._set_status(f"Filled tile {idx} with FG colour")
 
     # - Export/Import sheet
     def _export_sheet(self): #vers 2
