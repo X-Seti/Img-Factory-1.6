@@ -110,36 +110,69 @@ def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
 def _name_sol(idx): return f"radar{idx:04d}" #vers 1
 
-# img_source: 'img' = tiles inside .img archive | 'txd' = single standalone .txd file
+# img_source: 'img'=tiles in .img | 'txd'=single .txd | 'pvr'=.pvr img | 'toc'=toc/tmb/dat
 GAME_PRESETS = {
-    "SA":     {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
-               "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
-               "img_source":"img",  "label":"GTA San Andreas",
-               "hint":"Load gta.img from GTA SA models/"},
-    "VC":     {"cols":2,  "rows":2,  "count":4,    "name_fn":_name_sa,
-               "img_pattern":r"^radar",
-               "img_source":"txd",  "label":"GTA Vice City",
-               "hint":"Load models/fronten_pc.txd — VC uses a single radar TXD"},
-    "III":    {"cols":1,  "rows":1,  "count":1,    "name_fn":_name_sa,
-               "img_pattern":r"^radar",
-               "img_source":"txd",  "label":"GTA III",
-               "hint":"Load models/radar.txd — GTA III uses a single radar texture"},
-    "VCS":    {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
-               "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
-               "img_source":"img",  "label":"GTA Vice City Stories",
-               "hint":"Load models/gta_vcs.img"},
-    "LCS":    {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
-               "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
-               "img_source":"img",  "label":"GTA Liberty City Stories",
-               "hint":"Load models/gta_lcs.img"},
-    "SOL":    {"cols":36, "rows":36, "count":1296,  "name_fn":_name_sol,
-               "img_pattern":r"^radar\d{4}\.txd$",
-               "img_source":"img",  "label":"GTA State of Liberty",
-               "hint":"Load gta.img from SOL models/"},
-    "Custom": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
-               "img_pattern":r"^radar",
-               "img_source":"img",  "label":"Custom Grid",
-               "hint":"Load any .img archive and adjust grid W/H"},
+    # PC versions — tiles in gta3.img / gta.img / RadarTex.img
+    "III PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA III (PC/PS2/Xbox)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "VC PC":   {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Vice City (PC/PS2/Xbox)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "SA PC":   {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA San Andreas (PC/PS2/Xbox)",
+                "hint":"Load gta.img — contains radar00.txd to radar99.txd (10x10 grid)"},
+    "LCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Liberty City Stories (PC/PS2)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "VCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Vice City Stories (PC/PS2)",
+                "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
+    "SOL":     {"cols":36, "rows":36, "count":1296,  "name_fn":_name_sol,
+                "img_pattern":r"^radar\d{4}\.txd$",
+                "img_source":"img",  "label":"GTA State of Liberty (PC)",
+                "hint":"Load RadarTex.img — contains radar0000.txd to radar1295.txd"},
+    # Android versions
+    "III And": {"cols":1,  "rows":1,  "count":1,    "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"img",  "label":"GTA III Android",
+                "hint":"Load gta3_unc.img — single RADAR.TXD with 256x256 'radardisc' texture"},
+    "VC And":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"img",  "label":"GTA Vice City Android",
+                "hint":"Load from root/texdb — see TXD Workshop for texdb format"},
+    "SA And":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"toc",  "label":"GTA San Andreas Android",
+                "hint":"Load txd.dxt.toc — SA Android uses TOC/TMB/DAT format (not yet supported)"},
+    # iOS versions
+    "LCS iOS": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+                "img_source":"pvr",  "label":"GTA LCS iOS",
+                "hint":"Load gta3.pvr — contains radar00.txd to radar63.txd (PVRTC format)"},
+    "SA iOS":  {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"toc",  "label":"GTA SA iOS",
+                "hint":"Load txd.dxt.toc — iOS SA uses TOC/TMB/DAT format (not yet supported)"},
+    # PSP versions
+    "LCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"chk",  "label":"GTA LCS PSP",
+                "hint":"PSP .chk files use GIM/XTX format — load individual radar .chk files"},
+    "VCS PSP": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"xtx",  "label":"GTA VCS PSP",
+                "hint":"PSP .xtx files use GIM/XTX format — load individual radar .xtx files"},
+    # Generic
+    "Custom":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+                "img_pattern":r"^radar",
+                "img_source":"img",  "label":"Custom Grid",
+                "hint":"Load any .img archive and adjust W/H spinners"},
 }
 TILE_W = TILE_H = 128
 
@@ -1358,26 +1391,44 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
    # - File ops
 
-    def _open_file(self): #vers 2
+    def _open_file(self): #vers 3
         source = self._game_preset.get("img_source", "img")
         hint   = self._game_preset.get("hint", "")
+
+        # Formats not yet supported — show info and return
+        if source in ("toc", "chk", "xtx"):
+            label = self._game_preset.get("label", "")
+            QMessageBox.information(self, "Format Not Yet Supported",
+                f"{label}\n\n{hint}\n\n"
+                f"This format ({source.upper()}) is not yet supported in Radar Workshop.\n"
+                f"Support is planned for a future build.")
+            return
+
+        # Build file filter based on source
         if source == "txd":
-            filt = "TXD Files (*.txd);;All Files (*)"
+            filt  = "TXD Files (*.txd);;All Files (*)"
             title = "Open Radar TXD"
-        else:
-            filt = "IMG Archives (*.img);;All Files (*)"
+        elif source == "pvr":
+            filt  = "PVR IMG Archives (*.pvr *.img);;All Files (*)"
+            title = "Open Radar PVR"
+        else:  # img
+            filt  = "IMG Archives (*.img);;All Files (*)"
             title = "Open Radar IMG"
+
         path,_ = QFileDialog.getOpenFileName(self, title, "", filt)
         if not path: return
-        # .txd files are not IMG archives — handle separately
+
+        # Standalone .txd files
         if path.lower().endswith('.txd'):
             self._load_standalone_txd(path)
             return
-        try: self._img_reader=ImgReader(path); self._img_path=path
-        except Exception as e: QMessageBox.critical(self,"Load Error",str(e)); return
-        entries=self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
+
+        # IMG / PVR — both use ImgReader (VER2 or V1+dir)
+        try: self._img_reader = ImgReader(path); self._img_path = path
+        except Exception as e: QMessageBox.critical(self, "Load Error", str(e)); return
+
+        entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
         if not entries:
-            game  = self._game_combo.currentText()
             hint_msg = f"\n\nHint: {hint}" if hint else ""
             QMessageBox.warning(self, "No Radar Tiles",
                 f"No radar TXDs found in {Path(path).name}.{hint_msg}")
