@@ -2334,7 +2334,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if idx < 0:
             self._set_status("Select a tile first"); return
         if idx not in self._tile_rgba:
-            self._set_status(f"Tile {idx} not yet loaded"); return
+            self._set_status(f"Tile {idx} not yet loaded — click it in the grid first"); return
+        name = (self._tile_entries[idx]["name"]
+                if idx < len(self._tile_entries) else f"tile_{idx}")
+        self._set_status(f"Opening tile {idx}: {name}")
         self._open_tile_tab(idx)
 
     def _open_tile_tab(self, idx: int): #vers 1
@@ -2526,8 +2529,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if hasattr(self, '_palette_widget') and row in self._tile_rgba:
             self._palette_widget.set_colors_from_rgba(self._tile_rgba[row], TILE_W, TILE_H)
 
-    def _on_grid_click(self, idx): #vers 1
-        self._tile_list.setCurrentRow(idx); self._on_list_row(idx)
+    def _on_grid_click(self, idx): #vers 3
+        """Grid tile clicked — set _current_idx directly then sync list."""
+        self._current_idx = idx          # set first, before any signal fires
+        self._radar.set_selected(idx)
+        self._tile_list.blockSignals(True)
+        self._tile_list.setCurrentRow(idx)
+        self._tile_list.blockSignals(False)
+        self._on_list_row(idx)           # update palette, status bar etc.
 
     # - Export/Import sheet
     def _export_sheet(self): #vers 2
