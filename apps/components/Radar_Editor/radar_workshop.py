@@ -229,7 +229,8 @@ class RadarTxdReader:
             if st == 0x15:  # TextureNative
                 th = pos + 24   # skip 0x15 header(12) + inner 0x01 header(12)
                 platform = struct.unpack_from('<I', data, th)[0]
-                name = data[th+8:th+40].rstrip(b'\x00').decode('latin1', 'replace')
+                nb_ = data[th+8:th+40]; nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
+                name = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
                 ww   = struct.unpack_from('<H', data, th+80)[0]
                 hh   = struct.unpack_from('<H', data, th+82)[0]
                 dsz  = struct.unpack_from('<I', data, th+88)[0]
@@ -278,7 +279,9 @@ class ImgReader:
             for i in range(n):
                 os2,ss,sz2,nb=struct.unpack_from('<IHH24s',raw,8+i*32)
                 # Strip null bytes AND any non-printable trailing chars
-                name=nb.rstrip(b'\x00').decode('latin1','replace').strip()
+                # Strip at first null, then remove any non-printable chars
+                nb2 = nb[:nb.index(b'\x00')] if b'\x00' in nb else nb
+                name = re.sub(r'[^\x20-\x7E]', '', nb2.decode('latin1','replace')).strip()
                 self.entries.append({'name':name,'offset':os2*2048,'size':(sz2 or ss)*2048})
             self._img_data=raw
         elif raw[:4] in (b'VER1', b'ver1'):
@@ -306,7 +309,8 @@ class ImgReader:
         dr = dp.read_bytes()
         for i in range(len(dr)//32):
             os2,sz2,nb=struct.unpack_from('<II24s',dr,i*32)
-            name=nb.rstrip(b'\x00').decode('latin1','replace')
+            nb2 = nb[:nb.index(b'\x00')] if b'\x00' in nb else nb
+            name = re.sub(r'[^\x20-\x7E]', '', nb2.decode('latin1','replace')).strip()
             if name:
                 self.entries.append({'name':name,'offset':os2*2048,'size':sz2*2048})
         self._img_data=raw
@@ -1829,28 +1833,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         entries.sort(key=lambda e:e["name"].lower())
 
         if filename_matched:
-            # Known file — cap to preset count, apply preset grid
+            # Known filename — cap to preset count, apply preset grid
             p = self._game_preset
-            entries = entries[:p["count"]]   # trim to exactly 144 / 64 / 1296
+            entries = entries[:p["count"]]
             self._apply_preset(self._game_combo.currentText())
         else:
-            # Try exact match first; if count matches a known preset, use it
-            matched_preset = None
-            for pname, p in GAME_PRESETS.items():
-                if pname != "Custom" and p["count"] == len(entries):
-                    matched_preset = pname
-                    break
-            if matched_preset:
-                self._on_game_changed(matched_preset)
-            else:
-                # Cap to nearest known preset count if within 10%
-                current = self._game_combo.currentText()
-                p = self._game_preset
-                if current != "Custom" and len(entries) > p["count"]:
-                    entries = entries[:p["count"]]
-                    self._apply_preset(current)
-                else:
-                    self._autodetect(len(entries))
+            # Unknown filename — detect by tile count
+            self._autodetect(len(entries))
+            # Cap to detected preset count
+            p = self._game_preset
+            if len(entries) > p["count"]:
+                entries = entries[:p["count"]]
 
         self._tile_entries = entries
         prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
@@ -1895,41 +1888,35 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             f"Loaded standalone TXD: {tex_name}  {w}×{h}px  from {Path(path).name}")
 
 
-    def _autodetect(self, count): #vers 3
-        """Match tile count to known preset, or fall back to Custom with sqrt grid.
-        If current preset is close enough, keep it and just show count in status."""
-        current = self._game_combo.currentText()
-        p_cur = GAME_PRESETS.get(current, {})
-
-        # If current preset matches exactly — done
-        if p_cur.get("count") == count:
-            return
-
-        # If current preset is a reasonable match (within 20 tiles) — keep preset,
-        # just update the grid to fit actual count with same cols
-        if current != "Custom" and abs(p_cur.get("count", 0) - count) <= 20:
-            cols = p_cur.get("cols", max(1, round(math.sqrt(count))))
-            rows = (count + cols - 1) // cols
-            GAME_PRESETS[current]["count"] = count
-            GAME_PRESETS[current]["rows"] = rows
-            self._apply_preset(current)
-            self._set_status(
-                f"Loaded {count} tiles ({cols}×{rows}) — {p_cur.get('label','')}")
-            return
-
-        # Exact match against other presets
-        for game, p in GAME_PRESETS.items():
-            if game != "Custom" and p["count"] == count:
+    def _autodetect(self, count): #vers 4
+        """Detect preset by tile count — authoritative lookup table.
+        SA=144(12x12)  III/VC/LCS/VCS=64(8x8)  SOL=1296(36x36)
+        Prefers PC variants over mobile."""
+        # Exact count match — prefer PC variants
+        pc_order = ["SA PC","III PC","VC PC","LCS PC","VCS PC","SOL",
+                    "LCS iOS","III And","VC And","SA And","LCS PSP","VCS PSP"]
+        for game in pc_order:
+            p = GAME_PRESETS.get(game, {})
+            if p.get("count") == count:
                 self._on_game_changed(game)
                 return
 
-        # Unknown count — use Custom with square-root approximation
+        # Near-match (within 12 tiles of a PC preset)
+        for game in pc_order:
+            p = GAME_PRESETS.get(game, {})
+            if game == "Custom": continue
+            if abs(p.get("count", 0) - count) <= 12:
+                self._on_game_changed(game)
+                self._set_status(
+                    f"Loaded {count} tiles (nearest preset: {p['label']} "
+                    f"{p['cols']}×{p['rows']}) — adjust W/H if wrong")
+                return
+
+        # Unknown — sqrt grid
         cols = max(1, round(math.sqrt(count)))
         rows = (count + cols - 1) // cols
         GAME_PRESETS["Custom"].update({"cols": cols, "rows": rows, "count": count})
         self._on_game_changed("Custom")
-        self._cols_spin.setValue(cols)
-        self._rows_spin.setValue(rows)
         self._set_status(
             f"Loaded {count} tiles — unknown layout, using {cols}×{rows} "
             f"(adjust W/H spinners if wrong)")
