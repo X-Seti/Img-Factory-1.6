@@ -715,7 +715,7 @@ class IMGFactoryGUILayout:
             if hasattr(self, 'split_toggle_btn'):
                 self.split_toggle_btn.setIcon(get_layout_w1left_icon(20, color))
             if hasattr(self, 'search_btn'):
-                self.search_btn.setIcon(get_single_panel_icon(20, color))
+                self.search_btn.setIcon(get_search_icon(20, color))
             if hasattr(self, 'log_btn'):
                 self.log_btn.setIcon(get_view_icon(20, color))
             if hasattr(self, 'rw_scan_btn'):
@@ -2046,7 +2046,7 @@ class IMGFactoryGUILayout:
         # Search button
         self.search_btn = QPushButton()
         self.search_btn.setFixedSize(24, 24)
-        self.search_btn.setIcon(get_single_panel_icon(20))
+        self.search_btn.setIcon(SVGIconFactory.search_icon(20))
         self.search_btn.setIconSize(QSize(20, 20))
         self.search_btn.setToolTip("Search in files (Ctrl+F)")
         self.search_btn.clicked.connect(self._show_search)

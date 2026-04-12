@@ -720,6 +720,9 @@ class IMGFactory(QMainWindow):
 
         # Show window (non-blocking)
         self.show()
+        # Corner resize overlay — must be after show() so geometry is valid
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(50, self.setup_corner_overlay)
 
 
     def log_message(self, message: str): #vers 3
@@ -3414,6 +3417,8 @@ class IMGFactory(QMainWindow):
                     if tt and hasattr(self, 'selection_status_widget'):
                         sel = len(set(i.row() for i in tt.selectedItems()))
                         self.selection_status_widget.update_selection(sel, tt.rowCount())
+                    # Populate COL Workshop left panel from loaded IMG
+                    self._populate_workshop_lists_from_img(fo)
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(0, _update_after_populate)
                 self._sync_taskbar_active("")
@@ -3659,6 +3664,40 @@ class IMGFactory(QMainWindow):
         except:
             return False
 
+
+
+    def _populate_workshop_lists_from_img(self, img_file): #vers 1
+        """After IMG load: push COL files into Col Workshop left panel,
+        and TXD files into TXD Workshop left panel (same pattern)."""
+        try:
+            if not img_file or not hasattr(img_file, 'entries'):
+                return
+
+            # ── COL Workshop ──────────────────────────────────────────────
+            if hasattr(self, 'tab_widget'):
+                for i in range(self.tab_widget.count()):
+                    widget = self.tab_widget.widget(i)
+                    # Find embedded Col Workshop
+                    if widget and hasattr(widget, '_load_img_col_list'):
+                        widget.current_img = img_file
+                        widget._load_img_col_list()
+                    # Find embedded TXD Workshop
+                    if widget and hasattr(widget, '_load_img_txd_list'):
+                        widget.current_img = img_file
+                        widget._load_img_txd_list()
+
+            # Also check direct workshop attributes
+            for attr in ['col_workshop', 'txd_workshop']:
+                w = getattr(self, attr, None)
+                if w is None: continue
+                w.current_img = img_file
+                if hasattr(w, '_load_img_col_list'):
+                    w._load_img_col_list()
+                if hasattr(w, '_load_img_txd_list'):
+                    w._load_img_txd_list()
+
+        except Exception as e:
+            self.log_message(f"Workshop list populate error: {e}")
 
     def open_img_file(self): #vers 2
         """Open file dialog - FIXED: Call imported function correctly"""
@@ -6508,51 +6547,67 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Search previous error: {e}")
 
 
-    def paintEvent(self, event): #vers 3
-        """Paint corner resize triangles on main window"""
+    def paintEvent(self, event): #vers 4
+        """Corner handles drawn by _corner_overlay — see setup_corner_overlay"""
         super().paintEvent(event)
 
-        # Only paint in custom UI mode
-        if not hasattr(self, 'gui_layout'):
-            return
-
-        from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
+    def setup_corner_overlay(self): #vers 1
+        """Transparent overlay draws corner handles above all child widgets."""
+        from PyQt6.QtWidgets import QWidget
+        from PyQt6.QtGui import QPainter, QColor, QBrush, QPainterPath
         from PyQt6.QtCore import Qt
 
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        parent = self
 
-        w = self.width()
-        h = self.height()
-        size = getattr(self.gui_layout, 'corner_size', 20)
+        class CornerOverlay(QWidget):
+            def __init__(self, parent):
+                super().__init__(parent)
+                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+                self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+                self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+                self.setGeometry(0, 0, parent.width(), parent.height())
 
-        # Define corner triangles
-        corners = {
-            'top-left': [(0, 0), (size, 0), (0, size)],
-            'top-right': [(w, 0), (w-size, 0), (w, size)],
-            'bottom-left': [(0, h), (size, h), (0, h-size)],
-            'bottom-right': [(w, h), (w-size, h), (w, h-size)]
-        }
+            def paintEvent(self, event):
+                size = 20
+                gl = getattr(parent, 'gui_layout', None)
+                if not gl: return
+                if gl and hasattr(gl, 'app_settings') and gl.app_settings:
+                    try:
+                        colors = gl.app_settings.get_theme_colors()
+                        accent = QColor(colors.get('accent_primary', '#4682FF'))
+                    except Exception:
+                        accent = QColor(70, 130, 255)
+                else:
+                    accent = QColor(70, 130, 255)
+                accent.setAlpha(160)
+                hover_c = QColor(accent); hover_c.setAlpha(230)
+                w, h = self.width(), self.height()
+                hover = getattr(gl, 'hover_corner', None)
+                corners = {
+                    'top-left':     [(0,0),(size,0),(0,size)],
+                    'top-right':    [(w,0),(w-size,0),(w,size)],
+                    'bottom-left':  [(0,h),(size,h),(0,h-size)],
+                    'bottom-right': [(w,h),(w-size,h),(w,h-size)],
+                }
+                p = QPainter(self)
+                p.setRenderHint(QPainter.RenderHint.Antialiasing)
+                for name, pts in corners.items():
+                    path = QPainterPath()
+                    path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
+                    path.closeSubpath()
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(QBrush(hover_c if hover == name else accent))
+                    p.drawPath(path)
+                p.end()
 
-        # BRIGHT colors - always visible
-        normal_color = QColor(70, 130, 255, 200)  # Blue, semi-transparent
-        hover_color = QColor(70, 130, 255, 255)   # Blue, fully opaque
+        self._corner_overlay = CornerOverlay(self)
+        self._corner_overlay.raise_()
 
-        # Draw corners
-        hover_corner = getattr(self.gui_layout, 'hover_corner', None)
-        for corner_name, points in corners.items():
-            path = QPainterPath()
-            path.moveTo(points[0][0], points[0][1])
-            path.lineTo(points[1][0], points[1][1])
-            path.lineTo(points[2][0], points[2][1])
-            path.closeSubpath()
-
-            color = hover_color if hover_corner == corner_name else normal_color
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawPath(path)
-
-        painter.end()
+    def refresh_corner_overlay(self): #vers 1
+        if hasattr(self, '_corner_overlay'):
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.raise_()
+            self._corner_overlay.update()
 
 
     def _get_resize_corner(self, pos): #vers 4
@@ -6638,7 +6693,7 @@ class IMGFactory(QMainWindow):
             if hasattr(self.gui_layout, 'hover_corner'):
                 if corner != self.gui_layout.hover_corner:
                     self.gui_layout.hover_corner = corner
-                    self.update()  # Trigger repaint for hover effect
+                    self.refresh_corner_overlay()
             self._update_cursor(corner)
 
         super().mouseMoveEvent(event)
@@ -6731,10 +6786,10 @@ class IMGFactory(QMainWindow):
             self.showMaximized()
 
 
-    def resizeEvent(self, event): #vers 2
+    def resizeEvent(self, event): #vers 3
         """Handle window resize event"""
         super().resizeEvent(event)
-        self.update()
+        self.refresh_corner_overlay()
 
 
     def _toggle_maximize(self): #vers 1

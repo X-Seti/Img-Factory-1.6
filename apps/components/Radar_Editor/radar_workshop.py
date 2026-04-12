@@ -218,19 +218,37 @@ def encode_dxt1(rgba, w, h): #vers 1
 
 class RadarTxdReader:
     @staticmethod
-    def read(data): #vers 1
-        pos=12
-        while pos+12<=len(data):
-            st=struct.unpack_from('<I',data,pos)[0]; ss=struct.unpack_from('<I',data,pos+4)[0]
-            if st==0x15:
-                th=pos+24; name=data[th+8:th+40].rstrip(b'\x00').decode('latin1','replace')
-                ww=struct.unpack_from('<H',data,th+80)[0]; hh=struct.unpack_from('<H',data,th+82)[0]
-                comp=struct.unpack_from('<B',data,th+87)[0]; dsz=struct.unpack_from('<I',data,th+88)[0]
-                pd=data[th+92:th+92+dsz]
-                rgba=decode_dxt1(pd,ww,hh) if comp==1 else bytes(pd[:ww*hh*4])
-                return rgba,ww,hh,name
-            pos+=12+ss
-            if ss==0: break
+    def read(data): #vers 2
+        """Read first texture from a RW TXD. Handles D3D8 (platform 8) and D3D9 (platform 9)."""
+        pos = 12  # skip outer 0x16 container header
+        while pos + 12 <= len(data):
+            st = struct.unpack_from('<I', data, pos)[0]
+            ss = struct.unpack_from('<I', data, pos+4)[0]
+            if st == 0x15:  # TextureNative
+                th = pos + 24   # skip 0x15 header(12) + inner 0x01 header(12)
+                platform = struct.unpack_from('<I', data, th)[0]
+                name = data[th+8:th+40].rstrip(b'\x00').decode('latin1', 'replace')
+                ww   = struct.unpack_from('<H', data, th+80)[0]
+                hh   = struct.unpack_from('<H', data, th+82)[0]
+                dsz  = struct.unpack_from('<I', data, th+88)[0]
+                pd   = data[th+92:th+92+dsz]
+                # Detect format: D3D9 uses d3d_format tag at th+76
+                # D3D8 uses compression byte at th+87 (1=DXT1, 3=DXT3, 5=DXT5)
+                d3d_fmt = data[th+76:th+80]
+                comp_byte = struct.unpack_from('<B', data, th+87)[0]
+                if d3d_fmt == b'DXT1' or (platform == 8 and comp_byte == 1):
+                    rgba = decode_dxt1(pd, ww, hh)
+                elif d3d_fmt == b'DXT3' or (platform == 8 and comp_byte == 3):
+                    rgba = decode_dxt1(pd, ww, hh)  # simplified — treat as DXT1
+                elif d3d_fmt == b'DXT5' or (platform == 8 and comp_byte == 5):
+                    rgba = decode_dxt1(pd, ww, hh)  # simplified — treat as DXT1
+                else:
+                    # Raw uncompressed — ARGB or RGBA
+                    rgba = bytes(pd[:ww*hh*4])
+                return rgba, ww, hh, name
+            if ss == 0:
+                break
+            pos += 12 + ss
         raise ValueError("No Texture Native section")
 
     @staticmethod
@@ -446,18 +464,23 @@ class RadarPaletteWidget(QWidget):
         self._colors: List[QColor] = []
         self._hover = -1
         self.setMouseTracking(True)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-    def set_colors(self, colors: List[QColor]): #vers 2
+    def set_colors(self, colors: List[QColor]): #vers 3
         self._colors = colors[:64]  # cap at 64 cells
-        # Auto-resize height to fit rows within parent sidebar width
-        if self.parent():
-            cols = max(1, self.parent().width() // self.CELL)
-        else:
-            cols = max(1, self.width() // self.CELL) if self.width() > 0 else 4
-        rows = max(2, (len(self._colors) + cols - 1) // cols)
-        self.setFixedHeight(rows * self.CELL + 2)
         self.update()
+        self.updateGeometry()  # tell layout to re-check sizeHint
+
+    def sizeHint(self): #vers 1
+        from PyQt6.QtCore import QSize
+        w = max(self.width(), 80)
+        cols = max(1, w // self.CELL)
+        rows = max(2, (len(self._colors) + cols - 1) // cols)
+        return QSize(w, rows * self.CELL + 2)
+
+    def minimumSizeHint(self): #vers 1
+        from PyQt6.QtCore import QSize
+        return QSize(self.CELL * 2, self.CELL * 2)
 
     def set_colors_from_rgba(self, rgba: bytes, w: int, h: int, max_colors: int = 32): #vers 1
         """Extract palette from RGBA tile data by sampling unique colours."""
@@ -949,10 +972,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             return b
 
         # ── Zoom tools ────────────────────────────────────────────────────────
-        _nb('zoom_in_icon',   "Zoom in (+)",         lambda: self._zoom(1.25))
-        _nb('zoom_out_icon',  "Zoom out (-)",        lambda: self._zoom(0.8))
-        _nb('view_icon',      "Fit grid",            self._fit)
-        _nb('undo_icon',      "Jump to selected tile", self._jump)
+        _nb('zoom_in_icon',   "Zoom in (+)",           lambda: self._zoom(1.25))
+        _nb('zoom_out_icon',  "Zoom out (-)",          lambda: self._zoom(0.8))
+        _nb('fit_grid_icon',  "Fit grid (Ctrl+0)",     self._fit)
+        _nb('locate_icon',    "Jump to selected tile", self._jump)
 
         sl.addSpacing(4)
         sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
@@ -1029,8 +1052,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
         # Height sized dynamically based on colour count — min 2 rows
         self._palette_widget.setMinimumHeight(RadarPaletteWidget.CELL * 2)
-        self._palette_widget.setMaximumHeight(RadarPaletteWidget.CELL * 8)
-        sl.addWidget(self._palette_widget, 1)
+        sl.addWidget(self._palette_widget)
 
         sl.addStretch(0)
         hl.addWidget(sidebar)
@@ -1630,13 +1652,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         entries.sort(key=lambda e:e["name"].lower()); self._tile_entries=entries
 
         if filename_matched:
-            # Trust the preset — just apply it with actual count found
-            p = self._game_preset
-            count = len(entries)
-            cols  = p["cols"]
-            rows  = (count + cols - 1) // cols
-            p["count"] = count
-            p["rows"]  = rows
+            # Trust preset cols/rows exactly — don't mutate the preset
+            # Just load however many tiles were found, grid stays as defined
             self._apply_preset(self._game_combo.currentText())
         else:
             self._autodetect(len(entries))

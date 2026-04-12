@@ -4353,9 +4353,31 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
+        # Header row with search button
+        hdr_row = QHBoxLayout()
         header = QLabel("COL Files")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        hdr_row.addWidget(header)
+        hdr_row.addStretch()
+        self.col_search_btn = QPushButton()
+        self.col_search_btn.setFixedSize(24, 24)
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            self.col_search_btn.setIcon(SVGIconFactory.search_icon(16))
+            self.col_search_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            self.col_search_btn.setText("🔍")
+        self.col_search_btn.setToolTip("Search COL files")
+        self.col_search_btn.clicked.connect(self._show_col_search)
+        hdr_row.addWidget(self.col_search_btn)
+        layout.addLayout(hdr_row)
+
+        # Search box (hidden by default)
+        self.col_search_box = QLineEdit()
+        self.col_search_box.setPlaceholderText("Search COL files...")
+        self.col_search_box.setVisible(False)
+        self.col_search_box.textChanged.connect(self._filter_col_list)
+        layout.addWidget(self.col_search_box)
 
         self.col_list_widget = QListWidget()
         self.col_list_widget.setAlternatingRowColors(True)
@@ -6913,6 +6935,24 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error selecting COL: {str(e)}")
+
+
+    def _show_col_search(self): #vers 1
+        """Toggle COL search box visibility."""
+        if hasattr(self, 'col_search_box'):
+            visible = not self.col_search_box.isVisible()
+            self.col_search_box.setVisible(visible)
+            if visible:
+                self.col_search_box.setFocus()
+            else:
+                self.col_search_box.clear()
+
+    def _filter_col_list(self, text: str): #vers 1
+        """Filter COL list by search text."""
+        if not hasattr(self, 'col_list_widget'): return
+        for i in range(self.col_list_widget.count()):
+            item = self.col_list_widget.item(i)
+            item.setHidden(bool(text) and text.lower() not in item.text().lower())
 
 
     def _extract_col_from_img(self, entry): #vers 2

@@ -2495,9 +2495,27 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
+        # Header row with search button
+        hdr_row = QHBoxLayout()
         header = QLabel("TXD Files")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        hdr_row.addWidget(header)
+        hdr_row.addStretch()
+        self.txd_search_btn = QPushButton()
+        self.txd_search_btn.setFixedSize(24, 24)
+        self.txd_search_btn.setIcon(SVGIconFactory.search_icon(16, self._get_icon_color()))
+        self.txd_search_btn.setIconSize(QSize(16, 16))
+        self.txd_search_btn.setToolTip("Search TXD files")
+        self.txd_search_btn.clicked.connect(self._show_txd_search)
+        hdr_row.addWidget(self.txd_search_btn)
+        layout.addLayout(hdr_row)
+
+        # Search box (hidden by default)
+        self.txd_search_box = QLineEdit()
+        self.txd_search_box.setPlaceholderText("Search TXD files...")
+        self.txd_search_box.setVisible(False)
+        self.txd_search_box.textChanged.connect(self._filter_txd_list)
+        layout.addWidget(self.txd_search_box)
 
         self.txd_list_widget = QListWidget()
         self.txd_list_widget.setAlternatingRowColors(True)
@@ -7158,6 +7176,24 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error selecting TXD: {str(e)}")
+
+
+    def _show_txd_search(self): #vers 1
+        """Toggle TXD search box visibility."""
+        if hasattr(self, 'txd_search_box'):
+            visible = not self.txd_search_box.isVisible()
+            self.txd_search_box.setVisible(visible)
+            if visible:
+                self.txd_search_box.setFocus()
+            else:
+                self.txd_search_box.clear()
+
+    def _filter_txd_list(self, text: str): #vers 1
+        """Filter TXD list by search text."""
+        if not hasattr(self, 'txd_list_widget'): return
+        for i in range(self.txd_list_widget.count()):
+            item = self.txd_list_widget.item(i)
+            item.setHidden(bool(text) and text.lower() not in item.text().lower())
 
 
     def _extract_txd_from_img(self, entry): #vers 2
