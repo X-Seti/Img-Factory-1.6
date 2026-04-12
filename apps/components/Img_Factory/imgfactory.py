@@ -6611,18 +6611,41 @@ class IMGFactory(QMainWindow):
         parent = self
 
         class CornerOverlay(QWidget):
+            SIZE = 20
             def __init__(self, parent):
                 super().__init__(parent)
                 self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
                 self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
                 self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+                self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
                 self.setGeometry(0, 0, parent.width(), parent.height())
+                self._update_mask()
+
+            def _update_mask(self):
+                from PyQt6.QtGui import QRegion, QPolygon
+                from PyQt6.QtCore import QPoint
+                s = self.SIZE; w, h = self.width(), self.height()
+                region = QRegion()
+                for pts in [
+                    [QPoint(0,0),QPoint(s,0),QPoint(0,s)],
+                    [QPoint(w,0),QPoint(w-s,0),QPoint(w,s)],
+                    [QPoint(0,h),QPoint(s,h),QPoint(0,h-s)],
+                    [QPoint(w,h),QPoint(w-s,h),QPoint(w,h-s)],
+                ]:
+                    region = region.united(QRegion(QPolygon(pts)))
+                self.setMask(region)
+
+            def resizeEvent(self, ev):
+                super().resizeEvent(ev); self._update_mask()
+
+            def setGeometry(self, *args):
+                super().setGeometry(*args); self._update_mask()
 
             def paintEvent(self, event):
-                size = 20
+                size = self.SIZE
                 gl = getattr(parent, 'gui_layout', None)
                 if not gl: return
-                if gl and hasattr(gl, 'app_settings') and gl.app_settings:
+                if hasattr(gl, 'app_settings') and gl.app_settings:
                     try:
                         colors = gl.app_settings.get_theme_colors()
                         accent = QColor(colors.get('accent_primary', '#4682FF'))
@@ -6630,8 +6653,8 @@ class IMGFactory(QMainWindow):
                         accent = QColor(70, 130, 255)
                 else:
                     accent = QColor(70, 130, 255)
-                accent.setAlpha(160)
-                hover_c = QColor(accent); hover_c.setAlpha(230)
+                accent.setAlpha(200)
+                hover_c = QColor(accent); hover_c.setAlpha(255)
                 w, h = self.width(), self.height()
                 hover = getattr(gl, 'hover_corner', None)
                 corners = {

@@ -3379,40 +3379,73 @@ class ColorPalPresetsMixin:
 
 
 
+
 class _CornerOverlay(QWidget):
-    """Transparent overlay that draws corner resize triangles on top of all children."""
-    def __init__(self, parent): #vers 1
+    """Transparent overlay that draws corner resize triangles on top of all children.
+    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
+    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
+
+    SIZE = 20   # triangle leg size in pixels
+
+    def __init__(self, parent): #vers 3
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
+        self.setWindowFlags(Qt.WindowType.Widget)
         self._hover_corner = None
         self._app_settings = None
         self.setGeometry(0, 0, parent.width(), parent.height())
+        self._update_mask()
+
+    def _update_mask(self): #vers 1
+        """Create a mask covering only the four corner triangles."""
+        from PyQt6.QtGui import QRegion, QPolygon
+        from PyQt6.QtCore import QPoint
+        s = self.SIZE
+        w, h = self.width(), self.height()
+        region = QRegion()
+        for pts in [
+            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
+            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
+            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
+            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
+        ]:
+            region = region.united(QRegion(QPolygon(pts)))
+        self.setMask(region)
 
     def update_state(self, hover_corner, app_settings): #vers 1
         self._hover_corner = hover_corner
         self._app_settings = app_settings
         self.update()
 
-    def paintEvent(self, event): #vers 1
-        size = 20
+    def setGeometry(self, *args): #vers 1
+        super().setGeometry(*args)
+        self._update_mask()
+
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        self._update_mask()
+
+    def paintEvent(self, event): #vers 2
+        s = self.SIZE
         if self._app_settings:
             try:
                 colors = self._app_settings.get_theme_colors()
-                accent = QColor(colors.get('accent_primary', '#1976d2'))
+                accent = QColor(colors.get('accent_primary', '#4682FF'))
             except Exception:
-                accent = QColor(100, 150, 255)
+                accent = QColor(70, 130, 255)
         else:
-            accent = QColor(100, 150, 255)
-        accent.setAlpha(160)
-        hover = QColor(accent); hover.setAlpha(230)
+            accent = QColor(70, 130, 255)
+        accent.setAlpha(200)
+        hover_c = QColor(accent); hover_c.setAlpha(255)
         w, h = self.width(), self.height()
         corners = {
-            'top-left':     [(0,0),(size,0),(0,size)],
-            'top-right':    [(w,0),(w-size,0),(w,size)],
-            'bottom-left':  [(0,h),(size,h),(0,h-size)],
-            'bottom-right': [(w,h),(w-size,h),(w,h-size)],
+            'top-left':     [(0,0),  (s,0),   (0,s)],
+            'top-right':    [(w,0),  (w-s,0), (w,s)],
+            'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
+            'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
         }
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -3421,7 +3454,7 @@ class _CornerOverlay(QWidget):
             path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
             path.closeSubpath()
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(hover if self._hover_corner == name else accent))
+            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
             painter.drawPath(path)
         painter.end()
 
