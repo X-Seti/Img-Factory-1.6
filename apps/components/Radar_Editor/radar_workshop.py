@@ -303,7 +303,93 @@ class TileListItem(QListWidgetItem):
 
 # - Main Class
 
-class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
+
+# ── Radar Palette Widget ───────────────────────────────────────────────────────
+class RadarPaletteWidget(QWidget):
+    """Simple colour palette strip — shows colours extracted from the current tile.
+    Click a cell to pick that colour. Right-click to set background colour."""
+
+    color_picked   = pyqtSignal(QColor)   # left-click  → foreground
+    color_picked_bg = pyqtSignal(QColor)  # right-click → background
+
+    CELL = 20   # cell size px
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent)
+        self._colors: List[QColor] = []
+        self._hover = -1
+        self.setMouseTracking(True)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def set_colors(self, colors: List[QColor]): #vers 1
+        self._colors = colors[:64]  # cap at 64 cells
+        self.update()
+
+    def set_colors_from_rgba(self, rgba: bytes, w: int, h: int, max_colors: int = 32): #vers 1
+        """Extract palette from RGBA tile data by sampling unique colours."""
+        seen: dict = {}
+        step = max(1, (w * h) // 512)   # sample at most 512 pixels
+        for i in range(0, len(rgba) - 3, step * 4):
+            r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
+            if a < 16: continue
+            key = (r >> 3, g >> 3, b >> 3)  # 5-bit quantise
+            if key not in seen:
+                seen[key] = QColor(r, g, b)
+                if len(seen) >= max_colors:
+                    break
+        self.set_colors(list(seen.values()))
+
+    def _cols(self) -> int:
+        return max(1, self.width() // self.CELL)
+
+    def _idx_at(self, pos: QPoint) -> int:
+        col = pos.x() // self.CELL
+        row = pos.y() // self.CELL
+        idx = row * self._cols() + col
+        return idx if 0 <= idx < len(self._colors) else -1
+
+    def paintEvent(self, ev): #vers 1
+        p = QPainter(self)
+        cols = self._cols()
+        for i, c in enumerate(self._colors):
+            col = i % cols
+            row = i // cols
+            x = col * self.CELL
+            y = row * self.CELL
+            p.fillRect(x, y, self.CELL, self.CELL, c)
+            if i == self._hover:
+                p.setPen(QPen(QColor(255, 255, 255, 180), 1))
+                p.drawRect(x, y, self.CELL - 1, self.CELL - 1)
+        # Fill remaining space grey
+        total_cols = self._cols()
+        total_rows = max(1, (len(self._colors) + total_cols - 1) // total_cols)
+        used_h = total_rows * self.CELL
+        if used_h < self.height():
+            p.fillRect(0, used_h, self.width(), self.height() - used_h, QColor(50, 50, 50))
+        p.end()
+
+    def mouseMoveEvent(self, ev): #vers 1
+        idx = self._idx_at(ev.pos())
+        if idx != self._hover:
+            self._hover = idx
+            if idx >= 0:
+                self.setToolTip(self._colors[idx].name())
+            self.update()
+
+    def leaveEvent(self, ev): #vers 1
+        self._hover = -1
+        self.update()
+
+    def mousePressEvent(self, ev): #vers 1
+        idx = self._idx_at(ev.pos())
+        if idx < 0: return
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self.color_picked.emit(self._colors[idx])
+        elif ev.button() == Qt.MouseButton.RightButton:
+            self.color_picked_bg.emit(self._colors[idx])
+
+
+class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     """Radar Workshop – skeleton class"""
 
     workshop_closed = pyqtSignal()
@@ -575,18 +661,39 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 
     # - Centre panel:
-    def _create_centre_panel(self): #vers 5
-        """Tile list — [thumb 32px] filename, 1 column."""
+    def _create_centre_panel(self): #vers 6
+        """Tile list with icon button row: Open/Save/Export/Import/Info."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         vl = QVBoxLayout(panel)
         vl.setContentsMargins(*self.get_panel_margins())
         vl.setSpacing(self.panelspacing)
 
-        hdr = QLabel("Tiles")
-        hdr.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        vl.addWidget(hdr)
+        # ── Button row ────────────────────────────────────────────────────────
+        icon_color = self._get_icon_color()
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(2)
 
+        def _cb(icon_fn, tip, slot, enabled=True):
+            b = QToolButton()
+            b.setFixedSize(28, 28)
+            b.setIcon(getattr(SVGIconFactory, icon_fn)(20, icon_color))
+            b.setIconSize(QSize(20, 20))
+            b.setToolTip(tip)
+            b.setEnabled(enabled)
+            b.clicked.connect(slot)
+            btn_row.addWidget(b)
+            return b
+
+        self.open_btn   = _cb('open_icon',   "Load radar IMG (Ctrl+O)",      self._open_file)
+        self.save_btn   = _cb('save_icon',   "Save modified tiles (Ctrl+S)", self._save_file, enabled=False)
+        self.export_btn = _cb('export_icon', "Export all tiles as PNG sheet", self._export_sheet)
+        self.import_btn = _cb('import_icon', "Import PNG sheet of tiles",    self._import_sheet)
+        btn_row.addStretch()
+        self.info_btn   = _cb('info_icon',   "Workshop info",                self._show_info)
+        vl.addLayout(btn_row)
+
+        # ── Tile list ─────────────────────────────────────────────────────────
         self._tile_list = QListWidget()
         self._tile_list.setIconSize(QSize(THUMB, THUMB))
         self._tile_list.setUniformItemSizes(True)
@@ -602,13 +709,19 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 
     # --- Right panel: settings
-    def _create_right_panel(self): #vers 6
-        """Radar grid preview + nav bar."""
+    def _create_right_panel(self): #vers 7
+        """Radar grid (centre) + right sidebar: nav, draw tools, palette."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         hl = QHBoxLayout(panel)
-        hl.setContentsMargins(0,0,0,0)
+        hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(0)
+
+        # ── Centre: grid + palette stacked vertically ────────────────────────
+        centre = QWidget()
+        cl = QVBoxLayout(centre)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(2)
 
         self._radar = RadarGridWidget()
         self._radar.tile_clicked.connect(self._on_grid_click)
@@ -616,35 +729,140 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         sc.setWidget(self._radar)
         sc.setWidgetResizable(True)
         sc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hl.addWidget(sc, 1)
+        cl.addWidget(sc, 1)
 
-        # Right nav bar (vertical icon strip)
-        nav = QFrame()
-        nav.setFrameStyle(QFrame.Shape.StyledPanel)
-        nav.setMaximumWidth(44); nav.setMinimumWidth(44)
-        nl = QVBoxLayout(nav)
-        nl.setContentsMargins(2,4,2,4); nl.setSpacing(2)
+        self._palette_widget = RadarPaletteWidget()
+        self._palette_widget.color_picked.connect(self._on_palette_color)
+        self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
+        self._palette_widget.setFixedHeight(52)
+        cl.addWidget(self._palette_widget)
+
+        hl.addWidget(centre, 1)
+
+        # ── Right sidebar ─────────────────────────────────────────────────────
+        sidebar = QFrame()
+        sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
+        sidebar.setFixedWidth(52)
+        sl = QVBoxLayout(sidebar)
+        sl.setContentsMargins(2, 4, 2, 4)
+        sl.setSpacing(2)
+
         icon_color = self._get_icon_color()
 
-        def _nb(tip, slot):
-            b = QToolButton(); b.setFixedSize(36,36); b.setToolTip(tip); b.clicked.connect(slot); nl.addWidget(b); return b
+        def _nb(icon_fn, tip, slot, checkable=False):
+            b = QToolButton()
+            b.setFixedSize(44, 36)
+            if icon_fn:
+                b.setIcon(getattr(SVGIconFactory, icon_fn)(20, icon_color))
+                b.setIconSize(QSize(20, 20))
+            b.setToolTip(tip)
+            b.setCheckable(checkable)
+            b.clicked.connect(slot)
+            sl.addWidget(b)
+            return b
 
-        _nb("Zoom in",       lambda: self._zoom(1.25))
-        _nb("Zoom out",      lambda: self._zoom(0.8))
-        _nb("Fit grid",      self._fit)
-        _nb("Jump to tile",  self._jump)
-        nl.addStretch()
+        # Nav tools
+        _nb('open_icon',  "Zoom in",       lambda: self._zoom(1.25))
+        _nb('open_icon',  "Zoom out",      lambda: self._zoom(0.8))
+        _nb('view_icon',  "Fit grid",      self._fit)
+        _nb('search_icon',"Jump to tile",  self._jump)
+
+        sl.addSpacing(6)
+        sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine); sl.addWidget(sep1)
+        sl.addSpacing(4)
+
+        # Draw tools (checkable — only one active at a time)
+        self._draw_tool = 'pencil'
+        self._draw_btns = {}
+
+        def _tool_btn(icon_fn, tip, tool_name):
+            b = _nb(icon_fn, tip, lambda checked=False, t=tool_name: self._set_draw_tool(t), checkable=True)
+            self._draw_btns[tool_name] = b
+            return b
+
+        self._draw_btns['pencil'] = _tool_btn('paint_icon',    "Pencil — draw pixels",    'pencil')
+        self._draw_btns['fill']   = _tool_btn('edit_icon',     "Fill — flood fill",       'fill')
+        self._draw_btns['picker'] = _tool_btn('filter_icon',   "Dropper — pick colour",   'picker')
+        self._draw_btns['pencil'].setChecked(True)
+
+        sl.addSpacing(6)
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine); sl.addWidget(sep2)
+        sl.addSpacing(4)
 
         # Game selector (mini)
-        gl = QLabel("Game"); gl.setAlignment(Qt.AlignmentFlag.AlignCenter); gl.setStyleSheet("font-size:9px;"); nl.addWidget(gl)
+        gl = QLabel("Game")
+        gl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        gl.setStyleSheet("font-size:9px;")
+        sl.addWidget(gl)
         self._game_combo2 = QComboBox()
-        self._game_combo2.addItems(list(GAME_PRESETS)); self._game_combo2.setCurrentText("SA")
-        self._game_combo2.setMaximumWidth(40)
+        self._game_combo2.addItems(list(GAME_PRESETS))
+        self._game_combo2.setCurrentText("SA")
+        self._game_combo2.setMaximumWidth(48)
         self._game_combo2.currentTextChanged.connect(self._on_game_changed)
-        nl.addWidget(self._game_combo2)
+        sl.addWidget(self._game_combo2)
 
-        hl.addWidget(nav)
+        sl.addStretch()
+
+        # Foreground/background colour swatches
+        swatch_lbl = QLabel("FG/BG")
+        swatch_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        swatch_lbl.setStyleSheet("font-size:9px;")
+        sl.addWidget(swatch_lbl)
+        self._fg_btn = QPushButton()
+        self._fg_btn.setFixedSize(44, 20)
+        self._fg_btn.setToolTip("Foreground colour (click to pick)")
+        self._fg_btn.clicked.connect(self._pick_fg_color)
+        sl.addWidget(self._fg_btn)
+        self._bg_btn = QPushButton()
+        self._bg_btn.setFixedSize(44, 20)
+        self._bg_btn.setToolTip("Background colour (click to pick)")
+        self._bg_btn.clicked.connect(self._pick_bg_color)
+        sl.addWidget(self._bg_btn)
+        self._fg_color = QColor(255, 255, 255)
+        self._bg_color = QColor(0, 0, 0)
+        self._update_swatch_buttons()
+
+        hl.addWidget(sidebar)
+
         return panel
+
+    def _set_draw_tool(self, tool: str): #vers 1
+        """Switch active draw tool and update button states."""
+        self._draw_tool = tool
+        for name, btn in self._draw_btns.items():
+            btn.setChecked(name == tool)
+
+    def _pick_fg_color(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        c = QColorDialog.getColor(self._fg_color, self, "Foreground Colour")
+        if c.isValid():
+            self._fg_color = c
+            self._update_swatch_buttons()
+
+    def _pick_bg_color(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        c = QColorDialog.getColor(self._bg_color, self, "Background Colour")
+        if c.isValid():
+            self._bg_color = c
+            self._update_swatch_buttons()
+
+    def _update_swatch_buttons(self): #vers 1
+        if hasattr(self, '_fg_btn'):
+            self._fg_btn.setStyleSheet(
+                f"background-color: {self._fg_color.name()}; border: 1px solid #888;")
+        if hasattr(self, '_bg_btn'):
+            self._bg_btn.setStyleSheet(
+                f"background-color: {self._bg_color.name()}; border: 1px solid #888;")
+
+    def _on_palette_color(self, color: QColor): #vers 1
+        """Palette cell left-clicked — set as foreground colour."""
+        self._fg_color = color
+        self._update_swatch_buttons()
+
+    def _on_palette_color_bg(self, color: QColor): #vers 1
+        """Palette cell right-clicked — set as background colour."""
+        self._bg_color = color
+        self._update_swatch_buttons()
 
 
     def _create_right_panel_old(self): #Vers 1
@@ -1154,11 +1372,15 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
 
     # - Tile selection
-    def _on_list_row(self, row): #vers 1
+    def _on_list_row(self, row): #vers 2
         if row<0: return
         self._current_idx=row; self._radar.set_selected(row)
         name=(self._tile_entries[row]["name"] if row<len(self._tile_entries) else self._game_preset["name_fn"](row))
         self._set_status(f"Tile {row}  |  {name}  |  {TILE_W}×{TILE_H} DXT1"+("  [modified]" if row in self._dirty_tiles else ""))
+        # Update palette from tile colours
+        if hasattr(self, '_palette_widget') and row in self._tile_rgba:
+            rgba = self._tile_rgba[row]
+            self._palette_widget.set_colors_from_rgba(rgba, TILE_W, TILE_H)
 
     def _on_grid_click(self, idx): #vers 1
         self._tile_list.setCurrentRow(idx); self._on_list_row(idx)
@@ -1595,12 +1817,12 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 def open_radar_workshop(main_window=None):
     try:
-        w=RadarWorkshop(None,main_window); w.show(); return w
+        w = RadarWorkshop(None, main_window); w.show(); return w
     except Exception as e:
         if main_window: QMessageBox.critical(main_window,App_name+" Error",str(e))
         return None
 
-__all__=["RadarWorkshop","open_radar_workshop"]
+__all__ = ["RadarWorkshop", "open_radar_workshop"]
 
 # Standalone entry point
 
@@ -1610,7 +1832,7 @@ if __name__ == "__main__": #Vers 1
     print(App_name + " starting…")
     try:
         app = QApplication(sys.argv)
-        w = RADWorkshop()
+        w = RadarWorkshop()
         w.setWindowTitle(App_name + " – Standalone")
         w.resize(1300, 800); w.show(); sys.exit(app.exec())
     except Exception as e:
