@@ -1433,6 +1433,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._game_preset:  dict = GAME_PRESETS["SA PC"]
         self._current_idx:  int  = -1
         self._render_mode: str   = 'color'
+        self._alpha_pending: bool = False
+        self._alpha_key_color     = None
         self._clipboard_tile: bytes = None   # copy/paste buffer
         self._undo_stack: list = []          # list of (idx, rgba) snapshots
         self._redo_stack: list = []
@@ -1908,8 +1910,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._render_btns['bw']    = _render_btn(
             "B && W",    "Greyscale display",    'bw')
         self._render_btns['alpha'] = _render_btn(
-            "FG→Alpha", "FG colour becomes transparent\n"
-                        "Click FG swatch to pick the colour to hide", 'alpha')
+            "Col→Alpha", "Colour to Alpha:\n"
+                         "Press, then pick colour with dropper\n"
+                         "That colour becomes transparent (checkerboard)", 'alpha')
         self._render_btns['color'].setChecked(True)
 
         _sep()
@@ -1959,18 +1962,25 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         return panel
 
-    def _set_render_mode(self, mode: str): #vers 3
+    def _set_render_mode(self, mode: str): #vers 4
         """Switch map grid display mode — display only, no tile data modified."""
         if mode == 'alpha':
-            # Capture the current FG colour as the key colour to make transparent
-            self._alpha_key_color = QColor(self._fg_color)
-            kr, kg, kb = self._alpha_key_color.red(), self._alpha_key_color.green(), self._alpha_key_color.blue()
+            # Activate dropper — user picks the key colour, then alpha applies
+            self._alpha_key_color = None          # clear until user picks
+            self._alpha_pending   = True          # flag: waiting for dropper pick
+            self._prev_draw_tool  = self._draw_tool
+            self._set_draw_tool('picker')
+            self._render_mode = 'alpha'
+            for m, b in self._render_btns.items():
+                b.setChecked(m == 'alpha')
             self._set_status(
-                f"FG→Alpha: pixels matching FG ({self._fg_color.name()}) shown as transparent. "
-                f"Click FG swatch to pick a different key colour.")
+                "Colour→Alpha: pick the colour to make transparent with the dropper. "
+                "Left-click any pixel on the map or tile editor.")
+            return   # don't apply yet — wait for dropper pick
         else:
             self._alpha_key_color = None
-            labels = {'color': 'Colour (normal)', 'bw': 'B&W — display only, Undo not needed'}
+            self._alpha_pending   = False
+            labels = {'color': 'Colour', 'bw': 'B&W — display only'}
             self._set_status(f"View: {labels.get(mode, mode)}")
 
         self._render_mode = mode
@@ -1979,6 +1989,22 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         for idx, rgba in self._tile_rgba.items():
             self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
         self._radar.update()
+
+    def _apply_alpha_key(self, color: QColor): #vers 1
+        """Called after user picks key colour with dropper in alpha mode.
+        Stores the colour and applies the transparency to all tiles."""
+        self._alpha_key_color = QColor(color)
+        self._alpha_pending   = False
+        # Restore previous draw tool
+        prev = getattr(self, '_prev_draw_tool', 'pencil')
+        self._set_draw_tool(prev)
+        # Apply to all tiles
+        for idx, rgba in self._tile_rgba.items():
+            self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
+        self._radar.update()
+        self._set_status(
+            f"Colour→Alpha: {color.name()} ({color.red()},{color.green()},{color.blue()}) "
+            f"→ transparent. Click 'Colour' to restore.")
 
     def _apply_render_mode(self, rgba: bytes) -> bytes: #vers 2
         """Apply display-only transform to rgba bytes.
@@ -2109,13 +2135,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 picked = get_pixel_fn(px, py)
             else:
                 picked = self.ws_get_pixel(buf, px, py)
+            # If waiting for alpha key colour — apply it and return to previous tool
+            if getattr(self, '_alpha_pending', False) and is_left:
+                self._apply_alpha_key(picked)
+                return 'picker'
             if is_left: self._fg_color = picked
             else:       self._bg_color = picked
             self._update_swatch_buttons()
             w = "FG" if is_left else "BG"
             self._set_status(f"Picked {w}: {picked.name()}  ({picked.red()},{picked.green()},{picked.blue()})")
-            if getattr(self, '_render_mode', 'color') == 'alpha' and is_left:
-                self._set_render_mode('alpha')
             return 'picker'
 
         self._push_undo(idx)
@@ -2200,15 +2228,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if hasattr(self, '_radar'):
             self._radar.setCursor(cursors.get(tool, Qt.CursorShape.ArrowCursor))
 
-    def _pick_fg_color(self): #vers 2
+    def _pick_fg_color(self): #vers 3
         from PyQt6.QtWidgets import QColorDialog
         c = QColorDialog.getColor(self._fg_color, self, "Foreground Colour")
         if c.isValid():
             self._fg_color = c
             self._update_swatch_buttons()
-            # If alpha mode is active, update the key colour immediately
-            if getattr(self, '_render_mode', 'color') == 'alpha':
-                self._set_render_mode('alpha')
+            # If alpha mode active and a key colour is already set, update it
+            if (getattr(self, '_render_mode', 'color') == 'alpha'
+                    and not getattr(self, '_alpha_pending', False)):
+                self._apply_alpha_key(c)
 
     def _pick_bg_color(self): #vers 1
         from PyQt6.QtWidgets import QColorDialog
@@ -3092,9 +3121,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if hasattr(self, '_palette_widget') and row in self._tile_rgba:
             self._palette_widget.set_colors_from_rgba(self._tile_rgba[row], TILE_W, TILE_H)
 
-    def _on_grid_color_picked(self, color: QColor, is_left: bool): #vers 1
+    def _on_grid_color_picked(self, color: QColor, is_left: bool): #vers 2
         """Grid emits this on every click — only act if dropper tool is active."""
         if getattr(self, '_draw_tool', '') != 'picker':
+            return
+        # Alpha pending: this pick sets the key colour
+        if getattr(self, '_alpha_pending', False) and is_left:
+            self._apply_alpha_key(color)
             return
         if is_left:
             self._fg_color = color
@@ -3103,9 +3136,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._update_swatch_buttons()
         which = "FG" if is_left else "BG"
         self._set_status(f"Picked {which}: {color.name()}  ({color.red()},{color.green()},{color.blue()})")
-        # If alpha mode active, update key colour immediately
-        if getattr(self, '_render_mode', 'color') == 'alpha' and is_left:
-            self._set_render_mode('alpha')
 
     def _on_grid_click(self, idx): #vers 3
         """Grid tile clicked — set _current_idx directly then sync list."""
