@@ -2895,26 +2895,78 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             f"Loaded {count} tiles — unknown layout, using {cols}×{rows} "
             f"(adjust W/H spinners if wrong)")
 
-    def _save_file(self): #vers 1
-        if not self._img_reader or not self._dirty_tiles:
-            QMessageBox.information(self,"Nothing to Save","No tiles modified."); return
-        path,_=QFileDialog.getSaveFileName(self,"Save Radar IMG",self._img_path,"IMG Archives (*.img);;All Files (*)")
+    def _save_file(self): #vers 2
+        """Save all modified tiles back to the IMG archive."""
+        if not self._img_reader:
+            QMessageBox.information(self, "Nothing to Save",
+                "No IMG file is loaded."); return
+        if not self._dirty_tiles:
+            QMessageBox.information(self, "Nothing to Save",
+                "No tiles have been modified."); return
+
+        # Default to same file (overwrite), or let user choose
+        default = str(self._img_path) if self._img_path else ""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Radar IMG", default,
+            "IMG Archives (*.img);;All Files (*)")
         if not path: return
+
         try:
-            data=bytearray(self._img_reader._img_data)
-            for idx in sorted(self._dirty_tiles):
-                if idx>=len(self._tile_entries): continue
-                e=self._tile_entries[idx]; rgba=self._tile_rgba.get(idx)
+            dirty = sorted(self._dirty_tiles)
+            oversized = []
+            data = bytearray(self._img_reader._img_data)
+
+            for idx in dirty:
+                if idx >= len(self._tile_entries): continue
+                e    = self._tile_entries[idx]
+                rgba = self._tile_rgba.get(idx)
                 if not rgba: continue
-                new=RadarTxdReader.write(rgba,TILE_W,TILE_H,e["name"].replace(".txd","").replace(".TXD",""))
-                off=e["offset"]; sz=e["size"]; data[off:off+sz]=(new+b"\x00"*max(0,sz-len(new)))[:sz]
+
+                tex_name = Path(e["name"]).stem   # strip .txd extension
+                new_data = RadarTxdReader.write(rgba, TILE_W, TILE_H, tex_name)
+                off  = e["offset"]
+                slot = e["size"]
+
+                if len(new_data) > slot:
+                    # New tile is larger than original slot — warn but write anyway
+                    oversized.append(f"  tile {idx} ({tex_name}): "
+                                     f"{len(new_data)} > {slot} bytes")
+                    # Pad or truncate to fit original slot
+                    new_data = (new_data + b'\x00' * max(0, slot - len(new_data)))[:slot]
+
+                data[off:off + slot] = new_data + b'\x00' * max(0, slot - len(new_data))
+
             Path(path).write_bytes(bytes(data))
-            sd=Path(self._img_path).with_suffix(".dir"); dd=Path(path).with_suffix(".dir")
-            if sd.exists() and path!=self._img_path: shutil.copy2(sd,dd)
-            for i in range(len(self._tile_entries)): self._radar.set_dirty(i,False)
-            self._dirty_tiles=set(); self._dirty_lbl.setText("Modified: 0")
-            self._set_status(f"Saved to {Path(path).name}")
-        except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
+
+            # Copy .dir companion for V1 archives
+            if self._img_path:
+                sd = Path(self._img_path).with_suffix('.dir')
+                dd = Path(path).with_suffix('.dir')
+                if sd.exists() and str(sd) != str(dd):
+                    import shutil as _sh
+                    _sh.copy2(sd, dd)
+
+            # Clear dirty state
+            for i in range(len(self._tile_entries)):
+                self._radar.set_dirty(i, False)
+            self._dirty_tiles = set()
+            self._dirty_lbl.setText("Modified: 0")
+            self.save_btn.setEnabled(False)
+            self._img_path = path   # update path to saved file
+
+            msg = f"Saved {len(dirty)} tile(s) to {Path(path).name}"
+            if oversized:
+                msg += f"\nWarning — {len(oversized)} tile(s) were truncated to fit:"
+                msg += "\n" + "\n".join(oversized[:5])
+                QMessageBox.warning(self, "Save Complete with Warnings", msg)
+            else:
+                self._set_status(msg)
+                self.RAD_settings.add_recent(path)
+
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "Save Error",
+                f"Failed to save {Path(path).name}:\n{e}\n\n{traceback.format_exc()[-300:]}")
 
     # - Tile selection
 
@@ -3039,69 +3091,64 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         elif chosen == act_delete:
             self._delete_single_tile(idx)
 
-    def _export_single_tile(self, idx: int): #vers 1
-        """Export a single tile as PNG."""
+    def _export_single_tile(self, idx: int): #vers 2
+        """Export a single tile as PNG/BMP — exports true colour data."""
         if idx not in self._tile_rgba:
-            QMessageBox.information(self, "No Data", "Tile not loaded."); return
+            QMessageBox.information(self, "No Data",
+                "Tile not loaded — click it in the grid first."); return
         name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
         stem = Path(name).stem
         path, _ = QFileDialog.getSaveFileName(
-            self, f"Export tile {stem}", f"{stem}.png",
-            "PNG Image (*.png);;BMP Image (*.bmp)")
+            self, f"Export tile — {stem}", f"{stem}.png",
+            "PNG Image (*.png);;BMP Image (*.bmp);;All Files (*)")
         if not path: return
         try:
             from PIL import Image
-            rgba = self._tile_rgba[idx]
+            rgba = self._tile_rgba[idx]   # always export true colour
             img  = Image.frombytes("RGBA", (TILE_W, TILE_H), rgba)
-            if path.lower().endswith('.bmp'): img = img.convert("RGB")
+            if path.lower().endswith('.bmp'):
+                img = img.convert("RGB")
             img.save(path)
-            self._set_status(f"Exported tile {idx} → {Path(path).name}")
+            self._set_status(f"Exported tile {idx} ({name}) → {Path(path).name}  {TILE_W}×{TILE_H}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
-    def _import_single_tile(self, idx: int): #vers 1
-        """Import a single tile from PNG/BMP."""
+    def _import_single_tile(self, idx: int): #vers 2
+        """Import a single tile from PNG/BMP/TGA — auto-resizes to 128×128."""
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
         path, _ = QFileDialog.getOpenFileName(
-            self, f"Import tile {idx}", "",
-            "PNG Image (*.png);;BMP Image (*.bmp);;All Images (*)")
+            self, f"Import tile — {name}", "",
+            "Images (*.png *.bmp *.jpg *.jpeg *.tga *.tif *.webp);;All Files (*)")
         if not path: return
         try:
             from PIL import Image
-            img  = Image.open(path).convert("RGBA")
+            img = Image.open(path).convert("RGBA")
+            src_w, src_h = img.size
             if img.size != (TILE_W, TILE_H):
                 img = img.resize((TILE_W, TILE_H), Image.LANCZOS)
             rgba = img.tobytes()
-            self._tile_rgba[idx]  = rgba
-            self._dirty_tiles.add(idx)
-            self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
-            self._radar.set_dirty(idx, True)
-            if idx < len(self._list_items):
-                self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+            self._push_undo(idx)
+            self.ws_commit_draw(idx, rgba)
             if hasattr(self, '_palette_widget') and self._current_idx == idx:
                 self._palette_widget.set_colors_from_rgba(rgba, TILE_W, TILE_H)
-            self.save_btn.setEnabled(True)
-            self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
-            self._set_status(f"Imported tile {idx} from {Path(path).name}")
+            self._set_status(
+                f"Imported tile {idx} ({name}) from {Path(path).name} "
+                f"({src_w}×{src_h} → {TILE_W}×{TILE_H})")
         except Exception as e:
             QMessageBox.critical(self, "Import Error", str(e))
 
-    def _delete_single_tile(self, idx: int): #vers 1
-        """Reset a tile to blank (black RGBA)."""
-        from PyQt6.QtWidgets import QMessageBox as _MB
-        if _MB.question(self, "Delete Tile",
-                f"Reset tile {idx} to blank?",
-                _MB.StandardButton.Yes | _MB.StandardButton.No) != _MB.StandardButton.Yes:
+    def _delete_single_tile(self, idx: int): #vers 2
+        """Reset a tile to solid black (opaque) with undo support."""
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        if QMessageBox.question(self, "Reset Tile",
+                f"Reset tile {idx} ({name}) to solid black?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                ) != QMessageBox.StandardButton.Yes:
             return
-        rgba = bytes(TILE_W * TILE_H * 4)  # all zeros = transparent black
-        self._tile_rgba[idx]  = rgba
-        self._dirty_tiles.add(idx)
-        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
-        self._radar.set_dirty(idx, True)
-        if idx < len(self._list_items):
-            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
-        self.save_btn.setEnabled(True)
-        self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
-        self._set_status(f"Tile {idx} reset to blank")
+        self._push_undo(idx)
+        rgba = bytes([0, 0, 0, 255] * (TILE_W * TILE_H))   # opaque black
+        self.ws_commit_draw(idx, rgba)
+        self._set_status(f"Tile {idx} ({name}) reset to black")
 
     def _on_list_row(self, row): #vers 3
         if row < 0: return
@@ -3286,8 +3333,20 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                     f"Image size {sheet.width}×{sheet.height} is too small for "
                     f"{cols}×{rows} grid.")
                 return
+            # Progress dialog for large maps (SOL = 1296 tiles)
+            prog = None
+            total = min(count, cols * rows)
+            if total > 64:
+                prog = QProgressDialog(f"Importing {total} tiles…", "Cancel", 0, total, self)
+                prog.setWindowModality(Qt.WindowModality.WindowModal)
+                prog.show()
+
             imported = 0
-            for idx in range(min(count, cols * rows)):
+            for idx in range(total):
+                if prog:
+                    prog.setValue(idx)
+                    QApplication.processEvents()
+                    if prog.wasCanceled(): break
                 col_i = idx % cols
                 row_i = idx // cols
                 tile  = sheet.crop((col_i * tw, row_i * th,
@@ -3295,18 +3354,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 if tw != TILE_W or th != TILE_H:
                     tile = tile.resize((TILE_W, TILE_H), Image.LANCZOS)
                 rgba = tile.tobytes()
-                self._tile_rgba[idx] = rgba
-                self._dirty_tiles.add(idx)
-                self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
-                self._radar.set_dirty(idx, True)
-                if idx < len(self._list_items):
-                    self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+                self._push_undo(idx)
+                self.ws_commit_draw(idx, rgba)
                 imported += 1
+
+            if prog:
+                prog.setValue(total)
+
             if hasattr(self, '_palette_widget') and 0 in self._tile_rgba:
                 self._palette_widget.set_colors_from_rgba(
                     self._tile_rgba[0], TILE_W, TILE_H)
-            self.save_btn.setEnabled(True)
-            self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
             self._set_status(
                 f"Imported {imported} tiles from {Path(path).name}  "
                 f"(sliced {cols}×{rows} from {sheet.width}×{sheet.height}px)")
