@@ -3378,6 +3378,54 @@ class ColorPalPresetsMixin:
 #  DP5Workshop — main container (DPaint5-faithful layout)
 
 
+
+class _CornerOverlay(QWidget):
+    """Transparent overlay that draws corner resize triangles on top of all children."""
+    def __init__(self, parent): #vers 1
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._hover_corner = None
+        self._app_settings = None
+        self.setGeometry(0, 0, parent.width(), parent.height())
+
+    def update_state(self, hover_corner, app_settings): #vers 1
+        self._hover_corner = hover_corner
+        self._app_settings = app_settings
+        self.update()
+
+    def paintEvent(self, event): #vers 1
+        size = 20
+        if self._app_settings:
+            try:
+                colors = self._app_settings.get_theme_colors()
+                accent = QColor(colors.get('accent_primary', '#1976d2'))
+            except Exception:
+                accent = QColor(100, 150, 255)
+        else:
+            accent = QColor(100, 150, 255)
+        accent.setAlpha(160)
+        hover = QColor(accent); hover.setAlpha(230)
+        w, h = self.width(), self.height()
+        corners = {
+            'top-left':     [(0,0),(size,0),(0,size)],
+            'top-right':    [(w,0),(w-size,0),(w,size)],
+            'bottom-left':  [(0,h),(size,h),(0,h-size)],
+            'bottom-right': [(w,h),(w-size,h),(w,h-size)],
+        }
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        for name, pts in corners.items():
+            path = QPainterPath()
+            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
+            path.closeSubpath()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(hover if self._hover_corner == name else accent))
+            painter.drawPath(path)
+        painter.end()
+
+
 class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
 
@@ -3565,6 +3613,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         # Initial tool
         QTimer.singleShot(0, lambda: self._select_tool(TOOL_PENCIL))
+
+        # Corner resize overlay
+        if self.standalone_mode:
+            QTimer.singleShot(0, self._setup_corner_overlay)
 
     # - Toolbar (standalone titlebar)
 
@@ -10545,6 +10597,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             if corner != self.hover_corner:
                 self.hover_corner = corner
                 self.update()
+            self._refresh_corner_overlay()
             self._update_cursor(corner)
         super().mouseMoveEvent(event)
 
@@ -10622,32 +10675,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.drag_position = global_pos
 
 
-    def paintEvent(self, event): #vers 1
+    def paintEvent(self, event): #vers 2
         super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if self.app_settings:
-            colors = self.app_settings.get_theme_colors()
-            accent = QColor(colors.get('accent_primary', '#1976d2'))
-        else:
-            accent = QColor(100, 150, 255)
-        accent.setAlpha(180)
-        hover = QColor(accent); hover.setAlpha(255)
-        w, h, size = self.width(), self.height(), self.corner_size
-        corners = {
-            'top-left':     [(0,0),(size,0),(0,size)],
-            'top-right':    [(w,0),(w-size,0),(w,size)],
-            'bottom-left':  [(0,h),(size,h),(0,h-size)],
-            'bottom-right': [(w,h),(w-size,h),(w,h-size)],
-        }
-        for name, pts in corners.items():
-            path = QPainterPath()
-            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-            path.closeSubpath()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(hover if self.hover_corner == name else accent))
-            painter.drawPath(path)
-        painter.end()
+        # Corner handles drawn by _corner_overlay overlay widget
+
+    def _setup_corner_overlay(self): #vers 1
+        overlay = _CornerOverlay(self)
+        overlay.raise_()
+        self._corner_overlay = overlay
+        overlay.setGeometry(0, 0, self.width(), self.height())
+
+    def _refresh_corner_overlay(self): #vers 1
+        if hasattr(self, '_corner_overlay'):
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None), self.app_settings)
+            self._corner_overlay.raise_()
 
 
 #  Public factory function

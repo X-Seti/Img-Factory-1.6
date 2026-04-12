@@ -523,6 +523,54 @@ class RadarPaletteWidget(QWidget):
             self.color_picked_bg.emit(self._colors[idx])
 
 
+
+class _CornerOverlay(QWidget):
+    """Transparent overlay that draws corner resize triangles on top of all children."""
+    def __init__(self, parent): #vers 1
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._hover_corner = None
+        self._app_settings = None
+        self.setGeometry(0, 0, parent.width(), parent.height())
+
+    def update_state(self, hover_corner, app_settings): #vers 1
+        self._hover_corner = hover_corner
+        self._app_settings = app_settings
+        self.update()
+
+    def paintEvent(self, event): #vers 1
+        size = 20
+        if self._app_settings:
+            try:
+                colors = self._app_settings.get_theme_colors()
+                accent = QColor(colors.get('accent_primary', '#1976d2'))
+            except Exception:
+                accent = QColor(100, 150, 255)
+        else:
+            accent = QColor(100, 150, 255)
+        accent.setAlpha(160)
+        hover = QColor(accent); hover.setAlpha(230)
+        w, h = self.width(), self.height()
+        corners = {
+            'top-left':     [(0,0),(size,0),(0,size)],
+            'top-right':    [(w,0),(w-size,0),(w,size)],
+            'bottom-left':  [(0,h),(size,h),(0,h-size)],
+            'bottom-right': [(w,h),(w-size,h),(w,h-size)],
+        }
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        for name, pts in corners.items():
+            path = QPainterPath()
+            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
+            path.closeSubpath()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(hover if self._hover_corner == name else accent))
+            painter.drawPath(path)
+        painter.end()
+
+
 class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     """Radar Workshop – skeleton class"""
 
@@ -674,6 +722,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         self._status_bar = self._create_status_bar()
         main_layout.addWidget(self._status_bar)
+        # Corner resize overlay — must be last so it sits above all children
+        if self.standalone_mode:
+            self._setup_corner_overlay()
 
 
     # - Toolbar
@@ -1550,13 +1601,18 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             'gta.img':      'SA PC',   # some mods use gta.img
         }
         auto_preset = preset_by_file.get(fname)
+        filename_matched = False
         if auto_preset and auto_preset != self._game_combo.currentText():
             self._on_game_changed(auto_preset)
+            filename_matched = True
+        elif auto_preset:
+            filename_matched = True  # already on correct preset
 
         entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
 
         # If no entries with current preset, try all known patterns as fallback
         if not entries:
+            filename_matched = False  # fallback = not a clean match
             for pname, preset in GAME_PRESETS.items():
                 if pname == self._game_combo.currentText(): continue
                 if preset.get("img_source") not in ("img", "pvr"): continue
@@ -1572,7 +1628,18 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 f"No radar TXDs found in {Path(path).name}.{hint_msg}")
             return
         entries.sort(key=lambda e:e["name"].lower()); self._tile_entries=entries
-        self._autodetect(len(entries))
+
+        if filename_matched:
+            # Trust the preset — just apply it with actual count found
+            p = self._game_preset
+            count = len(entries)
+            cols  = p["cols"]
+            rows  = (count + cols - 1) // cols
+            p["count"] = count
+            p["rows"]  = rows
+            self._apply_preset(self._game_combo.currentText())
+        else:
+            self._autodetect(len(entries))
         prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
         prog.setWindowModality(Qt.WindowModality.WindowModal); prog.show()
         for i,entry in enumerate(entries):
@@ -2063,6 +2130,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             if corner != self.hover_corner:
                 self.hover_corner = corner
                 self.update()
+            self._refresh_corner_overlay()
             self._update_cursor(corner)
         super().mouseMoveEvent(event)
 
@@ -2107,35 +2175,31 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 self.setGeometry(nx, ny, nw, nh)
 
 
-    def paintEvent(self, event): #Vers 1
+    def paintEvent(self, event): #Vers 2
         super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if self.app_settings:
-            colors = self.app_settings.get_theme_colors()
-            accent = QColor(colors.get('accent_primary', '#1976d2'))
-        else:
-            accent = QColor(100, 150, 255)
-        accent.setAlpha(180)
-        hover = QColor(accent); hover.setAlpha(255)
-        w, h, size = self.width(), self.height(), self.corner_size
-        corners = {
-            'top-left':     [(0,0),(size,0),(0,size)],
-            'top-right':    [(w,0),(w-size,0),(w,size)],
-            'bottom-left':  [(0,h),(size,h),(0,h-size)],
-            'bottom-right': [(w,h),(w-size,h),(w,h-size)],
-        }
-        for name, pts in corners.items():
-            path = QPainterPath()
-            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
-            path.closeSubpath()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(hover if self.hover_corner == name else accent))
-            painter.drawPath(path)
-        painter.end()
+        # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
+
+    def _setup_corner_overlay(self): #vers 1
+        """Create a transparent overlay widget that draws corner resize handles on top of all children."""
+        overlay = _CornerOverlay(self)
+        overlay.raise_()
+        self._corner_overlay = overlay
+        self.resizeEvent = lambda e: (super(RadarWorkshop, self).resizeEvent(e),  # type: ignore
+                                      overlay.setGeometry(0, 0, self.width(), self.height()))
+
+    def _refresh_corner_overlay(self): #vers 1
+        if hasattr(self, '_corner_overlay'):
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None),
+                self.app_settings)
+            self._corner_overlay.raise_()
 
     def resizeEvent(self, event): #vers 1
         super().resizeEvent(event)
+        if hasattr(self, '_corner_overlay'):
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.raise_()
 
     def _resizeEvent(self, event): #vers 1
         super().resizeEvent(event)
