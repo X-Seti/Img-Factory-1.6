@@ -6213,16 +6213,39 @@ class IMGFactory(QMainWindow):
         """Open vehicles editor"""
         self.log_message("Vehicles editor functionality coming soon")
 
-    def open_radar_map(self): #vers 2
-        """Open Radar Workshop — standalone window, DP5Canvas based."""
+    def open_radar_map(self): #vers 3
+        """Open Radar Workshop — opens docked in a new tab, or standalone if no tab space."""
         try:
-            from apps.components.DP5_Workshop.radar_workshop import open_radar_workshop
-            workshop = open_radar_workshop(self)
-            if workshop:
-                self._radar_workshop = workshop  # keep reference alive
-                self.log_message("Radar Workshop opened")
+            from apps.components.Radar_Editor.radar_workshop import RadarWorkshop
+            # Check if already open in a tab
+            for i in range(self.main_tab_widget.count()):
+                tab = self.main_tab_widget.widget(i)
+                existing = [w for w in (tab.findChildren(RadarWorkshop) if tab else [])
+                           if isinstance(w, RadarWorkshop)]
+                if existing:
+                    self.main_tab_widget.setCurrentIndex(i)
+                    self.log_message("Radar Workshop already open")
+                    return
+
+            # Open standalone (Radar Workshop manages its own docking)
+            workshop = RadarWorkshop(parent=None, main_window=self)
+            workshop.setWindowTitle("Radar Workshop")
+            workshop.resize(1400, 860)
+            workshop.show()
+            workshop.raise_()
+            self._radar_workshop = workshop  # keep reference alive
+            self.log_message("Radar Workshop opened")
+
+            # Pass current IMG if loaded
+            if self.current_img:
+                from pathlib import Path
+                img_path = getattr(self.current_img, 'file_path', '')
+                if img_path and Path(img_path).exists():
+                    workshop._open_file(img_path)
         except Exception as e:
+            import traceback
             self.log_message(f"Radar Workshop error: {e}")
+            traceback.print_exc()
 
     def open_paths_map(self): #vers 1
         """Open paths map editor"""

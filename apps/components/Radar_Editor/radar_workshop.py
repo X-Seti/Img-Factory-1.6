@@ -1294,7 +1294,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sl.addSpacing(4)
 
         # ── Edit tile popup ───────────────────────────────────────────────────
-        _nb('edit_icon', "Edit tile (double-click / E) — zoomed popup", self._edit_tile_popup)
+        _nb('search_icon', "Open tile editor window (E)",         self._edit_tile_popup)
 
         sl.addSpacing(4)
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
@@ -1845,7 +1845,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
    # - File ops
 
-    def _open_file(self): #vers 3
+    def _open_file(self, path: str = ""): #vers 4
+        """Open radar IMG/TXD/PVR file. Pass path to skip the file dialog."""
         source = self._game_preset.get("img_source", "img")
         hint   = self._game_preset.get("hint", "")
 
@@ -1858,19 +1859,19 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 f"Support is planned for a future build.")
             return
 
-        # Build file filter based on source
-        if source == "txd":
-            filt  = "TXD Files (*.txd);;All Files (*)"
-            title = "Open Radar TXD"
-        elif source == "pvr":
-            filt  = "PVR IMG Archives (*.pvr *.img);;All Files (*)"
-            title = "Open Radar PVR"
-        else:  # img
-            filt  = "IMG Archives (*.img);;All Files (*)"
-            title = "Open Radar IMG"
-
-        path,_ = QFileDialog.getOpenFileName(self, title, "", filt)
-        if not path: return
+        if not path:
+            # Build file filter based on source
+            if source == "txd":
+                filt  = "TXD Files (*.txd);;All Files (*)"
+                title = "Open Radar TXD"
+            elif source == "pvr":
+                filt  = "PVR IMG Archives (*.pvr *.img);;All Files (*)"
+                title = "Open Radar PVR"
+            else:  # img
+                filt  = "IMG Archives (*.img);;All Files (*)"
+                title = "Open Radar IMG"
+            path,_ = QFileDialog.getOpenFileName(self, title, "", filt)
+            if not path: return
 
         # Standalone .txd files
         if path.lower().endswith('.txd'):
@@ -2021,62 +2022,135 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
     # - Tile selection
 
-    def _edit_tile_popup(self, idx: int = -1): #vers 1
-        """Open a single tile in a zoomed popup window for detailed editing.
-        Useful for SOL (36x36) and other large grids where individual tiles are tiny."""
+    def _edit_tile_popup(self, idx: int = -1): #vers 2
+        """Open the tile editor window — non-modal, stays open while you use the tools.
+        Tabs for each opened tile. All draw/transform tools operate on the active tab tile."""
         if idx < 0:
             idx = self._current_idx
         if idx < 0:
-            self._set_status("Select a tile first"); return
+            self._set_status("Select a tile first (click list or grid)"); return
         if idx not in self._tile_rgba:
-            self._set_status(f"Tile {idx} not loaded"); return
+            self._set_status(f"Tile {idx} not yet loaded — click it in the grid first"); return
 
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-                                     QPushButton, QLabel, QScrollArea)
-        from PyQt6.QtGui import QPixmap, QImage
+        # Reuse existing editor window if open, else create
+        if not hasattr(self, '_tile_editor_win') or self._tile_editor_win is None:
+            self._tile_editor_win = self._create_tile_editor_win()
 
-        dlg = QDialog(self)
-        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
-        dlg.setWindowTitle(f"Edit Tile {idx} — {name}")
-        dlg.setMinimumSize(600, 600)
-        dlg.resize(700, 720)
+        win = self._tile_editor_win
+        win.show(); win.raise_(); win.activateWindow()
+        self._tile_editor_open_tab(idx)
+
+    def _create_tile_editor_win(self): #vers 1
+        """Create the non-modal tile editor window with tab strip."""
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+                                     QTabWidget, QToolButton, QLabel, QSizePolicy)
+        win = QWidget(self, Qt.WindowType.Window)
+        win.setWindowTitle("Tile Editor")
+        win.resize(620, 660)
+        win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         try:
             from apps.core.theme_utils import apply_dialog_theme
-            apply_dialog_theme(dlg, self.main_window)
+            apply_dialog_theme(win, self.main_window)
         except Exception: pass
 
-        layout = QVBoxLayout(dlg)
+        layout = QVBoxLayout(win)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
 
-        # Large preview
+        # Tab widget — one tab per opened tile
+        tabs = QTabWidget()
+        tabs.setTabsClosable(True)
+        tabs.tabCloseRequested.connect(lambda i: tabs.removeTab(i))
+        tabs.setDocumentMode(True)
+        layout.addWidget(tabs, 1)
+
+        # Bottom toolbar — actions for the active tab
+        icon_color = self._get_icon_color()
+        bar = QHBoxLayout()
+
+        def _tbtn(icon_fn, tip, slot):
+            b = QToolButton()
+            b.setFixedSize(32, 32)
+            try:
+                b.setIcon(getattr(SVGIconFactory, icon_fn)(18, icon_color))
+                b.setIconSize(QSize(18, 18))
+            except Exception: b.setText(tip[0])
+            b.setToolTip(tip)
+            b.clicked.connect(slot)
+            bar.addWidget(b)
+            return b
+
+        def _active_idx():
+            w = tabs.currentWidget()
+            return getattr(w, '_tile_idx', -1) if w else -1
+
+        _tbtn('rotate_cw_icon',  "Rotate +90°",          lambda: self._rotate_cw()  or self._editor_refresh(tabs))
+        _tbtn('rotate_ccw_icon', "Rotate -90°",           lambda: self._rotate_ccw() or self._editor_refresh(tabs))
+        _tbtn('flip_horz_icon',  "Flip horizontal",       lambda: self._flip_horz()  or self._editor_refresh(tabs))
+        _tbtn('flip_vert_icon',  "Flip vertical",         lambda: self._flip_vert()  or self._editor_refresh(tabs))
+        bar.addSpacing(8)
+        _tbtn('import_icon', "Import PNG into this tile", lambda: (self._import_single_tile(_active_idx()), self._editor_refresh(tabs)))
+        _tbtn('export_icon', "Export this tile as PNG",   lambda: self._export_single_tile(_active_idx()))
+        bar.addStretch()
+        _tbtn('delete_icon', "Reset tile to blank",       lambda: (self._delete_single_tile(_active_idx()), self._editor_refresh(tabs)))
+        layout.addLayout(bar)
+
+        win._tabs = tabs
+        return win
+
+    def _tile_editor_open_tab(self, idx: int): #vers 1
+        """Add or switch to tab for tile idx in the editor window."""
+        from PyQt6.QtWidgets import QLabel, QScrollArea, QSizePolicy
+        win = self._tile_editor_win
+        tabs = win._tabs
+
+        # Check if tab already open
+        for i in range(tabs.count()):
+            w = tabs.widget(i)
+            if getattr(w, '_tile_idx', -1) == idx:
+                tabs.setCurrentIndex(i); return
+
+        # Create new tab
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
         rgba = self._tile_rgba[idx]
-        img  = QImage(rgba, TILE_W, TILE_H, TILE_W*4, QImage.Format.Format_RGBA8888)
-        px   = QPixmap.fromImage(img).scaled(512, 512,
-               Qt.AspectRatioMode.KeepAspectRatio,
-               Qt.TransformationMode.SmoothTransformation)
-        lbl  = QLabel()
+
+        container = QLabel()
+        container._tile_idx = idx
+        container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        container.setMinimumSize(256, 256)
+        self._editor_set_pixmap(container, rgba)
+
+        sc = QScrollArea()  # wrap in scroll so large tiles can be zoomed later
+        sc.setWidget(container)
+        sc.setWidgetResizable(True)
+        sc._tile_idx = idx
+
+        tab_label = f"{idx}: {name}"
+        tabs.addTab(sc, tab_label)
+        tabs.setCurrentWidget(sc)
+
+    def _editor_set_pixmap(self, lbl, rgba): #vers 1
+        """Update a tile editor tab label with current rgba data."""
+        from PyQt6.QtGui import QImage, QPixmap
+        img = QImage(rgba, TILE_W, TILE_H, TILE_W*4, QImage.Format.Format_RGBA8888)
+        sz  = min(lbl.width() or 512, lbl.height() or 512, 512)
+        sz  = max(sz, 256)
+        px  = QPixmap.fromImage(img).scaled(sz, sz,
+              Qt.AspectRatioMode.KeepAspectRatio,
+              Qt.TransformationMode.SmoothTransformation)
         lbl.setPixmap(px)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        sc = QScrollArea(); sc.setWidget(lbl); sc.setWidgetResizable(True)
-        layout.addWidget(sc, 1)
-
-        # Info
-        info = QLabel(f"Tile {idx}  |  {name}  |  {TILE_W}×{TILE_H} DXT1")
-        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        info.setStyleSheet("font-size:10px; color: palette(mid);")
-        layout.addWidget(info)
-
-        # Buttons
-        btn_row = QHBoxLayout()
-        imp_btn = QPushButton("Import PNG…")
-        exp_btn = QPushButton("Export PNG…")
-        cls_btn = QPushButton("Close")
-        imp_btn.clicked.connect(lambda: (self._import_single_tile(idx), dlg.accept()))
-        exp_btn.clicked.connect(lambda: self._export_single_tile(idx))
-        cls_btn.clicked.connect(dlg.accept)
-        for b in [imp_btn, exp_btn, cls_btn]: btn_row.addWidget(b)
-        layout.addLayout(btn_row)
-        dlg.exec()
+    def _editor_refresh(self, tabs=None): #vers 1
+        """Refresh the active tab in the tile editor after a transform or import."""
+        if not hasattr(self, '_tile_editor_win') or self._tile_editor_win is None: return
+        if tabs is None: tabs = self._tile_editor_win._tabs
+        sc = tabs.currentWidget()
+        if sc is None: return
+        idx = getattr(sc, '_tile_idx', -1)
+        if idx < 0 or idx not in self._tile_rgba: return
+        lbl = sc.widget()
+        self._editor_set_pixmap(lbl, self._tile_rgba[idx])
 
     def _on_tile_list_context(self, pos): #vers 1
         """Right-click context menu on tile list item."""
@@ -2322,56 +2396,18 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Info / Settings / Theme
-    def _open_recent(self, path: str): #vers 1
-        """Open a recently used IMG file directly."""
+    def _open_recent(self, path: str): #vers 2
+        """Open a recently used IMG file — uses same logic as _open_file."""
         import os
         if not os.path.isfile(path):
             QMessageBox.warning(self, "File Not Found",
-                f"Cannot find:\n{path}\n\nIt will be removed from recent files.")
-            recents = [p for p in self.RAD_settings.get_recent() if p != path]
-            self.RAD_settings._data['recent_files'] = recents
+                f"Cannot find:\n{path}\n\nRemoving from recent files.")
+            self.RAD_settings._data['recent_files'] = [
+                p for p in self.RAD_settings.get_recent() if p != path]
             self.RAD_settings.save()
             return
-        # Simulate a file load with the known path
-        try:
-            self._img_reader = ImgReader(path)
-            self._img_path   = path
-        except Exception as e:
-            QMessageBox.critical(self, "Load Error", str(e))
-            return
-        fname = Path(path).name.lower()
-        preset_by_file = {'radartex.img': 'SOL', 'gta3.img': 'SA PC', 'gta.img': 'SA PC'}
-        auto_preset = preset_by_file.get(fname)
-        if auto_preset:
-            self._on_game_changed(auto_preset)
-        entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
-        if not entries:
-            QMessageBox.warning(self, "No Tiles", f"No radar TXDs in {Path(path).name}")
-            return
-        def _tile_sort_key(e):
-            m = re.search(r'(\d+)', e["name"])
-            return int(m.group(1)) if m else 0
-        entries.sort(key=_tile_sort_key)
-        p = self._game_preset
-        entries = entries[:p["count"]]
-        self._apply_preset(self._game_combo.currentText())
-        self._tile_entries = entries
-        prog = QProgressDialog("Loading tiles…", "Cancel", 0, len(entries), self)
-        prog.setWindowModality(Qt.WindowModality.WindowModal); prog.show()
-        for i, entry in enumerate(entries):
-            prog.setValue(i); QApplication.processEvents()
-            if prog.wasCanceled(): break
-            try:
-                rgba, w, h, _ = RadarTxdReader.read(self._img_reader.get_entry_data(entry))
-                self._tile_rgba[i] = rgba; self._radar.set_tile(i, rgba, w, h)
-                if i < len(self._list_items): self._list_items[i].set_thumb(rgba, w, h)
-            except Exception as e:
-                print(f"WARN tile {i}: {e}", file=sys.stderr)
-        prog.setValue(len(entries))
-        self._dirty_tiles = set()
-        self.save_btn.setEnabled(True)
-        self.RAD_settings.add_recent(str(path))
-        self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — {p['label']}  {p['cols']}×{p['rows']}")
+        # Delegate to _open_file which handles broad-pattern search + autodetect
+        self._open_file(path)
 
     def _clear_recent(self): #vers 1
         self.RAD_settings._data['recent_files'] = []
