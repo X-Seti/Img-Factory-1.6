@@ -208,8 +208,10 @@ def encode_dxt1(rgba, w, h): #vers 1
 
 class RadarTxdReader:
     @staticmethod
-    def read(data): #vers 2
-        """Read first texture from a RW TXD. Handles D3D8 (platform 8) and D3D9 (platform 9)."""
+    def read(data): #vers 3
+        """Read first texture from a RW TXD.
+        Supports: PC D3D8/D3D9 (8/9), Xbox (5), PS2 (6), iOS/Android (8 ver 0x1005FFFF).
+        """
         pos = 12  # skip outer 0x16 container header
         while pos + 12 <= len(data):
             st = struct.unpack_from('<I', data, pos)[0]
@@ -217,30 +219,168 @@ class RadarTxdReader:
             if st == 0x15:  # TextureNative
                 th = pos + 24   # skip 0x15 header(12) + inner 0x01 header(12)
                 platform = struct.unpack_from('<I', data, th)[0]
-                nb_ = data[th+8:th+40]; nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
-                name = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
-                ww   = struct.unpack_from('<H', data, th+80)[0]
-                hh   = struct.unpack_from('<H', data, th+82)[0]
-                dsz  = struct.unpack_from('<I', data, th+88)[0]
-                pd   = data[th+92:th+92+dsz]
-                # Detect format: D3D9 uses d3d_format tag at th+76
-                # D3D8 uses compression byte at th+87 (1=DXT1, 3=DXT3, 5=DXT5)
-                d3d_fmt = data[th+76:th+80]
-                comp_byte = struct.unpack_from('<B', data, th+87)[0]
-                if d3d_fmt == b'DXT1' or (platform == 8 and comp_byte == 1):
-                    rgba = decode_dxt1(pd, ww, hh)
-                elif d3d_fmt == b'DXT3' or (platform == 8 and comp_byte == 3):
-                    rgba = decode_dxt1(pd, ww, hh)  # simplified — treat as DXT1
-                elif d3d_fmt == b'DXT5' or (platform == 8 and comp_byte == 5):
-                    rgba = decode_dxt1(pd, ww, hh)  # simplified — treat as DXT1
+
+                # ── Xbox (platform 5) ─────────────────────────────────────────
+                if platform == 5:
+                    nb_ = data[th+8:th+40]
+                    nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
+                    name = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
+                    ww   = struct.unpack_from('<H', data, th+80)[0]
+                    hh   = struct.unpack_from('<H', data, th+82)[0]
+                    comp = struct.unpack_from('<B', data, th+87)[0]  # compressionFlags
+                    dsz  = struct.unpack_from('<I', data, th+88)[0]
+                    pd   = data[th+92:th+92+dsz]
+                    # Xbox DXT1: 0x0B (linear) or 0x0C (swizzled)
+                    # Xbox DXT3: 0x0E/0x0F, DXT5: 0x10/0x11
+                    if comp in (0x0B, 0x0C):
+                        rgba = decode_dxt1(pd, ww, hh)
+                    elif comp in (0x0E, 0x0F, 0x10, 0x11):
+                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 — approximate
+                    else:
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh,
+                            struct.unpack_from('<I', data, th+72)[0])
+                    return rgba, ww, hh, name
+
+                # ── PS2 (platform 6 or FourCC "PS2\0") ──────────────────────
+                # Header layout (body starts at th):
+                # +0   platformId  +4  filterMode  +8  uv_addr  +12 padding
+                # +16  name[32]    +48 maskName[32]
+                # +80  rasterFormat  +84 depth  +85 width_log2  +86 height_log2
+                # +87  numLevels  +88 rasterType  +89 paletteFormat
+                # +90  hasAlpha   +91 isCubeMap   +92 gpuDataSize
+                # +96  skyMipMapValue (SA only)    +100 pixel data
+                elif platform in (6, 0x00325350):
+                    nb_ = data[th+16:th+48]
+                    nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
+                    name       = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
+                    raster_fmt = struct.unpack_from('<I', data, th+80)[0]
+                    wlog2      = data[th+85]
+                    hlog2      = data[th+86]
+                    pal_fmt    = data[th+89]
+                    gpu_sz     = struct.unpack_from('<I', data, th+92)[0]
+                    # Dimensions: log2 if value in 1-11, else raw (older format)
+                    ww = (1 << wlog2) if 1 <= wlog2 <= 11 else wlog2
+                    hh = (1 << hlog2) if 1 <= hlog2 <= 11 else hlog2
+                    # Pixel data at +100 (SA adds skyMipMapValue u32 at +96)
+                    # Always skip +96 u32 to handle both GTA III/VC and SA PS2
+                    pd = data[th+100:th+100+gpu_sz] if gpu_sz > 0 else data[th+100:]
+                    pix_bits = (raster_fmt >> 8) & 0xF
+                    if pal_fmt in (1, 2) or pix_bits == 0:   # PAL8 / PAL4
+                        rgba = RadarTxdReader._ps2_pal_to_rgba(pd, ww, hh, pal_fmt)
+                    elif pix_bits == 2:                        # RGB565
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    elif pix_bits == 5:                        # ARGB8888
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    else:
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    return rgba, ww, hh, name
+
+                # ── PC D3D8 (platform 8, older) / D3D9 (platform 9, SA PC) ───
+                # ── iOS/Android (platform 8, ver 0x1005FFFF) ─────────────────
                 else:
-                    # Raw uncompressed — ARGB or RGBA
-                    rgba = bytes(pd[:ww*hh*4])
-                return rgba, ww, hh, name
+                    nb_ = data[th+8:th+40]
+                    nb_ = nb_[:nb_.index(b'\x00')] if b'\x00' in nb_ else nb_
+                    name = re.sub(r'[^\x20-\x7E]', '', nb_.decode('latin1','replace')).strip()
+                    ww   = struct.unpack_from('<H', data, th+80)[0]
+                    hh   = struct.unpack_from('<H', data, th+82)[0]
+                    dsz  = struct.unpack_from('<I', data, th+88)[0]
+                    pd   = data[th+92:th+92+dsz]
+                    d3d_fmt   = data[th+76:th+80]
+                    comp_byte = struct.unpack_from('<B', data, th+87)[0]
+                    raster_fmt= struct.unpack_from('<I', data, th+72)[0]
+                    if d3d_fmt == b'DXT1' or (platform == 8 and comp_byte == 1):
+                        rgba = decode_dxt1(pd, ww, hh)
+                    elif d3d_fmt in (b'DXT3', b'DXT5') or (platform == 8 and comp_byte in (3,5)):
+                        rgba = decode_dxt1(pd, ww, hh)  # DXT3/5 approx
+                    else:
+                        rgba = RadarTxdReader._raw_to_rgba(pd, ww, hh, raster_fmt)
+                    return rgba, ww, hh, name
+
             if ss == 0:
                 break
             pos += 12 + ss
         raise ValueError("No Texture Native section")
+
+    @staticmethod
+    def _raw_to_rgba(pd: bytes, w: int, h: int, raster_fmt: int) -> bytes: #vers 2
+        """Convert raw uncompressed pixel data to RGBA8888.
+        raster_fmt bits 8-11: 0=PAL, 1=ARGB1555, 2=RGB565, 3=ARGB4444,
+                               4=LUM8, 5=ARGB8888, 6=RGB888"""
+        pix_bits = (raster_fmt >> 8) & 0xF
+        n = w * h
+        out = bytearray(n * 4)
+        if (pix_bits == 5 or pix_bits == 0) and len(pd) >= n * 4:  # ARGB8888/RGBA8888
+            for i in range(min(n, len(pd)//4)):
+                b, g, r, a = pd[i*4], pd[i*4+1], pd[i*4+2], pd[i*4+3]
+                out[i*4:i*4+4] = [r, g, b, a if a > 0 else 255]
+        elif pix_bits == 2 and len(pd) >= n * 2:  # RGB565
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                r = ((v >> 11) & 0x1F) << 3; r |= r >> 5
+                g = ((v >> 5)  & 0x3F) << 2; g |= g >> 6
+                b = (v & 0x1F) << 3;          b |= b >> 5
+                out[i*4:i*4+4] = [r, g, b, 255]
+        elif pix_bits == 1 and len(pd) >= n * 2:  # ARGB1555
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                a = 255 if (v >> 15) else 0
+                r = ((v >> 10) & 0x1F) << 3; r |= r >> 5
+                g = ((v >> 5)  & 0x1F) << 3; g |= g >> 5
+                b = (v & 0x1F) << 3;          b |= b >> 5
+                out[i*4:i*4+4] = [r, g, b, a]
+        elif pix_bits == 3 and len(pd) >= n * 2:  # ARGB4444
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                a = ((v >> 12) & 0xF) * 17
+                r = ((v >> 8)  & 0xF) * 17
+                g = ((v >> 4)  & 0xF) * 17
+                b = (v & 0xF) * 17
+                out[i*4:i*4+4] = [r, g, b, a]
+        elif pix_bits == 6 and len(pd) >= n * 3:  # RGB888
+            for i in range(min(n, len(pd)//3)):
+                out[i*4:i*4+3] = pd[i*3+2], pd[i*3+1], pd[i*3]
+                out[i*4+3] = 255
+        elif len(pd) >= n * 4:  # fallback: treat as RGBA8888
+            out[:n*4] = pd[:n*4]
+        elif len(pd) >= n * 2:  # fallback: treat as RGB565
+            for i in range(min(n, len(pd)//2)):
+                v = struct.unpack_from('<H', pd, i*2)[0]
+                r = ((v >> 11) & 0x1F) << 3
+                g = ((v >> 5)  & 0x3F) << 2
+                b = (v & 0x1F) << 3
+                out[i*4:i*4+4] = [r, g, b, 255]
+        return bytes(out)
+
+    @staticmethod
+    def _ps2_pal_to_rgba(pd: bytes, w: int, h: int, pal_fmt: int) -> bytes: #vers 1
+        """Decode PS2 paletted texture (PAL8/PAL4) to RGBA8888.
+        PS2 palette entries are RGBA (not BGRA). Alpha is 0-128 scale (halved from PC).
+        Note: PS2 GS swizzle is NOT undone here — output may appear scrambled for
+        swizzled textures. Full unswizzle requires GS block layout tables."""
+        if pal_fmt == 1:  # PAL8: 256 * 4 bytes palette, then indices
+            pal_size = 256 * 4
+            pal = pd[:pal_size]
+            idx = pd[pal_size:pal_size + w * h]
+        else:  # PAL4: 16 * 4 bytes palette, then 4bpp indices
+            pal_size = 16 * 4
+            pal = pd[:pal_size]
+            # Unpack 4bpp: each byte = two pixels
+            raw = pd[pal_size:]
+            idx = bytearray()
+            for b in raw[:((w * h + 1) // 2)]:
+                idx.append(b & 0x0F)
+                idx.append((b >> 4) & 0x0F)
+            idx = bytes(idx[:w*h])
+
+        out = bytearray(w * h * 4)
+        for i, pi in enumerate(idx[:w*h]):
+            po = pi * 4
+            if po + 3 < len(pal):
+                r, g, b, a = pal[po], pal[po+1], pal[po+2], pal[po+3]
+                # PS2 alpha is 0-128; scale to 0-255
+                a = min(255, a * 2)
+                out[i*4:i*4+4] = [r, g, b, a]
+        return bytes(out)
 
     @staticmethod
     def write(rgba,w,h,tex_name,rw_ver=0x1003FFFF): #vers 1
