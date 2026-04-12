@@ -742,13 +742,47 @@ class RadarPaletteWidget(QWidget):
         self._hover = -1
         self.update()
 
-    def mousePressEvent(self, ev): #vers 1
+    def mousePressEvent(self, ev): #vers 2
         idx = self._idx_at(ev.pos())
         if idx < 0: return
         if ev.button() == Qt.MouseButton.LeftButton:
             self.color_picked.emit(self._colors[idx])
         elif ev.button() == Qt.MouseButton.RightButton:
-            self.color_picked_bg.emit(self._colors[idx])
+            self._show_palette_context(idx, ev.globalPosition().toPoint())
+
+    def _show_palette_context(self, idx: int, gpos): #vers 1
+        """Right-click context menu on a palette colour cell."""
+        from PyQt6.QtWidgets import QMenu, QApplication, QColorDialog
+        from PyQt6.QtGui import QClipboard
+        if idx < 0 or idx >= len(self._colors): return
+        c = self._colors[idx]
+
+        menu = QMenu(self)
+        act_fg   = menu.addAction(f"Set as FG  {c.name()}")
+        act_bg   = menu.addAction(f"Set as BG  {c.name()}")
+        menu.addSeparator()
+        act_copy = menu.addAction(f"Copy hex  {c.name()}")
+        act_rgb  = menu.addAction(f"Copy RGB  {c.red()},{c.green()},{c.blue()}")
+        menu.addSeparator()
+        act_edit = menu.addAction("Change colour…")
+
+        chosen = menu.exec(gpos)
+        if chosen == act_fg:
+            self.color_picked.emit(c)
+        elif chosen == act_bg:
+            self.color_picked_bg.emit(c)
+        elif chosen == act_copy:
+            QApplication.clipboard().setText(c.name())
+        elif chosen == act_rgb:
+            QApplication.clipboard().setText(f"{c.red()},{c.green()},{c.blue()}")
+        elif chosen == act_edit:
+            new_c = QColorDialog.getColor(c, self, "Change Palette Colour",
+                                          QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new_c.isValid():
+                self._colors[idx] = new_c
+                self.update()
+                # Emit so the main workshop can use it immediately
+                self.color_picked.emit(new_c)
 
 
 
@@ -2244,15 +2278,23 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
         self._set_status(f"Tile {idx} reset to blank")
 
-    def _on_list_row(self, row): #vers 2
-        if row<0: return
-        self._current_idx=row; self._radar.set_selected(row)
-        name=(self._tile_entries[row]["name"] if row<len(self._tile_entries) else self._game_preset["name_fn"](row))
-        self._set_status(f"Tile {row}  |  {name}  |  {TILE_W}×{TILE_H} DXT1"+("  [modified]" if row in self._dirty_tiles else ""))
+    def _on_list_row(self, row): #vers 3
+        if row < 0: return
+        self._current_idx = row
+        self._radar.set_selected(row)
+        name = (self._tile_entries[row]["name"] if row < len(self._tile_entries)
+                else self._game_preset["name_fn"](row))
+        # Determine format/bitdepth from current preset
+        lbl = self._game_preset.get("label", "")
+        if "PS2" in lbl:   fmt = "PAL8 · 8bpp"
+        elif "Xbox" in lbl: fmt = "DXT1 · 4bpp"
+        elif "iOS" in lbl or "PVR" in lbl: fmt = "PVRTC · 4bpp"
+        else:               fmt = "DXT1 · 4bpp"
+        mod = "  [modified]" if row in self._dirty_tiles else ""
+        self._set_status(f"Tile {row}  |  {name}  |  {TILE_W}×{TILE_H}  {fmt}{mod}")
         # Update palette from tile colours
         if hasattr(self, '_palette_widget') and row in self._tile_rgba:
-            rgba = self._tile_rgba[row]
-            self._palette_widget.set_colors_from_rgba(rgba, TILE_W, TILE_H)
+            self._palette_widget.set_colors_from_rgba(self._tile_rgba[row], TILE_W, TILE_H)
 
     def _on_grid_click(self, idx): #vers 1
         self._tile_list.setCurrentRow(idx); self._on_list_row(idx)
@@ -2435,7 +2477,11 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         # ── Quick Start ────────────────────────────────────────────────────────
         # App_name App_build App_auth Build = TODO - add auther info above Quickstart
-        quickstart = """<h3>Quick Start</h3>
+        quickstart = """<p style="font-size:11px; color:#888; margin-bottom:8px;">
+<b>{}</b> &nbsp;·&nbsp; {}&nbsp;·&nbsp; {}&nbsp;·&nbsp; {}
+</p>
+<hr>
+<h3>Quick Start</h3>""".format(App_name, Build, App_build, App_auth) + """
 <ol>
 <li>
 <li><b>Open an IMG file</b> — click the <b>Open</b> button or press <b>Ctrl+O</b>.<br>
@@ -2856,15 +2902,21 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
 
-    def _setup_corner_overlay(self): #vers 3
-        """Create or refresh the corner overlay widget."""
-        if hasattr(self, '_corner_overlay') and self._corner_overlay:
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.raise_()
+    def _setup_corner_overlay(self): #vers 4
+        """Create or refresh the corner resize overlay."""
+        if not self.standalone_mode:
+            return
+        # Destroy stale overlay if window was resized before it was created
+        existing = getattr(self, '_corner_overlay', None)
+        if existing is not None:
+            existing.setGeometry(0, 0, self.width(), self.height())
+            existing.raise_()
+            existing.update()
             return
         overlay = _CornerOverlay(self)
         self._corner_overlay = overlay
         overlay.setGeometry(0, 0, self.width(), self.height())
+        overlay.show()
         overlay.raise_()
 
     def _refresh_corner_overlay(self): #vers 1
@@ -2879,15 +2931,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         super().resizeEvent(event)
         self._refresh_corner_overlay()
 
-    def showEvent(self, event): #vers 1
+    def showEvent(self, event): #vers 2
         super().showEvent(event)
-        from PyQt6.QtCore import QTimer
         if self.standalone_mode:
-            QTimer.singleShot(100, self._setup_corner_overlay)
+            # Small delay ensures window geometry is finalised
+            QTimer.singleShot(150, self._setup_corner_overlay)
 
-    def _resizeEvent(self, event): #vers 1
+    def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
+        self._refresh_corner_overlay()
 
     def closeEvent(self, event): #Vers 2
         # Save window geometry
