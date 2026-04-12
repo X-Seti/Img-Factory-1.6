@@ -928,53 +928,233 @@ class _BoredomPuzzle(QDialog):
 
 
 class _TileZoomView(QWidget):
-    """Tile zoom view — sits inside a _view_tabs tab, scales tile to fill space.
-    All sidebar tools in RadarWorkshop operate on self._tile_idx via _current_idx."""
+    """Tile zoom canvas — live drawing with all sidebar tools.
+    Pixel coordinates mapped from screen coords via scale/offset."""
 
-    def __init__(self, tile_idx: int, tile_name: str, rgba: bytes, workshop): #vers 1
+    def __init__(self, tile_idx: int, tile_name: str, rgba: bytes, workshop): #vers 2
         super().__init__()
         self._tile_idx  = tile_idx
         self._tile_name = tile_name
         self._workshop  = workshop
-        self._rgba      = rgba
+        self._rgba      = bytearray(rgba)
         self._pixmap    = None
-        self.setMinimumSize(128, 128)
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding)
+        self._drawing   = False
+        self._last_px   = None          # last pixel drawn (for line smoothing)
+        self._line_start = None         # for line tool: start pixel
+        self._brush_size = 1
+        self.setMinimumSize(256, 256)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.CrossCursor)
         self._rebuild_pixmap()
 
     def _rebuild_pixmap(self): #vers 1
-        img = QImage(self._rgba, TILE_W, TILE_H, TILE_W*4,
+        img = QImage(bytes(self._rgba), TILE_W, TILE_H, TILE_W*4,
                      QImage.Format.Format_RGBA8888)
         self._pixmap = QPixmap.fromImage(img)
         self.update()
 
-    def refresh(self, rgba: bytes): #vers 1
-        self._rgba = rgba
-        self._rebuild_pixmap()
-
-    def paintEvent(self, ev): #vers 1
-        if not self._pixmap: return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        # Scale to fill, keep aspect ratio, centre
-        sz  = self._pixmap.size().scaled(
-            self.width(), self.height(),
-            Qt.AspectRatioMode.KeepAspectRatio)
+    def _draw_rect(self): #vers 1
+        """Return (x, y, w, h) of the scaled pixmap inside this widget."""
+        if not self._pixmap: return 0, 0, self.width(), self.height()
+        sz = self._pixmap.size().scaled(self.width(), self.height(),
+                                        Qt.AspectRatioMode.KeepAspectRatio)
         x = (self.width()  - sz.width())  // 2
         y = (self.height() - sz.height()) // 2
+        return x, y, sz.width(), sz.height()
+
+    def _screen_to_pixel(self, screen_pos) -> tuple:
+        """Convert screen QPoint to (px, py) pixel coordinates, or (-1,-1)."""
+        x, y, w, h = self._draw_rect()
+        sx, sy = screen_pos.x() - x, screen_pos.y() - y
+        if sx < 0 or sy < 0 or sx >= w or sy >= h:
+            return -1, -1
+        px = int(sx * TILE_W / w)
+        py = int(sy * TILE_H / h)
+        return max(0, min(TILE_W-1, px)), max(0, min(TILE_H-1, py))
+
+    def refresh(self, rgba: bytes): #vers 2
+        self._rgba = bytearray(rgba)
+        self._rebuild_pixmap()
+
+    def _set_pixel(self, px: int, py: int, color: QColor): #vers 1
+        """Write one pixel to _rgba buffer."""
+        if 0 <= px < TILE_W and 0 <= py < TILE_H:
+            i = (py * TILE_W + px) * 4
+            self._rgba[i:i+4] = [color.red(), color.green(), color.blue(), color.alpha()]
+
+    def _get_pixel_color(self, px: int, py: int) -> QColor:
+        i = (py * TILE_W + px) * 4
+        return QColor(self._rgba[i], self._rgba[i+1], self._rgba[i+2], self._rgba[i+3])
+
+    def _draw_pixels_between(self, p0: tuple, p1: tuple, color: QColor): #vers 1
+        """Bresenham line from p0 to p1, setting each pixel."""
+        x0, y0 = p0; x1, y1 = p1
+        dx, dy = abs(x1-x0), abs(y1-y0)
+        sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
+        err = dx - dy
+        while True:
+            for bx in range(-(self._brush_size//2), (self._brush_size+1)//2):
+                for by in range(-(self._brush_size//2), (self._brush_size+1)//2):
+                    self._set_pixel(x0+bx, y0+by, color)
+            if x0 == x1 and y0 == y1: break
+            e2 = 2*err
+            if e2 > -dy: err -= dy; x0 += sx
+            if e2 <  dx: err += dx; y0 += sy
+
+    def _flood_fill(self, px: int, py: int, fill_color: QColor): #vers 1
+        """Iterative flood fill (4-connected)."""
+        target = self._get_pixel_color(px, py)
+        if target.rgb() == fill_color.rgb(): return
+        tr, tg, tb = target.red(), target.green(), target.blue()
+        fr, fg, fb, fa = fill_color.red(), fill_color.green(), fill_color.blue(), fill_color.alpha()
+        tol = 24  # tolerance for similar colours
+        stack = [(px, py)]
+        visited = set()
+        while stack:
+            cx, cy = stack.pop()
+            if (cx, cy) in visited: continue
+            if not (0 <= cx < TILE_W and 0 <= cy < TILE_H): continue
+            ci = (cy * TILE_W + cx) * 4
+            if (abs(self._rgba[ci]-tr) > tol or abs(self._rgba[ci+1]-tg) > tol
+                    or abs(self._rgba[ci+2]-tb) > tol): continue
+            visited.add((cx, cy))
+            self._rgba[ci:ci+4] = [fr, fg, fb, fa]
+            stack.extend([(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)])
+
+    def _draw_rect_outline(self, p0, p1, color: QColor, filled=False): #vers 1
+        x0, y0 = min(p0[0],p1[0]), min(p0[1],p1[1])
+        x1, y1 = max(p0[0],p1[0]), max(p0[1],p1[1])
+        if filled:
+            for y in range(y0, y1+1):
+                for x in range(x0, x1+1):
+                    self._set_pixel(x, y, color)
+        else:
+            for x in range(x0, x1+1):
+                self._set_pixel(x, y0, color); self._set_pixel(x, y1, color)
+            for y in range(y0, y1+1):
+                self._set_pixel(x0, y, color); self._set_pixel(x1, y, color)
+
+    def _commit_draw(self): #vers 1
+        """Push current _rgba to workshop and update everything."""
+        ws = self._workshop
+        idx = self._tile_idx
+        rgba = bytes(self._rgba)
+        ws._tile_rgba[idx] = rgba
+        ws._dirty_tiles.add(idx)
+        ws._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        ws._radar.set_dirty(idx, True)
+        if idx < len(ws._list_items):
+            ws._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+        ws.save_btn.setEnabled(True)
+        ws._dirty_lbl.setText(f"Modified: {len(ws._dirty_tiles)}")
+        self._rebuild_pixmap()
+
+    def mousePressEvent(self, ev): #vers 1
+        ws = self._workshop
+        px, py = self._screen_to_pixel(ev.pos())
+        if px < 0: return
+        tool  = ws._draw_tool
+        color = ws._fg_color if ev.button() == Qt.MouseButton.LeftButton else ws._bg_color
+
+        if tool == 'picker':
+            picked = self._get_pixel_color(px, py)
+            if ev.button() == Qt.MouseButton.LeftButton:
+                ws._fg_color = picked
+            else:
+                ws._bg_color = picked
+            ws._update_swatch_buttons()
+            return
+
+        ws._push_undo(self._tile_idx)
+
+        if tool == 'pencil':
+            self._drawing = True
+            self._draw_pixels_between((px, py), (px, py), color)
+            self._last_px = (px, py)
+            self._commit_draw()
+        elif tool == 'fill':
+            self._flood_fill(px, py, color)
+            self._commit_draw()
+        elif tool in ('line', 'rect', 'rect_fill'):
+            self._drawing   = True
+            self._line_start = (px, py)
+            self._preview_rgba = bytearray(self._rgba)  # snapshot for preview
+        elif tool == 'cut':
+            ws._clipboard_tile = bytes(self._rgba)
+            ws._set_status(f"Cut tile {self._tile_idx}")
+            self._rgba = bytearray(TILE_W * TILE_H * 4)  # clear to transparent
+            self._commit_draw()
+
+    def mouseMoveEvent(self, ev): #vers 1
+        if not self._drawing: return
+        ws   = self._workshop
+        tool = ws._draw_tool
+        color = ws._fg_color if ev.buttons() == Qt.MouseButton.LeftButton else ws._bg_color
+        px, py = self._screen_to_pixel(ev.pos())
+        if px < 0: return
+
+        if tool == 'pencil' and self._last_px:
+            self._draw_pixels_between(self._last_px, (px, py), color)
+            self._last_px = (px, py)
+            self._commit_draw()
+        elif tool in ('line', 'rect', 'rect_fill') and self._line_start:
+            # Live preview — restore snapshot then draw temp shape
+            self._rgba = bytearray(self._preview_rgba)
+            if tool == 'line':
+                self._draw_pixels_between(self._line_start, (px, py), color)
+            elif tool == 'rect':
+                self._draw_rect_outline(self._line_start, (px, py), color, filled=False)
+            elif tool == 'rect_fill':
+                self._draw_rect_outline(self._line_start, (px, py), color, filled=True)
+            self._rebuild_pixmap()  # preview only — don't commit yet
+
+    def mouseReleaseEvent(self, ev): #vers 1
+        if not self._drawing: return
+        ws    = self._workshop
+        tool  = ws._draw_tool
+        color = ws._fg_color if ev.button() == Qt.MouseButton.LeftButton else ws._bg_color
+        px, py = self._screen_to_pixel(ev.pos())
+
+        if tool in ('line', 'rect', 'rect_fill') and self._line_start and px >= 0:
+            self._rgba = bytearray(self._preview_rgba)
+            if tool == 'line':
+                self._draw_pixels_between(self._line_start, (px, py), color)
+            elif tool == 'rect':
+                self._draw_rect_outline(self._line_start, (px, py), color, filled=False)
+            elif tool == 'rect_fill':
+                self._draw_rect_outline(self._line_start, (px, py), color, filled=True)
+            self._commit_draw()
+
+        self._drawing    = False
+        self._last_px    = None
+        self._line_start = None
+        self._preview_rgba = None
+
+    def paintEvent(self, ev): #vers 2
+        if not self._pixmap: return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)  # crisp pixels
+        x, y, w, h = self._draw_rect()
+        # Checkerboard for transparency
+        cb_size = max(4, w // TILE_W * 2)
+        for ty in range(0, h, cb_size):
+            for tx in range(0, w, cb_size):
+                light = ((tx // cb_size + ty // cb_size) % 2 == 0)
+                p.fillRect(x+tx, y+ty, min(cb_size, w-tx), min(cb_size, h-ty),
+                           QColor(180,180,180) if light else QColor(120,120,120))
         p.drawPixmap(x, y, self._pixmap.scaled(
-            sz, Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation))
-        # Tile info overlay at bottom
-        p.setPen(QColor(255, 255, 255, 180))
-        p.setFont(QFont("monospace", 9))
-        info = f"{self._tile_idx}: {self._tile_name}  {TILE_W}×{TILE_H}"
-        p.drawText(x + 4, y + sz.height() - 6, info)
+            w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.FastTransformation))
+        # Info overlay
+        p.setPen(QColor(255,255,255,200))
+        p.setFont(QFont("monospace", 8))
+        p.drawText(x+3, y+h-4,
+                   f"{self._tile_idx}: {self._tile_name}  "
+                   f"{TILE_W}×{TILE_H}  [{self._workshop._draw_tool}]")
         p.end()
 
-    def resizeEvent(self, ev): #vers 1
+    def resizeEvent(self, ev): #vers 2
         super().resizeEvent(ev)
         self.update()
 
@@ -1176,6 +1356,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._img_path:     str = ""
         self._game_preset:  dict = GAME_PRESETS["SA PC"]
         self._current_idx:  int  = -1
+        self._render_mode: str   = 'color'
         self._clipboard_tile: bytes = None   # copy/paste buffer
         self._undo_stack: list = []          # list of (idx, rgba) snapshots
         self._redo_stack: list = []
@@ -1532,7 +1713,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._view_tabs.currentChanged.connect(self._on_view_tab_changed)
         hl.addWidget(self._view_tabs, 1)
 
-        # ── Right sidebar ─────────────────────────────────────────────────────
+        # ── Right sidebar — 2-column icon grid ───────────────────────────────
         sidebar = QFrame()
         sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
         sidebar.setFixedWidth(80)
@@ -1541,33 +1722,48 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sl.setSpacing(2)
 
         icon_color = self._get_icon_color()
+        BTN = 36   # button size — two fit in 80px width with spacing
 
         def _nb(icon_fn, tip, slot, checkable=False):
             b = QToolButton()
-            b.setFixedSize(72, 28)
+            b.setFixedSize(BTN, BTN)
             if icon_fn:
                 try:
-                    b.setIcon(getattr(SVGIconFactory, icon_fn)(18, icon_color))
-                    b.setIconSize(QSize(18, 18))
+                    b.setIcon(getattr(SVGIconFactory, icon_fn)(20, icon_color))
+                    b.setIconSize(QSize(20, 20))
                 except Exception: pass
             b.setToolTip(tip)
             b.setCheckable(checkable)
             b.clicked.connect(slot)
-            sl.addWidget(b)
             return b
 
-        # ── Zoom tools ────────────────────────────────────────────────────────
-        _nb('zoom_in_icon',   "Zoom in (+)",           lambda: self._zoom(1.25))
-        _nb('zoom_out_icon',  "Zoom out (-)",          lambda: self._zoom(0.8))
-        _nb('fit_grid_icon',  "Fit grid (Ctrl+0)",     self._fit)
-        _nb('locate_icon',    "Jump to selected tile", self._jump)
+        def _row(*btns):
+            row = QHBoxLayout()
+            row.setSpacing(2)
+            row.setContentsMargins(0,0,0,0)
+            for b in btns:
+                row.addWidget(b)
+            if len(btns) == 1:
+                row.addStretch()
+            sl.addLayout(row)
 
-        sl.addSpacing(4)
-        sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
-        sl.addWidget(sep1)
-        sl.addSpacing(4)
+        def _sep():
+            s = QFrame(); s.setFrameShape(QFrame.Shape.HLine)
+            sl.addSpacing(2); sl.addWidget(s); sl.addSpacing(2)
 
-        # ── Draw tools ────────────────────────────────────────────────────────
+        # ── Map view tools ────────────────────────────────────────────────────
+        _row(_nb('zoom_in_icon',  "Zoom in (+)",            lambda: self._zoom(1.25)),
+             _nb('zoom_out_icon', "Zoom out (-)",           lambda: self._zoom(0.8)))
+        _row(_nb('fit_grid_icon', "Fit grid (Ctrl+0)",      self._fit),
+             _nb('locate_icon',   "Jump to selected tile",  self._jump))
+        _row(_nb('search_icon',   "Open tile editor (E)",   self._edit_tile_popup),
+             _nb('undo_icon',     "Undo (Ctrl+Z)",          self._undo)
+             if hasattr(SVGIconFactory, 'undo_icon') else
+             _nb('rotate_ccw_icon', "Undo (Ctrl+Z)",        self._undo))
+
+        _sep()
+
+        # ── Draw tools (checkable) ────────────────────────────────────────────
         self._draw_tool = 'pencil'
         self._draw_btns = {}
 
@@ -1577,35 +1773,50 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._draw_btns[tool_name] = b
             return b
 
-        _tool_btn('paint_icon',    "Pencil — draw pixels (P)",    'pencil')
-        _tool_btn('editer_icon',   "Line — draw a line (L)",      'line')
-        _tool_btn('fill_icon',     "Fill — flood fill bucket (F)", 'fill')
-        _tool_btn('dropper_icon',  "Dropper — pick colour (K)",   'picker')
+        _row(_tool_btn('paint_icon',   "Pencil (P)",         'pencil'),
+             _tool_btn('editer_icon',  "Line (L)",           'line'))
+        _row(_tool_btn('fill_icon',    "Flood fill (F)",     'fill'),
+             _tool_btn('dropper_icon', "Pick colour (K)",    'picker'))
+        _row(_tool_btn('open_icon',    "Rect outline (R)",   'rect'),
+             _tool_btn('save_icon',    "Filled rect (Shift+R)", 'rect_fill'))
+        _row(_tool_btn('export_icon',  "Cut tile (X)",       'cut'),
+             _tool_btn('import_icon',  "Paste (V)",          'paste'))
         self._draw_btns['pencil'].setChecked(True)
 
-        sl.addSpacing(4)
-        sep1b = QFrame(); sep1b.setFrameShape(QFrame.Shape.HLine)
-        sl.addWidget(sep1b)
-        sl.addSpacing(4)
+        _sep()
 
-        # ── Transform tools ───────────────────────────────────────────────────
-        _nb('rotate_cw_icon',   "Rotate tile +90°",      self._rotate_cw)
-        _nb('rotate_ccw_icon',  "Rotate tile -90°",      self._rotate_ccw)
-        _nb('flip_horz_icon',   "Flip tile horizontal",  self._flip_horz)
-        _nb('flip_vert_icon',   "Flip tile vertical",    self._flip_vert)
+        # ── Transforms ────────────────────────────────────────────────────────
+        _row(_nb('rotate_cw_icon',  "Rotate +90°",     self._rotate_cw),
+             _nb('rotate_ccw_icon', "Rotate -90°",     self._rotate_ccw))
+        _row(_nb('flip_horz_icon',  "Flip horizontal", self._flip_horz),
+             _nb('flip_vert_icon',  "Flip vertical",   self._flip_vert))
 
-        sl.addSpacing(4)
-        sep1c = QFrame(); sep1c.setFrameShape(QFrame.Shape.HLine)
-        sl.addWidget(sep1c)
-        sl.addSpacing(4)
+        _sep()
 
-        # ── Edit tile popup ───────────────────────────────────────────────────
-        _nb('search_icon', "Open tile editor window (E)",         self._edit_tile_popup)
+        # ── Map render options ─────────────────────────────────────────────────
+        ren_lbl = QLabel("View")
+        ren_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ren_lbl.setStyleSheet("font-size:9px;")
+        sl.addWidget(ren_lbl)
 
-        sl.addSpacing(4)
-        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
-        sl.addWidget(sep2)
-        sl.addSpacing(4)
+        self._render_mode = 'color'
+        def _render_btn(label, tip, mode):
+            b = QToolButton()
+            b.setFixedSize(72, 22)
+            b.setText(label)
+            b.setToolTip(tip)
+            b.setCheckable(True)
+            b.clicked.connect(lambda: self._set_render_mode(mode))
+            sl.addWidget(b)
+            return b
+
+        self._render_btns = {}
+        self._render_btns['color']  = _render_btn("Colour",  "Full colour",           'color')
+        self._render_btns['bw']     = _render_btn("B&W",     "Greyscale / B&W",       'bw')
+        self._render_btns['alpha']  = _render_btn("Alpha",   "Alpha channel only",    'alpha')
+        self._render_btns['color'].setChecked(True)
+
+        _sep()
 
         # ── FG/BG colour swatches ─────────────────────────────────────────────
         sw_lbl = QLabel("FG/BG")
@@ -1652,17 +1863,47 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         return panel
 
-    def _set_draw_tool(self, tool: str): #vers 2
-        """Switch active draw tool, update button states and cursor."""
+    def _set_render_mode(self, mode: str): #vers 1
+        """Switch map grid render: color / bw / alpha."""
+        self._render_mode = mode
+        for m, b in self._render_btns.items():
+            b.setChecked(m == mode)
+        for idx, rgba in self._tile_rgba.items():
+            self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
+        self._radar.update()
+
+    def _apply_render_mode(self, rgba: bytes) -> bytes: #vers 1
+        """Apply render mode transform to rgba bytes for display only."""
+        if getattr(self, '_render_mode', 'color') == 'color': return rgba
+        out = bytearray(len(rgba))
+        for i in range(0, len(rgba)-3, 4):
+            r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
+            if self._render_mode == 'bw':
+                grey = int(0.299*r + 0.587*g + 0.114*b)
+                out[i:i+4] = [grey, grey, grey, a]
+            else:  # alpha
+                out[i:i+4] = [a, a, a, 255]
+        return bytes(out)
+
+    def _set_draw_tool(self, tool: str): #vers 3
+        """Switch active draw tool. Paste executes immediately."""
+        if tool == 'paste':
+            idx = self._current_idx
+            if idx >= 0 and getattr(self, '_clipboard_tile', None):
+                self._apply_tile_data(idx, self._clipboard_tile)
+                self._set_status(f"Pasted to tile {idx}")
+            tool = 'pencil'
         self._draw_tool = tool
         for name, btn in self._draw_btns.items():
             btn.setChecked(name == tool)
-        # Update cursor on the radar grid
         cursors = {
-            'pencil': Qt.CursorShape.CrossCursor,
-            'line':   Qt.CursorShape.CrossCursor,
-            'fill':   Qt.CursorShape.PointingHandCursor,
-            'picker': Qt.CursorShape.WhatsThisCursor,
+            'pencil':    Qt.CursorShape.CrossCursor,
+            'line':      Qt.CursorShape.CrossCursor,
+            'fill':      Qt.CursorShape.PointingHandCursor,
+            'rect':      Qt.CursorShape.CrossCursor,
+            'rect_fill': Qt.CursorShape.CrossCursor,
+            'cut':       Qt.CursorShape.ForbiddenCursor,
+            'picker':    Qt.CursorShape.WhatsThisCursor,
         }
         if hasattr(self, '_radar'):
             self._radar.setCursor(cursors.get(tool, Qt.CursorShape.ArrowCursor))
@@ -2137,6 +2378,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         QShortcut(QKeySequence("Ctrl+Z"), self).activated.connect(self._undo)
         QShortcut(QKeySequence("Ctrl+Y"), self).activated.connect(self._redo)
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self).activated.connect(self._redo)
+        QShortcut(QKeySequence(Qt.Key.Key_R), self).activated.connect(lambda: self._set_draw_tool('rect'))
+        QShortcut(QKeySequence("Shift+R"),    self).activated.connect(lambda: self._set_draw_tool('rect_fill'))
+        QShortcut(QKeySequence(Qt.Key.Key_X), self).activated.connect(lambda: self._set_draw_tool('cut'))
+        QShortcut(QKeySequence(Qt.Key.Key_V), self).activated.connect(lambda: self._set_draw_tool('paste'))
         # Draw tool keys
         QShortcut(QKeySequence(Qt.Key.Key_P), self).activated.connect(lambda: self._set_draw_tool('pencil'))
         QShortcut(QKeySequence(Qt.Key.Key_L), self).activated.connect(lambda: self._set_draw_tool('line'))
