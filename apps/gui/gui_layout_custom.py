@@ -2215,12 +2215,79 @@ RwTexDictionary (0x0016) chunk header [12 bytes]
 </table>
 """
 
+        # ── Radar Formats tab ─────────────────────────────────────────────────
+        radar_html = css + f"""
+<body>
+<h2>Radar Map Format Reference</h2>
+<p>Researched from binary inspection of sample files (Apr 2026).
+All radar tiles are <b>128×128 pixels</b> unless otherwise noted.</p>
+
+<h3>PC / PS2 / Xbox — Standard RW TXD tiles in IMG archive</h3>
+<table>
+<tr><th>Game</th><th>IMG File</th><th>Tile Names</th><th>Count</th><th>Grid</th><th>Pixel Format</th><th>IMG Version</th></tr>
+<tr><td>GTA III</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA VC</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA SA</td><td><b>gta.img</b> (not gta3.img)</td><td>radar00–radar99.txd</td><td>100</td><td>10×10</td><td>DXT1</td><td>VER2 self-contained</td></tr>
+<tr><td>GTA LCS</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA VCS</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
+<tr><td>GTA SOL</td><td>RadarTex.img</td><td>radar0000–radar1295.txd</td><td>1296</td><td>36×36</td><td>DXT1</td><td>V1/SOL (needs RadarTex.dir)</td></tr>
+</table>
+
+<h3>IMG V1 Note</h3>
+<p>V1 archives have <b>no header in the .img file</b> — all directory information is in a
+separate <code>.dir</code> file with 32-byte entries:
+<code>offset_sectors(4) + size_sectors(4) + name(24)</code>.
+The <code>.dir</code> file must be in the same folder as the <code>.img</code> file.</p>
+
+<h3>VER2 Entry Layout (GTA SA)</h3>
+<table>
+<tr><th>Offset</th><th>Type</th><th>Field</th></tr>
+<tr><td>0</td><td>uint32</td><td>offset in 2048-byte sectors</td></tr>
+<tr><td>4</td><td>uint16</td><td>streaming_size in sectors</td></tr>
+<tr><td>6</td><td>uint16</td><td>size in sectors (use streaming_size if 0)</td></tr>
+<tr><td>8</td><td>char[24]</td><td>null-terminated filename</td></tr>
+</table>
+<p>Header: <code>VER2</code> magic (4) + entry_count uint32 (4) = 8 bytes. Each entry = 32 bytes.</p>
+
+<h3>Android</h3>
+<table>
+<tr><th>Game</th><th>File</th><th>Format</th><th>Notes</th></tr>
+<tr><td>GTA III</td><td>gta3_unc.img (VER2)</td><td>Single RADAR.TXD</td><td>One 256×256 texture named 'radardisc' — whole map pre-rendered. Platform=12 (Android), ver=0x1005FFFF. Name at texture_data+20 (not +8 as in PC TXD).</td></tr>
+<tr><td>GTA VC</td><td>root/texdb</td><td>Proprietary texdb</td><td>Not tile-based. Requires texdb reader (TXD Workshop).</td></tr>
+<tr><td>GTA SA</td><td>txd.dxt.toc + txd.dxt.tmb + txd.dxt.dat</td><td>TOC/TMB/DAT</td><td>TOC: 8-byte header (dat_file_size + pad) + 293 × 8-byte (start, end) offset pairs. Chunks have 0x83Fxxxxx type — appear hashed/encrypted. TMB: ~156 bytes/entry, thumbnail data, no readable names. <b>Format not yet decoded.</b></td></tr>
+</table>
+
+<h3>iOS</h3>
+<table>
+<tr><th>Game</th><th>File</th><th>Format</th><th>Notes</th></tr>
+<tr><td>GTA LCS</td><td>gta3.pvr</td><td>VER2 IMG with PVRTC tiles</td><td>Same VER2 format as SA PC. Texture native platform=8. PVRTC compressed. radar00–radar63.txd inside.</td></tr>
+<tr><td>GTA SA</td><td>txd.dxt.toc/tmb/dat</td><td>TOC/TMB/DAT</td><td>Same format as Android SA. <b>Not yet decoded.</b></td></tr>
+</table>
+
+<h3>PSP</h3>
+<table>
+<tr><th>Game</th><th>Extension</th><th>Magic</th><th>Format</th><th>Notes</th></tr>
+<tr><td>GTA LCS</td><td>.chk</td><td><code>78 65 74 00</code> ("xet\0")</td><td>PSP GIM/XTX</td><td>Header: magic(4)+0(4)+filesize(4)+datasize(4)+datasize(4)+flags(4)+… Pixel data at ~offset 160. ~132KB total = 256×256 PSP 16bpp. <b>Decoder not yet implemented.</b></td></tr>
+<tr><td>GTA VCS</td><td>.xtx</td><td><code>78 65 74 00</code> ("xet\0")</td><td>PSP GIM/XTX</td><td>Identical structure to LCS .chk. Same magic, same sizes. <b>Decoder not yet implemented.</b></td></tr>
+</table>
+
+<h3>TODO — Formats Not Yet Supported</h3>
+<table>
+<tr><th>Format</th><th>Games</th><th>What's Needed</th></tr>
+<tr><td>TOC/TMB/DAT</td><td>SA Android, SA iOS</td><td>Reverse-engineer 0x83Fxxxxx chunk headers. Likely hashed filenames + compressed TXD data.</td></tr>
+<tr><td>PSP GIM/XTX ('xet\0')</td><td>LCS PSP, VCS PSP</td><td>Parse header to find pixel format + dimensions. Decode PSP 16bpp (likely BGR5551 or ABGR4444). Implement in Radar Workshop.</td></tr>
+<tr><td>iOS PVRTC</td><td>LCS iOS</td><td>PVRTC decode already in TXD Workshop — port to Radar Workshop RadarTxdReader.</td></tr>
+<tr><td>VC Android texdb</td><td>VC Android</td><td>Separate texdb reader system. Not radar-specific.</td></tr>
+</table>
+</body>"""
+
         tabs.addTab(make_tab(img_html),    "IMG Formats")
         tabs.addTab(make_tab(ver_html),    "RW Versions")
         tabs.addTab(make_tab(txd_html),    "TXD / Textures")
         tabs.addTab(make_tab(col_html),    "COL Collision")
         tabs.addTab(make_tab(dat_html),    "DAT / IDE / IPL")
         tabs.addTab(make_tab(matrix_html), "Platform Matrix")
+        tabs.addTab(make_tab(radar_html),  "Radar Formats")
         tabs.addTab(make_tab(notes_html),  "Troubleshooting")
 
         close_btn = QPushButton("Close")
