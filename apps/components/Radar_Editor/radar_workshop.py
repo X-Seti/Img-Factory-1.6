@@ -124,7 +124,7 @@ GAME_PRESETS = {
     "SA PC":   {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA San Andreas (PC/PS2/Xbox)",
-                "hint":"Load gta.img — contains radar00.txd to radar99.txd (10x10 grid)"},
+                "hint":"Load gta.img (SA uses gta.img, not gta3.img) — radar00.txd to radar99.txd"},
     "LCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Liberty City Stories (PC/PS2)",
@@ -420,7 +420,7 @@ class RadarPaletteWidget(QWidget):
     color_picked   = pyqtSignal(QColor)   # left-click  → foreground
     color_picked_bg = pyqtSignal(QColor)  # right-click → background
 
-    CELL = 20   # cell size px
+    CELL = 16   # cell size px — fits 2 rows in 36px strip
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -581,7 +581,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         # Radar state
         self._img_reader:   Optional[ImgReader] = None
         self._img_path:     str = ""
-        self._game_preset:  dict = GAME_PRESETS["SA"]
+        self._game_preset:  dict = GAME_PRESETS["SA PC"]
         self._current_idx:  int  = -1
         self._tile_rgba:    Dict[int, bytes] = {}
         self._tile_entries: List[dict] = []
@@ -601,7 +601,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.setup_ui()
         #self._setup_hotkeys()
         self._apply_theme()
-        self._apply_preset("SA")
+        self._apply_preset("SA PC")
 
     def get_content_margins(self): #vers 1
         return (self.contmergina,self.contmerginb,self.contmerginc,self.contmergind)
@@ -699,7 +699,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         layout.addWidget(QLabel("Game:"))
         self._game_combo = QComboBox()
         self._game_combo.addItems(list(GAME_PRESETS))
-        self._game_combo.setCurrentText("SA")
+        self._game_combo.setCurrentText("SA PC")
         self._game_combo.currentTextChanged.connect(self._on_game_changed)
         layout.addWidget(self._game_combo)
 
@@ -820,15 +820,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # --- Right panel: settings
-    def _create_right_panel(self): #vers 7
-        """Radar grid (centre) + right sidebar: nav, draw tools, palette."""
+    def _create_right_panel(self): #vers 8
+        """Radar grid + bottom palette strip + right sidebar: zoom/tools/swatches."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         hl = QHBoxLayout(panel)
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(0)
 
-        # ── Centre: grid + palette stacked vertically ────────────────────────
+        # ── Centre: grid + palette strip ─────────────────────────────────────
         centre = QWidget()
         cl = QVBoxLayout(centre)
         cl.setContentsMargins(0, 0, 0, 0)
@@ -840,14 +840,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sc.setWidget(self._radar)
         sc.setWidgetResizable(True)
         sc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._radar_scroll = sc          # keep ref for zoom
         cl.addWidget(sc, 1)
 
+        # Palette strip — height auto-sizes to fit colours (2 rows of 16px cells)
         self._palette_widget = RadarPaletteWidget()
         self._palette_widget.color_picked.connect(self._on_palette_color)
         self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
-        self._palette_widget.setFixedHeight(52)
+        self._palette_widget.setFixedHeight(36)   # 2 rows × 16px + 4px padding
         cl.addWidget(self._palette_widget)
-
         hl.addWidget(centre, 1)
 
         # ── Right sidebar ─────────────────────────────────────────────────────
@@ -862,86 +863,91 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         def _nb(icon_fn, tip, slot, checkable=False):
             b = QToolButton()
-            b.setFixedSize(44, 36)
+            b.setFixedSize(44, 32)
             if icon_fn:
-                b.setIcon(getattr(SVGIconFactory, icon_fn)(20, icon_color))
-                b.setIconSize(QSize(20, 20))
+                try:
+                    b.setIcon(getattr(SVGIconFactory, icon_fn)(18, icon_color))
+                    b.setIconSize(QSize(18, 18))
+                except Exception: pass
             b.setToolTip(tip)
             b.setCheckable(checkable)
             b.clicked.connect(slot)
             sl.addWidget(b)
             return b
 
-        # Nav tools
-        _nb('open_icon',  "Zoom in",       lambda: self._zoom(1.25))
-        _nb('open_icon',  "Zoom out",      lambda: self._zoom(0.8))
-        _nb('view_icon',  "Fit grid",      self._fit)
-        _nb('search_icon',"Jump to tile",  self._jump)
+        # ── Zoom tools ────────────────────────────────────────────────────────
+        _nb('manage_icon',  "Zoom in (×1.25)",   lambda: self._zoom(1.25))
+        _nb('filter_icon',  "Zoom out (×0.8)",   lambda: self._zoom(0.8))
+        _nb('view_icon',    "Fit grid",           self._fit)
+        _nb('search_icon',  "Jump to selected",  self._jump)
 
-        sl.addSpacing(6)
-        sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine); sl.addWidget(sep1)
+        sl.addSpacing(4)
+        sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
+        sl.addWidget(sep1)
         sl.addSpacing(4)
 
-        # Draw tools (checkable — only one active at a time)
+        # ── Draw tools ────────────────────────────────────────────────────────
         self._draw_tool = 'pencil'
         self._draw_btns = {}
 
         def _tool_btn(icon_fn, tip, tool_name):
-            b = _nb(icon_fn, tip, lambda checked=False, t=tool_name: self._set_draw_tool(t), checkable=True)
+            b = _nb(icon_fn, tip, lambda checked=False, t=tool_name: self._set_draw_tool(t),
+                    checkable=True)
             self._draw_btns[tool_name] = b
             return b
 
-        self._draw_btns['pencil'] = _tool_btn('paint_icon',    "Pencil — draw pixels",    'pencil')
-        self._draw_btns['fill']   = _tool_btn('edit_icon',     "Fill — flood fill",       'fill')
-        self._draw_btns['picker'] = _tool_btn('filter_icon',   "Dropper — pick colour",   'picker')
+        _tool_btn('paint_icon',   "Pencil — draw pixels (P)",  'pencil')
+        _tool_btn('edit_icon',    "Line — draw a line (L)",    'line')
+        _tool_btn('add_icon',     "Fill — flood fill (F)",     'fill')
+        _tool_btn('filter_icon',  "Dropper — pick colour (K)", 'picker')
         self._draw_btns['pencil'].setChecked(True)
 
-        sl.addSpacing(6)
-        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine); sl.addWidget(sep2)
+        sl.addSpacing(4)
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
+        sl.addWidget(sep2)
         sl.addSpacing(4)
 
-        # Game selector (mini)
-        gl = QLabel("Game")
-        gl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        gl.setStyleSheet("font-size:9px;")
-        sl.addWidget(gl)
-        self._game_combo2 = QComboBox()
-        self._game_combo2.addItems(list(GAME_PRESETS))
-        self._game_combo2.setCurrentText("SA")
-        self._game_combo2.setMaximumWidth(48)
-        self._game_combo2.currentTextChanged.connect(self._on_game_changed)
-        sl.addWidget(self._game_combo2)
+        # ── FG/BG colour swatches ─────────────────────────────────────────────
+        sw_lbl = QLabel("FG/BG")
+        sw_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sw_lbl.setStyleSheet("font-size:9px;")
+        sl.addWidget(sw_lbl)
 
-        sl.addStretch()
-
-        # Foreground/background colour swatches
-        swatch_lbl = QLabel("FG/BG")
-        swatch_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        swatch_lbl.setStyleSheet("font-size:9px;")
-        sl.addWidget(swatch_lbl)
-        self._fg_btn = QPushButton()
-        self._fg_btn.setFixedSize(44, 20)
-        self._fg_btn.setToolTip("Foreground colour (click to pick)")
-        self._fg_btn.clicked.connect(self._pick_fg_color)
-        sl.addWidget(self._fg_btn)
-        self._bg_btn = QPushButton()
-        self._bg_btn.setFixedSize(44, 20)
-        self._bg_btn.setToolTip("Background colour (click to pick)")
-        self._bg_btn.clicked.connect(self._pick_bg_color)
-        sl.addWidget(self._bg_btn)
         self._fg_color = QColor(255, 255, 255)
         self._bg_color = QColor(0, 0, 0)
+
+        self._fg_btn = QPushButton()
+        self._fg_btn.setFixedSize(44, 18)
+        self._fg_btn.setToolTip("Foreground (left-click to pick)")
+        self._fg_btn.clicked.connect(self._pick_fg_color)
+        sl.addWidget(self._fg_btn)
+
+        self._bg_btn = QPushButton()
+        self._bg_btn.setFixedSize(44, 18)
+        self._bg_btn.setToolTip("Background (right-click palette for BG)")
+        self._bg_btn.clicked.connect(self._pick_bg_color)
+        sl.addWidget(self._bg_btn)
         self._update_swatch_buttons()
 
+        sl.addStretch()
         hl.addWidget(sidebar)
 
         return panel
 
-    def _set_draw_tool(self, tool: str): #vers 1
-        """Switch active draw tool and update button states."""
+    def _set_draw_tool(self, tool: str): #vers 2
+        """Switch active draw tool, update button states and cursor."""
         self._draw_tool = tool
         for name, btn in self._draw_btns.items():
             btn.setChecked(name == tool)
+        # Update cursor on the radar grid
+        cursors = {
+            'pencil': Qt.CursorShape.CrossCursor,
+            'line':   Qt.CursorShape.CrossCursor,
+            'fill':   Qt.CursorShape.PointingHandCursor,
+            'picker': Qt.CursorShape.WhatsThisCursor,
+        }
+        if hasattr(self, '_radar'):
+            self._radar.setCursor(cursors.get(tool, Qt.CursorShape.ArrowCursor))
 
     def _pick_fg_color(self): #vers 1
         from PyQt6.QtWidgets import QColorDialog
@@ -1259,12 +1265,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             c.setVisible(on)
 
 
-    def _on_game_changed(self, game): #vers 1
+    def _on_game_changed(self, game): #vers 2
         cust = (game == "Custom")
         for s in [self._cols_spin, self._rows_spin]: s.setEnabled(cust)
-        for c in [self._game_combo, self._game_combo2]:
-            if c.currentText() != game:
-                c.blockSignals(True); c.setCurrentText(game); c.blockSignals(False)
+        if hasattr(self, '_game_combo') and self._game_combo.currentText() != game:
+            self._game_combo.blockSignals(True)
+            self._game_combo.setCurrentText(game)
+            self._game_combo.blockSignals(False)
         self._apply_preset(game)
 
 
@@ -1574,11 +1581,41 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         except Exception as e: QMessageBox.critical(self,"Import Error",str(e))
 
     # - Grid nav
-    def _zoom(self, f): #vers 1
-        self._radar.resize(max(200,int(self._radar.width()*f)),max(200,int(self._radar.height()*f)))
-    def _fit(self): #vers 1
-        sc=self._radar.parentWidget()
-        if sc: self._radar.resize(sc.width()-4,sc.height()-4)
+    def _zoom(self, f): #vers 2
+        """Scale the radar grid by adjusting its zoom level."""
+        if not hasattr(self, '_grid_zoom'): self._grid_zoom = 1.0
+        self._grid_zoom = max(0.1, min(8.0, self._grid_zoom * f))
+        self._apply_grid_zoom()
+
+    def _apply_grid_zoom(self): #vers 1
+        """Apply current zoom level to radar grid size."""
+        if not hasattr(self, '_grid_zoom'): self._grid_zoom = 1.0
+        sc = getattr(self, '_radar_scroll', None)
+        if sc is None:
+            # find scroll area parent
+            p = self._radar.parent()
+            while p:
+                from PyQt6.QtWidgets import QScrollArea
+                if isinstance(p, QScrollArea): sc = p; break
+                p = p.parent()
+        if sc is None: return
+        vp_w = sc.viewport().width()
+        vp_h = sc.viewport().height()
+        preset = self._game_preset
+        cols = preset["cols"]; rows = preset.get("rows", 8)
+        if self._grid_zoom <= 1.0:
+            # Fit mode — let scroll area control size
+            self._radar.setMinimumSize(0, 0)
+        else:
+            # Fixed size mode — set explicit size
+            cell = max(4, int(self._grid_zoom * min(vp_w // cols, vp_h // rows)))
+            self._radar.setMinimumSize(cell * cols, cell * rows)
+        self._radar.update()
+
+    def _fit(self): #vers 2
+        """Reset to fit-in-window zoom."""
+        self._grid_zoom = 1.0
+        self._apply_grid_zoom()
     def _jump(self): #vers 1
         if self._current_idx>=0:
             self._tile_list.scrollToItem(self._tile_list.item(self._current_idx),QAbstractItemView.ScrollHint.PositionAtCenter)
