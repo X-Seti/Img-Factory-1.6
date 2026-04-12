@@ -93,18 +93,6 @@ except ImportError:
         def _get_tool_menu_style(self): return 'dropdown'
 
 
-# - Try importing shared infrastructure
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-    ICONS_AVAILABLE = True
-except ImportError:
-    ICONS_AVAILABLE = False
-    class SVGIconFactory:
-        def __getattr__(self, name):
-            return lambda *a, **k: QIcon()
-        @staticmethod
-        def clear_cache(): pass
-
 # - Game presets
 def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
@@ -710,7 +698,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
-    def get_menu_title(self): return App_name  # vers 1
     def _build_menus_into_qmenu(self, pm): #vers 2
         fm = pm.addMenu("File")
         fm.addAction("Load IMG…",          self._open_file)
@@ -1651,24 +1638,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if hasattr(self,'dock_btn'): self.dock_btn.setVisible(not self.is_docked)
         if hasattr(self,'tearoff_btn'): self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
 
-    def toggle_dock_mode(self): #vers 1
-        if self.is_docked: self._undock_from_main()
-        else: self._dock_to_main()
-        self._update_dock_button_visibility()
-
-    def _toggle_tearoff(self): #vers 1
-        if self.is_docked: self._undock_from_main()
-        else: self._dock_to_main()
-
-    def _dock_to_main(self): #vers 1
-        self.is_docked=True; self._update_dock_button_visibility(); self.show(); self.raise_()
-
-    def _undock_from_main(self): #vers 1
-        self.setWindowFlags(Qt.WindowType.Window); self.is_docked=False
-        self._update_dock_button_visibility(); self.resize(1400,860); self.show(); self.raise_()
-
-
-    # - Hotkeys (template pattern)
     def _setup_hotkeys(self): #vers 1
         self.hotkey_open  = QShortcut(QKeySequence.StandardKey.Open,  self); self.hotkey_open.activated.connect(self._open_file)
         self.hotkey_save  = QShortcut(QKeySequence.StandardKey.Save,  self); self.hotkey_save.activated.connect(self._save_file)
@@ -1690,31 +1659,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if self.main_window and hasattr(self.main_window,'log_message'):
             self.main_window.log_message(f"{App_name} hotkeys ready")
 
-
-    def _apply_theme(self): #Vers 1
-        try:
-            app_settings = self.app_settings
-            if not app_settings and self.main_window:
-                app_settings = getattr(self.main_window, 'app_settings', None)
-            if app_settings:
-                self.setStyleSheet(app_settings.get_stylesheet())
-                # Apply theme colours to status labels
-                colors = app_settings.get_theme_colors()
-                secondary = colors.get('text_secondary', '#aaaaaa')
-                if hasattr(self, 'typing_label'):
-                    self.typing_label.setStyleSheet(
-                        f"color: {secondary}; font-style: italic;")
-            else:
-                self.setStyleSheet("""
-                    QWidget { background-color: #2b2b2b; color: #e0e0e0; }
-                    QTextEdit, QListWidget { background-color: #1e1e1e; border: 1px solid #3a3a3a; }
-                    QGroupBox { border: 1px solid #3a3a3a; margin-top: 6px; }
-                """)
-            # Redraw chat bubbles with updated theme colours
-            self._redraw_chat()
-            self._update_ollama_status()
-        except Exception as e:
-            print(f"[AI Workshop] Theme error: {e}")
 
     def _refresh_icons(self): #Vers 1
         SVGIconFactory.clear_cache()
@@ -2146,13 +2090,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Theme & icon helpers (template pattern)
-    def _get_icon_color(self): #vers 1
-        if self.app_settings:
-            c=self.app_settings.get_theme_colors()
-            if c: return c.get('text_primary','#ffffff')
-        return '#ffffff'
-
-
     def _apply_theme(self): #vers 1
         try:
             if self.app_settings:
