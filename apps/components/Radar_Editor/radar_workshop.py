@@ -50,7 +50,7 @@ DEBUG_STANDALONE = False
 App_name  = "Radar Workshop"
 App_build = "Apr 2026"
 App_auth  = "X-Seti"
-Build     = "1"
+Build     = "build 12"
 
 
 # ── Infrastructure imports
@@ -1053,10 +1053,11 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         layout.addWidget(self.settings_btn)
 
         layout.addSpacing(8)
+        layout.addStretch()
 
         # - App name + version label (centre-left of toolbar)
-        self._title_lbl = QLabel(f"{App_name}  v{Build}")
-        self._title_lbl.setStyleSheet("font-size:10px; color: palette(mid);")
+        self._title_lbl = QLabel(f"{App_name} - {Build}")
+        self._title_lbl.setStyleSheet("")
         self._title_lbl.setVisible(self.standalone_mode)
         layout.addWidget(self._title_lbl)
 
@@ -1191,7 +1192,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._tile_list.customContextMenuRequested.connect(self._on_tile_list_context)
         self._tile_list.itemDoubleClicked.connect(lambda item: self._edit_tile_popup(item.idx))
         vl.addWidget(self._tile_list, 1)
-
+        # TODO add bitdepth after tile size
         self._dirty_lbl = QLabel("Modified: 0")
         self._dirty_lbl.setFont(self.infobar_font)
         vl.addWidget(self._dirty_lbl)
@@ -2397,8 +2398,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             t = QTextEdit(); t.setReadOnly(True); t.setHtml(html); return t
 
         # ── Quick Start ────────────────────────────────────────────────────────
+        # App_name App_build App_auth Build = TODO - add auther info above Quickstart
         quickstart = """<h3>Quick Start</h3>
 <ol>
+<li>
 <li><b>Open an IMG file</b> — click the <b>Open</b> button or press <b>Ctrl+O</b>.<br>
     Load <code>gta3.img</code> for GTA III / VC / SA / LCS / VCS, or <code>RadarTex.img</code> for SOL.</li>
 <li><b>Game auto-detected</b> by tile count — 64 tiles = 8×8 grid, 144 = 12×12, 1296 = 36×36.</li>
