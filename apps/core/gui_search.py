@@ -438,24 +438,30 @@ class ASearchDialog(QDialog):
         self._setup_ui()
         from apps.core.theme_utils import apply_dialog_theme
         apply_dialog_theme(self)
-        # Live filter as user types
-        self.search_input.textChanged.connect(self._on_text_changed)
+        # Filter on type-change (extension combo), Enter key, or Find button
+        # Note: textChanged NOT connected — user presses Find or Enter to search
         self.ext_combo.currentIndexChanged.connect(self._apply_filter)
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
-        # ── Search row ─────────────────────────────────────────────────────
+        # ── Search row with Find button ────────────────────────────────────
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Search:"))
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Name, extension, or RW version…")
+        self.search_input.setPlaceholderText("Name, extension, type…")
         self.search_input.setClearButtonEnabled(True)
+        self.search_input.returnPressed.connect(self._apply_filter)
         row1.addWidget(self.search_input, 1)
+        self.find_btn = QPushButton("Find")
+        self.find_btn.setDefault(True)
+        self.find_btn.setFixedWidth(60)
+        self.find_btn.clicked.connect(self._apply_filter)
+        row1.addWidget(self.find_btn)
         layout.addLayout(row1)
 
-        # ── Extension filter ───────────────────────────────────────────────
+        # ── Extension/type filter ──────────────────────────────────────────
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Type:"))
         self.ext_combo = QComboBox()
@@ -467,19 +473,17 @@ class ASearchDialog(QDialog):
         opt_row = QHBoxLayout()
         self.case_chk  = QCheckBox("Case sensitive")
         self.regex_chk = QCheckBox("Regex")
-        self.case_chk.stateChanged.connect(self._apply_filter)
-        self.regex_chk.stateChanged.connect(self._apply_filter)
         opt_row.addWidget(self.case_chk)
         opt_row.addWidget(self.regex_chk)
         opt_row.addStretch()
         layout.addLayout(opt_row)
 
         # ── Results summary ────────────────────────────────────────────────
-        self.result_lbl = QLabel("Type to filter…")
+        self.result_lbl = QLabel("Enter search text or select type and click Find")
         self.result_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
         layout.addWidget(self.result_lbl)
 
-        # ── Nav buttons ────────────────────────────────────────────────────
+        # ── Nav + action buttons ───────────────────────────────────────────
         btn_row = QHBoxLayout()
         self.prev_btn  = QPushButton("◀ Prev")
         self.next_btn  = QPushButton("Next ▶")
