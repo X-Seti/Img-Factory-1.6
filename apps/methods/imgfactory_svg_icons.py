@@ -3966,6 +3966,109 @@ def get_locate_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
 SVGIconFactory.locate_icon = staticmethod(get_locate_icon)
 
 
+def get_line_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Diagonal line from top-left to bottom-right."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <line x1="3" y1="3" x2="17" y2="17" stroke="{c}" stroke-width="2.2"
+            stroke-linecap="round"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.line_icon = staticmethod(get_line_icon)
+
+
+def get_rect_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Rect outline — empty square."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="3" width="14" height="14" fill="none"
+            stroke="{c}" stroke-width="2" rx="1"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.rect_icon = staticmethod(get_rect_icon)
+
+
+def get_rect_fill_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Filled rect — solid square."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="3" width="14" height="14" fill="{c}" rx="1"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.rect_fill_icon = staticmethod(get_rect_fill_icon)
+
+
+def get_scissors_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Scissors — cut tool."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <!-- Left blade -->
+      <circle cx="5" cy="15" r="2.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <!-- Right blade -->
+      <circle cx="9" cy="15" r="2.5" fill="none" stroke="{c}" stroke-width="1.5"/>
+      <!-- Left arm -->
+      <line x1="7" y1="13.5" x2="16" y2="3" stroke="{c}" stroke-width="1.8"
+            stroke-linecap="round"/>
+      <!-- Right arm -->
+      <line x1="11" y1="13.5" x2="16" y2="3" stroke="{c}" stroke-width="1.8"
+            stroke-linecap="round"/>
+      <!-- Cross point -->
+      <circle cx="13.5" cy="8" r="1" fill="{c}"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.scissors_icon = staticmethod(get_scissors_icon)
+
+
+def get_paste_brush_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Paste brush — clipboard with brush tip."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <!-- Clipboard body -->
+      <rect x="4" y="5" width="10" height="12" rx="1" fill="none"
+            stroke="{c}" stroke-width="1.5"/>
+      <!-- Clipboard clip -->
+      <rect x="7" y="3" width="6" height="3" rx="1" fill="none"
+            stroke="{c}" stroke-width="1.2"/>
+      <!-- Brush handle -->
+      <line x1="14" y1="13" x2="18" y2="17" stroke="{c}" stroke-width="2"
+            stroke-linecap="round"/>
+      <!-- Brush tip -->
+      <circle cx="18" cy="17" r="1.5" fill="{c}"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.paste_brush_icon = staticmethod(get_paste_brush_icon)
+
+
 def get_radar_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Radar Workshop — circular radar sweep with map tiles grid."""
     svg = '''<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">

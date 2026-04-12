@@ -1773,14 +1773,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._draw_btns[tool_name] = b
             return b
 
-        _row(_tool_btn('paint_icon',   "Pencil (P)",         'pencil'),
-             _tool_btn('editer_icon',  "Line (L)",           'line'))
-        _row(_tool_btn('fill_icon',    "Flood fill (F)",     'fill'),
-             _tool_btn('dropper_icon', "Pick colour (K)",    'picker'))
-        _row(_tool_btn('open_icon',    "Rect outline (R)",   'rect'),
-             _tool_btn('save_icon',    "Filled rect (Shift+R)", 'rect_fill'))
-        _row(_tool_btn('export_icon',  "Cut tile (X)",       'cut'),
-             _tool_btn('import_icon',  "Paste (V)",          'paste'))
+        _row(_tool_btn('paint_icon',       "Pencil (P)",            'pencil'),
+             _tool_btn('line_icon',        "Line (L)",              'line'))
+        _row(_tool_btn('fill_icon',        "Flood fill (F)",        'fill'),
+             _tool_btn('dropper_icon',     "Pick colour (K)",       'picker'))
+        _row(_tool_btn('rect_icon',        "Rect outline (R)",      'rect'),
+             _tool_btn('rect_fill_icon',   "Filled rect (Shift+R)", 'rect_fill'))
+        _row(_tool_btn('scissors_icon',    "Cut tile (X)",          'cut'),
+             _tool_btn('paste_brush_icon', "Paste (V)",             'paste'))
         self._draw_btns['pencil'].setChecked(True)
 
         _sep()
