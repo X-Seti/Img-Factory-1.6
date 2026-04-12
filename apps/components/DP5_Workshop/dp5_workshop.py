@@ -47,7 +47,7 @@ from PyQt6.QtGui import (
 App_name = "DP5 Workshop"
 DEBUG_STANDALONE = False
 
-# ── Tool IDs ──────────────────────────────────────────────────────────────────
+# - Tool IDs
 TOOL_PENCIL        = 'pencil'
 TOOL_ERASER        = 'eraser'
 TOOL_FILL          = 'fill'
@@ -87,7 +87,7 @@ SHAPE_FILL_PAIRS = {
     TOOL_LASSO:    TOOL_FILLED_LASSO,
 }
 
-# ── Try importing shared infrastructure ───────────────────────────────────────
+# - Try importing shared infrastructure
 try:
     from apps.gui.tool_menu_mixin import ToolMenuMixin as _ToolMenuMixin
 except Exception:
@@ -208,7 +208,7 @@ def _make_tool_icon(shape: str, size: int = 42,
             except Exception:
                 pass  # fall through to QPainter
 
-# - QPainter fallback (shapes, lasso, select, text, etc.) ────────────────
+    # - QPainter fallback (shapes, lasso, select, text, etc.)
     import math as _m
 
     tile_bg = QColor('#1e1e24') if not active else QColor('#d8d8e0')
@@ -264,7 +264,6 @@ def _make_tool_icon(shape: str, size: int = 42,
             elif cmd == 'Z': pa.closeSubpath()
         return pa
 
-    # ─────────────────────────────────────────────────────────────────────────
 
     if shape == 'pencil':
         # Photoshop-style pencil: long diagonal body, pointed tip bottom-left,
@@ -592,8 +591,6 @@ def _make_tool_icon(shape: str, size: int = 42,
 
 
 #  DP5Settings — per-tool settings (JSON, separate from global AppSettings)
-
-
 class DP5Settings:
     """
     Lightweight JSON settings for DP5 Workshop.
@@ -671,14 +668,14 @@ class DP5SettingsDialog(QDialog):
     def __init__(self, dp5_settings: DP5Settings, parent=None): #vers 3
         super().__init__(parent)
         self.s = dp5_settings
-        self.setWindowTitle("DP5 Workshop — Settings")
+        self.setWindowTitle(App_name + " - Settings")
         self.setMinimumWidth(380)
         self.setModal(True)
 
         root = QVBoxLayout(self)
         tabs = QTabWidget()
 
-        # ── Canvas tab ──────────────────────────────────────────────────────
+        # - Canvas tab
         canvas_tab = QWidget()
         cl = QFormLayout(canvas_tab)
         cl.setSpacing(8)
@@ -753,7 +750,7 @@ class DP5SettingsDialog(QDialog):
 
         tabs.addTab(canvas_tab, "Canvas")
 
-        # ── Interface tab ────────────────────────────────────────────────────
+        # - Interface tab
         ui_tab = QWidget()
         ul = QFormLayout(ui_tab)
         ul.setSpacing(8)
@@ -789,7 +786,7 @@ class DP5SettingsDialog(QDialog):
 
         tabs.addTab(ui_tab, "Interface")
 
-        # ── Gadgets tab ──────────────────────────────────────────────────────
+        # - Gadgets tab
         gadgets_tab = QWidget()
         gl = QVBoxLayout(gadgets_tab)
         gl.setSpacing(4)
@@ -834,7 +831,8 @@ class DP5SettingsDialog(QDialog):
             self._gadget_chks[tool_id] = btn
         gl.addWidget(grid_w)
         gl.addStretch()
-        # ── Menu tab ─────────────────────────────────────────────────────────
+
+        # - Menu tab ─
         menu_tab = QWidget()
         ml = QFormLayout(menu_tab)
         ml.setSpacing(8)
@@ -3568,7 +3566,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         # Initial tool
         QTimer.singleShot(0, lambda: self._select_tool(TOOL_PENCIL))
 
-    # ── Toolbar (standalone titlebar) ─────────────────────────────────────────
+    # - Toolbar (standalone titlebar)
 
 
     def _create_toolbar(self): #vers 2
@@ -3589,7 +3587,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         icon_color = self._get_icon_color()
 
-        # ── _tb helper — adds button to layout with optional SVG icon ─────
+        # -_tb helper — adds button to layout with optional SVG icon
         def _tb(text, tip, slot, icon_fn=None):
             btn = QPushButton(text)
             btn.setFont(self.button_font)
@@ -3606,7 +3604,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             layout.addWidget(btn)
             return btn
 
-        # ── Cog / Settings (standalone only) ──────────────────────────────
+        # - Cog / Settings (standalone only)
         self.menu_toggle_btn = QPushButton("Menu")
         self.menu_toggle_btn.setFont(self.button_font)
         self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
@@ -3628,7 +3626,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         layout.addStretch()
 
-        # ── Title with DP5 icon ────────────────────────────────────────────
+        # - Title with DP5 icon
         title_row = QHBoxLayout()
         title_row.setSpacing(6)
         dp5_icon_lbl = QLabel()
@@ -3649,7 +3647,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         layout.addStretch()
 
-        # ── [New][Load][Save][Undo][Clear][Brushes] after title ──────────────
+        # - [New][Load][Save][Undo][Clear][Brushes] after title
         self.tb_new_btn    = _tb("New",    "New canvas… (right-click to set mode)",
                                   self._new_canvas,
                                   SVGIconFactory.new_icon)
@@ -7110,7 +7108,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             TEX_PRESETS, 256, 256, 0)
         tabs.addTab(tex_tab, "Texture")
 
-        # ── Icon tab ───────────────────────────────────────────────────────
+        # - Icon tab
         ICON_PRESETS = [
             ("Custom",               0,   0,  0),
             ("── Windows ICO ──",    0,   0,  0),
@@ -7137,7 +7135,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             ICON_PRESETS, 32, 32, 0)
         tabs.addTab(icon_tab, "Icon")
 
-        # ── Free tab ───────────────────────────────────────────────────────
+
+        # = Free tab
         FREE_PRESETS = [
             ("Custom",               0,    0,  0),
             ("HD     1280×720",   1280,  720,  1),
@@ -10411,6 +10410,52 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Corner resize + dragging (COL Workshop pattern) ───────────────────────
 
+    def _update_transform_text_panel_visibility(self): #vers 2
+        """Toggle between text+icon panel (wide) and icon-only strip (narrow).
+        Reads threshold from IMG Factory settings. Also collapses bottom buttons."""
+        tp   = getattr(self, '_transform_text_panel_ref', None)
+        ip   = getattr(self, '_transform_icon_panel_ref', None)
+        mode = getattr(self, 'button_display_mode', 'both')
+
+        if mode == 'icons':
+            if tp: tp.setVisible(False)
+            if ip: ip.setVisible(True)
+            return
+        if mode == 'text':
+            if tp: tp.setVisible(True)
+            if ip: ip.setVisible(False)
+            return
+
+        # Measure right panel width directly
+        rp = getattr(self, '_right_panel_ref', None)
+        if rp:
+            ref_w = rp.width()
+        else:
+            splitter = getattr(self, '_main_splitter', None)
+            ref_w = self.width()
+            if splitter and tp:
+                w = tp
+                while w and w.parent() is not splitter:
+                    w = w.parent() if hasattr(w, 'parent') else None
+                if w:
+                    ref_w = w.width()
+
+        try:
+            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
+            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
+        except Exception:
+            threshold = 550
+        wide = ref_w >= threshold
+        if tp: tp.setVisible(wide)
+        if ip: ip.setVisible(not wide)
+
+        # Toggle bottom panel rows the same way
+        btr = getattr(self, '_bottom_text_row', None)
+        bir = getattr(self, '_bottom_icon_row', None)
+        if btr: btr.setVisible(wide)
+        if bir: bir.setVisible(not wide)
+
+
     def _get_resize_corner(self, pos): #vers 1
         size = self.corner_size; w = self.width(); h = self.height()
         if pos.x() < size and pos.y() < size:           return "top-left"
@@ -10428,6 +10473,36 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             "bottom-left":  Qt.CursorShape.SizeBDiagCursor,
         }
         self.setCursor(cursors.get(direction, Qt.CursorShape.ArrowCursor))
+
+
+    def _get_resize_direction(self, pos): #vers 1
+        """Determine resize direction based on mouse position"""
+        rect = self.rect()
+        margin = self.resize_margin
+
+        left = pos.x() < margin
+        right = pos.x() > rect.width() - margin
+        top = pos.y() < margin
+        bottom = pos.y() > rect.height() - margin
+
+        if left and top:
+            return "top-left"
+        elif right and top:
+            return "top-right"
+        elif left and bottom:
+            return "bottom-left"
+        elif right and bottom:
+            return "bottom-right"
+        elif left:
+            return "left"
+        elif right:
+            return "right"
+        elif top:
+            return "top"
+        elif bottom:
+            return "bottom"
+
+        return None
 
 
     def _is_on_draggable_area(self, pos): #vers 1
@@ -10510,6 +10585,41 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             nh = geometry.height() - delta.y()
             if nw >= min_w and nh >= min_h:
                 self.setGeometry(nx, ny, nw, nh)
+
+
+    def _handle_resize(self, global_pos): #vers 1
+        """Handle window resizing"""
+        if not self.resize_direction or not self.drag_position:
+            return
+
+        delta = global_pos - self.drag_position
+        geometry = self.frameGeometry()
+
+        min_width = 800
+        min_height = 600
+
+        # Handle horizontal resizing
+        if "left" in self.resize_direction:
+            new_width = geometry.width() - delta.x()
+            if new_width >= min_width:
+                geometry.setLeft(geometry.left() + delta.x())
+        elif "right" in self.resize_direction:
+            new_width = geometry.width() + delta.x()
+            if new_width >= min_width:
+                geometry.setRight(geometry.right() + delta.x())
+
+        # Handle vertical resizing
+        if "top" in self.resize_direction:
+            new_height = geometry.height() - delta.y()
+            if new_height >= min_height:
+                geometry.setTop(geometry.top() + delta.y())
+        elif "bottom" in self.resize_direction:
+            new_height = geometry.height() + delta.y()
+            if new_height >= min_height:
+                geometry.setBottom(geometry.bottom() + delta.y())
+
+        self.setGeometry(geometry)
+        self.drag_position = global_pos
 
 
     def paintEvent(self, event): #vers 1
@@ -10850,8 +10960,10 @@ class _CharGrid(QWidget):
                 p.setPen(QPen(QColor(60,60,60)))
                 p.drawRect(x, y, self.CELL-1, self.CELL-1)
 
+
     def _cell(self, pos): #vers 1
         return pos.x()//self.CELL, pos.y()//self.CELL
+
 
     def mousePressEvent(self, e): #vers 1
         col, row = self._cell(e.position().toPoint())
@@ -10862,6 +10974,7 @@ class _CharGrid(QWidget):
             self.bit_toggled.emit(row, col, self._draw_val)
             self.update()
 
+
     def mouseMoveEvent(self, e): #vers 1
         if not self._drawing: return
         col, row = self._cell(e.position().toPoint())
@@ -10870,6 +10983,7 @@ class _CharGrid(QWidget):
             if cur != self._draw_val:
                 self.bit_toggled.emit(row, col, self._draw_val)
                 self.update()
+
 
     def mouseReleaseEvent(self, e): #vers 1
         self._drawing = False
@@ -10895,7 +11009,7 @@ class _SpriteEditor(QDialog):
     def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
 
-        # ── Left: frame list ─────────────────────────────────────────
+        # - Left: frame list
         left = QVBoxLayout()
         left.addWidget(QLabel("Frames:"))
         self._frame_list = QListWidget()
@@ -10904,7 +11018,7 @@ class _SpriteEditor(QDialog):
         left.addWidget(self._frame_list)
         lay.addLayout(left)
 
-        # ── Centre: sprite view ──────────────────────────────────────
+        # - Centre: sprite view
         centre = QVBoxLayout()
         ctrl = QHBoxLayout()
         ctrl.addWidget(QLabel("Sprite size:"))
@@ -10934,7 +11048,8 @@ class _SpriteEditor(QDialog):
         centre.addWidget(self._info_lbl)
         lay.addLayout(centre, 1)
 
-        # ── Right: platform presets ──────────────────────────────────
+
+        # - Right: platform presets
         right = QVBoxLayout()
         right.addWidget(QLabel("Platform:"))
         presets = [
@@ -10958,9 +11073,11 @@ class _SpriteEditor(QDialog):
         right.addWidget(close_btn)
         lay.addLayout(right)
 
+
     def _on_size_change(self, txt): #vers 1
         w,h = map(int, txt.split("×"))
         self._set_sprite_size(w, h)
+
 
     def _set_sprite_size(self, w, h): #vers 1
         self._sprite_w = w; self._sprite_h = h
@@ -10969,9 +11086,11 @@ class _SpriteEditor(QDialog):
             self._size_combo.currentText())
         self._refresh_frames()
 
+
     def _on_zoom(self, z): #vers 1
         self._zoom = z
         self._sprite_view.set_zoom(z)
+
 
     def _refresh_frames(self): #vers 1
         ed = self._editor
@@ -10990,6 +11109,7 @@ class _SpriteEditor(QDialog):
         if n > 0:
             self._frame_list.setCurrentRow(0)
             self._on_frame_select(0)
+
 
     def _on_frame_select(self, idx): #vers 1
         if idx < 0 or idx >= len(self._frames): return
@@ -11011,6 +11131,7 @@ class _SpriteEditor(QDialog):
         self._sprite_view.set_sprite(sprite_rgba, sw, sh, self._zoom)
         self._info_lbl.setText(
             f"Frame {idx}  —  {ox},{oy}  ({sw}×{sh}px)")
+
 
     def _export_sheet(self): #vers 1
         ed = self._editor
@@ -11072,7 +11193,6 @@ class _SpriteView(QWidget):
 
 
 #  Standalone entry point
-
 if __name__ == "__main__": #vers 1
     import traceback
 

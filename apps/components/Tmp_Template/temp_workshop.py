@@ -47,13 +47,12 @@ def _is_standalone():
 
 STANDALONE_MODE = _is_standalone()
 DEBUG_STANDALONE = False
-App_name  = "Radar Workshop"
+App_name  = "Temp Workshop"
 App_build = "Apr 2026"
 App_auth  = "X-Seti"
 Build     = "1"
 
-
-# ── Infrastructure imports
+# ── Infrastructure imports ────────────────────────────────────────────────────
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
     ICONS_AVAILABLE = True
@@ -106,9 +105,9 @@ except ImportError:
         def clear_cache(): pass
 
 # - Game presets
-def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
-def _name_sol(idx): return f"radar{idx:04d}" #vers 1
+def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
+def _name_sol(idx): return f"radar{idx:04d}"
 
 GAME_PRESETS = {
     "SA":     {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,  "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$", "label":"GTA San Andreas"},
@@ -123,6 +122,7 @@ TILE_W = TILE_H = 128
 
 
 # - DXT1 codec
+
 def decode_dxt1(data, w, h): #vers 1
     out = bytearray(w*h*4); bx=(w+3)//4; by=(h+3)//4; pos=0
     for by2 in range(by):
@@ -140,6 +140,7 @@ def decode_dxt1(data, w, h): #vers 1
                     if ix<w and iy<h:
                         ci=(lut>>((py*4+px)*2))&3; o=(iy*w+ix)*4; out[o:o+4]=pal[ci]
     return bytes(out)
+
 
 def encode_dxt1(rgba, w, h): #vers 1
     from PIL import Image
@@ -163,7 +164,7 @@ def encode_dxt1(rgba, w, h): #vers 1
 
 class RadarTxdReader:
     @staticmethod
-    def read(data): #vers 1
+    def read(data):
         pos=12
         while pos+12<=len(data):
             st=struct.unpack_from('<I',data,pos)[0]; ss=struct.unpack_from('<I',data,pos+4)[0]
@@ -179,7 +180,7 @@ class RadarTxdReader:
         raise ValueError("No Texture Native section")
 
     @staticmethod
-    def write(rgba,w,h,tex_name,rw_ver=0x1003FFFF): #vers 1
+    def write(rgba,w,h,tex_name,rw_ver=0x1003FFFF):
         dxt=encode_dxt1(rgba,w,h)
         nb=tex_name.encode('latin1')[:31].ljust(32,b'\x00'); ab=b'\x00'*32
         nat=bytearray()
@@ -192,9 +193,9 @@ class RadarTxdReader:
 # - IMG reader
 
 class ImgReader:
-    def __init__(self,img_path): #vers 1
+    def __init__(self,img_path):
         self.img_path=img_path; self.entries=[]; self._img_data=b''; self._load()
-    def _load(self): #vers 1
+    def _load(self):
         p=Path(self.img_path); raw=p.read_bytes()
         if raw[:4]==b'VER2':
             n=struct.unpack_from('<I',raw,4)[0]
@@ -210,52 +211,49 @@ class ImgReader:
                 os2,sz2,nb=struct.unpack_from('<II24s',dr,i*32)
                 self.entries.append({'name':nb.rstrip(b'\x00').decode('latin1','replace'),'offset':os2*2048,'size':sz2*2048})
             self._img_data=raw
-
-    def get_entry_data(self,e): #vers 1
-        return self._img_data[e['offset']:e['offset']+e['size']]
-
-    def find_radar_entries(self,pat): #vers 1
+    def get_entry_data(self,e): return self._img_data[e['offset']:e['offset']+e['size']]
+    def find_radar_entries(self,pat):
         p=re.compile(pat,re.IGNORECASE); return [e for e in self.entries if p.match(e['name'])]
 
 
 # - Radar grid widget
+
 class RadarGridWidget(QWidget):
     """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
     tile_clicked = pyqtSignal(int)
 
-    def __init__(self,parent=None): #vers 1
+    def __init__(self,parent=None):
         super().__init__(parent)
         self._cols=8; self._count=0; self._tiles={}; self._dirty=set()
         self._sel=-1; self._hover=-1; self._names=[]
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding)
 
-    def setup(self,cols,count,names=None): #vers 1
+    def setup(self,cols,count,names=None):
         self._cols=max(1,cols); self._count=count; self._tiles={}; self._dirty=set()
         self._sel=-1; self._hover=-1
         self._names=names or [f"Tile {i}" for i in range(count)]; self.update()
 
-    def _ts(self): #vers 1
+    def _ts(self):
         if not self._count or not self._cols: return 32
         rows=(self._count+self._cols-1)//self._cols
         return min(max(4,self.width()//self._cols),max(4,self.height()//rows))
 
-    def _idx_at(self,pos): #vers 1
+    def _idx_at(self,pos):
         ts=self._ts(); idx=(pos.y()//ts)*self._cols+(pos.x()//ts)
         return idx if 0<=idx<self._count else -1
 
-    def set_tile(self,idx,rgba,w,h): #vers 1
+    def set_tile(self,idx,rgba,w,h):
         self._tiles[idx]=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888).copy(); self.update()
 
-    def set_dirty(self,idx,d): #vers 1
+    def set_dirty(self,idx,d):
         if d: self._dirty.add(idx)
         else: self._dirty.discard(idx)
         self.update()
 
-    def set_selected(self,idx): #vers 1
-        self._sel=idx; self.update()
+    def set_selected(self,idx): self._sel=idx; self.update()
 
-    def paintEvent(self,ev): #vers 1
+    def paintEvent(self,ev):
         if not self._count: return
         ts=self._ts(); cols=self._cols; p=QPainter(self)
         for idx in range(self._count):
@@ -274,17 +272,16 @@ class RadarGridWidget(QWidget):
         for r in range(rows+1): p.drawLine(0,r*ts,cols*ts,r*ts)
         p.end()
 
-    def mouseMoveEvent(self,ev): #vers 1
+    def mouseMoveEvent(self,ev):
         idx=self._idx_at(ev.pos())
         if idx!=self._hover:
             self._hover=idx
             self.setToolTip(f"[{idx}] {self._names[idx]}" if 0<=idx<len(self._names) else "")
             self.update()
 
-    def leaveEvent(self,ev): #vers 1
-        self._hover=-1; self.update()
+    def leaveEvent(self,ev): self._hover=-1; self.update()
 
-    def mousePressEvent(self,ev): #vers 1
+    def mousePressEvent(self,ev):
         if ev.button()==Qt.MouseButton.LeftButton:
             idx=self._idx_at(ev.pos())
             if idx>=0: self._sel=idx; self.tile_clicked.emit(idx); self.update()
@@ -303,14 +300,14 @@ class TileListItem(QListWidgetItem):
 
 # - Main Class
 
-class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
+class RADWorkshop(ToolMenuMixin, QWidget): # Vers 8
     """Radar Workshop – skeleton class"""
 
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
     def get_menu_title(self): return App_name  # vers 1
-    def _build_menus_into_qmenu(self, pm): #vers 1
+    def _build_menus_into_qmenu(self, pm):  # vers 1
         fm=pm.addMenu("File")
         fm.addAction("Load IMG…",    self._open_file)
         fm.addAction("Save IMG…",    self._save_file)
@@ -406,18 +403,15 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self._apply_theme()
         self._apply_preset("SA")
 
-    def get_content_margins(self): #vers 1
-        return (self.contmergina,self.contmerginb,self.contmerginc,self.contmergind)
+    def get_content_margins(self): return (self.contmergina,self.contmerginb,self.contmerginc,self.contmergind)
 
-    def get_panel_margins(self): #vers 1
-        return (self.panelmergina,self.panelmerginb,self.panelmerginc,self.panelmergind)
+    def get_panel_margins(self):   return (self.panelmergina,self.panelmerginb,self.panelmerginc,self.panelmergind)
 
-    def get_tab_margins(self): #vers 1
-        return (self.tabmerginsa,self.tabmerginsb,self.tabmerginsc,self.tabmerginsd)
+    def get_tab_margins(self):     return (self.tabmerginsa,self.tabmerginsb,self.tabmerginsc,self.tabmerginsd)
 
     # ── setup_ui
 
-    def setup_ui(self): #vers 1
+    def setup_ui(self):  # vers 1
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(*self.get_content_margins())
         main_layout.setSpacing(self.setspacing)
@@ -451,7 +445,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         main_layout.addWidget(self._status_bar)
 
 
-    # - Toolbar
+# - Toolbar
 
     def _create_toolbar(self): #Vers 1
         self.titlebar = QFrame()
@@ -467,7 +461,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self.toolbar.setMaximumHeight(self.toolbarheight)
         self.titlebar = self.toolbar  # alias for drag detection
 
-        # - Theme-aware icon colour
+       # Theme-aware icon colour
         icon_color = self._get_icon_color()
 
         layout = QHBoxLayout(self.toolbar)
@@ -484,7 +478,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
 
-        # - Settings button (standalone only — docked uses right-panel button)
+        # Settings button (standalone only — docked uses right-panel button)
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
@@ -497,7 +491,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
         layout.addStretch()
 
-        # - Game selector
+        # Game selector
         layout.addSpacing(8)
         layout.addWidget(QLabel("Game:"))
         self._game_combo = QComboBox()
@@ -520,7 +514,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
         layout.addStretch()
 
-        # - Theme / Properties
+        # Theme / Properties
         self.properties_btn = QPushButton()
         self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
         self.properties_btn.setIconSize(QSize(20, 20))
@@ -529,7 +523,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self.properties_btn.clicked.connect(self._launch_theme_settings)
         layout.addWidget(self.properties_btn)
 
-        # - Dock button — hidden in standalone (nothing to dock to)
+        # Dock button — hidden in standalone (nothing to dock to)
         self.dock_btn = QPushButton("D")
         self.dock_btn.setMinimumWidth(40)
         self.dock_btn.setMaximumWidth(40)
@@ -539,7 +533,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self.dock_btn.setVisible(not self.standalone_mode)
         layout.addWidget(self.dock_btn)
 
-        # - Tear-off button — only when docked
+        # Tear-off button — only when docked
         if not self.standalone_mode:
             self.tearoff_btn = QPushButton("T")
             self.tearoff_btn.setMinimumWidth(40)
@@ -549,7 +543,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
             self.tearoff_btn.setToolTip("Tear off to standalone window")
             layout.addWidget(self.tearoff_btn)
 
-        # - Window controls (standalone only)
+        # Window controls (standalone only)
         if self.standalone_mode:
             for attr, icon_method, slot, tip in [
                 ('minimize_btn', 'minimize_icon', self.showMinimized,    "Minimize"),
@@ -567,15 +561,15 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
         return self.toolbar
 
-
     # - Left panel: session list
-    def _create_left_panel(self): #vers 1
+
+    def _create_left_panel(self):  # vers 1
         # Hidden — template returns None in standalone
         return None
 
 
     # - Centre panel:
-    def _create_centre_panel(self): #vers 5
+    def _create_centre_panel(self):  # vers 5
         """Tile list — [thumb 32px] filename, 1 column."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -602,7 +596,8 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 
     # --- Right panel: settings
-    def _create_right_panel(self): #vers 6
+
+    def _create_right_panel(self):  # vers 6
         """Radar grid preview + nav bar."""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -677,7 +672,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         return panel
 
 
-    def _create_status_bar(self): #vers 1
+    def _create_status_bar(self):  # vers 1
         bar = QFrame()
         bar.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
         bar.setFixedHeight(self.statusheight)
@@ -690,14 +685,13 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 
     # Settings dialog
-    def _show_workshop_settings(self): #vers 3
+    def _show_workshop_settings(self):  # vers 3
         """Workshop-local settings dialog — Fonts, Display, Radar tabs."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
                                      QSpinBox, QComboBox, QLabel, QFontComboBox)
         from PyQt6.QtGui import QFont
 
-        self.s = RAD_settings
         dlg = QDialog(self)
         dlg.setWindowTitle(f"{App_name} Settings")
         dlg.setMinimumWidth(520)
@@ -833,6 +827,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 
     # - Menu options
+
     def _apply_menu_bar_style(self): #vers 3
         """Apply font size, height and colours to the topbar menubar.
         Uses explicit colours so it stays readable regardless of app theme.
@@ -844,7 +839,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         bar_fs = self.RAD_settings.get('menu_bar_font_size', 9)
         dd_fs  = self.RAD_settings.get('menu_dropdown_font_size', 9)
 
-        # - Get theme colours if available, otherwise use sensible defaults
+        # Get theme colours if available, otherwise use sensible defaults
         bg   = '#2b2b2b'
         fg   = '#e0e0e0'
         sel  = '#1976d2'
@@ -863,8 +858,8 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         except Exception:
             pass
 
-        # - Height controlled by container — NOT by stylesheet min/max-height
-        # - (stylesheet height properties override Qt layout and prevent the bar showing)
+        # Height controlled by container — NOT by stylesheet min/max-height
+        # (stylesheet height properties override Qt layout and prevent the bar showing)
         mb.setStyleSheet(f"""
             QMenuBar {{
                 background-color: {bg};
@@ -892,8 +887,8 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
             }}
         """)
 
-        # - Size the container based on settings, not isVisible()
-        # - (isVisible() is False during __init__ even if widget will be shown)
+        # Size the container based on settings, not isVisible()
+        # (isVisible() is False during __init__ even if widget will be shown)
         c = getattr(self, '_menu_bar_container', None)
         if c:
             show = (self.RAD_settings.get('show_menubar', False) and
@@ -970,7 +965,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
             c.setVisible(on)
 
 
-    def _on_game_changed(self, game): #vers 1
+    def _on_game_changed(self, game):  # vers 1
         cust = (game == "Custom")
         for s in [self._cols_spin, self._rows_spin]: s.setEnabled(cust)
         for c in [self._game_combo, self._game_combo2]:
@@ -979,14 +974,14 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self._apply_preset(game)
 
 
-    def _on_custom_changed(self): #vers 1
+    def _on_custom_changed(self):  # vers 1
         if self._game_combo.currentText() == "Custom":
             c=self._cols_spin.value(); r=self._rows_spin.value()
             GAME_PRESETS["Custom"].update({"cols":c,"rows":r,"count":c*r})
             self._apply_preset("Custom")
 
 
-    def _apply_preset(self, game): #vers 1
+    def _apply_preset(self, game):  # vers 1
         self._game_preset=GAME_PRESETS[game]; cols=self._game_preset["cols"]; count=self._game_preset["count"]
         self._tile_rgba={}; self._dirty_tiles=set(); self._current_idx=-1
         names=[self._game_preset["name_fn"](i) for i in range(count)]
@@ -998,49 +993,49 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 
     # - Font apply helpers (template pattern)
-    def _apply_title_font(self): #vers 1
+    def _apply_title_font(self):  # vers 1
         if hasattr(self, 'title_label'): self.title_label.setFont(self.title_font)
 
 
-    def _apply_panel_font(self): #vers 1
+    def _apply_panel_font(self):  # vers 1
         for lbl in self.findChildren(QLabel):
             if lbl.objectName() in ('panel_header',) or lbl.text() in ("Tiles","Modified: 0"):
                 lbl.setFont(self.panel_font)
 
 
-    def _apply_button_font(self): #vers 1
+    def _apply_button_font(self):  # vers 1
         for btn in self.findChildren(QPushButton): btn.setFont(self.button_font)
 
 
-    def _apply_infobar_font(self): #vers 1
+    def _apply_infobar_font(self):  # vers 1
         if hasattr(self,'status_label'): self.status_label.setFont(self.infobar_font)
         if hasattr(self,'_dirty_lbl'):   self._dirty_lbl.setFont(self.infobar_font)
 
 
     # - Docking (template pattern)
-    def _update_dock_button_visibility(self): #vers 1
+    def _update_dock_button_visibility(self):  # vers 1
         if hasattr(self,'dock_btn'): self.dock_btn.setVisible(not self.is_docked)
         if hasattr(self,'tearoff_btn'): self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
 
-    def toggle_dock_mode(self): #vers 1
+    def toggle_dock_mode(self):  # vers 1
         if self.is_docked: self._undock_from_main()
         else: self._dock_to_main()
         self._update_dock_button_visibility()
 
-    def _toggle_tearoff(self): #vers 1
+    def _toggle_tearoff(self):  # vers 1
         if self.is_docked: self._undock_from_main()
         else: self._dock_to_main()
 
-    def _dock_to_main(self): #vers 1
+    def _dock_to_main(self):  # vers 1
         self.is_docked=True; self._update_dock_button_visibility(); self.show(); self.raise_()
 
-    def _undock_from_main(self): #vers 1
+    def _undock_from_main(self):  # vers 1
         self.setWindowFlags(Qt.WindowType.Window); self.is_docked=False
         self._update_dock_button_visibility(); self.resize(1400,860); self.show(); self.raise_()
 
 
     # - Hotkeys (template pattern)
-    def _setup_hotkeys(self): #vers 1
+    def _setup_hotkeys(self):  # vers 1
         self.hotkey_open  = QShortcut(QKeySequence.StandardKey.Open,  self); self.hotkey_open.activated.connect(self._open_file)
         self.hotkey_save  = QShortcut(QKeySequence.StandardKey.Save,  self); self.hotkey_save.activated.connect(self._save_file)
         self.hotkey_close = QShortcut(QKeySequence.StandardKey.Close, self); self.hotkey_close.activated.connect(self.close)
@@ -1100,7 +1095,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
    # - File ops
 
-    def _open_file(self): #vers 1
+    def _open_file(self):  # vers 1
         path,_=QFileDialog.getOpenFileName(self,"Open Radar IMG","","IMG Archives (*.img);;All Files (*)")
         if not path: return
         try: self._img_reader=ImgReader(path); self._img_path=path
@@ -1124,7 +1119,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self.save_btn.setEnabled(True)
         self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}")
 
-    def _autodetect(self, count): #vers 1
+    def _autodetect(self, count):  # vers 1
         for game,p in GAME_PRESETS.items():
             if game!="Custom" and p["count"]==count: self._on_game_changed(game); return
         cols=max(1,round(math.sqrt(count))); rows=(count+cols-1)//cols
@@ -1132,7 +1127,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         self._on_game_changed("Custom")
         self._cols_spin.setValue(cols); self._rows_spin.setValue(rows)
 
-    def _save_file(self): #vers 1
+    def _save_file(self):  # vers 1
         if not self._img_reader or not self._dirty_tiles:
             QMessageBox.information(self,"Nothing to Save","No tiles modified."); return
         path,_=QFileDialog.getSaveFileName(self,"Save Radar IMG",self._img_path,"IMG Archives (*.img);;All Files (*)")
@@ -1154,17 +1149,17 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
 
     # - Tile selection
-    def _on_list_row(self, row): #vers 1
+    def _on_list_row(self, row):  # vers 1
         if row<0: return
         self._current_idx=row; self._radar.set_selected(row)
         name=(self._tile_entries[row]["name"] if row<len(self._tile_entries) else self._game_preset["name_fn"](row))
         self._set_status(f"Tile {row}  |  {name}  |  {TILE_W}×{TILE_H} DXT1"+("  [modified]" if row in self._dirty_tiles else ""))
 
-    def _on_grid_click(self, idx): #vers 1
+    def _on_grid_click(self, idx):  # vers 1
         self._tile_list.setCurrentRow(idx); self._on_list_row(idx)
 
     # - Export/Import sheet
-    def _export_sheet(self): #vers 1
+    def _export_sheet(self):  # vers 1
         if not self._tile_rgba: QMessageBox.information(self,"Nothing","Load an IMG first."); return
         path,_=QFileDialog.getSaveFileName(self,"Export Sheet","radar_sheet.png","PNG Images (*.png)")
         if not path: return
@@ -1178,7 +1173,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
             sheet.save(path); self._set_status(f"Exported {count} tiles → {Path(path).name}")
         except Exception as e: QMessageBox.critical(self,"Export Error",str(e))
 
-    def _import_sheet(self): #vers 1
+    def _import_sheet(self):  # vers 1
         path,_=QFileDialog.getOpenFileName(self,"Import Sheet","","PNG Images (*.png);;All Images (*)")
         if not path: return
         try:
@@ -1197,29 +1192,29 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         except Exception as e: QMessageBox.critical(self,"Import Error",str(e))
 
     # - Grid nav
-    def _zoom(self, f): #vers 1
+    def _zoom(self, f):  # vers 1
         self._radar.resize(max(200,int(self._radar.width()*f)),max(200,int(self._radar.height()*f)))
-    def _fit(self): #vers 1
+    def _fit(self):  # vers 1
         sc=self._radar.parentWidget()
         if sc: self._radar.resize(sc.width()-4,sc.height()-4)
-    def _jump(self): #vers 1
+    def _jump(self):  # vers 1
         if self._current_idx>=0:
             self._tile_list.scrollToItem(self._tile_list.item(self._current_idx),QAbstractItemView.ScrollHint.PositionAtCenter)
 
     # - Status
-    def _set_status(self, msg): #vers 1
+    def _set_status(self, msg):  # vers 1
         if hasattr(self,'status_label'): self.status_label.setText(msg)
 
 
     # - Theme & icon helpers (template pattern)
-    def _get_icon_color(self): #vers 1
+    def _get_icon_color(self):  # vers 1
         if self.app_settings:
             c=self.app_settings.get_theme_colors()
             if c: return c.get('text_primary','#ffffff')
         return '#ffffff'
 
 
-    def _apply_theme(self): #vers 1
+    def _apply_theme(self):  # vers 1
         try:
             if self.app_settings:
                 self.setStyleSheet(self.app_settings.get_stylesheet())
@@ -1230,7 +1225,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
 
     # - Info / Settings / Theme
-    def _show_info(self): #vers 1
+    def _show_info(self):  # vers 1
         lines = [
             f"<b>{App_name}</b>  Build {Build}",
             f"Author: {App_auth}  —  {App_build}",
@@ -1245,7 +1240,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
         QMessageBox.information(self, App_name + " — Info", "\n".join(lines))
 
 
-    def _show_settings_dialog(self): #vers 1  (theme button → launch global theme engine)
+    def _show_settings_dialog(self):  # vers 1  (theme button → launch global theme engine)
         try:
             from apps.utils.app_settings_system import AppSettings, SettingsDialog
             if not hasattr(self, 'app_settings') or self.app_settings is None:
@@ -1258,7 +1253,7 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
             QMessageBox.warning(self, "Theme Error", str(e))
 
 
-    def _show_settings_context_menu(self, pos): #vers 1
+    def _show_settings_context_menu(self, pos):  # vers 1
         menu = QMenu(self)
         menu.addAction("Move Window",      self._enable_move_mode)
         menu.addAction("Maximize/Restore", self._toggle_maximize)
@@ -1333,52 +1328,6 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
 
     # Corner resize + dragging (identical pattern to COL Workshop)
 
-    def _update_transform_text_panel_visibility(self): #vers 2
-        """Toggle between text+icon panel (wide) and icon-only strip (narrow).
-        Reads threshold from IMG Factory settings. Also collapses bottom buttons."""
-        tp   = getattr(self, '_transform_text_panel_ref', None)
-        ip   = getattr(self, '_transform_icon_panel_ref', None)
-        mode = getattr(self, 'button_display_mode', 'both')
-
-        if mode == 'icons':
-            if tp: tp.setVisible(False)
-            if ip: ip.setVisible(True)
-            return
-        if mode == 'text':
-            if tp: tp.setVisible(True)
-            if ip: ip.setVisible(False)
-            return
-
-        # Measure right panel width directly
-        rp = getattr(self, '_right_panel_ref', None)
-        if rp:
-            ref_w = rp.width()
-        else:
-            splitter = getattr(self, '_main_splitter', None)
-            ref_w = self.width()
-            if splitter and tp:
-                w = tp
-                while w and w.parent() is not splitter:
-                    w = w.parent() if hasattr(w, 'parent') else None
-                if w:
-                    ref_w = w.width()
-
-        try:
-            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
-            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
-        except Exception:
-            threshold = 550
-        wide = ref_w >= threshold
-        if tp: tp.setVisible(wide)
-        if ip: ip.setVisible(not wide)
-
-        # Toggle bottom panel rows the same way
-        btr = getattr(self, '_bottom_text_row', None)
-        bir = getattr(self, '_bottom_icon_row', None)
-        if btr: btr.setVisible(wide)
-        if bir: bir.setVisible(not wide)
-
-
     def _get_resize_corner(self, pos): #Vers 1
         size = self.corner_size; w = self.width(); h = self.height()
         if pos.x() < size and pos.y() < size:           return "top-left"
@@ -1400,71 +1349,6 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
             "bottom-left":  Qt.CursorShape.SizeBDiagCursor,
         }
         self.setCursor(cursors.get(direction, Qt.CursorShape.ArrowCursor))
-
-
-    def _get_resize_direction(self, pos): #vers 1
-        """Determine resize direction based on mouse position"""
-        rect = self.rect()
-        margin = self.resize_margin
-
-        left = pos.x() < margin
-        right = pos.x() > rect.width() - margin
-        top = pos.y() < margin
-        bottom = pos.y() > rect.height() - margin
-
-        if left and top:
-            return "top-left"
-        elif right and top:
-            return "top-right"
-        elif left and bottom:
-            return "bottom-left"
-        elif right and bottom:
-            return "bottom-right"
-        elif left:
-            return "left"
-        elif right:
-            return "right"
-        elif top:
-            return "top"
-        elif bottom:
-            return "bottom"
-
-        return None
-
-
-    def _handle_resize(self, global_pos): #vers 1
-        """Handle window resizing"""
-        if not self.resize_direction or not self.drag_position:
-            return
-
-        delta = global_pos - self.drag_position
-        geometry = self.frameGeometry()
-
-        min_width = 800
-        min_height = 600
-
-        # Handle horizontal resizing
-        if "left" in self.resize_direction:
-            new_width = geometry.width() - delta.x()
-            if new_width >= min_width:
-                geometry.setLeft(geometry.left() + delta.x())
-        elif "right" in self.resize_direction:
-            new_width = geometry.width() + delta.x()
-            if new_width >= min_width:
-                geometry.setRight(geometry.right() + delta.x())
-
-        # Handle vertical resizing
-        if "top" in self.resize_direction:
-            new_height = geometry.height() - delta.y()
-            if new_height >= min_height:
-                geometry.setTop(geometry.top() + delta.y())
-        elif "bottom" in self.resize_direction:
-            new_height = geometry.height() + delta.y()
-            if new_height >= min_height:
-                geometry.setBottom(geometry.bottom() + delta.y())
-
-        self.setGeometry(geometry)
-        self.drag_position = global_pos
 
 
     def _is_on_draggable_area(self, pos): #Vers 1
@@ -1582,11 +1466,13 @@ class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
     def resizeEvent(self, event): #vers 1
         super().resizeEvent(event)
 
-    def _resizeEvent(self, event): #vers 1
+    def _resizeEvent(self, event):  # vers 1
         super().resizeEvent(event)
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
 
     def closeEvent(self, event): #Vers 1
+        self._cleanup_worker()
+        self._stop_web_server()
         self.window_closed.emit()
         event.accept()
 
