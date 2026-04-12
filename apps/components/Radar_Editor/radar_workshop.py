@@ -110,6 +110,8 @@ def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
 def _name_sol(idx): return f"radar{idx:04d}" #vers 1
 
+# Grid constants (authoritative — do not change without verifying against game files)
+# SA: 144 tiles (12x12)  VC/III/LC/LCS/VCS: 64 tiles (8x8)  SOL: 1296 tiles (36x36)
 # img_source: 'img'=tiles in .img | 'txd'=single .txd | 'pvr'=.pvr img | 'toc'=toc/tmb/dat
 GAME_PRESETS = {
     # PC versions — tiles in gta3.img / gta.img / RadarTex.img
@@ -275,7 +277,8 @@ class ImgReader:
             n=struct.unpack_from('<I',raw,4)[0]
             for i in range(n):
                 os2,ss,sz2,nb=struct.unpack_from('<IHH24s',raw,8+i*32)
-                name=nb.rstrip(b'\x00').decode('latin1','replace')
+                # Strip null bytes AND any non-printable trailing chars
+                name=nb.rstrip(b'\x00').decode('latin1','replace').strip()
                 self.entries.append({'name':name,'offset':os2*2048,'size':(sz2 or ss)*2048})
             self._img_data=raw
         elif raw[:4] in (b'VER1', b'ver1'):
@@ -311,8 +314,21 @@ class ImgReader:
     def get_entry_data(self,e): #vers 1
         return self._img_data[e['offset']:e['offset']+e['size']]
 
-    def find_radar_entries(self,pat): #vers 1
-        p=re.compile(pat,re.IGNORECASE); return [e for e in self.entries if p.match(e['name'])]
+    def find_radar_entries(self, pat): #vers 2
+        """Find entries matching radar pattern. Strips names before matching."""
+        p = re.compile(pat, re.IGNORECASE)
+        results = []
+        for e in self.entries:
+            # Strip whitespace and null chars that might survive name parsing
+            clean = e['name'].strip().rstrip('\x00').strip()
+            if p.match(clean):
+                results.append(e)
+        return results
+
+    def list_radar_like(self, prefix='radar'): #vers 1
+        """Debug helper — list all entries whose name starts with prefix."""
+        return [e['name'] for e in self.entries
+                if e['name'].lower().startswith(prefix.lower())]
 
 
 # - Radar grid widget
@@ -1556,9 +1572,22 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             c.setVisible(on)
 
 
-    def _on_game_changed(self, game): #vers 2
+    def _on_game_changed(self, game): #vers 3
+        if game not in GAME_PRESETS:
+            game = "Custom"
         cust = (game == "Custom")
-        for s in [self._cols_spin, self._rows_spin]: s.setEnabled(cust)
+        p = GAME_PRESETS[game]
+        for s in [self._cols_spin, self._rows_spin]:
+            s.setEnabled(cust)
+        # Always sync spinner values to preset (fixes VC staying at SA dimensions)
+        if hasattr(self, '_cols_spin'):
+            self._cols_spin.blockSignals(True)
+            self._cols_spin.setValue(p["cols"])
+            self._cols_spin.blockSignals(False)
+        if hasattr(self, '_rows_spin'):
+            self._rows_spin.blockSignals(True)
+            self._rows_spin.setValue(p["rows"])
+            self._rows_spin.blockSignals(False)
         if hasattr(self, '_game_combo') and self._game_combo.currentText() != game:
             self._game_combo.blockSignals(True)
             self._game_combo.setCurrentText(game)
@@ -1778,11 +1807,18 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                     entries = found
                     break
         elif not entries and filename_matched:
-            # Filename matched but no entries found — show clear error
-            hint_msg = f"\n\nHint: {self._game_preset.get('hint','')}" if self._game_preset.get('hint') else ""
+            # Filename matched but no entries found — show debug info
+            hint_msg = self._game_preset.get('hint', '')
+            # List what radar-like entries actually exist
+            radar_like = self._img_reader.list_radar_like('radar')
+            sample = ', '.join(radar_like[:8]) if radar_like else 'none'
+            extra = f' (+{len(radar_like)-8} more)' if len(radar_like) > 8 else ''
             QMessageBox.warning(self, "No Radar Tiles",
-                f"No radar TXDs found in {Path(path).name}.{hint_msg}\n\n"
-                f"Expected preset: {self._game_preset['label']}")
+                f"No radar TXDs matched pattern in {Path(path).name}\n\n"
+                f"Hint: {hint_msg}\n\n"
+                f"Expected preset: {self._game_preset['label']}\n\n"
+                f"Radar-like entries found: {sample}{extra}\n"
+                f"(Check names match pattern: {self._game_preset['img_pattern']})")
             return
 
         if not entries:
