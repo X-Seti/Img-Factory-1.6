@@ -1035,17 +1035,20 @@ class _TileZoomView(QWidget):
             for y in range(y0, y1+1):
                 self._set_pixel(x0, y, color); self._set_pixel(x1, y, color)
 
-    def _commit_draw(self): #vers 1
-        """Push current _rgba to workshop and update everything."""
+    def _commit_draw(self): #vers 2
+        """Push current _rgba to workshop and update everything.
+        Grid display uses render mode; list thumb and _tile_rgba always store true colour."""
         ws = self._workshop
         idx = self._tile_idx
         rgba = bytes(self._rgba)
         ws._tile_rgba[idx] = rgba
         ws._dirty_tiles.add(idx)
-        ws._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        # Apply render mode for grid display only
+        display_rgba = ws._apply_render_mode(rgba)
+        ws._radar.set_tile(idx, display_rgba, TILE_W, TILE_H)
         ws._radar.set_dirty(idx, True)
         if idx < len(ws._list_items):
-            ws._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+            ws._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)  # always colour
         ws.save_btn.setEnabled(True)
         ws._dirty_lbl.setText(f"Modified: {len(ws._dirty_tiles)}")
         self._rebuild_pixmap()
@@ -1504,6 +1507,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         layout.addStretch()
 
+        # - Undo button (left of info button)
+        self.toolbar_undo_btn = QPushButton()
+        self.toolbar_undo_btn.setIcon(SVGIconFactory.undo_icon(20, icon_color))
+        self.toolbar_undo_btn.setIconSize(QSize(20, 20))
+        self.toolbar_undo_btn.setFixedSize(35, 35)
+        self.toolbar_undo_btn.setToolTip("Undo last tile edit (Ctrl+Z)")
+        self.toolbar_undo_btn.clicked.connect(self._undo)
+        layout.addWidget(self.toolbar_undo_btn)
+
         # - Info button (before Theme)
         self.info_radar_btn = QPushButton()
         self.info_radar_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
@@ -1648,26 +1660,26 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._undo_stack.pop(0)
         self._redo_stack.clear()
 
-    def _undo(self): #vers 1
+    def _undo(self): #vers 2
         if not self._undo_stack:
-            self._set_status("Nothing to undo"); return
+            self._set_status("Nothing to undo (render mode is display-only, not undoable)"); return
         idx, rgba = self._undo_stack.pop()
         if idx in self._tile_rgba:
             self._redo_stack.append((idx, self._tile_rgba[idx]))
         self._tile_rgba[idx] = rgba
-        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
         if idx < len(self._list_items):
             self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
         self._refresh_tile_tab(idx)
         self._set_status(f"Undo — tile {idx}")
 
-    def _redo(self): #vers 1
+    def _redo(self): #vers 2
         if not self._redo_stack:
             self._set_status("Nothing to redo"); return
         idx, rgba = self._redo_stack.pop()
         self._undo_stack.append((idx, self._tile_rgba[idx]))
         self._tile_rgba[idx] = rgba
-        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
         if idx < len(self._list_items):
             self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
         self._refresh_tile_tab(idx)
@@ -1863,14 +1875,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         return panel
 
-    def _set_render_mode(self, mode: str): #vers 1
-        """Switch map grid render: color / bw / alpha."""
+    def _set_render_mode(self, mode: str): #vers 2
+        """Switch map grid DISPLAY mode only — does not modify tile data.
+        Undo has no effect here; switch back to Colour to restore view."""
         self._render_mode = mode
         for m, b in self._render_btns.items():
             b.setChecked(m == mode)
         for idx, rgba in self._tile_rgba.items():
             self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
         self._radar.update()
+        label = {'color': 'Colour', 'bw': 'B&W (display only)', 'alpha': 'Alpha (display only)'}
+        self._set_status(f"View: {label.get(mode, mode)} — tile data unchanged, Undo not needed")
 
     def _apply_render_mode(self, rgba: bytes) -> bytes: #vers 1
         """Apply render mode transform to rgba bytes for display only."""
