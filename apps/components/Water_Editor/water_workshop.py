@@ -115,8 +115,10 @@ class DP5Workshop(QWidget):
         self.icon_factory = SVGIconFactory()
 
         self.setWindowTitle(App_name)
-        #if ICONS_AVAILABLE:
-        #    self.setWindowIcon(SVGIconFactory.ai_app_icon())
+        try:
+            self.setWindowIcon(SVGIconFactory.water_workshop_icon(64))
+        except Exception:
+            pass
         self.resize(1400, 800)
         self.setMinimumSize(800, 500)
 

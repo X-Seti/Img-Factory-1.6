@@ -122,7 +122,7 @@ GAME_PRESETS = {
                 "img_source":"img",  "label":"GTA Vice City (PC/PS2/Xbox)",
                 "hint":"Load gta3.img — contains radar00.txd to radar63.txd"},
     "SA PC":   {"cols":12, "rows":12, "count":144,  "name_fn":_name_sa,
-                "img_pattern":r"^radar\d{2,3}\.txd$|^RADAR\d{2,3}\.txd$",
+                "img_pattern":r"^radar(\d{2}|1[0-3]\d|14[0-3])\.txd$",
                 "img_source":"img",  "label":"GTA San Andreas (PC/PS2/Xbox)",
                 "hint":"Load gta3.img — contains radar00.txd to radar143.txd (144 tiles, 12x12 grid)"},
     "LCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
@@ -599,8 +599,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.icon_factory = SVGIconFactory()
 
         self.setWindowTitle(App_name)
-        #if ICONS_AVAILABLE:
-        #    self.setWindowIcon(SVGIconFactory.ai_app_icon())
+        try:
+            self.setWindowIcon(SVGIconFactory.radar_workshop_icon(64))
+        except Exception:
+            pass
         self.resize(1400, 800)
         self.setMinimumSize(800, 500)
 

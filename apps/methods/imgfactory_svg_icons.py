@@ -3917,3 +3917,78 @@ def get_brushes_icon(size: int = 24, color: str = None, bg_color: str = None) ->
 
 SVGIconFactory.get_clear_canvas_icon = staticmethod(get_clear_canvas_icon)
 SVGIconFactory.get_brushes_icon      = staticmethod(get_brushes_icon)
+
+
+def get_radar_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Radar Workshop — circular radar sweep with map tiles grid."""
+    svg = '''<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <!-- Dark radar background circle -->
+        <circle cx="24" cy="24" r="22" fill="#0a1628" stroke="#1a3a5c" stroke-width="1.5"/>
+        <!-- Grid lines (map tiles) -->
+        <line x1="8"  y1="16" x2="40" y2="16" stroke="#1a4a2e" stroke-width="0.8" opacity="0.7"/>
+        <line x1="8"  y1="24" x2="40" y2="24" stroke="#1a4a2e" stroke-width="0.8" opacity="0.7"/>
+        <line x1="8"  y1="32" x2="40" y2="32" stroke="#1a4a2e" stroke-width="0.8" opacity="0.7"/>
+        <line x1="16" y1="8"  x2="16" y2="40" stroke="#1a4a2e" stroke-width="0.8" opacity="0.7"/>
+        <line x1="24" y1="8"  x2="24" y2="40" stroke="#1a4a2e" stroke-width="0.8" opacity="0.7"/>
+        <line x1="32" y1="8"  x2="32" y2="40" stroke="#1a4a2e" stroke-width="0.8" opacity="0.7"/>
+        <!-- Radar sweep -->
+        <path d="M24 24 L24 4 A20 20 0 0 1 40 30 Z" fill="#00ff44" opacity="0.25"/>
+        <!-- Radar crosshairs -->
+        <circle cx="24" cy="24" r="20" fill="none" stroke="#00aa33" stroke-width="0.8" opacity="0.5"/>
+        <circle cx="24" cy="24" r="13" fill="none" stroke="#00aa33" stroke-width="0.8" opacity="0.5"/>
+        <circle cx="24" cy="24" r="7"  fill="none" stroke="#00aa33" stroke-width="0.8" opacity="0.5"/>
+        <line x1="4"  y1="24" x2="44" y2="24" stroke="#00aa33" stroke-width="0.6" opacity="0.4"/>
+        <line x1="24" y1="4"  x2="24" y2="44" stroke="#00aa33" stroke-width="0.6" opacity="0.4"/>
+        <!-- Sweep line -->
+        <line x1="24" y1="24" x2="40" y2="10" stroke="#00ff44" stroke-width="1.5" opacity="0.9"/>
+        <!-- Centre dot -->
+        <circle cx="24" cy="24" r="2.5" fill="#00ff44"/>
+        <!-- Blip -->
+        <circle cx="32" cy="14" r="2" fill="#00ff44" opacity="0.9"/>
+        <circle cx="18" cy="30" r="1.5" fill="#00ff44" opacity="0.6"/>
+    </svg>'''
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    renderer = QSvgRenderer(svg.encode())
+    from PyQt6.QtGui import QPainter
+    p = QPainter(px)
+    renderer.render(p)
+    p.end()
+    return QIcon(px)
+
+
+def get_water_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Water Workshop — water waves with level indicator."""
+    svg = '''<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background -->
+        <rect x="2" y="2" width="44" height="44" rx="6" fill="#0a2a3a" stroke="#1a4a5c" stroke-width="1.5"/>
+        <!-- Water body -->
+        <rect x="4" y="26" width="40" height="18" rx="2" fill="#1a6a9a" opacity="0.8"/>
+        <!-- Wave top -->
+        <path d="M4 26 Q10 22 16 26 Q22 30 28 26 Q34 22 40 26 Q43 28 44 26 L44 28 Q41 30 38 28 Q32 24 26 28 Q20 32 14 28 Q8 24 4 28 Z" fill="#2a8abb"/>
+        <!-- Second wave -->
+        <path d="M4 32 Q11 28 18 32 Q25 36 32 32 Q38 28 44 32 L44 34 Q37 30 30 34 Q23 38 16 34 Q9 30 4 34 Z" fill="#3a9acc" opacity="0.7"/>
+        <!-- Water level lines -->
+        <line x1="6"  y1="20" x2="42" y2="20" stroke="#2a8abb" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+        <line x1="6"  y1="14" x2="42" y2="14" stroke="#2a8abb" stroke-width="1" stroke-dasharray="3,2" opacity="0.3"/>
+        <!-- Level indicator on right -->
+        <rect x="38" y="8" width="4" height="32" rx="2" fill="#0a2a3a" stroke="#2a5a7a" stroke-width="1"/>
+        <rect x="38" y="26" width="4" height="14" rx="2" fill="#2a8abb"/>
+        <!-- Droplet -->
+        <path d="M12 6 Q12 4 14 8 Q16 12 14 14 Q12 16 10 14 Q8 12 10 8 Q11 5 12 6Z" fill="#4ab8dd"/>
+        <!-- Number label -->
+        <text x="20" y="11" font-family="Arial" font-size="7" fill="#4ab8dd" font-weight="bold">H2O</text>
+    </svg>'''
+    px = QPixmap(size, size)
+    px.fill(Qt.GlobalColor.transparent)
+    renderer = QSvgRenderer(svg.encode())
+    from PyQt6.QtGui import QPainter
+    p = QPainter(px)
+    renderer.render(p)
+    p.end()
+    return QIcon(px)
+
+
+# Attach as static methods on SVGIconFactory
+SVGIconFactory.radar_workshop_icon = staticmethod(get_radar_workshop_icon)
+SVGIconFactory.water_workshop_icon = staticmethod(get_water_workshop_icon)
