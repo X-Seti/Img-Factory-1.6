@@ -490,8 +490,11 @@ class RadarGridWidget(QWidget):
         ts=self._ts(); idx=(pos.y()//ts)*self._cols+(pos.x()//ts)
         return idx if 0<=idx<self._count else -1
 
-    def set_tile(self,idx,rgba,w,h): #vers 1
-        self._tiles[idx]=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888).copy(); self.update()
+    def set_tile(self,idx,rgba,w,h): #vers 2
+        """Store tile as RGBA8888 QImage (preserves alpha for checkerboard display)."""
+        img = QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888).copy()
+        self._tiles[idx] = img
+        self.update()
 
     def set_dirty(self,idx,d): #vers 1
         if d: self._dirty.add(idx)
@@ -501,17 +504,28 @@ class RadarGridWidget(QWidget):
     def set_selected(self,idx): #vers 1
         self._sel=idx; self.update()
 
-    def paintEvent(self,ev): #vers 1
+    def paintEvent(self,ev): #vers 2
         if not self._count: return
         ts=self._ts(); cols=self._cols; p=QPainter(self)
+        cb = max(4, ts // 8)   # checkerboard cell size relative to tile size
         for idx in range(self._count):
             col=idx%cols; row=idx//cols; x=col*ts; y=row*ts
             if idx in self._tiles:
-                p.drawImage(x,y,self._tiles[idx].scaled(ts,ts,Qt.AspectRatioMode.IgnoreAspectRatio,Qt.TransformationMode.FastTransformation))
+                img = self._tiles[idx]
+                scaled = img.scaled(ts, ts, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                    Qt.TransformationMode.FastTransformation)
+                # If tile has any transparency, paint checkerboard underneath
+                if img.hasAlphaChannel():
+                    for ty in range(0, ts, cb):
+                        for tx in range(0, ts, cb):
+                            light = ((tx//cb + ty//cb) % 2 == 0)
+                            p.fillRect(x+tx, y+ty, min(cb,ts-tx), min(cb,ts-ty),
+                                       QColor(180,180,180) if light else QColor(110,110,110))
+                p.drawImage(x, y, scaled)
             else:
-                p.fillRect(x,y,ts,ts,QColor(40,40,40))
+                p.fillRect(x, y, ts, ts, QColor(40,40,40))
             if idx in self._dirty: p.fillRect(x+ts-6,y,6,6,QColor(255,60,60))
-            if idx==self._hover: p.fillRect(x,y,ts,ts,QColor(255,255,255,40))
+            if idx==self._hover: p.fillRect(x,y,ts,ts,QColor(255,255,255,30))
             if idx==self._sel:
                 p.setPen(QPen(QColor(80,180,255),2)); p.drawRect(x+1,y+1,ts-2,ts-2)
         p.setPen(QPen(QColor(60,60,60),1))
@@ -1805,27 +1819,33 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         _sep()
 
-        # ── Map render options ─────────────────────────────────────────────────
+        # ── Map render / view options ──────────────────────────────────────────
         ren_lbl = QLabel("View")
         ren_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ren_lbl.setStyleSheet("font-size:9px;")
         sl.addWidget(ren_lbl)
 
-        self._render_mode = 'color'
+        self._render_mode    = 'color'
+        self._alpha_key_color = None   # QColor used for colour-to-alpha mode
+
         def _render_btn(label, tip, mode):
             b = QToolButton()
             b.setFixedSize(72, 22)
             b.setText(label)
             b.setToolTip(tip)
             b.setCheckable(True)
-            b.clicked.connect(lambda: self._set_render_mode(mode))
+            b.clicked.connect(lambda checked=False, m=mode: self._set_render_mode(m))
             sl.addWidget(b)
             return b
 
         self._render_btns = {}
-        self._render_btns['color']  = _render_btn("Colour",  "Full colour",           'color')
-        self._render_btns['bw']     = _render_btn("B&W",     "Greyscale / B&W",       'bw')
-        self._render_btns['alpha']  = _render_btn("Alpha",   "Alpha channel only",    'alpha')
+        self._render_btns['color'] = _render_btn(
+            "Colour",  "Full colour display", 'color')
+        self._render_btns['bw']    = _render_btn(
+            "B && W",    "Greyscale display",    'bw')
+        self._render_btns['alpha'] = _render_btn(
+            "FG→Alpha", "FG colour becomes transparent\n"
+                        "Click FG swatch to pick the colour to hide", 'alpha')
         self._render_btns['color'].setChecked(True)
 
         _sep()
@@ -1875,29 +1895,57 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         return panel
 
-    def _set_render_mode(self, mode: str): #vers 2
-        """Switch map grid DISPLAY mode only — does not modify tile data.
-        Undo has no effect here; switch back to Colour to restore view."""
+    def _set_render_mode(self, mode: str): #vers 3
+        """Switch map grid display mode — display only, no tile data modified."""
+        if mode == 'alpha':
+            # Capture the current FG colour as the key colour to make transparent
+            self._alpha_key_color = QColor(self._fg_color)
+            kr, kg, kb = self._alpha_key_color.red(), self._alpha_key_color.green(), self._alpha_key_color.blue()
+            self._set_status(
+                f"FG→Alpha: pixels matching FG ({self._fg_color.name()}) shown as transparent. "
+                f"Click FG swatch to pick a different key colour.")
+        else:
+            self._alpha_key_color = None
+            labels = {'color': 'Colour (normal)', 'bw': 'B&W — display only, Undo not needed'}
+            self._set_status(f"View: {labels.get(mode, mode)}")
+
         self._render_mode = mode
         for m, b in self._render_btns.items():
             b.setChecked(m == mode)
         for idx, rgba in self._tile_rgba.items():
             self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
         self._radar.update()
-        label = {'color': 'Colour', 'bw': 'B&W (display only)', 'alpha': 'Alpha (display only)'}
-        self._set_status(f"View: {label.get(mode, mode)} — tile data unchanged, Undo not needed")
 
-    def _apply_render_mode(self, rgba: bytes) -> bytes: #vers 1
-        """Apply render mode transform to rgba bytes for display only."""
-        if getattr(self, '_render_mode', 'color') == 'color': return rgba
+    def _apply_render_mode(self, rgba: bytes) -> bytes: #vers 2
+        """Apply display-only transform to rgba bytes.
+
+        color   — pass through unchanged
+        bw      — luminance greyscale
+        alpha   — pixels matching _alpha_key_color set to alpha=0 (transparent),
+                  others alpha=255; RadarGridWidget paints checkerboard under tiles
+                  so transparent pixels show as checkerboard
+        """
+        mode = getattr(self, '_render_mode', 'color')
+        if mode == 'color': return rgba
+
         out = bytearray(len(rgba))
-        for i in range(0, len(rgba)-3, 4):
-            r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
-            if self._render_mode == 'bw':
+        if mode == 'bw':
+            for i in range(0, len(rgba)-3, 4):
+                r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
                 grey = int(0.299*r + 0.587*g + 0.114*b)
                 out[i:i+4] = [grey, grey, grey, a]
-            else:  # alpha
-                out[i:i+4] = [a, a, a, 255]
+        elif mode == 'alpha':
+            key = getattr(self, '_alpha_key_color', None)
+            if key is None:
+                return rgba  # no key colour set yet
+            kr, kg, kb = key.red(), key.green(), key.blue()
+            tol = 28  # tolerance — matches nearby shades of the key colour
+            for i in range(0, len(rgba)-3, 4):
+                r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
+                if (abs(r-kr) <= tol and abs(g-kg) <= tol and abs(b-kb) <= tol):
+                    out[i:i+4] = [0, 0, 0, 0]     # transparent
+                else:
+                    out[i:i+4] = [r, g, b, 255]   # fully opaque
         return bytes(out)
 
     def _set_draw_tool(self, tool: str): #vers 3
@@ -1923,12 +1971,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if hasattr(self, '_radar'):
             self._radar.setCursor(cursors.get(tool, Qt.CursorShape.ArrowCursor))
 
-    def _pick_fg_color(self): #vers 1
+    def _pick_fg_color(self): #vers 2
         from PyQt6.QtWidgets import QColorDialog
         c = QColorDialog.getColor(self._fg_color, self, "Foreground Colour")
         if c.isValid():
             self._fg_color = c
             self._update_swatch_buttons()
+            # If alpha mode is active, update the key colour immediately
+            if getattr(self, '_render_mode', 'color') == 'alpha':
+                self._set_render_mode('alpha')
 
     def _pick_bg_color(self): #vers 1
         from PyQt6.QtWidgets import QColorDialog
