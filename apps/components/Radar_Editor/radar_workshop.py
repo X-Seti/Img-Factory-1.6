@@ -448,8 +448,15 @@ class RadarPaletteWidget(QWidget):
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-    def set_colors(self, colors: List[QColor]): #vers 1
+    def set_colors(self, colors: List[QColor]): #vers 2
         self._colors = colors[:64]  # cap at 64 cells
+        # Auto-resize height to fit rows within parent sidebar width
+        if self.parent():
+            cols = max(1, self.parent().width() // self.CELL)
+        else:
+            cols = max(1, self.width() // self.CELL) if self.width() > 0 else 4
+        rows = max(2, (len(self._colors) + cols - 1) // cols)
+        self.setFixedHeight(rows * self.CELL + 2)
         self.update()
 
     def set_colors_from_rgba(self, rgba: bytes, w: int, h: int, max_colors: int = 32): #vers 1
@@ -862,18 +869,12 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._radar_scroll = sc          # keep ref for zoom
         cl.addWidget(sc, 1)
 
-        # Palette strip — height auto-sizes to fit colours (2 rows of 16px cells)
-        self._palette_widget = RadarPaletteWidget()
-        self._palette_widget.color_picked.connect(self._on_palette_color)
-        self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
-        self._palette_widget.setFixedHeight(36)   # 2 rows × 16px + 4px padding
-        cl.addWidget(self._palette_widget)
         hl.addWidget(centre, 1)
 
         # ── Right sidebar ─────────────────────────────────────────────────────
         sidebar = QFrame()
         sidebar.setFrameStyle(QFrame.Shape.StyledPanel)
-        sidebar.setFixedWidth(52)
+        sidebar.setFixedWidth(80)
         sl = QVBoxLayout(sidebar)
         sl.setContentsMargins(2, 4, 2, 4)
         sl.setSpacing(2)
@@ -882,7 +883,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         def _nb(icon_fn, tip, slot, checkable=False):
             b = QToolButton()
-            b.setFixedSize(44, 32)
+            b.setFixedSize(72, 28)
             if icon_fn:
                 try:
                     b.setIcon(getattr(SVGIconFactory, icon_fn)(18, icon_color))
@@ -936,19 +937,38 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._bg_color = QColor(0, 0, 0)
 
         self._fg_btn = QPushButton()
-        self._fg_btn.setFixedSize(44, 18)
+        self._fg_btn.setFixedSize(72, 18)
         self._fg_btn.setToolTip("Foreground (left-click to pick)")
         self._fg_btn.clicked.connect(self._pick_fg_color)
         sl.addWidget(self._fg_btn)
 
         self._bg_btn = QPushButton()
-        self._bg_btn.setFixedSize(44, 18)
+        self._bg_btn.setFixedSize(72, 18)
         self._bg_btn.setToolTip("Background (right-click palette for BG)")
         self._bg_btn.clicked.connect(self._pick_bg_color)
         sl.addWidget(self._bg_btn)
         self._update_swatch_buttons()
 
-        sl.addStretch()
+        sl.addSpacing(4)
+        sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
+        sl.addWidget(sep3)
+        sl.addSpacing(2)
+
+        # ── Palette — colours from current tile ───────────────────────────────
+        pal_lbl = QLabel("Palette")
+        pal_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pal_lbl.setStyleSheet("font-size:9px;")
+        sl.addWidget(pal_lbl)
+
+        self._palette_widget = RadarPaletteWidget()
+        self._palette_widget.color_picked.connect(self._on_palette_color)
+        self._palette_widget.color_picked_bg.connect(self._on_palette_color_bg)
+        # Height sized dynamically based on colour count — min 2 rows
+        self._palette_widget.setMinimumHeight(RadarPaletteWidget.CELL * 2)
+        self._palette_widget.setMaximumHeight(RadarPaletteWidget.CELL * 8)
+        sl.addWidget(self._palette_widget, 1)
+
+        sl.addStretch(0)
         hl.addWidget(sidebar)
 
         return panel
