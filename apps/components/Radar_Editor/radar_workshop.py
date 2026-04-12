@@ -50,7 +50,7 @@ DEBUG_STANDALONE = False
 App_name  = "Radar Workshop"
 App_build = "Apr 2026"
 App_auth  = "X-Seti"
-Build     = "build 12"
+Build     = "Build 357"
 
 
 # ── Infrastructure imports
