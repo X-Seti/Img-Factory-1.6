@@ -522,7 +522,7 @@ class RadarPaletteWidget(QWidget):
     color_picked   = pyqtSignal(QColor)   # left-click  → foreground
     color_picked_bg = pyqtSignal(QColor)  # right-click → background
 
-    CELL = 16   # cell size px — fits 2 rows in 36px strip
+    CELL = 14   # cell size px — slightly smaller to fit more colors
 
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
@@ -547,14 +547,14 @@ class RadarPaletteWidget(QWidget):
         from PyQt6.QtCore import QSize
         return QSize(self.CELL * 2, self.CELL * 2)
 
-    def set_colors_from_rgba(self, rgba: bytes, w: int, h: int, max_colors: int = 32): #vers 1
+    def set_colors_from_rgba(self, rgba: bytes, w: int, h: int, max_colors: int = 48): #vers 2
         """Extract palette from RGBA tile data by sampling unique colours."""
         seen: dict = {}
         step = max(1, (w * h) // 512)   # sample at most 512 pixels
         for i in range(0, len(rgba) - 3, step * 4):
             r, g, b, a = rgba[i], rgba[i+1], rgba[i+2], rgba[i+3]
             if a < 16: continue
-            key = (r >> 3, g >> 3, b >> 3)  # 5-bit quantise
+            key = (r >> 4, g >> 4, b >> 4)  # 4-bit quantise — captures more distinct colours
             if key not in seen:
                 seen[key] = QColor(r, g, b)
                 if len(seen) >= max_colors:
@@ -1146,6 +1146,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         _nb('rotate_ccw_icon',  "Rotate tile -90°",      self._rotate_ccw)
         _nb('flip_horz_icon',   "Flip tile horizontal",  self._flip_horz)
         _nb('flip_vert_icon',   "Flip tile vertical",    self._flip_vert)
+
+        sl.addSpacing(4)
+        sep1c = QFrame(); sep1c.setFrameShape(QFrame.Shape.HLine)
+        sl.addWidget(sep1c)
+        sl.addSpacing(4)
+
+        # ── Edit tile popup ───────────────────────────────────────────────────
+        _nb('edit_icon', "Edit tile (double-click / E) — zoomed popup", self._edit_tile_popup)
 
         sl.addSpacing(4)
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
@@ -2229,42 +2237,117 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.RAD_settings.save()
         self._set_status("Recent files cleared")
 
-    def _show_about(self): #vers 1
-        """Show Radar Workshop info dialog."""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+    def _show_about(self): #vers 2
+        """Show Radar Workshop instructions and info dialog."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget,
+                                     QWidget, QTextEdit, QPushButton, QHBoxLayout)
         dlg = QDialog(self)
-        dlg.setWindowTitle("About Radar Workshop")
-        dlg.setMinimumWidth(400)
+        dlg.setWindowTitle(f"Radar Workshop — Help & Information")
+        dlg.setMinimumSize(520, 560)
+        dlg.resize(560, 600)
         layout = QVBoxLayout(dlg)
         try:
             from apps.core.theme_utils import apply_dialog_theme
             apply_dialog_theme(dlg, self.main_window)
         except Exception: pass
-        lines = [
-            f"<b>Radar Workshop</b>",
-            f"Part of IMG Factory 1.6",
-            f"",
-            f"<b>Supported formats:</b>",
-            f"• PC/PS2/Xbox: DXT1 TXD tiles in .img archives",
-            f"• iOS LCS: PVRTC tiles in .pvr archives",
-            f"• Android GTA III: single RADAR.TXD in gta3_unc.img",
-            f"",
-            f"<b>Tile counts:</b>",
-            f"• GTA III/VC/LCS/VCS: 64 tiles (8×8)",
-            f"• GTA SA: 144 tiles (12×12)",
-            f"• GTA SOL: 1296 tiles (36×36)",
-            f"",
-            f"<b>Export/Import:</b> Full map as PNG or BMP",
-            f"<b>Draw tools:</b> Pencil · Line · Fill · Dropper",
-            f"<b>Transforms:</b> Rotate ±90° · Flip H/V",
-            f"",
-            f"<b>TODO:</b> SA/iOS Android TOC/DAT · PSP GIM/XTX",
-        ]
-        lbl = QLabel("<br>".join(lines))
-        lbl.setWordWrap(True)
-        layout.addWidget(lbl)
-        ok = QPushButton("OK"); ok.clicked.connect(dlg.accept)
-        layout.addWidget(ok)
+
+        tabs = QTabWidget()
+
+        def _tab(html):
+            t = QTextEdit(); t.setReadOnly(True); t.setHtml(html); return t
+
+        # ── Quick Start ────────────────────────────────────────────────────────
+        quickstart = """<h3>Quick Start</h3>
+<ol>
+<li><b>Open an IMG file</b> — click the <b>Open</b> button or press <b>Ctrl+O</b>.<br>
+    Load <code>gta3.img</code> for GTA III / VC / SA / LCS / VCS, or <code>RadarTex.img</code> for SOL.</li>
+<li><b>Game auto-detected</b> by tile count — 64 tiles = 8×8 grid, 144 = 12×12, 1296 = 36×36.</li>
+<li><b>Click a tile</b> in the left list or the grid to select it.</li>
+<li><b>Double-click a tile</b> (or press <b>E</b>) to open a zoomed 512px edit popup — useful for SOL.</li>
+<li><b>Draw</b> on the selected tile using the tools on the right sidebar.</li>
+<li><b>Save</b> changes back to the IMG file with the Save button (Ctrl+S).</li>
+</ol>
+<h3>Keyboard Shortcuts</h3>
+<table border=0 cellpadding=3>
+<tr><td><b>Ctrl+O</b></td><td>Open IMG file</td></tr>
+<tr><td><b>Ctrl+S</b></td><td>Save modified tiles back to IMG</td></tr>
+<tr><td><b>+  /  -</b></td><td>Zoom in / Zoom out</td></tr>
+<tr><td><b>Ctrl+0</b></td><td>Fit grid to window</td></tr>
+<tr><td><b>E</b></td><td>Edit current tile in popup</td></tr>
+<tr><td><b>P</b></td><td>Pencil draw tool</td></tr>
+<tr><td><b>L</b></td><td>Line draw tool</td></tr>
+<tr><td><b>F</b></td><td>Fill (flood fill) tool</td></tr>
+<tr><td><b>K</b></td><td>Dropper (colour picker)</td></tr>
+</table>"""
+
+        # ── Tile List ──────────────────────────────────────────────────────────
+        tilelist = """<h3>Tile List (Left Panel)</h3>
+<p>Shows all radar tiles with 64×64 thumbnail, name, game badge [SA] / [VC] etc., and tile size.</p>
+<ul>
+<li><b>Click</b> — select and view tile in the grid.</li>
+<li><b>Double-click</b> — open zoomed edit popup (512×512).</li>
+<li><b>Right-click</b> — context menu:
+  <ul>
+  <li><b>Export tile as PNG/BMP</b> — save single tile to file.</li>
+  <li><b>Import tile from PNG/BMP</b> — replace tile (auto-resizes to 128×128).</li>
+  <li><b>Delete tile</b> — reset to blank transparent black.</li>
+  </ul>
+</li>
+</ul>
+<h3>Right Sidebar</h3>
+<ul>
+<li><b>🔍+ / 🔍−</b> — Zoom in / Zoom out on the grid.</li>
+<li><b>Fit / Jump</b> — fit grid to window / scroll to selected tile.</li>
+<li><b>Pencil / Line / Fill / Dropper</b> — draw tools (also P/L/F/K keys).</li>
+<li><b>Edit tile</b> — open zoomed 512px popup for detailed editing.</li>
+<li><b>Rotate ±90° / Flip H/V</b> — transform the current tile (uses PIL).</li>
+<li><b>FG/BG swatches</b> — foreground / background colour; click to pick.</li>
+<li><b>Palette</b> — colours extracted from current tile. Left-click = FG, right-click = BG.</li>
+</ul>"""
+
+        # ── Export/Import ──────────────────────────────────────────────────────
+        exportinfo = """<h3>Export / Import Full Map</h3>
+<p>The <b>Export</b> button saves all loaded tiles assembled into one full-size PNG or BMP.</p>
+<ul>
+<li>SA export = 1536×1536px (12×12 tiles × 128px)</li>
+<li>VC/III/LCS/VCS = 1024×1024px (8×8 × 128px)</li>
+<li>SOL = 4608×4608px (36×36 × 128px)</li>
+</ul>
+<p>The <b>Import</b> button loads a PNG/BMP and slices it into tiles automatically using the current grid dimensions. Any size image is accepted — it's resampled to fit.</p>
+<h3>Recent Files</h3>
+<p>The <b>File &gt; Recent Files</b> menu remembers the last 10 opened IMG archives. Window size and position are also saved automatically.</p>"""
+
+        # ── Formats ───────────────────────────────────────────────────────────
+        formats = """<h3>Supported Formats</h3>
+<table border=1 cellpadding=4 cellspacing=0>
+<tr><th>Game</th><th>File</th><th>Tiles</th><th>Grid</th><th>Format</th></tr>
+<tr><td>GTA III PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA VC PC/PS2/Xbox</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA SA PC/PS2/Xbox</td><td>gta3.img</td><td>144</td><td>12×12</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA LCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA VCS PC/PS2</td><td>gta3.img</td><td>64</td><td>8×8</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA SOL PC</td><td>RadarTex.img</td><td>1296</td><td>36×36</td><td>DXT1 TXD</td></tr>
+<tr><td>GTA III Android</td><td>gta3_unc.img</td><td>1</td><td>1×1</td><td>Single 256×256 TXD</td></tr>
+<tr><td>GTA LCS iOS</td><td>gta3.pvr</td><td>64</td><td>8×8</td><td>PVRTC TXD</td></tr>
+</table>
+<h3>Not Yet Supported</h3>
+<ul>
+<li>SA/LCS Android &amp; iOS — TOC/TMB/DAT encrypted format</li>
+<li>LCS/VCS PSP — GIM/XTX ('xet\0') format</li>
+<li>VC Android — texdb format</li>
+</ul>"""
+
+        tabs.addTab(_tab(quickstart), "Quick Start")
+        tabs.addTab(_tab(tilelist),   "Tile List & Tools")
+        tabs.addTab(_tab(exportinfo), "Export / Import")
+        tabs.addTab(_tab(formats),    "Formats")
+        layout.addWidget(tabs, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        ok = QPushButton("Close"); ok.clicked.connect(dlg.accept); ok.setFixedWidth(80)
+        btn_row.addWidget(ok)
+        layout.addLayout(btn_row)
         dlg.exec()
 
     def _show_info(self): #vers 1
