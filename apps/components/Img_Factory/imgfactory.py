@@ -3239,6 +3239,35 @@ class IMGFactory(QMainWindow):
         tab_widget.setAutoFillBackground(True)
         tab_layout = QVBoxLayout(tab_widget)
         tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
+
+        # ── Tab header bar: tab name + search button ──────────────────────
+        from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        hdr = QFrame()
+        hdr.setFixedHeight(26)
+        hdr.setObjectName("tab_header")
+        hdr_layout = QHBoxLayout(hdr)
+        hdr_layout.setContentsMargins(6, 2, 4, 2)
+        hdr_layout.setSpacing(4)
+        tab_name_lbl = QLabel("No File")
+        tab_name_lbl.setObjectName("tab_name_lbl")
+        tab_name_lbl.setStyleSheet("font-size: 11px; font-weight: bold;")
+        hdr_layout.addWidget(tab_name_lbl, 1)
+        search_tab_btn = QToolButton()
+        search_tab_btn.setFixedSize(22, 22)
+        try:
+            icon_color = self.gui_layout._get_icon_color() if hasattr(self.gui_layout, '_get_icon_color') else '#ffffff'
+            search_tab_btn.setIcon(SVGIconFactory.search_icon(16, icon_color))
+        except Exception:
+            search_tab_btn.setText("🔍")
+        search_tab_btn.setIconSize(QSize(16, 16))
+        search_tab_btn.setToolTip("Search / filter entries (Ctrl+F)")
+        search_tab_btn.clicked.connect(self._show_search_dialog)
+        hdr_layout.addWidget(search_tab_btn)
+        tab_widget.search_btn = search_tab_btn
+        tab_widget.tab_name_lbl = tab_name_lbl
+        tab_layout.addWidget(hdr)
 
         table = DragSelectTableWidget()
         table.setAlternatingRowColors(True)
@@ -4765,9 +4794,15 @@ class IMGFactory(QMainWindow):
                     finally:
                         self._pending_hybrid_pairs = None
 
-            # Update window title
+            # Update window title + tab header label
             file_name = os.path.basename(img_file.file_path)
             self.setWindowTitle(f"{App_name} - {App_build}{file_name}")
+            # Sync the inline tab header label
+            if tab_widget and hasattr(tab_widget, 'tab_name_lbl'):
+                tab_widget.tab_name_lbl.setText(file_name)
+            # Sync the QTabBar tab text
+            if 0 <= tab_index < self.main_tab_widget.count():
+                self.main_tab_widget.setTabText(tab_index, file_name)
 
             # Update UI for loaded IMG
             if hasattr(self, '_update_ui_for_loaded_img'):

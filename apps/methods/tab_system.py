@@ -201,6 +201,9 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         
         # Set tab text
         main_window.main_tab_widget.setTabText(new_index, tab_name)
+        # Also update the inline header label if present
+        if hasattr(tab_widget, 'tab_name_lbl'):
+            tab_widget.tab_name_lbl.setText(tab_name)
         
         # Switch to new tab
         main_window.main_tab_widget.setCurrentIndex(new_index)

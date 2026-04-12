@@ -411,135 +411,236 @@ class SearchManager:
 
 
 class ASearchDialog(QDialog):
-    """Advanced search dialog with options"""
-    
+    """Search/filter dialog — filters the active IMG table in real time."""
+
     search_requested = pyqtSignal(str, dict)
-    
+
+    # Extension groups
+    EXT_GROUPS = {
+        "All Files":         [],
+        "Models (.dff)":     ["dff"],
+        "Textures (.txd)":   ["txd"],
+        "Collision (.col)":  ["col"],
+        "Animation (.ifp)":  ["ifp"],
+        "Audio (.wav/.mp3)": ["wav", "mp3", "ogg"],
+        "Scripts (.scm)":    ["scm", "cs"],
+        "Images (.png/.bmp)":["png", "bmp", "jpg", "jpeg"],
+        "Data (.dat/.cfg)":  ["dat", "cfg", "ide", "ipl"],
+    }
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.matches = []
-        self.current_match = -1
-        self.setWindowTitle("Advanced Search")
-        self.setModal(True)
-        self.resize(400, 300)
+        self.setWindowTitle("Search / Filter IMG")
+        self.setModal(False)          # non-modal so user can scroll table
+        self.resize(460, 380)
+        self._matches = []
+        self._match_idx = -1
         self._setup_ui()
-    
         from apps.core.theme_utils import apply_dialog_theme
         apply_dialog_theme(self)
+        # Live filter as user types
+        self.search_input.textChanged.connect(self._on_text_changed)
+        self.ext_combo.currentIndexChanged.connect(self._apply_filter)
 
     def _setup_ui(self):
-        """Setup dialog UI"""
         layout = QVBoxLayout(self)
+        layout.setSpacing(8)
 
-        # Search criteria group
-        search_group = QGroupBox("Search Criteria")
-        search_layout = QVBoxLayout(search_group)
-
-        # Search text
-        text_layout = QHBoxLayout()
-        text_layout.addWidget(QLabel("Search for:"))
+        # ── Search row ─────────────────────────────────────────────────────
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("Search:"))
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Enter search text...")
-        text_layout.addWidget(self.search_input)
-        search_layout.addLayout(text_layout)
+        self.search_input.setPlaceholderText("Name, extension, or RW version…")
+        self.search_input.setClearButtonEnabled(True)
+        row1.addWidget(self.search_input, 1)
+        layout.addLayout(row1)
 
-        # Search options
-        options_layout = QVBoxLayout()
+        # ── Extension filter ───────────────────────────────────────────────
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Type:"))
+        self.ext_combo = QComboBox()
+        self.ext_combo.addItems(list(self.EXT_GROUPS.keys()))
+        row2.addWidget(self.ext_combo, 1)
+        layout.addLayout(row2)
 
-        self.case_sensitive_check = QCheckBox("Case sensitive")
-        options_layout.addWidget(self.case_sensitive_check)
+        # ── Options ────────────────────────────────────────────────────────
+        opt_row = QHBoxLayout()
+        self.case_chk  = QCheckBox("Case sensitive")
+        self.regex_chk = QCheckBox("Regex")
+        self.case_chk.stateChanged.connect(self._apply_filter)
+        self.regex_chk.stateChanged.connect(self._apply_filter)
+        opt_row.addWidget(self.case_chk)
+        opt_row.addWidget(self.regex_chk)
+        opt_row.addStretch()
+        layout.addLayout(opt_row)
 
-        self.whole_word_check = QCheckBox("Whole word only")
-        options_layout.addWidget(self.whole_word_check)
+        # ── Results summary ────────────────────────────────────────────────
+        self.result_lbl = QLabel("Type to filter…")
+        self.result_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
+        layout.addWidget(self.result_lbl)
 
-        self.regex_check = QCheckBox("Regular expression")
-        options_layout.addWidget(self.regex_check)
+        # ── Nav buttons ────────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        self.prev_btn  = QPushButton("◀ Prev")
+        self.next_btn  = QPushButton("Next ▶")
+        self.clear_btn = QPushButton("Clear")
+        self.close_btn = QPushButton("Close")
+        self.prev_btn.setEnabled(False)
+        self.next_btn.setEnabled(False)
+        self.prev_btn.clicked.connect(self._prev_match)
+        self.next_btn.clicked.connect(self._next_match)
+        self.clear_btn.clicked.connect(self._clear)
+        self.close_btn.clicked.connect(self.close)
+        for b in [self.prev_btn, self.next_btn, self.clear_btn, self.close_btn]:
+            btn_row.addWidget(b)
+        layout.addLayout(btn_row)
 
-        search_layout.addLayout(options_layout)
-
-        # File type filter
-        type_layout = QHBoxLayout()
-        type_layout.addWidget(QLabel("File type:"))
-        self.type_combo = QComboBox()
-        self.type_combo.addItems([
-            "All Files", "Models (DFF)", "Textures (TXD)",
-            "Collision (COL)", "Animation (IFP)", "Audio (WAV)", "Scripts (SCM)"
-        ])
-        type_layout.addWidget(self.type_combo)
-        search_layout.addLayout(type_layout)
-
-        layout.addWidget(search_group)
-
-        # Results area
-        results_group = QGroupBox("Search Results")
-        results_layout = QVBoxLayout(results_group)
-
-        self.results_label = QLabel("Enter search criteria and click Find")
-        self.results_label.setStyleSheet("color: palette(mid); font-style: italic;")
-        results_layout.addWidget(self.results_label)
-
-        layout.addWidget(results_group)
-
-        # Buttons
-        button_layout = QHBoxLayout()
-
-        self.find_btn = QPushButton("Find")
-        self.find_btn.clicked.connect(self._do_search)
-        self.find_btn.setDefault(True)
-        button_layout.addWidget(self.find_btn)
-
-        self.find_next_btn = QPushButton("Find Next")
-        self.find_next_btn.clicked.connect(self._find_next)
-        self.find_next_btn.setEnabled(False)
-        button_layout.addWidget(self.find_next_btn)
-
-        button_layout.addStretch()
-
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.close)
-        button_layout.addWidget(close_btn)
-
-        layout.addLayout(button_layout)
-
-        # Focus on search input
         self.search_input.setFocus()
-    
-    def _do_search(self):
-        """Perform search"""
-        search_text = self.search_input.text().strip()
-        if not search_text:
-            QMessageBox.warning(self, "Search", "Please enter search text.")
+
+    # ── Filter logic ───────────────────────────────────────────────────────
+
+    def _on_text_changed(self, text):
+        self._apply_filter()
+
+    def _apply_filter(self):
+        mw = self.parent()
+        if not mw: return
+
+        # Get current table
+        table = self._get_table(mw)
+        if table is None:
+            self.result_lbl.setText("No IMG table visible")
             return
-        
-        options = {
-            'case_sensitive': self.case_sensitive_check.isChecked(),
-            'whole_word': self.whole_word_check.isChecked(),
-            'regex': self.regex_check.isChecked(),
-            'file_type': self.type_combo.currentText()
-        }
-        
-        # Emit search request
-        self.search_requested.emit(search_text, options)
-        
-        # Enable find next button
-        self.find_next_btn.setEnabled(True)
-        
-        # Update results display
-        self.results_label.setText(f"Search performed for: '{search_text}'")
-    
-    def _find_next(self):
-        """Find next match"""
-        if hasattr(self.parent(), 'search_manager'):
-            self.parent().search_manager.find_next()
-    
-    def update_results(self, match_count, total_entries):
-        """Update results display"""
-        if match_count > 0:
-            self.results_label.setText(f"Found {match_count} matches out of {total_entries} entries")
-            self.results_label.setStyleSheet("color: #006600; font-weight: bold;")
+
+        text    = self.search_input.text().strip()
+        ext_key = self.ext_combo.currentText()
+        exts    = self.EXT_GROUPS.get(ext_key, [])
+        case    = self.case_chk.isChecked()
+        use_re  = self.regex_chk.isChecked()
+
+        if use_re and text:
+            try:
+                flags = 0 if case else re.IGNORECASE
+                pattern = re.compile(text, flags)
+            except re.error:
+                self.result_lbl.setText("Invalid regex")
+                return
         else:
-            self.results_label.setText("No matches found")
-            self.results_label.setStyleSheet("color: #CC0000; font-weight: bold;")
+            pattern = None
+
+        matches = []
+        total   = table.rowCount()
+
+        for row in range(total):
+            # Get filename from first text column
+            name = ""
+            for col in range(table.columnCount()):
+                item = table.item(row, col)
+                if item and item.text().strip():
+                    name = item.text().strip()
+                    break
+
+            # Extension filter
+            if exts:
+                ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+                if ext not in exts:
+                    table.setRowHidden(row, True)
+                    continue
+
+            # Text filter
+            if text:
+                haystack = name if case else name.lower()
+                needle   = text if case else text.lower()
+                if pattern:
+                    hit = bool(pattern.search(name))
+                else:
+                    hit = needle in haystack
+                if not hit:
+                    table.setRowHidden(row, True)
+                    continue
+
+            table.setRowHidden(row, False)
+            matches.append(row)
+
+        self._matches = matches
+        self._match_idx = 0 if matches else -1
+
+        visible = len(matches)
+        if not text and not exts:
+            self.result_lbl.setText(f"{total} entries")
+            self.result_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
+        elif visible:
+            self.result_lbl.setText(f"Showing {visible} of {total} entries")
+            self.result_lbl.setStyleSheet("color: #44aa44; font-weight: bold;")
+        else:
+            self.result_lbl.setText(f"No matches in {total} entries")
+            self.result_lbl.setStyleSheet("color: #cc4444; font-weight: bold;")
+
+        has_nav = len(matches) > 1
+        self.prev_btn.setEnabled(has_nav)
+        self.next_btn.setEnabled(has_nav)
+
+        # Scroll to first match
+        if matches:
+            table.scrollToItem(table.item(matches[0], 0))
+            table.selectRow(matches[0])
+
+        self.search_requested.emit(text, {"ext": ext_key})
+
+    def _next_match(self):
+        if not self._matches: return
+        self._match_idx = (self._match_idx + 1) % len(self._matches)
+        self._scroll_to_match()
+
+    def _prev_match(self):
+        if not self._matches: return
+        self._match_idx = (self._match_idx - 1) % len(self._matches)
+        self._scroll_to_match()
+
+    def _scroll_to_match(self):
+        mw = self.parent()
+        table = self._get_table(mw)
+        if table and 0 <= self._match_idx < len(self._matches):
+            row = self._matches[self._match_idx]
+            table.scrollToItem(table.item(row, 0))
+            table.selectRow(row)
+
+    def _clear(self):
+        self.search_input.clear()
+        self.ext_combo.setCurrentIndex(0)
+        mw = self.parent()
+        table = self._get_table(mw)
+        if table:
+            for row in range(table.rowCount()):
+                table.setRowHidden(row, False)
+        self.result_lbl.setText("Type to filter…")
+        self.result_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
+        self.prev_btn.setEnabled(False)
+        self.next_btn.setEnabled(False)
+
+    def _get_table(self, mw):
+        """Get the currently visible IMG table."""
+        if mw is None: return None
+        # Try active tab
+        if hasattr(mw, 'tab_widget'):
+            tab = mw.tab_widget.currentWidget()
+            if tab:
+                from PyQt6.QtWidgets import QTableWidget
+                tables = tab.findChildren(QTableWidget)
+                if tables: return tables[0]
+        # Fallback — direct attribute
+        for attr in ('table_widget', 'entry_table', 'img_table'):
+            t = getattr(mw, attr, None)
+            if t: return t
+        return None
+
+    def closeEvent(self, event):
+        # Restore all hidden rows when dialog is closed
+        self._clear()
+        super().closeEvent(event)
+
+    def update_results(self, match_count, total_entries):
+        self._apply_filter()
 
 
 # Legacy support functions for backward compatibility

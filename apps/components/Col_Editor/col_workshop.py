@@ -6936,19 +6936,18 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                     self.current_img = img
                     self._load_img_col_list()
 
-    def _on_col_selected(self, item): #vers 1
-        """Handle COL file selection"""
+    def _on_col_selected(self, item): #vers 2
+        """Handle COL file selection from left panel list."""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
-            if entry:
-                txd_data = self._extract_col_from_img(entry)
-                if txd_data:
-                    self.current_col_data = col_data
-                    self.current_col_name = entry.name
-                    self._load_col_files(col_data, entry.name)
+            if entry and self.current_img:
+                self._open_col_from_img_entry(self.current_img, entry)
         except Exception as e:
+            err = str(e)
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error selecting COL: {str(e)}")
+                self.main_window.log_message(f"Error selecting COL: {err}")
+            else:
+                QMessageBox.critical(self, "Error selecting COL", err)
 
 
     def _show_col_search(self): #vers 1
