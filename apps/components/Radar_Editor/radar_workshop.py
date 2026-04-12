@@ -787,6 +787,141 @@ class RadarPaletteWidget(QWidget):
 
 
 
+class _BoredomPuzzle(QDialog):
+    """🧩 Sliding tile puzzle using the loaded radar map tiles."""
+
+    def __init__(self, tile_rgba: dict, cols: int, rows: int,
+                 tile_w: int, tile_h: int, parent=None): #vers 1
+        super().__init__(parent)
+        self.setWindowTitle("🧩 Boredom! — Sliding Puzzle")
+        self.setModal(True)
+        self._cols   = cols
+        self._rows   = rows
+        self._tile_w = tile_w
+        self._tile_h = tile_h
+        self._moves  = 0
+        self._solved = False
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(self, parent)
+        except Exception: pass
+
+        # Build pixmaps for each tile
+        self._pixmaps: dict = {}
+        for idx in range(cols * rows):
+            rgba = tile_rgba.get(idx)
+            if rgba:
+                img = QImage(rgba, tile_w, tile_h, tile_w*4, QImage.Format.Format_RGBA8888)
+                self._pixmaps[idx] = QPixmap.fromImage(img)
+            else:
+                pm = QPixmap(tile_w, tile_h); pm.fill(QColor(30, 30, 30))
+                self._pixmaps[idx] = pm
+
+        # Puzzle state: list of tile indices, last slot = blank
+        n = cols * rows
+        self._state = list(range(n))
+        self._blank = n - 1     # blank tile position
+        self._goal  = list(range(n))
+        self._shuffle()
+
+        # Cell size for display (cap at 80px per tile)
+        self._cell = min(80, max(32, 640 // max(cols, rows)))
+        self.setFixedSize(cols * self._cell + 20,
+                          rows * self._cell + 60)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+
+        self._canvas = QLabel()
+        self._canvas.setFixedSize(cols * self._cell, rows * self._cell)
+        self._canvas.mousePressEvent = self._on_click
+        layout.addWidget(self._canvas)
+
+        btn_row = QHBoxLayout()
+        self._info_lbl = QLabel(f"Moves: 0")
+        btn_row.addWidget(self._info_lbl, 1)
+        shuffle_btn = QPushButton("Shuffle")
+        shuffle_btn.clicked.connect(self._shuffle_and_redraw)
+        btn_row.addWidget(shuffle_btn)
+        close_btn = QPushButton("Give Up")
+        close_btn.clicked.connect(self.reject)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+        self._draw()
+
+    def _shuffle(self): #vers 1
+        """Shuffle with 200 random valid moves from solved state."""
+        import random
+        for _ in range(200):
+            neighbours = self._blank_neighbours()
+            if neighbours:
+                swap = random.choice(neighbours)
+                self._state[self._blank], self._state[swap] =                     self._state[swap], self._state[self._blank]
+                self._blank = swap
+
+    def _shuffle_and_redraw(self): #vers 1
+        n = self._cols * self._rows
+        self._state = list(range(n))
+        self._blank = n - 1
+        self._moves = 0
+        self._solved = False
+        self._shuffle()
+        self._draw()
+
+    def _blank_neighbours(self): #vers 1
+        c, r = self._blank % self._cols, self._blank // self._cols
+        nb = []
+        if c > 0: nb.append(self._blank - 1)
+        if c < self._cols-1: nb.append(self._blank + 1)
+        if r > 0: nb.append(self._blank - self._cols)
+        if r < self._rows-1: nb.append(self._blank + self._cols)
+        return nb
+
+    def _on_click(self, ev): #vers 1
+        if self._solved: return
+        x, y = int(ev.position().x()), int(ev.position().y())
+        col, row = x // self._cell, y // self._cell
+        clicked = row * self._cols + col
+        if 0 <= clicked < len(self._state) and clicked in self._blank_neighbours():
+            self._state[self._blank], self._state[clicked] =                 self._state[clicked], self._state[self._blank]
+            self._blank = clicked
+            self._moves += 1
+            self._draw()
+            if self._state == self._goal:
+                self._solved = True
+                self._info_lbl.setText(f"🎉 Solved in {self._moves} moves!")
+                QMessageBox.information(self, "Puzzle Solved!",
+                    f"You solved it in {self._moves} moves!\n\nThe map is restored.")
+
+    def _draw(self): #vers 1
+        cell = self._cell
+        pm = QPixmap(self._cols * cell, self._rows * cell)
+        pm.fill(QColor(20, 20, 20))
+        p = QPainter(pm)
+        for pos, tile_idx in enumerate(self._state):
+            col = pos % self._cols
+            row = pos // self._cols
+            x, y = col * cell, row * cell
+            if pos == self._blank:
+                p.fillRect(x, y, cell, cell, QColor(40, 40, 40))
+                continue
+            src = self._pixmaps.get(tile_idx)
+            if src:
+                p.drawPixmap(x, y, src.scaled(
+                    cell, cell,
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.FastTransformation))
+            # Grid line
+            p.setPen(QPen(QColor(0, 0, 0, 120), 1))
+            p.drawRect(x, y, cell-1, cell-1)
+        p.end()
+        self._canvas.setPixmap(pm)
+        if not self._solved:
+            self._info_lbl.setText(f"Moves: {self._moves}")
+
+
+
 class _TileZoomView(QWidget):
     """Tile zoom view — sits inside a _view_tabs tab, scales tile to fill space.
     All sidebar tools in RadarWorkshop operate on self._tile_idx via _current_idx."""
@@ -944,10 +1079,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                     act.triggered.connect(lambda checked=False, p=rpath: self._open_recent(p))
                 rm.addSeparator()
                 rm.addAction("Clear Recent", self._clear_recent)
+        em = pm.addMenu("Edit")
+        em.addAction("Undo  Ctrl+Z",   self._undo)
+        em.addAction("Redo  Ctrl+Y",   self._redo)
+        em.addSeparator()
+        em.addAction("Map Statistics…", self._show_stats)
         vm = pm.addMenu("View")
         vm.addAction("Zoom In (+)",    lambda: self._zoom(1.25))
         vm.addAction("Zoom Out (-)",   lambda: self._zoom(0.8))
         vm.addAction("Fit Grid",       self._fit)
+        vm.addSeparator()
+        vm.addAction("🧩 Boredom!",   self._start_boredom)
         vm.addSeparator()
         vm.addAction("About Radar Workshop", self._show_about)
 
@@ -1029,6 +1171,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._img_path:     str = ""
         self._game_preset:  dict = GAME_PRESETS["SA PC"]
         self._current_idx:  int  = -1
+        self._clipboard_tile: bytes = None   # copy/paste buffer
+        self._undo_stack: list = []          # list of (idx, rgba) snapshots
+        self._redo_stack: list = []
         self._tile_rgba:    Dict[int, bytes] = {}
         self._tile_entries: List[dict] = []
         self._dirty_tiles:  set = set()
@@ -1266,8 +1411,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.export_btn = _cb('export_icon', "Export all tiles as PNG sheet", self._export_sheet)
         self.import_btn = _cb('import_icon', "Import PNG sheet of tiles",    self._import_sheet)
         btn_row.addStretch()
-        # info_btn removed — [ℹ] already in toolbar (info_radar_btn)
         vl.addLayout(btn_row)
+
+        # ── Tile search bar ────────────────────────────────────────────────────
+        search_row = QHBoxLayout()
+        self._tile_search = QLineEdit()
+        self._tile_search.setPlaceholderText("Search tiles…  e.g. 64-95 or radar")
+        self._tile_search.setClearButtonEnabled(True)
+        self._tile_search.textChanged.connect(self._filter_tile_list)
+        search_row.addWidget(self._tile_search)
+        vl.addLayout(search_row)
 
         # ── Tile list ─────────────────────────────────────────────────────────
         self._tile_list = QListWidget()
@@ -1285,6 +1438,54 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         vl.addWidget(self._dirty_lbl)
 
         return panel
+
+    def _filter_tile_list(self, text: str): #vers 1
+        """Filter tile list by name or index range (e.g. '64-95' or 'radar0')."""
+        import re as _re
+        text = text.strip()
+        range_m = _re.match(r'^(\d+)\s*[-–]\s*(\d+)$', text)
+        for i in range(self._tile_list.count()):
+            item = self._tile_list.item(i)
+            if not text:
+                item.setHidden(False)
+            elif range_m:
+                lo, hi = int(range_m.group(1)), int(range_m.group(2))
+                item.setHidden(not (lo <= i <= hi))
+            else:
+                item.setHidden(text.lower() not in item.text().lower())
+
+    def _push_undo(self, idx: int): #vers 1
+        """Push current tile state onto undo stack before a change."""
+        if idx not in self._tile_rgba: return
+        self._undo_stack.append((idx, self._tile_rgba[idx]))
+        if len(self._undo_stack) > 20:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+
+    def _undo(self): #vers 1
+        if not self._undo_stack:
+            self._set_status("Nothing to undo"); return
+        idx, rgba = self._undo_stack.pop()
+        if idx in self._tile_rgba:
+            self._redo_stack.append((idx, self._tile_rgba[idx]))
+        self._tile_rgba[idx] = rgba
+        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+        self._refresh_tile_tab(idx)
+        self._set_status(f"Undo — tile {idx}")
+
+    def _redo(self): #vers 1
+        if not self._redo_stack:
+            self._set_status("Nothing to redo"); return
+        idx, rgba = self._redo_stack.pop()
+        self._undo_stack.append((idx, self._tile_rgba[idx]))
+        self._tile_rgba[idx] = rgba
+        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+        self._refresh_tile_tab(idx)
+        self._set_status(f"Redo — tile {idx}")
 
 
     # --- Right panel: settings
@@ -1911,6 +2112,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         QShortcut(QKeySequence("Ctrl+0"),         self).activated.connect(self._fit)
         # Tile edit popup
         QShortcut(QKeySequence(Qt.Key.Key_E), self).activated.connect(self._edit_tile_popup)
+        QShortcut(QKeySequence("Ctrl+Z"), self).activated.connect(self._undo)
+        QShortcut(QKeySequence("Ctrl+Y"), self).activated.connect(self._redo)
+        QShortcut(QKeySequence("Ctrl+Shift+Z"), self).activated.connect(self._redo)
         # Draw tool keys
         QShortcut(QKeySequence(Qt.Key.Key_P), self).activated.connect(lambda: self._set_draw_tool('pencil'))
         QShortcut(QKeySequence(Qt.Key.Key_L), self).activated.connect(lambda: self._set_draw_tool('line'))
@@ -2155,15 +2359,20 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._view_tabs.addTab(tile_view, tab_label)
         self._view_tabs.setCurrentWidget(tile_view)
 
-    def _on_view_tab_changed(self, tab_idx: int): #vers 1
+    def _on_view_tab_changed(self, tab_idx: int): #vers 2
         """When user switches tabs — sync tile selection if it's a tile tab."""
-        if tab_idx == 0: return  # Map tab — no tile to select
+        if tab_idx == 0:
+            return  # Map tab — keep whatever tile is currently selected
         w = self._view_tabs.widget(tab_idx)
         tile_idx = getattr(w, '_tile_idx', -1)
-        if tile_idx >= 0 and tile_idx != self._current_idx:
+        if tile_idx >= 0:
+            # Update _current_idx without triggering another tab switch
             self._current_idx = tile_idx
             self._radar.set_selected(tile_idx)
+            # Block signals so setCurrentRow doesn't re-fire _on_list_row
+            self._tile_list.blockSignals(True)
             self._tile_list.setCurrentRow(tile_idx)
+            self._tile_list.blockSignals(False)
 
     def _on_view_tab_close(self, tab_idx: int): #vers 1
         """Close a tile tab (Map tab at index 0 is never closable)."""
@@ -2195,6 +2404,12 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         menu = QMenu(self)
         icon_color = self._get_icon_color()
 
+        act_copy   = menu.addAction(
+            SVGIconFactory.open_icon(16, icon_color),   "Copy tile")
+        act_paste  = menu.addAction(
+            SVGIconFactory.save_icon(16, icon_color),   "Paste tile")
+        act_paste.setEnabled(hasattr(self, '_clipboard_tile') and self._clipboard_tile is not None)
+        menu.addSeparator()
         act_export = menu.addAction(
             SVGIconFactory.export_icon(16, icon_color), "Export tile as PNG…")
         act_import = menu.addAction(
@@ -2206,7 +2421,23 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         chosen = menu.exec(self._tile_list.mapToGlobal(pos))
         if chosen is None: return
 
-        if chosen == act_export:
+        if chosen == act_copy:
+            self._clipboard_tile = self._tile_rgba.get(idx)
+            self._set_status(f"Copied tile {idx}")
+        elif chosen == act_paste:
+            if hasattr(self, '_clipboard_tile') and self._clipboard_tile:
+                rgba = self._clipboard_tile
+                self._tile_rgba[idx] = rgba
+                self._dirty_tiles.add(idx)
+                self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+                self._radar.set_dirty(idx, True)
+                if idx < len(self._list_items):
+                    self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+                self._refresh_tile_tab(idx)
+                self.save_btn.setEnabled(True)
+                self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+                self._set_status(f"Pasted to tile {idx}")
+        elif chosen == act_export:
             self._export_single_tile(idx)
         elif chosen == act_import:
             self._import_single_tile(idx)
@@ -2454,6 +2685,77 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.RAD_settings._data['recent_files'] = []
         self.RAD_settings.save()
         self._set_status("Recent files cleared")
+
+    def _show_stats(self): #vers 1
+        """Map statistics — unique colours, duplicate tiles, modified count."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
+        if not self._tile_rgba:
+            QMessageBox.information(self, "No Data", "Load an IMG file first."); return
+
+        total = len(self._tile_entries)
+        loaded = len(self._tile_rgba)
+        modified = len(self._dirty_tiles)
+
+        # Unique colours across all tiles
+        seen_colors: set = set()
+        tile_hashes: dict = {}
+        for idx, rgba in self._tile_rgba.items():
+            import hashlib
+            h = hashlib.md5(rgba).hexdigest()
+            tile_hashes[idx] = h
+            step = 4
+            for i in range(0, len(rgba)-3, step*4):
+                r,g,b,a = rgba[i],rgba[i+1],rgba[i+2],rgba[i+3]
+                if a > 16:
+                    seen_colors.add((r>>3, g>>3, b>>3))
+
+        # Find duplicate tiles
+        from collections import defaultdict
+        hash_groups = defaultdict(list)
+        for idx, h in tile_hashes.items():
+            hash_groups[h].append(idx)
+        duplicates = {h:idxs for h,idxs in hash_groups.items() if len(idxs) > 1}
+
+        lines = [
+            f"<b>Tiles:</b> {loaded} loaded of {total} total",
+            f"<b>Modified:</b> {modified}",
+            f"<b>Unique colours:</b> ~{len(seen_colors)} (sampled)",
+            f"<b>Duplicate tile groups:</b> {len(duplicates)}",
+        ]
+        if duplicates:
+            lines.append("<br><b>Top duplicates:</b>")
+            for h, idxs in list(duplicates.items())[:8]:
+                names = [self._tile_entries[i]["name"] if i < len(self._tile_entries)
+                         else f"tile_{i}" for i in idxs[:4]]
+                lines.append(f"  {', '.join(names)}{'…' if len(idxs)>4 else ''}")
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Map Statistics")
+        dlg.resize(420, 320)
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, self.main_window)
+        except Exception: pass
+        layout = QVBoxLayout(dlg)
+        t = QTextEdit(); t.setReadOnly(True)
+        t.setHtml("<br>".join(lines))
+        layout.addWidget(t)
+        ok = QPushButton("Close"); ok.clicked.connect(dlg.accept)
+        layout.addWidget(ok)
+        dlg.exec()
+
+    def _start_boredom(self): #vers 1
+        """🧩 Boredom! — sliding puzzle using radar tiles."""
+        if not self._tile_rgba:
+            QMessageBox.information(self, "Boredom!", "Load radar tiles first!"); return
+        cols = self._game_preset.get("cols", 8)
+        rows = self._game_preset.get("rows", 8)
+        if cols * rows > 256:
+            QMessageBox.information(self, "Boredom!",
+                f"SOL ({cols}x{rows}) is too large for a puzzle! "
+                "Load a VC/III (8x8) or SA (12x12) map instead."); return
+        dlg = _BoredomPuzzle(self._tile_rgba, cols, rows, TILE_W, TILE_H, self)
+        dlg.exec()
 
     def _show_about(self): #vers 2
         """Show Radar Workshop instructions and info dialog."""
