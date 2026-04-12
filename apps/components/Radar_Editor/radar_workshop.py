@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 1
-# X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
+#this belongs in apps/components/temp/temp_workshop.py - Version: 19
+# X-Seti - Apr 2026 - IMG Factory 1.6 - temp Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
 # Tool bar uses template pattern: titlebar + toolbar with all standard buttons
@@ -10,6 +10,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
+os.environ['QSG_RHI_BACKEND'] = 'opengl'
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox,
@@ -86,8 +93,11 @@ except ImportError:
         def _get_tool_menu_style(self): return 'dropdown'
 
 
-# - Shared infrastructure (already imported above)
-if False:
+# - Try importing shared infrastructure
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+    ICONS_AVAILABLE = True
+except ImportError:
     ICONS_AVAILABLE = False
     class SVGIconFactory:
         def __getattr__(self, name):
@@ -293,8 +303,8 @@ class TileListItem(QListWidgetItem):
 
 # - Main Class
 
-class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
-    """Radar tile editor — based on gui_template GUIWorkshop pattern."""
+class RADWorkshop(ToolMenuMixin, QWidget): #vers 8
+    """Radar Workshop – skeleton class"""
 
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
@@ -474,14 +484,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.menu_toggle_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.menu_toggle_btn)
 
-        # - Settings button
+        # - Settings button (standalone only — docked uses right-panel button)
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
         self.settings_btn.setText("Settings")
         self.settings_btn.setIconSize(QSize(20, 20))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + " Workshop Settings")
+        self.settings_btn.setToolTip(App_name + "Workshop Settings")
         self.settings_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.settings_btn)
 
@@ -573,52 +583,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         vl.setContentsMargins(*self.get_panel_margins())
         vl.setSpacing(self.panelspacing)
 
-        # Header row: label + file buttons
-        hdr_row = QHBoxLayout()
         hdr = QLabel("Tiles")
         hdr.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(hdr)
-        hdr_row.addStretch()
-
-        icon_color = self._get_icon_color()
-
-        self.open_btn = QPushButton()
-        self.open_btn.setIcon(SVGIconFactory.open_icon(20, icon_color))
-        self.open_btn.setIconSize(QSize(20, 20))
-        self.open_btn.setToolTip("Load radar IMG (Ctrl+O)")
-        self.open_btn.clicked.connect(self._open_file)
-        hdr_row.addWidget(self.open_btn)
-
-        self.save_btn = QPushButton()
-        self.save_btn.setIcon(SVGIconFactory.save_icon(20, icon_color))
-        self.save_btn.setIconSize(QSize(20, 20))
-        self.save_btn.setToolTip("Save IMG (Ctrl+S)")
-        self.save_btn.setEnabled(False)
-        self.save_btn.clicked.connect(self._save_file)
-        hdr_row.addWidget(self.save_btn)
-
-        self.export_btn = QPushButton()
-        self.export_btn.setIcon(SVGIconFactory.export_icon(20, icon_color))
-        self.export_btn.setIconSize(QSize(20, 20))
-        self.export_btn.setToolTip("Export all tiles as PNG sheet")
-        self.export_btn.clicked.connect(self._export_sheet)
-        hdr_row.addWidget(self.export_btn)
-
-        self.import_btn = QPushButton()
-        self.import_btn.setIcon(SVGIconFactory.import_icon(20, icon_color))
-        self.import_btn.setIconSize(QSize(20, 20))
-        self.import_btn.setToolTip("Import PNG sheet")
-        self.import_btn.clicked.connect(self._import_sheet)
-        hdr_row.addWidget(self.import_btn)
-
-        self.info_btn = QPushButton()
-        self.info_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setToolTip("Workshop Info")
-        self.info_btn.clicked.connect(self._show_info)
-        hdr_row.addWidget(self.info_btn)
-
-        vl.addLayout(hdr_row)
+        vl.addWidget(hdr)
 
         self._tile_list = QListWidget()
         self._tile_list.setIconSize(QSize(THUMB, THUMB))
@@ -677,6 +644,36 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         nl.addWidget(self._game_combo2)
 
         hl.addWidget(nav)
+        return panel
+
+
+    def _create_right_panel_old(self): #Vers 1
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(80)
+        panel.setMaximumWidth(180)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(10)
+
+        header = QLabel("Paint Gadgets")
+        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        layout.addWidget(header)
+
+        layout.addStretch()
+
+        # Settings button — only shown when docked (toolbar is hidden in docked mode)
+        self.docked_settings_btn = QPushButton()
+        self.docked_settings_btn.setFont(self.button_font)
+        self.docked_settings_btn.setIcon(self.icon_factory.settings_icon())
+        self.docked_settings_btn.setText("Settings / Options")
+        self.docked_settings_btn.setIconSize(QSize(18, 18))
+        self.docked_settings_btn.clicked.connect(self._show_workshop_settings)
+        self.docked_settings_btn.setToolTip(App_name + " Workshop Settings")
+        self.docked_settings_btn.setVisible(not self.standalone_mode)
+        layout.addWidget(self.docked_settings_btn)
+
         return panel
 
 
@@ -836,8 +833,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Menu options
-
-
     def _apply_menu_bar_style(self): #vers 3
         """Apply font size, height and colours to the topbar menubar.
         Uses explicit colours so it stays readable regardless of app theme.
@@ -849,7 +844,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         bar_fs = self.RAD_settings.get('menu_bar_font_size', 9)
         dd_fs  = self.RAD_settings.get('menu_dropdown_font_size', 9)
 
-        # Get theme colours if available, otherwise use sensible defaults
+        # - Get theme colours if available, otherwise use sensible defaults
         bg   = '#2b2b2b'
         fg   = '#e0e0e0'
         sel  = '#1976d2'
@@ -868,8 +863,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         except Exception:
             pass
 
-        # Height controlled by container — NOT by stylesheet min/max-height
-        # (stylesheet height properties override Qt layout and prevent the bar showing)
+        # - Height controlled by container — NOT by stylesheet min/max-height
+        # - (stylesheet height properties override Qt layout and prevent the bar showing)
         mb.setStyleSheet(f"""
             QMenuBar {{
                 background-color: {bg};
@@ -897,8 +892,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             }}
         """)
 
-        # Size the container based on settings, not isVisible()
-        # (isVisible() is False during __init__ even if widget will be shown)
+        # - Size the container based on settings, not isVisible()
+        # - (isVisible() is False during __init__ even if widget will be shown)
         c = getattr(self, '_menu_bar_container', None)
         if c:
             show = (self.RAD_settings.get('show_menubar', False) and
@@ -907,45 +902,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 c.setMinimumHeight(0)
                 c.setMaximumHeight(bar_h)
             # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
-
-
-
-    def _on_menu_btn_clicked(self): #vers 3
-        style = self.RAD_settings.get('menu_style')
-        if style == 'dropdown':
-            self._show_dropdown_menu()
-        else:
-            on = not self.RAD_settings.get('show_menubar')
-            self.RAD_settings.set('show_menubar', on)
-            self.RAD_settings.save()
-            c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
-            if c:
-                c.setMinimumHeight(0)
-                c.setMaximumHeight(16777215 if on else 0)
-                c.setVisible(on)
-
-
-    def _show_dropdown_menu(self): #vers 1
-        """Pop up the canvas menus as a single QMenu dropdown."""
-        menu = QMenu(self)
-        self._build_canvas_menus(menu)
-        btn = getattr(self, 'menu_toggle_btn', None)
-        if btn:
-            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-        else:
-            menu.exec(self.cursor().pos())
-
-
-
-    def _toggle_menubar(self, on: bool): #vers 3
-        self.RAD_settings.set('show_menubar', on)
-        self.RAD_settings.save()
-        c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
-        if c:
-            c.setMinimumHeight(0)
-            c.setMaximumHeight(16777215 if on else 0)
-            c.setVisible(on)
-
 
 
     def set_menu_orientation(self, style: str): #vers 4
@@ -971,31 +927,47 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 container.setMaximumHeight(0)
                 container.setFixedHeight(0)
 
+    def get_menu_title(self) -> str: #vers 1
+        """Return menu label for imgfactory menu bar."""
+        return "DP5 Paint"
 
-    def _refresh_icons(self): #Vers 1
-        SVGIconFactory.clear_cache()
-        # Re-apply theme-aware icon colour to toolbar buttons
-        color = self._get_icon_color()
-        icon_map = [
-            ('settings_btn',    'settings_icon'),
-            ('new_session_btn', 'add_icon'),
-            ('clear_btn',       'delete_icon'),
-            ('properties_btn',  'properties_icon'),
-            ('docked_settings_btn', 'settings_icon'),
-        ]
-        for attr, method in icon_map:
-            if hasattr(self, attr):
-                btn = getattr(self, attr)
-                btn.setIcon(getattr(SVGIconFactory, method)(20, color))
-        # Window control buttons
-        for attr, method in [('minimize_btn','minimize_icon'),
-                              ('maximize_btn','maximize_icon'),
-                              ('close_btn','close_icon')]:
-            if hasattr(self, attr):
-                getattr(self, attr).setIcon(getattr(SVGIconFactory, method)(20, color))
+    def _get_tool_menu_style(self) -> str: #vers 1
+        """Read menu_style from RAD_settings."""
+        return self.RAD_settings.get('menu_style', 'dropdown')
+
+    def _on_menu_btn_clicked(self): #vers 3
+        style = self.RAD_settings.get('menu_style')
+        if style == 'dropdown':
+            self._show_dropdown_menu()
+        else:
+            on = not self.RAD_settings.get('show_menubar')
+            self.RAD_settings.set('show_menubar', on)
+            self.RAD_settings.save()
+            c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+            if c:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(16777215 if on else 0)
+                c.setVisible(on)
+
+    def _show_dropdown_menu(self): #vers 1
+        """Pop up the canvas menus as a single QMenu dropdown."""
+        menu = QMenu(self)
+        self._build_canvas_menus(menu)
+        btn = getattr(self, 'menu_toggle_btn', None)
+        if btn:
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.exec(self.cursor().pos())
 
 
-   # - File ops
+    def _toggle_menubar(self, on: bool): #vers 3
+        self.RAD_settings.set('show_menubar', on)
+        self.RAD_settings.save()
+        c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+        if c:
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(16777215 if on else 0)
+            c.setVisible(on)
 
 
     def _on_game_changed(self, game): #vers 1
@@ -1050,7 +1022,21 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if hasattr(self,'dock_btn'): self.dock_btn.setVisible(not self.is_docked)
         if hasattr(self,'tearoff_btn'): self.tearoff_btn.setVisible(self.is_docked and not self.standalone_mode)
 
+    def toggle_dock_mode(self): #vers 1
+        if self.is_docked: self._undock_from_main()
+        else: self._dock_to_main()
+        self._update_dock_button_visibility()
 
+    def _toggle_tearoff(self): #vers 1
+        if self.is_docked: self._undock_from_main()
+        else: self._dock_to_main()
+
+    def _dock_to_main(self): #vers 1
+        self.is_docked=True; self._update_dock_button_visibility(); self.show(); self.raise_()
+
+    def _undock_from_main(self): #vers 1
+        self.setWindowFlags(Qt.WindowType.Window); self.is_docked=False
+        self._update_dock_button_visibility(); self.resize(1400,860); self.show(); self.raise_()
 
 
     # - Hotkeys (template pattern)
@@ -1064,9 +1050,52 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self.main_window.log_message(f"{App_name} hotkeys ready")
 
 
-    # _apply_theme defined below
+    def _apply_theme(self): #Vers 1
+        try:
+            app_settings = self.app_settings
+            if not app_settings and self.main_window:
+                app_settings = getattr(self.main_window, 'app_settings', None)
+            if app_settings:
+                self.setStyleSheet(app_settings.get_stylesheet())
+                # Apply theme colours to status labels
+                colors = app_settings.get_theme_colors()
+                secondary = colors.get('text_secondary', '#aaaaaa')
+                if hasattr(self, 'typing_label'):
+                    self.typing_label.setStyleSheet(
+                        f"color: {secondary}; font-style: italic;")
+            else:
+                self.setStyleSheet("""
+                    QWidget { background-color: #2b2b2b; color: #e0e0e0; }
+                    QTextEdit, QListWidget { background-color: #1e1e1e; border: 1px solid #3a3a3a; }
+                    QGroupBox { border: 1px solid #3a3a3a; margin-top: 6px; }
+                """)
+            # Redraw chat bubbles with updated theme colours
+            self._redraw_chat()
+            self._update_ollama_status()
+        except Exception as e:
+            print(f"[AI Workshop] Theme error: {e}")
 
-
+    def _refresh_icons(self): #Vers 1
+        SVGIconFactory.clear_cache()
+        # Re-apply theme-aware icon colour to toolbar buttons
+        color = self._get_icon_color()
+        icon_map = [
+            ('settings_btn',    'settings_icon'),
+            ('new_session_btn', 'add_icon'),
+            ('clear_btn',       'delete_icon'),
+            ('properties_btn',  'properties_icon'),
+            ('docked_settings_btn', 'settings_icon'),
+        ]
+        for attr, method in icon_map:
+            if hasattr(self, attr):
+                btn = getattr(self, attr)
+                btn.setIcon(getattr(SVGIconFactory, method)(20, color))
+        # Window control buttons
+        for attr, method in [('minimize_btn','minimize_icon'),
+                              ('maximize_btn','maximize_icon'),
+                              ('close_btn','close_icon')]:
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(getattr(SVGIconFactory, method)(20, color))
 
 
    # - File ops
@@ -1183,6 +1212,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Theme & icon helpers (template pattern)
+    def _get_icon_color(self): #vers 1
+        if self.app_settings:
+            c=self.app_settings.get_theme_colors()
+            if c: return c.get('text_primary','#ffffff')
+        return '#ffffff'
+
+
     def _apply_theme(self): #vers 1
         try:
             if self.app_settings:
@@ -1296,6 +1332,52 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self.showMaximized()
 
     # Corner resize + dragging (identical pattern to COL Workshop)
+
+    def _update_transform_text_panel_visibility(self): #vers 2
+        """Toggle between text+icon panel (wide) and icon-only strip (narrow).
+        Reads threshold from IMG Factory settings. Also collapses bottom buttons."""
+        tp   = getattr(self, '_transform_text_panel_ref', None)
+        ip   = getattr(self, '_transform_icon_panel_ref', None)
+        mode = getattr(self, 'button_display_mode', 'both')
+
+        if mode == 'icons':
+            if tp: tp.setVisible(False)
+            if ip: ip.setVisible(True)
+            return
+        if mode == 'text':
+            if tp: tp.setVisible(True)
+            if ip: ip.setVisible(False)
+            return
+
+        # Measure right panel width directly
+        rp = getattr(self, '_right_panel_ref', None)
+        if rp:
+            ref_w = rp.width()
+        else:
+            splitter = getattr(self, '_main_splitter', None)
+            ref_w = self.width()
+            if splitter and tp:
+                w = tp
+                while w and w.parent() is not splitter:
+                    w = w.parent() if hasattr(w, 'parent') else None
+                if w:
+                    ref_w = w.width()
+
+        try:
+            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
+            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
+        except Exception:
+            threshold = 550
+        wide = ref_w >= threshold
+        if tp: tp.setVisible(wide)
+        if ip: ip.setVisible(not wide)
+
+        # Toggle bottom panel rows the same way
+        btr = getattr(self, '_bottom_text_row', None)
+        bir = getattr(self, '_bottom_icon_row', None)
+        if btr: btr.setVisible(wide)
+        if bir: bir.setVisible(not wide)
+
 
     def _get_resize_corner(self, pos): #Vers 1
         size = self.corner_size; w = self.width(); h = self.height()
@@ -1513,7 +1595,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 def open_radar_workshop(main_window=None):
     try:
-        w = RadarWorkshop(None, main_window); w.show(); return w
+        w=RadarWorkshop(None,main_window); w.show(); return w
     except Exception as e:
         if main_window: QMessageBox.critical(main_window,App_name+" Error",str(e))
         return None
@@ -1528,7 +1610,7 @@ if __name__ == "__main__": #Vers 1
     print(App_name + " starting…")
     try:
         app = QApplication(sys.argv)
-        w = RadarWorkshop()
+        w = RADWorkshop()
         w.setWindowTitle(App_name + " – Standalone")
         w.resize(1300, 800); w.show(); sys.exit(app.exec())
     except Exception as e:
