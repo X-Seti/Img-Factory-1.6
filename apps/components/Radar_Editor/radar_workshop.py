@@ -388,15 +388,53 @@ class RadarGridWidget(QWidget):
 
 # - Tile list item
 
-THUMB=32
+THUMB = 64   # thumbnail size — doubled from 32
 
 class TileListItem(QListWidgetItem):
-    def __init__(self,idx,name):
-        super().__init__(); self.idx=idx
-        self.setText(f"  {name}"); self.setSizeHint(QSize(0,THUMB+4))
-    def set_thumb(self,rgba,w,h):
-        img=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888)
-        self.setIcon(QIcon(QPixmap.fromImage(img).scaled(THUMB,THUMB,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)))
+    """Tile list entry: 64px thumbnail + name + game badge + tile size."""
+    def __init__(self, idx, name, game_label="", tile_w=128, tile_h=128): #vers 2
+        super().__init__()
+        self.idx       = idx
+        self.tile_name = name
+        self.game_label= game_label
+        self.tile_w    = tile_w
+        self.tile_h    = tile_h
+        self._update_text()
+        self.setSizeHint(QSize(0, THUMB + 8))
+
+    def _game_badge(self) -> str: #vers 1
+        """Short badge from game label, e.g. 'GTA San Andreas (PC)' -> '[SA]'."""
+        g = self.game_label
+        if not g: return ""
+        badges = {
+            "San Andreas": "[SA]", "Vice City Stories": "[VCS]",
+            "Vice City":   "[VC]", "Liberty City Stories": "[LCS]",
+            "Liberty City": "[LC]", "State of Liberty": "[SOL]",
+            "GTA III":     "[III]", "Android": "[And]",
+            "iOS":         "[iOS]", "PSP":     "[PSP]",
+        }
+        for key, badge in badges.items():
+            if key in g:
+                return badge
+        return ""
+
+    def _update_text(self): #vers 1
+        badge = self._game_badge()
+        lines = [f"  {self.tile_name}"]
+        info_parts = []
+        if badge: info_parts.append(badge)
+        info_parts.append(f"{self.tile_w}×{self.tile_h}")
+        lines.append(f"  {' '.join(info_parts)}")
+        self.setText("\n".join(lines))
+
+    def set_thumb(self, rgba, w, h): #vers 2
+        self.tile_w = w; self.tile_h = h
+        img = QImage(rgba, w, h, w*4, QImage.Format.Format_RGBA8888)
+        self.setIcon(QIcon(QPixmap.fromImage(img).scaled(
+            THUMB, THUMB,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)))
+        self._update_text()
 
 # - Main Class
 
@@ -991,9 +1029,11 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         # ── Tile list ─────────────────────────────────────────────────────────
         self._tile_list = QListWidget()
         self._tile_list.setIconSize(QSize(THUMB, THUMB))
-        self._tile_list.setUniformItemSizes(True)
+        self._tile_list.setUniformItemSizes(False)   # items have 2 text lines
         self._tile_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._tile_list.currentRowChanged.connect(self._on_list_row)
+        self._tile_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tile_list.customContextMenuRequested.connect(self._on_tile_list_context)
         vl.addWidget(self._tile_list, 1)
 
         self._dirty_lbl = QLabel("Modified: 0")
@@ -1533,17 +1573,24 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._apply_preset("Custom")
 
 
-    def _apply_preset(self, game): #vers 2
-        self._game_preset=GAME_PRESETS[game]; cols=self._game_preset["cols"]; count=self._game_preset["count"]
-        self._tile_rgba={}; self._dirty_tiles=set(); self._current_idx=-1
-        names=[self._game_preset["name_fn"](i) for i in range(count)]
-        self._radar.setup(cols,count,names)
-        self._tile_list.clear(); self._list_items=[]
+    def _apply_preset(self, game): #vers 3
+        self._game_preset = GAME_PRESETS[game]
+        cols  = self._game_preset["cols"]
+        count = self._game_preset["count"]
+        label = self._game_preset["label"]
+        self._tile_rgba = {}; self._dirty_tiles = set(); self._current_idx = -1
+        names = [self._game_preset["name_fn"](i) for i in range(count)]
+        self._radar.setup(cols, count, names)
+        self._tile_list.clear()
+        self._tile_list.setIconSize(QSize(THUMB, THUMB))
+        self._list_items = []
         for i in range(count):
-            item=TileListItem(i,names[i]); self._tile_list.addItem(item); self._list_items.append(item)
-        hint = self._game_preset.get("hint","")
-        self._set_status(f"{self._game_preset['label']} — {hint}" if hint else
-                         f"{self._game_preset['label']} — {count} tiles ({cols}×{self._game_preset['rows']})")
+            item = TileListItem(i, names[i], game_label=label)
+            self._tile_list.addItem(item)
+            self._list_items.append(item)
+        hint = self._game_preset.get("hint", "")
+        self._set_status(f"{label} — {hint}" if hint else
+                         f"{label} — {count} tiles ({cols}×{self._game_preset['rows']})")
 
 
     # - Font apply helpers (template pattern)
@@ -1714,17 +1761,29 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
 
-        # If no entries with current preset, try all known patterns as fallback
-        if not entries:
-            filename_matched = False  # fallback = not a clean match
-            for pname, preset in GAME_PRESETS.items():
-                if pname == self._game_combo.currentText(): continue
-                if preset.get("img_source") not in ("img", "pvr"): continue
-                found = self._img_reader.find_radar_entries(preset["img_pattern"])
+        # If no entries AND filename was NOT matched, try fallback patterns
+        # NEVER fall back if filename was matched — trust the preset
+        if not entries and not filename_matched:
+            # Try PC/PVR presets first (prefer over Android/mobile)
+            pc_first = [p for p in GAME_PRESETS if GAME_PRESETS[p].get("img_source") in ("img","pvr")
+                        and p != self._game_combo.currentText()
+                        and "And" not in p and "iOS" not in p and "PSP" not in p]
+            other    = [p for p in GAME_PRESETS if GAME_PRESETS[p].get("img_source") in ("img","pvr")
+                        and p != self._game_combo.currentText()
+                        and p not in pc_first]
+            for pname in pc_first + other:
+                found = self._img_reader.find_radar_entries(GAME_PRESETS[pname]["img_pattern"])
                 if found:
                     self._on_game_changed(pname)
                     entries = found
                     break
+        elif not entries and filename_matched:
+            # Filename matched but no entries found — show clear error
+            hint_msg = f"\n\nHint: {self._game_preset.get('hint','')}" if self._game_preset.get('hint') else ""
+            QMessageBox.warning(self, "No Radar Tiles",
+                f"No radar TXDs found in {Path(path).name}.{hint_msg}\n\n"
+                f"Expected preset: {self._game_preset['label']}")
+            return
 
         if not entries:
             hint_msg = f"\n\nHint: {hint}" if hint else ""
@@ -1861,6 +1920,98 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
 
     # - Tile selection
+    def _on_tile_list_context(self, pos): #vers 1
+        """Right-click context menu on tile list item."""
+        item = self._tile_list.itemAt(pos)
+        if item is None: return
+        idx = item.idx
+
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        icon_color = self._get_icon_color()
+
+        act_export = menu.addAction(
+            SVGIconFactory.export_icon(16, icon_color), "Export tile as PNG…")
+        act_import = menu.addAction(
+            SVGIconFactory.import_icon(16, icon_color), "Import tile from PNG…")
+        menu.addSeparator()
+        act_delete = menu.addAction(
+            SVGIconFactory.delete_icon(16, icon_color), "Delete tile (reset to blank)")
+
+        chosen = menu.exec(self._tile_list.mapToGlobal(pos))
+        if chosen is None: return
+
+        if chosen == act_export:
+            self._export_single_tile(idx)
+        elif chosen == act_import:
+            self._import_single_tile(idx)
+        elif chosen == act_delete:
+            self._delete_single_tile(idx)
+
+    def _export_single_tile(self, idx: int): #vers 1
+        """Export a single tile as PNG."""
+        if idx not in self._tile_rgba:
+            QMessageBox.information(self, "No Data", "Tile not loaded."); return
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        stem = Path(name).stem
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export tile {stem}", f"{stem}.png",
+            "PNG Image (*.png);;BMP Image (*.bmp)")
+        if not path: return
+        try:
+            from PIL import Image
+            rgba = self._tile_rgba[idx]
+            img  = Image.frombytes("RGBA", (TILE_W, TILE_H), rgba)
+            if path.lower().endswith('.bmp'): img = img.convert("RGB")
+            img.save(path)
+            self._set_status(f"Exported tile {idx} → {Path(path).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _import_single_tile(self, idx: int): #vers 1
+        """Import a single tile from PNG/BMP."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Import tile {idx}", "",
+            "PNG Image (*.png);;BMP Image (*.bmp);;All Images (*)")
+        if not path: return
+        try:
+            from PIL import Image
+            img  = Image.open(path).convert("RGBA")
+            if img.size != (TILE_W, TILE_H):
+                img = img.resize((TILE_W, TILE_H), Image.LANCZOS)
+            rgba = img.tobytes()
+            self._tile_rgba[idx]  = rgba
+            self._dirty_tiles.add(idx)
+            self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+            self._radar.set_dirty(idx, True)
+            if idx < len(self._list_items):
+                self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+            if hasattr(self, '_palette_widget') and self._current_idx == idx:
+                self._palette_widget.set_colors_from_rgba(rgba, TILE_W, TILE_H)
+            self.save_btn.setEnabled(True)
+            self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+            self._set_status(f"Imported tile {idx} from {Path(path).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
+
+    def _delete_single_tile(self, idx: int): #vers 1
+        """Reset a tile to blank (black RGBA)."""
+        from PyQt6.QtWidgets import QMessageBox as _MB
+        if _MB.question(self, "Delete Tile",
+                f"Reset tile {idx} to blank?",
+                _MB.StandardButton.Yes | _MB.StandardButton.No) != _MB.StandardButton.Yes:
+            return
+        rgba = bytes(TILE_W * TILE_H * 4)  # all zeros = transparent black
+        self._tile_rgba[idx]  = rgba
+        self._dirty_tiles.add(idx)
+        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        self._radar.set_dirty(idx, True)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+        self.save_btn.setEnabled(True)
+        self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+        self._set_status(f"Tile {idx} reset to blank")
+
     def _on_list_row(self, row): #vers 2
         if row<0: return
         self._current_idx=row; self._radar.set_selected(row)
