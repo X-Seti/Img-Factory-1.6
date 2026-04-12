@@ -2179,13 +2179,12 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
 
-    def _setup_corner_overlay(self): #vers 1
+    def _setup_corner_overlay(self): #vers 2
         """Create a transparent overlay widget that draws corner resize handles on top of all children."""
         overlay = _CornerOverlay(self)
+        overlay.setGeometry(0, 0, self.width(), self.height())
         overlay.raise_()
         self._corner_overlay = overlay
-        self.resizeEvent = lambda e: (super(RadarWorkshop, self).resizeEvent(e),  # type: ignore
-                                      overlay.setGeometry(0, 0, self.width(), self.height()))
 
     def _refresh_corner_overlay(self): #vers 1
         if hasattr(self, '_corner_overlay'):
