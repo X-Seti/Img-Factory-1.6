@@ -304,6 +304,54 @@ class TileListItem(QListWidgetItem):
 # - Main Class
 
 
+
+# ── Per-tool settings ─────────────────────────────────────────────────────────
+class RADSettings:
+    """Lightweight JSON settings for Radar Workshop.
+    Stored at ~/.config/imgfactory/radar_workshop.json
+    Completely separate from the global AppSettings/theme system.
+    """
+    DEFAULTS = {
+        'show_menubar':            False,     # hidden by default
+        'menu_style':              'dropdown', # 'topbar' | 'dropdown'
+        'menu_bar_font_size':      9,
+        'menu_bar_height':         22,
+        'menu_dropdown_font_size': 9,
+        'show_statusbar':          True,
+        'default_game':            'SA',
+    }
+
+    def __init__(self): #vers 1
+        cfg_dir = Path.home() / '.config' / 'imgfactory'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        self._path = cfg_dir / 'radar_workshop.json'
+        self._data = dict(self.DEFAULTS)
+        self._load()
+
+    def _load(self): #vers 1
+        try:
+            if self._path.exists():
+                loaded = json.loads(self._path.read_text())
+                self._data.update({k: v for k, v in loaded.items()
+                                   if k in self.DEFAULTS})
+        except Exception:
+            pass
+
+    def save(self): #vers 1
+        try:
+            self._path.write_text(json.dumps(self._data, indent=2))
+        except Exception:
+            pass
+
+    def get(self, key, default=None): #vers 1
+        return self._data.get(key, default if default is not None
+                              else self.DEFAULTS.get(key))
+
+    def set(self, key, value): #vers 1
+        if key in self.DEFAULTS:
+            self._data[key] = value
+
+
 # ── Radar Palette Widget ───────────────────────────────────────────────────────
 class RadarPaletteWidget(QWidget):
     """Simple colour palette strip — shows colours extracted from the current tile.
@@ -448,6 +496,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         if self.app_settings and hasattr(self.app_settings, 'theme_changed'):
             self.app_settings.theme_changed.connect(self._refresh_icons)
+
+        # Per-tool settings (separate from global theme system)
+        self.RAD_settings = RADSettings()
 
         # Spacing/margins (template pattern)
         self.contmergina=1; self.contmerginb=1; self.contmerginc=1; self.contmergind=1; self.setspacing=2
@@ -908,14 +959,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # Settings dialog
-    def _show_workshop_settings(self): #vers 3
-        """Workshop-local settings dialog — Fonts, Display, Radar tabs."""
+    def _show_workshop_settings(self): #vers 4
+        """Workshop-local settings — Fonts, Display, Menu tabs."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                      QTabWidget, QWidget, QGroupBox, QFormLayout,
-                                     QSpinBox, QComboBox, QLabel, QFontComboBox)
+                                     QSpinBox, QComboBox, QLabel, QFontComboBox,
+                                     QCheckBox)
         from PyQt6.QtGui import QFont
 
-        self.s = RAD_settings
         dlg = QDialog(self)
         dlg.setWindowTitle(f"{App_name} Settings")
         dlg.setMinimumWidth(520)
@@ -923,7 +974,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         layout = QVBoxLayout(dlg)
         tabs = QTabWidget()
 
-        # - TAB 1: Fonts
+        # ── Fonts tab ─────────────────────────────────────────────────────────
         fonts_tab = QWidget()
         fl = QVBoxLayout(fonts_tab)
 
@@ -944,7 +995,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         fl.addStretch()
         tabs.addTab(fonts_tab, "Fonts")
 
-        # - TAB 2: Display
+        # ── Display tab ───────────────────────────────────────────────────────
         disp_tab = QWidget()
         dl = QVBoxLayout(disp_tab)
 
@@ -954,68 +1005,33 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         mode_combo.setCurrentIndex({'both':0,'icons':1,'text':2}.get(self.button_display_mode, 0))
         bl.addWidget(mode_combo)
         dl.addWidget(btn_grp)
-
-        thumb_grp = QGroupBox("Tile List Thumbnail Size")
-        thl = QHBoxLayout(thumb_grp)
-        thumb_spin = QSpinBox(); thumb_spin.setRange(16, 128); thumb_spin.setValue(THUMB); thumb_spin.setSuffix(" px")
-        thl.addWidget(thumb_spin)
-        dl.addWidget(thumb_grp)
         dl.addStretch()
         tabs.addTab(disp_tab, "Display")
 
-        # - TAB 3: Radar
-        radar_tab = QWidget()
-        rl = QVBoxLayout(radar_tab)
+        # ── Menu tab ──────────────────────────────────────────────────────────
+        menu_tab = QWidget()
+        ml = QVBoxLayout(menu_tab)
 
         game_grp = QGroupBox("Default Game Preset")
         gl = QHBoxLayout(game_grp)
         game_combo_s = QComboBox(); game_combo_s.addItems(list(GAME_PRESETS))
         game_combo_s.setCurrentText(self._game_combo.currentText())
         gl.addWidget(game_combo_s)
-        rl.addWidget(game_grp)
-        rl.addStretch()
-        tabs.addTab(radar_tab, "Menu")
-        old_icon_sz = self.RAD_settings.get('tool_icon_size')
-        old_cols    = self.RAD_settings.get('tool_columns')
+        ml.addWidget(game_grp)
 
-        dlg = DP5SettingsDialog(self.RAD_settings, self)
-        if dlg.exec():
-            # Apply menu bar style changes live
-            self._apply_menu_bar_style()
-            # Also apply orientation change if it changed
-            self.set_menu_orientation(self.RAD_settings.get('menu_style', 'topbar'))
-
-            # Apply changed settings live
-            show_left = self.RAD_settings.get('show_bitmap_list')
-            if hasattr(self, '_left_panel'):
-                self._left_panel.setVisible(show_left)
-            if hasattr(self, '_status_bar'):
-                self._status_bar.setVisible(self.RAD_settings.get('show_statusbar'))
-
-            if self.dp5_canvas:
-                self.dp5_canvas.show_grid = self.RAD_settings.get('show_pixel_grid')
-                self.dp5_canvas.grid_color = QColor(self.RAD_settings.get('grid_color'))
-                self.dp5_canvas.show_cell_grid = self.RAD_settings.get('show_cell_grid')
-                self.dp5_canvas.update()
-                if self.RAD_settings.get('zoom_to_fit_resize'):
-                    self._fit_canvas_to_viewport()
-            self._set_platform(self.RAD_settings.get('platform_mode'))
-
-            show_mb = (self.RAD_settings.get('show_menubar') and
-                       self.RAD_settings.get('menu_style') == 'topbar')
-            c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
-            if c:
-                c.setMinimumHeight(0)
-                c.setMaximumHeight(16777215 if show_mb else 0)
-                c.setVisible(show_mb)
-
-            # If icon size or column count changed, rebuild the right panel
-            new_icon_sz = self.RAD_settings.get('tool_icon_size')
-            new_cols    = self.RAD_settings.get('tool_columns')
+        menu_grp = QGroupBox("Menu Style")
+        mgl = QVBoxLayout(menu_grp)
+        menu_style_combo = QComboBox()
+        menu_style_combo.addItems(["Dropdown (button)", "Topbar (embedded)"])
+        menu_style_combo.setCurrentIndex(0 if self.RAD_settings.get('menu_style') == 'dropdown' else 1)
+        mgl.addWidget(menu_style_combo)
+        ml.addWidget(menu_grp)
+        ml.addStretch()
+        tabs.addTab(menu_tab, "Menu")
 
         layout.addWidget(tabs)
 
-        # - Buttons
+        # ── Buttons ───────────────────────────────────────────────────────────
         btn_row = QHBoxLayout(); btn_row.addStretch()
 
         def apply_all():
@@ -1028,27 +1044,22 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._apply_button_font()
             self._apply_infobar_font()
             self.button_display_mode = {0:'both',1:'icons',2:'text'}[mode_combo.currentIndex()]
-            # Switch game preset if changed
             new_game = game_combo_s.currentText()
             if new_game != self._game_combo.currentText():
                 self._on_game_changed(new_game)
+            style = 'dropdown' if menu_style_combo.currentIndex() == 0 else 'topbar'
+            self.RAD_settings.set('menu_style', style)
+            self.RAD_settings.set('show_menubar', style == 'topbar')
+            self.RAD_settings.save()
+            self.set_menu_orientation(style)
 
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(apply_all)
-        ok_btn = QPushButton("OK")
-        ok_btn.setDefault(True)
+        apply_btn = QPushButton("Apply"); apply_btn.clicked.connect(apply_all)
+        ok_btn = QPushButton("OK"); ok_btn.setDefault(True)
         ok_btn.clicked.connect(lambda: (apply_all(), dlg.accept()))
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dlg.reject)
+        cancel_btn = QPushButton("Cancel"); cancel_btn.clicked.connect(dlg.reject)
         for b in [cancel_btn, apply_btn, ok_btn]: btn_row.addWidget(b)
         layout.addLayout(btn_row)
-
-        if new_icon_sz != old_icon_sz or new_cols != old_cols:
-            self._rebuild_right_panel()
-
-        self._set_status("Settings saved.")
         dlg.exec()
-
 
     # - Menu options
     def _apply_menu_bar_style(self): #vers 3
@@ -1167,10 +1178,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 c.setMaximumHeight(16777215 if on else 0)
                 c.setVisible(on)
 
-    def _show_dropdown_menu(self): #vers 1
-        """Pop up the canvas menus as a single QMenu dropdown."""
+    def _show_dropdown_menu(self): #vers 2
+        """Pop up the radar menus as a single QMenu dropdown."""
         menu = QMenu(self)
-        self._build_canvas_menus(menu)
+        self._build_menus_into_qmenu(menu)
         btn = getattr(self, 'menu_toggle_btn', None)
         if btn:
             menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
