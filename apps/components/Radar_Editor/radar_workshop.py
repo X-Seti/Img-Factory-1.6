@@ -468,6 +468,7 @@ class RadarGridWidget(QWidget):
     """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
     tile_clicked        = pyqtSignal(int)
     grid_right_clicked  = pyqtSignal(int, QPoint)   # idx, global pos
+    color_picked        = pyqtSignal(QColor, bool)  # color, is_left_button
 
     def __init__(self,parent=None): #vers 1
         super().__init__(parent)
@@ -489,6 +490,38 @@ class RadarGridWidget(QWidget):
     def _idx_at(self,pos): #vers 1
         ts=self._ts(); idx=(pos.y()//ts)*self._cols+(pos.x()//ts)
         return idx if 0<=idx<self._count else -1
+
+    def _pixel_at(self, pos, tile_w: int = 128, tile_h: int = 128) -> tuple:
+        """Return (tile_idx, px, py) for a screen position, or (-1,0,0)."""
+        ts  = self._ts()
+        idx = self._idx_at(pos)
+        if idx < 0: return -1, 0, 0
+        col = idx % self._cols
+        row = idx // self._cols
+        local_x = pos.x() - col * ts
+        local_y = pos.y() - row * ts
+        px = int(local_x * tile_w / ts)
+        py = int(local_y * tile_h / ts)
+        return idx, max(0, min(tile_w-1, px)), max(0, min(tile_h-1, py))
+
+    def sample_color(self, pos, tile_w: int = 128, tile_h: int = 128) -> 'QColor | None':
+        """Sample pixel colour from the rendered tile at screen pos."""
+        idx, px, py = self._pixel_at(pos, tile_w, tile_h)
+        if idx < 0 or idx not in self._tiles: return None
+        img = self._tiles[idx]
+        # Sample from scaled image
+        ts = self._ts()
+        scaled = img.scaled(ts, ts, Qt.AspectRatioMode.IgnoreAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
+        col = idx % self._cols
+        row = idx // self._cols
+        local_x = pos.x() - col * ts
+        local_y = pos.y() - row * ts
+        lx = max(0, min(ts-1, int(local_x)))
+        ly = max(0, min(ts-1, int(local_y)))
+        pixel = scaled.pixel(lx, ly)
+        from PyQt6.QtGui import QColor as _QC
+        return _QC(pixel)
 
     def set_tile(self,idx,rgba,w,h): #vers 2
         """Store tile as RGBA8888 QImage (preserves alpha for checkerboard display)."""
@@ -544,14 +577,22 @@ class RadarGridWidget(QWidget):
     def leaveEvent(self,ev): #vers 1
         self._hover=-1; self.update()
 
-    def mousePressEvent(self,ev): #vers 2
+    def mousePressEvent(self,ev): #vers 3
         idx = self._idx_at(ev.pos())
         if idx < 0: return
-        if ev.button() == Qt.MouseButton.LeftButton:
-            self._sel = idx; self.tile_clicked.emit(idx); self.update()
-        elif ev.button() == Qt.MouseButton.RightButton:
-            self._sel = idx; self.tile_clicked.emit(idx); self.update()
-            self.grid_right_clicked.emit(idx, ev.globalPosition().toPoint())
+        is_left = ev.button() == Qt.MouseButton.LeftButton
+        is_right = ev.button() == Qt.MouseButton.RightButton
+        if is_left or is_right:
+            self._sel = idx; self.update()
+            # Always emit color at click position (workshop uses if dropper active)
+            c = self.sample_color(ev.pos())
+            if c:
+                self.color_picked.emit(c, is_left)
+            if is_left:
+                self.tile_clicked.emit(idx)
+            else:
+                self.tile_clicked.emit(idx)
+                self.grid_right_clicked.emit(idx, ev.globalPosition().toPoint())
 
 # - Tile list item
 
@@ -1076,11 +1117,18 @@ class _TileZoomView(QWidget):
 
         if tool == 'picker':
             picked = self._get_pixel_color(px, py)
-            if ev.button() == Qt.MouseButton.LeftButton:
+            is_left = ev.button() == Qt.MouseButton.LeftButton
+            if is_left:
                 ws._fg_color = picked
             else:
                 ws._bg_color = picked
             ws._update_swatch_buttons()
+            which = "FG" if is_left else "BG"
+            ws._set_status(f"Picked {which}: {picked.name()}  "
+                           f"({picked.red()},{picked.green()},{picked.blue()})")
+            # Update alpha mode key colour if active
+            if getattr(ws, '_render_mode', 'color') == 'alpha' and is_left:
+                ws._set_render_mode('alpha')
             return
 
         ws._push_undo(self._tile_idx)
@@ -1724,6 +1772,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._radar = RadarGridWidget()
         self._radar.tile_clicked.connect(self._on_grid_click)
         self._radar.grid_right_clicked.connect(self._on_grid_right_click)
+        self._radar.color_picked.connect(self._on_grid_color_picked)
         sc = QScrollArea()
         sc.setWidget(self._radar)
         sc.setWidgetResizable(True)
@@ -2861,6 +2910,21 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         # Update palette from tile colours
         if hasattr(self, '_palette_widget') and row in self._tile_rgba:
             self._palette_widget.set_colors_from_rgba(self._tile_rgba[row], TILE_W, TILE_H)
+
+    def _on_grid_color_picked(self, color: QColor, is_left: bool): #vers 1
+        """Grid emits this on every click — only act if dropper tool is active."""
+        if getattr(self, '_draw_tool', '') != 'picker':
+            return
+        if is_left:
+            self._fg_color = color
+        else:
+            self._bg_color = color
+        self._update_swatch_buttons()
+        which = "FG" if is_left else "BG"
+        self._set_status(f"Picked {which}: {color.name()}  ({color.red()},{color.green()},{color.blue()})")
+        # If alpha mode active, update key colour immediately
+        if getattr(self, '_render_mode', 'color') == 'alpha' and is_left:
+            self._set_render_mode('alpha')
 
     def _on_grid_click(self, idx): #vers 3
         """Grid tile clicked — set _current_idx directly then sync list."""
