@@ -912,6 +912,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.settings_btn.setVisible(self.standalone_mode)
         layout.addWidget(self.settings_btn)
 
+        layout.addSpacing(8)
+
+        # - App name + version label (centre-left of toolbar)
+        self._title_lbl = QLabel(f"{App_name}  v{Build}")
+        self._title_lbl.setStyleSheet("font-size:10px; color: palette(mid);")
+        self._title_lbl.setVisible(self.standalone_mode)
+        layout.addWidget(self._title_lbl)
+
         layout.addStretch()
 
         # - Game selector
@@ -1030,7 +1038,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.export_btn = _cb('export_icon', "Export all tiles as PNG sheet", self._export_sheet)
         self.import_btn = _cb('import_icon', "Import PNG sheet of tiles",    self._import_sheet)
         btn_row.addStretch()
-        self.info_btn   = _cb('info_icon',   "Workshop info",                self._show_info)
+        # info_btn removed — [ℹ] already in toolbar (info_radar_btn)
         vl.addLayout(btn_row)
 
         # ── Tile list ─────────────────────────────────────────────────────────
@@ -1041,6 +1049,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._tile_list.currentRowChanged.connect(self._on_list_row)
         self._tile_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tile_list.customContextMenuRequested.connect(self._on_tile_list_context)
+        self._tile_list.itemDoubleClicked.connect(lambda item: self._edit_tile_popup(item.idx))
         vl.addWidget(self._tile_list, 1)
 
         self._dirty_lbl = QLabel("Modified: 0")
@@ -1651,6 +1660,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         QShortcut(QKeySequence("Ctrl++"),         self).activated.connect(lambda: self._zoom(1.25))
         QShortcut(QKeySequence("Ctrl+-"),         self).activated.connect(lambda: self._zoom(0.8))
         QShortcut(QKeySequence("Ctrl+0"),         self).activated.connect(self._fit)
+        # Tile edit popup
+        QShortcut(QKeySequence(Qt.Key.Key_E), self).activated.connect(self._edit_tile_popup)
         # Draw tool keys
         QShortcut(QKeySequence(Qt.Key.Key_P), self).activated.connect(lambda: self._set_draw_tool('pencil'))
         QShortcut(QKeySequence(Qt.Key.Key_L), self).activated.connect(lambda: self._set_draw_tool('line'))
@@ -1742,7 +1753,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 f"Ensure you are loading the correct .img file for your game.")
             return
 
-        entries.sort(key=lambda e: e["name"].lower())
+        def _tile_sort_key(e):
+            m = re.search(r'(\d+)', e["name"])
+            return int(m.group(1)) if m else 0
+        entries.sort(key=_tile_sort_key)
 
         # Auto-detect game by tile count — most reliable signal
         self._autodetect(len(entries))
@@ -1857,6 +1871,64 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
 
     # - Tile selection
+
+    def _edit_tile_popup(self, idx: int = -1): #vers 1
+        """Open a single tile in a zoomed popup window for detailed editing.
+        Useful for SOL (36x36) and other large grids where individual tiles are tiny."""
+        if idx < 0:
+            idx = self._current_idx
+        if idx < 0:
+            self._set_status("Select a tile first"); return
+        if idx not in self._tile_rgba:
+            self._set_status(f"Tile {idx} not loaded"); return
+
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                     QPushButton, QLabel, QScrollArea)
+        from PyQt6.QtGui import QPixmap, QImage
+
+        dlg = QDialog(self)
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        dlg.setWindowTitle(f"Edit Tile {idx} — {name}")
+        dlg.setMinimumSize(600, 600)
+        dlg.resize(700, 720)
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, self.main_window)
+        except Exception: pass
+
+        layout = QVBoxLayout(dlg)
+
+        # Large preview
+        rgba = self._tile_rgba[idx]
+        img  = QImage(rgba, TILE_W, TILE_H, TILE_W*4, QImage.Format.Format_RGBA8888)
+        px   = QPixmap.fromImage(img).scaled(512, 512,
+               Qt.AspectRatioMode.KeepAspectRatio,
+               Qt.TransformationMode.SmoothTransformation)
+        lbl  = QLabel()
+        lbl.setPixmap(px)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        sc = QScrollArea(); sc.setWidget(lbl); sc.setWidgetResizable(True)
+        layout.addWidget(sc, 1)
+
+        # Info
+        info = QLabel(f"Tile {idx}  |  {name}  |  {TILE_W}×{TILE_H} DXT1")
+        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info.setStyleSheet("font-size:10px; color: palette(mid);")
+        layout.addWidget(info)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        imp_btn = QPushButton("Import PNG…")
+        exp_btn = QPushButton("Export PNG…")
+        cls_btn = QPushButton("Close")
+        imp_btn.clicked.connect(lambda: (self._import_single_tile(idx), dlg.accept()))
+        exp_btn.clicked.connect(lambda: self._export_single_tile(idx))
+        cls_btn.clicked.connect(dlg.accept)
+        for b in [imp_btn, exp_btn, cls_btn]: btn_row.addWidget(b)
+        layout.addLayout(btn_row)
+        dlg.exec()
+
     def _on_tile_list_context(self, pos): #vers 1
         """Right-click context menu on tile list item."""
         item = self._tile_list.itemAt(pos)
@@ -2127,7 +2199,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if not entries:
             QMessageBox.warning(self, "No Tiles", f"No radar TXDs in {Path(path).name}")
             return
-        entries.sort(key=lambda e: e["name"].lower())
+        def _tile_sort_key(e):
+            m = re.search(r'(\d+)', e["name"])
+            return int(m.group(1)) if m else 0
+        entries.sort(key=_tile_sort_key)
         p = self._game_preset
         entries = entries[:p["count"]]
         self._apply_preset(self._game_combo.currentText())

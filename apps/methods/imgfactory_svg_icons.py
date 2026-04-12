@@ -3500,36 +3500,6 @@ def get_twin_panel_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     painter.end()
     return QIcon(pixmap)
 
-    @staticmethod
-    def fit_grid_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Fit to grid — 4 corner arrows pointing inward toward a grid."""
-        c = color or '#ffffff'
-        svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-          <rect x="6" y="6" width="8" height="8" fill="none" stroke="{c}" stroke-width="1.2"/>
-          <line x1="7" y1="7" x2="9" y2="9"   stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="13" y1="7" x2="11" y2="9"  stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="7" y1="13" x2="9" y2="11"  stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="13" y1="13" x2="11" y2="11" stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="2" y1="2" x2="6" y2="6"   stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="18" y1="2" x2="14" y2="6"  stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="2" y1="18" x2="6" y2="14"  stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="18" y1="18" x2="14" y2="14" stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>
-        </svg>'''
-        return SVGIconFactory._create_icon(svg, size, color)
-
-    @staticmethod
-    def locate_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
-        """Locate/jump to — crosshair with centre dot."""
-        c = color or '#ffffff'
-        svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="10" cy="10" r="6" fill="none" stroke="{c}" stroke-width="1.4"/>
-          <circle cx="10" cy="10" r="1.5" fill="{c}"/>
-          <line x1="10" y1="1"  x2="10" y2="4"  stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
-          <line x1="10" y1="16" x2="10" y2="19" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
-          <line x1="1"  y1="10" x2="4"  y2="10" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
-          <line x1="16" y1="10" x2="19" y2="10" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>'''
-        return SVGIconFactory._create_icon(svg, size, color)
 
 
 def get_single_panel_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
@@ -3949,6 +3919,51 @@ def get_brushes_icon(size: int = 24, color: str = None, bg_color: str = None) ->
 
 SVGIconFactory.get_clear_canvas_icon = staticmethod(get_clear_canvas_icon)
 SVGIconFactory.get_brushes_icon      = staticmethod(get_brushes_icon)
+
+
+def get_fit_grid_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Fit grid — arrows pointing inward to a grid rectangle."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="6" width="8" height="8" fill="none" stroke="{c}" stroke-width="1.3"/>
+      <line x1="7" y1="7" x2="9.5" y2="9.5"   stroke="{c}" stroke-width="1.3" stroke-linecap="round"/>
+      <line x1="13" y1="7" x2="10.5" y2="9.5"  stroke="{c}" stroke-width="1.3" stroke-linecap="round"/>
+      <line x1="7" y1="13" x2="9.5" y2="10.5"  stroke="{c}" stroke-width="1.3" stroke-linecap="round"/>
+      <line x1="13" y1="13" x2="10.5" y2="10.5" stroke="{c}" stroke-width="1.3" stroke-linecap="round"/>
+      <polyline points="2,5 2,2 5,2"   fill="none" stroke="{c}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="15,2 18,2 18,5" fill="none" stroke="{c}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="2,15 2,18 5,18" fill="none" stroke="{c}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="15,18 18,18 18,15" fill="none" stroke="{c}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.fit_grid_icon = staticmethod(get_fit_grid_icon)
+
+
+def get_locate_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
+    """Locate/jump to selected — crosshair with centre dot."""
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = f'''<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="10" cy="10" r="5.5" fill="none" stroke="{c}" stroke-width="1.4"/>
+      <circle cx="10" cy="10" r="1.5" fill="{c}"/>
+      <line x1="10" y1="1"  x2="10" y2="4.5" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
+      <line x1="10" y1="15.5" x2="10" y2="19" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
+      <line x1="1"  y1="10" x2="4.5" y2="10" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
+      <line x1="15.5" y1="10" x2="19" y2="10" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>
+    </svg>'''
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+
+SVGIconFactory.locate_icon = staticmethod(get_locate_icon)
 
 
 def get_radar_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
