@@ -1356,15 +1356,36 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             except Exception as e: print(f"WARN tile {i}: {e}",file=sys.stderr)
         prog.setValue(len(entries)); self._dirty_tiles=set()
         self.save_btn.setEnabled(True)
-        self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}")
+        self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — game: {self._game_preset['label']}  grid: {self._game_preset['cols']}×{self._game_preset['rows']}")
 
-    def _autodetect(self, count): #vers 1
-        for game,p in GAME_PRESETS.items():
-            if game!="Custom" and p["count"]==count: self._on_game_changed(game); return
-        cols=max(1,round(math.sqrt(count))); rows=(count+cols-1)//cols
-        GAME_PRESETS["Custom"].update({"cols":cols,"rows":rows,"count":count})
+    def _autodetect(self, count): #vers 2
+        """Match tile count to known preset, or fall back to Custom with sqrt grid.
+        Also handles partial matches (e.g. SA files missing some tiles)."""
+        # Exact match
+        for game, p in GAME_PRESETS.items():
+            if game != "Custom" and p["count"] == count:
+                self._on_game_changed(game)
+                return
+
+        # Near-match: within 4 tiles of a known preset (damaged/modded files)
+        for game, p in GAME_PRESETS.items():
+            if game != "Custom" and abs(p["count"] - count) <= 4:
+                self._on_game_changed(game)
+                self._set_status(
+                    f"Loaded {count} tiles (expected {p['count']} for {p['label']}) "
+                    f"— using {game} grid layout")
+                return
+
+        # Unknown count — use Custom with square-root approximation
+        cols = max(1, round(math.sqrt(count)))
+        rows = (count + cols - 1) // cols
+        GAME_PRESETS["Custom"].update({"cols": cols, "rows": rows, "count": count})
         self._on_game_changed("Custom")
-        self._cols_spin.setValue(cols); self._rows_spin.setValue(rows)
+        self._cols_spin.setValue(cols)
+        self._rows_spin.setValue(rows)
+        self._set_status(
+            f"Loaded {count} tiles — unknown layout, using {cols}×{rows} grid "
+            f"(adjust W/H spinners if wrong)")
 
     def _save_file(self): #vers 1
         if not self._img_reader or not self._dirty_tiles:
