@@ -2227,7 +2227,7 @@ All radar tiles are <b>128×128 pixels</b> unless otherwise noted.</p>
 <tr><th>Game</th><th>IMG File</th><th>Tile Names</th><th>Count</th><th>Grid</th><th>Pixel Format</th><th>IMG Version</th></tr>
 <tr><td>GTA III</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
 <tr><td>GTA VC</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
-<tr><td>GTA SA</td><td><b>gta.img</b> (not gta3.img)</td><td>radar00–radar99.txd</td><td>100</td><td>10×10</td><td>DXT1</td><td>VER2 self-contained</td></tr>
+<tr><td>GTA SA</td><td>gta3.img</td><td>radar00–radar99.txd</td><td>100</td><td>10×10</td><td>DXT1</td><td>VER2 self-contained</td></tr>
 <tr><td>GTA LCS</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
 <tr><td>GTA VCS</td><td>gta3.img</td><td>radar00–radar63.txd</td><td>64</td><td>8×8</td><td>DXT1</td><td>V1 (needs gta3.dir)</td></tr>
 <tr><td>GTA SOL</td><td>RadarTex.img</td><td>radar0000–radar1295.txd</td><td>1296</td><td>36×36</td><td>DXT1</td><td>V1/SOL (needs RadarTex.dir)</td></tr>

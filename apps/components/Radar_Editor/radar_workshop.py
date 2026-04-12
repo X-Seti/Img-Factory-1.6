@@ -124,7 +124,7 @@ GAME_PRESETS = {
     "SA PC":   {"cols":10, "rows":10, "count":100,  "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA San Andreas (PC/PS2/Xbox)",
-                "hint":"Load gta.img (SA uses gta.img, not gta3.img) — radar00.txd to radar99.txd"},
+                "hint":"Load gta3.img — contains radar00.txd to radar99.txd (100 tiles, 10x10 grid)"},
     "LCS PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
                 "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
                 "img_source":"img",  "label":"GTA Liberty City Stories (PC/PS2)",
@@ -1453,7 +1453,30 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         try: self._img_reader = ImgReader(path); self._img_path = path
         except Exception as e: QMessageBox.critical(self, "Load Error", str(e)); return
 
+        # Auto-switch preset based on filename before searching
+        fname = Path(path).name.lower()
+        preset_by_file = {
+            'radartex.img': 'SOL',
+            'gta3.img':     'SA PC',   # SA PC uses gta3.img
+            'gta.img':      'SA PC',   # some mods use gta.img
+        }
+        auto_preset = preset_by_file.get(fname)
+        if auto_preset and auto_preset != self._game_combo.currentText():
+            self._on_game_changed(auto_preset)
+
         entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
+
+        # If no entries with current preset, try all known patterns as fallback
+        if not entries:
+            for pname, preset in GAME_PRESETS.items():
+                if pname == self._game_combo.currentText(): continue
+                if preset.get("img_source") not in ("img", "pvr"): continue
+                found = self._img_reader.find_radar_entries(preset["img_pattern"])
+                if found:
+                    self._on_game_changed(pname)
+                    entries = found
+                    break
+
         if not entries:
             hint_msg = f"\n\nHint: {hint}" if hint else ""
             QMessageBox.warning(self, "No Radar Tiles",
