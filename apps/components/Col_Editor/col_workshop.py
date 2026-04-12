@@ -4366,7 +4366,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.col_search_btn.setIcon(SVGIconFactory.search_icon(16))
             self.col_search_btn.setIconSize(QSize(16, 16))
         except Exception:
-            self.col_search_btn.setText("🔍")
+            pass  # No icon — button still works
         self.col_search_btn.setToolTip("Search COL files")
         self.col_search_btn.clicked.connect(self._show_col_search)
         hdr_row.addWidget(self.col_search_btn)

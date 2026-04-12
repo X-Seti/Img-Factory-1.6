@@ -3256,18 +3256,22 @@ class IMGFactory(QMainWindow):
         hdr_layout.addWidget(tab_name_lbl, 1)
         search_tab_btn = QToolButton()
         search_tab_btn.setFixedSize(22, 22)
-        # Set icon — defer if gui_layout not ready yet
-        def _set_search_icon(btn=search_tab_btn):
+        # Always use SVG icon — defer colour lookup until gui_layout ready
+        try:
+            search_tab_btn.setIcon(SVGIconFactory.search_icon(16, '#aaaaaa'))
+            search_tab_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            pass
+        def _refresh_search_icon(btn=search_tab_btn):
             try:
                 gl = getattr(self, 'gui_layout', None)
-                color = gl._get_icon_color() if gl and hasattr(gl, '_get_icon_color') else '#cccccc'
+                color = gl._get_icon_color() if gl and hasattr(gl, '_get_icon_color') else '#aaaaaa'
                 btn.setIcon(SVGIconFactory.search_icon(16, color))
                 btn.setIconSize(QSize(16, 16))
             except Exception:
-                btn.setText("🔍")
-        _set_search_icon()
+                pass
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(200, _set_search_icon)  # retry after gui_layout ready
+        QTimer.singleShot(300, _refresh_search_icon)
         search_tab_btn.setToolTip("Search / filter entries (Ctrl+F)")
         search_tab_btn.clicked.connect(self._show_search_dialog)
         hdr_layout.addWidget(search_tab_btn)

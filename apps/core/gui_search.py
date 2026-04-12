@@ -513,7 +513,12 @@ class ASearchDialog(QDialog):
         # Get current table
         table = self._get_table(mw)
         if table is None:
-            self.result_lbl.setText("No IMG table visible")
+            self.result_lbl.setText("No IMG table visible — open an IMG file first")
+            self.result_lbl.setStyleSheet("color: #cc4444; font-style: italic;")
+            return
+        if table.rowCount() == 0:
+            self.result_lbl.setText("Table is empty — no entries loaded")
+            self.result_lbl.setStyleSheet("color: #cc8800; font-style: italic;")
             return
 
         text    = self.search_input.text().strip()
@@ -623,19 +628,34 @@ class ASearchDialog(QDialog):
         self.next_btn.setEnabled(False)
 
     def _get_table(self, mw):
-        """Get the currently visible IMG table."""
+        """Get the currently visible IMG table from the active tab."""
         if mw is None: return None
-        # Try active tab
-        if hasattr(mw, 'tab_widget'):
-            tab = mw.tab_widget.currentWidget()
+
+        # Primary: main_tab_widget (IMG Factory uses this name)
+        tw = getattr(mw, 'main_tab_widget', None) or getattr(mw, 'tab_widget', None)
+        if tw:
+            tab = tw.currentWidget()
             if tab:
+                # table_ref is how IMG Factory stores the table on each tab
+                t = getattr(tab, 'table_ref', None)
+                if t and hasattr(t, 'rowCount'): return t
+                # Fallback: findChildren
                 from PyQt6.QtWidgets import QTableWidget
-                tables = tab.findChildren(QTableWidget)
+                tables = [w for w in tab.findChildren(QTableWidget)
+                          if w.rowCount() > 0]
                 if tables: return tables[0]
-        # Fallback — direct attribute
-        for attr in ('table_widget', 'entry_table', 'img_table'):
+
+        # Also check gui_layout.table (sync'd on tab switch)
+        gl = getattr(mw, 'gui_layout', None)
+        if gl:
+            t = getattr(gl, 'table', None)
+            if t and hasattr(t, 'rowCount'): return t
+
+        # Last resort — direct attributes
+        for attr in ('table_widget', 'entry_table', 'img_table', 'table'):
             t = getattr(mw, attr, None)
-            if t: return t
+            if t and hasattr(t, 'rowCount'): return t
+
         return None
 
     def closeEvent(self, event):
