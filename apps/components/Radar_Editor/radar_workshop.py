@@ -249,10 +249,10 @@ class RadarTxdReader:
 class ImgReader:
     def __init__(self,img_path): #vers 1
         self.img_path=img_path; self.entries=[]; self._img_data=b''; self._load()
-    def _load(self): #vers 2
+    def _load(self): #vers 3
         p=Path(self.img_path); raw=p.read_bytes()
         if raw[:4]==b'VER2':
-            # VER2 (GTA SA PC): 8-byte header + 32-byte entries
+            # VER2 (GTA SA PC / Android): 8-byte header + 32-byte entries
             # Entry: offset_sectors(4) + streaming_size(2) + size(2) + name(24)
             n=struct.unpack_from('<I',raw,4)[0]
             for i in range(n):
@@ -260,16 +260,35 @@ class ImgReader:
                 name=nb.rstrip(b'\x00').decode('latin1','replace')
                 self.entries.append({'name':name,'offset':os2*2048,'size':(sz2 or ss)*2048})
             self._img_data=raw
+        elif raw[:4] in (b'VER1', b'ver1'):
+            # VER1 explicitly tagged (rare) — treat as V1+dir
+            self._load_v1_dir(p, raw)
         else:
-            # V1 (GTA III/VC): separate .dir file, 32-byte entries
+            # V1 (GTA III/VC/SOL): separate .dir file, 32-byte entries
             # Entry: offset_sectors(4) + size_sectors(4) + name(24)
-            dp=p.with_suffix('.dir')
-            if not dp.exists(): raise FileNotFoundError(f"No .dir for {p.name}")
-            dr=dp.read_bytes()
-            for i in range(len(dr)//32):
-                os2,sz2,nb=struct.unpack_from('<II24s',dr,i*32)
-                self.entries.append({'name':nb.rstrip(b'\x00').decode('latin1','replace'),'offset':os2*2048,'size':sz2*2048})
-            self._img_data=raw
+            self._load_v1_dir(p, raw)
+
+    def _load_v1_dir(self, p, raw): #vers 1
+        """Load V1 IMG from companion .dir file. Also handles embedded-dir V1.5."""
+        # Look for .dir companion
+        dp = p.with_suffix('.dir')
+        if not dp.exists():
+            # Try same name but different case
+            for candidate in p.parent.iterdir():
+                if candidate.stem.lower() == p.stem.lower() and candidate.suffix.lower() == '.dir':
+                    dp = candidate; break
+        if not dp.exists():
+            raise FileNotFoundError(
+                f"No .dir file found for {p.name}\n"
+                f"V1/SOL IMG archives require a companion .dir file.\n"
+                f"Expected: {dp.name}")
+        dr = dp.read_bytes()
+        for i in range(len(dr)//32):
+            os2,sz2,nb=struct.unpack_from('<II24s',dr,i*32)
+            name=nb.rstrip(b'\x00').decode('latin1','replace')
+            if name:
+                self.entries.append({'name':name,'offset':os2*2048,'size':sz2*2048})
+        self._img_data=raw
 
     def get_entry_data(self,e): #vers 1
         return self._img_data[e['offset']:e['offset']+e['size']]
