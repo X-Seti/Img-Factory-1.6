@@ -110,14 +110,36 @@ def _name_sa(idx):  return f"RADAR{idx:02d}" #vers 1
 
 def _name_sol(idx): return f"radar{idx:04d}" #vers 1
 
+# img_source: 'img' = tiles inside .img archive | 'txd' = single standalone .txd file
 GAME_PRESETS = {
-    "SA":     {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,  "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$", "label":"GTA San Andreas"},
-    "VC":     {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,  "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$", "label":"GTA Vice City"},
-    "VCS":    {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,  "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$", "label":"GTA Vice City Stories"},
-    "LC":     {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,  "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$", "label":"GTA Liberty City (III)"},
-    "LCS":    {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,  "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$", "label":"GTA Liberty City Stories"},
-    "SOL":    {"cols":36, "rows":36, "count":1296,  "name_fn":_name_sol, "img_pattern":r"^radar\d{4}\.txd$",                    "label":"GTA State of Liberty"},
-    "Custom": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,  "img_pattern":r"^radar",                               "label":"Custom Grid"},
+    "SA":     {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+               "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+               "img_source":"img",  "label":"GTA San Andreas",
+               "hint":"Load gta.img from GTA SA models/"},
+    "VC":     {"cols":2,  "rows":2,  "count":4,    "name_fn":_name_sa,
+               "img_pattern":r"^radar",
+               "img_source":"txd",  "label":"GTA Vice City",
+               "hint":"Load models/fronten_pc.txd — VC uses a single radar TXD"},
+    "III":    {"cols":1,  "rows":1,  "count":1,    "name_fn":_name_sa,
+               "img_pattern":r"^radar",
+               "img_source":"txd",  "label":"GTA III",
+               "hint":"Load models/radar.txd — GTA III uses a single radar texture"},
+    "VCS":    {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+               "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+               "img_source":"img",  "label":"GTA Vice City Stories",
+               "hint":"Load models/gta_vcs.img"},
+    "LCS":    {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+               "img_pattern":r"^radar\d{2}\.txd$|^RADAR\d{2}\.txd$",
+               "img_source":"img",  "label":"GTA Liberty City Stories",
+               "hint":"Load models/gta_lcs.img"},
+    "SOL":    {"cols":36, "rows":36, "count":1296,  "name_fn":_name_sol,
+               "img_pattern":r"^radar\d{4}\.txd$",
+               "img_source":"img",  "label":"GTA State of Liberty",
+               "hint":"Load gta.img from SOL models/"},
+    "Custom": {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
+               "img_pattern":r"^radar",
+               "img_source":"img",  "label":"Custom Grid",
+               "hint":"Load any .img archive and adjust grid W/H"},
 }
 TILE_W = TILE_H = 128
 
@@ -1220,7 +1242,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._apply_preset("Custom")
 
 
-    def _apply_preset(self, game): #vers 1
+    def _apply_preset(self, game): #vers 2
         self._game_preset=GAME_PRESETS[game]; cols=self._game_preset["cols"]; count=self._game_preset["count"]
         self._tile_rgba={}; self._dirty_tiles=set(); self._current_idx=-1
         names=[self._game_preset["name_fn"](i) for i in range(count)]
@@ -1228,7 +1250,9 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._tile_list.clear(); self._list_items=[]
         for i in range(count):
             item=TileListItem(i,names[i]); self._tile_list.addItem(item); self._list_items.append(item)
-        self._set_status(f"{self._game_preset['label']} — {count} tiles ({cols}×{self._game_preset['rows']})")
+        hint = self._game_preset.get("hint","")
+        self._set_status(f"{self._game_preset['label']} — {hint}" if hint else
+                         f"{self._game_preset['label']} — {count} tiles ({cols}×{self._game_preset['rows']})")
 
 
     # - Font apply helpers (template pattern)
@@ -1334,14 +1358,30 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
    # - File ops
 
-    def _open_file(self): #vers 1
-        path,_=QFileDialog.getOpenFileName(self,"Open Radar IMG","","IMG Archives (*.img);;All Files (*)")
+    def _open_file(self): #vers 2
+        source = self._game_preset.get("img_source", "img")
+        hint   = self._game_preset.get("hint", "")
+        if source == "txd":
+            filt = "TXD Files (*.txd);;All Files (*)"
+            title = "Open Radar TXD"
+        else:
+            filt = "IMG Archives (*.img);;All Files (*)"
+            title = "Open Radar IMG"
+        path,_ = QFileDialog.getOpenFileName(self, title, "", filt)
         if not path: return
+        # .txd files are not IMG archives — handle separately
+        if path.lower().endswith('.txd'):
+            self._load_standalone_txd(path)
+            return
         try: self._img_reader=ImgReader(path); self._img_path=path
         except Exception as e: QMessageBox.critical(self,"Load Error",str(e)); return
         entries=self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
         if not entries:
-            QMessageBox.warning(self,"No Tiles",f"No radar TXDs found in {Path(path).name}"); return
+            game  = self._game_combo.currentText()
+            hint_msg = f"\n\nHint: {hint}" if hint else ""
+            QMessageBox.warning(self, "No Radar Tiles",
+                f"No radar TXDs found in {Path(path).name}.{hint_msg}")
+            return
         entries.sort(key=lambda e:e["name"].lower()); self._tile_entries=entries
         self._autodetect(len(entries))
         prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
@@ -1357,6 +1397,33 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         prog.setValue(len(entries)); self._dirty_tiles=set()
         self.save_btn.setEnabled(True)
         self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — game: {self._game_preset['label']}  grid: {self._game_preset['cols']}×{self._game_preset['rows']}")
+
+    def _load_standalone_txd(self, path: str): #vers 1
+        """Load a standalone .txd file (GTA III / VC radar — single texture file)."""
+        try:
+            data = Path(path).read_bytes()
+            rgba, w, h, tex_name = RadarTxdReader.read(data)
+        except Exception as e:
+            QMessageBox.critical(self, "TXD Load Error", str(e))
+            return
+
+        # Single texture — show as 1x1 grid
+        self._img_reader   = None
+        self._img_path     = path
+        self._tile_entries = [{"name": tex_name, "offset": 0, "size": len(data)}]
+        GAME_PRESETS["Custom"].update({"cols": 1, "rows": 1, "count": 1})
+        self._on_game_changed("Custom")
+        self._cols_spin.setValue(1); self._rows_spin.setValue(1)
+
+        self._tile_rgba[0] = rgba
+        self._radar.set_tile(0, rgba, w, h)
+        if self._list_items:
+            self._list_items[0].set_thumb(rgba, w, h)
+        self._dirty_tiles = set()
+        self.save_btn.setEnabled(True)
+        self._set_status(
+            f"Loaded standalone TXD: {tex_name}  {w}×{h}px  from {Path(path).name}")
+
 
     def _autodetect(self, count): #vers 2
         """Match tile count to known preset, or fall back to Custom with sqrt grid.
