@@ -6751,10 +6751,11 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._set_zoom(max(0.05, fit_z))
 
 
-    def resizeEvent(self, event): #vers 1
+    def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
         if self.dp5_settings.get('zoom_to_fit_resize'):
             self._fit_canvas_to_viewport()
+        self._refresh_corner_overlay()
 
 
     def _set_zoom(self, z, anchor_widget_pos=None): #vers 1
@@ -10679,11 +10680,20 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay overlay widget
 
-    def _setup_corner_overlay(self): #vers 1
+    def _setup_corner_overlay(self): #vers 2
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.raise_()
+            return
         overlay = _CornerOverlay(self)
-        overlay.raise_()
         self._corner_overlay = overlay
         overlay.setGeometry(0, 0, self.width(), self.height())
+        overlay.raise_()
+
+    def showEvent(self, event): #vers 1
+        super().showEvent(event)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, self._setup_corner_overlay)
 
     def _refresh_corner_overlay(self): #vers 1
         if hasattr(self, '_corner_overlay'):

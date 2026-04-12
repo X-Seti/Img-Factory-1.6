@@ -2279,6 +2279,11 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 <tr><td>iOS PVRTC</td><td>LCS iOS</td><td>PVRTC decode already in TXD Workshop — port to Radar Workshop RadarTxdReader.</td></tr>
 <tr><td>VC Android texdb</td><td>VC Android</td><td>Separate texdb reader system. Not radar-specific.</td></tr>
 </table>
+<h3>TODO — Fun / Future</h3>
+<table>
+<tr><th>Feature</th><th>Notes</th></tr>
+<tr><td>🧩 Sliding Puzzle mini-game</td><td>Radar tiles make a perfect sliding puzzle. Add "Boredom!" entry to Radar Workshop menu — shuffles tiles into a sliding puzzle, solve to reassemble the map. Track moves/time.</td></tr>
+</table>
 </body>"""
 
         tabs.addTab(make_tab(img_html),    "IMG Formats")

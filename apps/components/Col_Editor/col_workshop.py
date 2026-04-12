@@ -4890,7 +4890,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                     self.col_list_widget.addItem(item)
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"📋 Found {len(self.txd_list)} COL files")
+                self.main_window.log_message(f"📋 Found {len(self.col_list)} COL files")
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error loading COL list: {str(e)}")
@@ -6921,6 +6921,20 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             print(f"Error analyzing file: {str(e)}")
             QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
 
+
+    def showEvent(self, event): #vers 1
+        """When COL workshop becomes visible, try to populate from loaded IMG."""
+        super().showEvent(event)
+        if (not self.standalone_mode and
+                hasattr(self, 'col_list_widget') and
+                self.col_list_widget is not None and
+                self.col_list_widget.count() == 0):
+            # Try to get current IMG from main window
+            if self.main_window and hasattr(self.main_window, 'current_img'):
+                img = self.main_window.current_img
+                if img and img != getattr(self, 'current_img', None):
+                    self.current_img = img
+                    self._load_img_col_list()
 
     def _on_col_selected(self, item): #vers 1
         """Handle COL file selection"""

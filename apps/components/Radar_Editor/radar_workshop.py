@@ -745,9 +745,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         self._status_bar = self._create_status_bar()
         main_layout.addWidget(self._status_bar)
-        # Corner resize overlay — must be last so it sits above all children
-        if self.standalone_mode:
-            self._setup_corner_overlay()
+        # Corner resize overlay set up in showEvent
 
 
     # - Toolbar
@@ -1649,14 +1647,17 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             QMessageBox.warning(self, "No Radar Tiles",
                 f"No radar TXDs found in {Path(path).name}.{hint_msg}")
             return
-        entries.sort(key=lambda e:e["name"].lower()); self._tile_entries=entries
+        entries.sort(key=lambda e:e["name"].lower())
 
         if filename_matched:
-            # Trust preset cols/rows exactly — don't mutate the preset
-            # Just load however many tiles were found, grid stays as defined
+            # Trust preset exactly — cap entries to preset count, ignore extras
+            p = self._game_preset
+            entries = entries[:p["count"]]   # trim to exactly 144 / 64 / 1296
             self._apply_preset(self._game_combo.currentText())
         else:
             self._autodetect(len(entries))
+
+        self._tile_entries = entries
         prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
         prog.setWindowModality(Qt.WindowModality.WindowModal); prog.show()
         for i,entry in enumerate(entries):
@@ -2196,12 +2197,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
 
-    def _setup_corner_overlay(self): #vers 2
-        """Create a transparent overlay widget that draws corner resize handles on top of all children."""
+    def _setup_corner_overlay(self): #vers 3
+        """Create or refresh the corner overlay widget."""
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.raise_()
+            return
         overlay = _CornerOverlay(self)
+        self._corner_overlay = overlay
         overlay.setGeometry(0, 0, self.width(), self.height())
         overlay.raise_()
-        self._corner_overlay = overlay
 
     def _refresh_corner_overlay(self): #vers 1
         if hasattr(self, '_corner_overlay'):
@@ -2211,11 +2216,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 self.app_settings)
             self._corner_overlay.raise_()
 
-    def resizeEvent(self, event): #vers 1
+    def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
-        if hasattr(self, '_corner_overlay'):
-            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
-            self._corner_overlay.raise_()
+        self._refresh_corner_overlay()
+
+    def showEvent(self, event): #vers 1
+        super().showEvent(event)
+        from PyQt6.QtCore import QTimer
+        if self.standalone_mode:
+            QTimer.singleShot(100, self._setup_corner_overlay)
 
     def _resizeEvent(self, event): #vers 1
         super().resizeEvent(event)

@@ -720,9 +720,6 @@ class IMGFactory(QMainWindow):
 
         # Show window (non-blocking)
         self.show()
-        # Corner resize overlay — must be after show() so geometry is valid
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(50, self.setup_corner_overlay)
 
 
     def log_message(self, message: str): #vers 3
@@ -3666,35 +3663,49 @@ class IMGFactory(QMainWindow):
 
 
 
-    def _populate_workshop_lists_from_img(self, img_file): #vers 1
-        """After IMG load: push COL files into Col Workshop left panel,
-        and TXD files into TXD Workshop left panel (same pattern)."""
+    def _populate_workshop_lists_from_img(self, img_file): #vers 2
+        """After IMG load: push COL + TXD file lists into docked workshops."""
         try:
             if not img_file or not hasattr(img_file, 'entries'):
                 return
 
-            # ── COL Workshop ──────────────────────────────────────────────
+            from apps.components.Col_Editor.col_workshop import COLWorkshop
+            from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+
+            # Search every tab for embedded workshops via findChildren
             if hasattr(self, 'tab_widget'):
                 for i in range(self.tab_widget.count()):
                     widget = self.tab_widget.widget(i)
-                    # Find embedded Col Workshop
-                    if widget and hasattr(widget, '_load_img_col_list'):
-                        widget.current_img = img_file
-                        widget._load_img_col_list()
-                    # Find embedded TXD Workshop
-                    if widget and hasattr(widget, '_load_img_txd_list'):
-                        widget.current_img = img_file
-                        widget._load_img_txd_list()
+                    if not widget:
+                        continue
 
-            # Also check direct workshop attributes
-            for attr in ['col_workshop', 'txd_workshop']:
+                    # COL workshops
+                    for w in widget.findChildren(COLWorkshop):
+                        w.current_img = img_file
+                        if hasattr(w, '_load_img_col_list'):
+                            w._load_img_col_list()
+
+                    # TXD workshops
+                    for w in widget.findChildren(TXDWorkshop):
+                        w.current_img = img_file
+                        if hasattr(w, '_load_img_txd_list'):
+                            w._load_img_txd_list()
+
+                    # Also check direct attributes on tab widget
+                    for attr in ('col_workshop', 'txd_workshop'):
+                        w = getattr(widget, attr, None)
+                        if w is None: continue
+                        w.current_img = img_file
+                        if hasattr(w, '_load_img_col_list'): w._load_img_col_list()
+                        if hasattr(w, '_load_img_txd_list'): w._load_img_txd_list()
+
+            # Direct attributes on main window
+            for attr in ('col_workshop', 'txd_workshop'):
                 w = getattr(self, attr, None)
                 if w is None: continue
                 w.current_img = img_file
-                if hasattr(w, '_load_img_col_list'):
-                    w._load_img_col_list()
-                if hasattr(w, '_load_img_txd_list'):
-                    w._load_img_txd_list()
+                if hasattr(w, '_load_img_col_list'): w._load_img_col_list()
+                if hasattr(w, '_load_img_txd_list'): w._load_img_txd_list()
 
         except Exception as e:
             self.log_message(f"Workshop list populate error: {e}")
@@ -6551,8 +6562,13 @@ class IMGFactory(QMainWindow):
         """Corner handles drawn by _corner_overlay — see setup_corner_overlay"""
         super().paintEvent(event)
 
-    def setup_corner_overlay(self): #vers 1
+    def setup_corner_overlay(self): #vers 2
         """Transparent overlay draws corner handles above all child widgets."""
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.raise_()
+            return
+        # Create fresh overlay
         from PyQt6.QtWidgets import QWidget
         from PyQt6.QtGui import QPainter, QColor, QBrush, QPainterPath
         from PyQt6.QtCore import Qt
@@ -6602,6 +6618,11 @@ class IMGFactory(QMainWindow):
 
         self._corner_overlay = CornerOverlay(self)
         self._corner_overlay.raise_()
+
+    def showEvent(self, event): #vers 1
+        super().showEvent(event)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, self.setup_corner_overlay)
 
     def refresh_corner_overlay(self): #vers 1
         if hasattr(self, '_corner_overlay'):
