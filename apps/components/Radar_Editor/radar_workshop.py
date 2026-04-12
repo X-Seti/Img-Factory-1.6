@@ -465,6 +465,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         layout.setSpacing(self.panelspacing)
 
 
+        self.menu_toggle_btn = QPushButton("Menu")
+        self.menu_toggle_btn.setFont(self.button_font)
+        self.menu_toggle_btn.setToolTip("Show menu (topbar or dropdown — set in Settings)")
+        self.menu_toggle_btn.setMinimumHeight(28)
+        self.menu_toggle_btn.setMaximumHeight(28)
+        self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
+        self.menu_toggle_btn.setVisible(self.standalone_mode)
+        layout.addWidget(self.menu_toggle_btn)
+
         # - Settings button
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
@@ -477,59 +486,6 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         layout.addWidget(self.settings_btn)
 
         layout.addStretch()
-
-        # - App title (centre)
-        self.title_label = QLabel(App_name)
-        self.title_label.setFont(self.title_font)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_label)
-
-        layout.addStretch()
-
-        # - Open button
-        self.open_btn = QPushButton()
-        self.open_btn.setFont(self.button_font)
-        self.open_btn.setIcon(SVGIconFactory.open_icon(20, icon_color))
-        self.open_btn.setText("Load")
-        self.open_btn.setIconSize(QSize(20, 20))
-        self.open_btn.setToolTip("Load radar IMG archive (Ctrl+O)")
-        self.open_btn.clicked.connect(self._open_file)
-        layout.addWidget(self.open_btn)
-
-        # - Save button
-        self.save_btn = QPushButton()
-        self.save_btn.setFont(self.button_font)
-        self.save_btn.setIcon(SVGIconFactory.save_icon(20, icon_color))
-        self.save_btn.setText("Save")
-        self.save_btn.setIconSize(QSize(20, 20))
-        self.save_btn.setToolTip("Save modified tiles to IMG (Ctrl+S)")
-        self.save_btn.setEnabled(False)
-        self.save_btn.clicked.connect(self._save_file)
-        layout.addWidget(self.save_btn)
-
-        # - Export / Import
-        self.export_btn = QPushButton("Export Sheet")
-        self.export_btn.setFont(self.button_font)
-        self.export_btn.setToolTip("Export all tiles as a PNG sheet")
-        self.export_btn.clicked.connect(self._export_sheet)
-        layout.addWidget(self.export_btn)
-
-        self.import_btn = QPushButton("Import Sheet")
-        self.import_btn.setFont(self.button_font)
-        self.import_btn.setToolTip("Import a PNG sheet of tiles")
-        self.import_btn.clicked.connect(self._import_sheet)
-        layout.addWidget(self.import_btn)
-
-        # - Info button
-        self.info_btn = QPushButton()
-        self.info_btn.setFont(self.button_font)
-        self.info_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
-        self.info_btn.setIconSize(QSize(20, 20))
-        self.info_btn.setToolTip("Workshop Information")
-        self.info_btn.clicked.connect(self._show_info)
-        layout.addWidget(self.info_btn)
-
-        layout.addSpacing(8)
 
         # - Game selector
         layout.addSpacing(8)
@@ -617,9 +573,52 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         vl.setContentsMargins(*self.get_panel_margins())
         vl.setSpacing(self.panelspacing)
 
+        # Header row: label + file buttons
+        hdr_row = QHBoxLayout()
         hdr = QLabel("Tiles")
         hdr.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        vl.addWidget(hdr)
+        hdr_row.addWidget(hdr)
+        hdr_row.addStretch()
+
+        icon_color = self._get_icon_color()
+
+        self.open_btn = QPushButton()
+        self.open_btn.setIcon(SVGIconFactory.open_icon(20, icon_color))
+        self.open_btn.setIconSize(QSize(20, 20))
+        self.open_btn.setToolTip("Load radar IMG (Ctrl+O)")
+        self.open_btn.clicked.connect(self._open_file)
+        hdr_row.addWidget(self.open_btn)
+
+        self.save_btn = QPushButton()
+        self.save_btn.setIcon(SVGIconFactory.save_icon(20, icon_color))
+        self.save_btn.setIconSize(QSize(20, 20))
+        self.save_btn.setToolTip("Save IMG (Ctrl+S)")
+        self.save_btn.setEnabled(False)
+        self.save_btn.clicked.connect(self._save_file)
+        hdr_row.addWidget(self.save_btn)
+
+        self.export_btn = QPushButton()
+        self.export_btn.setIcon(SVGIconFactory.export_icon(20, icon_color))
+        self.export_btn.setIconSize(QSize(20, 20))
+        self.export_btn.setToolTip("Export all tiles as PNG sheet")
+        self.export_btn.clicked.connect(self._export_sheet)
+        hdr_row.addWidget(self.export_btn)
+
+        self.import_btn = QPushButton()
+        self.import_btn.setIcon(SVGIconFactory.import_icon(20, icon_color))
+        self.import_btn.setIconSize(QSize(20, 20))
+        self.import_btn.setToolTip("Import PNG sheet")
+        self.import_btn.clicked.connect(self._import_sheet)
+        hdr_row.addWidget(self.import_btn)
+
+        self.info_btn = QPushButton()
+        self.info_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
+        self.info_btn.setIconSize(QSize(20, 20))
+        self.info_btn.setToolTip("Workshop Info")
+        self.info_btn.clicked.connect(self._show_info)
+        hdr_row.addWidget(self.info_btn)
+
+        vl.addLayout(hdr_row)
 
         self._tile_list = QListWidget()
         self._tile_list.setIconSize(QSize(THUMB, THUMB))
@@ -837,6 +836,167 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Menu options
+
+
+    def _apply_menu_bar_style(self): #vers 3
+        """Apply font size, height and colours to the topbar menubar.
+        Uses explicit colours so it stays readable regardless of app theme.
+        """
+        mb = getattr(self, '_menu_bar', None)
+        if not mb:
+            return
+        bar_h  = self.RAD_settings.get('menu_bar_height', 22)
+        bar_fs = self.RAD_settings.get('menu_bar_font_size', 9)
+        dd_fs  = self.RAD_settings.get('menu_dropdown_font_size', 9)
+
+        # Get theme colours if available, otherwise use sensible defaults
+        bg   = '#2b2b2b'
+        fg   = '#e0e0e0'
+        sel  = '#1976d2'
+        selfg = '#ffffff'
+        border = '#555555'
+        try:
+            app_settings = getattr(self, 'app_settings', None)
+            if not app_settings and self.main_window:
+                app_settings = getattr(self.main_window, 'app_settings', None)
+            if app_settings:
+                tc = app_settings.get_theme_colors() or {}
+                bg    = tc.get('bg_primary',   bg)
+                fg    = tc.get('text_primary',  fg)
+                sel   = tc.get('accent',        sel)
+                border = tc.get('border',       border)
+        except Exception:
+            pass
+
+        # Height controlled by container — NOT by stylesheet min/max-height
+        # (stylesheet height properties override Qt layout and prevent the bar showing)
+        mb.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: {bg};
+                color: {fg};
+                border-bottom: 1px solid {border};
+                font-size: {bar_fs}pt;
+            }}
+            QMenuBar::item {{
+                background-color: transparent;
+                padding: 2px 6px;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+            QMenu {{
+                background-color: {bg};
+                color: {fg};
+                border: 1px solid {border};
+                font-size: {dd_fs}pt;
+            }}
+            QMenu::item:selected {{
+                background-color: {sel};
+                color: {selfg};
+            }}
+        """)
+
+        # Size the container based on settings, not isVisible()
+        # (isVisible() is False during __init__ even if widget will be shown)
+        c = getattr(self, '_menu_bar_container', None)
+        if c:
+            show = (self.RAD_settings.get('show_menubar', False) and
+                    self.RAD_settings.get('menu_style', 'dropdown') == 'topbar')
+            if show:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(bar_h)
+            # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
+
+
+
+    def _on_menu_btn_clicked(self): #vers 3
+        style = self.RAD_settings.get('menu_style')
+        if style == 'dropdown':
+            self._show_dropdown_menu()
+        else:
+            on = not self.RAD_settings.get('show_menubar')
+            self.RAD_settings.set('show_menubar', on)
+            self.RAD_settings.save()
+            c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+            if c:
+                c.setMinimumHeight(0)
+                c.setMaximumHeight(16777215 if on else 0)
+                c.setVisible(on)
+
+
+    def _show_dropdown_menu(self): #vers 1
+        """Pop up the canvas menus as a single QMenu dropdown."""
+        menu = QMenu(self)
+        self._build_canvas_menus(menu)
+        btn = getattr(self, 'menu_toggle_btn', None)
+        if btn:
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.exec(self.cursor().pos())
+
+
+
+    def _toggle_menubar(self, on: bool): #vers 3
+        self.RAD_settings.set('show_menubar', on)
+        self.RAD_settings.save()
+        c = getattr(self, '_menu_bar_container', self._menu_bar if hasattr(self, '_menu_bar') else None)
+        if c:
+            c.setMinimumHeight(0)
+            c.setMaximumHeight(16777215 if on else 0)
+            c.setVisible(on)
+
+
+
+    def set_menu_orientation(self, style: str): #vers 4
+        """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
+        Called from imgfactory Settings when the orientation radio changes.
+        """
+        self.RAD_settings.set('menu_style', style)
+        self.RAD_settings.set('show_menubar', style == 'topbar')
+
+        # Toggle the container (not the bare QMenuBar) so Qt doesn't promote it
+        container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
+        if container:
+            if style == 'topbar':
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(16777215)
+                container.setVisible(True)
+                container.updateGeometry()
+                # Re-apply style so height/font are correct
+                self._apply_menu_bar_style()
+            else:
+                container.setVisible(False)
+                container.setMinimumHeight(0)
+                container.setMaximumHeight(0)
+                container.setFixedHeight(0)
+
+
+    def _refresh_icons(self): #Vers 1
+        SVGIconFactory.clear_cache()
+        # Re-apply theme-aware icon colour to toolbar buttons
+        color = self._get_icon_color()
+        icon_map = [
+            ('settings_btn',    'settings_icon'),
+            ('new_session_btn', 'add_icon'),
+            ('clear_btn',       'delete_icon'),
+            ('properties_btn',  'properties_icon'),
+            ('docked_settings_btn', 'settings_icon'),
+        ]
+        for attr, method in icon_map:
+            if hasattr(self, attr):
+                btn = getattr(self, attr)
+                btn.setIcon(getattr(SVGIconFactory, method)(20, color))
+        # Window control buttons
+        for attr, method in [('minimize_btn','minimize_icon'),
+                              ('maximize_btn','maximize_icon'),
+                              ('close_btn','close_icon')]:
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(getattr(SVGIconFactory, method)(20, color))
+
+
+   # - File ops
+
 
     def _on_game_changed(self, game): #vers 1
         cust = (game == "Custom")
