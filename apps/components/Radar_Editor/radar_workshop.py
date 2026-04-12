@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/temp/temp_workshop.py - Version: 19
-# X-Seti - Apr 2026 - IMG Factory 1.6 - temp Workshop
+#this belongs in apps/components/Radar_Editor/radar_workshop.py - Version: 20
+# X-Seti - Apr 2026 - IMG Factory 1.6 - Radar Workshop
 # Based on gui_template.py (GUIWorkshop base)
 # Layout: left panel hidden | centre=tile list | right=radar grid preview
 # Tool bar uses template pattern: titlebar + toolbar with all standard buttons
@@ -408,14 +408,21 @@ class RADSettings:
     Stored at ~/.config/imgfactory/radar_workshop.json
     Completely separate from the global AppSettings/theme system.
     """
+    MAX_RECENT = 10
+
     DEFAULTS = {
-        'show_menubar':            False,     # hidden by default
-        'menu_style':              'dropdown', # 'topbar' | 'dropdown'
+        'show_menubar':            False,
+        'menu_style':              'dropdown',
         'menu_bar_font_size':      9,
         'menu_bar_height':         22,
         'menu_dropdown_font_size': 9,
         'show_statusbar':          True,
-        'default_game':            'SA',
+        'default_game':            'SA PC',
+        'recent_files':            [],        # list of recently opened IMG paths
+        'window_x':                -1,
+        'window_y':                -1,
+        'window_w':                1400,
+        'window_h':                800,
     }
 
     def __init__(self): #vers 1
@@ -447,6 +454,18 @@ class RADSettings:
     def set(self, key, value): #vers 1
         if key in self.DEFAULTS:
             self._data[key] = value
+
+    def add_recent(self, path: str): #vers 1
+        """Add path to recent files list (max MAX_RECENT entries)."""
+        recents = [p for p in self._data.get('recent_files', []) if p != path]
+        recents.insert(0, path)
+        self._data['recent_files'] = recents[:self.MAX_RECENT]
+        self.save()
+
+    def get_recent(self): #vers 1
+        """Return list of recent file paths that still exist."""
+        import os
+        return [p for p in self._data.get('recent_files', []) if os.path.isfile(p)]
 
 
 # ── Radar Palette Widget ───────────────────────────────────────────────────────
@@ -601,17 +620,31 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     window_closed   = pyqtSignal()
 
     def get_menu_title(self): return App_name  # vers 1
-    def _build_menus_into_qmenu(self, pm): #vers 1
-        fm=pm.addMenu("File")
-        fm.addAction("Load IMG…",    self._open_file)
-        fm.addAction("Save IMG…",    self._save_file)
+    def _build_menus_into_qmenu(self, pm): #vers 2
+        fm = pm.addMenu("File")
+        fm.addAction("Load IMG…",          self._open_file)
+        fm.addAction("Save IMG…",          self._save_file)
         fm.addSeparator()
-        fm.addAction("Export Sheet…",self._export_sheet)
-        fm.addAction("Import Sheet…",self._import_sheet)
-        vm=pm.addMenu("View")
-        vm.addAction("Zoom In",  lambda: self._zoom(1.25))
-        vm.addAction("Zoom Out", lambda: self._zoom(0.8))
-        vm.addAction("Fit Grid", self._fit)
+        fm.addAction("Export Full Map…",   self._export_sheet)
+        fm.addAction("Import Full Map…",   self._import_sheet)
+        fm.addSeparator()
+        # Recent files
+        if hasattr(self, 'RAD_settings'):
+            recent = self.RAD_settings.get_recent()
+            if recent:
+                rm = fm.addMenu("Recent Files")
+                for rpath in recent:
+                    act = rm.addAction(Path(rpath).name)
+                    act.setToolTip(rpath)
+                    act.triggered.connect(lambda checked=False, p=rpath: self._open_recent(p))
+                rm.addSeparator()
+                rm.addAction("Clear Recent", self._clear_recent)
+        vm = pm.addMenu("View")
+        vm.addAction("Zoom In (+)",    lambda: self._zoom(1.25))
+        vm.addAction("Zoom Out (-)",   lambda: self._zoom(0.8))
+        vm.addAction("Fit Grid",       self._fit)
+        vm.addSeparator()
+        vm.addAction("About Radar Workshop", self._show_about)
 
     def __init__(self, parent=None, main_window=None): #Vers 1
         super().__init__(parent)
@@ -656,6 +689,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         # Per-tool settings (separate from global theme system)
         self.RAD_settings = RADSettings()
+        # Restore window geometry
+        if self.standalone_mode:
+            wx = self.RAD_settings.get('window_x', -1)
+            wy = self.RAD_settings.get('window_y', -1)
+            ww = self.RAD_settings.get('window_w', 1400)
+            wh = self.RAD_settings.get('window_h', 800)
+            self.resize(max(800, ww), max(500, wh))
+            if wx >= 0 and wy >= 0:
+                self.move(wx, wy)
 
         # Spacing/margins (template pattern)
         self.contmergina=1; self.contmerginb=1; self.contmerginc=1; self.contmergind=1; self.setspacing=2
@@ -816,6 +858,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         layout.addWidget(self._rows_spin)
 
         layout.addStretch()
+
+        # - Info button (before Theme)
+        self.info_radar_btn = QPushButton()
+        self.info_radar_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
+        self.info_radar_btn.setIconSize(QSize(20, 20))
+        self.info_radar_btn.setFixedSize(35, 35)
+        self.info_radar_btn.setToolTip("About Radar Workshop")
+        self.info_radar_btn.clicked.connect(self._show_about)
+        layout.addWidget(self.info_radar_btn)
 
         # - Theme / Properties
         self.properties_btn = QPushButton()
@@ -1650,12 +1701,28 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         entries.sort(key=lambda e:e["name"].lower())
 
         if filename_matched:
-            # Trust preset exactly — cap entries to preset count, ignore extras
+            # Known file — cap to preset count, apply preset grid
             p = self._game_preset
             entries = entries[:p["count"]]   # trim to exactly 144 / 64 / 1296
             self._apply_preset(self._game_combo.currentText())
         else:
-            self._autodetect(len(entries))
+            # Try exact match first; if count matches a known preset, use it
+            matched_preset = None
+            for pname, p in GAME_PRESETS.items():
+                if pname != "Custom" and p["count"] == len(entries):
+                    matched_preset = pname
+                    break
+            if matched_preset:
+                self._on_game_changed(matched_preset)
+            else:
+                # Cap to nearest known preset count if within 10%
+                current = self._game_combo.currentText()
+                p = self._game_preset
+                if current != "Custom" and len(entries) > p["count"]:
+                    entries = entries[:p["count"]]
+                    self._apply_preset(current)
+                else:
+                    self._autodetect(len(entries))
 
         self._tile_entries = entries
         prog=QProgressDialog("Loading tiles…","Cancel",0,len(entries),self)
@@ -1670,6 +1737,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             except Exception as e: print(f"WARN tile {i}: {e}",file=sys.stderr)
         prog.setValue(len(entries)); self._dirty_tiles=set()
         self.save_btn.setEnabled(True)
+        self.RAD_settings.add_recent(str(path))
         self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — game: {self._game_preset['label']}  grid: {self._game_preset['cols']}×{self._game_preset['rows']}")
 
     def _load_standalone_txd(self, path: str): #vers 1
@@ -1774,37 +1842,86 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._tile_list.setCurrentRow(idx); self._on_list_row(idx)
 
     # - Export/Import sheet
-    def _export_sheet(self): #vers 1
-        if not self._tile_rgba: QMessageBox.information(self,"Nothing","Load an IMG first."); return
-        path,_=QFileDialog.getSaveFileName(self,"Export Sheet","radar_sheet.png","PNG Images (*.png)")
+    def _export_sheet(self): #vers 2
+        """Export all loaded tiles as a single combined PNG or BMP map image."""
+        if not self._tile_rgba:
+            QMessageBox.information(self, "Nothing to Export", "Load a radar IMG first.")
+            return
+        preset = self._game_preset
+        cols   = preset["cols"]
+        rows   = preset.get("rows", (len(self._tile_rgba) + cols - 1) // cols)
+        default_name = f"radar_map_{preset['cols']}x{preset['rows']}.png"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Full Radar Map", default_name,
+            "PNG Image (*.png);;BMP Image (*.bmp);;All Images (*)")
         if not path: return
         try:
             from PIL import Image
-            cols=self._game_preset["cols"]; count=len(self._tile_rgba); rows=(count+cols-1)//cols
-            sheet=Image.new("RGBA",(cols*TILE_W,rows*TILE_H),(0,0,0,0))
-            for idx,rgba in self._tile_rgba.items():
-                if len(rgba)==TILE_W*TILE_H*4:
-                    sheet.paste(Image.frombytes("RGBA",(TILE_W,TILE_H),rgba),((idx%cols)*TILE_W,(idx//cols)*TILE_H))
-            sheet.save(path); self._set_status(f"Exported {count} tiles → {Path(path).name}")
-        except Exception as e: QMessageBox.critical(self,"Export Error",str(e))
+            sheet = Image.new("RGBA", (cols * TILE_W, rows * TILE_H), (0, 0, 0, 255))
+            exported = 0
+            for idx, rgba in self._tile_rgba.items():
+                if len(rgba) == TILE_W * TILE_H * 4:
+                    x = (idx % cols) * TILE_W
+                    y = (idx // cols) * TILE_H
+                    sheet.paste(Image.frombytes("RGBA", (TILE_W, TILE_H), rgba), (x, y))
+                    exported += 1
+            # BMP doesn't support alpha — convert to RGB
+            if path.lower().endswith('.bmp'):
+                sheet = sheet.convert("RGB")
+            sheet.save(path)
+            w_px, h_px = cols * TILE_W, rows * TILE_H
+            self._set_status(
+                f"Exported {exported} tiles → {Path(path).name}  ({w_px}×{h_px}px)")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
 
-    def _import_sheet(self): #vers 1
-        path,_=QFileDialog.getOpenFileName(self,"Import Sheet","","PNG Images (*.png);;All Images (*)")
+    def _import_sheet(self): #vers 2
+        """Import a full map PNG/BMP and slice it into tiles using preset grid dimensions."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Full Radar Map", "",
+            "PNG Image (*.png);;BMP Image (*.bmp);;All Images (*)")
         if not path: return
         try:
             from PIL import Image
-            sheet=Image.open(path).convert("RGBA"); cols=self._game_preset["cols"]
-            tw=sheet.width//cols; count=min(cols*(sheet.height//tw),self._game_preset["count"])
-            for idx in range(count):
-                col=idx%cols; row=idx//cols
-                tile=sheet.crop((col*tw,row*tw,(col+1)*tw,(row+1)*tw))
-                if tw!=TILE_W: tile=tile.resize((TILE_W,TILE_H))
-                rgba=tile.tobytes(); self._tile_rgba[idx]=rgba; self._dirty_tiles.add(idx)
-                self._radar.set_tile(idx,rgba,TILE_W,TILE_H); self._radar.set_dirty(idx,True)
-                if idx<len(self._list_items): self._list_items[idx].set_thumb(rgba,TILE_W,TILE_H)
+            sheet  = Image.open(path).convert("RGBA")
+            preset = self._game_preset
+            cols   = preset["cols"]
+            rows   = preset["rows"]
+            count  = preset["count"]
+            # Tile size from the image (may differ from TILE_W/H if different game)
+            tw = sheet.width  // cols
+            th = sheet.height // rows
+            if tw <= 0 or th <= 0:
+                QMessageBox.warning(self, "Import Error",
+                    f"Image size {sheet.width}×{sheet.height} is too small for "
+                    f"{cols}×{rows} grid.")
+                return
+            imported = 0
+            for idx in range(min(count, cols * rows)):
+                col_i = idx % cols
+                row_i = idx // cols
+                tile  = sheet.crop((col_i * tw, row_i * th,
+                                    (col_i+1) * tw, (row_i+1) * th))
+                if tw != TILE_W or th != TILE_H:
+                    tile = tile.resize((TILE_W, TILE_H), Image.LANCZOS)
+                rgba = tile.tobytes()
+                self._tile_rgba[idx] = rgba
+                self._dirty_tiles.add(idx)
+                self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+                self._radar.set_dirty(idx, True)
+                if idx < len(self._list_items):
+                    self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+                imported += 1
+            if hasattr(self, '_palette_widget') and 0 in self._tile_rgba:
+                self._palette_widget.set_colors_from_rgba(
+                    self._tile_rgba[0], TILE_W, TILE_H)
+            self.save_btn.setEnabled(True)
             self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
-            self._set_status(f"Imported {count} tiles from {Path(path).name}")
-        except Exception as e: QMessageBox.critical(self,"Import Error",str(e))
+            self._set_status(
+                f"Imported {imported} tiles from {Path(path).name}  "
+                f"(sliced {cols}×{rows} from {sheet.width}×{sheet.height}px)")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
 
     # - Grid nav
     def _zoom(self, f): #vers 2
@@ -1870,6 +1987,97 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Info / Settings / Theme
+    def _open_recent(self, path: str): #vers 1
+        """Open a recently used IMG file directly."""
+        import os
+        if not os.path.isfile(path):
+            QMessageBox.warning(self, "File Not Found",
+                f"Cannot find:\n{path}\n\nIt will be removed from recent files.")
+            recents = [p for p in self.RAD_settings.get_recent() if p != path]
+            self.RAD_settings._data['recent_files'] = recents
+            self.RAD_settings.save()
+            return
+        # Simulate a file load with the known path
+        try:
+            self._img_reader = ImgReader(path)
+            self._img_path   = path
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", str(e))
+            return
+        fname = Path(path).name.lower()
+        preset_by_file = {'radartex.img': 'SOL', 'gta3.img': 'SA PC', 'gta.img': 'SA PC'}
+        auto_preset = preset_by_file.get(fname)
+        if auto_preset:
+            self._on_game_changed(auto_preset)
+        entries = self._img_reader.find_radar_entries(self._game_preset["img_pattern"])
+        if not entries:
+            QMessageBox.warning(self, "No Tiles", f"No radar TXDs in {Path(path).name}")
+            return
+        entries.sort(key=lambda e: e["name"].lower())
+        p = self._game_preset
+        entries = entries[:p["count"]]
+        self._apply_preset(self._game_combo.currentText())
+        self._tile_entries = entries
+        prog = QProgressDialog("Loading tiles…", "Cancel", 0, len(entries), self)
+        prog.setWindowModality(Qt.WindowModality.WindowModal); prog.show()
+        for i, entry in enumerate(entries):
+            prog.setValue(i); QApplication.processEvents()
+            if prog.wasCanceled(): break
+            try:
+                rgba, w, h, _ = RadarTxdReader.read(self._img_reader.get_entry_data(entry))
+                self._tile_rgba[i] = rgba; self._radar.set_tile(i, rgba, w, h)
+                if i < len(self._list_items): self._list_items[i].set_thumb(rgba, w, h)
+            except Exception as e:
+                print(f"WARN tile {i}: {e}", file=sys.stderr)
+        prog.setValue(len(entries))
+        self._dirty_tiles = set()
+        self.save_btn.setEnabled(True)
+        self.RAD_settings.add_recent(str(path))
+        self._set_status(f"Loaded {len(entries)} tiles from {Path(path).name}  — {p['label']}  {p['cols']}×{p['rows']}")
+
+    def _clear_recent(self): #vers 1
+        self.RAD_settings._data['recent_files'] = []
+        self.RAD_settings.save()
+        self._set_status("Recent files cleared")
+
+    def _show_about(self): #vers 1
+        """Show Radar Workshop info dialog."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+        dlg = QDialog(self)
+        dlg.setWindowTitle("About Radar Workshop")
+        dlg.setMinimumWidth(400)
+        layout = QVBoxLayout(dlg)
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, self.main_window)
+        except Exception: pass
+        lines = [
+            f"<b>Radar Workshop</b>",
+            f"Part of IMG Factory 1.6",
+            f"",
+            f"<b>Supported formats:</b>",
+            f"• PC/PS2/Xbox: DXT1 TXD tiles in .img archives",
+            f"• iOS LCS: PVRTC tiles in .pvr archives",
+            f"• Android GTA III: single RADAR.TXD in gta3_unc.img",
+            f"",
+            f"<b>Tile counts:</b>",
+            f"• GTA III/VC/LCS/VCS: 64 tiles (8×8)",
+            f"• GTA SA: 144 tiles (12×12)",
+            f"• GTA SOL: 1296 tiles (36×36)",
+            f"",
+            f"<b>Export/Import:</b> Full map as PNG or BMP",
+            f"<b>Draw tools:</b> Pencil · Line · Fill · Dropper",
+            f"<b>Transforms:</b> Rotate ±90° · Flip H/V",
+            f"",
+            f"<b>TODO:</b> SA/iOS Android TOC/DAT · PSP GIM/XTX",
+        ]
+        lbl = QLabel("<br>".join(lines))
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+        ok = QPushButton("OK"); ok.clicked.connect(dlg.accept)
+        layout.addWidget(ok)
+        dlg.exec()
+
     def _show_info(self): #vers 1
         lines = [
             f"<b>{App_name}</b>  Build {Build}",
@@ -2230,7 +2438,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         super().resizeEvent(event)
         if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
 
-    def closeEvent(self, event): #Vers 1
+    def closeEvent(self, event): #Vers 2
+        # Save window geometry
+        if self.standalone_mode:
+            g = self.geometry()
+            self.RAD_settings.set('window_x', g.x())
+            self.RAD_settings.set('window_y', g.y())
+            self.RAD_settings.set('window_w', g.width())
+            self.RAD_settings.set('window_h', g.height())
+            self.RAD_settings.save()
         self.window_closed.emit()
         event.accept()
 
