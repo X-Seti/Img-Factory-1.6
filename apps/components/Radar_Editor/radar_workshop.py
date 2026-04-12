@@ -896,10 +896,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             return b
 
         # ── Zoom tools ────────────────────────────────────────────────────────
-        _nb('manage_icon',  "Zoom in (×1.25)",   lambda: self._zoom(1.25))
-        _nb('filter_icon',  "Zoom out (×0.8)",   lambda: self._zoom(0.8))
-        _nb('view_icon',    "Fit grid",           self._fit)
-        _nb('search_icon',  "Jump to selected",  self._jump)
+        _nb('zoom_in_icon',   "Zoom in (+)",         lambda: self._zoom(1.25))
+        _nb('zoom_out_icon',  "Zoom out (-)",        lambda: self._zoom(0.8))
+        _nb('view_icon',      "Fit grid",            self._fit)
+        _nb('undo_icon',      "Jump to selected tile", self._jump)
 
         sl.addSpacing(4)
         sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
@@ -916,11 +916,22 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._draw_btns[tool_name] = b
             return b
 
-        _tool_btn('paint_icon',   "Pencil — draw pixels (P)",  'pencil')
-        _tool_btn('edit_icon',    "Line — draw a line (L)",    'line')
-        _tool_btn('add_icon',     "Fill — flood fill (F)",     'fill')
-        _tool_btn('filter_icon',  "Dropper — pick colour (K)", 'picker')
+        _tool_btn('paint_icon',    "Pencil — draw pixels (P)",    'pencil')
+        _tool_btn('editer_icon',   "Line — draw a line (L)",      'line')
+        _tool_btn('fill_icon',     "Fill — flood fill bucket (F)", 'fill')
+        _tool_btn('dropper_icon',  "Dropper — pick colour (K)",   'picker')
         self._draw_btns['pencil'].setChecked(True)
+
+        sl.addSpacing(4)
+        sep1b = QFrame(); sep1b.setFrameShape(QFrame.Shape.HLine)
+        sl.addWidget(sep1b)
+        sl.addSpacing(4)
+
+        # ── Transform tools ───────────────────────────────────────────────────
+        _nb('rotate_cw_icon',   "Rotate tile +90°",      self._rotate_cw)
+        _nb('rotate_ccw_icon',  "Rotate tile -90°",      self._rotate_ccw)
+        _nb('flip_horz_icon',   "Flip tile horizontal",  self._flip_horz)
+        _nb('flip_vert_icon',   "Flip tile vertical",    self._flip_vert)
 
         sl.addSpacing(4)
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
@@ -1019,6 +1030,50 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         """Palette cell right-clicked — set as background colour."""
         self._bg_color = color
         self._update_swatch_buttons()
+
+    # ── Tile transforms ───────────────────────────────────────────────────────
+    def _get_current_rgba(self): #vers 1
+        """Return bytearray of current tile RGBA, or None."""
+        idx = self._current_idx
+        if idx < 0 or idx not in self._tile_rgba:
+            return None, -1
+        return bytearray(self._tile_rgba[idx]), idx
+
+    def _apply_tile_transform(self, transform_fn): #vers 1
+        """Apply a pixel transform to the current tile and refresh."""
+        from PIL import Image
+        rgba, idx = self._get_current_rgba()
+        if rgba is None:
+            self._set_status("No tile selected"); return
+        img = Image.frombytes("RGBA", (TILE_W, TILE_H), bytes(rgba))
+        img = transform_fn(img)
+        new_rgba = img.tobytes()
+        self._tile_rgba[idx] = new_rgba
+        self._dirty_tiles.add(idx)
+        self._radar.set_tile(idx, new_rgba, TILE_W, TILE_H)
+        self._radar.set_dirty(idx, True)
+        if idx < len(self._list_items):
+            self._list_items[idx].set_thumb(new_rgba, TILE_W, TILE_H)
+        if hasattr(self, '_palette_widget'):
+            self._palette_widget.set_colors_from_rgba(new_rgba, TILE_W, TILE_H)
+        self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
+        self._set_status(f"Tile {idx} transformed — {len(self._dirty_tiles)} modified")
+
+    def _rotate_cw(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.rotate(-90, expand=False))
+
+    def _rotate_ccw(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.rotate(90, expand=False))
+
+    def _flip_horz(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.transpose(Image.Transpose.FLIP_LEFT_RIGHT))
+
+    def _flip_vert(self): #vers 1
+        from PIL import Image
+        self._apply_tile_transform(lambda img: img.transpose(Image.Transpose.FLIP_TOP_BOTTOM))
 
 
     def _create_right_panel_old(self): #Vers 1
@@ -1383,6 +1438,18 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.hotkey_close = QShortcut(QKeySequence.StandardKey.Close, self); self.hotkey_close.activated.connect(self.close)
         self.hotkey_find  = QShortcut(QKeySequence.StandardKey.Find,  self)
         self.hotkey_help  = QShortcut(QKeySequence.StandardKey.HelpContents, self)
+        # Zoom keys
+        QShortcut(QKeySequence(Qt.Key.Key_Plus),  self).activated.connect(lambda: self._zoom(1.25))
+        QShortcut(QKeySequence(Qt.Key.Key_Equal), self).activated.connect(lambda: self._zoom(1.25))
+        QShortcut(QKeySequence(Qt.Key.Key_Minus), self).activated.connect(lambda: self._zoom(0.8))
+        QShortcut(QKeySequence("Ctrl++"),         self).activated.connect(lambda: self._zoom(1.25))
+        QShortcut(QKeySequence("Ctrl+-"),         self).activated.connect(lambda: self._zoom(0.8))
+        QShortcut(QKeySequence("Ctrl+0"),         self).activated.connect(self._fit)
+        # Draw tool keys
+        QShortcut(QKeySequence(Qt.Key.Key_P), self).activated.connect(lambda: self._set_draw_tool('pencil'))
+        QShortcut(QKeySequence(Qt.Key.Key_L), self).activated.connect(lambda: self._set_draw_tool('line'))
+        QShortcut(QKeySequence(Qt.Key.Key_F), self).activated.connect(lambda: self._set_draw_tool('fill'))
+        QShortcut(QKeySequence(Qt.Key.Key_K), self).activated.connect(lambda: self._set_draw_tool('picker'))
         if self.main_window and hasattr(self.main_window,'log_message'):
             self.main_window.log_message(f"{App_name} hotkeys ready")
 
@@ -1545,22 +1612,32 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             f"Loaded standalone TXD: {tex_name}  {w}×{h}px  from {Path(path).name}")
 
 
-    def _autodetect(self, count): #vers 2
+    def _autodetect(self, count): #vers 3
         """Match tile count to known preset, or fall back to Custom with sqrt grid.
-        Also handles partial matches (e.g. SA files missing some tiles)."""
-        # Exact match
+        If current preset is close enough, keep it and just show count in status."""
+        current = self._game_combo.currentText()
+        p_cur = GAME_PRESETS.get(current, {})
+
+        # If current preset matches exactly — done
+        if p_cur.get("count") == count:
+            return
+
+        # If current preset is a reasonable match (within 20 tiles) — keep preset,
+        # just update the grid to fit actual count with same cols
+        if current != "Custom" and abs(p_cur.get("count", 0) - count) <= 20:
+            cols = p_cur.get("cols", max(1, round(math.sqrt(count))))
+            rows = (count + cols - 1) // cols
+            GAME_PRESETS[current]["count"] = count
+            GAME_PRESETS[current]["rows"] = rows
+            self._apply_preset(current)
+            self._set_status(
+                f"Loaded {count} tiles ({cols}×{rows}) — {p_cur.get('label','')}")
+            return
+
+        # Exact match against other presets
         for game, p in GAME_PRESETS.items():
             if game != "Custom" and p["count"] == count:
                 self._on_game_changed(game)
-                return
-
-        # Near-match: within 4 tiles of a known preset (damaged/modded files)
-        for game, p in GAME_PRESETS.items():
-            if game != "Custom" and abs(p["count"] - count) <= 4:
-                self._on_game_changed(game)
-                self._set_status(
-                    f"Loaded {count} tiles (expected {p['count']} for {p['label']}) "
-                    f"— using {game} grid layout")
                 return
 
         # Unknown count — use Custom with square-root approximation
@@ -1571,7 +1648,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._cols_spin.setValue(cols)
         self._rows_spin.setValue(rows)
         self._set_status(
-            f"Loaded {count} tiles — unknown layout, using {cols}×{rows} grid "
+            f"Loaded {count} tiles — unknown layout, using {cols}×{rows} "
             f"(adjust W/H spinners if wrong)")
 
     def _save_file(self): #vers 1
