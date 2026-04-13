@@ -101,6 +101,14 @@ def _name_sol(idx): return f"radar{idx:04d}" #vers 1
 # Grid constants (authoritative — do not change without verifying against game files)
 # SA: 144 tiles (12x12)  VC/III/LC/LCS/VCS: 64 tiles (8x8)  SOL: 1296 tiles (36x36)
 # img_source: 'img'=tiles in .img | 'txd'=single .txd | 'pvr'=.pvr img | 'toc'=toc/tmb/dat
+# Bitdepth lookup by img_source / platform
+_BITDEPTH = {
+    "img_pc":  "DXT1·4bpp",   "img_xbox": "DXT1·4bpp",
+    "img_ps2": "PAL8·8bpp",   "pvr":      "PVRTC·4bpp",
+    "toc":     "DAT·enc",     "chk":      "GIM·16bpp",
+    "xtx":     "XTX·16bpp",   "img":      "DXT1·4bpp",
+}
+
 GAME_PRESETS = {
     # PC versions — tiles in gta3.img / gta.img / RadarTex.img
     "III PC":  {"cols":8,  "rows":8,  "count":64,   "name_fn":_name_sa,
@@ -744,12 +752,24 @@ class TileListItem(QListWidgetItem):
                 return badge
         return ""
 
-    def _update_text(self): #vers 1
+    def _bitdepth_str(self) -> str: #vers 3
+        """Derive bitdepth string from game_label."""
+        g = self.game_label.lower()
+        if "ios" in g:                    return "PVRTC·4bpp"
+        if "psp" in g:                    return "GIM·16bpp"
+        if "android" in g:                return "DXT1·4bpp"
+        # "(ps2)" or "ps2" alone — not "(pc/ps2/xbox)" which also has "pc"
+        if "ps2" in g and "pc" not in g:  return "PAL8·8bpp"
+        return "DXT1·4bpp"   # PC/Xbox/mixed default
+
+    def _update_text(self): #vers 2
         badge = self._game_badge()
+        bpp   = self._bitdepth_str()
         lines = [f"  {self.tile_name}"]
         info_parts = []
         if badge: info_parts.append(badge)
         info_parts.append(f"{self.tile_w}×{self.tile_h}")
+        info_parts.append(bpp)
         lines.append(f"  {' '.join(info_parts)}")
         self.setText("\n".join(lines))
 
@@ -1712,6 +1732,249 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         return panel
 
+    def _copy_current_tile(self): #vers 1
+        """Ctrl+C — copy current tile to clipboard."""
+        idx = self._current_idx
+        if idx < 0 or idx not in self._tile_rgba:
+            self._set_status("Select a tile first"); return
+        self._clipboard_tile = self._tile_rgba[idx]
+        name = self._tile_entries[idx]["name"] if idx < len(self._tile_entries) else f"tile_{idx}"
+        self._set_status(f"Copied tile {idx}: {name}")
+
+    def _paste_current_tile(self): #vers 1
+        """Ctrl+V — paste clipboard tile to current tile."""
+        idx = self._current_idx
+        if idx < 0:
+            self._set_status("Select a tile first"); return
+        if not getattr(self, '_clipboard_tile', None):
+            self._set_status("Nothing in clipboard — use Ctrl+C first"); return
+        self._apply_tile_data(idx, self._clipboard_tile)
+        self._set_status(f"Pasted to tile {idx}")
+
+    def _upscale_dialog(self): #vers 1
+        """Show upscale dialog — choose target size, apply, save as .new."""
+        if not self._tile_rgba:
+            QMessageBox.information(self, "No Tiles", "Load an IMG file first."); return
+
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                     QLabel, QComboBox, QPushButton, QRadioButton,
+                                     QButtonGroup, QGroupBox, QCheckBox)
+
+        current_size = f"{TILE_W}×{TILE_H}"
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Upscale Radar Tiles")
+        dlg.setMinimumWidth(380)
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, self.main_window)
+        except Exception: pass
+
+        layout = QVBoxLayout(dlg)
+
+        # Info
+        info = QLabel(
+            f"Current tile size: <b>{current_size}</b>  "
+            f"({len(self._tile_rgba)} tiles loaded)<br>"
+            f"Upscaled tiles saved as <b>gta3.img.new</b> alongside the original.<br>"
+            f"The original IMG is never modified.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # Target size
+        grp = QGroupBox("Target size")
+        grp_layout = QVBoxLayout(grp)
+        sizes = []
+        if TILE_W == 64:
+            sizes = [("128×128 (2× upscale)", 128), ("256×256 (4× upscale)", 256)]
+        elif TILE_W == 128:
+            sizes = [("256×256 (2× upscale)", 256)]
+        else:
+            sizes = [("Already at maximum (256×256)", None)]
+
+        btn_group = QButtonGroup(dlg)
+        radios = []
+        for label, size in sizes:
+            rb = QRadioButton(label)
+            if size is None: rb.setEnabled(False)
+            grp_layout.addWidget(rb)
+            btn_group.addButton(rb)
+            radios.append((rb, size))
+        if radios:
+            radios[0][0].setChecked(True)
+        layout.addWidget(grp)
+
+        # Filter
+        filt_grp = QGroupBox("Upscale filter")
+        filt_layout = QVBoxLayout(filt_grp)
+        rb_lanczos = QRadioButton("Lanczos (smooth — recommended for photo-like tiles)")
+        rb_nearest = QRadioButton("Nearest neighbour (crisp pixels — good for pixel art)")
+        rb_lanczos.setChecked(True)
+        filt_layout.addWidget(rb_lanczos)
+        filt_layout.addWidget(rb_nearest)
+        layout.addWidget(filt_grp)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        ok_btn  = QPushButton("Upscale and Save as .new")
+        ok_btn.setDefault(True)
+        can_btn = QPushButton("Cancel")
+        ok_btn.clicked.connect(dlg.accept)
+        can_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(ok_btn); btn_row.addWidget(can_btn)
+        layout.addLayout(btn_row)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted: return
+
+        # Get chosen size
+        target = None
+        for rb, size in radios:
+            if rb.isChecked(): target = size; break
+        if target is None:
+            QMessageBox.information(self, "Upscale", "Tiles are already at maximum size.")
+            return
+
+        filt = "LANCZOS" if rb_lanczos.isChecked() else "NEAREST"
+        self._do_upscale(target, filt)
+
+    def _do_upscale(self, target_size: int, filter_name: str): #vers 1
+        """Perform upscale: resize all tiles, rebuild IMG, save as .new."""
+        from PIL import Image
+
+        filt = Image.LANCZOS if filter_name == "LANCZOS" else Image.NEAREST
+
+        if not self._img_path or not self._img_reader:
+            QMessageBox.warning(self, "No IMG", "Load an IMG file first."); return
+
+        out_path = str(self._img_path) + ".new"
+
+        # Progress
+        total = len(self._tile_entries)
+        prog = QProgressDialog(
+            f"Upscaling {total} tiles to {target_size}×{target_size}…",
+            "Cancel", 0, total + 1, self)
+        prog.setWindowModality(Qt.WindowModality.WindowModal)
+        prog.show()
+        QApplication.processEvents()
+
+        try:
+            # ── Upscale all tile rgba data ────────────────────────────────────
+            new_rgba = {}
+            for idx in range(total):
+                prog.setValue(idx)
+                QApplication.processEvents()
+                if prog.wasCanceled(): return
+                rgba = self._tile_rgba.get(idx)
+                if rgba is None: continue
+                img = Image.frombytes("RGBA", (TILE_W, TILE_H), rgba)
+                img = img.resize((target_size, target_size), filt)
+                new_rgba[idx] = img.tobytes()
+
+            # ── Build new TXD data for each radar entry ───────────────────────
+            new_txd_data = {}
+            for idx, rgba in new_rgba.items():
+                if idx >= len(self._tile_entries): continue
+                e = self._tile_entries[idx]
+                name = Path(e["name"]).stem
+                new_txd_data[idx] = RadarTxdReader.write(rgba, target_size, target_size, name)
+
+            # ── Rebuild IMG: read all entries, replace radar TXDs ─────────────
+            prog.setLabelText("Rebuilding IMG archive…")
+            prog.setValue(total)
+            QApplication.processEvents()
+
+            # Build new VER2 IMG from scratch
+            # Directory: 8-byte header + 32-byte entry per file
+            all_entries = self._img_reader.entries   # all entries in original
+            radar_by_name = {
+                self._tile_entries[idx]["name"].lower(): new_txd_data[idx]
+                for idx in new_txd_data
+            }
+
+            # VER2 format: header "VER2" + u32 count, then 32-byte entries,
+            # then data sectors
+            SECTOR = 2048
+            new_dir = []
+            new_data_blocks = []
+            current_sector = 0
+
+            # Calculate directory offset: always at sector 0 conceptually for VER2
+            # Data starts right after directory
+            n_entries = len(all_entries)
+            dir_size_bytes = 8 + n_entries * 32
+            dir_sectors = (dir_size_bytes + SECTOR - 1) // SECTOR
+            current_sector = dir_sectors
+
+            for entry in all_entries:
+                name_lower = entry["name"].lower()
+                if name_lower in radar_by_name:
+                    raw = radar_by_name[name_lower]
+                else:
+                    # Read original entry data
+                    raw = self._img_reader.get_entry_data(entry)
+
+                # Pad to sector boundary
+                padded = raw + b'\x00' * ((-len(raw)) % SECTOR)
+                n_sectors = len(padded) // SECTOR
+
+                new_dir.append({
+                    "name":   entry["name"],
+                    "offset": current_sector,
+                    "size":   n_sectors
+                })
+                new_data_blocks.append(padded)
+                current_sector += n_sectors
+
+            # Write VER2 IMG
+            import struct
+            header = b"VER2" + struct.pack("<I", n_entries)
+            dir_data = bytearray()
+            for e in new_dir:
+                nb = e["name"].encode("latin1")[:23].ljust(24, b"\x00")
+                sz = e["size"]
+                # VER2: offset(4) streaming_size(2) size(2) name(24)
+                dir_data += struct.pack("<IHH24s", e["offset"], sz, sz, nb)
+
+            # Pad directory to sector boundary
+            dir_block = header + bytes(dir_data)
+            dir_block += b"\x00" * ((-len(dir_block)) % SECTOR)
+
+            with open(out_path, "wb") as f:
+                f.write(dir_block)
+                for block in new_data_blocks:
+                    f.write(block)
+
+            # Copy .dir for V1 (won't exist for VER2 but be safe)
+            sd = Path(self._img_path).with_suffix(".dir")
+            if sd.exists():
+                import shutil
+                shutil.copy2(sd, out_path.replace(".img.new", ".dir.new") if ".img" in out_path else out_path + ".dir")
+
+            prog.setValue(total + 1)
+
+            # Update session to use upscaled data (use module-level vars)
+            import apps.components.Radar_Editor.radar_workshop as _rw_mod
+            _rw_mod.TILE_W = target_size
+            _rw_mod.TILE_H = target_size
+            for idx, rgba in new_rgba.items():
+                self._tile_rgba[idx] = rgba
+                self._radar.set_tile(idx, self._apply_render_mode(rgba), target_size, target_size)
+                if idx < len(self._list_items):
+                    self._list_items[idx].set_thumb(rgba, target_size, target_size)
+
+            self._set_status(
+                f"Upscaled {len(new_rgba)} tiles to {target_size}×{target_size} "
+                f"and saved as {Path(out_path).name}")
+            QMessageBox.information(self, "Upscale Complete",
+                f"Saved {len(new_rgba)} upscaled tiles to:\n{out_path}\n\n"
+                f"Original IMG unchanged. To use the new file, rename it.")
+
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "Upscale Error",
+                f"Failed:\n{e}\n\n{traceback.format_exc()[-400:]}")
+        finally:
+            prog.close()
+
     def _filter_tile_list(self, text: str): #vers 1
         """Filter tile list by name or index range (e.g. '64-95' or 'radar0')."""
         import re as _re
@@ -1873,6 +2136,14 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
              _tool_btn('rect_fill_icon',   "Filled rect (Shift+R)", 'rect_fill'))
         _row(_tool_btn('scissors_icon',    "Cut tile (X)",          'cut'),
              _tool_btn('paste_brush_icon', "Paste (V)",             'paste'))
+        _row(_tool_btn('spray_icon',       "Spray / Airbrush",      'spray')
+             if hasattr(SVGIconFactory,'spray_icon') else
+             _tool_btn('paint_icon',       "Spray / Airbrush",      'spray'),
+             _tool_btn('dropper_icon',     "Clone stamp (Alt+click sets source)", 'clone'))
+        _row(_tool_btn('zoom_in_icon',     "Brighten brush",        'brighten'),
+             _tool_btn('zoom_out_icon',    "Darken brush",          'darken'))
+        _row(_tool_btn('fill_icon',        "Checkerboard fill (FG/BG)", 'checker'),
+             _nb('upscale_btn', "Upscale tiles…", self._upscale_dialog))
         self._draw_btns['pencil'].setChecked(True)
 
         _sep()
@@ -2107,6 +2378,76 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 self.ws_set_pixel(buf, x0, y, color)
                 self.ws_set_pixel(buf, x1, y, color)
 
+    def ws_spray(self, buf: bytearray, cx: int, cy: int, color: QColor,
+                 radius: int = 8, density: int = 12): #vers 1
+        """Spray/airbrush — scatter random pixels within radius."""
+        import random
+        r, g, b, a = color.red(), color.green(), color.blue(), color.alpha()
+        for _ in range(density):
+            angle = random.uniform(0, 6.2832)
+            dist  = random.uniform(0, radius)
+            x = int(cx + dist * __import__('math').cos(angle))
+            y = int(cy + dist * __import__('math').sin(angle))
+            if 0 <= x < TILE_W and 0 <= y < TILE_H:
+                i = (y * TILE_W + x) * 4
+                buf[i:i+4] = [r, g, b, a]
+
+    def ws_brighten(self, buf: bytearray, px: int, py: int,
+                    amount: int = 20, darken: bool = False): #vers 1
+        """Brighten or darken a single pixel by amount (0-255)."""
+        if not (0 <= px < TILE_W and 0 <= py < TILE_H): return
+        i = (py * TILE_W + px) * 4
+        if darken:
+            buf[i:i+3] = [max(0,   buf[i]-amount),
+                          max(0,   buf[i+1]-amount),
+                          max(0,   buf[i+2]-amount)]
+        else:
+            buf[i:i+3] = [min(255, buf[i]+amount),
+                          min(255, buf[i+1]+amount),
+                          min(255, buf[i+2]+amount)]
+
+    def ws_clone_stamp(self, buf: bytearray, src_buf: bytearray,
+                       px: int, py: int, src_ox: int, src_oy: int,
+                       brush: int = 3): #vers 1
+        """Clone stamp — copy pixels from src_buf at offset (src_ox,src_oy)."""
+        half = brush // 2
+        for bx in range(-half, half+1):
+            for by_ in range(-half, half+1):
+                dx, dy = px+bx, py+by_
+                sx, sy = dx+src_ox, dy+src_oy
+                if (0 <= dx < TILE_W and 0 <= dy < TILE_H and
+                        0 <= sx < TILE_W and 0 <= sy < TILE_H):
+                    si = (sy*TILE_W+sx)*4
+                    di = (dy*TILE_W+dx)*4
+                    buf[di:di+4] = src_buf[si:si+4]
+
+    def ws_checkerboard_fill(self, buf: bytearray,
+                             px: int, py: int,
+                             fg: QColor, bg: QColor,
+                             cell: int = 4): #vers 1
+        """Flood-fill region with FG/BG checkerboard pattern."""
+        target = self.ws_get_pixel(buf, px, py)
+        if target.rgb() == fg.rgb() or target.rgb() == bg.rgb(): return
+        tr, tg, tb = target.red(), target.green(), target.blue()
+        fr, fg_, fb_, fa = fg.red(), fg.green(), fg.blue(), fg.alpha()
+        br, bg_, bb_, ba = bg.red(), bg.green(), bg.blue(), bg.alpha()
+        tol = 24
+        stack = [(px, py)]; visited = set()
+        while stack:
+            cx, cy = stack.pop()
+            if (cx, cy) in visited: continue
+            if not (0 <= cx < TILE_W and 0 <= cy < TILE_H): continue
+            ci = (cy * TILE_W + cx) * 4
+            if (abs(buf[ci]-tr) > tol or abs(buf[ci+1]-tg) > tol
+                    or abs(buf[ci+2]-tb) > tol): continue
+            visited.add((cx, cy))
+            # Alternating cells
+            if ((cx // cell) + (cy // cell)) % 2 == 0:
+                buf[ci:ci+4] = [fr, fg_, fb_, fa]
+            else:
+                buf[ci:ci+4] = [br, bg_, bb_, ba]
+            stack.extend([(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)])
+
     def ws_commit_draw(self, idx: int, rgba: bytes): #vers 1
         """Commit drawn pixels: update _tile_rgba, grid, thumb, dirty state."""
         self._tile_rgba[idx] = rgba
@@ -2163,6 +2504,26 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self.ws_commit_draw(idx, bytes(TILE_W*TILE_H*4))
             self._set_status(f"Cut tile {idx}")
             return 'commit'
+        elif tool == 'spray':
+            self.ws_spray(buf, px, py, color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'begin_drag'
+        elif tool in ('brighten', 'darken'):
+            self.ws_brighten(buf, px, py, 20, darken=(tool == 'darken'))
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'begin_drag'
+        elif tool == 'clone':
+            src_pt = getattr(self, '_clone_src', None)
+            if src_pt is None:
+                self._set_status("Clone: Alt+click to set source point first")
+                return 'none'
+            self.ws_clone_stamp(buf, bytearray(buf), px, py, src_pt[0], src_pt[1])
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'begin_drag'
+        elif tool == 'checker':
+            self.ws_checkerboard_fill(buf, px, py, self._fg_color, self._bg_color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return 'commit'
         return 'none'
 
     def ws_mouse_drag(self, idx: int, px: int, py: int, is_left: bool,
@@ -2175,8 +2536,21 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         if tool == 'pencil' and last_px:
             self.ws_bresenham(buf, last_px, (px,py), color)
             self.ws_commit_draw(idx, bytes(buf))
-            return None   # pencil commits each step, no preview needed
-
+            return None
+        elif tool == 'spray':
+            self.ws_spray(buf, px, py, color)
+            self.ws_commit_draw(idx, bytes(buf))
+            return None
+        elif tool in ('brighten', 'darken'):
+            self.ws_brighten(buf, px, py, 12, darken=(tool == 'darken'))
+            self.ws_commit_draw(idx, bytes(buf))
+            return None
+        elif tool == 'clone':
+            src_pt = getattr(self, '_clone_src', None)
+            if src_pt:
+                self.ws_clone_stamp(buf, bytearray(buf), px, py, src_pt[0], src_pt[1])
+                self.ws_commit_draw(idx, bytes(buf))
+            return None
         elif tool in ('line', 'rect', 'rect_fill') and line_start:
             # Preview: restore snapshot, draw temporary shape
             preview = bytearray(preview_buf)
@@ -2224,6 +2598,11 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             'cut':       Qt.CursorShape.ForbiddenCursor,
             'picker':    Qt.CursorShape.WhatsThisCursor,
             'zoom':      Qt.CursorShape.SizeFDiagCursor,
+            'spray':     Qt.CursorShape.CrossCursor,
+            'brighten':  Qt.CursorShape.CrossCursor,
+            'darken':    Qt.CursorShape.CrossCursor,
+            'clone':     Qt.CursorShape.CrossCursor,
+            'checker':   Qt.CursorShape.PointingHandCursor,
         }
         if hasattr(self, '_radar'):
             self._radar.setCursor(cursors.get(tool, Qt.CursorShape.ArrowCursor))
@@ -2702,6 +3081,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         QShortcut(QKeySequence("Ctrl+Z"), self).activated.connect(self._undo)
         QShortcut(QKeySequence("Ctrl+Y"), self).activated.connect(self._redo)
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self).activated.connect(self._redo)
+        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._copy_current_tile)
+        QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(self._paste_current_tile)
         QShortcut(QKeySequence(Qt.Key.Key_Z), self).activated.connect(lambda: self._set_draw_tool('zoom'))
         QShortcut(QKeySequence(Qt.Key.Key_R), self).activated.connect(lambda: self._set_draw_tool('rect'))
         QShortcut(QKeySequence("Shift+R"),    self).activated.connect(lambda: self._set_draw_tool('rect_fill'))
