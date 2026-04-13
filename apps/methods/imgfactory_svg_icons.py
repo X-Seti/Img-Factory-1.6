@@ -4069,6 +4069,159 @@ def get_paste_brush_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
 SVGIconFactory.paste_brush_icon = staticmethod(get_paste_brush_icon)
 
 
+def get_spray_icon(size=20, color=None):  #vers 2
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = (
+        '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">'
+        # can body — tall rounded rect left side
+        f'<rect x="2" y="6" width="7" height="11" rx="1.5" fill="none" stroke="{c}" stroke-width="1.5"/>'
+        # button on top of can
+        f'<rect x="3.5" y="4" width="4" height="2.5" rx="1" fill="{c}"/>'
+        # nozzle pointing right
+        f'<rect x="9" y="9.5" width="3.5" height="1.8" rx="0.7" fill="{c}"/>'
+        # spray dots — 3 rows fanning out right
+        f'<circle cx="14" cy="7.5" r="1" fill="{c}"/>'
+        f'<circle cx="14" cy="10.5" r="1" fill="{c}"/>'
+        f'<circle cx="14" cy="13.5" r="1" fill="{c}"/>'
+        f'<circle cx="17" cy="6" r="0.8" fill="{c}" opacity="0.7"/>'
+        f'<circle cx="17" cy="10.5" r="0.8" fill="{c}" opacity="0.7"/>'
+        f'<circle cx="17" cy="15" r="0.8" fill="{c}" opacity="0.7"/>'
+        '</svg>'
+    )
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+SVGIconFactory.spray_icon = staticmethod(get_spray_icon)
+
+
+def get_clone_stamp_icon(size=20, color=None):  #vers 1
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = (
+        '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">'
+        f'<rect x="3" y="13" width="14" height="4" rx="1.2" fill="{c}"/>'
+        f'<rect x="6" y="9" width="8" height="4" rx="0.8" fill="none" stroke="{c}" stroke-width="1.3"/>'
+        f'<rect x="8.5" y="3" width="3" height="6" rx="1" fill="{c}"/>'
+        f'<rect x="7" y="3" width="6" height="2" rx="1" fill="{c}"/>'
+        '</svg>'
+    )
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+SVGIconFactory.clone_stamp_icon = staticmethod(get_clone_stamp_icon)
+
+
+def get_brighten_icon(size=20, color=None):  #vers 1
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = (
+        '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">'
+        f'<circle cx="10" cy="10" r="4" fill="none" stroke="{c}" stroke-width="1.5"/>'
+        f'<line x1="10" y1="2" x2="10" y2="4.5" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>'
+        f'<line x1="10" y1="15.5" x2="10" y2="18" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>'
+        f'<line x1="2" y1="10" x2="4.5" y2="10" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>'
+        f'<line x1="15.5" y1="10" x2="18" y2="10" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>'
+        f'<line x1="4.5" y1="4.5" x2="6" y2="6" stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>'
+        f'<line x1="14" y1="6" x2="15.5" y2="4.5" stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>'
+        f'<line x1="4.5" y1="15.5" x2="6" y2="14" stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>'
+        f'<line x1="14" y1="14" x2="15.5" y2="15.5" stroke="{c}" stroke-width="1.2" stroke-linecap="round"/>'
+        f'<line x1="10" y1="7.5" x2="10" y2="12.5" stroke="{c}" stroke-width="1.6" stroke-linecap="round"/>'
+        f'<line x1="7.5" y1="10" x2="12.5" y2="10" stroke="{c}" stroke-width="1.6" stroke-linecap="round"/>'
+        '</svg>'
+    )
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+SVGIconFactory.brighten_icon = staticmethod(get_brighten_icon)
+
+
+def get_darken_icon(size=20, color=None):  #vers 2
+    """Darken brush — crescent moon + minus, drawn with QPainter (no SVG path issues)."""
+    from PyQt6.QtGui import (QIcon, QPixmap, QPainter, QPen, QBrush,
+                              QColor, QPainterPath)
+    from PyQt6.QtCore import Qt, QRectF
+    col = QColor(color or '#ffffff')
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    p = QPainter(px)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    s = size / 20.0
+    # Crescent: big circle minus offset smaller circle
+    big    = QPainterPath(); big.addEllipse(QRectF(2*s, 2*s, 13*s, 13*s))
+    cutout = QPainterPath(); cutout.addEllipse(QRectF(5*s, 2*s, 11*s, 11*s))
+    crescent = big.subtracted(cutout)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QBrush(col))
+    p.drawPath(crescent)
+    # Minus sign below
+    pen = QPen(col, 1.7*s); pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen)
+    p.drawLine(int(5*s), int(17*s), int(15*s), int(17*s))
+    p.end()
+    return QIcon(px)
+SVGIconFactory.darken_icon = staticmethod(get_darken_icon)
+
+
+def get_checker_fill_icon(size=20, color=None):  #vers 1
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
+    c = color or '#ffffff'
+    svg = (
+        '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">'
+        f'<rect x="2" y="2" width="16" height="16" rx="1.5" fill="none" stroke="{c}" stroke-width="1.2"/>'
+        f'<rect x="3" y="3" width="4" height="4" fill="{c}"/>'
+        f'<rect x="11" y="3" width="4" height="4" fill="{c}"/>'
+        f'<rect x="7" y="7" width="4" height="4" fill="{c}"/>'
+        f'<rect x="3" y="11" width="4" height="4" fill="{c}"/>'
+        f'<rect x="11" y="11" width="4" height="4" fill="{c}"/>'
+        f'<rect x="7" y="15" width="4" height="2" fill="{c}"/>'
+        f'<rect x="15" y="7" width="2" height="4" fill="{c}"/>'
+        '</svg>'
+    )
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    r = QSvgRenderer(svg.encode()); p = QPainter(px); r.render(p); p.end()
+    return QIcon(px)
+SVGIconFactory.checker_fill_icon = staticmethod(get_checker_fill_icon)
+
+
+def get_upscale_icon(size=20, color=None):  #vers 2
+    """Upscale — small dotted square top-left, arrow, large solid square bottom-right."""
+    from PyQt6.QtGui import (QIcon, QPixmap, QPainter, QPen, QBrush,
+                              QColor, QPainterPath)
+    from PyQt6.QtCore import Qt, QRectF, QPointF
+    col = QColor(color or '#ffffff')
+    px = QPixmap(size, size); px.fill(Qt.GlobalColor.transparent)
+    p = QPainter(px)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    s = size / 20.0
+    # Small dotted square — top left, 7x7
+    pen = QPen(col, 1.6*s); pen.setStyle(Qt.PenStyle.DashLine)
+    pen.setDashPattern([2.0, 1.5])
+    p.setPen(pen); p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRoundedRect(QRectF(1.5*s, 1.5*s, 7*s, 7*s), 1*s, 1*s)
+    # Diagonal arrow from small to large
+    pen2 = QPen(col, 1.5*s); pen2.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen2)
+    p.drawLine(QPointF(9.5*s, 9.5*s), QPointF(11.5*s, 11.5*s))
+    # Arrowhead
+    arr = QPainterPath()
+    arr.moveTo(9.5*s, 12.5*s); arr.lineTo(11.5*s, 11.5*s); arr.lineTo(12.5*s, 9.5*s)
+    p.drawPath(arr)
+    # Large solid square — bottom right, 9x9
+    p.setPen(Qt.PenStyle.NoPen); p.setBrush(QBrush(col))
+    p.drawRoundedRect(QRectF(10.5*s, 10.5*s, 8*s, 8*s), 1.2*s, 1.2*s)
+    p.end()
+    return QIcon(px)
+SVGIconFactory.upscale_icon = staticmethod(get_upscale_icon)
+
+
 def get_radar_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """Radar Workshop — circular radar sweep with map tiles grid."""
     svg = '''<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
