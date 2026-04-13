@@ -525,8 +525,11 @@ class RadarGridWidget(QWidget):
         py = int(local_y * tile_h / ts)
         return idx, max(0, min(tile_w-1, px)), max(0, min(tile_h-1, py))
 
-    def sample_color(self, pos, tile_w: int = 128, tile_h: int = 128) -> 'QColor | None':
+    def sample_color(self, pos, tile_w: int = 0, tile_h: int = 0) -> 'QColor | None':
         """Sample pixel colour from the rendered tile at screen pos."""
+        ws2 = getattr(self, '_workshop', None)
+        if tile_w == 0: tile_w = ws2._tw if ws2 else TILE_W
+        if tile_h == 0: tile_h = ws2._th if ws2 else TILE_H
         idx, px, py = self._pixel_at(pos, tile_w, tile_h)
         if idx < 0 or idx not in self._tiles: return None
         img = self._tiles[idx]
@@ -600,8 +603,11 @@ class RadarGridWidget(QWidget):
         if not (0 <= idx < self._count): return -1, 0, 0
         local_x = ax - col_i * ts
         local_y = ay - row_i * ts
-        px = max(0, min(TILE_W-1, int(local_x * TILE_W / ts)))
-        py = max(0, min(TILE_H-1, int(local_y * TILE_H / ts)))
+        ws2 = getattr(self, '_workshop', None)
+        tw2 = ws2._tw if ws2 else TILE_W
+        th2 = ws2._th if ws2 else TILE_H
+        px = max(0, min(tw2-1, int(local_x * tw2 / ts)))
+        py = max(0, min(th2-1, int(local_y * th2 / ts)))
         return idx, px, py
 
     def mouseMoveEvent(self,ev): #vers 2
@@ -622,7 +628,7 @@ class RadarGridWidget(QWidget):
         is_left = bool(ev.buttons() & Qt.MouseButton.LeftButton)
 
         if tool == 'pencil' and self._last_px and idx2 == getattr(self, '_draw_tile_idx', -1):
-            buf = bytearray(ws._tile_rgba.get(idx2, bytes(TILE_W*TILE_H*4)))
+            buf = bytearray(ws._tile_rgba.get(idx2, bytes(ws._tw*ws._th*4)))
             ws.ws_bresenham(buf, self._last_px, (px,py),
                             ws._fg_color if is_left else ws._bg_color)
             ws.ws_commit_draw(idx2, bytes(buf))
@@ -702,7 +708,7 @@ class RadarGridWidget(QWidget):
                     self._draw_tile_idx = idx
                     self._last_px     = (px, py)
                     self._line_start  = (px, py)
-                    self._preview_buf = bytearray(ws._tile_rgba.get(idx, bytes(TILE_W*TILE_H*4)))
+                    self._preview_buf = bytearray(ws._tile_rgba.get(idx, bytes(ws._tw*ws._th*4)))
 
     def mouseReleaseEvent(self, ev): #vers 1
         is_left = ev.button() == Qt.MouseButton.LeftButton
@@ -1141,8 +1147,11 @@ class _TileZoomView(QWidget):
         self.setCursor(Qt.CursorShape.CrossCursor)
         self._rebuild_pixmap()
 
-    def _rebuild_pixmap(self): #vers 1
-        img = QImage(bytes(self._rgba), TILE_W, TILE_H, TILE_W*4,
+    def _rebuild_pixmap(self): #vers 2
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        th = ws._th if ws else TILE_H
+        img = QImage(bytes(self._rgba), tw, th, tw*4,
                      QImage.Format.Format_RGBA8888)
         self._pixmap = QPixmap.fromImage(img)
         self.update()
@@ -1158,13 +1167,16 @@ class _TileZoomView(QWidget):
 
     def _screen_to_pixel(self, screen_pos) -> tuple:
         """Convert screen QPoint to (px, py) pixel coordinates, or (-1,-1)."""
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        th = ws._th if ws else TILE_H
         x, y, w, h = self._draw_rect()
         sx, sy = screen_pos.x() - x, screen_pos.y() - y
         if sx < 0 or sy < 0 or sx >= w or sy >= h:
             return -1, -1
-        px = int(sx * TILE_W / w)
-        py = int(sy * TILE_H / h)
-        return max(0, min(TILE_W-1, px)), max(0, min(TILE_H-1, py))
+        px = int(sx * tw / w)
+        py = int(sy * th / h)
+        return max(0, min(tw-1, px)), max(0, min(th-1, py))
 
     def refresh(self, rgba: bytes): #vers 2
         self._rgba = bytearray(rgba)
@@ -1194,7 +1206,9 @@ class _TileZoomView(QWidget):
             pass  # workshop handled FG/BG update
 
     def _get_rgba_pixel(self, px: int, py: int) -> QColor:
-        i = (py * TILE_W + px) * 4
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        i = (py * tw + px) * 4
         return QColor(self._rgba[i], self._rgba[i+1], self._rgba[i+2], self._rgba[i+3])
 
     def mouseMoveEvent(self, ev): #vers 2
@@ -1233,7 +1247,9 @@ class _TileZoomView(QWidget):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)  # crisp pixels
         x, y, w, h = self._draw_rect()
         # Checkerboard for transparency
-        cb_size = max(4, w // TILE_W * 2)
+        ws = self._workshop
+        tw = ws._tw if ws else TILE_W
+        cb_size = max(4, w // tw * 2)
         for ty in range(0, h, cb_size):
             for tx in range(0, w, cb_size):
                 light = ((tx // cb_size + ty // cb_size) % 2 == 0)
@@ -1247,7 +1263,8 @@ class _TileZoomView(QWidget):
         p.setFont(QFont("monospace", 8))
         p.drawText(x+3, y+h-4,
                    f"{self._tile_idx}: {self._tile_name}  "
-                   f"{TILE_W}×{TILE_H}  [{self._workshop._draw_tool}]")
+                   f"{ws._tw if ws else TILE_W}×{ws._th if ws else TILE_H}"
+                   f"  [{self._workshop._draw_tool}]")
         p.end()
 
     def resizeEvent(self, ev): #vers 2
@@ -1455,6 +1472,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._render_mode: str   = 'color'
         self._alpha_pending: bool = False
         self._alpha_key_color     = None
+        self._tw: int = TILE_W   # current tile width  — updated by upscale
+        self._th: int = TILE_H   # current tile height — updated by upscale
         self._clipboard_tile: bytes = None   # copy/paste buffer
         self._undo_stack: list = []          # list of (idx, rgba) snapshots
         self._redo_stack: list = []
@@ -1952,14 +1971,32 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             prog.setValue(total + 1)
 
             # Update session to use upscaled data (use module-level vars)
+            # Update workshop tile size — single source of truth
             import apps.components.Radar_Editor.radar_workshop as _rw_mod
             _rw_mod.TILE_W = target_size
             _rw_mod.TILE_H = target_size
+            self._tw = target_size
+            self._th = target_size
+
+            # Flush all old QImage tiles from grid, reload at new size
+            self._radar._tiles.clear()
             for idx, rgba in new_rgba.items():
                 self._tile_rgba[idx] = rgba
-                self._radar.set_tile(idx, self._apply_render_mode(rgba), target_size, target_size)
+                self._radar.set_tile(idx, self._apply_render_mode(rgba),
+                                     target_size, target_size)
                 if idx < len(self._list_items):
                     self._list_items[idx].set_thumb(rgba, target_size, target_size)
+
+            # Close any open tile zoom tabs — they hold stale _rgba/TILE_W refs
+            if hasattr(self, '_view_tabs'):
+                self._view_tabs.blockSignals(True)
+                while self._view_tabs.count() > 1:
+                    self._view_tabs.removeTab(self._view_tabs.count() - 1)
+                self._view_tabs.blockSignals(False)
+                self._view_tabs.setCurrentIndex(0)
+
+            # Force grid repaint
+            self._radar.update()
 
             self._set_status(
                 f"Upscaled {len(new_rgba)} tiles to {target_size}×{target_size} "
@@ -2136,14 +2173,12 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
              _tool_btn('rect_fill_icon',   "Filled rect (Shift+R)", 'rect_fill'))
         _row(_tool_btn('scissors_icon',    "Cut tile (X)",          'cut'),
              _tool_btn('paste_brush_icon', "Paste (V)",             'paste'))
-        _row(_tool_btn('spray_icon',       "Spray / Airbrush",      'spray')
-             if hasattr(SVGIconFactory,'spray_icon') else
-             _tool_btn('paint_icon',       "Spray / Airbrush",      'spray'),
-             _tool_btn('dropper_icon',     "Clone stamp (Alt+click sets source)", 'clone'))
-        _row(_tool_btn('zoom_in_icon',     "Brighten brush",        'brighten'),
-             _tool_btn('zoom_out_icon',    "Darken brush",          'darken'))
-        _row(_tool_btn('fill_icon',        "Checkerboard fill (FG/BG)", 'checker'),
-             _nb('upscale_btn', "Upscale tiles…", self._upscale_dialog))
+        _row(_tool_btn('spray_icon',       "Spray / Airbrush",            'spray'),
+             _tool_btn('clone_stamp_icon', "Clone stamp (Alt+click=src)", 'clone'))
+        _row(_tool_btn('brighten_icon',    "Brighten brush",              'brighten'),
+             _tool_btn('darken_icon',      "Darken brush",                'darken'))
+        _row(_tool_btn('checker_fill_icon',"Checkerboard fill (FG/BG)",   'checker'),
+             _nb('upscale_icon', "Upscale tiles…", self._upscale_dialog))
         self._draw_btns['pencil'].setChecked(True)
 
         _sep()
@@ -2314,18 +2349,18 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     # ─────────────────────────────────────────────────────────────────────────
 
     def ws_set_pixel(self, buf: bytearray, px: int, py: int, color: QColor,
-                     brush: int = 1): #vers 1
-        """Write pixel(s) to a bytearray rgba buffer at (px,py)."""
+                     brush: int = 1): #vers 2
+        tw, th = self._tw, self._th
         half = brush // 2
         for bx in range(-half, half + 1):
             for by_ in range(-half, half + 1):
                 x, y = px + bx, py + by_
-                if 0 <= x < TILE_W and 0 <= y < TILE_H:
-                    i = (y * TILE_W + x) * 4
+                if 0 <= x < tw and 0 <= y < th:
+                    i = (y * tw + x) * 4
                     buf[i:i+4] = [color.red(), color.green(), color.blue(), color.alpha()]
 
-    def ws_get_pixel(self, buf: bytearray, px: int, py: int) -> QColor: #vers 1
-        i = (py * TILE_W + px) * 4
+    def ws_get_pixel(self, buf: bytearray, px: int, py: int) -> QColor: #vers 2
+        i = (py * self._tw + px) * 4
         return QColor(buf[i], buf[i+1], buf[i+2], buf[i+3])
 
     def ws_bresenham(self, buf: bytearray, p0: tuple, p1: tuple,
@@ -2350,12 +2385,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         tr, tg, tb = target.red(), target.green(), target.blue()
         fr, fg_, fb_, fa = fill_color.red(), fill_color.green(), fill_color.blue(), fill_color.alpha()
         tol = 24
+        tw, th = self._tw, self._th
         stack = [(px, py)]; visited = set()
         while stack:
             cx, cy = stack.pop()
             if (cx, cy) in visited: continue
-            if not (0 <= cx < TILE_W and 0 <= cy < TILE_H): continue
-            ci = (cy * TILE_W + cx) * 4
+            if not (0 <= cx < tw and 0 <= cy < th): continue
+            ci = (cy * tw + cx) * 4
             if (abs(buf[ci]-tr) > tol or abs(buf[ci+1]-tg) > tol
                     or abs(buf[ci+2]-tb) > tol): continue
             visited.add((cx, cy))
@@ -2388,15 +2424,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             dist  = random.uniform(0, radius)
             x = int(cx + dist * __import__('math').cos(angle))
             y = int(cy + dist * __import__('math').sin(angle))
-            if 0 <= x < TILE_W and 0 <= y < TILE_H:
-                i = (y * TILE_W + x) * 4
+            if 0 <= x < self._tw and 0 <= y < self._th:
+                i = (y * self._tw + x) * 4
                 buf[i:i+4] = [r, g, b, a]
 
     def ws_brighten(self, buf: bytearray, px: int, py: int,
                     amount: int = 20, darken: bool = False): #vers 1
         """Brighten or darken a single pixel by amount (0-255)."""
-        if not (0 <= px < TILE_W and 0 <= py < TILE_H): return
-        i = (py * TILE_W + px) * 4
+        if not (0 <= px < self._tw and 0 <= py < self._th): return
+        i = (py * self._tw + px) * 4
         if darken:
             buf[i:i+3] = [max(0,   buf[i]-amount),
                           max(0,   buf[i+1]-amount),
@@ -2415,10 +2451,10 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             for by_ in range(-half, half+1):
                 dx, dy = px+bx, py+by_
                 sx, sy = dx+src_ox, dy+src_oy
-                if (0 <= dx < TILE_W and 0 <= dy < TILE_H and
-                        0 <= sx < TILE_W and 0 <= sy < TILE_H):
-                    si = (sy*TILE_W+sx)*4
-                    di = (dy*TILE_W+dx)*4
+                if (0 <= dx < self._tw and 0 <= dy < self._th and
+                        0 <= sx < self._tw and 0 <= sy < self._th):
+                    si = (sy*self._tw+sx)*4
+                    di = (dy*self._tw+dx)*4
                     buf[di:di+4] = src_buf[si:si+4]
 
     def ws_checkerboard_fill(self, buf: bytearray,
@@ -2432,12 +2468,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         fr, fg_, fb_, fa = fg.red(), fg.green(), fg.blue(), fg.alpha()
         br, bg_, bb_, ba = bg.red(), bg.green(), bg.blue(), bg.alpha()
         tol = 24
+        tw, th = self._tw, self._th
         stack = [(px, py)]; visited = set()
         while stack:
             cx, cy = stack.pop()
             if (cx, cy) in visited: continue
-            if not (0 <= cx < TILE_W and 0 <= cy < TILE_H): continue
-            ci = (cy * TILE_W + cx) * 4
+            if not (0 <= cx < tw and 0 <= cy < th): continue
+            ci = (cy * tw + cx) * 4
             if (abs(buf[ci]-tr) > tol or abs(buf[ci+1]-tg) > tol
                     or abs(buf[ci+2]-tb) > tol): continue
             visited.add((cx, cy))
@@ -2448,14 +2485,15 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
                 buf[ci:ci+4] = [br, bg_, bb_, ba]
             stack.extend([(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)])
 
-    def ws_commit_draw(self, idx: int, rgba: bytes): #vers 1
+    def ws_commit_draw(self, idx: int, rgba: bytes): #vers 2
         """Commit drawn pixels: update _tile_rgba, grid, thumb, dirty state."""
+        tw, th = self._tw, self._th
         self._tile_rgba[idx] = rgba
         self._dirty_tiles.add(idx)
-        self._radar.set_tile(idx, self._apply_render_mode(rgba), TILE_W, TILE_H)
+        self._radar.set_tile(idx, self._apply_render_mode(rgba), tw, th)
         self._radar.set_dirty(idx, True)
         if idx < len(self._list_items):
-            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+            self._list_items[idx].set_thumb(rgba, tw, th)
         self._refresh_tile_tab(idx)
         self.save_btn.setEnabled(True)
         self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
@@ -2466,7 +2504,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         Returns: 'begin_drag' | 'commit' | 'picker' | 'none'"""
         tool  = self._draw_tool
         color = self._fg_color if is_left else self._bg_color
-        buf   = bytearray(self._tile_rgba.get(idx, bytes(TILE_W*TILE_H*4)))
+        buf   = bytearray(self._tile_rgba.get(idx, bytes(self._tw*self._th*4)))
 
         if tool == 'zoom':
             return 'none'
@@ -2501,7 +2539,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             return 'begin_drag'
         elif tool == 'cut':
             self._clipboard_tile = bytes(buf)
-            self.ws_commit_draw(idx, bytes(TILE_W*TILE_H*4))
+            self.ws_commit_draw(idx, bytes(self._tw*self._th*4))
             self._set_status(f"Cut tile {idx}")
             return 'commit'
         elif tool == 'spray':
@@ -2531,7 +2569,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         """Handle mouse drag. Returns preview bytearray or None for pencil."""
         tool  = self._draw_tool
         color = self._fg_color if is_left else self._bg_color
-        buf   = bytearray(self._tile_rgba.get(idx, bytes(TILE_W*TILE_H*4)))
+        buf   = bytearray(self._tile_rgba.get(idx, bytes(self._tw*self._th*4)))
 
         if tool == 'pencil' and last_px:
             self.ws_bresenham(buf, last_px, (px,py), color)
@@ -3002,12 +3040,13 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             self._apply_preset("Custom")
 
 
-    def _apply_preset(self, game): #vers 4
+    def _apply_preset(self, game): #vers 5
         self._game_preset = GAME_PRESETS[game]
         cols  = self._game_preset["cols"]
         count = self._game_preset["count"]
         label = self._game_preset["label"]
         self._tile_rgba = {}; self._dirty_tiles = set(); self._current_idx = -1
+        self._tw = TILE_W; self._th = TILE_H   # reset to native on new file
         names = [self._game_preset["name_fn"](i) for i in range(count)]
         self._radar.setup(cols, count, names)
 
@@ -3619,15 +3658,16 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         elif chosen == act_delete:
             self._delete_single_tile(idx)
 
-    def _apply_tile_data(self, idx: int, rgba: bytes): #vers 1
+    def _apply_tile_data(self, idx: int, rgba: bytes): #vers 2
         """Apply rgba bytes to a tile slot — updates grid, list thumb, dirty."""
+        tw, th = self._tw, self._th
         self._push_undo(idx)
         self._tile_rgba[idx] = rgba
         self._dirty_tiles.add(idx)
-        self._radar.set_tile(idx, rgba, TILE_W, TILE_H)
+        self._radar.set_tile(idx, rgba, tw, th)
         self._radar.set_dirty(idx, True)
         if idx < len(self._list_items):
-            self._list_items[idx].set_thumb(rgba, TILE_W, TILE_H)
+            self._list_items[idx].set_thumb(rgba, tw, th)
         self._refresh_tile_tab(idx)
         self.save_btn.setEnabled(True)
         self._dirty_lbl.setText(f"Modified: {len(self._dirty_tiles)}")
