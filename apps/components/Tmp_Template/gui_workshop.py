@@ -433,13 +433,12 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
             return b
 
         # ── Left group: Menu + Settings ───────────────────────────────────
-        self.menu_btn = QPushButton("☰")
-        self.menu_btn.setFixedSize(35, 35)
-        self.menu_btn.setToolTip("Menu  (right-click for context)")
-        self.menu_btn.clicked.connect(self._show_popup_menu)
-        self.menu_btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.menu_btn.customContextMenuRequested.connect(
-            lambda pos: self._show_popup_menu())
+        self.menu_btn = QPushButton("Menu")
+        self.menu_btn.setFont(self.button_font)
+        self.menu_btn.setToolTip("Show menu (dropdown or top bar — set in Settings)")
+        self.menu_btn.setMinimumHeight(28)
+        self.menu_btn.setMaximumHeight(35)
+        self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
         layout.addWidget(self.menu_btn)
 
         self.settings_btn = _btn("settings_icon", "Workshop Settings",
@@ -485,9 +484,9 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
         self.info_btn = _btn("info_icon", "About / Info", self._show_about)
         layout.addWidget(self.info_btn)
 
-        # Theme cog [⚙]
+        # Theme cog [⚙] — opens global AppSettings theme dialog
         self.properties_btn = _btn("properties_icon",
-                                   "Theme Settings",
+                                   "Global Theme / AppSettings",
                                    self._launch_theme_settings)
         layout.addWidget(self.properties_btn)
 
@@ -774,19 +773,23 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
                 except Exception:
                     pass
 
-    def _launch_theme_settings(self):
-        """Open the global AppSettings / theme dialog."""
+    def _launch_theme_settings(self): #vers 1
+        """Open the global AppSettings SettingsDialog — theme cog [⚙]."""
         try:
-            from apps.utils.app_settings_system import AppSettings, SettingsDialog
+            if not APPSETTINGS_AVAILABLE:
+                QMessageBox.information(self, "Theme",
+                    "AppSettings not available in this environment.")
+                return
             if not self.app_settings:
                 self.app_settings = AppSettings()
-            dlg = SettingsDialog(self.app_settings, self)
-            dlg.themeChanged.connect(lambda _: self._apply_theme())
-            if dlg.exec():
+            dialog = SettingsDialog(self.app_settings, self)
+            dialog.themeChanged.connect(lambda _: self._apply_theme())
+            if dialog.exec():
                 self._apply_theme()
+                self._refresh_icons()
         except Exception as e:
             QMessageBox.warning(self, "Theme Error",
-                                f"Could not load theme system:\n{e}")
+                                f"Could not open theme settings:\n{e}")
 
     # ── Workshop settings dialog ───────────────────────────────────────────────
     def _show_workshop_settings(self):
@@ -970,15 +973,32 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
         self._set_status("Settings saved.")
 
     # ── Menu popup ────────────────────────────────────────────────────────────
-    def _show_popup_menu(self):
-        pm = QMenu(self)
-        self._build_menus_into_qmenu(pm)
-        btn = self.sender()
-        if btn:
-            pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+    def _on_menu_btn_clicked(self): #vers 1
+        """Menu button clicked — show dropdown or toggle top bar per settings."""
+        style = self.WS.get("menu_style", "dropdown")
+        if style == "dropdown":
+            self._show_dropdown_menu()
         else:
-            pm.exec(self.menu_btn.mapToGlobal(
-                    self.menu_btn.rect().bottomLeft()))
+            # Toggle top menubar visibility
+            on = not self.WS.get("show_menubar", False)
+            self.WS.set("show_menubar", on)
+            self.WS.save()
+            if hasattr(self, "_menu_bar_container"):
+                self._menu_bar_container.setVisible(on)
+
+    def _show_dropdown_menu(self): #vers 1
+        """Pop up the workshop menus as a single QMenu dropdown."""
+        menu = QMenu(self)
+        self._build_menus_into_qmenu(menu)
+        btn = getattr(self, "menu_btn", None)
+        if btn:
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.exec(self.cursor().pos())
+
+    def _show_popup_menu(self):
+        """Alias for _show_dropdown_menu — kept for compatibility."""
+        self._show_dropdown_menu()
 
     # ── Window chrome ─────────────────────────────────────────────────────────
     def showEvent(self, ev):
