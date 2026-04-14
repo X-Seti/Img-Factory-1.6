@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
-# apps/components/Water_Editor/water_workshop.py - Version: 2
+# apps/components/Water_Editor/water_workshop.py - Version: 3
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
-# Full UI port from radar_workshop.py: theme, corners, menus, settings, all tools
-# Formats: GTA III/VC/PS2/SOL waterpro.dat, water.dat text, SA water.dat quads
+# Built on temp_workshop.py / GUIWorkshop base
+# Section 1: Parsers (WaterproParser, WaterDatParser, SaWaterParser)
+# Section 2: Canvas widgets (WaterGridWidget, SaWaterCanvas)
+# Section 3: WaterWorkshop(GUIWorkshop) - panel overrides + menus
+# Section 4: Water logic - open/save/draw/undo/levels
 
-import sys, struct, re, math, json
+import sys, struct, re, math
 from pathlib import Path
-from typing import Optional
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QToolButton,
-    QPushButton, QFrame, QSizePolicy, QListWidget, QListWidgetItem,
-    QFileDialog, QMessageBox, QTabWidget, QAbstractItemView, QProgressDialog,
-    QDialog, QApplication, QDoubleSpinBox, QFormLayout, QDialogButtonBox,
-    QScrollArea, QMenu
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame,
+    QLabel, QToolButton, QPushButton, QListWidget, QListWidgetItem,
+    QFileDialog, QMessageBox, QTabWidget, QScrollArea, QSizePolicy,
+    QDialog, QFormLayout, QDialogButtonBox, QDoubleSpinBox, QMenu,
+    QSplitter
 )
 from PyQt6.QtGui import (
-    QColor, QPixmap, QPainter, QPen, QFont, QIcon, QKeySequence,
-    QShortcut, QPolygon
+    QColor, QPainter, QPen, QFont, QIcon, QPolygon,
+    QKeySequence, QShortcut
 )
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
-# ── Optional deps ─────────────────────────────────────────────────────────────
-APPSETTINGS_AVAILABLE = False
 try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
-    APPSETTINGS_AVAILABLE = True
+    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
 except ImportError:
-    AppSettings = SettingsDialog = None
+    import os
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
@@ -35,38 +36,29 @@ except ImportError:
     class SVGIconFactory:
         @staticmethod
         def _s(sz=20, c=None): return QIcon()
-        open_icon=save_icon=export_icon=import_icon=delete_icon=undo_icon= \
-        info_icon=paint_icon=fill_icon=dropper_icon=zoom_in_icon= \
-        zoom_out_icon=fit_grid_icon=locate_icon=search_icon=line_icon= \
-        rect_icon=rect_fill_icon=scissors_icon=rotate_cw_icon= \
-        rotate_ccw_icon=flip_horz_icon=flip_vert_icon=staticmethod(_s)
-
-try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
-except ImportError:
-    class ToolMenuMixin: pass
+        open_icon = save_icon = export_icon = import_icon = undo_icon = \
+        info_icon = properties_icon = settings_icon = zoom_in_icon = \
+        zoom_out_icon = fit_grid_icon = locate_icon = paint_icon = \
+        fill_icon = dropper_icon = line_icon = rect_icon = rect_fill_icon = \
+        scissors_icon = rotate_cw_icon = search_icon = staticmethod(_s)
 
 def _apply_dialog_theme(dlg, mw):
     try:
         from apps.core.theme_utils import apply_dialog_theme
         apply_dialog_theme(dlg, mw)
-    except Exception: pass
+    except Exception:
+        pass
 
 App_name  = "Water Workshop"
 App_build = "Apr 2026"
-Build     = "Build 2"
-
-CELL_SIZE = 32.0  # world units per grid cell
+Build     = "Build 3"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Parsers
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# SECTION 1 - Parsers
+# =============================================================================
 
 class WaterproParser:
-    """Binary waterpro.dat — GTA III / VC / PS2 LC / SOL.
-    Layout: [1b count][3b pad][48*4b floats][768b unk][GW*GW bytes phys][(2GW)^2 bytes vis]
-    """
     HEADER_SIZE  = 964
     WATER_LEVELS = 48
 
@@ -83,10 +75,10 @@ class WaterproParser:
         data = Path(path).read_bytes()
         rem  = len(data) - self.HEADER_SIZE
         if rem <= 0 or rem % 5 != 0:
-            raise ValueError(f"Invalid waterpro.dat: {len(data)} bytes")
+            raise ValueError(f"Invalid waterpro.dat size: {len(data)} bytes")
         gw = int(math.isqrt(rem // 5))
         if gw * gw != rem // 5:
-            raise ValueError("Grid area not a perfect square")
+            raise ValueError("Grid area is not a perfect square")
         self.grid_w             = gw
         self.water_levels_count = data[0]
         self.water_level_data   = list(struct.unpack_from(f"<{self.WATER_LEVELS}f", data, 4))
@@ -100,30 +92,38 @@ class WaterproParser:
         out = bytearray(self.HEADER_SIZE + gw*gw + (2*gw)*(2*gw))
         out[0] = self.water_levels_count & 0xFF
         struct.pack_into(f"<{self.WATER_LEVELS}f", out, 4, *self.water_level_data)
-        out[196:964]             = self.unk_block
-        out[964:964+gw*gw]       = self.phys_grid
-        out[964+gw*gw:]          = self.vis_grid
+        out[196:964]       = self.unk_block
+        out[964:964+gw*gw] = self.phys_grid
+        out[964+gw*gw:]    = self.vis_grid
         Path(path).write_bytes(bytes(out))
 
 
 class WaterDatParser:
-    """Text water.dat — GTA III / VC / PS2 rect format."""
     def __init__(self):
-        self.rects = []; self.header = ""; self.path = None
+        self.rects  = []
+        self.header = ""
+        self.path   = None
 
     def load(self, path: str):
-        self.path = path; self.rects = []; hdr = []; in_hdr = True
+        self.path  = path
+        self.rects = []
+        hdr        = []
+        in_hdr     = True
         for line in Path(path).read_text(encoding="latin1", errors="replace").splitlines():
             s = line.strip()
-            if s.startswith("*"): break
+            if s.startswith("*"):
+                break
             if not s or s.startswith(";"):
-                if in_hdr: hdr.append(line)
+                if in_hdr:
+                    hdr.append(line)
                 continue
             in_hdr = False
-            parts = [p for p in re.split(r"[\s,]+", s.rstrip(",")) if p]
+            parts  = [p for p in re.split(r"[\s,]+", s.rstrip(",")) if p]
             if len(parts) >= 5:
-                try: self.rects.append(tuple(float(p) for p in parts[:5]))
-                except ValueError: pass
+                try:
+                    self.rects.append(tuple(float(p) for p in parts[:5]))
+                except ValueError:
+                    pass
         self.header = "\n".join(hdr)
 
     def save(self, path: str):
@@ -135,1041 +135,1022 @@ class WaterDatParser:
 
 
 class SaWaterParser:
-    """Text SA water.dat / water1.dat — 4-corner quad format."""
     def __init__(self):
-        self.quads = []; self.path = None
+        self.quads = []
+        self.path  = None
 
     def load(self, path: str):
-        self.path = path; self.quads = []
+        self.path  = path
+        self.quads = []
         for line in Path(path).read_text(encoding="latin1", errors="replace").splitlines():
             s = line.strip()
-            if not s or s.startswith(";") or s.startswith("*") or s == "processed": continue
+            if not s or s.startswith(";") or s.startswith("*") or s == "processed":
+                continue
             parts = s.split()
-            if len(parts) < 29: continue
+            if len(parts) < 29:
+                continue
             try:
-                corners = [{"x": float(parts[c*7]), "y": float(parts[c*7+1]),
-                            "f": [float(parts[c*7+k]) for k in range(2,7)]} for c in range(4)]
+                corners = [
+                    {"x": float(parts[c*7]),
+                     "y": float(parts[c*7+1]),
+                     "f": [float(parts[c*7+k]) for k in range(2, 7)]}
+                    for c in range(4)
+                ]
                 self.quads.append({"corners": corners, "flag": int(parts[28])})
-            except (ValueError, IndexError): pass
+            except (ValueError, IndexError):
+                pass
 
     def save(self, path: str):
         lines = ["processed"]
         for q in self.quads:
             row = "    ".join(
                 f"{c['x']:.4f} {c['y']:.4f} " + " ".join(f"{v:.5f}" for v in c["f"])
-                for c in q["corners"])
+                for c in q["corners"]
+            )
             lines.append(row + f"  {q['flag']}")
         Path(path).write_text("\n".join(lines), encoding="latin1")
 
     def world_bbox(self):
-        if not self.quads: return -3000,-3000,3000,3000
-        xs=[c["x"] for q in self.quads for c in q["corners"]]
-        ys=[c["y"] for q in self.quads for c in q["corners"]]
+        if not self.quads:
+            return -3000, -3000, 3000, 3000
+        xs = [c["x"] for q in self.quads for c in q["corners"]]
+        ys = [c["y"] for q in self.quads for c in q["corners"]]
         return min(xs), min(ys), max(xs), max(ys)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# WATSettings — identical pattern to RADSettings
-# ─────────────────────────────────────────────────────────────────────────────
-
-class WATSettings:
-    MAX_RECENT = 10
-    DEFAULTS = {
-        "show_menubar": False, "menu_style": "dropdown",
-        "menu_bar_font_size": 9, "menu_bar_height": 22,
-        "menu_dropdown_font_size": 9, "show_statusbar": True,
-        "recent_files": [],
-        "window_x": -1, "window_y": -1, "window_w": 1400, "window_h": 800,
-    }
-
-    def __init__(self):
-        cfg = Path.home() / ".config" / "imgfactory"
-        cfg.mkdir(parents=True, exist_ok=True)
-        self._path = cfg / "water_workshop.json"
-        self._data = dict(self.DEFAULTS)
-        self._load()
-
-    def _load(self):
-        try:
-            if self._path.exists():
-                self._data.update({k:v for k,v in json.loads(self._path.read_text()).items()
-                                   if k in self.DEFAULTS})
-        except Exception: pass
-
-    def save(self):
-        try: self._path.write_text(json.dumps(self._data, indent=2))
-        except Exception: pass
-
-    def get(self, key, default=None):
-        return self._data.get(key, default if default is not None else self.DEFAULTS.get(key))
-
-    def set(self, key, value):
-        if key in self.DEFAULTS: self._data[key] = value
-
-    def add_recent(self, path: str):
-        r = [p for p in self._data.get("recent_files", []) if p != str(path)]
-        r.insert(0, str(path)); self._data["recent_files"] = r[:self.MAX_RECENT]; self.save()
-
-    def get_recent(self):
-        return [p for p in self._data.get("recent_files", []) if Path(p).exists()]
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# _CornerOverlay — copied verbatim from radar_workshop
-# ─────────────────────────────────────────────────────────────────────────────
-
-class _CornerOverlay(QWidget):
-    SIZE = 20
-    def __init__(self, parent):
-        super().__init__(parent)
-        for attr in [Qt.WidgetAttribute.WA_TransparentForMouseEvents,
-                     Qt.WidgetAttribute.WA_NoSystemBackground,
-                     Qt.WidgetAttribute.WA_TranslucentBackground,
-                     Qt.WidgetAttribute.WA_AlwaysStackOnTop]:
-            self.setAttribute(attr, True)
-        self.setWindowFlags(Qt.WindowType.Widget)
-        self._hover_corner = None; self._app_settings = None
-        self.setGeometry(0, 0, parent.width(), parent.height())
-        self._update_mask()
-
-    def _update_mask(self):
-        from PyQt6.QtGui import QRegion
-        s=self.SIZE; w,h=self.width(),self.height()
-        region=QRegion()
-        for pts in [
-            [QPoint(0,0),QPoint(s,0),QPoint(0,s)],
-            [QPoint(w,0),QPoint(w-s,0),QPoint(w,s)],
-            [QPoint(0,h),QPoint(s,h),QPoint(0,h-s)],
-            [QPoint(w,h),QPoint(w-s,h),QPoint(w,h-s)],
-        ]:
-            region=region.united(QRegion(QPolygon(pts)))
-        self.setMask(region)
-
-    def update_state(self, hover_corner, app_settings):
-        self._hover_corner=hover_corner; self._app_settings=app_settings; self.update()
-
-    def setGeometry(self, *a): super().setGeometry(*a); self._update_mask()
-    def resizeEvent(self, ev): super().resizeEvent(ev); self._update_mask()
-
-    def paintEvent(self, ev):
-        s=self.SIZE
-        try: accent=QColor(self._app_settings.get_theme_colors().get("accent_primary","#4682FF"))
-        except Exception: accent=QColor(70,130,255)
-        accent.setAlpha(200); hc=QColor(accent); hc.setAlpha(255)
-        w,h=self.width(),self.height()
-        corners={"top-left":[(0,0),(s,0),(0,s)],"top-right":[(w,0),(w-s,0),(w,s)],
-                 "bottom-left":[(0,h),(s,h),(0,h-s)],"bottom-right":[(w,h),(w-s,h),(w,h-s)]}
-        p=QPainter(self)
-        for name,pts in corners.items():
-            p.setBrush(hc if name==self._hover_corner else accent)
-            p.setPen(Qt.PenStyle.NoPen)
-            p.drawPolygon(QPolygon([QPoint(x,y) for x,y in pts]))
-        p.end()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# WaterGridWidget — binary grid canvas
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# SECTION 2 - Canvas widgets
+# =============================================================================
 
 class WaterGridWidget(QWidget):
     cell_clicked       = pyqtSignal(int, int)
     cell_right_clicked = pyqtSignal(int, int, QPoint)
     color_picked       = pyqtSignal(bool, bool)
 
-    COL_WATER=QColor(30,120,220,255); COL_DRY=QColor(30,30,30,255)
-    COL_GRID=QColor(60,60,80,120);   COL_SEL=QColor(255,200,0,200)
-    COL_HOVER=QColor(255,255,255,40); COL_PREV=QColor(80,180,255,160)
+    COL_WATER = QColor(30, 120, 220, 255)
+    COL_DRY   = QColor(30,  30,  30, 255)
+    COL_GRID  = QColor(60,  60,  80, 120)
+    COL_SEL   = QColor(255, 200,   0, 200)
+    COL_HOVER = QColor(255, 255, 255,  40)
+    COL_PREV  = QColor(80,  180, 255, 160)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._grid_w=0; self._grid=bytearray()
-        self._zoom=1.0; self._pan_x=0; self._pan_y=0
-        self._sel_cx=-1; self._sel_cy=-1; self._hover_cx=-1; self._hover_cy=-1
-        self._drawing=False; self._draw_val=128
-        self._line_start=None; self._preview_cells=set()
-        self._workshop=None; self._show_grid=True
-        self._pan_drag=None; self._pan_start=(0,0)
+        self._grid_w        = 0
+        self._grid          = bytearray()
+        self._zoom          = 1.0
+        self._pan_x         = 0
+        self._pan_y         = 0
+        self._sel_cx        = -1
+        self._sel_cy        = -1
+        self._hover_cx      = -1
+        self._hover_cy      = -1
+        self._drawing       = False
+        self._draw_val      = 128
+        self._line_start    = None
+        self._preview_cells = set()
+        self._workshop      = None
+        self._show_grid     = True
+        self._pan_drag      = None
+        self._pan_start     = (0, 0)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def setup(self, grid_w: int, grid: bytearray):
-        self._grid_w=grid_w; self._grid=grid
-        self._sel_cx=self._sel_cy=-1
-        self._zoom=1.0; self._pan_x=self._pan_y=0; self.update()
+        self._grid_w = grid_w
+        self._grid   = grid
+        self._sel_cx = self._sel_cy = -1
+        self._zoom   = 1.0
+        self._pan_x  = self._pan_y = 0
+        self.update()
 
     def set_grid(self, grid: bytearray):
-        self._grid=grid; self.update()
+        self._grid = grid
+        self.update()
 
     def _ts(self):
-        if not self._grid_w: return 8
-        base=min(self.width()//self._grid_w, self.height()//self._grid_w)
-        return max(2, int(base*self._zoom))
+        if not self._grid_w:
+            return 8
+        base = min(self.width() // self._grid_w, self.height() // self._grid_w)
+        return max(2, int(base * self._zoom))
 
     def _cell_at(self, pos):
-        ts=self._ts(); ax,ay=pos.x()-self._pan_x, pos.y()-self._pan_y
-        if ax<0 or ay<0: return -1,-1
-        cx,cy=ax//ts, ay//ts
-        return (cx,cy) if (0<=cx<self._grid_w and 0<=cy<self._grid_w) else (-1,-1)
+        ts     = self._ts()
+        ax, ay = pos.x() - self._pan_x, pos.y() - self._pan_y
+        if ax < 0 or ay < 0:
+            return -1, -1
+        cx, cy = ax // ts, ay // ts
+        if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
+            return cx, cy
+        return -1, -1
 
     def _cell_val(self, cx, cy):
-        if 0<=cx<self._grid_w and 0<=cy<self._grid_w:
-            return self._grid[cy*self._grid_w+cx]
+        if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
+            return self._grid[cy * self._grid_w + cx]
         return 0
 
     def _set_cell(self, cx, cy, val):
-        if 0<=cx<self._grid_w and 0<=cy<self._grid_w:
-            self._grid[cy*self._grid_w+cx]=val
+        if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
+            self._grid[cy * self._grid_w + cx] = val
 
     def paintEvent(self, ev):
-        if not self._grid_w: return
-        ts=self._ts(); gw=self._grid_w; px0,py0=self._pan_x,self._pan_y
-        p=QPainter(self)
+        if not self._grid_w:
+            return
+        ts  = self._ts()
+        gw  = self._grid_w
+        px0 = self._pan_x
+        py0 = self._pan_y
+        p   = QPainter(self)
         for cy in range(gw):
             for cx in range(gw):
-                x,y=px0+cx*ts, py0+cy*ts
-                if (cx,cy) in self._preview_cells:   p.fillRect(x,y,ts,ts,self.COL_PREV)
-                elif self._grid[cy*gw+cx]==128:       p.fillRect(x,y,ts,ts,self.COL_WATER)
-                else:                                 p.fillRect(x,y,ts,ts,self.COL_DRY)
-                if (cx,cy)==(self._hover_cx,self._hover_cy):
-                    p.fillRect(x,y,ts,ts,self.COL_HOVER)
-        if self._sel_cx>=0:
-            x,y=px0+self._sel_cx*ts, py0+self._sel_cy*ts
-            p.setPen(QPen(self.COL_SEL,2)); p.drawRect(x+1,y+1,ts-2,ts-2)
-        if self._show_grid and ts>=4:
-            p.setPen(QPen(self.COL_GRID,1))
-            for c in range(gw+1): p.drawLine(px0+c*ts,py0,px0+c*ts,py0+gw*ts)
-            for r in range(gw+1): p.drawLine(px0,py0+r*ts,px0+gw*ts,py0+r*ts)
-        ws=self._workshop; tool=ws._draw_tool if ws else "pencil"
-        p.setPen(QColor(255,255,255,180)); p.setFont(QFont("monospace",8))
-        p.drawText(4, self.height()-6, f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  L=water R=dry")
+                x, y = px0 + cx*ts, py0 + cy*ts
+                if (cx, cy) in self._preview_cells:
+                    p.fillRect(x, y, ts, ts, self.COL_PREV)
+                elif self._grid[cy*gw+cx] == 128:
+                    p.fillRect(x, y, ts, ts, self.COL_WATER)
+                else:
+                    p.fillRect(x, y, ts, ts, self.COL_DRY)
+                if (cx, cy) == (self._hover_cx, self._hover_cy):
+                    p.fillRect(x, y, ts, ts, self.COL_HOVER)
+        if self._sel_cx >= 0:
+            x, y = px0 + self._sel_cx*ts, py0 + self._sel_cy*ts
+            p.setPen(QPen(self.COL_SEL, 2))
+            p.drawRect(x+1, y+1, ts-2, ts-2)
+        if self._show_grid and ts >= 4:
+            p.setPen(QPen(self.COL_GRID, 1))
+            for c in range(gw+1):
+                p.drawLine(px0+c*ts, py0, px0+c*ts, py0+gw*ts)
+            for r in range(gw+1):
+                p.drawLine(px0, py0+r*ts, px0+gw*ts, py0+r*ts)
+        ws   = self._workshop
+        tool = ws._active_tool if ws else "pencil"
+        p.setPen(QColor(255, 255, 255, 180))
+        p.setFont(QFont("monospace", 8))
+        p.drawText(4, self.height()-6,
+                   f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  L=water R=dry")
         p.end()
 
     def mouseMoveEvent(self, ev):
-        if self._pan_drag and ev.buttons()&Qt.MouseButton.MiddleButton:
-            dx=ev.pos().x()-self._pan_drag.x(); dy=ev.pos().y()-self._pan_drag.y()
-            self._pan_x=self._pan_start[0]+dx; self._pan_y=self._pan_start[1]+dy
-            self.update(); return
-        cx,cy=self._cell_at(ev.pos())
-        if (cx,cy)!=(self._hover_cx,self._hover_cy):
-            self._hover_cx,self._hover_cy=cx,cy; self.update()
-        ws=self._workshop
-        if not ws or not self._drawing: return
-        tool=ws._draw_tool
-        if tool=="pencil" and cx>=0:
-            self._set_cell(cx,cy,self._draw_val); self.update()
-        elif tool in ("line","rect","rect_fill") and self._line_start and cx>=0:
-            self._preview_cells=self._shape_cells(tool,self._line_start,(cx,cy)); self.update()
+        if self._pan_drag and ev.buttons() & Qt.MouseButton.MiddleButton:
+            dx = ev.pos().x() - self._pan_drag.x()
+            dy = ev.pos().y() - self._pan_drag.y()
+            self._pan_x = self._pan_start[0] + dx
+            self._pan_y = self._pan_start[1] + dy
+            self.update()
+            return
+        cx, cy = self._cell_at(ev.pos())
+        if (cx, cy) != (self._hover_cx, self._hover_cy):
+            self._hover_cx, self._hover_cy = cx, cy
+            self.update()
+        ws = self._workshop
+        if not ws or not self._drawing:
+            return
+        tool = ws._active_tool
+        if tool == "pencil" and cx >= 0:
+            self._set_cell(cx, cy, self._draw_val)
+            self.update()
+        elif tool in ("line", "rect", "rect_fill") and self._line_start and cx >= 0:
+            self._preview_cells = self._shape_cells(tool, self._line_start, (cx, cy))
+            self.update()
 
     def mousePressEvent(self, ev):
-        is_left=ev.button()==Qt.MouseButton.LeftButton
-        is_right=ev.button()==Qt.MouseButton.RightButton
-        is_mid=ev.button()==Qt.MouseButton.MiddleButton
-        ws=self._workshop; tool=ws._draw_tool if ws else "pencil"
+        is_left  = ev.button() == Qt.MouseButton.LeftButton
+        is_right = ev.button() == Qt.MouseButton.RightButton
+        is_mid   = ev.button() == Qt.MouseButton.MiddleButton
+        ws   = self._workshop
+        tool = ws._active_tool if ws else "pencil"
         if is_mid:
-            self._pan_drag=ev.pos(); self._pan_start=(self._pan_x,self._pan_y); return
-        if tool=="zoom":
-            f=1.3 if is_left else 1/1.3; cx,cy=ev.pos().x(),ev.pos().y()
-            old=self._ts(); self._zoom=max(0.1,min(20.0,self._zoom*f)); new=self._ts()
-            self._pan_x=cx-int((cx-self._pan_x)*new/max(1,old))
-            self._pan_y=cy-int((cy-self._pan_y)*new/max(1,old))
-            self.update(); return
-        cx,cy=self._cell_at(ev.pos())
-        if cx<0: return
-        self._sel_cx,self._sel_cy=cx,cy; self.cell_clicked.emit(cx,cy); self.update()
-        if tool=="picker":
-            self.color_picked.emit(self._cell_val(cx,cy)==128,is_left); return
-        self._draw_val=128 if is_left else 0
-        if ws: ws._push_undo_grid()
-        if tool=="pencil":
-            self._drawing=True; self._set_cell(cx,cy,self._draw_val); self.update()
-        elif tool=="fill":
-            self._flood_fill(cx,cy,self._draw_val); self.update()
-            if ws: ws._on_grid_changed()
-        elif tool in ("line","rect","rect_fill"):
-            self._drawing=True; self._line_start=(cx,cy); self._preview_cells=set()
-        if is_right and cx>=0:
-            self.cell_right_clicked.emit(cx,cy,ev.globalPosition().toPoint())
+            self._pan_drag  = ev.pos()
+            self._pan_start = (self._pan_x, self._pan_y)
+            return
+        if tool == "zoom":
+            f  = 1.3 if is_left else 1/1.3
+            cx, cy = ev.pos().x(), ev.pos().y()
+            old = self._ts()
+            self._zoom = max(0.1, min(20.0, self._zoom * f))
+            new = self._ts()
+            self._pan_x = cx - int((cx - self._pan_x) * new / max(1, old))
+            self._pan_y = cy - int((cy - self._pan_y) * new / max(1, old))
+            self.update()
+            return
+        cx, cy = self._cell_at(ev.pos())
+        if cx < 0:
+            return
+        self._sel_cx, self._sel_cy = cx, cy
+        self.cell_clicked.emit(cx, cy)
+        self.update()
+        if tool == "picker":
+            self.color_picked.emit(self._cell_val(cx, cy) == 128, is_left)
+            return
+        self._draw_val = 128 if is_left else 0
+        if ws:
+            ws._push_undo_grid()
+        if tool == "pencil":
+            self._drawing = True
+            self._set_cell(cx, cy, self._draw_val)
+            self.update()
+        elif tool == "fill":
+            self._flood_fill(cx, cy, self._draw_val)
+            self.update()
+            if ws:
+                ws._on_grid_changed()
+        elif tool in ("line", "rect", "rect_fill"):
+            self._drawing    = True
+            self._line_start = (cx, cy)
+            self._preview_cells = set()
+        if is_right and cx >= 0:
+            self.cell_right_clicked.emit(cx, cy, ev.globalPosition().toPoint())
 
     def mouseReleaseEvent(self, ev):
-        self._pan_drag=None
-        if not self._drawing: return
-        cx,cy=self._cell_at(ev.pos())
-        ws=self._workshop; tool=ws._draw_tool if ws else "pencil"
-        if tool in ("line","rect","rect_fill") and self._line_start:
-            if cx>=0:
-                for ccx,ccy in self._shape_cells(tool,self._line_start,(cx,cy)):
-                    self._set_cell(ccx,ccy,self._draw_val)
-        self._drawing=False; self._line_start=None; self._preview_cells=set()
-        if ws: ws._on_grid_changed()
+        self._pan_drag = None
+        if not self._drawing:
+            return
+        cx, cy = self._cell_at(ev.pos())
+        ws   = self._workshop
+        tool = ws._active_tool if ws else "pencil"
+        if tool in ("line", "rect", "rect_fill") and self._line_start:
+            if cx >= 0:
+                for ccx, ccy in self._shape_cells(tool, self._line_start, (cx, cy)):
+                    self._set_cell(ccx, ccy, self._draw_val)
+        self._drawing       = False
+        self._line_start    = None
+        self._preview_cells = set()
+        if ws:
+            ws._on_grid_changed()
         self.update()
 
     def wheelEvent(self, ev):
-        delta=ev.angleDelta().y()
-        if not delta: return
-        f=1.12 if delta>0 else 1/1.12
-        cx,cy=ev.position().x(),ev.position().y(); old=self._ts()
-        self._zoom=max(0.1,min(20.0,self._zoom*f)); new=self._ts()
-        self._pan_x=int(cx-(cx-self._pan_x)*new/max(1,old))
-        self._pan_y=int(cy-(cy-self._pan_y)*new/max(1,old))
+        delta = ev.angleDelta().y()
+        if not delta:
+            return
+        f  = 1.12 if delta > 0 else 1/1.12
+        cx, cy = ev.position().x(), ev.position().y()
+        old = self._ts()
+        self._zoom = max(0.1, min(20.0, self._zoom * f))
+        new = self._ts()
+        self._pan_x = int(cx - (cx - self._pan_x) * new / max(1, old))
+        self._pan_y = int(cy - (cy - self._pan_y) * new / max(1, old))
         self.update()
 
     def _shape_cells(self, tool, p0, p1):
-        x0,y0=min(p0[0],p1[0]),min(p0[1],p1[1])
-        x1,y1=max(p0[0],p1[0]),max(p0[1],p1[1])
-        cells=set()
-        if tool=="line":
-            cx0,cy0=p0; cx1,cy1=p1; dx,dy=abs(cx1-cx0),abs(cy1-cy0)
-            sx,sy=(1 if cx0<cx1 else -1),(1 if cy0<cy1 else -1); err=dx-dy
+        x0, y0 = min(p0[0], p1[0]), min(p0[1], p1[1])
+        x1, y1 = max(p0[0], p1[0]), max(p0[1], p1[1])
+        cells  = set()
+        if tool == "line":
+            cx0, cy0 = p0
+            cx1, cy1 = p1
+            dx, dy   = abs(cx1-cx0), abs(cy1-cy0)
+            sx, sy   = (1 if cx0<cx1 else -1), (1 if cy0<cy1 else -1)
+            err      = dx - dy
             while True:
-                cells.add((cx0,cy0))
-                if cx0==cx1 and cy0==cy1: break
-                e2=2*err
-                if e2>-dy: err-=dy; cx0+=sx
-                if e2<dx:  err+=dx; cy0+=sy
-        elif tool=="rect":
-            for x in range(x0,x1+1): cells.add((x,y0)); cells.add((x,y1))
-            for y in range(y0+1,y1):  cells.add((x0,y)); cells.add((x1,y))
-        elif tool=="rect_fill":
-            for y in range(y0,y1+1):
-                for x in range(x0,x1+1): cells.add((x,y))
+                cells.add((cx0, cy0))
+                if cx0 == cx1 and cy0 == cy1:
+                    break
+                e2 = 2 * err
+                if e2 > -dy: err -= dy; cx0 += sx
+                if e2 <  dx: err += dx; cy0 += sy
+        elif tool == "rect":
+            for x in range(x0, x1+1):
+                cells.add((x, y0)); cells.add((x, y1))
+            for y in range(y0+1, y1):
+                cells.add((x0, y)); cells.add((x1, y))
+        elif tool == "rect_fill":
+            for y in range(y0, y1+1):
+                for x in range(x0, x1+1):
+                    cells.add((x, y))
         return cells
 
     def _flood_fill(self, cx, cy, val):
-        target=self._cell_val(cx,cy)
-        if target==val: return
-        gw=self._grid_w; stack=[(cx,cy)]; visited=set()
+        target  = self._cell_val(cx, cy)
+        if target == val:
+            return
+        gw      = self._grid_w
+        stack   = [(cx, cy)]
+        visited = set()
         while stack:
-            x,y=stack.pop()
-            if (x,y) in visited: continue
-            if not(0<=x<gw and 0<=y<gw): continue
-            if self._grid[y*gw+x]!=target: continue
-            visited.add((x,y)); self._grid[y*gw+x]=val
+            x, y = stack.pop()
+            if (x, y) in visited:
+                continue
+            if not (0 <= x < gw and 0 <= y < gw):
+                continue
+            if self._grid[y*gw+x] != target:
+                continue
+            visited.add((x, y))
+            self._grid[y*gw+x] = val
             stack.extend([(x+1,y),(x-1,y),(x,y+1),(x,y-1)])
 
-    def fit(self): self._zoom=1.0; self._pan_x=self._pan_y=0; self.update()
+    def fit(self):
+        self._zoom  = 1.0
+        self._pan_x = self._pan_y = 0
+        self.update()
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SA quad canvas
-# ─────────────────────────────────────────────────────────────────────────────
 
 class SaWaterCanvas(QWidget):
-    quad_selected=pyqtSignal(int)
-    COL_WATER=QColor(30,120,220,160); COL_SEL=QColor(255,200,0,220)
-    COL_BORDER=QColor(80,160,255,200); COL_BG=QColor(20,20,20)
+    quad_selected = pyqtSignal(int)
+
+    COL_WATER  = QColor(30, 120, 220, 160)
+    COL_SEL    = QColor(255, 200,   0, 220)
+    COL_BORDER = QColor(80,  160, 255, 200)
+    COL_BG     = QColor(20,   20,  20)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._quads=[]; self._sel_idx=-1
-        self._zoom=1.0; self._pan_x=0; self._pan_y=0; self._bbox=(-3000,-3000,3000,3000)
-        self._pan_drag=None; self._pan_start=(0,0)
+        self._quads     = []
+        self._sel_idx   = -1
+        self._zoom      = 1.0
+        self._pan_x     = 0
+        self._pan_y     = 0
+        self._bbox      = (-3000, -3000, 3000, 3000)
+        self._pan_drag  = None
+        self._pan_start = (0, 0)
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def setup(self, quads, bbox):
-        self._quads=quads; self._bbox=bbox; self._sel_idx=-1; self._fit(); self.update()
+        self._quads   = quads
+        self._bbox    = bbox
+        self._sel_idx = -1
+        self._fit()
+        self.update()
 
     def _fit(self):
-        if not self._quads: return
-        x0,y0,x1,y1=self._bbox; ww,wh=x1-x0,y1-y0
-        if ww<=0 or wh<=0: return
-        self._zoom=min(self.width()/ww, self.height()/wh)*0.9
-        self._pan_x=int(self.width()/2-(x0+ww/2)*self._zoom)
-        self._pan_y=int(self.height()/2-(y0+wh/2)*self._zoom)
+        if not self._quads:
+            return
+        x0, y0, x1, y1 = self._bbox
+        ww, wh = x1-x0, y1-y0
+        if ww <= 0 or wh <= 0:
+            return
+        self._zoom  = min(self.width()/ww, self.height()/wh) * 0.9
+        self._pan_x = int(self.width()  / 2 - (x0 + ww/2) * self._zoom)
+        self._pan_y = int(self.height() / 2 - (y0 + wh/2) * self._zoom)
 
-    def _w2s(self,wx,wy): return int(wx*self._zoom+self._pan_x),int(wy*self._zoom+self._pan_y)
+    def _w2s(self, wx, wy):
+        return int(wx * self._zoom + self._pan_x), int(wy * self._zoom + self._pan_y)
 
     def paintEvent(self, ev):
-        p=QPainter(self); p.fillRect(self.rect(),self.COL_BG)
+        p = QPainter(self)
+        p.fillRect(self.rect(), self.COL_BG)
         if not self._quads:
-            p.setPen(QColor(100,100,100))
-            p.drawText(self.rect(),Qt.AlignmentFlag.AlignCenter,"No SA water quads — load SA water.dat")
-            p.end(); return
-        for idx,q in enumerate(self._quads):
-            pts=[QPoint(*self._w2s(c["x"],c["y"])) for c in q["corners"]]
-            sel=(idx==self._sel_idx)
-            p.setPen(QPen(self.COL_SEL if sel else self.COL_BORDER,2 if sel else 1))
+            p.setPen(QColor(100, 100, 100))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                       "No SA water quads — load SA water.dat")
+            p.end()
+            return
+        for idx, q in enumerate(self._quads):
+            pts = [QPoint(*self._w2s(c["x"], c["y"])) for c in q["corners"]]
+            sel = (idx == self._sel_idx)
+            p.setPen(QPen(self.COL_SEL if sel else self.COL_BORDER, 2 if sel else 1))
             p.setBrush(self.COL_SEL.lighter(120) if sel else self.COL_WATER)
             p.drawPolygon(QPolygon(pts))
         p.end()
 
     def mousePressEvent(self, ev):
-        if ev.button()==Qt.MouseButton.MiddleButton:
-            self._pan_drag=ev.pos(); self._pan_start=(self._pan_x,self._pan_y); return
-        if ev.button()!=Qt.MouseButton.LeftButton: return
-        wx=(ev.pos().x()-self._pan_x)/self._zoom; wy=(ev.pos().y()-self._pan_y)/self._zoom
-        for idx,q in enumerate(self._quads):
-            xs=[c["x"] for c in q["corners"]]; ys=[c["y"] for c in q["corners"]]
-            if min(xs)<=wx<=max(xs) and min(ys)<=wy<=max(ys):
-                self._sel_idx=idx; self.quad_selected.emit(idx); self.update(); return
-        self._sel_idx=-1; self.update()
+        if ev.button() == Qt.MouseButton.MiddleButton:
+            self._pan_drag  = ev.pos()
+            self._pan_start = (self._pan_x, self._pan_y)
+            return
+        if ev.button() != Qt.MouseButton.LeftButton:
+            return
+        wx = (ev.pos().x() - self._pan_x) / self._zoom
+        wy = (ev.pos().y() - self._pan_y) / self._zoom
+        for idx, q in enumerate(self._quads):
+            xs = [c["x"] for c in q["corners"]]
+            ys = [c["y"] for c in q["corners"]]
+            if min(xs) <= wx <= max(xs) and min(ys) <= wy <= max(ys):
+                self._sel_idx = idx
+                self.quad_selected.emit(idx)
+                self.update()
+                return
+        self._sel_idx = -1
+        self.update()
 
     def mouseMoveEvent(self, ev):
-        if self._pan_drag and ev.buttons()&Qt.MouseButton.MiddleButton:
-            dx=ev.pos().x()-self._pan_drag.x(); dy=ev.pos().y()-self._pan_drag.y()
-            self._pan_x=self._pan_start[0]+dx; self._pan_y=self._pan_start[1]+dy; self.update()
+        if self._pan_drag and ev.buttons() & Qt.MouseButton.MiddleButton:
+            dx = ev.pos().x() - self._pan_drag.x()
+            dy = ev.pos().y() - self._pan_drag.y()
+            self._pan_x = self._pan_start[0] + dx
+            self._pan_y = self._pan_start[1] + dy
+            self.update()
 
-    def mouseReleaseEvent(self, ev): self._pan_drag=None
+    def mouseReleaseEvent(self, ev):
+        self._pan_drag = None
 
     def wheelEvent(self, ev):
-        f=1.12 if ev.angleDelta().y()>0 else 1/1.12
-        self._zoom=max(0.01,min(50.0,self._zoom*f)); self.update()
+        f = 1.12 if ev.angleDelta().y() > 0 else 1/1.12
+        self._zoom = max(0.01, min(50.0, self._zoom * f))
+        self.update()
 
-    def fit(self): self._fit(); self.update()
+    def fit(self):
+        self._fit()
+        self.update()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# WaterWorkshop — main application
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# SECTION 3 - WaterWorkshop: GUIWorkshop subclass
+# =============================================================================
 
-class WaterWorkshop(ToolMenuMixin, QWidget):
-    workshop_closed=pyqtSignal(); window_closed=pyqtSignal()
+class WaterWorkshop(GUIWorkshop):
 
-    # ── Menus ──────────────────────────────────────────────────────────────────
-    def _build_menus_into_qmenu(self, pm):
-        fm=pm.addMenu("File")
-        fm.addAction("Load…  Ctrl+O",      self._open_file)
-        fm.addAction("Save…  Ctrl+S",      self._save_file)
-        fm.addSeparator()
-        fm.addAction("Export Grids as BMP", self._export_bmp)
-        fm.addAction("Import BMP Grid",     self._import_bmp)
-        fm.addSeparator()
-        recent=self.WAT_settings.get_recent()
-        if recent:
-            rm=fm.addMenu("Recent Files")
-            for rp in recent:
-                act=rm.addAction(Path(rp).name); act.setToolTip(rp)
-                act.triggered.connect(lambda checked=False,p=rp: self._load_file(p))
-            rm.addSeparator(); rm.addAction("Clear Recent", self._clear_recent)
-        em=pm.addMenu("Edit")
-        em.addAction("Undo  Ctrl+Z",        self._undo)
-        em.addAction("Redo  Ctrl+Y",        self._redo)
-        em.addSeparator()
-        em.addAction("Clear Active Grid",   self._erase_all_grid)
-        em.addAction("Invert Active Grid",  self._invert_grid)
-        em.addAction("Water Statistics",    self._show_stats)
-        vm=pm.addMenu("View")
-        vm.addAction("Zoom In  +",          lambda: self._zoom(1.25))
-        vm.addAction("Zoom Out  -",         lambda: self._zoom(0.8))
-        vm.addAction("Fit  Ctrl+0",         self._fit)
-        vm.addSeparator()
-        vm.addAction("Toggle Grid Lines",   self._toggle_grid)
-        vm.addSeparator()
-        vm.addAction("About Water Workshop",self._show_about)
+    App_name        = "Water Workshop"
+    App_build       = Build
+    App_author      = "X-Seti"
+    App_year        = "2026"
+    App_description = ("GTA III / VC / PS2 LC / SOL - waterpro.dat + water.dat\n"
+                       "GTA SA - water.dat / water1.dat (quad format)")
+    config_key      = "water_workshop"
 
-    # ── Init ──────────────────────────────────────────────────────────────────
     def __init__(self, parent=None, main_window=None):
-        super().__init__(parent)
-        self.main_window=main_window; self.standalone_mode=(main_window is None)
-        self.is_docked=not self.standalone_mode; self.button_display_mode="both"
-        self.title_font=QFont("Arial",14); self.panel_font=QFont("Arial",10)
-        self.button_font=QFont("Arial",10); self.infobar_font=QFont("Courier New",9)
-        self.dragging=False; self.drag_position=None
-        self.resizing=False; self.resize_corner=None
-        self.corner_size=20; self.hover_corner=None
-        self.contmergina=1;self.contmerginb=1;self.contmerginc=1;self.contmergind=1;self.setspacing=2
-        self.panelmergina=5;self.panelmerginb=5;self.panelmerginc=5;self.panelmergind=5
-        self.titlebarheight=45;self.toolbarheight=50;self.statusheight=22
-        self.buticonsizex=20;self.buticonsizey=20
-        if main_window and hasattr(main_window,"app_settings"):
-            self.app_settings=main_window.app_settings
-        elif APPSETTINGS_AVAILABLE:
-            try: self.app_settings=AppSettings()
-            except Exception: self.app_settings=None
-        else: self.app_settings=None
-        if self.app_settings and hasattr(self.app_settings,"theme_changed"):
-            self.app_settings.theme_changed.connect(self._refresh_icons)
-        self.WAT_settings=WATSettings()
-        if self.standalone_mode:
-            self.resize(max(800,self.WAT_settings.get("window_w",1400)),
-                        max(500,self.WAT_settings.get("window_h",800)))
-            wx,wy=self.WAT_settings.get("window_x",-1),self.WAT_settings.get("window_y",-1)
-            if wx>=0 and wy>=0: self.move(wx,wy)
-        self.icon_factory=SVGIconFactory()
-        self.setWindowTitle(App_name); self.setMinimumSize(800,500)
-        # State
-        self._waterpro=None; self._waterdat=None; self._sa_water=None
-        self._file_path=""; self._file_type=""
-        self._draw_tool="pencil"; self._active_grid="phys"
-        self._undo_phys=[]; self._undo_vis=[]; self._redo_phys=[]; self._redo_vis=[]
-        self._show_grid_lines=True
-        if self.standalone_mode: self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        else: self.setWindowFlags(Qt.WindowType.Widget)
-        self.setup_ui(); self._apply_theme()
+        self._waterpro    = None
+        self._waterdat    = None
+        self._sa_water    = None
+        self._file_path   = ""
+        self._file_type   = ""
+        self._undo_phys   = []
+        self._undo_vis    = []
+        self._redo_phys   = []
+        self._redo_vis    = []
+        self._active_grid = "phys"
+        super().__init__(parent, main_window)
 
-    def get_content_margins(self): return (self.contmergina,self.contmerginb,self.contmerginc,self.contmergind)
-    def get_panel_margins(self):   return (self.panelmergina,self.panelmerginb,self.panelmerginc,self.panelmergind)
+    def _build_menus_into_qmenu(self, pm):
+        fm = pm.addMenu("File")
+        fm.addAction("Load  Ctrl+O",         self._open_file)
+        fm.addAction("Save  Ctrl+S",         self._save_file)
+        fm.addSeparator()
+        fm.addAction("Export Grids as BMP",  self._export_bmp)
+        fm.addAction("Import BMP Grid",      self._import_bmp)
+        fm.addSeparator()
+        recent = self.WS.get_recent()
+        if recent:
+            rm = fm.addMenu("Recent Files")
+            for rp in recent:
+                act = rm.addAction(Path(rp).name)
+                act.setToolTip(rp)
+                act.triggered.connect(lambda checked=False, p=rp: self._load_file(p))
+            rm.addSeparator()
+            rm.addAction("Clear Recent", self._clear_recent)
+        em = pm.addMenu("Edit")
+        em.addAction("Undo  Ctrl+Z",         self._undo)
+        em.addAction("Redo  Ctrl+Y",         self._redo)
+        em.addSeparator()
+        em.addAction("Clear Active Grid",    self._erase_all_grid)
+        em.addAction("Invert Active Grid",   self._invert_grid)
+        em.addAction("Water Statistics",     self._show_stats)
+        vm = pm.addMenu("View")
+        vm.addAction("Zoom In  +",           lambda: self._zoom(1.25))
+        vm.addAction("Zoom Out  -",          lambda: self._zoom(0.8))
+        vm.addAction("Fit  Ctrl+0",          self._fit)
+        vm.addSeparator()
+        vm.addAction("Toggle Grid Lines",    self._toggle_grid)
+        vm.addSeparator()
+        vm.addAction("About Water Workshop", self._show_about)
 
-    def setup_ui(self):
-        ml=QVBoxLayout(self)
-        ml.setContentsMargins(*self.get_content_margins()); ml.setSpacing(self.setspacing)
-        ml.addWidget(self._create_toolbar())
-        sp=QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
-        sp.setStretchFactor(0,1); sp.setStretchFactor(1,5); sp.setStretchFactor(2,0)
-        sp.setSizes([200,950,82])
-        ml.addWidget(sp); ml.addWidget(self._create_status_bar())
-        self._setup_shortcuts()
-
-    def _get_icon_color(self):
-        bg=self.palette().window().color()
-        return "#e0e0e0" if bg.lightness()<128 else "#202020"
-
-    # ── Toolbar ───────────────────────────────────────────────────────────────
-    def _create_toolbar(self):
-        tb=QFrame(); tb.setFrameStyle(QFrame.Shape.StyledPanel)
-        tb.setFixedHeight(self.toolbarheight); self.titlebar=tb
-        tb.installEventFilter(self); tb.setMouseTracking(True)
-        layout=QHBoxLayout(tb); layout.setContentsMargins(4,2,4,2); layout.setSpacing(4)
-        ic=self._get_icon_color()
-
-        def _btn(icon_fn, tip, slot, enabled=True):
-            b=QPushButton()
-            try: b.setIcon(getattr(SVGIconFactory,icon_fn)(20,ic))
-            except Exception: pass
-            b.setIconSize(QSize(20,20)); b.setFixedSize(35,35)
-            b.setToolTip(tip); b.setEnabled(enabled); b.clicked.connect(slot)
-            layout.addWidget(b); return b
-
-        mb=QPushButton("☰"); mb.setFixedSize(35,35); mb.setToolTip("Menu")
-        mb.clicked.connect(self._show_popup_menu); layout.addWidget(mb)
-        layout.addSpacing(4)
-
-        _btn("open_icon",  "Load water file (Ctrl+O)",  self._open_file)
-        self.save_btn=_btn("save_icon","Save (Ctrl+S)",  self._save_file, False)
-        layout.addSpacing(4)
-        _btn("export_icon","Export grids as BMP",        self._export_bmp)
-        _btn("import_icon","Import BMP grid",            self._import_bmp)
-        layout.addSpacing(4)
-        _btn("undo_icon",  "Undo (Ctrl+Z)",              self._undo)
-
-        self._title_lbl=QLabel(f" {App_name}  {Build}")
-        self._title_lbl.setFont(self.title_font)
-        self._title_lbl.setStyleSheet("font-weight:bold; padding-left:8px;")
-        layout.addWidget(self._title_lbl); layout.addStretch()
-
-        self._file_lbl=QLabel("No file loaded")
-        self._file_lbl.setStyleSheet("font-size:10px; color:#aaa;")
-        layout.addWidget(self._file_lbl); layout.addSpacing(4)
-        _btn("info_icon","About Water Workshop",         self._show_about)
-
-        if self.app_settings and SettingsDialog:
-            _btn("search_icon","Theme / Settings",
-                 lambda: SettingsDialog(self.app_settings,self).exec())
-
-        if self.standalone_mode:
-            cb=QPushButton("✕"); cb.setFixedSize(35,35); cb.setToolTip("Close")
-            cb.clicked.connect(self.close); layout.addWidget(cb)
-        return tb
-
-    def _show_popup_menu(self):
-        pm=QMenu(self); self._build_menus_into_qmenu(pm)
-        btn=self.sender()
-        pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-
-    # ── Left panel ────────────────────────────────────────────────────────────
     def _create_left_panel(self):
-        p=QFrame(); p.setFrameStyle(QFrame.Shape.StyledPanel)
-        ll=QVBoxLayout(p); ll.setContentsMargins(*self.get_panel_margins())
-        hdr=QLabel("Water Levels / Rects")
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        ll  = QVBoxLayout(panel)
+        ll.setContentsMargins(*self.get_panel_margins())
+        hdr = QLabel("Water Levels / Rects")
         hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hdr.setFont(self.panel_font)
         hdr.setStyleSheet("font-weight:bold; padding:2px;")
         ll.addWidget(hdr)
-        self._levels_list=QListWidget(); self._levels_list.setAlternatingRowColors(True)
+        self._levels_list = QListWidget()
+        self._levels_list.setAlternatingRowColors(True)
         self._levels_list.itemDoubleClicked.connect(self._edit_level)
         ll.addWidget(self._levels_list)
-        br=QHBoxLayout()
-        self._add_btn=QPushButton("+ Level"); self._del_btn=QPushButton("- Remove")
+        br = QHBoxLayout()
+        self._add_btn = QPushButton("+ Level")
+        self._del_btn = QPushButton("- Remove")
         self._add_btn.clicked.connect(self._add_level)
         self._del_btn.clicked.connect(self._del_level)
-        br.addWidget(self._add_btn); br.addWidget(self._del_btn); ll.addLayout(br)
-        sep=QFrame(); sep.setFrameShape(QFrame.Shape.HLine); ll.addWidget(sep)
-        self._dirty_lbl=QLabel("Modified: no")
-        self._dirty_lbl.setFont(self.infobar_font); ll.addWidget(self._dirty_lbl)
-        return p
+        br.addWidget(self._add_btn)
+        br.addWidget(self._del_btn)
+        ll.addLayout(br)
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        ll.addWidget(sep)
+        self._dirty_lbl = QLabel("Modified: no")
+        self._dirty_lbl.setFont(self.infobar_font)
+        ll.addWidget(self._dirty_lbl)
+        return panel
 
-    # ── Centre panel ──────────────────────────────────────────────────────────
     def _create_centre_panel(self):
-        p=QFrame(); p.setFrameStyle(QFrame.Shape.StyledPanel)
-        cl=QVBoxLayout(p); cl.setContentsMargins(0,0,0,0); cl.setSpacing(0)
-        self._view_tabs=QTabWidget(); self._view_tabs.setDocumentMode(True)
+        panel = QFrame()
+        panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        cl = QVBoxLayout(panel)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+        self._view_tabs = QTabWidget()
+        self._view_tabs.setDocumentMode(True)
         self._view_tabs.currentChanged.connect(self._on_tab_changed)
-        self._phys_canvas=WaterGridWidget(); self._phys_canvas._workshop=self
-        sc1=QScrollArea(); sc1.setWidget(self._phys_canvas); sc1.setWidgetResizable(True)
-        self._view_tabs.addTab(sc1,"Physical (64x64)")
-        self._vis_canvas=WaterGridWidget(); self._vis_canvas._workshop=self
-        sc2=QScrollArea(); sc2.setWidget(self._vis_canvas); sc2.setWidgetResizable(True)
-        self._view_tabs.addTab(sc2,"Visible (128x128)")
-        self._sa_canvas=SaWaterCanvas()
+        self._phys_canvas = WaterGridWidget()
+        self._phys_canvas._workshop = self
+        sc1 = QScrollArea()
+        sc1.setWidget(self._phys_canvas)
+        sc1.setWidgetResizable(True)
+        self._view_tabs.addTab(sc1, "Physical (64x64)")
+        self._vis_canvas = WaterGridWidget()
+        self._vis_canvas._workshop = self
+        sc2 = QScrollArea()
+        sc2.setWidget(self._vis_canvas)
+        sc2.setWidgetResizable(True)
+        self._view_tabs.addTab(sc2, "Visible (128x128)")
+        self._sa_canvas = SaWaterCanvas()
         self._sa_canvas.quad_selected.connect(self._on_quad_selected)
-        self._view_tabs.addTab(self._sa_canvas,"SA Quads")
-        cl.addWidget(self._view_tabs); return p
+        self._view_tabs.addTab(self._sa_canvas, "SA Quads")
+        cl.addWidget(self._view_tabs)
+        return panel
 
-    # ── Right sidebar ─────────────────────────────────────────────────────────
-    def _create_right_panel(self):
-        sb=QFrame(); sb.setFrameStyle(QFrame.Shape.StyledPanel); sb.setFixedWidth(82)
-        sl=QVBoxLayout(sb); sl.setContentsMargins(2,4,2,4); sl.setSpacing(2)
-        ic=self._get_icon_color(); BTN=36
+    def _populate_sidebar(self):
+        sl  = self._sidebar_layout
+        ic  = self._get_icon_color()
+        BTN = 36
 
-        def _nb(icon_fn,tip,slot,checkable=False):
-            b=QToolButton(); b.setFixedSize(BTN,BTN)
-            try: b.setIcon(getattr(SVGIconFactory,icon_fn)(20,ic))
-            except Exception: b.setText(tip[:2])
-            b.setToolTip(tip); b.setCheckable(checkable); b.clicked.connect(slot); return b
+        def _nb(icon_fn, tip, slot, checkable=False):
+            b = QToolButton()
+            b.setFixedSize(BTN, BTN)
+            try:
+                b.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
+            except Exception:
+                b.setText(tip[:2])
+            b.setToolTip(tip)
+            b.setCheckable(checkable)
+            b.clicked.connect(slot)
+            return b
 
         def _row(*btns):
-            row=QHBoxLayout(); row.setSpacing(2); row.setContentsMargins(0,0,0,0)
-            for b in btns: row.addWidget(b)
-            if len(btns)==1: row.addStretch()
+            row = QHBoxLayout()
+            row.setSpacing(2)
+            row.setContentsMargins(0, 0, 0, 0)
+            for b in btns:
+                row.addWidget(b)
+            if len(btns) == 1:
+                row.addStretch()
             sl.addLayout(row)
 
         def _sep():
-            s=QFrame(); s.setFrameShape(QFrame.Shape.HLine)
-            sl.addSpacing(2); sl.addWidget(s); sl.addSpacing(2)
+            s = QFrame()
+            s.setFrameShape(QFrame.Shape.HLine)
+            sl.addSpacing(2)
+            sl.addWidget(s)
+            sl.addSpacing(2)
 
-        _row(_nb("zoom_in_icon", "Zoom in (+)", lambda: self._zoom(1.25)),
-             _nb("zoom_out_icon","Zoom out (-)",lambda: self._zoom(0.8)))
-        _row(_nb("fit_grid_icon","Fit (Ctrl+0)", self._fit),
-             _nb("locate_icon", "Toggle grid lines", self._toggle_grid))
+        def _tool(icon_fn, tip, name):
+            b = _nb(icon_fn, tip,
+                    lambda checked=False, t=name: self._set_active_tool(t),
+                    checkable=True)
+            self._draw_btns[name] = b
+            return b
+
+        _row(_nb("zoom_in_icon",  "Zoom in (+)",     lambda: self._zoom(1.25)),
+             _nb("zoom_out_icon", "Zoom out (-)",    lambda: self._zoom(0.8)))
+        _row(_nb("fit_grid_icon", "Fit  Ctrl+0",     self._fit),
+             _nb("locate_icon",   "Toggle grid",     self._toggle_grid))
         _sep()
-
-        self._draw_btns={}
-
-        def _tool(icon_fn,tip,tool):
-            b=_nb(icon_fn,tip,lambda checked=False,t=tool:self._set_draw_tool(t),checkable=True)
-            self._draw_btns[tool]=b; return b
-
-        zoom_b=_tool("zoom_in_icon","Zoom tool (Z)","zoom")
-        _row(_nb("search_icon","Show stats",self._show_stats), zoom_b)
-        _row(_tool("paint_icon",   "Pencil (P)",           "pencil"),
-             _tool("fill_icon",    "Flood fill (F)",       "fill"))
-        _row(_tool("line_icon",    "Line (L)",             "line"),
-             _tool("rect_icon",    "Rect outline (R)",     "rect"))
-        _row(_tool("rect_fill_icon","Filled rect (Shift+R)","rect_fill"),
-             _tool("dropper_icon", "Dropper (K)",          "picker"))
-        _row(_tool("scissors_icon","Erase all",            "erase_all"),
-             _nb("rotate_cw_icon","Invert grid",           self._invert_grid))
-        self._draw_btns["pencil"].setChecked(True)
+        _row(_tool("paint_icon",     "Pencil (P)",           "pencil"),
+             _tool("fill_icon",      "Flood fill (F)",       "fill"))
+        _row(_tool("line_icon",      "Line (L)",             "line"),
+             _tool("rect_icon",      "Rect outline (R)",     "rect"))
+        _row(_tool("rect_fill_icon", "Filled rect (Shift+R)","rect_fill"),
+             _tool("dropper_icon",   "Dropper (K)",          "picker"))
+        _row(_tool("zoom_in_icon",   "Zoom tool (Z)",        "zoom"),
+             _nb("scissors_icon",    "Erase all",            self._erase_all_grid))
+        _row(_nb("rotate_cw_icon",   "Invert grid",          self._invert_grid),
+             _nb("search_icon",      "Statistics",           self._show_stats))
         _sep()
-
-        sl.addWidget(QLabel("L=Water  R=Dry",alignment=Qt.AlignmentFlag.AlignCenter))
-        wf=QFrame(); wf.setFixedSize(74,14)
+        sl.addWidget(QLabel("L=Water  R=Dry", alignment=Qt.AlignmentFlag.AlignCenter))
+        wf = QFrame()
+        wf.setFixedSize(74, 14)
         wf.setStyleSheet("background:#1e78dc; border:1px solid #555;")
-        df=QFrame(); df.setFixedSize(74,14)
+        df = QFrame()
+        df.setFixedSize(74, 14)
         df.setStyleSheet("background:#1e1e1e; border:1px solid #555;")
-        sl.addWidget(wf); sl.addWidget(df)
-        sl.addStretch(0); return sb
+        sl.addWidget(wf)
+        sl.addWidget(df)
+        if "pencil" in self._draw_btns:
+            self._draw_btns["pencil"].setChecked(True)
+            self._active_tool = "pencil"
 
-    def _create_status_bar(self):
-        self._status_bar=QLabel("Ready  |  Load waterpro.dat, water.dat, or SA water.dat")
-        self._status_bar.setFixedHeight(self.statusheight); self._status_bar.setFont(self.infobar_font)
-        self._status_bar.setStyleSheet("padding:2px 6px;"); return self._status_bar
 
-    def _setup_shortcuts(self):
-        for key,fn in [("Ctrl+O",self._open_file),("Ctrl+S",self._save_file),
-                       ("Ctrl+Z",self._undo),("Ctrl+Y",self._redo),
-                       ("Ctrl+Shift+Z",self._redo),("Ctrl+0",self._fit)]:
-            QShortcut(QKeySequence(key),self).activated.connect(fn)
-        for key,tool in [("P","pencil"),("F","fill"),("L","line"),("R","rect"),
-                         ("K","picker"),("Z","zoom")]:
-            QShortcut(QKeySequence(key),self).activated.connect(
-                lambda t=tool: self._set_draw_tool(t))
-        QShortcut(QKeySequence("Shift+R"),self).activated.connect(
-            lambda: self._set_draw_tool("rect_fill"))
+# =============================================================================
+# SECTION 4 - Water logic
+# =============================================================================
 
-    def _apply_theme(self):
-        if self.app_settings:
-            try:
-                qss=self.app_settings.get_stylesheet()
-                if qss: self.setStyleSheet(qss)
-            except Exception: pass
+    def _on_grid_changed(self):
+        self._dirty_lbl.setText("Modified: yes")
+        self.save_btn.setEnabled(True)
 
-    def _refresh_icons(self): self._apply_theme()
+    def _on_tab_changed(self, idx: int):
+        self._active_grid = "phys" if idx == 0 else "vis"
 
-    # ── Window chrome ─────────────────────────────────────────────────────────
-    def showEvent(self, ev):
-        super().showEvent(ev)
-        if not hasattr(self,"_corner_overlay"):
-            self._corner_overlay=_CornerOverlay(self)
-        self._corner_overlay.setGeometry(0,0,self.width(),self.height())
-        self._corner_overlay.raise_(); self._corner_overlay.show()
+    def _active_canvas(self):
+        return self._phys_canvas if self._active_grid == "phys" else self._vis_canvas
 
-    def resizeEvent(self, ev):
-        super().resizeEvent(ev)
-        if hasattr(self,"_corner_overlay"):
-            self._corner_overlay.setGeometry(0,0,self.width(),self.height())
-
-    def _corner_at(self, pos):
-        s=self.corner_size; w,h=self.width(),self.height(); x,y=pos.x(),pos.y()
-        if x<s and y<s:   return "top-left"
-        if x>w-s and y<s: return "top-right"
-        if x<s and y>h-s: return "bottom-left"
-        if x>w-s and y>h-s: return "bottom-right"
-        return None
-
-    def mousePressEvent(self, ev):
-        if not self.standalone_mode: return
-        if ev.button()!=Qt.MouseButton.LeftButton: return
-        corner=self._corner_at(ev.pos())
-        if corner:
-            self.resizing=True; self.resize_corner=corner
-            self.drag_position=ev.globalPosition().toPoint()
-            self._resize_start_geo=self.geometry()
-        elif hasattr(self,"titlebar") and self.titlebar.geometry().contains(ev.pos()):
-            self.dragging=True
-            self.drag_position=ev.globalPosition().toPoint()-self.frameGeometry().topLeft()
-
-    def mouseMoveEvent(self, ev):
-        if not self.standalone_mode: return
-        corner=self._corner_at(ev.pos())
-        if corner!=self.hover_corner:
-            self.hover_corner=corner
-            if hasattr(self,"_corner_overlay"):
-                self._corner_overlay.update_state(corner,self.app_settings)
-        c={"top-left":Qt.CursorShape.SizeFDiagCursor,"top-right":Qt.CursorShape.SizeBDiagCursor,
-           "bottom-left":Qt.CursorShape.SizeBDiagCursor,"bottom-right":Qt.CursorShape.SizeFDiagCursor}
-        self.setCursor(c.get(corner,Qt.CursorShape.ArrowCursor))
-        if self.resizing and ev.buttons()&Qt.MouseButton.LeftButton:
-            gp=ev.globalPosition().toPoint(); g=self._resize_start_geo
-            dx=gp.x()-self.drag_position.x(); dy=gp.y()-self.drag_position.y()
-            if "right"  in self.resize_corner: self.resize(max(800,g.width()+dx),self.height())
-            if "bottom" in self.resize_corner: self.resize(self.width(),max(500,g.height()+dy))
-            if "left"   in self.resize_corner: self.setGeometry(g.x()+dx,g.y(),max(800,g.width()-dx),g.height())
-            if "top"    in self.resize_corner: self.setGeometry(g.x(),g.y()+dy,g.width(),max(500,g.height()-dy))
-        elif self.dragging and ev.buttons()&Qt.MouseButton.LeftButton:
-            self.move(ev.globalPosition().toPoint()-self.drag_position)
-
-    def mouseReleaseEvent(self, ev):
-        self.dragging=False; self.resizing=False; self.resize_corner=None
-
-    def closeEvent(self, ev):
-        if self.standalone_mode:
-            g=self.geometry()
-            self.WAT_settings.set("window_x",g.x()); self.WAT_settings.set("window_y",g.y())
-            self.WAT_settings.set("window_w",g.width()); self.WAT_settings.set("window_h",g.height())
-            self.WAT_settings.save()
-        self.workshop_closed.emit(); super().closeEvent(ev)
-
-    # ── Status / helpers ──────────────────────────────────────────────────────
-    def _set_status(self, msg): self._status_bar.setText(msg)
-    def _on_grid_changed(self): self._dirty_lbl.setText("Modified: yes"); self.save_btn.setEnabled(True)
-    def _on_tab_changed(self, idx): self._active_grid="phys" if idx==0 else "vis"
-    def _active_canvas(self): return self._phys_canvas if self._active_grid=="phys" else self._vis_canvas
-
-    # ── Undo/redo ─────────────────────────────────────────────────────────────
     def _push_undo_grid(self):
-        if self._active_grid=="phys" and self._waterpro:
+        if self._active_grid == "phys" and self._waterpro:
             self._undo_phys.append(bytearray(self._waterpro.phys_grid))
-            if len(self._undo_phys)>20: self._undo_phys.pop(0)
+            if len(self._undo_phys) > 20:
+                self._undo_phys.pop(0)
             self._redo_phys.clear()
-        elif self._active_grid=="vis" and self._waterpro:
+        elif self._active_grid == "vis" and self._waterpro:
             self._undo_vis.append(bytearray(self._waterpro.vis_grid))
-            if len(self._undo_vis)>20: self._undo_vis.pop(0)
+            if len(self._undo_vis) > 20:
+                self._undo_vis.pop(0)
             self._redo_vis.clear()
 
     def _undo(self):
-        s,r,attr,canvas=((self._undo_phys,self._redo_phys,"phys_grid",self._phys_canvas)
-                         if self._active_grid=="phys" else
-                         (self._undo_vis, self._redo_vis, "vis_grid", self._vis_canvas))
-        if not s: self._set_status("Nothing to undo"); return
+        if self._active_grid == "phys":
+            s, r, attr, canvas = self._undo_phys, self._redo_phys, "phys_grid", self._phys_canvas
+        else:
+            s, r, attr, canvas = self._undo_vis,  self._redo_vis,  "vis_grid",  self._vis_canvas
+        if not s:
+            self._set_status("Nothing to undo")
+            return
         if self._waterpro:
-            r.append(bytearray(getattr(self._waterpro,attr)))
-            setattr(self._waterpro,attr,s.pop()); canvas.set_grid(getattr(self._waterpro,attr))
+            r.append(bytearray(getattr(self._waterpro, attr)))
+            setattr(self._waterpro, attr, s.pop())
+            canvas.set_grid(getattr(self._waterpro, attr))
         self._set_status("Undo")
 
     def _redo(self):
-        s,u,attr,canvas=((self._redo_phys,self._undo_phys,"phys_grid",self._phys_canvas)
-                         if self._active_grid=="phys" else
-                         (self._redo_vis, self._undo_vis, "vis_grid", self._vis_canvas))
-        if not s: self._set_status("Nothing to redo"); return
+        if self._active_grid == "phys":
+            s, u, attr, canvas = self._redo_phys, self._undo_phys, "phys_grid", self._phys_canvas
+        else:
+            s, u, attr, canvas = self._redo_vis,  self._undo_vis,  "vis_grid",  self._vis_canvas
+        if not s:
+            self._set_status("Nothing to redo")
+            return
         if self._waterpro:
-            u.append(bytearray(getattr(self._waterpro,attr)))
-            setattr(self._waterpro,attr,s.pop()); canvas.set_grid(getattr(self._waterpro,attr))
+            u.append(bytearray(getattr(self._waterpro, attr)))
+            setattr(self._waterpro, attr, s.pop())
+            canvas.set_grid(getattr(self._waterpro, attr))
         self._set_status("Redo")
 
-    # ── Draw tools ────────────────────────────────────────────────────────────
-    def _set_draw_tool(self, tool):
-        if tool=="erase_all": self._erase_all_grid(); return
-        self._draw_tool=tool
-        for name,btn in self._draw_btns.items(): btn.setChecked(name==tool)
-        cursors={"pencil":Qt.CursorShape.CrossCursor,"fill":Qt.CursorShape.PointingHandCursor,
-                 "line":Qt.CursorShape.CrossCursor,"rect":Qt.CursorShape.CrossCursor,
-                 "rect_fill":Qt.CursorShape.CrossCursor,"picker":Qt.CursorShape.WhatsThisCursor,
-                 "zoom":Qt.CursorShape.SizeFDiagCursor}
-        cur=cursors.get(tool,Qt.CursorShape.ArrowCursor)
-        for c in (self._phys_canvas,self._vis_canvas): c.setCursor(cur)
-
-    def _erase_all_grid(self):
-        canvas=self._active_canvas()
-        if not canvas._grid_w: return
-        if QMessageBox.question(self,"Clear Grid","Clear entire active grid to Dry?",
-            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No
-            )!=QMessageBox.StandardButton.Yes: return
-        self._push_undo_grid(); canvas._grid[:]=bytearray(len(canvas._grid))
-        canvas.update(); self._on_grid_changed()
-
-    def _invert_grid(self):
-        canvas=self._active_canvas()
-        if not canvas._grid_w: return
-        self._push_undo_grid()
-        for i in range(len(canvas._grid)):
-            canvas._grid[i]=128 if canvas._grid[i]==0 else 0
-        canvas.update(); self._on_grid_changed()
-
     def _zoom(self, f):
-        for c in (self._phys_canvas,self._vis_canvas):
-            c._zoom=max(0.1,min(20.0,c._zoom*f)); c.update()
+        for c in (self._phys_canvas, self._vis_canvas):
+            c._zoom = max(0.1, min(20.0, c._zoom * f))
+            c.update()
 
     def _fit(self):
-        for c in (self._phys_canvas,self._vis_canvas): c.fit()
+        for c in (self._phys_canvas, self._vis_canvas):
+            c.fit()
         self._sa_canvas.fit()
 
     def _toggle_grid(self):
-        for c in (self._phys_canvas,self._vis_canvas):
-            c._show_grid=not c._show_grid; c.update()
+        for c in (self._phys_canvas, self._vis_canvas):
+            c._show_grid = not c._show_grid
+            c.update()
 
-    # ── File ops ──────────────────────────────────────────────────────────────
+    def _set_active_tool(self, tool: str):
+        self._active_tool = tool
+        for name, btn in self._draw_btns.items():
+            btn.setChecked(name == tool)
+
+    def _erase_all_grid(self):
+        canvas = self._active_canvas()
+        if not canvas._grid_w:
+            return
+        if QMessageBox.question(self, "Clear Grid",
+                "Clear entire active grid to Dry?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                ) != QMessageBox.StandardButton.Yes:
+            return
+        self._push_undo_grid()
+        canvas._grid[:] = bytearray(len(canvas._grid))
+        canvas.update()
+        self._on_grid_changed()
+
+    def _invert_grid(self):
+        canvas = self._active_canvas()
+        if not canvas._grid_w:
+            return
+        self._push_undo_grid()
+        for i in range(len(canvas._grid)):
+            canvas._grid[i] = 128 if canvas._grid[i] == 0 else 0
+        canvas.update()
+        self._on_grid_changed()
+
+    def _is_binary_waterpro(self, data):
+        if len(data) < 100:
+            return False
+        rem = len(data) - 964
+        if rem <= 0 or rem % 5 != 0:
+            return False
+        gw = int(math.isqrt(rem // 5))
+        return gw * gw == rem // 5
+
+    def _is_sa_water(self, data):
+        try:
+            return data[:9].decode("latin1") == "processed"
+        except Exception:
+            return False
+
     def _open_file(self, path=None):
         if not path:
-            path,_=QFileDialog.getOpenFileName(self,"Open Water File","",
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open Water File", "",
                 "Water Files (*.dat *.DAT);;All Files (*)")
-        if path: self._load_file(path)
+        if path:
+            self._load_file(path)
 
     def _load_file(self, path):
         try:
-            data=Path(path).read_bytes()
-            if self._is_binary_waterpro(data):  self._load_waterpro(path, data)
-            elif self._is_sa_water(data):        self._load_sa_water(path)
-            else:                                self._load_waterdat(path)
-            self.WAT_settings.add_recent(str(path))
-            self._file_path=str(path); self._dirty_lbl.setText("Modified: no")
-            self.save_btn.setEnabled(False); self._file_lbl.setText(Path(path).name)
+            data = Path(path).read_bytes()
+            if self._is_binary_waterpro(data):
+                self._load_waterpro(path, data)
+            elif self._is_sa_water(data):
+                self._load_sa_water(path)
+            else:
+                self._load_waterdat(path)
+            self.WS.add_recent(str(path))
+            self._file_path = str(path)
+            self._dirty_lbl.setText("Modified: no")
+            self.save_btn.setEnabled(False)
         except Exception as e:
             import traceback
-            QMessageBox.critical(self,"Load Error",
+            QMessageBox.critical(self, "Load Error",
                 f"Failed to load {Path(path).name}:\n{e}\n\n{traceback.format_exc()[-400:]}")
 
-    def _is_binary_waterpro(self, data):
-        if len(data)<100: return False
-        rem=len(data)-964
-        if rem<=0 or rem%5!=0: return False
-        gw=int(math.isqrt(rem//5)); return gw*gw==rem//5
-
-    def _is_sa_water(self, data):
-        try: return data[:9].decode("latin1")=="processed"
-        except Exception: return False
-
     def _load_waterpro(self, path, data):
-        wp=WaterproParser(); wp.load(path)
-        self._waterpro=wp; self._waterdat=self._sa_water=None; self._file_type="waterpro"
-        gw=wp.grid_w
+        wp = WaterproParser()
+        wp.load(path)
+        self._waterpro  = wp
+        self._waterdat  = self._sa_water = None
+        self._file_type = "waterpro"
+        gw = wp.grid_w
         self._phys_canvas.setup(gw, wp.phys_grid)
         self._vis_canvas.setup(gw*2, wp.vis_grid)
         self._view_tabs.setTabText(0, f"Physical ({gw}x{gw})")
         self._view_tabs.setTabText(1, f"Visible ({gw*2}x{gw*2})")
-        for i,e in enumerate([True,True,False]): self._view_tabs.setTabEnabled(i,e)
+        for i, e in enumerate([True, True, False]):
+            self._view_tabs.setTabEnabled(i, e)
         self._view_tabs.setCurrentIndex(0)
         self._refresh_levels_list()
-        nw=sum(1 for b in wp.phys_grid if b==128); nv=sum(1 for b in wp.vis_grid if b==128)
+        nw = sum(1 for b in wp.phys_grid if b == 128)
+        nv = sum(1 for b in wp.vis_grid  if b == 128)
         self._set_status(
-            f"Loaded {Path(path).name}  |  {gw}x{gw} physical ({nw} water cells)  "
-            f"|  {gw*2}x{gw*2} visible ({nv} water cells)  |  {wp.water_levels_count} level(s)")
+            f"Loaded {Path(path).name}  |  {gw}x{gw} physical ({nw} water cells)"
+            f"  |  {gw*2}x{gw*2} visible ({nv} water cells)"
+            f"  |  {wp.water_levels_count} level(s)")
 
     def _load_waterdat(self, path):
-        wd=WaterDatParser(); wd.load(path)
-        self._waterdat=wd; self._waterpro=self._sa_water=None; self._file_type="waterdat"
-        for i in range(3): self._view_tabs.setTabEnabled(i,False)
+        wd = WaterDatParser()
+        wd.load(path)
+        self._waterdat  = wd
+        self._waterpro  = self._sa_water = None
+        self._file_type = "waterdat"
+        for i in range(3):
+            self._view_tabs.setTabEnabled(i, False)
         self._levels_list.clear()
-        for i,r in enumerate(wd.rects):
+        for i, r in enumerate(wd.rects):
             self._levels_list.addItem(QListWidgetItem(
                 f"[{i}] Z={r[0]:.1f}  ({r[1]:.0f},{r[2]:.0f}) to ({r[3]:.0f},{r[4]:.0f})"))
-        self._set_status(f"Loaded {Path(path).name}  |  {len(wd.rects)} water rectangle(s)  (text)")
+        self._set_status(
+            f"Loaded {Path(path).name}  |  {len(wd.rects)} rectangle(s)  (text)")
 
     def _load_sa_water(self, path):
-        sa=SaWaterParser(); sa.load(path)
-        self._sa_water=sa; self._waterpro=self._waterdat=None; self._file_type="sa_water"
-        for i,e in enumerate([False,False,True]): self._view_tabs.setTabEnabled(i,e)
+        sa = SaWaterParser()
+        sa.load(path)
+        self._sa_water  = sa
+        self._waterpro  = self._waterdat = None
+        self._file_type = "sa_water"
+        for i, e in enumerate([False, False, True]):
+            self._view_tabs.setTabEnabled(i, e)
         self._view_tabs.setCurrentIndex(2)
         self._sa_canvas.setup(sa.quads, sa.world_bbox())
         self._levels_list.clear()
-        for i,q in enumerate(sa.quads):
-            c=q["corners"][0]
+        for i, q in enumerate(sa.quads):
+            c = q["corners"][0]
             self._levels_list.addItem(QListWidgetItem(
                 f"[{i}] ({c['x']:.0f},{c['y']:.0f})  flag={q['flag']}"))
-        self._set_status(f"Loaded {Path(path).name}  |  {len(sa.quads)} SA water quads")
+        self._set_status(
+            f"Loaded {Path(path).name}  |  {len(sa.quads)} SA water quads")
 
     def _refresh_levels_list(self):
         self._levels_list.clear()
-        if not self._waterpro: return
-        wp=self._waterpro
+        if not self._waterpro:
+            return
+        wp = self._waterpro
         for i in range(wp.water_levels_count):
-            self._levels_list.addItem(QListWidgetItem(f"Level {i}:  Z = {wp.water_level_data[i]:.4f}"))
+            self._levels_list.addItem(QListWidgetItem(
+                f"Level {i}:  Z = {wp.water_level_data[i]:.4f}"))
 
     def _save_file(self):
-        if not self._file_path: self._set_status("No file loaded"); return
-        if self._file_type=="waterpro" and self._waterpro:
-            p,_=QFileDialog.getSaveFileName(self,"Save waterpro.dat",self._file_path,
-                                             "DAT Files (*.dat *.DAT);;All Files (*)")
-            if not p: return
+        if not self._file_path:
+            self._set_status("No file loaded")
+            return
+        if self._file_type == "waterpro" and self._waterpro:
+            p, _ = QFileDialog.getSaveFileName(
+                self, "Save waterpro.dat", self._file_path,
+                "DAT Files (*.dat *.DAT);;All Files (*)")
+            if not p:
+                return
             try:
-                self._waterpro.save(p); self._dirty_lbl.setText("Modified: no")
-                self.save_btn.setEnabled(False); self._set_status(f"Saved to {Path(p).name}")
-            except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
-        elif self._file_type=="waterdat" and self._waterdat:
-            p,_=QFileDialog.getSaveFileName(self,"Save water.dat",self._file_path,"DAT Files (*.dat)")
+                self._waterpro.save(p)
+                self._dirty_lbl.setText("Modified: no")
+                self.save_btn.setEnabled(False)
+                self._set_status(f"Saved to {Path(p).name}")
+            except Exception as e:
+                QMessageBox.critical(self, "Save Error", str(e))
+        elif self._file_type == "waterdat" and self._waterdat:
+            p, _ = QFileDialog.getSaveFileName(
+                self, "Save water.dat", self._file_path, "DAT Files (*.dat)")
             if p:
-                try: self._waterdat.save(p); self._set_status(f"Saved to {Path(p).name}")
-                except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
-        elif self._file_type=="sa_water" and self._sa_water:
-            p,_=QFileDialog.getSaveFileName(self,"Save SA water.dat",self._file_path,"DAT Files (*.dat)")
+                try:
+                    self._waterdat.save(p)
+                    self._set_status(f"Saved to {Path(p).name}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Save Error", str(e))
+        elif self._file_type == "sa_water" and self._sa_water:
+            p, _ = QFileDialog.getSaveFileName(
+                self, "Save SA water.dat", self._file_path, "DAT Files (*.dat)")
             if p:
-                try: self._sa_water.save(p); self._set_status(f"Saved to {Path(p).name}")
-                except Exception as e: QMessageBox.critical(self,"Save Error",str(e))
+                try:
+                    self._sa_water.save(p)
+                    self._set_status(f"Saved to {Path(p).name}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Save Error", str(e))
 
-    def _clear_recent(self):
-        self.WAT_settings._data["recent_files"]=[]; self.WAT_settings.save()
-        self._set_status("Recent files cleared")
+    def _export_file(self): self._export_bmp()
+    def _import_file(self): self._import_bmp()
 
-    # ── Export / Import BMP ───────────────────────────────────────────────────
     def _export_bmp(self):
         if not self._waterpro:
-            QMessageBox.information(self,"Export","Load a binary waterpro.dat first."); return
-        wp=self._waterpro; gw=wp.grid_w
-        stem=Path(self._file_path).stem if self._file_path else "water"
+            QMessageBox.information(self, "Export", "Load a binary waterpro.dat first.")
+            return
+        wp   = self._waterpro
+        gw   = wp.grid_w
+        stem = Path(self._file_path).stem if self._file_path else "water"
         try:
             from PIL import Image
-            def g2i(grid,w,h):
-                img=Image.new("L",(w,h),0)
-                for i in range(w*h): img.putpixel((i%w,i//w),128 if grid[i]==128 else 0)
+            def g2i(grid, w, h):
+                img = Image.new("L", (w, h), 0)
+                for i in range(w*h):
+                    img.putpixel((i%w, i//w), 128 if grid[i] == 128 else 0)
                 return img.rotate(90)
-            for grid,dflt,w,h in [(wp.phys_grid,f"{stem}_physical.bmp",gw,gw),
-                                   (wp.vis_grid, f"{stem}_visible.bmp", gw*2,gw*2)]:
-                p,_=QFileDialog.getSaveFileName(self,"Export BMP",dflt,"BMP (*.bmp)")
-                if p: g2i(grid,w,h).save(p); self._set_status(f"Exported {Path(p).name}")
-        except Exception as e: QMessageBox.critical(self,"Export Error",str(e))
+            for grid, dflt, w, h in [
+                (wp.phys_grid, f"{stem}_physical.bmp", gw,   gw),
+                (wp.vis_grid,  f"{stem}_visible.bmp",  gw*2, gw*2),
+            ]:
+                p, _ = QFileDialog.getSaveFileName(self, "Export BMP", dflt, "BMP (*.bmp)")
+                if p:
+                    g2i(grid, w, h).save(p)
+                    self._set_status(f"Exported {Path(p).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
 
     def _import_bmp(self):
         if not self._waterpro:
-            QMessageBox.information(self,"Import","Load a binary waterpro.dat first."); return
-        wp=self._waterpro; gw=wp.grid_w
-        p,_=QFileDialog.getOpenFileName(self,"Import Grid BMP","","Images (*.bmp *.png)")
-        if not p: return
+            QMessageBox.information(self, "Import", "Load a binary waterpro.dat first.")
+            return
+        wp = self._waterpro
+        gw = wp.grid_w
+        p, _ = QFileDialog.getOpenFileName(
+            self, "Import Grid BMP", "", "Images (*.bmp *.png)")
+        if not p:
+            return
         try:
             from PIL import Image
-            img=Image.open(p).convert("L"); w,h=img.size
-            if w==gw and h==gw:       target="phys"
-            elif w==gw*2 and h==gw*2: target="vis"
+            img    = Image.open(p).convert("L")
+            w, h   = img.size
+            if w == gw and h == gw:
+                target = "phys"
+            elif w == gw*2 and h == gw*2:
+                target = "vis"
             else:
-                QMessageBox.warning(self,"Size Mismatch",
-                    f"{w}x{h} does not match {gw}x{gw} or {gw*2}x{gw*2}"); return
-            img=img.rotate(-90)
-            grid=bytearray(128 if img.getpixel((i%w,i//w))>64 else 0 for i in range(w*h))
+                QMessageBox.warning(self, "Size Mismatch",
+                    f"{w}x{h} doesn't match {gw}x{gw} or {gw*2}x{gw*2}")
+                return
+            img  = img.rotate(-90)
+            grid = bytearray(128 if img.getpixel((i%w, i//w)) > 64 else 0
+                             for i in range(w*h))
             self._push_undo_grid()
-            if target=="phys": wp.phys_grid=grid; self._phys_canvas.set_grid(grid)
-            else:              wp.vis_grid=grid;  self._vis_canvas.set_grid(grid)
-            self._on_grid_changed(); self._set_status(f"Imported {target} grid from {Path(p).name}")
-        except Exception as e: QMessageBox.critical(self,"Import Error",str(e))
+            if target == "phys":
+                wp.phys_grid = grid
+                self._phys_canvas.set_grid(grid)
+            else:
+                wp.vis_grid = grid
+                self._vis_canvas.set_grid(grid)
+            self._on_grid_changed()
+            self._set_status(f"Imported {target} grid from {Path(p).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
 
-    # ── Water level editing ───────────────────────────────────────────────────
     def _edit_level(self, item):
-        if not self._waterpro: return
-        idx=self._levels_list.row(item); wp=self._waterpro
-        if idx<0 or idx>=wp.water_levels_count: return
-        dlg=QDialog(self); dlg.setWindowTitle(f"Edit Water Level {idx}")
+        if not self._waterpro:
+            return
+        idx = self._levels_list.row(item)
+        wp  = self._waterpro
+        if idx < 0 or idx >= wp.water_levels_count:
+            return
+        dlg  = QDialog(self)
+        dlg.setWindowTitle(f"Edit Water Level {idx}")
         _apply_dialog_theme(dlg, self.main_window)
-        fl=QFormLayout(dlg)
-        spin=QDoubleSpinBox(); spin.setRange(-1000,1000); spin.setDecimals(4)
-        spin.setValue(wp.water_level_data[idx]); fl.addRow(f"Level {idx} Z height:",spin)
-        btns=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); fl.addRow(btns)
-        if dlg.exec()==QDialog.DialogCode.Accepted:
-            wp.water_level_data[idx]=spin.value()
-            self._refresh_levels_list(); self._on_grid_changed()
+        fl   = QFormLayout(dlg)
+        spin = QDoubleSpinBox()
+        spin.setRange(-1000, 1000)
+        spin.setDecimals(4)
+        spin.setValue(wp.water_level_data[idx])
+        fl.addRow(f"Level {idx} Z height:", spin)
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        fl.addRow(btns)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            wp.water_level_data[idx] = spin.value()
+            self._refresh_levels_list()
+            self._on_grid_changed()
 
     def _add_level(self):
-        if not self._waterpro: return
-        wp=self._waterpro
-        if wp.water_levels_count>=WaterproParser.WATER_LEVELS:
-            QMessageBox.information(self,"At Maximum",f"Max {WaterproParser.WATER_LEVELS} levels."); return
-        wp.water_level_data[wp.water_levels_count]=0.0; wp.water_levels_count+=1
-        self._refresh_levels_list(); self._on_grid_changed()
+        if not self._waterpro:
+            return
+        wp = self._waterpro
+        if wp.water_levels_count >= WaterproParser.WATER_LEVELS:
+            QMessageBox.information(self, "At Maximum",
+                f"Maximum {WaterproParser.WATER_LEVELS} levels.")
+            return
+        wp.water_level_data[wp.water_levels_count] = 0.0
+        wp.water_levels_count += 1
+        self._refresh_levels_list()
+        self._on_grid_changed()
 
     def _del_level(self):
-        if not self._waterpro: return
-        wp=self._waterpro; idx=self._levels_list.currentRow()
-        if idx<0 or idx>=wp.water_levels_count: return
-        wp.water_level_data[idx:wp.water_levels_count-1]=wp.water_level_data[idx+1:wp.water_levels_count]
-        wp.water_level_data[wp.water_levels_count-1]=0.0; wp.water_levels_count-=1
-        self._refresh_levels_list(); self._on_grid_changed()
-
-    # ── SA quad ───────────────────────────────────────────────────────────────
-    def _on_quad_selected(self, idx):
-        if not self._sa_water: return
-        self._levels_list.setCurrentRow(idx)
-        q=self._sa_water.quads[idx]; c=q["corners"][0]
-        self._set_status(
-            f"Quad {idx}: ({c['x']:.1f},{c['y']:.1f})  flag={q['flag']}  "
-            f"f=[{', '.join(f'{v:.3f}' for v in c['f'])}]")
-
-    # ── Stats / About ─────────────────────────────────────────────────────────
-    def _show_stats(self):
         if not self._waterpro:
-            if self._sa_water:
-                q=self._sa_water.quads; b=self._sa_water.world_bbox()
-                QMessageBox.information(self,"SA Water Statistics",
-                    f"Quads:       {len(q)}\n"
-                    f"World bbox:  ({b[0]:.0f},{b[1]:.0f}) to ({b[2]:.0f},{b[3]:.0f})\n"
-                    f"Flags used:  {sorted(set(x['flag'] for x in q))}")
-            else:
-                QMessageBox.information(self,"Stats","Load a waterpro.dat first."); return
-        else:
-            wp=self._waterpro; gw=wp.grid_w
-            pw=sum(1 for b in wp.phys_grid if b==128)
-            vw=sum(1 for b in wp.vis_grid  if b==128)
-            tot_p=gw*gw; tot_v=(gw*2)**2
-            QMessageBox.information(self,"Water Statistics",
-                f"Grid width:    {gw}\n"
-                f"Physical grid: {gw}x{gw} = {tot_p} cells\n"
-                f"  Water:       {pw} ({100*pw//tot_p}%)\n"
-                f"  Dry:         {tot_p-pw}\n\n"
-                f"Visible grid:  {gw*2}x{gw*2} = {tot_v} cells\n"
-                f"  Water:       {vw} ({100*vw//tot_v}%)\n"
-                f"  Dry:         {tot_v-vw}\n\n"
-                f"Water levels:  {wp.water_levels_count}\n"
-                f"  Heights:     {[f'{wp.water_level_data[i]:.2f}' for i in range(wp.water_levels_count)]}")
+            return
+        wp  = self._waterpro
+        idx = self._levels_list.currentRow()
+        if idx < 0 or idx >= wp.water_levels_count:
+            return
+        wp.water_level_data[idx:wp.water_levels_count-1] = \
+            wp.water_level_data[idx+1:wp.water_levels_count]
+        wp.water_level_data[wp.water_levels_count-1] = 0.0
+        wp.water_levels_count -= 1
+        self._refresh_levels_list()
+        self._on_grid_changed()
 
-    def _show_about(self):
-        QMessageBox.information(self,"Water Workshop",
-            f"{App_name}  {Build}\n\n"
-            f"Supported formats:\n"
-            f"  waterpro.dat (binary)   GTA III / VC / PS2 LC / SOL\n"
-            f"    64x64 physical grid + 128x128 visible grid + 48 water levels\n"
-            f"    SOL: 384x384 + 768x768\n\n"
-            f"  water.dat (text)        GTA III / VC / PS2\n"
-            f"    Axis-aligned rectangles: level, x1, y1, x2, y2\n\n"
-            f"  SA water.dat (text)     GTA San Andreas\n"
-            f"    4-corner quads with 5 float properties + type flag\n\n"
-            f"Controls:\n"
-            f"  Left-click = draw water  |  Right-click = erase (dry)\n"
-            f"  Scroll wheel = zoom  |  Middle mouse = pan\n"
-            f"  P=pencil  F=fill  L=line  R=rect  K=dropper  Z=zoom\n\n"
-            f"Part of IMG Factory 1.6  |  X-Seti  {App_build}")
+    def _on_quad_selected(self, idx):
+        if not self._sa_water:
+            return
+        self._levels_list.setCurrentRow(idx)
+        q    = self._sa_water.quads[idx]
+        c    = q["corners"][0]
+        vals = ", ".join(f"{v:.3f}" for v in c["f"])
+        self._set_status(
+            f"Quad {idx}: ({c['x']:.1f},{c['y']:.1f})"
+            f"  flag={q['flag']}  f=[{vals}]")
+
+    def _show_stats(self):
+        if self._sa_water and not self._waterpro:
+            q     = self._sa_water.quads
+            b     = self._sa_water.world_bbox()
+            flags = sorted(set(x["flag"] for x in q))
+            QMessageBox.information(self, "SA Water Statistics",
+                f"Quads:       {len(q)}\n"
+                f"World bbox:  ({b[0]:.0f},{b[1]:.0f}) to ({b[2]:.0f},{b[3]:.0f})\n"
+                f"Flags used:  {flags}")
+            return
+        if not self._waterpro:
+            QMessageBox.information(self, "Stats", "Load a waterpro.dat first.")
+            return
+        wp      = self._waterpro
+        gw      = wp.grid_w
+        pw      = sum(1 for b in wp.phys_grid if b == 128)
+        vw      = sum(1 for b in wp.vis_grid  if b == 128)
+        tot_p   = gw * gw
+        tot_v   = (gw*2) ** 2
+        heights = [round(wp.water_level_data[i], 2)
+                   for i in range(wp.water_levels_count)]
+        QMessageBox.information(self, "Water Statistics",
+            f"Grid width:    {gw}\n"
+            f"Physical grid: {gw}x{gw} = {tot_p} cells\n"
+            f"  Water:       {pw} ({100*pw//tot_p}%)\n"
+            f"  Dry:         {tot_p-pw}\n\n"
+            f"Visible grid:  {gw*2}x{gw*2} = {tot_v} cells\n"
+            f"  Water:       {vw} ({100*vw//tot_v}%)\n"
+            f"  Dry:         {tot_v-vw}\n\n"
+            f"Water levels:  {wp.water_levels_count}\n"
+            f"  Heights:     {heights}")
+
+    def _clear_recent(self):
+        self.WS._data["recent_files"] = []
+        self.WS.save()
+        self._set_status("Recent files cleared")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
 # Standalone launcher
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
 
 if __name__ == "__main__":
     import traceback
     print(f"{App_name} {Build} starting...")
     try:
         app = QApplication(sys.argv)
-        w = WaterWorkshop()
+        w   = WaterWorkshop()
         w.setWindowTitle(f"{App_name} - Standalone")
         w.resize(1300, 800)
         w.show()
