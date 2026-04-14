@@ -187,8 +187,15 @@ class WaterGridWidget(QWidget):
     cell_right_clicked = pyqtSignal(int, int, QPoint)
     color_picked       = pyqtSignal(bool, bool)
 
-    COL_WATER = QColor(30, 120, 220, 255)   # value 0  = open water (sea)
-    COL_DRY   = QColor(60,  45,  25, 255)   # value 128 = land / blocked
+    COL_WATER  = QColor(30, 120, 220, 255)
+    COL_DRY    = QColor(60,  45,  25, 255)
+    COL_LEVELS = [
+        QColor(30,  120, 220, 255),
+        QColor(20,   80, 180, 255),
+        QColor(10,  160, 200, 255),
+        QColor(50,  200, 220, 255),
+        QColor(100, 180, 255, 255),
+    ]
     COL_GRID  = QColor(60,  60,  80, 120)
     COL_SEL   = QColor(255, 200,   0, 200)
     COL_HOVER = QColor(255, 255, 255,  40)
@@ -213,6 +220,7 @@ class WaterGridWidget(QWidget):
         self._show_grid     = True
         self._pan_drag      = None
         self._pan_start     = (0, 0)
+        self._colour_flipped = False
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -228,6 +236,18 @@ class WaterGridWidget(QWidget):
     def set_grid(self, grid: bytearray):
         self._grid = grid
         self.update()
+
+    def _cell_col(self, val: int) -> QColor:
+        if val == 128:
+            return self.COL_WATER if self._colour_flipped else self.COL_DRY
+        elif val == 0:
+            return self.COL_DRY if self._colour_flipped else self.COL_WATER
+        else:
+            idx = min(val, len(self.COL_LEVELS) - 1)
+            col = self.COL_LEVELS[idx]
+            if self._colour_flipped:
+                return QColor(255-col.red(), 255-col.green(), 255-col.blue(), 255)
+            return col
 
     def _ts(self):
         if not self._grid_w:
@@ -267,10 +287,8 @@ class WaterGridWidget(QWidget):
                 x, y = px0 + cx*ts, py0 + cy*ts
                 if (cx, cy) in self._preview_cells:
                     p.fillRect(x, y, ts, ts, self.COL_PREV)
-                elif self._grid[cy*gw+cx] == 0:
-                    p.fillRect(x, y, ts, ts, self.COL_WATER)   # 0 = open water
                 else:
-                    p.fillRect(x, y, ts, ts, self.COL_DRY)     # 128 = land
+                    p.fillRect(x, y, ts, ts, self._cell_col(self._grid[cy*gw+cx]))
                 if (cx, cy) == (self._hover_cx, self._hover_cy):
                     p.fillRect(x, y, ts, ts, self.COL_HOVER)
         if self._sel_cx >= 0:
@@ -498,7 +516,13 @@ class SaWaterCanvas(QWidget):
             p.end()
             return
         for idx, q in enumerate(self._quads):
-            pts = [QPoint(*self._w2s(c["x"], c["y"])) for c in q["corners"]]
+            # Sort corners by angle from centroid to avoid self-intersecting quads
+            cx_avg = sum(c["x"] for c in q["corners"]) / 4
+            cy_avg = sum(c["y"] for c in q["corners"]) / 4
+            import math as _m
+            sorted_corners = sorted(q["corners"],
+                key=lambda c: _m.atan2(c["y"] - cy_avg, c["x"] - cx_avg))
+            pts = [QPoint(*self._w2s(c["x"], c["y"])) for c in sorted_corners]
             sel = (idx == self._sel_idx)
             p.setPen(QPen(self.COL_SEL if sel else self.COL_BORDER, 2 if sel else 1))
             p.setBrush(self.COL_SEL.lighter(120) if sel else self.COL_WATER)
@@ -571,7 +595,16 @@ class WaterWorkshop(GUIWorkshop):
         self._redo_phys   = []
         self._redo_vis    = []
         self._active_grid = "phys"
+        self._grid_offset_x = 0
+        self._grid_offset_y = 0
+        self._grid_offset_z = 0.0
         super().__init__(parent, main_window)
+        # Set anchor icon
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+            self.setWindowIcon(_SVG.water_workshop_icon(64))
+        except Exception:
+            pass
 
     def _build_menus_into_qmenu(self, pm):
         fm = pm.addMenu("File")
@@ -603,6 +636,8 @@ class WaterWorkshop(GUIWorkshop):
         vm.addAction("Fit  Ctrl+0",          self._fit)
         vm.addSeparator()
         vm.addAction("Toggle Grid Lines",    self._toggle_grid)
+        vm.addAction("Flip Display Colours", self._flip_colours)
+        vm.addAction("Grid Offset / Shift…", self._show_offset_dialog)
         vm.addSeparator()
         vm.addAction("About Water Workshop", self._show_about)
 
@@ -717,8 +752,10 @@ class WaterWorkshop(GUIWorkshop):
              _tool("dropper_icon",   "Dropper (K)",          "picker"))
         _row(_tool("zoom_in_icon",   "Zoom tool (Z)",        "zoom"),
              _nb("scissors_icon",    "Erase all",            self._erase_all_grid))
-        _row(_nb("rotate_cw_icon",   "Invert grid",          self._invert_grid),
-             _nb("search_icon",      "Statistics",           self._show_stats))
+        _row(_nb("rotate_cw_icon",   "Invert grid data",     self._invert_grid),
+             _nb("flip_horz_icon",   "Flip display colours", self._flip_colours))
+        _row(_nb("search_icon",      "Statistics",           self._show_stats),
+             _nb("locate_icon",      "Grid offset / shift",  self._show_offset_dialog))
         _sep()
         sl.addWidget(QLabel("L=Sea  R=Land", alignment=Qt.AlignmentFlag.AlignCenter))
         wf = QFrame()
@@ -802,6 +839,13 @@ class WaterWorkshop(GUIWorkshop):
         for c in (self._phys_canvas, self._vis_canvas):
             c._show_grid = not c._show_grid
             c.update()
+
+    def _flip_colours(self):
+        for c in (self._phys_canvas, self._vis_canvas):
+            c._colour_flipped = not c._colour_flipped
+            c.update()
+        state = "flipped" if self._phys_canvas._colour_flipped else "normal"
+        self._set_status(f"Colour display: {state}  (data unchanged)")
 
     def _set_active_tool(self, tool: str):
         self._active_tool = tool
@@ -1139,6 +1183,39 @@ class WaterWorkshop(GUIWorkshop):
         self.WS._data["recent_files"] = []
         self.WS.save()
         self._set_status("Recent files cleared")
+
+    def _show_offset_dialog(self):
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QSpinBox, QDoubleSpinBox, QDialogButtonBox, QGroupBox, QLabel
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Grid Offset / Shift")
+        _apply_dialog_theme(dlg, self.main_window)
+        lo  = QVBoxLayout(dlg)
+        grp = QGroupBox("World coordinate offset (applied on save)")
+        fl  = QFormLayout(grp)
+        sx = QSpinBox(); sx.setRange(-8192, 8192); sx.setValue(self._grid_offset_x); sx.setSuffix(" units")
+        sy = QSpinBox(); sy.setRange(-8192, 8192); sy.setValue(self._grid_offset_y); sy.setSuffix(" units")
+        sz = QDoubleSpinBox(); sz.setRange(-500, 500); sz.setDecimals(3); sz.setValue(self._grid_offset_z); sz.setSuffix("m")
+        fl.addRow("X offset:", sx)
+        fl.addRow("Y offset:", sy)
+        fl.addRow("Z offset (all levels):", sz)
+        lo.addWidget(grp)
+        lo.addWidget(QLabel("Tip: ±2000 units shifts water table by one map sector.", styleSheet="color:#888;font-style:italic;"))
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        lo.addWidget(btns)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._grid_offset_x = sx.value()
+        self._grid_offset_y = sy.value()
+        self._grid_offset_z = sz.value()
+        # Apply Z offset to all water level heights
+        if self._grid_offset_z != 0 and self._waterpro:
+            for i in range(self._waterpro.water_levels_count):
+                self._waterpro.water_level_data[i] += self._grid_offset_z
+            self._grid_offset_z = 0
+            self._refresh_levels_list()
+            self._on_grid_changed()
+        self._set_status(f"Grid offset: X={self._grid_offset_x} Y={self._grid_offset_y}")
 
 
 # =============================================================================

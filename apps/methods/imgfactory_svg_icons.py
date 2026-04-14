@@ -2455,6 +2455,35 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
     
 
+
+    @staticmethod
+    def water_workshop_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
+        """Water Workshop application icon — anchor"""
+        svg_data = '''<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="wGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%"   style="stop-color:#0a4a8a;stop-opacity:1"/>
+                    <stop offset="100%" style="stop-color:#063060;stop-opacity:1"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="64" height="64" rx="12" ry="12" fill="url(#wGrad)"/>
+            <!-- Water waves -->
+            <path d="M4 50 Q12 46 20 50 Q28 54 36 50 Q44 46 52 50 Q58 53 62 50 L62 58 Q56 62 52 58 Q44 54 36 58 Q28 62 20 58 Q12 54 4 58 Z"
+                  fill="#1e78dc" opacity="0.7"/>
+            <!-- Anchor ring -->
+            <circle cx="32" cy="16" r="5" fill="none" stroke="#e0e0e0" stroke-width="2.5"/>
+            <!-- Anchor shaft -->
+            <line x1="32" y1="20" x2="32" y2="48" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- Anchor crossbar -->
+            <line x1="18" y1="26" x2="46" y2="26" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- Anchor flukes -->
+            <path d="M32 48 Q20 44 18 52" fill="none" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M32 48 Q44 44 46 52" fill="none" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- Anchor chain top -->
+            <line x1="28" y1="12" x2="36" y2="12" stroke="#e0e0e0" stroke-width="2" stroke-linecap="round"/>
+        </svg>'''
+        return SVGIconFactory._create_icon(svg_data, size, color)
+
     @staticmethod
     def col_workshop_icon(size: int = 64, color: str = None) -> QIcon: #vers 1
         """COL Workshop application icon"""
