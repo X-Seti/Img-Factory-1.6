@@ -4,7 +4,7 @@
 #
 # TEMPLATE FILE — copy this, rename the class, fill in the stubs.
 #
-# What you get for free (from GUIWorkshop):
+# What you get:
 #   - Frameless window with corner resize triangles
 #   - Toolbar: [Menu] [Settings] <title> [Open][Save][Export][Import][Undo][ℹ][⚙][_][⬜][✕]
 #   - Three-panel layout: left list | centre tabs | right sidebar
@@ -46,9 +46,7 @@ except ImportError:
     from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # TempWorkshop — rename this class when you copy the template
-# ─────────────────────────────────────────────────────────────────────────────
 
 class TempWorkshop(GUIWorkshop):
     """Template workshop — rename class, fill in stubs, add your logic.
@@ -57,7 +55,7 @@ class TempWorkshop(GUIWorkshop):
     Only override what you need.
     """
 
-    # ── Identity — CHANGE THESE ───────────────────────────────────────────────
+    # - Identity — CHANGE THESE
     App_name        = "Temp Workshop"
     App_build       = "Build 1"
     App_author      = "X-Seti"
@@ -98,7 +96,7 @@ class TempWorkshop(GUIWorkshop):
         vm.addSeparator()
         vm.addAction("About " + self.App_name, self._show_about)
 
-    # ── Optional: override panels ─────────────────────────────────────────────
+    # - Optional: override panels
     # Uncomment and modify any of these to replace the placeholder panels.
     # If you don't override them you get placeholder list/tabs from GUIWorkshop.
 
@@ -123,7 +121,7 @@ class TempWorkshop(GUIWorkshop):
     #     sl = self._sidebar_layout
     #     # ... add your tool rows using _nb() / _row() pattern from gui_workshop
 
-    # ── File operations — fill these in ───────────────────────────────────────
+    # - File operations — fill these in
 
     def _open_file(self, path=None):
         """Open a file. Called by toolbar Open button and Ctrl+O."""
@@ -161,7 +159,8 @@ class TempWorkshop(GUIWorkshop):
         # TODO: implement import
         self._set_status("Import — not yet implemented")
 
-    # ── Undo / redo — fill these in ───────────────────────────────────────────
+
+    # - Undo / redo — fill these in
 
     def _undo(self):
         """Undo last action. Ctrl+Z."""
@@ -173,7 +172,8 @@ class TempWorkshop(GUIWorkshop):
         # TODO: pop from your redo stack and restore state
         self._set_status("Redo — not yet implemented")
 
-    # ── Left panel callbacks — fill these in ─────────────────────────────────
+
+    # - Left panel callbacks — fill these in
 
     def _on_list_selection_changed(self, row: int):
         """Called when the left panel list selection changes."""
@@ -194,14 +194,15 @@ class TempWorkshop(GUIWorkshop):
         if row >= 0:
             self._item_list.takeItem(row)
 
-    # ── Centre panel callbacks ────────────────────────────────────────────────
+
+    # - Centre panel callbacks
 
     def _on_tab_changed(self, idx: int):
         """Called when centre tab changes."""
         # TODO: update state for tab idx
         pass
 
-    # ── Toolbar action callbacks ──────────────────────────────────────────────
+    # - Toolbar action callbacks
 
     def _zoom(self, factor: float):
         """Zoom the main view. Called by sidebar zoom buttons."""
@@ -234,19 +235,14 @@ class TempWorkshop(GUIWorkshop):
         # TODO: paste
         pass
 
-    # ── Tool selection ────────────────────────────────────────────────────────
-
+    # - Tool selection
     def _set_active_tool(self, tool: str):
         """Override to add cursor changes or tool state for your canvas."""
         super()._set_active_tool(tool)   # updates sidebar button states
         # TODO: set cursor on your canvas widget
         self._set_status(f"Tool: {tool}")
 
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Standalone launcher — keep this at the bottom
-# ─────────────────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     import traceback
     print(f"{TempWorkshop.App_name} {TempWorkshop.App_build} starting...")
