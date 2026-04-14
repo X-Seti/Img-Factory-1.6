@@ -242,6 +242,9 @@ class TempWorkshop(GUIWorkshop):
         # TODO: set cursor on your canvas widget
         self._set_status(f"Tool: {tool}")
 
+
+
+
 # Standalone launcher — keep this at the bottom
 if __name__ == "__main__":
     import traceback
