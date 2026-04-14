@@ -40,10 +40,9 @@ except ImportError:
     try:
         from PIL import ImageGrab
         PIL_AVAILABLE = True
-        print("MSS not available, using PIL fallback")
+        # MSS not installed — PIL fallback active (silent)
     except ImportError:
         PIL_AVAILABLE = False
-        print("Neither MSS nor PIL available - using Qt fallback")
 
 
 ##Methods to add to SettingsDialog class
