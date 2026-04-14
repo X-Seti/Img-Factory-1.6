@@ -187,8 +187,8 @@ class WaterGridWidget(QWidget):
     cell_right_clicked = pyqtSignal(int, int, QPoint)
     color_picked       = pyqtSignal(bool, bool)
 
-    COL_WATER = QColor(30, 120, 220, 255)
-    COL_DRY   = QColor(30,  30,  30, 255)
+    COL_WATER = QColor(30, 120, 220, 255)   # value 0  = open water (sea)
+    COL_DRY   = QColor(60,  45,  25, 255)   # value 128 = land / blocked
     COL_GRID  = QColor(60,  60,  80, 120)
     COL_SEL   = QColor(255, 200,   0, 200)
     COL_HOVER = QColor(255, 255, 255,  40)
@@ -267,10 +267,10 @@ class WaterGridWidget(QWidget):
                 x, y = px0 + cx*ts, py0 + cy*ts
                 if (cx, cy) in self._preview_cells:
                     p.fillRect(x, y, ts, ts, self.COL_PREV)
-                elif self._grid[cy*gw+cx] == 128:
-                    p.fillRect(x, y, ts, ts, self.COL_WATER)
+                elif self._grid[cy*gw+cx] == 0:
+                    p.fillRect(x, y, ts, ts, self.COL_WATER)   # 0 = open water
                 else:
-                    p.fillRect(x, y, ts, ts, self.COL_DRY)
+                    p.fillRect(x, y, ts, ts, self.COL_DRY)     # 128 = land
                 if (cx, cy) == (self._hover_cx, self._hover_cy):
                     p.fillRect(x, y, ts, ts, self.COL_HOVER)
         if self._sel_cx >= 0:
@@ -288,7 +288,7 @@ class WaterGridWidget(QWidget):
         p.setPen(QColor(255, 255, 255, 180))
         p.setFont(QFont("monospace", 8))
         p.drawText(4, self.height()-6,
-                   f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  L=water R=dry")
+                   f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  L=sea(0) R=land(128)")
         p.end()
 
     def mouseMoveEvent(self, ev):
@@ -341,9 +341,9 @@ class WaterGridWidget(QWidget):
         self.cell_clicked.emit(cx, cy)
         self.update()
         if tool == "picker":
-            self.color_picked.emit(self._cell_val(cx, cy) == 128, is_left)
+            self.color_picked.emit(self._cell_val(cx, cy) == 0, is_left)  # 0=water
             return
-        self._draw_val = 128 if is_left else 0
+        self._draw_val = 0 if is_left else 128  # L=draw water(0), R=draw land(128)
         if ws:
             ws._push_undo_grid()
         if tool == "pencil":
@@ -720,13 +720,13 @@ class WaterWorkshop(GUIWorkshop):
         _row(_nb("rotate_cw_icon",   "Invert grid",          self._invert_grid),
              _nb("search_icon",      "Statistics",           self._show_stats))
         _sep()
-        sl.addWidget(QLabel("L=Water  R=Dry", alignment=Qt.AlignmentFlag.AlignCenter))
+        sl.addWidget(QLabel("L=Sea  R=Land", alignment=Qt.AlignmentFlag.AlignCenter))
         wf = QFrame()
         wf.setFixedSize(74, 14)
         wf.setStyleSheet("background:#1e78dc; border:1px solid #555;")
         df = QFrame()
         df.setFixedSize(74, 14)
-        df.setStyleSheet("background:#1e1e1e; border:1px solid #555;")
+        df.setStyleSheet("background:#3d2b0f; border:1px solid #555;")  # land = brown
         sl.addWidget(wf)
         sl.addWidget(df)
         if "pencil" in self._draw_btns:
@@ -818,7 +818,7 @@ class WaterWorkshop(GUIWorkshop):
                 ) != QMessageBox.StandardButton.Yes:
             return
         self._push_undo_grid()
-        canvas._grid[:] = bytearray(len(canvas._grid))
+        canvas._grid[:] = bytearray(len(canvas._grid))  # fill with 0 = open water
         canvas.update()
         self._on_grid_changed()
 
