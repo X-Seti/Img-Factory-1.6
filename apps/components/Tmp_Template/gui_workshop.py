@@ -160,7 +160,8 @@ class _CornerOverlay(QWidget):
             self.setAttribute(attr, True)
         self.setWindowFlags(Qt.WindowType.Widget)
         self._hover_corner  = None
-        self._app_settings  = None
+        # Grab app_settings from parent immediately so corners paint on first show
+        self._app_settings  = getattr(parent, 'app_settings', None)
         self.setGeometry(0, 0, parent.width(), parent.height())
         self._update_mask()
 
@@ -236,10 +237,14 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
                 ...
     """
 
-    # ── Subclass identity  (override these) ───────────────────────────────────
-    App_name   = "Workshop"
-    App_build  = "Build 1"
-    config_key = "gui_workshop"    # → ~/.config/imgfactory/{config_key}.json
+    # ── Subclass identity  (override ALL of these in your subclass) ──────────
+    App_name        = "Workshop"          # shown in title bar and About
+    App_build       = "Build 1"           # shown in About / status
+    App_author      = "X-Seti"            # Copyright line in About
+    App_year        = "2026"              # Copyright year in About
+    App_description = (                   # Short description for About tab
+        "GUIWorkshop base template — IMG Factory 1.6")
+    config_key      = "gui_workshop"      # → ~/.config/imgfactory/{key}.json
 
     # ── Signals ───────────────────────────────────────────────────────────────
     workshop_closed = pyqtSignal()
@@ -710,14 +715,25 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
 
     # ── Theme / icons ─────────────────────────────────────────────────────────
     def _get_icon_color(self) -> str:
+        """Returns text_primary from current theme, or guesses from palette."""
         if APPSETTINGS_AVAILABLE and self.app_settings:
             try:
-                return self.app_settings.get_theme_colors().get(
-                    "text_primary", "#e0e0e0")
+                colors = self.app_settings.get_theme_colors()
+                return colors.get("text_primary", "#e0e0e0")
             except Exception:
                 pass
         bg = self.palette().window().color()
         return "#e0e0e0" if bg.lightness() < 128 else "#202020"
+
+    def _get_accent_color(self) -> str:
+        """Returns accent_primary from current theme."""
+        if APPSETTINGS_AVAILABLE and self.app_settings:
+            try:
+                return self.app_settings.get_theme_colors().get(
+                    "accent_primary", "#4682FF")
+            except Exception:
+                pass
+        return "#4682FF"
 
     def _apply_theme(self):
         if self.app_settings:
@@ -729,8 +745,34 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
                 pass
 
     def _refresh_icons(self):
-        """Called on theme change — re-apply theme."""
+        """Called on theme change — re-apply theme and update icon colours."""
         self._apply_theme()
+        # Update corner overlay accent colour
+        if hasattr(self, '_corner_overlay'):
+            self._corner_overlay.update_state(self.hover_corner, self.app_settings)
+        # Regenerate toolbar button icons with new colour
+        ic = self._get_icon_color()
+        icon_map = {
+            'open_btn':       'open_icon',
+            'save_btn':       'save_icon',
+            'export_btn':     'export_icon',
+            'import_btn':     'import_icon',
+            'undo_btn':       'undo_icon',
+            'info_btn':       'info_icon',
+            'properties_btn': 'properties_icon',
+            'settings_btn':   'settings_icon',
+        }
+        if self.standalone_mode:
+            icon_map.update({'minimize_btn': 'minimize_icon',
+                             'maximize_btn': 'maximize_icon',
+                             'close_btn':    'close_icon'})
+        for btn_name, icon_fn in icon_map.items():
+            btn = getattr(self, btn_name, None)
+            if btn:
+                try:
+                    btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
+                except Exception:
+                    pass
 
     def _launch_theme_settings(self):
         """Open the global AppSettings / theme dialog."""
@@ -872,18 +914,21 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
         al = QVBoxLayout(about_tab)
         about_text = QTextEdit()
         about_text.setReadOnly(True)
-        about_text.setHtml(f"""
-            <h2>{self.App_name}</h2>
-            <p><b>Build:</b> {self.App_build}</p>
-            <p><b>Template:</b> GUIWorkshop v1 — IMG Factory 1.6</p>
-            <hr>
-            <p>Copyright &copy; {__year__} {__author__}</p>
-            <p>Part of <b>IMG Factory 1.6</b> — a GTA modding toolkit.</p>
-            <p style='color:#888;'>
-              This software is provided as-is for GTA modding purposes.<br>
-              Not affiliated with Rockstar Games or Take-Two Interactive.
-            </p>
-        """)
+        # Read author/year from subclass attrs if set, else fall back to module
+        author = getattr(self, 'App_author', __author__)
+        year   = getattr(self, 'App_year',   __year__)
+        extra  = getattr(self, 'App_description', '')
+        about_text.setHtml(
+            f"<h2>{self.App_name}</h2>"
+            f"<p><b>Build:</b> {self.App_build}</p>"
+            f"<p><b>Template:</b> GUIWorkshop v1 — IMG Factory 1.6</p>"
+            + (f"<p>{extra}</p>" if extra else "") +
+            f"<hr>"
+            f"<p>Copyright &copy; {year} <b>{author}</b></p>"
+            f"<p>Part of <b>IMG Factory 1.6</b> — a GTA modding toolkit.</p>"
+            f"<p style='color:#888;'>This software is provided as-is for GTA modding "
+            f"purposes.<br>Not affiliated with Rockstar Games or Take-Two Interactive.</p>"
+        )
         al.addWidget(about_text)
         tabs.addTab(about_tab, "About")
 
@@ -940,6 +985,8 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
         super().showEvent(ev)
         if not hasattr(self, "_corner_overlay"):
             self._corner_overlay = _CornerOverlay(self)
+            # Immediately give it the accent colour source
+            self._corner_overlay.update_state(None, self.app_settings)
         self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
         self._corner_overlay.raise_()
         self._corner_overlay.show()
@@ -1116,11 +1163,14 @@ class GUIWorkshop(ToolMenuMixin, QWidget):
         pass
 
     def _show_about(self):
-        """Show about dialog.  Opens the settings dialog on the About tab."""
+        """Show about/info dialog."""
+        author = getattr(self, 'App_author', __author__)
+        year   = getattr(self, 'App_year',   __year__)
+        extra  = getattr(self, 'App_description', 'GUIWorkshop template — IMG Factory 1.6')
         QMessageBox.information(self, f"About {self.App_name}",
             f"{self.App_name}  {self.App_build}\n\n"
-            f"GUIWorkshop template — IMG Factory 1.6\n\n"
-            f"Copyright \u00a9 {__year__} {__author__}\n"
+            f"{extra}\n\n"
+            f"Copyright \u00a9 {year} {author}\n"
             f"Part of IMG Factory 1.6 — a GTA modding toolkit.")
 
 
