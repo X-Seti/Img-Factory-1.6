@@ -231,10 +231,12 @@ class WaterGridWidget(QWidget):
         self._sel_cx = self._sel_cy = -1
         self._zoom   = 1.0
         self._pan_x  = self._pan_y = 0
+        if hasattr(self, "_img_cache"): del self._img_cache
         self.update()
 
     def set_grid(self, grid: bytearray):
         self._grid = grid
+        if hasattr(self, "_img_cache"): del self._img_cache
         self.update()
 
     def _cell_col(self, val: int) -> QColor:
@@ -274,6 +276,17 @@ class WaterGridWidget(QWidget):
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
             self._grid[cy * self._grid_w + cx] = val
 
+    def _rebuild_cache(self):
+        """Render grid data to a QImage for fast blitting."""
+        from PyQt6.QtGui import QImage
+        gw  = self._grid_w
+        img = QImage(gw, gw, QImage.Format.Format_RGB32)
+        for cy in range(gw):
+            for cx in range(gw):
+                img.setPixel(cx, cy, self._cell_col(self._grid[cy*gw+cx]).rgb())
+        self._img_cache  = img
+        self._cache_flip = self._colour_flipped
+
     def paintEvent(self, ev):
         if not self._grid_w:
             return
@@ -282,25 +295,37 @@ class WaterGridWidget(QWidget):
         px0 = self._pan_x
         py0 = self._pan_y
         p   = QPainter(self)
-        for cy in range(gw):
-            for cx in range(gw):
-                x, y = px0 + cx*ts, py0 + cy*ts
-                if (cx, cy) in self._preview_cells:
-                    p.fillRect(x, y, ts, ts, self.COL_PREV)
-                else:
-                    p.fillRect(x, y, ts, ts, self._cell_col(self._grid[cy*gw+cx]))
-                if (cx, cy) == (self._hover_cx, self._hover_cy):
-                    p.fillRect(x, y, ts, ts, self.COL_HOVER)
+
+        # Fast path: scale the cached QImage to current zoom
+        if not hasattr(self, "_img_cache") or                 getattr(self, "_cache_flip", None) != self._colour_flipped:
+            self._rebuild_cache()
+        from PyQt6.QtCore import QRect
+        p.drawImage(QRect(px0, py0, gw*ts, gw*ts),
+                    self._img_cache, self._img_cache.rect())
+
+        # Preview cells on top
+        for (cx, cy) in self._preview_cells:
+            p.fillRect(px0+cx*ts, py0+cy*ts, ts, ts, self.COL_PREV)
+
+        # Hover overlay
+        if self._hover_cx >= 0:
+            p.fillRect(px0+self._hover_cx*ts, py0+self._hover_cy*ts,
+                       ts, ts, self.COL_HOVER)
+
+        # Selection
         if self._sel_cx >= 0:
             x, y = px0 + self._sel_cx*ts, py0 + self._sel_cy*ts
             p.setPen(QPen(self.COL_SEL, 2))
             p.drawRect(x+1, y+1, ts-2, ts-2)
+
+        # Grid lines when zoomed in enough
         if self._show_grid and ts >= 4:
             p.setPen(QPen(self.COL_GRID, 1))
             for c in range(gw+1):
                 p.drawLine(px0+c*ts, py0, px0+c*ts, py0+gw*ts)
             for r in range(gw+1):
                 p.drawLine(px0, py0+r*ts, px0+gw*ts, py0+r*ts)
+
         ws   = self._workshop
         tool = ws._active_tool if ws else "pencil"
         p.setPen(QColor(255, 255, 255, 180))
@@ -778,6 +803,8 @@ class WaterWorkshop(GUIWorkshop):
     def _on_grid_changed(self):
         self._dirty_lbl.setText("Modified: yes")
         self.save_btn.setEnabled(True)
+        for c in (self._phys_canvas, self._vis_canvas):
+            if hasattr(c, "_img_cache"): del c._img_cache
 
     def _on_tab_changed(self, idx: int):
         self._active_grid = "phys" if idx == 0 else "vis"
