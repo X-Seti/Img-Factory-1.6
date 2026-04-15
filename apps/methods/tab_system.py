@@ -339,8 +339,11 @@ def close_tab(main_window, tab_index: int): #vers 2
         return False
 
 
-def update_references(main_window, tab_index: int): #vers 1
-    """Update main window file references from tab"""
+def update_references(main_window, tab_index: int): #vers 2
+    """Update main window file references from tab.
+    Workshop tabs (file_type='WORKSHOP') are skipped — they don't hold
+    file objects and should not clear the current IMG/COL/TXD reference.
+    """
     try:
         if tab_index < 0:
             main_window.current_img = None
@@ -348,37 +351,54 @@ def update_references(main_window, tab_index: int): #vers 1
             main_window.current_txd = None
             return
 
-        file_object, file_type, _ = get_tab_data(
-            main_window.main_tab_widget.widget(tab_index)
-        )
+        tab_widget = main_window.main_tab_widget.widget(tab_index)
+        if not tab_widget:
+            return
+
+        # Skip workshop tabs — they don't own file objects
+        if getattr(tab_widget, 'file_type', 'NONE') == 'WORKSHOP':
+            return
+
+        file_object, file_type, _ = get_tab_data(tab_widget)
 
         main_window.current_img = file_object if file_type == 'IMG' else None
         main_window.current_col = file_object if file_type == 'COL' else None
         main_window.current_txd = file_object if file_type == 'TXD' else None
 
         # Refresh the directory file list in the left panel when switching to an IMG file
-        if file_type == 'IMG' and hasattr(main_window, 'gui_layout') and hasattr(main_window.gui_layout, 'refresh_directory_files'):
+        if file_type == 'IMG' and hasattr(main_window, 'gui_layout') and                 hasattr(main_window.gui_layout, 'refresh_directory_files'):
             main_window.gui_layout.refresh_directory_files()
 
     except Exception as e:
         main_window.log_message(f"Error updating references: {str(e)}")
 
 
-def switch_tab(main_window, tab_index: int): #vers 2
+def switch_tab(main_window, tab_index: int): #vers 3
     """Handle tab switch event - Updated to refresh table display"""
     try:
         if tab_index < 0:
             return
 
+        tab_widget = main_window.main_tab_widget.widget(tab_index)
+        if not tab_widget:
+            return
+
+        # Workshop tabs (Radar, Water, DP5, IDE, etc.) — just show, no table update
+        file_type = getattr(tab_widget, 'file_type', 'NONE')
+        if file_type == 'WORKSHOP':
+            main_window.log_message(f"Switched to workshop tab {tab_index}")
+            return
+
         main_window.log_message(f"Switching to tab {tab_index}")
 
         # Update current_img, current_col, current_txd references
-        update_references(main_window, tab_index)
+        # Only update if this is a data tab (not NONE/WORKSHOP) to avoid
+        # clearing current_img when switching to a workshop tab
+        if file_type not in ('NONE', 'WORKSHOP'):
+            update_references(main_window, tab_index)
 
         # Get file data for this tab
-        file_object, file_type, table_widget = get_tab_data(
-            main_window.main_tab_widget.widget(tab_index)
-        )
+        file_object, file_type, table_widget = get_tab_data(tab_widget)
 
         # Also get the main shared table from gui_layout
         shared_table = main_window.gui_layout.table
@@ -387,16 +407,16 @@ def switch_tab(main_window, tab_index: int): #vers 2
             # Populate the shared table with this tab's IMG data
             from apps.methods.populate_img_table import populate_img_table
             populate_img_table(shared_table, file_object)
-            
+
         elif file_type == 'COL' and file_object:
             from apps.components.Col_Editor.col_workshop import COLWorkshop
-            workshop = main_window.main_tab_widget.widget(tab_index).findChild(COLWorkshop)
+            workshop = tab_widget.findChild(COLWorkshop)
             if workshop:
                 workshop.refresh_display()
 
         elif file_type == 'TXD' and file_object:
             from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
-            workshop = main_window.main_tab_widget.widget(tab_index).findChild(TXDWorkshop)
+            workshop = tab_widget.findChild(TXDWorkshop)
             if workshop:
                 workshop.load_from_img_archive(file_object.file_path)
 

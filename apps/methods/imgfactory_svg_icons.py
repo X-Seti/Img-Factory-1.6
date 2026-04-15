@@ -3834,6 +3834,58 @@ def get_recent_scans_icon(size: int = 24, color: str = None, bg_color: str = Non
     </svg>''', size, color, bg_color)
 
 
+
+def get_radar_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Radar Workshop — radar cross / map grid"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/>
+        <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-opacity="0.6"/>
+        <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+        <line x1="12" y1="3" x2="12" y2="21" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.5"/>
+        <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.5"/>
+        <path d="M12 12 L18 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+def get_water_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Water Workshop — anchor"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="6" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/>
+        <line x1="12" y1="8.5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="7" y1="11" x2="17" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M7 19 Q9 17 12 19 Q15 21 17 19" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+def get_dp5_panel_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """DP5 Paint — paintbrush"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 20 Q6 16 10 14 L18 6 Q20 4 22 6 Q24 8 22 10 L14 18 Q12 22 8 21 Q6 22 4 20Z"
+              stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+        <path d="M14 10 L18 6" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.6"/>
+        <circle cx="7" cy="19" r="1.5" fill="currentColor" fill-opacity="0.7"/>
+    </svg>''', size, color, bg_color)
+
+def get_ipl_editor_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """IPL Editor — placement map with pin"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+        <path d="M3 9h18M9 3v18" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.5"/>
+        <path d="M15 7 Q15 10 12 13 Q9 10 9 7 Q9 4.5 12 4.5 Q15 4.5 15 7Z"
+              stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+        <circle cx="12" cy="7" r="1.2" fill="currentColor"/>
+    </svg>''', size, color, bg_color)
+
+def get_paths_map_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Paths Map — node path graph"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="5" cy="19" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/>
+        <circle cx="19" cy="5" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/>
+        <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/>
+        <circle cx="5" cy="5" r="2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-opacity="0.6"/>
+        <line x1="7" y1="17.5" x2="10" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="10" x2="16.8" y2="6.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="6.5" y1="6.5" x2="9.5" y2="10.5" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.6" stroke-linecap="round" stroke-dasharray="2 2"/>
+    </svg>''', size, color, bg_color)
+
 def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """TBA / Not Yet Implemented — dashed box with question mark"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

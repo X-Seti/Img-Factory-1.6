@@ -1393,6 +1393,7 @@ class IMGFactory(QMainWindow):
 
             # Create tab container
             tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"
             tab_layout = QVBoxLayout(tab_container)
             tab_layout.setContentsMargins(0, 0, 0, 0)
             tab_layout.setSpacing(0)
@@ -6126,6 +6127,7 @@ class IMGFactory(QMainWindow):
 
             # Build tab container
             tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"
             tab_layout = QVBoxLayout(tab_container)
             tab_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -6250,6 +6252,7 @@ class IMGFactory(QMainWindow):
 
             # Docked in tab
             tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"  # prevents tab_system clearing current_img
             tab_layout = QVBoxLayout(tab_container)
             tab_layout.setContentsMargins(0, 0, 0, 0)
             tab_layout.setSpacing(0)
@@ -6337,6 +6340,7 @@ class IMGFactory(QMainWindow):
 
             # Docked in tab — same pattern as DP5
             tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"
             tab_layout = QVBoxLayout(tab_container)
             tab_layout.setContentsMargins(0, 0, 0, 0)
             tab_layout.setSpacing(0)

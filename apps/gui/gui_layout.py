@@ -30,7 +30,9 @@ from apps.methods.imgfactory_svg_icons import (
     get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon,
     get_hybrid_load_icon, get_scan_folder_icon,
     get_recent_scans_icon, get_tba_icon,
-    get_dat_browser_icon, get_ide_editor_icon
+    get_dat_browser_icon, get_ide_editor_icon,
+    get_radar_workshop_icon, get_water_workshop_icon,
+    get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon
 )
 from apps.locals.localization import tr_button
 from typing import Optional, Dict, Any, List, Callable
@@ -361,7 +363,7 @@ class IMGFactoryGUILayout:
             'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
             'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
-            'edit_ipl_file': lambda: self._open_selected_text_file('.ipl'),
+            'edit_ipl_file': lambda: self._open_ipl_file(),
             'edit_dat_file': self._open_dat_browser,
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
@@ -389,6 +391,36 @@ class IMGFactoryGUILayout:
             self.main_window.log_message(f"Method '{method_name}' not yet implemented")
         else:
             print(f"Method '{method_name}' not yet implemented")
+
+    def _open_ipl_file(self): #vers 1
+        """Open IPL file — selected in dir tree, or via dialog."""
+        try:
+            # Try dir tree selection first
+            fp = self._get_dir_tree_selected_file()
+            if fp and fp.lower().endswith('.ipl'):
+                from apps.core.notepad import open_text_file_in_editor
+                open_text_file_in_editor(fp, self.main_window)
+                return
+            # Try selected entry in current IMG
+            if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
+                table = getattr(self.main_window.gui_layout, 'table', None)
+                if table:
+                    rows = table.selectedItems()
+                    if rows:
+                        name = table.item(rows[0].row(), 0)
+                        if name and name.text().lower().endswith('.ipl'):
+                            self._log_missing_method('edit_ipl_file')
+                            return
+            # Fallback — open file dialog
+            from PyQt6.QtWidgets import QFileDialog
+            fp, _ = QFileDialog.getOpenFileName(
+                self.main_window, "Open IPL File", "",
+                "IPL Files (*.ipl *.IPL);;All Files (*)")
+            if fp:
+                from apps.core.notepad import open_text_file_in_editor
+                open_text_file_in_editor(fp, self.main_window)
+        except Exception as e:
+            self._log_missing_method('edit_ipl_file')
 
     def _open_dat_browser(self): #vers 2
         """Open (or re-open) the DAT Browser tab — wired to the 'Dat Edit' button."""
@@ -1405,6 +1437,7 @@ class IMGFactoryGUILayout:
             # Workshop editors
             "col-edit": get_col_workshop_icon,
             "txd-edit": get_txd_workshop_icon,
+            "paint-edit": get_dp5_panel_icon,
             "hybrid-load": get_hybrid_load_icon,
             "scan-folder": get_scan_folder_icon,
             "recent-scans": get_recent_scans_icon,
@@ -1414,15 +1447,15 @@ class IMGFactoryGUILayout:
 
             # Other editor buttons - TBA where not yet implemented
             "dff-edit": get_tba_icon,       "ipf-edit": get_tba_icon,
-            "ide-edit": get_edit_icon,      "ipl-edit": get_edit_icon,
+            "ide-edit": get_ide_editor_icon, "ipl-edit": get_ipl_editor_icon,
             "dat-edit": get_edit_icon,
             "zones-cull": get_tba_icon,
             "weap-edit": get_tba_icon,
             "vehi-edit": get_tba_icon,
             "peds-edit": get_tba_icon,
-            "radar-map": get_tba_icon,
-            "paths-map": get_tba_icon,
-            "timecyc": get_tba_icon,
+            "radar-map": get_radar_workshop_icon,
+            "paths-map": get_paths_map_icon,
+            "timecyc": get_water_workshop_icon,
             "handling": get_tba_icon,
             "ojs-breakble": get_tba_icon,
             "scm-code": get_tba_icon,
