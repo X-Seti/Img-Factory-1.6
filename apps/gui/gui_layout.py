@@ -370,7 +370,7 @@ class IMGFactoryGUILayout:
             'edit_radar_map': lambda: getattr(self.main_window, 'open_radar_map', lambda: None)(),
             'open_dp5_workshop_docked': lambda: getattr(self.main_window, 'open_dp5_workshop_docked', lambda: None)(),
             'edit_paths_map': lambda: self._log_missing_method('edit_paths_map'),
-            'edit_waterpro': lambda: self._log_missing_method('edit_waterpro'),
+            'edit_waterpro': lambda: getattr(self.main_window, 'open_water_workshop', lambda: None)(),
             'edit_weather': lambda: self._log_missing_method('edit_weather'),
             'edit_2dfx': lambda: self._log_missing_method('edit_2dfx'),
             'edit_objects': lambda: self._log_missing_method('edit_objects'),

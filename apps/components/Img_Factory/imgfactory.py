@@ -6213,27 +6213,37 @@ class IMGFactory(QMainWindow):
         """Open vehicles editor"""
         self.log_message("Vehicles editor functionality coming soon")
 
-    def open_radar_map(self): #vers 3
-        """Open Radar Workshop — opens docked in a new tab, or standalone if no tab space."""
+    def open_radar_map(self): #vers 4
+        """Open Radar Workshop — standalone window, registered in taskbar."""
         try:
             from apps.components.Radar_Editor.radar_workshop import RadarWorkshop
-            # Check if already open in a tab
-            for i in range(self.main_tab_widget.count()):
-                tab = self.main_tab_widget.widget(i)
-                existing = [w for w in (tab.findChildren(RadarWorkshop) if tab else [])
-                           if isinstance(w, RadarWorkshop)]
-                if existing:
-                    self.main_tab_widget.setCurrentIndex(i)
-                    self.log_message("Radar Workshop already open")
-                    return
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
-            # Open standalone (Radar Workshop manages its own docking)
+            # If already open, raise it
+            existing = getattr(self, '_radar_workshop', None)
+            if existing and existing.isVisible():
+                existing.raise_()
+                existing.activateWindow()
+                self.log_message("Radar Workshop already open")
+                return
+
             workshop = RadarWorkshop(parent=None, main_window=self)
             workshop.setWindowTitle("Radar Workshop")
             workshop.resize(1400, 860)
             workshop.show()
             workshop.raise_()
-            self._radar_workshop = workshop  # keep reference alive
+            self._radar_workshop = workshop
+
+            # Register in taskbar
+            try:
+                from apps.gui.gui_layout import _register_tool_taskbar
+                _register_tool_taskbar(self, "radar", "Radar",
+                    SVGIconFactory.radar_workshop_icon,
+                    "Radar Workshop — GTA radar tile editor",
+                    target=workshop)
+            except Exception:
+                pass
+
             self.log_message("Radar Workshop opened")
 
             # Pass current IMG if loaded
@@ -6252,8 +6262,45 @@ class IMGFactory(QMainWindow):
         self.log_message("Paths map functionality coming soon")
 
     def open_waterpro(self): #vers 1
-        """Open water properties editor"""
-        self.log_message("Water properties functionality coming soon")
+        """Alias kept for menu compatibility — calls open_water_workshop."""
+        self.open_water_workshop()
+
+    def open_water_workshop(self): #vers 1
+        """Open Water Workshop — standalone window, registered in taskbar."""
+        try:
+            from apps.components.Water_Editor.water_workshop import WaterWorkshop
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+
+            # If already open, raise it
+            existing = getattr(self, '_water_workshop', None)
+            if existing and existing.isVisible():
+                existing.raise_()
+                existing.activateWindow()
+                self.log_message("Water Workshop already open")
+                return
+
+            workshop = WaterWorkshop(parent=None, main_window=self)
+            workshop.setWindowTitle("Water Workshop")
+            workshop.resize(1300, 800)
+            workshop.show()
+            workshop.raise_()
+            self._water_workshop = workshop
+
+            # Register in taskbar
+            try:
+                from apps.gui.gui_layout import _register_tool_taskbar
+                _register_tool_taskbar(self, "water", "Water",
+                    SVGIconFactory.water_workshop_icon,
+                    "Water Workshop — GTA water plane editor",
+                    target=workshop)
+            except Exception:
+                pass
+
+            self.log_message("Water Workshop opened")
+        except Exception as e:
+            import traceback
+            self.log_message(f"Water Workshop error: {e}")
+            traceback.print_exc()
 
 
     def validate_img(self): #vers 3

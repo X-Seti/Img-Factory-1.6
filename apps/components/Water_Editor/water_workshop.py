@@ -630,6 +630,12 @@ class WaterWorkshop(GUIWorkshop):
             self.setWindowIcon(_SVG.water_workshop_icon(64))
         except Exception:
             pass
+        # When docked: hide toolbar file buttons (they move to left panel)
+        if not self.standalone_mode:
+            for btn_name in ("open_btn", "save_btn", "export_btn", "import_btn"):
+                btn = getattr(self, btn_name, None)
+                if btn:
+                    btn.setVisible(False)
 
     def _build_menus_into_qmenu(self, pm):
         fm = pm.addMenu("File")
@@ -671,6 +677,35 @@ class WaterWorkshop(GUIWorkshop):
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         ll  = QVBoxLayout(panel)
         ll.setContentsMargins(*self.get_panel_margins())
+
+        # Docked mode: file buttons live here (not on toolbar)
+        if not self.standalone_mode:
+            ic  = self._get_icon_color()
+            btn_row = QHBoxLayout()
+            btn_row.setSpacing(2)
+
+            def _pb(icon_fn, tip, slot):
+                b = QPushButton()
+                try:
+                    b.setIcon(getattr(SVGIconFactory, icon_fn)(16, ic))
+                    b.setIconSize(QSize(16, 16))
+                except Exception:
+                    pass
+                b.setToolTip(tip)
+                b.setFixedHeight(26)
+                b.clicked.connect(slot)
+                btn_row.addWidget(b)
+                return b
+
+            _pb("open_icon",   "Load water file (Ctrl+O)", self._open_file)
+            self._docked_save_btn = _pb("save_icon", "Save (Ctrl+S)", self._save_file)
+            _pb("export_icon", "Export grids as BMP",      self._export_bmp)
+            _pb("import_icon", "Import BMP grid",          self._import_bmp)
+            ll.addLayout(btn_row)
+
+            sep0 = QFrame(); sep0.setFrameShape(QFrame.Shape.HLine)
+            ll.addWidget(sep0)
+
         hdr = QLabel("Water Levels / Rects")
         hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hdr.setFont(self.panel_font)
