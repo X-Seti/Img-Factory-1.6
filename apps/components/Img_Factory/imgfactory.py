@@ -6213,26 +6213,59 @@ class IMGFactory(QMainWindow):
         """Open vehicles editor"""
         self.log_message("Vehicles editor functionality coming soon")
 
-    def open_radar_map(self): #vers 4
-        """Open Radar Workshop — standalone window, registered in taskbar."""
+    def open_radar_map(self): #vers 5
+        """Open Radar Workshop docked in a tab (DP5 pattern), or standalone fallback."""
         try:
             from apps.components.Radar_Editor.radar_workshop import RadarWorkshop
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
-            # If already open, raise it
-            existing = getattr(self, '_radar_workshop', None)
-            if existing and existing.isVisible():
-                existing.raise_()
-                existing.activateWindow()
-                self.log_message("Radar Workshop already open")
-                return
+            # Already open as tab — switch to it
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                for i in range(self.main_tab_widget.count()):
+                    widget = self.main_tab_widget.widget(i)
+                    if widget:
+                        found = widget.findChildren(RadarWorkshop)
+                        if found:
+                            self.main_tab_widget.setCurrentIndex(i)
+                            self.log_message("Radar Workshop already open")
+                            return found[0]
 
-            workshop = RadarWorkshop(parent=None, main_window=self)
-            workshop.setWindowTitle("Radar Workshop")
-            workshop.resize(1400, 860)
+            # Standalone fallback
+            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+                existing = getattr(self, '_radar_workshop', None)
+                if existing and existing.isVisible():
+                    existing.raise_(); existing.activateWindow(); return existing
+                workshop = RadarWorkshop(parent=None, main_window=self)
+                workshop.setWindowTitle("Radar Workshop")
+                workshop.resize(1400, 860); workshop.show(); workshop.raise_()
+                self._radar_workshop = workshop
+                if self.current_img:
+                    from pathlib import Path
+                    img_path = getattr(self.current_img, 'file_path', '')
+                    if img_path and Path(img_path).exists():
+                        workshop._open_file(img_path)
+                self.log_message("Radar Workshop opened (standalone)")
+                return workshop
+
+            # Docked in tab
+            tab_container = QWidget()
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
+
+            workshop = RadarWorkshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            # Add tab with radar icon
+            try:
+                icon = SVGIconFactory.radar_workshop_icon(20)
+                idx = self.main_tab_widget.addTab(tab_container, icon, "Radar")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "Radar")
+            self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
-            workshop.raise_()
-            self._radar_workshop = workshop
 
             # Register in taskbar
             try:
@@ -6240,18 +6273,22 @@ class IMGFactory(QMainWindow):
                 _register_tool_taskbar(self, "radar", "Radar",
                     SVGIconFactory.radar_workshop_icon,
                     "Radar Workshop — GTA radar tile editor",
-                    target=workshop)
+                    target=tab_container)
             except Exception:
                 pass
 
-            self.log_message("Radar Workshop opened")
+            self.log_message("Radar Workshop opened (docked)")
 
             # Pass current IMG if loaded
             if self.current_img:
                 from pathlib import Path
                 img_path = getattr(self.current_img, 'file_path', '')
                 if img_path and Path(img_path).exists():
-                    workshop._open_file(img_path)
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(200, lambda: workshop._open_file(img_path))
+
+            return workshop
+
         except Exception as e:
             import traceback
             self.log_message(f"Radar Workshop error: {e}")
@@ -6265,26 +6302,61 @@ class IMGFactory(QMainWindow):
         """Alias kept for menu compatibility — calls open_water_workshop."""
         self.open_water_workshop()
 
-    def open_water_workshop(self): #vers 1
-        """Open Water Workshop — standalone window, registered in taskbar."""
+    def open_water_workshop(self, file_path=None): #vers 2
+        """Open Water Workshop docked in a tab (DP5 pattern), or standalone fallback."""
         try:
             from apps.components.Water_Editor.water_workshop import WaterWorkshop
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
-            # If already open, raise it
-            existing = getattr(self, '_water_workshop', None)
-            if existing and existing.isVisible():
-                existing.raise_()
-                existing.activateWindow()
-                self.log_message("Water Workshop already open")
-                return
+            # If already open as a tab, switch to it
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                for i in range(self.main_tab_widget.count()):
+                    widget = self.main_tab_widget.widget(i)
+                    if widget:
+                        found = widget.findChildren(WaterWorkshop)
+                        if found:
+                            self.main_tab_widget.setCurrentIndex(i)
+                            self.log_message("Water Workshop already open")
+                            if file_path:
+                                found[0]._load_file(file_path)
+                            return found[0]
 
-            workshop = WaterWorkshop(parent=None, main_window=self)
-            workshop.setWindowTitle("Water Workshop")
-            workshop.resize(1300, 800)
+            # Standalone fallback if no tab widget
+            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
+                existing = getattr(self, '_water_workshop', None)
+                if existing and existing.isVisible():
+                    existing.raise_(); existing.activateWindow(); return existing
+                workshop = WaterWorkshop(parent=None, main_window=self)
+                workshop.setWindowTitle("Water Workshop")
+                workshop.resize(1300, 800)
+                workshop.show(); workshop.raise_()
+                self._water_workshop = workshop
+                self.log_message("Water Workshop opened (standalone)")
+                return workshop
+
+            # Docked in tab — same pattern as DP5
+            tab_container = QWidget()
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
+
+            workshop = WaterWorkshop(tab_container, self)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
+            tab_layout.addWidget(workshop)
+
+            if file_path:
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(100, lambda: workshop._load_file(file_path))
+
+            # Add tab with anchor icon
+            try:
+                icon = SVGIconFactory.water_workshop_icon(20)
+                idx = self.main_tab_widget.addTab(tab_container, icon, "Water")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "Water")
+            self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
-            workshop.raise_()
-            self._water_workshop = workshop
 
             # Register in taskbar
             try:
@@ -6292,11 +6364,13 @@ class IMGFactory(QMainWindow):
                 _register_tool_taskbar(self, "water", "Water",
                     SVGIconFactory.water_workshop_icon,
                     "Water Workshop — GTA water plane editor",
-                    target=workshop)
+                    target=tab_container)
             except Exception:
                 pass
 
-            self.log_message("Water Workshop opened")
+            self.log_message("Water Workshop opened (docked)")
+            return workshop
+
         except Exception as e:
             import traceback
             self.log_message(f"Water Workshop error: {e}")

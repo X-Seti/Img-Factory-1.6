@@ -483,6 +483,18 @@ class WaterGridWidget(QWidget):
             self._grid[y*gw+x] = val
             stack.extend([(x+1,y),(x-1,y),(x,y+1),(x,y-1)])
 
+    def sizeHint(self):
+        from PyQt6.QtCore import QSize
+        if self._grid_w:
+            ts = max(2, min(self.width() or 800, self.height() or 600) // self._grid_w)
+            sz = self._grid_w * ts
+            return QSize(sz, sz)
+        return QSize(400, 400)
+
+    def minimumSizeHint(self):
+        from PyQt6.QtCore import QSize
+        return QSize(200, 200)
+
     def fit(self):
         self._zoom  = 1.0
         self._pan_x = self._pan_y = 0
@@ -589,6 +601,10 @@ class SaWaterCanvas(QWidget):
         f = 1.12 if ev.angleDelta().y() > 0 else 1/1.12
         self._zoom = max(0.01, min(50.0, self._zoom * f))
         self.update()
+
+    def sizeHint(self):
+        from PyQt6.QtCore import QSize
+        return QSize(600, 600)
 
     def fit(self):
         self._fit()
