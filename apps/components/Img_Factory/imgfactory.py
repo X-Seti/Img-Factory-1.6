@@ -6269,6 +6269,8 @@ class IMGFactory(QMainWindow):
                 idx = self.main_tab_widget.addTab(tab_container, "Radar")
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
+            # Ensure the tab area is visible (content_splitter may hide it)
+            self._ensure_tab_area_visible()
 
             # Register in taskbar
             try:
@@ -6277,8 +6279,8 @@ class IMGFactory(QMainWindow):
                     SVGIconFactory.radar_workshop_icon,
                     "Radar Workshop — GTA radar tile editor",
                     target=tab_container)
-            except Exception:
-                pass
+            except Exception as e:
+                self.log_message(f"Radar taskbar error: {e}")
 
             self.log_message("Radar Workshop opened (docked)")
 
@@ -6361,6 +6363,7 @@ class IMGFactory(QMainWindow):
                 idx = self.main_tab_widget.addTab(tab_container, "Water")
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
+            self._ensure_tab_area_visible()
 
             # Register in taskbar
             try:
@@ -6369,8 +6372,8 @@ class IMGFactory(QMainWindow):
                     SVGIconFactory.water_workshop_icon,
                     "Water Workshop — GTA water plane editor",
                     target=tab_container)
-            except Exception:
-                pass
+            except Exception as e:
+                self.log_message(f"Water taskbar error: {e}")
 
             self.log_message("Water Workshop opened (docked)")
             return workshop
@@ -6380,6 +6383,40 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Water Workshop error: {e}")
             traceback.print_exc()
 
+
+    def _ensure_tab_area_visible(self): #vers 1
+        """Ensure the main_tab_widget area is not collapsed in the content splitter.
+        Called after adding a workshop tab so the user can actually see it.
+        """
+        try:
+            gl = getattr(self, 'gui_layout', None)
+            if not gl:
+                return
+            splitter = getattr(gl, 'content_splitter', None)
+            if not splitter or splitter.count() < 2:
+                return
+            sizes = splitter.sizes()
+            total = sum(sizes)
+            if not total:
+                return
+            # If the tab area (index 1) is collapsed, give it space
+            left_stack = getattr(gl, 'left_stack', None)
+            tab_idx = 0
+            for i in range(splitter.count()):
+                if splitter.widget(i) is not left_stack:
+                    tab_idx = i
+                    break
+            if sizes[tab_idx] < total * 0.3:
+                # Give tab area at least 70% of space
+                new_sizes = list(sizes)
+                new_sizes[tab_idx] = int(total * 0.75)
+                other = total - new_sizes[tab_idx]
+                for i in range(len(new_sizes)):
+                    if i != tab_idx:
+                        new_sizes[i] = other
+                splitter.setSizes(new_sizes)
+        except Exception as e:
+            self.log_message(f"_ensure_tab_area_visible error: {e}")
 
     def validate_img(self): #vers 3
         """Validate current IMG file"""

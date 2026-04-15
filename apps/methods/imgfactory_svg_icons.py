@@ -3886,6 +3886,15 @@ def get_paths_map_icon(size: int = 24, color: str = None, bg_color: str = None) 
         <line x1="6.5" y1="6.5" x2="9.5" y2="10.5" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.6" stroke-linecap="round" stroke-dasharray="2 2"/>
     </svg>''', size, color, bg_color)
 
+
+def get_weather_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Weather / timecyc editor — cloud"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 19a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5-1A4 4 0 1 1 18 19H6Z"
+              stroke="currentColor" stroke-width="2" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
 def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """TBA / Not Yet Implemented — dashed box with question mark"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

@@ -32,7 +32,8 @@ from apps.methods.imgfactory_svg_icons import (
     get_recent_scans_icon, get_tba_icon,
     get_dat_browser_icon, get_ide_editor_icon,
     get_radar_workshop_icon, get_water_workshop_icon,
-    get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon
+    get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon,
+    get_weather_icon
 )
 from apps.locals.localization import tr_button
 from typing import Optional, Dict, Any, List, Callable
@@ -654,7 +655,7 @@ class IMGFactoryGUILayout:
             ("Radar Map",  "radar_map",  "radar-map",  colors['editor_map'],     "edit_radar_map"),
             ("Paths Map",  "paths_map",  "paths-map",  colors['editor_map'],     "edit_paths_map"),
             ("Waterpro",   "timecyc",    "timecyc",    colors['editor_data'],    "edit_waterpro"),
-            ("Weather",    "timecyc",    "timecyc",    colors['editor_data'],    "edit_weather"),
+            ("Weather",    "weather",    "weather",    colors['editor_data'],    "edit_weather"),
             ("Handling",   "handling",   "handling",   colors['editor_vehicle'], "edit_handling"),
             ("Objects",    "ojs_breakble","ojs-breakble",colors['editor_data'],  "edit_objects"),
             ("SCM code",   "scm_code",   "scm-code",   colors['editor_script'],  "editscm"),
@@ -1456,6 +1457,7 @@ class IMGFactoryGUILayout:
             "radar-map": get_radar_workshop_icon,
             "paths-map": get_paths_map_icon,
             "timecyc": get_water_workshop_icon,
+            "weather": get_weather_icon,
             "handling": get_tba_icon,
             "ojs-breakble": get_tba_icon,
             "scm-code": get_tba_icon,

@@ -1573,7 +1573,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.menu_toggle_btn.setMinimumHeight(28)
         self.menu_toggle_btn.setMaximumHeight(28)
         self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
-        self.menu_toggle_btn.setVisible(self.standalone_mode)
+        self.menu_toggle_btn.setVisible(True)  # show in both standalone and docked
         layout.addWidget(self.menu_toggle_btn)
 
         # - Settings button (standalone only — docked uses right-panel button)
@@ -1584,7 +1584,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.settings_btn.setIconSize(QSize(20, 20))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip(App_name + "Workshop Settings")
-        self.settings_btn.setVisible(self.standalone_mode)
+        self.settings_btn.setVisible(True)  # show in both standalone and docked
         layout.addWidget(self.settings_btn)
 
         layout.addSpacing(8)
@@ -1649,23 +1649,29 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         layout.addWidget(self.properties_btn)
 
         # - Dock button — hidden in standalone (nothing to dock to)
-        self.dock_btn = QPushButton("D")
-        self.dock_btn.setMinimumWidth(40)
-        self.dock_btn.setMaximumWidth(40)
-        self.dock_btn.setMinimumHeight(30)
+        self.dock_btn = QPushButton()
+        try:
+            self.dock_btn.setIcon(SVGIconFactory.import_icon(20, icon_color))
+            self.dock_btn.setIconSize(QSize(20, 20))
+        except Exception:
+            self.dock_btn.setText("⊞")
+        self.dock_btn.setFixedSize(35, 35)
         self.dock_btn.setToolTip("Dock into IMG Factory")
         self.dock_btn.clicked.connect(self.toggle_dock_mode)
         self.dock_btn.setVisible(not self.standalone_mode)
         layout.addWidget(self.dock_btn)
 
-        # - Tear-off button — only when docked
+        # - Tear-off button — only when docked, use icon not bare "T"
         if not self.standalone_mode:
-            self.tearoff_btn = QPushButton("T")
-            self.tearoff_btn.setMinimumWidth(40)
-            self.tearoff_btn.setMaximumWidth(40)
-            self.tearoff_btn.setMinimumHeight(30)
+            self.tearoff_btn = QPushButton()
+            try:
+                self.tearoff_btn.setIcon(SVGIconFactory.export_icon(20, icon_color))
+                self.tearoff_btn.setIconSize(QSize(20, 20))
+            except Exception:
+                self.tearoff_btn.setText("↗")
+            self.tearoff_btn.setFixedSize(35, 35)
             self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("Tear off to standalone window")
+            self.tearoff_btn.setToolTip("Tear off — open as standalone window")
             layout.addWidget(self.tearoff_btn)
 
         # - Window controls (standalone only)
