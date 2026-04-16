@@ -311,12 +311,14 @@ class WaterGridWidget(QWidget):
         py0 = self._pan_y
         p   = QPainter(self)
 
-        # Fast path: scale the cached QImage to current zoom
+        # Draw cached QImage scaled to current zoom using explicit scale transform
         if not hasattr(self, "_img_cache") or                 getattr(self, "_cache_flip", None) != self._colour_flipped:
             self._rebuild_cache()
-        from PyQt6.QtCore import QRect
-        p.drawImage(QRect(px0, py0, gw*ts, gw*ts),
-                    self._img_cache, self._img_cache.rect())
+        p.save()
+        p.translate(px0, py0)
+        p.scale(ts, ts)
+        p.drawImage(0, 0, self._img_cache)
+        p.restore()
 
         # Preview cells — Y-flip: screen_x=col*ts, screen_y=(gw-1-row)*ts
         for (cx, cy) in self._preview_cells:
