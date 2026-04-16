@@ -828,17 +828,18 @@ def _apply_snow(rgba: bytes, w: int, h: int, threshold=180, depth=0.3,
         snow_here = (noise + bright_bias) > (1.0 - layer_coverage)
         snow_mask = np.maximum(snow_mask, snow_here.astype(np.float32) * (1.0 - layer * 0.2))
 
-    # Apply depth darkening at snow edges
-    from scipy.ndimage import sobel
+    # Apply depth darkening at snow edges using simple numpy gradient
     try:
-        edge_h = sobel(snow_mask, axis=0)
-        edge_v = sobel(snow_mask, axis=1)
-        edges = np.sqrt(edge_h**2 + edge_v**2)
-        edges = np.clip(edges * 3, 0, 1)
-        snow_depth = snow_mask - edges * depth
-        snow_depth = np.clip(snow_depth, 0, 1)
+        from scipy.ndimage import sobel as _sobel
+        edge_h = _sobel(snow_mask, axis=0)
+        edge_v = _sobel(snow_mask, axis=1)
     except ImportError:
-        snow_depth = snow_mask
+        # Pure numpy Sobel approximation — no extra deps
+        edge_h = np.gradient(snow_mask, axis=0)
+        edge_v = np.gradient(snow_mask, axis=1)
+    edges = np.sqrt(edge_h**2 + edge_v**2)
+    edges = np.clip(edges * 3, 0, 1)
+    snow_depth = np.clip(snow_mask - edges * depth, 0, 1)
 
     # Composite snow over texture
     arr = np.array(img, dtype=np.float32)
