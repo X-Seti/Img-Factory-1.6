@@ -688,7 +688,7 @@ class DP5SettingsDialog(QDialog):
         self._h_spin.setValue(self.s.get('default_height'))
         cl.addRow("Default height:", self._h_spin)
 
-        self._zoom_spin = QSpinBox(); self._zoom_spin.setRange(1, 16)
+        self._zoom_spin = QSpinBox(); self._zoom_spin.setRange(1, 64)
         self._zoom_spin.setValue(self.s.get('default_zoom'))
         cl.addRow("Default zoom:", self._zoom_spin)
 
@@ -1635,7 +1635,7 @@ class DP5Canvas(QWidget):
                 self._preview_start  = (tx, ty)
                 self._preview_end    = (tx, ty)
             else:  # 'in'
-                ed._set_zoom(min(16, ed._canvas_zoom * 2))
+                ed._set_zoom(min(64, ed._canvas_zoom * 2))
 
         elif self.tool == TOOL_MOVE:
             if self._sel_buffer and self._sel_buf_w > 0:
@@ -2000,7 +2000,7 @@ class DP5Canvas(QWidget):
 
         # Calculate new zoom level
         if old_zoom >= 1:
-            new_zoom = min(16, old_zoom + 1) if d > 0 else max(1, old_zoom - 1)
+            new_zoom = min(64, old_zoom + 1) if d > 0 else max(1, old_zoom - 1)
         else:
             step = 0.1
             new_zoom = min(1.0, round(old_zoom + step, 2)) if d > 0 \
@@ -2291,12 +2291,21 @@ class FGBGSwatch(QWidget):
         super().__init__(parent)
         self._fg = QColor(255, 0,   0,   255)
         self._bg = QColor(0,   0,   0,   255)
-        self.setFixedSize(64, 48)
+        # No fixed size — grows with panel width (min 40x30)
+        self.setMinimumSize(40, 30)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setToolTip(
             "FG (inner) / BG (outer)\n"
             "Click inner area → pick FG\n"
             "Click outer area → pick BG\n"
             "Double-click → swap FG↔BG")
+
+    def sizeHint(self):
+        from PyQt6.QtCore import QSize
+        return QSize(64, 48)
+
+    def heightForWidth(self, w: int) -> int:
+        return max(30, int(w * 0.75))
 
     # ── Properties ────────────────────────────────────────────────────────────
 
@@ -4136,6 +4145,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         # Picture
         pm = mb.addMenu("Picture")
         # Flip / mirror
+        pm.addAction("Zoom Lens…",          self._open_zoom_lens)
+        pm.addSeparator()
         pm.addAction("Flip horizontal",     self._mirror_h)
         pm.addAction("Flip vertical",       self._mirror_v)
         pm.addSeparator()
@@ -4156,6 +4167,18 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         pm.addAction("Brighten +25",        lambda: self._adjust(25))
         pm.addAction("Darken -25",          lambda: self._adjust(-25))
         pm.addSeparator()
+        pm.addAction("Colour Adjustments…", self._open_dp5_colour_adjust)
+        pm.addAction("Seamless Tool…",      self._open_dp5_seamless)
+        pm.addAction("Snow Effect…",        self._open_dp5_snow)
+        pm.addSeparator()
+        filters_m = pm.addMenu("Filters")
+        filters_m.addAction("Sharpen",         lambda: self._dp5_sharpen(1.5))
+        filters_m.addAction("Sharpen ×2",      lambda: self._dp5_sharpen(3.0))
+        filters_m.addAction("Blur (r=1)",      lambda: self._dp5_blur(1.0))
+        filters_m.addAction("Blur (r=2)",      lambda: self._dp5_blur(2.0))
+        filters_m.addAction("Emboss",           self._dp5_emboss)
+        filters_m.addAction("Edge Detect",      self._dp5_edge_detect)
+        pm.addSeparator()
         pm.addAction("Snap to user palette",          self._snap_canvas_to_user_palette)
         pm.addAction("Snap to user palette (dithered)…", self._snap_canvas_to_user_palette_dither)
         pm.addSeparator()
@@ -4167,7 +4190,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         vm = mb.addMenu("View")
         vm.addAction("Zoom in  Ctrl++",  lambda: self._set_zoom(
             self._canvas_zoom * 1.25 if self._canvas_zoom < 1
-            else min(16, self._canvas_zoom + 1)))
+            else min(64, self._canvas_zoom + 1)))
         vm.addAction("Zoom out  Ctrl+-", lambda: self._set_zoom(
             max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1
             else self._canvas_zoom - 1)))
@@ -4428,7 +4451,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         # ── View ──────────────────────────────────────────────────────────
         vm = parent_menu.addMenu("View")
         vm.addAction("Zoom in",  lambda: self._set_zoom(
-            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(16, self._canvas_zoom + 1)))
+            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(64, self._canvas_zoom + 1)))
         vm.addAction("Zoom out", lambda: self._set_zoom(
             max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
         vm.addSeparator()
@@ -4795,7 +4818,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         zoom_in_btn.setFixedSize(24, 24)
         zoom_in_btn.setToolTip("Zoom in")
         zoom_in_btn.clicked.connect(lambda: self._set_zoom(
-            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(16, self._canvas_zoom + 1)))
+            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(64, self._canvas_zoom + 1)))
         try:
             zoom_in_btn.setIcon(SVGIconFactory.zoom_in_icon(14, icon_color))
             zoom_in_btn.setIconSize(QSize(14, 14))
@@ -6903,7 +6926,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         """
         if not self.dp5_canvas: return
         old_z = max(0.01, self.dp5_canvas.zoom)
-        z     = max(0.05, min(16, float(z)))
+        z     = max(0.05, min(64.0, float(z)))
         self.dp5_canvas.zoom = z
         self._canvas_zoom    = z
         self._update_zoom_label()
@@ -7790,6 +7813,250 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         except Exception as e:
             QMessageBox.warning(self, "Open Error", str(e))
 
+
+    # ── Zoom Lens ────────────────────────────────────────────────────────────────
+
+    def _open_zoom_lens(self): #vers 1
+        """Stay-on-top zoom lens window — shows a magnified view of the canvas
+        centred on the current cursor/scroll position. Updates live."""
+        if hasattr(self, '_zoom_lens') and self._zoom_lens and self._zoom_lens.isVisible():
+            self._zoom_lens.raise_()
+            return
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+                                      QLabel, QSlider, QSpinBox)
+        from PyQt6.QtCore import Qt, QTimer, QPoint
+        from PyQt6.QtGui import QImage, QPixmap
+
+        lens = QWidget(None)
+        lens.setWindowTitle("Zoom Lens")
+        lens.setWindowFlags(Qt.WindowType.Window |
+                            Qt.WindowType.WindowStaysOnTopHint |
+                            Qt.WindowType.Tool)
+        lens.resize(320, 340)
+        self._zoom_lens = lens
+
+        lo = QVBoxLayout(lens)
+        lo.setContentsMargins(4, 4, 4, 4)
+        lo.setSpacing(4)
+
+        # Controls
+        ctrl = QHBoxLayout()
+        ctrl.addWidget(QLabel("Lens zoom:"))
+        mag_sl = QSlider(Qt.Orientation.Horizontal)
+        mag_sl.setRange(2, 32); mag_sl.setValue(8)
+        mag_sp = QSpinBox(); mag_sp.setRange(2, 32); mag_sp.setValue(8)
+        mag_sl.valueChanged.connect(mag_sp.setValue)
+        mag_sp.valueChanged.connect(mag_sl.setValue)
+        ctrl.addWidget(mag_sl, 1); ctrl.addWidget(mag_sp)
+        lo.addLayout(ctrl)
+
+        # Lens view
+        lbl = QLabel(); lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setMinimumSize(300, 300)
+        lbl.setStyleSheet("background:#111; border:1px solid #444;")
+        lo.addWidget(lbl, 1)
+
+        info = QLabel("Move cursor over canvas")
+        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info.setStyleSheet("font-size:9px; color:#888;")
+        lo.addWidget(info)
+
+        def _refresh():
+            if not self.dp5_canvas or not lens.isVisible():
+                return
+            try:
+                canvas = self.dp5_canvas
+                z = self.dp5_canvas.zoom
+                mag = mag_sl.value()
+
+                # Canvas pixel at cursor centre — use scroll area centre as fallback
+                if hasattr(self, '_canvas_scroll'):
+                    sa = self._canvas_scroll
+                    vp_cx = sa.viewport().width() // 2
+                    vp_cy = sa.viewport().height() // 2
+                    # Map to canvas pixel coords
+                    cx = (sa.horizontalScrollBar().value() + vp_cx) / max(1, z)
+                    cy = (sa.verticalScrollBar().value() + vp_cy) / max(1, z)
+                else:
+                    cx, cy = canvas.tex_w // 2, canvas.tex_h // 2
+
+                cx, cy = int(cx), int(cy)
+                tw, th = canvas.tex_w, canvas.tex_h
+
+                # Lens viewport size in canvas pixels
+                lw, lh = lbl.width() // mag, lbl.height() // mag
+                lw = max(1, lw); lh = max(1, lh)
+                x0 = max(0, cx - lw // 2); y0 = max(0, cy - lh // 2)
+                x1 = min(tw, x0 + lw); y1 = min(th, y0 + lh)
+                x0 = max(0, x1 - lw); y0 = max(0, y1 - lh)
+
+                # Grab pixel data from canvas rgba
+                rgba = bytes(canvas.rgba)
+                crop_w, crop_h = x1 - x0, y1 - y0
+                if crop_w <= 0 or crop_h <= 0:
+                    return
+
+                # Build QImage from cropped region
+                row_bytes = tw * 4
+                cropped = bytearray(crop_h * crop_w * 4)
+                for row in range(crop_h):
+                    src_off = ((y0 + row) * tw + x0) * 4
+                    dst_off = row * crop_w * 4
+                    cropped[dst_off:dst_off + crop_w * 4] = rgba[src_off:src_off + crop_w * 4]
+
+                qi = QImage(bytes(cropped), crop_w, crop_h,
+                            crop_w * 4, QImage.Format.Format_RGBA8888)
+                pm = QPixmap.fromImage(qi).scaled(
+                    crop_w * mag, crop_h * mag,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.FastTransformation)
+                lbl.setPixmap(pm)
+                info.setText(f"Canvas ({cx},{cy})  |  {crop_w}×{crop_h} px  |  {mag}× mag")
+            except Exception as e:
+                info.setText(f"Error: {e}")
+
+        timer = QTimer(lens)
+        timer.timeout.connect(_refresh)
+        timer.start(100)   # 10 fps refresh
+        self._zoom_lens_timer = timer
+
+        lens.show()
+        _refresh()
+
+    # ── Image tools (seamless, colour correction, snow, sharpen, blur) ─────────
+
+    def _open_dp5_seamless(self): #vers 1
+        """Apply seamless tiling to the current canvas."""
+        if not self.dp5_canvas: return
+        try:
+            from apps.methods.txd_tools import SeamlessDialog
+            rgba = bytes(self.dp5_canvas.rgba)
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+
+            def _apply(new_rgba):
+                self._push_undo()
+                self.dp5_canvas.rgba = bytearray(new_rgba)
+                self.dp5_canvas.update()
+                self._set_status("Seamless applied")
+
+            dlg = SeamlessDialog(rgba, w, h, "Canvas", self)
+            dlg.applied.connect(_apply)
+            dlg.exec()
+        except Exception as e:
+            self._set_status(f"Seamless error: {e}")
+
+    def _open_dp5_colour_adjust(self): #vers 1
+        """Colour adjustments: brightness/contrast/hue/sat/sharpness/opacity."""
+        if not self.dp5_canvas: return
+        try:
+            from apps.methods.txd_tools import ColourAdjustDialog
+            rgba = bytes(self.dp5_canvas.rgba)
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+
+            def _apply(new_rgba):
+                self._push_undo()
+                self.dp5_canvas.rgba = bytearray(new_rgba)
+                self.dp5_canvas.update()
+                self._set_status("Colour adjustments applied")
+
+            dlg = ColourAdjustDialog(rgba, w, h, "Canvas", self)
+            dlg.applied.connect(_apply)
+            dlg.exec()
+        except Exception as e:
+            self._set_status(f"Colour adjust error: {e}")
+
+    def _open_dp5_snow(self): #vers 1
+        """Snow effect generator."""
+        if not self.dp5_canvas: return
+        try:
+            from apps.methods.txd_tools import SnowDialog
+            rgba = bytes(self.dp5_canvas.rgba)
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+
+            def _apply(new_rgba):
+                self._push_undo()
+                self.dp5_canvas.rgba = bytearray(new_rgba)
+                self.dp5_canvas.update()
+                self._set_status("Snow effect applied")
+
+            dlg = SnowDialog(rgba, w, h, "Canvas", self)
+            dlg.applied.connect(_apply)
+            dlg.exec()
+        except Exception as e:
+            self._set_status(f"Snow error: {e}")
+
+    def _dp5_sharpen(self, amount: float = 1.5): #vers 1
+        """Sharpen the canvas using PIL ImageFilter."""
+        if not self.dp5_canvas: return
+        try:
+            from PIL import Image, ImageFilter
+            rgba = bytes(self.dp5_canvas.rgba)
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+            img = Image.frombytes('RGBA', (w, h), rgba)
+            # Unsharp mask: radius, percent, threshold
+            sharpened = img.filter(ImageFilter.UnsharpMask(
+                radius=1, percent=int(amount * 100), threshold=3))
+            self._push_undo()
+            self.dp5_canvas.rgba = bytearray(sharpened.tobytes())
+            self.dp5_canvas.update()
+            self._set_status(f"Sharpened ×{amount}")
+        except Exception as e:
+            self._set_status(f"Sharpen error: {e}")
+
+    def _dp5_blur(self, radius: float = 1.0): #vers 1
+        """Gaussian blur the canvas."""
+        if not self.dp5_canvas: return
+        try:
+            from PIL import Image, ImageFilter
+            rgba = bytes(self.dp5_canvas.rgba)
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+            img = Image.frombytes('RGBA', (w, h), rgba)
+            blurred = img.filter(ImageFilter.GaussianBlur(radius=radius))
+            self._push_undo()
+            self.dp5_canvas.rgba = bytearray(blurred.tobytes())
+            self.dp5_canvas.update()
+            self._set_status(f"Blurred r={radius}")
+        except Exception as e:
+            self._set_status(f"Blur error: {e}")
+
+    def _dp5_emboss(self): #vers 1
+        """Emboss filter."""
+        if not self.dp5_canvas: return
+        try:
+            from PIL import Image, ImageFilter
+            rgba = bytes(self.dp5_canvas.rgba)
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+            img = Image.frombytes('RGBA', (w, h), rgba)
+            rgb = img.convert('RGB').filter(ImageFilter.EMBOSS).convert('RGBA')
+            # Preserve original alpha
+            r, g, b, _ = rgb.split()
+            _, _, _, a  = img.split()
+            result = Image.merge('RGBA', (r, g, b, a))
+            self._push_undo()
+            self.dp5_canvas.rgba = bytearray(result.tobytes())
+            self.dp5_canvas.update()
+            self._set_status("Emboss applied")
+        except Exception as e:
+            self._set_status(f"Emboss error: {e}")
+
+    def _dp5_edge_detect(self): #vers 1
+        """Edge detection filter."""
+        if not self.dp5_canvas: return
+        try:
+            from PIL import Image, ImageFilter
+            rgba = bytes(self.dp5_canvas.rgba)
+            w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
+            img = Image.frombytes('RGBA', (w, h), rgba)
+            rgb = img.convert('RGB').filter(ImageFilter.FIND_EDGES).convert('RGBA')
+            r, g, b, _ = rgb.split()
+            _, _, _, a  = img.split()
+            result = Image.merge('RGBA', (r, g, b, a))
+            self._push_undo()
+            self.dp5_canvas.rgba = bytearray(result.tobytes())
+            self.dp5_canvas.update()
+            self._set_status("Edge detect applied")
+        except Exception as e:
+            self._set_status(f"Edge detect error: {e}")
 
     # ── Settings / theme ──────────────────────────────────────────────────────
 
@@ -10497,7 +10764,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             elif k == Qt.Key.Key_A: self._select_all()
             elif k in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
                 z = self._canvas_zoom
-                self._set_zoom(z * 1.25 if z < 1 else min(16, z + 1))
+                self._set_zoom(z * 1.25 if z < 1 else min(64, z + 1))
             elif k == Qt.Key.Key_Minus:
                 z = self._canvas_zoom
                 self._set_zoom(max(0.05, z * 0.8 if z <= 1 else z - 1))
