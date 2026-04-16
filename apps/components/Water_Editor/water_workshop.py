@@ -262,7 +262,9 @@ class WaterGridWidget(QWidget):
         ax, ay = pos.x() - self._pan_x, pos.y() - self._pan_y
         if ax < 0 or ay < 0:
             return -1, -1
-        cx, cy = ax // ts, ay // ts
+        cx   = ax // ts
+        cy_d = ay // ts                  # display row (0 = top of screen)
+        cy   = self._grid_w - 1 - cy_d  # data row (0 = bottom of screen)
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
             return cx, cy
         return -1, -1
@@ -277,13 +279,17 @@ class WaterGridWidget(QWidget):
             self._grid[cy * self._grid_w + cx] = val
 
     def _rebuild_cache(self):
-        """Render grid data to a QImage for fast blitting."""
+        """Render grid data to a QImage for fast blitting.
+        Y-axis is flipped: grid row 0 = bottom of image (south of map).
+        This matches the GTA engine convention and reference editors.
+        """
         from PyQt6.QtGui import QImage
         gw  = self._grid_w
         img = QImage(gw, gw, QImage.Format.Format_RGB32)
         for cy in range(gw):
+            img_y = gw - 1 - cy          # flip: row 0 → bottom pixel
             for cx in range(gw):
-                img.setPixel(cx, cy, self._cell_col(self._grid[cy*gw+cx]).rgb())
+                img.setPixel(cx, img_y, self._cell_col(self._grid[cy*gw+cx]).rgb())
         self._img_cache  = img
         self._cache_flip = self._colour_flipped
 
@@ -303,18 +309,21 @@ class WaterGridWidget(QWidget):
         p.drawImage(QRect(px0, py0, gw*ts, gw*ts),
                     self._img_cache, self._img_cache.rect())
 
-        # Preview cells on top
+        # Preview cells on top — convert data row to screen Y
         for (cx, cy) in self._preview_cells:
-            p.fillRect(px0+cx*ts, py0+cy*ts, ts, ts, self.COL_PREV)
+            scr_y = gw - 1 - cy
+            p.fillRect(px0+cx*ts, py0+scr_y*ts, ts, ts, self.COL_PREV)
 
-        # Hover overlay
+        # Hover overlay — convert data row to screen Y
         if self._hover_cx >= 0:
-            p.fillRect(px0+self._hover_cx*ts, py0+self._hover_cy*ts,
+            scr_y = gw - 1 - self._hover_cy   # data→screen Y
+            p.fillRect(px0+self._hover_cx*ts, py0+scr_y*ts,
                        ts, ts, self.COL_HOVER)
 
-        # Selection
+        # Selection — convert data row to screen Y
         if self._sel_cx >= 0:
-            x, y = px0 + self._sel_cx*ts, py0 + self._sel_cy*ts
+            scr_y = gw - 1 - self._sel_cy
+            x, y  = px0 + self._sel_cx*ts, py0 + scr_y*ts
             p.setPen(QPen(self.COL_SEL, 2))
             p.drawRect(x+1, y+1, ts-2, ts-2)
 
