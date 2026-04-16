@@ -3834,6 +3834,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         main_layout.addWidget(self._menu_bar_container)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.splitterMoved.connect(self._on_splitter_moved)
 
         self._left_panel  = self._create_left_panel()
         centre            = self._create_centre_panel()
@@ -4759,22 +4760,39 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         icon_color = self._get_icon_color()
 
-        # ── Column count: auto or explicit ────────────────────────────────
-        icon_sz   = self.dp5_settings.get('tool_icon_size')   # 20–64 px
-        btn_sz    = icon_sz + 6   # padding around icon
-        gap       = 3                                          # grid spacing
+        # ── Column count: fill available width ───────────────────────────
+        icon_sz   = self.dp5_settings.get('tool_icon_size')   # 16–64 px
+        btn_sz    = icon_sz + 6   # button size = icon + padding
+        gap       = 2             # grid spacing
 
-        # Auto mode: pick columns so the panel stays ≤ ~280px
-        # btn_sz=48 → 3col=150+framing=162, 4col=198+framing=210
-        # btn_sz=36 → 3col=114, 4col=150  btn_sz=60 → 3col=186, 4col=246
-        req_cols = self.dp5_settings.get('tool_columns')
-        if not getattr(self, 'standalone_mode', True):
-            n_cols = max(3, min(6, req_cols))  # 3+ cols when docked — reduces height not width
-        else:
-            n_cols = max(3, min(6, req_cols))
+        # Minimum columns from settings (user preference for lower bound)
+        min_cols = max(2, self.dp5_settings.get('tool_columns'))
 
-        # Panel width: fit to gadget grid + 20px extra for palette labels
-        panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 36
+        # Available width: use the splitter's current right-panel width if known,
+        # otherwise fall back to a reasonable fraction of the screen.
+        # We compute this *before* setFixedWidth so we know how much space exists.
+        available_w = 0
+        if hasattr(self, '_splitter') and self._splitter:
+            sizes = self._splitter.sizes()
+            if sizes:
+                available_w = sizes[-1]   # right panel is last widget
+        if available_w < 60:
+            # Splitter not yet laid out — estimate from screen width
+            try:
+                from PyQt6.QtWidgets import QApplication as _QApp
+                sw = (_QApp.primaryScreen().availableSize().width()
+                      if _QApp.primaryScreen() else 1400)
+            except Exception:
+                sw = 1400
+            available_w = max(180, sw // 5)   # ~20% of screen
+
+        # How many columns fit in available_w?
+        # Each column needs btn_sz + gap pixels; subtract ~24px for margins/scrollbar
+        usable = max(btn_sz, available_w - 24)
+        n_cols = max(min_cols, usable // (btn_sz + gap))
+
+        # Panel width: exactly fit n_cols columns (no wasted space)
+        panel_w = n_cols * (btn_sz + gap) - gap + 20   # +20 for margins
         panel.setFixedWidth(panel_w)
 
         layout = QVBoxLayout(panel)
@@ -8251,8 +8269,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._set_status("Settings saved.")
 
 
-    def _rebuild_right_panel(self): #vers 1
-        """Tear down and reconstruct the right panel in-place after settings change."""
+    def _rebuild_right_panel(self): #vers 2
+        """Tear down and reconstruct the right panel in-place.
+        Called after settings change or splitter resize."""
         if not hasattr(self, '_splitter'): return
         old_panel = self._splitter.widget(2)
         if old_panel is None: return
@@ -8264,6 +8283,20 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             self._select_tool(self.dp5_canvas.tool)
         self._update_color_swatches()
         self._sync_brush_thumb()   # restore thumbnail after rebuild
+
+    def _on_splitter_moved(self, pos: int, index: int): #vers 1
+        """Rebuild gadget grid when splitter is dragged — reflows columns to new width."""
+        # Debounce: only rebuild if right-panel width changed significantly
+        if not hasattr(self, '_splitter'): return
+        sizes = self._splitter.sizes()
+        new_w = sizes[-1] if sizes else 0
+        last_w = getattr(self, '_last_right_panel_w', 0)
+        icon_sz = self.dp5_settings.get('tool_icon_size')
+        btn_sz  = icon_sz + 6
+        # Rebuild only if width changed by at least one button width
+        if abs(new_w - last_w) >= btn_sz + 2:
+            self._last_right_panel_w = new_w
+            self._rebuild_right_panel()
 
 
     def _export_bitmap(self): #vers 1
