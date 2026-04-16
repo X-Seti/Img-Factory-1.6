@@ -2910,187 +2910,104 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         except ImportError:
             _SVGIconFactory = None
 
+        # 2-column grid — all buttons at 28px so 14 buttons = 7 rows × ~30px = ~210px
+        B  = 28   # button size
+        IC = 16   # icon size
+
         controls_frame = QFrame()
         controls_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        controls_frame.setMaximumWidth(50)
-        controls_layout = QVBoxLayout(controls_frame)
-        controls_layout.setContentsMargins(5, 5, 5, 5)
-        controls_layout.setSpacing(5)
-
-        # Zoom In
-        zoom_in_btn = QPushButton()
-        zoom_in_btn.setIcon(self._create_zoom_in_icon())
-        zoom_in_btn.setIconSize(QSize(20, 20))
-        zoom_in_btn.setFixedSize(40, 40)
-        zoom_in_btn.setToolTip("Zoom In")
-        zoom_in_btn.clicked.connect(self.preview_widget.zoom_in)
-        controls_layout.addWidget(zoom_in_btn)
-
-        # Zoom Out
-        zoom_out_btn = QPushButton()
-        zoom_out_btn.setIcon(self._create_zoom_out_icon())
-        zoom_out_btn.setIconSize(QSize(20, 20))
-        zoom_out_btn.setFixedSize(40, 40)
-        zoom_out_btn.setToolTip("Zoom Out")
-        zoom_out_btn.clicked.connect(self.preview_widget.zoom_out)
-        controls_layout.addWidget(zoom_out_btn)
-
-        # Reset
-        reset_btn = QPushButton()
-        reset_btn.setIcon(self._create_reset_icon())
-        reset_btn.setIconSize(QSize(20, 20))
-        reset_btn.setFixedSize(40, 40)
-        reset_btn.setToolTip("Reset View")
-        reset_btn.clicked.connect(self.preview_widget.reset_view)
-        controls_layout.addWidget(reset_btn)
-
-        # Fit
-        fit_btn = QPushButton()
-        fit_btn.setIcon(self._create_fit_icon())
-        fit_btn.setIconSize(QSize(20, 20))
-        fit_btn.setFixedSize(40, 40)
-        fit_btn.setToolTip("Fit to Window")
-        fit_btn.clicked.connect(self.preview_widget.fit_to_window)
-        controls_layout.addWidget(fit_btn)
-
-        controls_layout.addSpacing(10)
-
-        # Pan Up
-        pan_up_btn = QPushButton()
-        pan_up_btn.setIcon(self._create_arrow_up_icon())
-        pan_up_btn.setIconSize(QSize(20, 20))
-        pan_up_btn.setFixedSize(40, 40)
-        pan_up_btn.setToolTip("Pan Up")
-        pan_up_btn.clicked.connect(lambda: self._pan_preview(0, -20))
-        controls_layout.addWidget(pan_up_btn)
-
-        # Pan Down
-        pan_down_btn = QPushButton()
-        pan_down_btn.setIcon(self._create_arrow_down_icon())
-        pan_down_btn.setIconSize(QSize(20, 20))
-        pan_down_btn.setFixedSize(40, 40)
-        pan_down_btn.setToolTip("Pan Down")
-        pan_down_btn.clicked.connect(lambda: self._pan_preview(0, 20))
-        controls_layout.addWidget(pan_down_btn)
-
-        # Pan Left
-        pan_left_btn = QPushButton()
-        pan_left_btn.setIcon(self._create_arrow_left_icon())
-        pan_left_btn.setIconSize(QSize(20, 20))
-        pan_left_btn.setFixedSize(40, 40)
-        pan_left_btn.setToolTip("Pan Left")
-        pan_left_btn.clicked.connect(lambda: self._pan_preview(-20, 0))
-        controls_layout.addWidget(pan_left_btn)
-
-        # Pan Right
-        pan_right_btn = QPushButton()
-        pan_right_btn.setIcon(self._create_arrow_right_icon())
-        pan_right_btn.setIconSize(QSize(20, 20))
-        pan_right_btn.setFixedSize(40, 40)
-        pan_right_btn.setToolTip("Pan Right")
-        pan_right_btn.clicked.connect(lambda: self._pan_preview(20, 0))
-        controls_layout.addWidget(pan_right_btn)
-
-        bg_custom_btn = QPushButton()
-        bg_custom_btn.setIcon(self._create_color_picker_icon())
-        bg_custom_btn.setIconSize(QSize(20, 20))
-        bg_custom_btn.setFixedSize(40, 40)
-        bg_custom_btn.setToolTip("Pick Color")
-        bg_custom_btn.clicked.connect(self._pick_background_color)
-        controls_layout.addWidget(bg_custom_btn)
-
-        # Add resize button here
-        self.resize_texture_btn = QPushButton()
-        self.resize_texture_btn.setIcon(self._create_resize_icon())
-        self.resize_texture_btn.setIconSize(QSize(20, 20))
-        self.resize_texture_btn.setFixedSize(40, 40)
-        self.resize_texture_btn.setToolTip("Resize Texture")
-        self.resize_texture_btn.clicked.connect(self._resize_texture)
-        #self.resize_texture_btn.setEnabled(False)
-        controls_layout.addWidget(self.resize_texture_btn)
-
-        # Checkerboard pattern button
-        bg_checker_btn = QPushButton()
-        bg_checker_btn.setIcon(self._create_checkerboard_icon())
-        bg_checker_btn.setIconSize(QSize(20, 20))
-        bg_checker_btn.setFixedSize(40, 40)
-        bg_checker_btn.setToolTip("Checkerboard Pattern")
-        bg_checker_btn.clicked.connect(lambda: self.preview_widget.set_checkerboard_background())
-        controls_layout.addWidget(bg_checker_btn)
-
-        controls_layout.addSpacing(5)
-
-        # Background colors
-        bg_black_btn = QPushButton()
-        bg_black_btn.setIconSize(QSize(20, 20))
-        bg_black_btn.setFixedSize(40, 40)
-        bg_black_btn.setStyleSheet("background-color: black; border: 1px solid #555;")
-        bg_black_btn.setToolTip("Black Background")
-        bg_black_btn.clicked.connect(lambda: self.preview_widget.set_background_color(QColor(0, 0, 0)))
-        controls_layout.addWidget(bg_black_btn)
-
-        bg_gray_btn = QPushButton()
-        bg_gray_btn.setIconSize(QSize(20, 20))
-        bg_gray_btn.setFixedSize(40, 40)
-        bg_gray_btn.setStyleSheet("background-color: #2a2a2a; border: 1px solid #555;")
-        bg_gray_btn.setToolTip("Gray Background")
-        bg_gray_btn.clicked.connect(lambda: self.preview_widget.set_background_color(QColor(42, 42, 42)))
-        controls_layout.addWidget(bg_gray_btn)
-
-        bg_white_btn = QPushButton()
-        bg_white_btn.setIconSize(QSize(20, 20))
-        bg_white_btn.setFixedSize(40, 40)
-        bg_white_btn.setStyleSheet("background-color: white; border: 1px solid #555;")
-        bg_white_btn.setToolTip("White Background")
-        bg_white_btn.clicked.connect(lambda: self.preview_widget.set_background_color(QColor(255, 255, 255)))
-        controls_layout.addWidget(bg_white_btn)
-
-        controls_layout.addStretch()
-
-        # ── Tool buttons — 2-column grid, no tile buttons ─────────────────
-        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        controls_layout.addWidget(sep)
-
-        # Widen frame to fit 2 columns
-        controls_frame.setMaximumWidth(60)
+        controls_frame.setMaximumWidth(B * 2 + 10)  # exactly 2 cols wide
 
         from PyQt6.QtWidgets import QGridLayout
-        BTN = 26
-        IC  = 18
+        grid = QGridLayout(controls_frame)
+        grid.setContentsMargins(2, 4, 2, 4)
+        grid.setSpacing(2)
 
-        def _nav_btn(svg_fn, tip, slot):
+        _all_btns = []   # (btn, row, col) — filled below
+
+        def _btn(icon_fn, tip, slot, style=None, attr=None):
             b = QPushButton()
-            b.setFixedSize(BTN, BTN)
+            b.setFixedSize(B, B)
+            b.setToolTip(tip)
+            try:
+                b.setIcon(getattr(self, icon_fn)())
+                b.setIconSize(QSize(IC, IC))
+            except Exception:
+                b.setText(tip[:2])
+            if style:
+                b.setStyleSheet(style)
+            b.clicked.connect(slot)
+            if attr:
+                setattr(self, attr, b)
+            _all_btns.append(b)
+            return b
+
+        def _tool_btn(icon_fn, tip, slot):
+            b = QPushButton()
+            b.setFixedSize(B, B)
             b.setToolTip(tip)
             try:
                 if _SVGIconFactory:
-                    b.setIcon(getattr(_SVGIconFactory, svg_fn)(IC))
+                    b.setIcon(getattr(_SVGIconFactory, icon_fn)(IC))
                     b.setIconSize(QSize(IC, IC))
             except Exception:
                 b.setText(tip[:2])
             b.clicked.connect(slot)
+            _all_btns.append(b)
             return b
 
-        tool_defs = [
-            ("knob_icon",           "Colour Adjustments…",  self._open_colour_adjust),
-            ("seamless_icon",       "Seamless Tool…",       self._open_seamless_tool),
-            ("snow_icon",           "Snow Effect…",         self._open_snow_tool),
-            ("alpha_coverage_icon", "Alpha Coverage…",      self._open_alpha_coverage),
-        ]
+        # ── View controls ─────────────────────────────────────────────────
+        _btn('_create_zoom_in_icon',        'Zoom In',            self.preview_widget.zoom_in)
+        _btn('_create_zoom_out_icon',       'Zoom Out',           self.preview_widget.zoom_out)
+        _btn('_create_reset_icon',          'Reset View',         self.preview_widget.reset_view)
+        _btn('_create_fit_icon',            'Fit to Window',      self.preview_widget.fit_to_window)
+        _btn('_create_arrow_up_icon',       'Pan Up',             lambda: self._pan_preview(0, -20))
+        _btn('_create_arrow_down_icon',     'Pan Down',           lambda: self._pan_preview(0, 20))
+        _btn('_create_arrow_left_icon',     'Pan Left',           lambda: self._pan_preview(-20, 0))
+        _btn('_create_arrow_right_icon',    'Pan Right',          lambda: self._pan_preview(20, 0))
+        _btn('_create_color_picker_icon',   'Pick Background',    self._pick_background_color)
+        _btn('_create_resize_icon',         'Resize Texture',     self._resize_texture, attr='resize_texture_btn')
+        _btn('_create_checkerboard_icon',   'Checkerboard',       lambda: self.preview_widget.set_checkerboard_background())
 
-        # Auto-layout: fit into available height using 2 columns
-        # (can expand to 1-col if very tall, stays 2-col normally)
-        grid_w = QWidget()
-        grid = QGridLayout(grid_w)
-        grid.setContentsMargins(1, 1, 1, 1)
-        grid.setSpacing(2)
+        # Background colour swatches — colour-coded, no icon needed
+        for color, tip, qcol in [
+            ('black',   'Black Background',  QColor(0,   0,   0  )),
+            ('#2a2a2a', 'Gray Background',   QColor(42,  42,  42 )),
+            ('white',   'White Background',  QColor(255, 255, 255)),
+        ]:
+            b = QPushButton()
+            b.setFixedSize(B, B)
+            b.setToolTip(tip)
+            b.setStyleSheet(f"background-color:{color}; border:1px solid #555;")
+            b.clicked.connect(lambda c=False, q=qcol: self.preview_widget.set_background_color(q))
+            _all_btns.append(b)
+
+        # ── Tool buttons (separator row then 2×2) ─────────────────────────
+        sep_btn = QFrame()
+        sep_btn.setFrameShape(QFrame.Shape.HLine)
+        sep_btn.setMaximumHeight(2)
+
+        _tool_btn('knob_icon',           'Colour Adjustments…', self._open_colour_adjust)
+        _tool_btn('seamless_icon',       'Seamless Tool…',      self._open_seamless_tool)
+        _tool_btn('snow_icon',           'Snow Effect…',        self._open_snow_tool)
+        _tool_btn('alpha_coverage_icon', 'Alpha Coverage…',     self._open_alpha_coverage)
+
+        # Place all buttons into 2-column grid
         n_cols = 2
-        for idx, (svg_fn, tip, slot) in enumerate(tool_defs):
-            b = _nav_btn(svg_fn, tip, slot)
+        # First 14 view/BG buttons, then separator spanning 2 cols, then 4 tool buttons
+        view_btns  = _all_btns[:14]
+        tool_btns  = _all_btns[14:]
+        row = 0
+        for idx, b in enumerate(view_btns):
             grid.addWidget(b, idx // n_cols, idx % n_cols)
-        controls_layout.addWidget(grid_w)
+            row = idx // n_cols
+        row += 1
+        grid.addWidget(sep_btn, row, 0, 1, 2)
+        row += 1
+        for idx, b in enumerate(tool_btns):
+            grid.addWidget(b, row + idx // n_cols, idx % n_cols)
 
-        # Keep _set_tiled_preview working (no-op tile state)
+        # Keep tile state stubs for _set_tiled_preview compat
         self._tile_n    = 1
         self._tile_btns = {}
 
