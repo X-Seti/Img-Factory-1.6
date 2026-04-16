@@ -2028,9 +2028,10 @@ class DP5Canvas(QWidget):
 
 class PaletteGrid(QWidget):
     """
-    2D colour swatch grid that fills its available area.
-    Used for both the image palette (16 cols, auto-rows) and the
-    user/retro preset palette (cols vary by preset).
+    2D colour swatch grid that auto-wraps to fill its available width.
+    Column count is computed from widget width ÷ cell size, so the grid
+    reflows automatically when the panel is resized.
+    Used for both the image palette and user/retro preset palette.
     """
 
     color_picked = pyqtSignal(QColor)
@@ -2047,33 +2048,47 @@ class PaletteGrid(QWidget):
 
     def __init__(self, cols: int = 16, cell: int = 13, parent=None):
         super().__init__(parent)
-        self._cols     = cols
-        self._cell     = cell      # swatch size in pixels
+        self._cols_hint = cols   # used only when widget has no width yet
+        self._cell      = cell
         self._colors: List[QColor] = [QColor(*e) for e in self._DEFAULT_ENTRIES]
-        self._selected = -1
+        self._selected  = -1
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setToolTip("Click to select colour — right-click to copy hex")
         self._recalc_height()
 
+    def _effective_cols(self) -> int:
+        """Columns that fit in current width, falling back to hint."""
+        w = self.width()
+        if w > self._cell:
+            return max(1, w // self._cell)
+        return max(1, self._cols_hint)
+
     def _recalc_height(self):
-        rows = max(1, (len(self._colors) + self._cols - 1) // self._cols)
+        cols = self._effective_cols()
+        rows = max(1, (len(self._colors) + cols - 1) // cols)
         self.setFixedHeight(rows * self._cell + 1)
 
-    def set_colors(self, colors: List[QColor], cols: int = None): #vers 4
-        """Load a new colour list. Auto-scales cell+cols for large palettes."""
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._recalc_height()
+
+    def set_colors(self, colors: List[QColor], cols: int = None): #vers 5
+        """Load a new colour list. Auto-scales cell size; cols wraps to width."""
         self._colors   = list(colors)
         self._selected = -1
         n = len(colors)
         if n >= 4096:
-            self._cell = 2; self._cols = 64    # 128×128px — visible 2px cells
+            self._cell = 2
         elif n >= 512:
-            self._cell = 4; self._cols = 32    # 128×64px
+            self._cell = 4
         elif n > 256:
-            self._cell = 4; self._cols = cols if cols else 16
+            self._cell = 4
         elif n > 64:
-            self._cell = 8; self._cols = cols if cols else 16
+            self._cell = 8
         else:
-            self._cell = 13; self._cols = cols if cols else 16
+            self._cell = 13
+        if cols:
+            self._cols_hint = cols
         self._recalc_height()
         self.update()
 
@@ -2091,9 +2106,9 @@ class PaletteGrid(QWidget):
         self._selected = -1
         n = len(out)
         if n >= 4096:
-            self._cell = 2; self._cols = 64
+            self._cell = 2
         elif n >= 512:
-            self._cell = 4; self._cols = 32
+            self._cell = 4
         elif n > 256:
             self._cell = 4
         elif n > 64:
@@ -2113,12 +2128,13 @@ class PaletteGrid(QWidget):
     # ── Paint ─────────────────────────────────────────────────────────────────
 
     def paintEvent(self, event):
-        p   = QPainter(self)
-        cs  = self._cell
-        gap = 1 if cs >= 4 else 0   # no gap for small cells
+        p    = QPainter(self)
+        cs   = self._cell
+        cols = self._effective_cols()
+        gap  = 1 if cs >= 4 else 0
         for i, col in enumerate(self._colors):
-            x = (i % self._cols) * cs
-            y = (i // self._cols) * cs
+            x = (i % cols) * cs
+            y = (i // cols) * cs
             p.fillRect(x, y, max(1, cs - gap), max(1, cs - gap), col)
             if i == self._selected and cs >= 4:
                 p.setPen(QPen(QColor(0, 0, 0), 1))
@@ -2129,10 +2145,11 @@ class PaletteGrid(QWidget):
     # ── Mouse ─────────────────────────────────────────────────────────────────
 
     def mousePressEvent(self, e: QMouseEvent):
-        cs  = self._cell
-        col = e.position().toPoint().x() // cs
-        row = e.position().toPoint().y() // cs
-        idx = row * self._cols + col
+        cs   = self._cell
+        cols = self._effective_cols()
+        col  = e.position().toPoint().x() // cs
+        row  = e.position().toPoint().y() // cs
+        idx  = row * cols + col
         if 0 <= idx < len(self._colors):
             self._selected = idx
             self.color_picked.emit(self._colors[idx])
@@ -3224,8 +3241,8 @@ class ColorPalPresetsMixin:
         colors, cols = self._get_retro_colors(name)
         if hasattr(self, '_user_pal_grid'):
             self._user_pal_grid.set_colors(colors, cols)
-            # Use actual _cols/_cell after auto-scaling
-            grid_w = self._user_pal_grid._cols * self._user_pal_grid._cell
+            # Use _cols_hint and _cell to set user palette width
+            grid_w = self._user_pal_grid._cols_hint * self._user_pal_grid._cell
             self._user_pal_grid.setFixedWidth(max(grid_w, 32))
             if hasattr(self, '_user_pal_scroll'):
                 sb_w = self._user_pal_scroll.verticalScrollBar().sizeHint().width()
@@ -4795,23 +4812,24 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._group_palette_asc = True
         layout.addLayout(img_pal_ctrl)
 
-        # Image palette — cols/rows from settings
+        # Image palette — auto-wraps columns to fill available panel width.
+        # Height is uncapped (scroll area grows with colour count); vertical
+        # scrollbar appears if it would exceed the panel. PaletteGrid recalculates
+        # columns from its own width on every resize, so no manual col setting needed.
         img_cols = self.dp5_settings.get('img_pal_cols')
-        img_rows = self.dp5_settings.get('img_pal_rows')
-        img_pal_w  = img_cols * 12
-        img_pal_max_h = img_rows * 12 + 2
         self.pal_bar = PaletteGrid(cols=img_cols, cell=12)
         self.pal_bar.color_picked.connect(self._on_image_palette_color)
-        self.pal_bar.setFixedWidth(img_pal_w)
-        img_pal_scroll = QScrollArea()
-        img_pal_scroll.setWidget(self.pal_bar)
-        img_pal_scroll.setWidgetResizable(False)
-        img_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        img_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        img_pal_scroll.setFixedWidth(img_pal_w + img_pal_scroll.verticalScrollBar().sizeHint().width() + 4)
-        img_pal_scroll.setMaximumHeight(img_pal_max_h)
-        img_pal_scroll.setMinimumHeight(12)
-        layout.addWidget(img_pal_scroll)
+        self._img_pal_scroll = QScrollArea()
+        self._img_pal_scroll.setWidget(self.pal_bar)
+        self._img_pal_scroll.setWidgetResizable(True)   # lets pal_bar fill width
+        self._img_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._img_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._img_pal_scroll.setMinimumHeight(12)
+        # Max height: up to ~half the screen, so it never dominates the panel
+        from PyQt6.QtWidgets import QApplication as _QApp
+        _sh = _QApp.primaryScreen().availableSize().height() if _QApp.primaryScreen() else 800
+        self._img_pal_scroll.setMaximumHeight(_sh // 3)
+        layout.addWidget(self._img_pal_scroll, stretch=1)
 
         # ── USER palette (retro presets) ──────────────────────────────────
         user_pal_hdr = QHBoxLayout()
@@ -4834,10 +4852,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         user_pal_max_h = max(user_rows * 12 + 2, 130)  # minimum 130px for large palettes
         self._user_pal_grid = PaletteGrid(cols=user_cols, cell=12)
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
-        self._user_pal_grid.setFixedWidth(user_pal_w)
+        # No fixed width — wraps to panel width automatically
         user_pal_scroll = QScrollArea()
         user_pal_scroll.setWidget(self._user_pal_grid)
-        user_pal_scroll.setWidgetResizable(False)
+        user_pal_scroll.setWidgetResizable(True)
         user_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         user_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         user_pal_scroll.setFixedWidth(user_pal_w + user_pal_scroll.verticalScrollBar().sizeHint().width() + 4)
@@ -5116,6 +5134,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                     px[x, y] = (r, g, b, 255)
 
         return img
+
+    def _fit_img_pal_height(self): #vers 1
+        """Resize the image palette scroll area to fit its content snugly,
+        up to the scroll area's maximum height."""
+        if not hasattr(self, '_img_pal_scroll') or not hasattr(self, 'pal_bar'):
+            return
+        # pal_bar.fixedHeight is set by _recalc_height() after set_palette_raw
+        content_h = self.pal_bar.height()
+        scroll = self._img_pal_scroll
+        max_h = scroll.maximumHeight()
+        # Add a little for the scrollbar chrome
+        target = min(content_h + 4, max_h)
+        scroll.setFixedHeight(max(12, target))
 
     def _group_palette(self): #vers 3
         """Sort current image palette by hue, toggling asc/desc each click."""
@@ -7670,6 +7701,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 pal_flat = p_img.getpalette()
                 palette  = [(pal_flat[i*3], pal_flat[i*3+1], pal_flat[i*3+2]) for i in range(256)]
                 self.pal_bar.set_palette_raw(palette)
+                self._fit_img_pal_height()
 
             # Apply platform cell constraints across the whole image
             if locked and mode == 'platform' and self._enforce_constraints:
