@@ -94,6 +94,8 @@ def edit_txd_file(main_window): #vers 6
     against the current IMG so the user can browse all TXDs inside it.
     """
     try:
+        import os
+        from PyQt6.QtCore import Qt
         # Priority 1: dir tree selection
         selected = getattr(main_window, '_dir_tree_selected_file', None)
         if not selected:
@@ -104,8 +106,6 @@ def edit_txd_file(main_window): #vers 6
                     if t:
                         item = t.currentItem()
                         if item:
-                            from PyQt6.QtCore import Qt
-                            import os
                             path = item.data(0, Qt.ItemDataRole.UserRole)
                             if path and os.path.isfile(path):
                                 selected = path
