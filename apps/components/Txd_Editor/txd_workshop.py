@@ -3047,27 +3047,20 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         controls_layout.addStretch()
 
-        # ── Tiled preview + tool buttons — 2-column icon grid ────────────
+        # ── Tool buttons — 2-column grid, no tile buttons ─────────────────
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         controls_layout.addWidget(sep)
 
-        # widen the controls frame to fit 2 columns
+        # Widen frame to fit 2 columns
         controls_frame.setMaximumWidth(60)
 
         from PyQt6.QtWidgets import QGridLayout
-        grid_w = QWidget()
-        grid = QGridLayout(grid_w)
-        grid.setContentsMargins(1, 1, 1, 1)
-        grid.setSpacing(2)
-        controls_layout.addWidget(grid_w)
+        BTN = 26
+        IC  = 18
 
-        BTN = 26   # button size for 2-col layout
-        IC  = 18   # icon size
-
-        def _nav_btn(svg_fn, tip, slot, checkable=False):
+        def _nav_btn(svg_fn, tip, slot):
             b = QPushButton()
             b.setFixedSize(BTN, BTN)
-            b.setCheckable(checkable)
             b.setToolTip(tip)
             try:
                 if _SVGIconFactory:
@@ -3078,65 +3071,28 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             b.clicked.connect(slot)
             return b
 
-        # Row 0: single cycle button — click to step 1×1 → 2×2 → 3×3 → 1×1
-        self._tile_n   = 1   # current tiling
-        self._tile_btn = QPushButton()
-        self._tile_btn.setFixedSize(BTN * 2 + 2, BTN)  # full width across both cols
-        self._tile_btn.setToolTip("Tiled preview — click to cycle 1×1 → 2×2 → 3×3")
-        self._tile_btns = {}  # kept for _set_tiled_preview compat
-
-        def _make_tile_icon(n):
-            cell = 7 if n == 1 else (5 if n == 2 else 3)
-            rects = "".join(
-                f'<rect x="{1+c*(cell+1)}" y="{1+r*(cell+1)}" '
-                f'width="{cell}" height="{cell}" fill="#aaa" rx="1"/>'
-                for r in range(n) for c in range(n))
-            total = n * cell + (n - 1) + 2
-            svg = (f'<svg xmlns="http://www.w3.org/2000/svg" '
-                   f'viewBox="0 0 {total} {total}">{rects}</svg>')
-            try:
-                if _QSvgRenderer is None: return None
-                renderer = _QSvgRenderer(QByteArray(svg.encode()))
-                pm = QPixmap(IC, IC); pm.fill(Qt.GlobalColor.transparent)
-                p = QPainter(pm); renderer.render(p); p.end()
-                return QIcon(pm)
-            except Exception:
-                return None
-
-        def _cycle_tile():
-            self._tile_n = (self._tile_n % 3) + 1   # 1→2→3→1
-            icon = _make_tile_icon(self._tile_n)
-            if icon: self._tile_btn.setIcon(icon)
-            self._tile_btn.setToolTip(
-                f"{self._tile_n}×{self._tile_n} tiled preview — click to cycle")
-            self._set_tiled_preview(self._tile_n)
-
-        icon1 = _make_tile_icon(1)
-        if icon1:
-            self._tile_btn.setIcon(icon1)
-            self._tile_btn.setIconSize(QSize(IC, IC))
-        else:
-            self._tile_btn.setText("1×1")
-            self._tile_btn.setStyleSheet("font-size:7px;")
-        self._tile_btn.clicked.connect(_cycle_tile)
-        grid.addWidget(self._tile_btn, 0, 0, 1, 2)  # span both columns
-
-        # Row 3: Edit tools label
-        edit_lbl = QLabel("Edit")
-        edit_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        edit_lbl.setStyleSheet("font-size:8px; color:#888;")
-        grid.addWidget(edit_lbl, 3, 0, 1, 2)
-
-        # Rows 4-5: Adjust(knob), Seamless(wave), Snow(snowflake), Alpha(shield)
         tool_defs = [
-            ("knob_icon",           "Colour Adjustments…",  "_open_colour_adjust",  4, 0),
-            ("seamless_icon",       "Seamless Tool…",       "_open_seamless_tool",  4, 1),
-            ("snow_icon",           "Snow Effect…",         "_open_snow_tool",      5, 0),
-            ("alpha_coverage_icon", "Alpha Coverage…",      "_open_alpha_coverage", 5, 1),
+            ("knob_icon",           "Colour Adjustments…",  self._open_colour_adjust),
+            ("seamless_icon",       "Seamless Tool…",       self._open_seamless_tool),
+            ("snow_icon",           "Snow Effect…",         self._open_snow_tool),
+            ("alpha_coverage_icon", "Alpha Coverage…",      self._open_alpha_coverage),
         ]
-        for svg_fn, tip, slot_name, row, col in tool_defs:
-            b = _nav_btn(svg_fn, tip, lambda chk=False, s=slot_name: getattr(self, s)())
-            grid.addWidget(b, row, col)
+
+        # Auto-layout: fit into available height using 2 columns
+        # (can expand to 1-col if very tall, stays 2-col normally)
+        grid_w = QWidget()
+        grid = QGridLayout(grid_w)
+        grid.setContentsMargins(1, 1, 1, 1)
+        grid.setSpacing(2)
+        n_cols = 2
+        for idx, (svg_fn, tip, slot) in enumerate(tool_defs):
+            b = _nav_btn(svg_fn, tip, slot)
+            grid.addWidget(b, idx // n_cols, idx % n_cols)
+        controls_layout.addWidget(grid_w)
+
+        # Keep _set_tiled_preview working (no-op tile state)
+        self._tile_n    = 1
+        self._tile_btns = {}
 
         return controls_frame
 
@@ -11138,22 +11094,42 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         dialog.exec()
 
     #Left side vertical panel
-    def _create_transform_icon_panel(self): #vers 12
-        """Create transform panel with icons - aligned with text panel"""
+    def _create_transform_icon_panel(self): #vers 13
+        """2-column icon grid — auto-expands columns so all buttons fit vertically."""
         self.transform_icon_panel = QFrame()
         self.transform_icon_panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.transform_icon_panel.setMinimumWidth(45)
-        self.transform_icon_panel.setMaximumWidth(45)
 
-        layout = QVBoxLayout(self.transform_icon_panel)
-        layout.setContentsMargins(3, 5, 3, 5)
-        layout.setSpacing(1)
+        # Use a grid layout — buttons placed left-to-right, top-to-bottom in n_cols
+        outer = QVBoxLayout(self.transform_icon_panel)
+        outer.setContentsMargins(2, 4, 2, 4)
+        outer.setSpacing(0)
 
-        btn_height = 24   # compact when docked
+        from PyQt6.QtWidgets import QGridLayout
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(2)
+        outer.addLayout(grid)
+        outer.addStretch()
+
+        # We will track all (btn, attr) pairs and place them after
+        self._icon_panel_grid = grid
+        self._icon_panel_buttons = []   # populated below; placed in _place_icon_grid()
+
+        btn_height = 24   # compact when docked — kept as local for compat
         btn_width  = 34
         icon_size  = QSize(16, 16)
-        spacer     = 1
+        spacer     = 0   # grid handles spacing
 
+        def _add(btn):
+            """Register a button for grid placement."""
+            self._icon_panel_buttons.append(btn)
+            return btn
+
+        layout = type('_FakeLayout', (), {
+            'addWidget': lambda self2, w, *a, **kw: _add(w),
+            'addSpacing': lambda self2, *a: None,
+            'addStretch': lambda self2: None,
+        })()
         layout.addSpacing(2)
 
         # Flip Vertical
@@ -11357,9 +11333,30 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.props_btn.setToolTip("Show texture properties")
         layout.addWidget(self.props_btn)
 
-        layout.addStretch()
+        # Place buttons into the 2-column grid
+        self._place_icon_grid()
         return self.transform_icon_panel
 
+    def _place_icon_grid(self, n_cols=2): #vers 1
+        """Place registered icon buttons into the grid with n_cols columns.
+        Called after all buttons are registered. Also called on resize to reflow."""
+        grid = self._icon_panel_grid
+        btns = self._icon_panel_buttons
+        # Clear existing grid
+        for i in range(grid.count()-1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        # Place in n_cols columns
+        for idx, btn in enumerate(btns):
+            row = idx // n_cols
+            col = idx % n_cols
+            grid.addWidget(btn, row, col)
+        # Set panel width to fit n_cols * btn_size
+        btn_w = 36   # 34 + 2px spacing
+        panel_w = n_cols * btn_w + 6
+        self.transform_icon_panel.setMinimumWidth(panel_w)
+        self.transform_icon_panel.setMaximumWidth(panel_w + 4)
 
     def _create_transform_text_panel(self): #vers 13
         """Text+icon buttons — shown when panel is wide enough.
