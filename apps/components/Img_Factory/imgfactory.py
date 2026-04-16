@@ -1375,10 +1375,6 @@ class IMGFactory(QMainWindow):
             from apps.components.DP5_Workshop.dp5_workshop import DP5Workshop
             from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
-            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
-                self.open_dp5_workshop_standalone()
-                return None
-
             # Bring existing DP5 tab to front if already open
             for i in range(self.main_tab_widget.count()):
                 widget = self.main_tab_widget.widget(i)
@@ -1416,6 +1412,7 @@ class IMGFactory(QMainWindow):
 
             self.main_tab_widget.setCurrentIndex(idx)
             workshop.show()
+            self._ensure_tab_area_visible()
 
             # DP5 docked menu disabled — use DP5's own internal topbar menu
             # (The _menu_bar_container inside DP5Workshop handles this)
@@ -6111,10 +6108,6 @@ class IMGFactory(QMainWindow):
             from apps.components.Ide_Editor.ide_editor import IDEEditor
             from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
-            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
-                self.open_ide_editor_standalone()
-                return None
-
             # Re-use existing IDE tab if already open
             for i in range(self.main_tab_widget.count()):
                 widget = self.main_tab_widget.widget(i)
@@ -6150,6 +6143,7 @@ class IMGFactory(QMainWindow):
 
             self.main_tab_widget.setCurrentIndex(idx)
             editor.show()
+            self._ensure_tab_area_visible()
             self.log_message("IDE Editor opened (docked)")
 
             # Register in tool taskbar
@@ -6233,24 +6227,7 @@ class IMGFactory(QMainWindow):
                             self.log_message("Radar Workshop already open")
                             return found[0]
 
-            # Standalone fallback
-            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
-                existing = getattr(self, '_radar_workshop', None)
-                if existing and existing.isVisible():
-                    existing.raise_(); existing.activateWindow(); return existing
-                workshop = RadarWorkshop(parent=None, main_window=self)
-                workshop.setWindowTitle("Radar Workshop")
-                workshop.resize(1400, 860); workshop.show(); workshop.raise_()
-                self._radar_workshop = workshop
-                if self.current_img:
-                    from pathlib import Path
-                    img_path = getattr(self.current_img, 'file_path', '')
-                    if img_path and Path(img_path).exists():
-                        workshop._open_file(img_path)
-                self.log_message("Radar Workshop opened (standalone)")
-                return workshop
-
-            # Docked in tab
+            # Docked in tab (main_tab_widget is always present in imgfactory)
             tab_container = QWidget()
             tab_container.file_type = "WORKSHOP"  # prevents tab_system clearing current_img
             tab_layout = QVBoxLayout(tab_container)
@@ -6327,20 +6304,7 @@ class IMGFactory(QMainWindow):
                                 found[0]._load_file(file_path)
                             return found[0]
 
-            # Standalone fallback if no tab widget
-            if not hasattr(self, 'main_tab_widget') or not self.main_tab_widget:
-                existing = getattr(self, '_water_workshop', None)
-                if existing and existing.isVisible():
-                    existing.raise_(); existing.activateWindow(); return existing
-                workshop = WaterWorkshop(parent=None, main_window=self)
-                workshop.setWindowTitle("Water Workshop")
-                workshop.resize(1300, 800)
-                workshop.show(); workshop.raise_()
-                self._water_workshop = workshop
-                self.log_message("Water Workshop opened (standalone)")
-                return workshop
-
-            # Docked in tab — same pattern as DP5
+            # Docked in tab (main_tab_widget always present)
             tab_container = QWidget()
             tab_container.file_type = "WORKSHOP"
             tab_layout = QVBoxLayout(tab_container)
@@ -6384,36 +6348,54 @@ class IMGFactory(QMainWindow):
             traceback.print_exc()
 
 
-    def _ensure_tab_area_visible(self): #vers 1
-        """Ensure the main_tab_widget area is not collapsed in the content splitter.
-        Called after adding a workshop tab so the user can actually see it.
+    def _ensure_tab_area_visible(self): #vers 2
+        """Ensure main_tab_widget is visible and has space in the content splitter.
+        Works whether or not an IMG file is loaded.
         """
         try:
+            # Ensure the tab widget itself is shown
+            if hasattr(self, 'main_tab_widget') and self.main_tab_widget:
+                if not self.main_tab_widget.isVisible():
+                    self.main_tab_widget.setVisible(True)
+
             gl = getattr(self, 'gui_layout', None)
             if not gl:
                 return
             splitter = getattr(gl, 'content_splitter', None)
             if not splitter or splitter.count() < 2:
                 return
+
+            # Make sure the tab widget is in the splitter and visible
+            tw = self.main_tab_widget
+            for i in range(splitter.count()):
+                if splitter.widget(i) is tw:
+                    if not tw.isVisible():
+                        tw.setVisible(True)
+                    break
+
             sizes = splitter.sizes()
             total = sum(sizes)
             if not total:
+                # Splitter has no size yet — set a reasonable default
+                w = self.width() or 1200
+                splitter.setSizes([0, w])
                 return
-            # If the tab area (index 1) is collapsed, give it space
+
+            # Find the tab widget's index in the splitter
             left_stack = getattr(gl, 'left_stack', None)
             tab_idx = 0
             for i in range(splitter.count()):
                 if splitter.widget(i) is not left_stack:
                     tab_idx = i
                     break
-            if sizes[tab_idx] < total * 0.3:
-                # Give tab area at least 70% of space
+
+            # If tab area is collapsed (< 30%), give it space
+            if sizes[tab_idx] < total * 0.30:
                 new_sizes = list(sizes)
-                new_sizes[tab_idx] = int(total * 0.75)
-                other = total - new_sizes[tab_idx]
+                new_sizes[tab_idx] = int(total * 0.80)
                 for i in range(len(new_sizes)):
                     if i != tab_idx:
-                        new_sizes[i] = other
+                        new_sizes[i] = (total - new_sizes[tab_idx]) // max(1, len(new_sizes) - 1)
                 splitter.setSizes(new_sizes)
         except Exception as e:
             self.log_message(f"_ensure_tab_area_visible error: {e}")
