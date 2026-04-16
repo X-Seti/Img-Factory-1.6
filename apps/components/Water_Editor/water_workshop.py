@@ -258,15 +258,22 @@ class WaterGridWidget(QWidget):
         return max(2, int(base * self._zoom))
 
     def _cell_at(self, pos):
+        """Map screen position to data (col, row).
+        Inverse of: img_x=row, img_y=gw-1-col (Rotate270CW transform)
+        So: data_row = img_x = screen_x//ts
+            data_col  = gw-1-img_y = gw-1-(screen_y//ts)
+        Returns (data_col, data_row) as (cx, cy) for grid[cy*gw+cx].
+        """
         ts     = self._ts()
         ax, ay = pos.x() - self._pan_x, pos.y() - self._pan_y
         if ax < 0 or ay < 0:
             return -1, -1
-        cx   = ax // ts
-        cy_d = ay // ts                  # display row (0 = top of screen)
-        cy   = self._grid_w - 1 - cy_d  # data row (0 = bottom of screen)
-        if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
-            return cx, cy
+        img_x = ax // ts   # = data row
+        img_y = ay // ts   # = gw-1-data_col
+        data_row = img_x
+        data_col = self._grid_w - 1 - img_y
+        if 0 <= data_col < self._grid_w and 0 <= data_row < self._grid_w:
+            return data_col, data_row
         return -1, -1
 
     def _cell_val(self, cx, cy):
@@ -279,17 +286,22 @@ class WaterGridWidget(QWidget):
             self._grid[cy * self._grid_w + cx] = val
 
     def _rebuild_cache(self):
-        """Render grid data to a QImage for fast blitting.
-        Y-axis is flipped: grid row 0 = bottom of image (south of map).
-        This matches the GTA engine convention and reference editors.
+        """Render grid data to a QImage matching WaterproGen VB source exactly.
+
+        VB reads: SetPixel(j%gw, j//gw) then RotateFlip(Rotate270FlipNone)
+        Rotate270FlipNone = 270 degrees CW rotation.
+
+        Transform: data[row*gw+col] -> display pixel (row, gw-1-col)
+        i.e. image_x = data_row, image_y = gw-1-data_col
         """
         from PyQt6.QtGui import QImage
         gw  = self._grid_w
         img = QImage(gw, gw, QImage.Format.Format_RGB32)
-        for cy in range(gw):
-            img_y = gw - 1 - cy          # flip: row 0 → bottom pixel
-            for cx in range(gw):
-                img.setPixel(cx, img_y, self._cell_col(self._grid[cy*gw+cx]).rgb())
+        for row in range(gw):
+            for col in range(gw):
+                img_x = row
+                img_y = gw - 1 - col
+                img.setPixel(img_x, img_y, self._cell_col(self._grid[row*gw+col]).rgb())
         self._img_cache  = img
         self._cache_flip = self._colour_flipped
 
@@ -309,23 +321,24 @@ class WaterGridWidget(QWidget):
         p.drawImage(QRect(px0, py0, gw*ts, gw*ts),
                     self._img_cache, self._img_cache.rect())
 
-        # Preview cells on top — convert data row to screen Y
+        # Preview cells — data(col,row) -> screen(row*ts, (gw-1-col)*ts)
         for (cx, cy) in self._preview_cells:
-            scr_y = gw - 1 - cy
-            p.fillRect(px0+cx*ts, py0+scr_y*ts, ts, ts, self.COL_PREV)
+            scr_x = px0 + cy * ts
+            scr_y = py0 + (gw - 1 - cx) * ts
+            p.fillRect(scr_x, scr_y, ts, ts, self.COL_PREV)
 
-        # Hover overlay — convert data row to screen Y
+        # Hover overlay — data(col,row) -> screen(row*ts, (gw-1-col)*ts)
         if self._hover_cx >= 0:
-            scr_y = gw - 1 - self._hover_cy   # data→screen Y
-            p.fillRect(px0+self._hover_cx*ts, py0+scr_y*ts,
-                       ts, ts, self.COL_HOVER)
+            scr_x = px0 + self._hover_cy * ts           # row -> screen X
+            scr_y = py0 + (gw - 1 - self._hover_cx) * ts  # col -> screen Y
+            p.fillRect(scr_x, scr_y, ts, ts, self.COL_HOVER)
 
-        # Selection — convert data row to screen Y
+        # Selection
         if self._sel_cx >= 0:
-            scr_y = gw - 1 - self._sel_cy
-            x, y  = px0 + self._sel_cx*ts, py0 + scr_y*ts
+            scr_x = px0 + self._sel_cy * ts
+            scr_y = py0 + (gw - 1 - self._sel_cx) * ts
             p.setPen(QPen(self.COL_SEL, 2))
-            p.drawRect(x+1, y+1, ts-2, ts-2)
+            p.drawRect(scr_x+1, scr_y+1, ts-2, ts-2)
 
         # Grid lines when zoomed in enough
         if self._show_grid and ts >= 4:
