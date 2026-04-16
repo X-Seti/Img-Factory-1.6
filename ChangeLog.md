@@ -1,5 +1,113 @@
 #this belongs in root /ChangeLog.md - Version: 36
 
+## April 2026 — TXD Workshop UI, DP5 Workshop major update, Bug fixes
+
+### Build 234 — DP5 Workshop: new tools, palette, FGBGSwatch, zoom, splitter
+
+**DP5 Workshop — New brush tools (in gadget grid):**
+- `TOOL_BLUR_BRUSH` (B): Gaussian-soften pixels in brush radius (3-pass box blur,
+  circular falloff). Continuous on mouse-drag.
+- `TOOL_SMUDGE` (U): Drag/smear pixels from previous mouse position, 40% blend strength.
+- `TOOL_LIGHTEN` (`,`): Dodge brush — adds +30 RGB with feathered falloff by distance.
+- `TOOL_DARKEN` (`.`): Burn brush — subtracts 30 RGB with feathered falloff.
+  All four preserve alpha channel.
+
+**DP5 Workshop — New SVG icons:** `dp_blur_brush_icon` (concentric rings),
+  `dp_smudge_icon` (curved drag trail), `dp_lighten_icon` (8-ray sun),
+  `dp_darken_icon` (crescent moon), `dp_seamless_op_icon` (4-tile wave grid),
+  `dp_colour_correct_icon` (RGB slider bars with coloured handles).
+
+**DP5 Workshop — Image operation buttons (right panel, above retro palette):**
+  4 × 32px icon buttons: Colour Adjustments, Seamless Tool, Snow Effect, Zoom Lens.
+  All use txd_tools.py dialogs and push undo before applying.
+
+**DP5 Workshop — Image tools (Image menu):**
+  Colour Adjustments, Seamless Tool, Snow Effect, Filters submenu
+  (Sharpen ×1.5, ×3, Blur r=1, Blur r=2, Emboss, Edge Detect).
+
+**DP5 Workshop — Zoom Lens window:**
+  Stay-on-top QWidget.Tool, 320×340px. Magnification slider 2–32×.
+  10fps QTimer reads canvas rgba directly, crops the viewport-centred region.
+  Single instance — re-focuses if already open. Image menu → Zoom Lens…
+
+**DP5 Workshop — Zoom range 0.05× – 64× (was 16×):**
+  All zoom paths updated: _set_zoom(), wheel, zoom-in button, settings spin.
+
+**DP5 Workshop — FGBGSwatch auto-resize:**
+  Removed `setFixedSize(64,48)` — now Expanding/Preferred with min 40×30.
+  Scales proportionally with right panel width via `heightForWidth(w)=0.75×w`.
+
+**DP5 Workshop — Image palette auto-wrap:**
+  `PaletteGrid` auto-fills columns = width ÷ cell_size on every resize.
+  Max height uncapped (was img_rows×12 fixed cap). `_fit_img_pal_height()`
+  called after canvas extraction to snap the scroll area to content height.
+
+**DP5 Workshop — User palette auto-cell:**
+  New `_AutoCellPaletteGrid` subclass: fixed column count, cell size =
+  width ÷ columns. Swatches always tile edge-to-edge regardless of panel width.
+
+**DP5 Workshop — Gadget bar fills available width:**
+  Column count = `max(min_cols, (panel_w − 20) ÷ (btn_sz + gap))`.
+  `min_cols` is from Settings (floor, not ceiling). Gadget grid reflows on
+  splitter drag via `_on_splitter_moved` (rebuilds only when column count changes).
+  Removed `setFixedWidth`, `QSizePolicy.Fixed`, and `setMaximumWidth(sizeHint)` —
+  all three were locking the panel and preventing the splitter from moving left.
+  With 24px icons: 150px→4 cols, 200px→5, 300px→8, 400px→11.
+
+**DP5 Workshop — Splitter position saved:**
+  `closeEvent` writes `[left, canvas, right]` sizes to dp5_workshop.json.
+  Restored via `QTimer.singleShot(0, setSizes)` on next open.
+
+**DP5 Workshop — Icon size fix:**
+  Removed silent `min(icon_sz, 24)` cap when docked — user's setting is
+  applied directly. Icon spinbox minimum lowered from 20 to 16px.
+
+**TXD Workshop — Right navbar 2-column grid:**
+  All preview controls (zoom/pan/BG/resize/checker/colour picker + 4 tool buttons)
+  converted from 40px single-column (560px tall, clips badly) to 28px 2-column
+  grid (~270px total). Tile cycle button removed (tiling in Tools menu only).
+
+**TXD Workshop — Left transform icon panel 2-column grid:**
+  17 buttons converted from single 45px column (~400px tall) to 2-column 78px
+  grid (~220px). `_place_icon_grid(n_cols)` can reflow to more columns.
+
+**TXD Workshop — XTD parser (renamed from RAGE):**
+  `apps/methods/xtd_textures.py` (was rage_textures.py). All public names:
+  `XTDDict`, `XTDTexture`, `open_xtd_dict`, `is_xtd_file`, `get_xtd_game`.
+  Hidden behind "All Texture Files" filter — no menu entry or documentation.
+
+**TXD Workshop — Texture tools:**
+  `ColourAdjustDialog`: brightness/contrast/hue/sat/sharpness/opacity/cutout/premultiply.
+  `SeamlessDialog`: wrap-blend, patch/heal, histogram-preserving, offset+mirror.
+  `SnowDialog`: layered snow with luminance-biased noise.
+  `scale_alpha_for_coverage()`: binary-search alpha scaling for SA foliage/fences.
+  All accessible via Tools menu and right navbar buttons.
+
+**Model Workshop — DFF→COL surface generation:**
+  `_dff_to_col_surfaces(single/batch)`: keyword-maps texture names to GTA surface IDs,
+  interactive assignment table, COL version selector, mesh face toggle.
+  Batch mode processes a directory of .dff files. COL menu added to Model Workshop.
+
+**Bug fixes:**
+- `txd_tools.py _apply_snow()`: `from scipy.ndimage import sobel` was outside
+  the try block. Moved inside try; `np.gradient()` fallback added.
+- `gui_layout.py edit_txd_file()`: `os` UnboundLocalError — `import os` inside
+  nested if, used at function level. Moved to top of try.
+- `txd_workshop.py _create_preview_controls()`: `QSize`, `QIcon`, `QPainter`,
+  `QPixmap`, `QByteArray`, `QSvgRenderer`, `SVGIconFactory` all imported inside
+  nested closures but used at function level. All hoisted to function top.
+- `_get_current_rgba()`: replaced non-existent `_get_selected_texture_index()`
+  with `self.selected_texture`.
+- `_set_current_rgba()`: replaced non-existent `_update_preview()` with
+  `_update_texture_info(selected_texture)`.
+- All tool methods (`_open_colour_adjust` etc.): replaced non-existent
+  `_set_status()` with `self.status_label.setText()` guarded by `hasattr`.
+- `model_workshop.py`: fixed `COLModelListWidget` → `ModelListWidget` (lines 9348, 9986).
+- `DP5 Workshop _AutoCellPaletteGrid`: `_fixed_cols` must be set before
+  `super().__init__()` since parent calls `_recalc_height()` in `__init__`.
+- `DP5 Workshop setup_ui()`: `QTimer` imported inside conditional `if _saved_sizes`
+  block but used unconditionally two lines later. Import hoisted above the if.
+
 ## April 2026 — TXD Workshop, Model Workshop, XTD Parser, Bug Fixes
 
 ### Build 233 — TXD Workshop texture tools + XTD parser + DFF→COL + UI fixes
