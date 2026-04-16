@@ -3068,51 +3068,51 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             b.clicked.connect(slot)
             return b
 
-        # Row 0: Tiled preview label spanning 2 cols
-        tile_lbl = QLabel("Tile")
-        tile_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        tile_lbl.setStyleSheet("font-size:8px; color:#888;")
-        grid.addWidget(tile_lbl, 0, 0, 1, 2)
+        # Row 0: single cycle button — click to step 1×1 → 2×2 → 3×3 → 1×1
+        self._tile_n   = 1   # current tiling
+        self._tile_btn = QPushButton()
+        self._tile_btn.setFixedSize(BTN * 2 + 2, BTN)  # full width across both cols
+        self._tile_btn.setToolTip("Tiled preview — click to cycle 1×1 → 2×2 → 3×3")
+        self._tile_btns = {}  # kept for _set_tiled_preview compat
 
-        # Rows 1-2: 1×1, 2×2, 3×3 tiled preview buttons
-        self._tile_btns = {}
-        tile_defs = [
-            (1, "1×1 — single tile",  1, 0),
-            (2, "2×2 — tiled preview",1, 1),
-            (3, "3×3 — tiled preview",2, 0),
-        ]
-        for n, tip, row, col in tile_defs:
-            b = QPushButton()
-            b.setFixedSize(BTN, BTN)
-            b.setCheckable(True)
-            b.setChecked(n == 1)
-            b.setToolTip(tip)
-            # Inline SVG: grid of n×n squares
-            _N = n
-            cell = 7 if _N == 1 else (5 if _N == 2 else 3)
+        def _make_tile_icon(n):
+            cell = 7 if n == 1 else (5 if n == 2 else 3)
             rects = "".join(
                 f'<rect x="{1+c*(cell+1)}" y="{1+r*(cell+1)}" '
                 f'width="{cell}" height="{cell}" fill="#aaa" rx="1"/>'
-                for r in range(_N) for c in range(_N)
-            )
-            total = _N * cell + (_N - 1) + 2
+                for r in range(n) for c in range(n))
+            total = n * cell + (n - 1) + 2
             svg = (f'<svg xmlns="http://www.w3.org/2000/svg" '
                    f'viewBox="0 0 {total} {total}">{rects}</svg>')
             try:
-                from PyQt6.QtGui import QIcon
+                from PyQt6.QtGui import QIcon, QPixmap, QPainter
                 from PyQt6.QtSvg import QSvgRenderer
                 from PyQt6.QtCore import QByteArray, QSize
-                from PyQt6.QtGui import QPixmap, QPainter
                 renderer = QSvgRenderer(QByteArray(svg.encode()))
                 pm = QPixmap(IC, IC); pm.fill(Qt.GlobalColor.transparent)
-                painter = QPainter(pm); renderer.render(painter); painter.end()
-                b.setIcon(QIcon(pm)); b.setIconSize(QSize(IC, IC))
+                p = QPainter(pm); renderer.render(p); p.end()
+                return QIcon(pm)
             except Exception:
-                b.setText(f"{n}×{n}")
-                b.setStyleSheet("font-size:7px;")
-            b.clicked.connect(lambda chk=False, _n=n: self._set_tiled_preview(_n))
-            grid.addWidget(b, row, col)
-            self._tile_btns[n] = b
+                return None
+
+        def _cycle_tile():
+            self._tile_n = (self._tile_n % 3) + 1   # 1→2→3→1
+            icon = _make_tile_icon(self._tile_n)
+            if icon: self._tile_btn.setIcon(icon)
+            self._tile_btn.setToolTip(
+                f"{self._tile_n}×{self._tile_n} tiled preview — click to cycle")
+            self._set_tiled_preview(self._tile_n)
+
+        icon1 = _make_tile_icon(1)
+        if icon1:
+            self._tile_btn.setIcon(icon1)
+            from PyQt6.QtCore import QSize
+            self._tile_btn.setIconSize(QSize(IC, IC))
+        else:
+            self._tile_btn.setText("1×1")
+            self._tile_btn.setStyleSheet("font-size:7px;")
+        self._tile_btn.clicked.connect(_cycle_tile)
+        grid.addWidget(self._tile_btn, 0, 0, 1, 2)  # span both columns
 
         # Row 3: Edit tools label
         edit_lbl = QLabel("Edit")
@@ -12576,9 +12576,11 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     def _set_tiled_preview(self, n: int): #vers 1
         """Switch preview tiling: 1x1, 2x2, 3x3."""
-        # Update button states
-        for btn_n, btn in getattr(self, '_tile_btns', {}).items():
-            btn.setChecked(btn_n == n)
+        # Update cycle button label/tooltip
+        self._tile_n = n
+        if hasattr(self, '_tile_btn'):
+            self._tile_btn.setToolTip(
+                f"{n}×{n} tiled preview — click to cycle")
         # Update preview widget if it supports tiling
         if hasattr(self, 'preview_widget') and hasattr(self.preview_widget, 'set_tile'):
             self.preview_widget.set_tile(n)
