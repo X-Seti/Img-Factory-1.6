@@ -4545,7 +4545,7 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         # btn_sz=36 → 3col=114, 4col=150  btn_sz=60 → 3col=186, 4col=246
         req_cols = self.dp5_settings.get('tool_columns')
         if not getattr(self, 'standalone_mode', True):
-            n_cols = 2   # 2 columns when docked — narrow panel
+            n_cols = max(3, min(6, req_cols))  # 3+ cols when docked — reduces height not width
         else:
             n_cols = max(3, min(6, req_cols))
 
