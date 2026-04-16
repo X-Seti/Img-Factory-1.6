@@ -1,5 +1,5 @@
 """
-apps/methods/rage_textures.py  —  RAGE texture dictionary reader
+apps/methods/xtd_textures.py  —  XTD texture dictionary reader
 Supports: GTA IV .wtd (RSC7 v13), GTA V .ytd (RSC8 v46/165), RDR2 .ytd
 
 READ-ONLY import source.  Never written back.  Completely undocumented.
@@ -45,7 +45,7 @@ _RSC8_MAGIC = 0x52534338   # 'RSC8'
 
 
 @dataclass
-class RageTexture:
+class XTDTexture:
     name:    str
     width:   int
     height:  int
@@ -56,21 +56,21 @@ class RageTexture:
 
 
 @dataclass
-class RageDict:
+class XTDDict:
     path:     str
     game:     str         # "IV", "V", "RDR2"
     version:  int
-    textures: List[RageTexture] = field(default_factory=list)
+    textures: List[XTDTexture] = field(default_factory=list)
     error:    str = ""
 
 
 # ── Public entry point ─────────────────────────────────────────────────────────
 
-def open_rage_dict(path: str) -> RageDict:
-    """Parse a .wtd or .ytd file.  Returns RageDict; check .error if non-empty."""
+def open_xtd_dict(path: str) -> XTDDict:
+    """Parse a .wtd or .ytd file.  Returns XTDDict; check .error if non-empty."""
     data = Path(path).read_bytes()
     if len(data) < 16:
-        return RageDict(path=path, game="?", version=0, error="File too small")
+        return XTDDict(path=path, game="?", version=0, error="File too small")
 
     magic = struct.unpack_from("<I", data, 0)[0]
 
@@ -81,13 +81,13 @@ def open_rage_dict(path: str) -> RageDict:
     else:
         # Try OODLE-compressed YTD (GTA V PC later builds) — we can't decompress
         # without the proprietary oodle DLL, so just report it gracefully
-        return RageDict(path=path, game="?", version=0,
+        return XTDDict(path=path, game="?", version=0,
                         error=f"Unknown magic 0x{magic:08X} — may be OODLE-compressed (unsupported)")
 
 
 # ── RSC7 (GTA IV .wtd) ────────────────────────────────────────────────────────
 
-def _parse_rsc7(path: str, data: bytes) -> RageDict:
+def _parse_rsc7(path: str, data: bytes) -> XTDDict:
     """GTA IV PC .wtd — RSC7 version 13."""
     try:
         magic, version, vflags, pflags = struct.unpack_from("<4I", data, 0)
@@ -98,14 +98,14 @@ def _parse_rsc7(path: str, data: bytes) -> RageDict:
         vdata = data[16 : 16 + vsize]
         pdata = data[16 + vsize : 16 + vsize + psize]
 
-        rd = RageDict(path=path, game="IV", version=version)
+        rd = XTDDict(path=path, game="IV", version=version)
         _extract_iv_textures(vdata, pdata, rd)
         return rd
     except Exception as e:
-        return RageDict(path=path, game="IV", version=0, error=str(e))
+        return XTDDict(path=path, game="IV", version=0, error=str(e))
 
 
-def _extract_iv_textures(vdata: bytes, pdata: bytes, rd: RageDict):
+def _extract_iv_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
     """Walk pgDictionary<grcTexturePC> in GTA IV virtual segment."""
     # pgDictionary starts at virtual address 0x50000000 = offset 0 in vdata
     # Layout (offsets from dict base):
@@ -143,7 +143,7 @@ def _extract_iv_textures(vdata: bytes, pdata: bytes, rd: RageDict):
         _read_iv_texture(vdata, pdata, entry_off, rd, BASE)
 
 
-def _read_iv_texture(vdata: bytes, pdata: bytes, off: int, rd: RageDict, BASE: int):
+def _read_iv_texture(vdata: bytes, pdata: bytes, off: int, rd: XTDDict, BASE: int):
     """Parse grcTexturePC entry at vdata[off]."""
     try:
         # grcTexturePC layout (GTA IV PC):
@@ -174,14 +174,14 @@ def _read_iv_texture(vdata: bytes, pdata: bytes, off: int, rd: RageDict, BASE: i
         fmt = _D3D_FMT.get(d3dfmt, f"D3D_{d3dfmt:08X}")
         raw, rgba = _decode_pixels(pdata, pix_off, width, height, fmt)
 
-        rd.textures.append(RageTexture(
+        rd.textures.append(XTDTexture(
             name=name, width=width, height=height,
             fmt=fmt, mips=mips, rgba=rgba, raw=raw))
     except Exception:
         pass
 
 
-def _iv_scan_textures(vdata: bytes, pdata: bytes, rd: RageDict):
+def _iv_scan_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
     """Brute-force scan for grcTexturePC signatures when dict parse fails."""
     # Look for reasonable width/height pairs preceded by D3D format ID
     BASE = 0x50000000
@@ -201,7 +201,7 @@ def _iv_scan_textures(vdata: bytes, pdata: bytes, rd: RageDict):
                         pix_off = _physical_offset(pix_ptr, pdata)
                         fmt = _D3D_FMT[d3dfmt]
                         raw, rgba = _decode_pixels(pdata, pix_off, w, h, fmt)
-                        rd.textures.append(RageTexture(
+                        rd.textures.append(XTDTexture(
                             name=f"tex_{len(rd.textures):04d}",
                             width=w, height=h, fmt=fmt, mips=1,
                             rgba=rgba, raw=raw))
@@ -214,7 +214,7 @@ def _iv_scan_textures(vdata: bytes, pdata: bytes, rd: RageDict):
 
 # ── RSC8 (GTA V / RDR2 .ytd) ──────────────────────────────────────────────────
 
-def _parse_rsc8(path: str, data: bytes) -> RageDict:
+def _parse_rsc8(path: str, data: bytes) -> XTDDict:
     """GTA V / RDR2 .ytd — RSC8."""
     try:
         magic, version, vflags, pflags = struct.unpack_from("<4I", data, 0)
@@ -228,11 +228,11 @@ def _parse_rsc8(path: str, data: bytes) -> RageDict:
         vdata = data[16 : 16 + vsize]
         pdata = data[16 + vsize : 16 + vsize + psize]
 
-        rd = RageDict(path=path, game=game, version=version)
+        rd = XTDDict(path=path, game=game, version=version)
         _extract_v_textures(vdata, pdata, rd, version)
         return rd
     except Exception as e:
-        return RageDict(path=path, game="V", version=0, error=str(e))
+        return XTDDict(path=path, game="V", version=0, error=str(e))
 
 
 def _rsc8_seg_size(flags: int) -> int:
@@ -257,7 +257,7 @@ def _rsc8_seg_size(flags: int) -> int:
     return min(total, 256 * 1024 * 1024)
 
 
-def _extract_v_textures(vdata: bytes, pdata: bytes, rd: RageDict, version: int):
+def _extract_v_textures(vdata: bytes, pdata: bytes, rd: XTDDict, version: int):
     """Walk pgDictionary<grcTextureDX11> in GTA V virtual segment."""
     BASE = 0x60000000  # V virtual base
 
@@ -288,7 +288,7 @@ def _extract_v_textures(vdata: bytes, pdata: bytes, rd: RageDict, version: int):
         _v_scan_textures(vdata, pdata, rd)
 
 
-def _read_v_texture(vdata: bytes, pdata: bytes, off: int, rd: RageDict, version: int):
+def _read_v_texture(vdata: bytes, pdata: bytes, off: int, rd: XTDDict, version: int):
     """Parse grcTextureDX11 entry."""
     try:
         # grcTextureDX11 layout (GTA V PC, simplified):
@@ -320,14 +320,14 @@ def _read_v_texture(vdata: bytes, pdata: bytes, off: int, rd: RageDict, version:
         fmt = _DXGI_FMT.get(dxgi_fmt, f"DXGI_{dxgi_fmt:02X}")
         raw, rgba = _decode_pixels(pdata, pix_off, width, height, fmt)
 
-        rd.textures.append(RageTexture(
+        rd.textures.append(XTDTexture(
             name=name, width=width, height=height,
             fmt=fmt, mips=mips, rgba=rgba, raw=raw))
     except Exception:
         pass
 
 
-def _v_scan_textures(vdata: bytes, pdata: bytes, rd: RageDict):
+def _v_scan_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
     """Fallback scan for grcTextureDX11 in GTA V."""
     seen = set()
     i = 0x40
@@ -345,7 +345,7 @@ def _v_scan_textures(vdata: bytes, pdata: bytes, rd: RageDict):
                 pix_off = i * 2  # rough heuristic
                 raw, rgba = _decode_pixels(pdata, pix_off, w, h, fmt)
                 if rgba:
-                    rd.textures.append(RageTexture(
+                    rd.textures.append(XTDTexture(
                         name=f"tex_{len(rd.textures):04d}",
                         width=w, height=h, fmt=fmt,
                         mips=1, rgba=rgba, raw=raw))
@@ -672,7 +672,7 @@ def _bc7_decode_fallback(data: bytes, w: int, h: int) -> bytes:
 
 # ── Detection helper ───────────────────────────────────────────────────────────
 
-def is_rage_file(path: str) -> bool:
+def is_xtd_file(path: str) -> bool:
     """Quick check — is this file a WTD or YTD?"""
     try:
         with open(path, 'rb') as f:
@@ -682,8 +682,8 @@ def is_rage_file(path: str) -> bool:
         return False
 
 
-def get_rage_game(path: str) -> str:
-    """Return 'IV', 'V', 'RDR2', or '' if not a RAGE dict."""
+def get_xtd_game(path: str) -> str:
+    """Return 'IV', 'V', 'RDR2', or '' if not a XTD dict."""
     try:
         with open(path, 'rb') as f:
             magic, version = struct.unpack("<II", f.read(8))

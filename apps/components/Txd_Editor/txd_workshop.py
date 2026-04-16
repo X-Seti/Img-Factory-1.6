@@ -612,6 +612,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         tm.addSeparator()
         tm.addAction("Convert Format…",      self._show_convert_dialog if hasattr(self, '_show_convert_dialog') else lambda: None)
 
+        # Tools
+        tools = parent_menu.addMenu("Tools")
+        tools.addAction("Colour Adjustments…", self._open_colour_adjust)
+        tools.addAction("Seamless Tool…",       self._open_seamless_tool)
+        tools.addAction("Snow Effect…",         self._open_snow_tool)
+        tools.addSeparator()
+        tools.addAction("Tiled Preview 1×1",    lambda: self._set_tiled_preview(1))
+        tools.addAction("Tiled Preview 2×2",    lambda: self._set_tiled_preview(2))
+        tools.addAction("Tiled Preview 3×3",    lambda: self._set_tiled_preview(3))
+        tools.addSeparator()
+        tools.addAction("Alpha Coverage…",      self._open_alpha_coverage)
+
         # View
         vm = parent_menu.addMenu("View")
         vm.addAction("TXD Info",             self._show_txd_info)
@@ -3023,6 +3035,39 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         controls_layout.addWidget(bg_white_btn)
 
         controls_layout.addStretch()
+
+        # ── Tiled preview ──────────────────────────────────────────────────
+        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
+        controls_layout.addWidget(sep)
+        tile_lbl = QLabel("Tile")
+        tile_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tile_lbl.setStyleSheet("font-size:9px; color:#888;")
+        controls_layout.addWidget(tile_lbl)
+        self._tile_btns = {}
+        for n, lbl in [(1,"1×1"),(2,"2×2"),(3,"3×3")]:
+            b = QPushButton(lbl)
+            b.setFixedHeight(20); b.setCheckable(True)
+            b.setChecked(n == 1)
+            b.setStyleSheet("font-size:9px; padding:1px;")
+            b.clicked.connect(lambda chk=False, _n=n: self._set_tiled_preview(_n))
+            controls_layout.addWidget(b)
+            self._tile_btns[n] = b
+
+        # ── Quick tool buttons ─────────────────────────────────────────────
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
+        controls_layout.addWidget(sep2)
+        adj_lbl = QLabel("Edit")
+        adj_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        adj_lbl.setStyleSheet("font-size:9px; color:#888;")
+        controls_layout.addWidget(adj_lbl)
+        for label, slot_name in [("Adjust", "_open_colour_adjust"),
+                                  ("Seamless", "_open_seamless_tool"),
+                                  ("Snow", "_open_snow_tool")]:
+            b = QPushButton(label)
+            b.setFixedHeight(20)
+            b.setStyleSheet("font-size:9px; padding:1px;")
+            b.clicked.connect(lambda chk=False, s=slot_name: getattr(self, s)())
+            controls_layout.addWidget(b)
 
         return controls_frame
 
@@ -11035,10 +11080,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.setContentsMargins(3, 5, 3, 5)
         layout.setSpacing(1)
 
-        btn_height = 32
-        btn_width = 40
-        icon_size = QSize(20, 20)
-        spacer = 3
+        btn_height = 24   # compact when docked
+        btn_width  = 34
+        icon_size  = QSize(16, 16)
+        spacer     = 1
 
         layout.addSpacing(2)
 
@@ -12362,9 +12407,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                     self._open_xtx_file(file_path)
                     return
 
-                # ── Undocumented: RAGE texture dicts (.wtd/.ytd) ──────────────
+                # ── Undocumented: XTD texture dicts (.wtd/.ytd) ──────────────
                 if _ext in ('.wtd', '.ytd'):
-                    self._open_rage_dict(file_path)
+                    self._open_xtd_file(file_path)
                     return
 
                 # Detect PS2 TXD before full parse
@@ -12401,18 +12446,153 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 
 
-    def _open_rage_dict(self, file_path: str): #vers 1
-        """Open a RAGE texture dictionary (.wtd GTA IV / .ytd GTA V/RDR2).
+    # ── Texture Tools ─────────────────────────────────────────────────────────
+
+    def _get_current_rgba(self):
+        """Return (rgba, w, h, name) for the selected texture, or (None,0,0,'')."""
+        if not self.txd_list:
+            return None, 0, 0, ''
+        idx = self._get_selected_texture_index()
+        if idx < 0 or idx >= len(self.txd_list):
+            return None, 0, 0, ''
+        t = self.txd_list[idx]
+        return (t.get('rgba_data', b''), t.get('width', 0),
+                t.get('height', 0), t.get('name', f'tex_{idx}'))
+
+    def _set_current_rgba(self, rgba: bytes):
+        """Replace the selected texture's rgba_data and refresh preview."""
+        idx = self._get_selected_texture_index()
+        if 0 <= idx < len(self.txd_list):
+            self.txd_list[idx]['rgba_data'] = rgba
+            self.txd_list[idx]['modified']  = True
+            self._update_preview()
+
+    def _open_colour_adjust(self): #vers 1
+        """Colour adjustments — brightness/contrast/hue/sat/sharp/opacity."""
+        from apps.methods.txd_tools import ColourAdjustDialog
+        rgba, w, h, name = self._get_current_rgba()
+        if not rgba:
+            self._set_status("Select a texture first"); return
+        dlg = ColourAdjustDialog(rgba, w, h, name, self)
+        dlg.applied.connect(self._set_current_rgba)
+        dlg.exec()
+
+    def _open_seamless_tool(self): #vers 1
+        """Seamless texture conversion tool."""
+        from apps.methods.txd_tools import SeamlessDialog
+        rgba, w, h, name = self._get_current_rgba()
+        if not rgba:
+            self._set_status("Select a texture first"); return
+        dlg = SeamlessDialog(rgba, w, h, name, self)
+        dlg.applied.connect(self._set_current_rgba)
+        dlg.exec()
+
+    def _open_snow_tool(self): #vers 1
+        """Snow effect generator."""
+        from apps.methods.txd_tools import SnowDialog
+        rgba, w, h, name = self._get_current_rgba()
+        if not rgba:
+            self._set_status("Select a texture first"); return
+        dlg = SnowDialog(rgba, w, h, name, self)
+        dlg.applied.connect(self._set_current_rgba)
+        dlg.exec()
+
+    def _set_tiled_preview(self, n: int): #vers 1
+        """Switch preview tiling: 1x1, 2x2, 3x3."""
+        # Update button states
+        for btn_n, btn in getattr(self, '_tile_btns', {}).items():
+            btn.setChecked(btn_n == n)
+        # Update preview widget if it supports tiling
+        if hasattr(self, 'preview_widget') and hasattr(self.preview_widget, 'set_tile'):
+            self.preview_widget.set_tile(n)
+        else:
+            # Fallback: re-render with tiling via PIL
+            rgba, w, h, _ = self._get_current_rgba()
+            if rgba and n > 1:
+                try:
+                    from PIL import Image
+                    img = Image.frombytes('RGBA', (w, h), rgba)
+                    tiled = Image.new('RGBA', (w * n, h * n))
+                    for y in range(n):
+                        for x in range(n):
+                            tiled.paste(img, (x * w, y * h))
+                    from PyQt6.QtGui import QImage, QPixmap
+                    td = tiled.tobytes()
+                    qi = QImage(td, tiled.width, tiled.height,
+                                tiled.width * 4, QImage.Format.Format_RGBA8888)
+                    pm = QPixmap.fromImage(qi)
+                    if hasattr(self, 'preview_widget'):
+                        self.preview_widget.setPixmap(pm.scaled(
+                            self.preview_widget.size(),
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation))
+                except Exception as e:
+                    self._set_status(f"Tiled preview error: {e}")
+            elif n == 1:
+                self._update_preview()
+
+    def _open_alpha_coverage(self): #vers 1
+        """Scale alpha for mipmap coverage (foliage, fences, decals)."""
+        from apps.methods.txd_tools import compute_mip0_coverage, scale_alpha_for_coverage
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QDoubleSpinBox
+        from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QCheckBox
+
+        rgba, w, h, name = self._get_current_rgba()
+        if not rgba:
+            self._set_status("Select a texture first"); return
+
+        coverage = compute_mip0_coverage(rgba, w, h)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Alpha Coverage — {name}")
+        lo = QVBoxLayout(dlg)
+
+        lo.addWidget(QLabel(
+            "Current mip-0 alpha coverage: " + "{:.1%}".format(coverage) +
+            "\n\nThis tool scales the alpha channel so that downsampled\n"
+            "mip levels preserve the same coverage fraction.\n"
+            "Critical for SA foliage, fences, and decals."))
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Target coverage:"))
+        sp = QDoubleSpinBox()
+        sp.setRange(0.01, 1.0); sp.setSingleStep(0.01)
+        sp.setValue(round(coverage, 2)); sp.setDecimals(2)
+        row.addWidget(sp)
+        lo.addLayout(row)
+
+        use_mip = QCheckBox("Apply to all mip levels (recommended)")
+        use_mip.setChecked(True)
+        lo.addWidget(use_mip)
+
+        btns = QHBoxLayout()
+        ok = QPushButton("Apply"); ok.setDefault(True)
+        cancel = QPushButton("Cancel")
+        ok.clicked.connect(dlg.accept); cancel.clicked.connect(dlg.reject)
+        btns.addWidget(ok); btns.addWidget(cancel)
+        lo.addLayout(btns)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            target = sp.value()
+            new_rgba = scale_alpha_for_coverage(rgba, w, h, target)
+            self._set_current_rgba(new_rgba)
+            new_cov = compute_mip0_coverage(new_rgba, w, h)
+            self._set_status(
+                f"Alpha coverage adjusted: {coverage:.1%} → {new_cov:.1%} "
+                f"(target {target:.1%})")
+
+    def _open_xtd_file(self, file_path: str): #vers 1
+        """Open a XTD texture dictionary (.wtd GTA IV / .ytd GTA V/RDR2).
         Read-only import source — textures appear in the list for export or
         transfer into a regular TXD session.  Completely unsupported/undocumented.
         """
         try:
-            from apps.methods.rage_textures import open_rage_dict, get_rage_game
+            from apps.methods.xtd_textures import open_xtd_dict, get_xtd_game
             from PyQt6.QtWidgets import QProgressDialog
             from PyQt6.QtCore import Qt
             import os
 
-            game = get_rage_game(file_path)
+            game = get_xtd_game(file_path)
             name = os.path.basename(file_path)
 
             prog = QProgressDialog(f"Reading {name}…", None, 0, 0, self)
@@ -12422,7 +12602,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             from PyQt6.QtWidgets import QApplication
             QApplication.processEvents()
 
-            rd = open_rage_dict(file_path)
+            rd = open_xtd_dict(file_path)
             prog.close()
 
             if rd.error:
@@ -12457,16 +12637,16 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                     'raster_format': 0x0500,  # RASTER_DEFAULT
                     'platform_id':   9,        # PC
                     'filter_flags':  0,
-                    'is_rage_import': True,    # marker — read-only
-                    'rage_game':     rd.game,
-                    'rage_fmt':      rt.fmt,
+                    'is_xtd_import': True,    # marker — read-only
+                    'xtd_game':     rd.game,
+                    'xtd_fmt':      rt.fmt,
                 }
                 txd_list.append(entry)
 
             self.txd_list = txd_list
             self.current_txd_path  = file_path
             self.current_txd_name  = name
-            self.txd_version_str   = f"RAGE RSC{'7' if rd.game=='IV' else '8'} v{rd.version}"
+            self.txd_version_str   = f"XTD RSC{'7' if rd.game=='IV' else '8'} v{rd.version}"
             self.txd_platform_name = f"GTA {rd.game} PC"
             self.txd_game          = f"GTA {rd.game}"
 
@@ -12484,7 +12664,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             import traceback
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.critical(self, "Error", f"Failed to open RAGE dict:\n{e}")
+            QMessageBox.critical(self, "Error", f"Failed to open XTD dict:\n{e}")
             traceback.print_exc()
 
     def _open_xtx_file(self, file_path: str): #vers 1

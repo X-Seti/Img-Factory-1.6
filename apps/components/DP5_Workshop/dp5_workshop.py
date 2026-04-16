@@ -4535,14 +4535,19 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         # ── Column count: auto or explicit ────────────────────────────────
         icon_sz   = self.dp5_settings.get('tool_icon_size')   # 24–64 px
-        btn_sz    = icon_sz + 6                               # icon + padding
+        if not getattr(self, 'standalone_mode', True):
+            icon_sz = min(icon_sz, 24)   # cap at 24px when docked — saves panel space
+        btn_sz    = icon_sz + 4 if not getattr(self, 'standalone_mode', True) else icon_sz + 6
         gap       = 3                                          # grid spacing
 
         # Auto mode: pick columns so the panel stays ≤ ~280px
         # btn_sz=48 → 3col=150+framing=162, 4col=198+framing=210
         # btn_sz=36 → 3col=114, 4col=150  btn_sz=60 → 3col=186, 4col=246
         req_cols = self.dp5_settings.get('tool_columns')
-        n_cols = max(3, min(6, req_cols))
+        if not getattr(self, 'standalone_mode', True):
+            n_cols = 2   # 2 columns when docked — narrow panel
+        else:
+            n_cols = max(3, min(6, req_cols))
 
         # Panel width: fit to gadget grid + 20px extra for palette labels
         panel_w = btn_sz * n_cols + gap * (n_cols - 1) + 36

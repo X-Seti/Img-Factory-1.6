@@ -1421,6 +1421,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         fm.addSeparator()
         fm.addAction("Export…",  self._export_col_data if hasattr(self, '_export_col_data') else lambda: None)
 
+        col_m = parent_menu.addMenu("COL")
+        col_m.addAction("Build COL from DFF…",    lambda: self._dff_to_col_surfaces(single=True))
+        col_m.addAction("Batch COL from DFFs…",   lambda: self._dff_to_col_surfaces(single=False))
+        col_m.addSeparator()
+        col_m.addAction("Convert Surface…",        self._convert_surface if hasattr(self, '_convert_surface') else lambda: None)
+        col_m.addAction("New Surface…",            self._create_new_surface if hasattr(self, '_create_new_surface') else lambda: None)
+
         vm = parent_menu.addMenu("View")
         vm.addAction("Sort",     self._show_sort_menu if hasattr(self, '_show_sort_menu') else lambda: None)
 
@@ -2251,6 +2258,240 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self.main_window.log_message(msg)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _dff_to_col_surfaces(self, single=True): #vers 1
+        """Generate COL from DFF model — maps texture names to COL surface types.
+        single=True: one COL model from currently loaded DFF.
+        single=False: batch — pick a directory of DFF files.
+        """
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+            QTableWidget, QTableWidgetItem, QComboBox, QPushButton, QFileDialog,
+            QMessageBox, QProgressDialog, QCheckBox, QHeaderView, QAbstractItemView)
+        from PyQt6.QtCore import Qt
+
+        # ── GTA surface type map ─────────────────────────────────────────────
+        # texture name keyword -> (surface_id, label)
+        SURFACE_MAP = [
+            # Roads / Paths
+            (["road","tarmac","asphalt","highway","freeway","motorway"], (0,  "Default/Road")),
+            (["concrete","cement","pavement","sidewalk","curb","kerb"],  (2,  "Concrete")),
+            (["sand","dirt","gravel","earth","soil","dust"],             (3,  "Sand")),
+            (["grass","lawn","turf","verge","meadow"],                   (4,  "Grass")),
+            (["water","sea","ocean","river","lake","pool"],              (5,  "Water")),
+            (["wood","plank","board","timber","pier","crate","box"],     (6,  "Wood")),
+            (["metal","steel","iron","tin","sheet","corrugated"],        (7,  "Metal")),
+            (["grate","grid","mesh","fence","wire"],                     (8,  "Metal (grate)")),
+            (["roof","tile","slate","shingle"],                          (9,  "Roof tile")),
+            (["glass","window","pane","windscreen"],                     (10, "Glass")),
+            (["mud","swamp","marsh"],                                    (11, "Mud")),
+            (["rubber","tyre","tire","wheel"],                           (12, "Rubber")),
+            (["plastic","pvc","fibreglass","fibreglass"],                (13, "Plastic")),
+            (["rock","stone","boulder","cliff","granite","limestone"],   (14, "Rock")),
+            (["marble","polished","floor","tile"],                       (15, "Marble")),
+            (["carpet","rug","mat"],                                     (16, "Carpet")),
+            (["leaves","bush","shrub","hedge","foliage","plant"],       (17, "Foliage")),
+            (["snow","ice","frost","frozen"],                            (20, "Snow/Ice")),
+            (["wood_chips","sawdust","bark"],                            (21, "Wood chips")),
+        ]
+
+        def _guess_surface(tex_name: str) -> int:
+            low = tex_name.lower()
+            for keywords, (sid, _) in SURFACE_MAP:
+                if any(kw in low for kw in keywords):
+                    return sid
+            return 0  # default
+
+        def _surface_label(sid: int) -> str:
+            for _, (s, lbl) in SURFACE_MAP:
+                if s == sid:
+                    return lbl
+            return f"Surface {sid}"
+
+        # ── Collect DFF files ────────────────────────────────────────────────
+        dff_paths = []
+        if single:
+            # Use currently loaded DFF if available
+            cur = getattr(self, '_current_dff_path', None)
+            if not cur:
+                cur, _ = QFileDialog.getOpenFileName(
+                    self, "Select DFF File", "", "DFF Files (*.dff);;All Files (*)")
+            if cur:
+                dff_paths = [cur]
+        else:
+            # Batch: pick directory
+            d = QFileDialog.getExistingDirectory(self, "Select DFF Directory")
+            if d:
+                import os
+                dff_paths = [os.path.join(d, f) for f in os.listdir(d)
+                             if f.lower().endswith('.dff')]
+                dff_paths.sort()
+
+        if not dff_paths:
+            return
+
+        # ── Parse DFFs and collect material info ─────────────────────────────
+        from apps.methods.dff_parser import DFFParser
+        all_models = []  # list of (dff_basename, [(tex_name, surface_id), ...], geom)
+
+        prog = QProgressDialog("Parsing DFF files…", "Cancel", 0, len(dff_paths), self)
+        prog.setWindowModality(Qt.WindowModality.WindowModal)
+        for i, path in enumerate(dff_paths):
+            prog.setValue(i)
+            if prog.wasCanceled():
+                return
+            try:
+                import os
+                p = DFFParser(path)
+                p.parse()
+                for geom in p.geometries:
+                    mats = []
+                    for mat in geom.materials:
+                        tex = getattr(mat, 'texture_name', '') or ''
+                        sid = _guess_surface(tex)
+                        mats.append([tex, sid])
+                    all_models.append((os.path.basename(path), mats, geom))
+            except Exception as e:
+                print(f"[DFF→COL] {path}: {e}")
+        prog.setValue(len(dff_paths))
+
+        if not all_models:
+            QMessageBox.warning(self, "No Models", "No valid DFF models found.")
+            return
+
+        # ── Surface assignment dialog ─────────────────────────────────────────
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"DFF → COL Surface Assignment ({len(all_models)} model(s))")
+        dlg.resize(700, 500)
+        lo = QVBoxLayout(dlg)
+
+        lo.addWidget(QLabel(
+            "Texture names have been matched to GTA surface types. "
+            "Adjust any assignments before generating the COL."))
+
+        # Table: DFF name | Texture | Surface ID | Label
+        tbl = QTableWidget(0, 4)
+        tbl.setHorizontalHeaderLabels(["Model", "Texture", "Surface ID", "Surface Type"])
+        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        tbl.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        lo.addWidget(tbl, 1)
+
+        row_data = []  # (model_name, tex_name, surface_id_ref, geom)
+        for model_name, mats, geom in all_models:
+            for tex, sid in mats:
+                row = tbl.rowCount(); tbl.insertRow(row)
+                tbl.setItem(row, 0, QTableWidgetItem(model_name))
+                tbl.setItem(row, 1, QTableWidgetItem(tex or "(no texture)"))
+                sp = QComboBox()
+                for _, (s_id, s_lbl) in SURFACE_MAP:
+                    sp.addItem(f"{s_id} — {s_lbl}", s_id)
+                # Select current
+                for i in range(sp.count()):
+                    if sp.itemData(i) == sid:
+                        sp.setCurrentIndex(i); break
+                tbl.setCellWidget(row, 2, sp)
+                tbl.setItem(row, 3, QTableWidgetItem(_surface_label(sid)))
+                sp.currentIndexChanged.connect(
+                    lambda _, r=row, s=sp: tbl.item(r, 3).setText(
+                        _surface_label(s.currentData())))
+                row_data.append((model_name, tex, sp, geom))
+
+        # Options
+        opts_row = QHBoxLayout()
+        col_version = QComboBox()
+        col_version.addItems(["COL 1 (GTA III/VC)", "COL 2 (GTA SA)", "COL 3 (GTA SA extended)"])
+        col_version.setCurrentIndex(1)
+        opts_row.addWidget(QLabel("COL version:")); opts_row.addWidget(col_version)
+        use_mesh = QCheckBox("Include mesh faces")
+        use_mesh.setChecked(True)
+        opts_row.addWidget(use_mesh)
+        opts_row.addStretch()
+        lo.addLayout(opts_row)
+
+        btn_row = QHBoxLayout()
+        ok_btn = QPushButton("Generate COL"); ok_btn.setDefault(True)
+        cancel_btn = QPushButton("Cancel")
+        ok_btn.clicked.connect(dlg.accept); cancel_btn.clicked.connect(dlg.reject)
+        btn_row.addStretch(); btn_row.addWidget(ok_btn); btn_row.addWidget(cancel_btn)
+        lo.addLayout(btn_row)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # ── Build COL models ─────────────────────────────────────────────────
+        from apps.methods.col_workshop_loader import COLFile
+        from apps.methods.col_workshop_classes import (COLModel, COLVersion, COLBounds,
+                                                        COLFace, COLVertex, COLMaterial)
+        import struct, os
+
+        col_ver_map = [COLVersion.COL_1, COLVersion.COL_2, COLVersion.COL_3]
+        col_ver = col_ver_map[col_version.currentIndex()]
+
+        if not self.current_col_file:
+            self.current_col_file = COLFile()
+            self.current_col_file.models = []
+
+        added = 0
+        for model_name, tex_name, sp_widget, geom in row_data:
+            surface_id = sp_widget.currentData()
+            m = COLModel()
+            m.name    = os.path.splitext(model_name)[0]
+            m.version = col_ver
+            m.spheres = []; m.boxes = []
+
+            # Bounds from DFF geometry
+            try:
+                bs = geom.bounding_sphere
+                mn = type('V',(),{'x':bs.center.x-bs.radius,'y':bs.center.y-bs.radius,'z':bs.center.z-bs.radius})()
+                mx = type('V',(),{'x':bs.center.x+bs.radius,'y':bs.center.y+bs.radius,'z':bs.center.z+bs.radius})()
+                ctr= type('V',(),{'x':bs.center.x,'y':bs.center.y,'z':bs.center.z})()
+            except Exception:
+                mn =type('V',(),{'x':-1.0,'y':-1.0,'z':-1.0})()
+                mx =type('V',(),{'x': 1.0,'y': 1.0,'z': 1.0})()
+                ctr=type('V',(),{'x': 0.0,'y': 0.0,'z': 0.0})()
+
+            bounds = COLBounds()
+            bounds.min = mn; bounds.max = mx
+            bounds.center = ctr
+            try:
+                bounds.radius = geom.bounding_sphere.radius
+            except Exception:
+                bounds.radius = 1.73
+            m.bounds = bounds; m.model_id = 0
+
+            # Mesh faces
+            if use_mesh.isChecked() and hasattr(geom, 'vertices') and geom.vertices:
+                mat_obj = COLMaterial()
+                mat_obj.material_id = surface_id
+                mat_obj.flag = 0; mat_obj.brightness = 0; mat_obj.light = 0
+
+                verts = []
+                for v in geom.vertices:
+                    cv = COLVertex(); cv.x = v.x; cv.y = v.y; cv.z = v.z
+                    verts.append(cv)
+                m.vertices = verts
+
+                faces = []
+                for tri in geom.triangles:
+                    cf = COLFace()
+                    cf.v1 = tri.v1; cf.v2 = tri.v2; cf.v3 = tri.v3
+                    cf.material = mat_obj
+                    faces.append(cf)
+                m.faces = faces
+                m.shadow_verts = []; m.shadow_faces = []
+            else:
+                m.vertices = []; m.faces = []
+                m.shadow_verts = []; m.shadow_faces = []
+
+            self.current_col_file.models.append(m)
+            added += 1
+
+        self._populate_collision_list()
+        self._populate_compact_col_list()
+        msg = (f"Generated {added} COL model(s) from "
+               f"{'DFF' if single else str(len(dff_paths)) + ' DFFs'}")
+        self._set_status(msg)
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(msg)
 
     def _cycle_render_mode(self): #vers 1
         modes = ['wireframe','solid','painted']
@@ -4214,7 +4455,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.build_from_txd_btn.setFixedHeight(btn_height)
         self.build_from_txd_btn.setMinimumWidth(btn_width)
         self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
-        self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
+        self.build_from_txd_btn.clicked.connect(lambda: self._dff_to_col_surfaces(single=True))
         layout.addWidget(self.build_from_txd_btn)
 
         layout.addStretch()
@@ -4369,7 +4610,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.build_from_txd_btn.setFont(self.button_font)
         self.build_from_txd_btn.setFixedHeight(btn_height)
         self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
-        self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
+        self.build_from_txd_btn.clicked.connect(lambda: self._dff_to_col_surfaces(single=True))
         layout.addWidget(self.build_from_txd_btn)
 
         layout.addStretch()
@@ -9104,7 +9345,7 @@ class COLEditorDialog(QDialog): #vers 3
         models_group = QGroupBox("Models")
         models_layout = QVBoxLayout(models_group)
 
-        self.model_list = COLModelListWidget()
+        self.model_list = ModelListWidget()
         models_layout.addWidget(self.model_list)
 
         left_panel.addWidget(models_group)
@@ -9742,7 +9983,7 @@ def import_elements(model: COLModel, file_path: str) -> bool: #vers 1
         return False
 
 
-def refresh_model_list(list_widget: COLModelListWidget, col_file: COLFile): #vers 1
+def refresh_model_list(list_widget: ModelListWidget, col_file: COLFile): #vers 1
     """Refresh model list widget"""
     try:
         list_widget.set_col_file(col_file)
