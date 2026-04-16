@@ -767,7 +767,7 @@ class DP5SettingsDialog(QDialog):
         self._font_size_spin.setValue(self.s.get('ui_font_size'))
         ul.addRow("UI font size:", self._font_size_spin)
 
-        self._icon_size_spin = QSpinBox(); self._icon_size_spin.setRange(20, 64)
+        self._icon_size_spin = QSpinBox(); self._icon_size_spin.setRange(16, 64)
         self._icon_size_spin.setValue(self.s.get('tool_icon_size'))
         ul.addRow("Tool icon size (px):", self._icon_size_spin)
 
@@ -2161,6 +2161,78 @@ class PaletteGrid(QWidget):
         self.set_palette_raw(palette_data)
 
 
+
+class _AutoCellPaletteGrid(PaletteGrid):
+    """User palette variant: cell size grows to fill available width.
+
+    Instead of a fixed cell size, we divide the widget width by the column
+    count so swatches always tile edge-to-edge regardless of panel width.
+    On resize the cells re-scale automatically.
+    """
+
+    def __init__(self, cols: int = 16, parent=None):
+        self._fixed_cols = cols   # must be set BEFORE super().__init__ calls _recalc_height
+        super().__init__(cols=cols, cell=13, parent=parent)
+
+    def _effective_cols(self) -> int:
+        return max(1, self._fixed_cols)
+
+    def _cell_size(self) -> int:
+        """Cell size = floor(widget_width / cols), minimum 4px."""
+        w = self.width()
+        if w <= 0:
+            return self._cell
+        return max(4, w // self._fixed_cols)
+
+    def set_colors(self, colors, cols: int = None):
+        if cols:
+            self._fixed_cols = max(1, cols)
+        super().set_colors(colors, cols=None)   # don't let super touch _cols_hint
+
+    def set_palette_raw(self, palette_data):
+        super().set_palette_raw(palette_data)
+
+    def _recalc_height(self):
+        cs   = self._cell_size()
+        cols = self._fixed_cols
+        rows = max(1, (len(self._colors) + cols - 1) // cols)
+        self.setFixedHeight(rows * cs + 1)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._recalc_height()
+        self.update()
+
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QPainter, QPen, QColor
+        p    = QPainter(self)
+        cs   = self._cell_size()
+        cols = self._fixed_cols
+        gap  = 1 if cs >= 6 else 0
+        for i, col in enumerate(self._colors):
+            x = (i % cols) * cs
+            y = (i // cols) * cs
+            p.fillRect(x, y, max(1, cs - gap), max(1, cs - gap), col)
+            if i == self._selected and cs >= 6:
+                from PyQt6.QtGui import QPen
+                p.setPen(QPen(QColor(0, 0, 0), 1))
+                p.drawRect(x, y, cs - 2, cs - 2)
+                p.setPen(QPen(QColor(255, 255, 255), 1))
+                p.drawRect(x + 1, y + 1, cs - 4, cs - 4)
+
+    def mousePressEvent(self, e):
+        from PyQt6.QtCore import Qt
+        cs   = self._cell_size()
+        cols = self._fixed_cols
+        col  = e.position().toPoint().x() // cs
+        row  = e.position().toPoint().y() // cs
+        idx  = row * cols + col
+        if 0 <= idx < len(self._colors):
+            self._selected = idx
+            self.color_picked.emit(self._colors[idx])
+            self.update()
+
+
 # Keep an alias so any stale references to DP5PaletteBar still resolve
 DP5PaletteBar = PaletteGrid
 
@@ -3240,13 +3312,13 @@ class ColorPalPresetsMixin:
         self.current_retro_palette = name
         colors, cols = self._get_retro_colors(name)
         if hasattr(self, '_user_pal_grid'):
+            # _AutoCellPaletteGrid: pass cols so it knows how many columns to use;
+            # cell size is computed automatically from widget width
+            if hasattr(self._user_pal_grid, '_fixed_cols'):
+                self._user_pal_grid._fixed_cols = max(1, cols)
             self._user_pal_grid.set_colors(colors, cols)
-            # Use _cols_hint and _cell to set user palette width
-            grid_w = self._user_pal_grid._cols_hint * self._user_pal_grid._cell
-            self._user_pal_grid.setFixedWidth(max(grid_w, 32))
-            if hasattr(self, '_user_pal_scroll'):
-                sb_w = self._user_pal_scroll.verticalScrollBar().sizeHint().width()
-                self._user_pal_scroll.setFixedWidth(max(grid_w, 32) + sb_w + 4)
+            self._user_pal_grid._recalc_height()
+            self._user_pal_grid.update()
         if hasattr(self, '_retro_btn'):
             self._retro_btn.setText(f"{name}")
         # Show dither button only for small palettes
@@ -4551,10 +4623,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         icon_color = self._get_icon_color()
 
         # ── Column count: auto or explicit ────────────────────────────────
-        icon_sz   = self.dp5_settings.get('tool_icon_size')   # 24–64 px
-        if not getattr(self, 'standalone_mode', True):
-            icon_sz = min(icon_sz, 24)   # cap at 24px when docked — saves panel space
-        btn_sz    = icon_sz + 4 if not getattr(self, 'standalone_mode', True) else icon_sz + 6
+        icon_sz   = self.dp5_settings.get('tool_icon_size')   # 20–64 px
+        btn_sz    = icon_sz + 6   # padding around icon
         gap       = 3                                          # grid spacing
 
         # Auto mode: pick columns so the panel stays ≤ ~280px
@@ -4846,23 +4916,22 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._pal_dither_btn.setVisible(False)  # dither via File menu instead
         layout.addLayout(user_pal_hdr)
 
-        user_cols = self.dp5_settings.get('user_pal_cols')
         user_rows = self.dp5_settings.get('user_pal_rows')
-        user_pal_w = user_cols * 12
-        user_pal_max_h = max(user_rows * 12 + 2, 130)  # minimum 130px for large palettes
-        self._user_pal_grid = PaletteGrid(cols=user_cols, cell=12)
+        user_pal_max_h = max(user_rows * 12 + 2, 130)
+        # User palette: cell size computed to fill panel width.
+        # We use a ResizingPaletteGrid that recalculates cell on resize
+        # so swatches always fill the available width cleanly.
+        self._user_pal_grid = _AutoCellPaletteGrid()
         self._user_pal_grid.color_picked.connect(self._on_user_palette_color)
-        # No fixed width — wraps to panel width automatically
         user_pal_scroll = QScrollArea()
         user_pal_scroll.setWidget(self._user_pal_grid)
         user_pal_scroll.setWidgetResizable(True)
         user_pal_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         user_pal_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        user_pal_scroll.setFixedWidth(user_pal_w + user_pal_scroll.verticalScrollBar().sizeHint().width() + 4)
         user_pal_scroll.setMaximumHeight(user_pal_max_h)
         user_pal_scroll.setMinimumHeight(12)
         self._user_pal_scroll = user_pal_scroll
-        layout.addWidget(user_pal_scroll)
+        layout.addWidget(user_pal_scroll, stretch=1)
 
         # Load default retro palette
         self._apply_retro_palette(self.dp5_settings.get('retro_palette'))
