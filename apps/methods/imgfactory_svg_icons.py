@@ -2910,6 +2910,63 @@ class SVGIconFactory: #vers 7
 
 #Shortform
 
+    # ── Texture tool icons ────────────────────────────────────────────────────
+
+    @staticmethod
+    def knob_icon(size: int = 20, color: str = None) -> 'QIcon':
+        """Rotary knob — Colour Adjustments."""
+        c = color or '#cccccc'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<circle cx="10" cy="10" r="8" fill="none" stroke="{c}" stroke-width="1.5"/>'
+            f'<circle cx="10" cy="10" r="4" fill="{c}" opacity="0.25"/>'
+            f'<circle cx="10" cy="10" r="1.5" fill="{c}"/>'
+            f'<line x1="10" y1="3.5" x2="10" y2="7" stroke="{c}" stroke-width="2" stroke-linecap="round"/>'
+            f'</svg>', size, color)
+
+    @staticmethod
+    def seamless_icon(size: int = 20, color: str = None) -> 'QIcon':
+        """4-square tiled wave — Seamless texture."""
+        c = color or '#cccccc'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<rect x="1" y="1" width="8" height="8" fill="none" stroke="{c}" stroke-width="1.2" rx="1"/>'
+            f'<rect x="11" y="1" width="8" height="8" fill="none" stroke="{c}" stroke-width="1.2" rx="1"/>'
+            f'<rect x="1" y="11" width="8" height="8" fill="none" stroke="{c}" stroke-width="1.2" rx="1"/>'
+            f'<rect x="11" y="11" width="8" height="8" fill="none" stroke="{c}" stroke-width="1.2" rx="1"/>'
+            f'<path d="M2 10 Q5 6 10 10 Q15 14 18 10" fill="none" stroke="{c}" stroke-width="1.4" stroke-linecap="round"/>'
+            f'</svg>', size, color)
+
+    @staticmethod
+    def snow_icon(size: int = 20, color: str = None) -> 'QIcon':
+        """Snowflake — Snow effect."""
+        c = color or '#cccccc'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<line x1="10" y1="1" x2="10" y2="19" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="1" y1="10" x2="19" y2="10" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="3.5" y1="3.5" x2="16.5" y2="16.5" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="16.5" y1="3.5" x2="3.5" y2="16.5" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<circle cx="10" cy="3.5" r="1.4" fill="{c}"/>'
+            f'<circle cx="10" cy="16.5" r="1.4" fill="{c}"/>'
+            f'<circle cx="3.5" cy="10" r="1.4" fill="{c}"/>'
+            f'<circle cx="16.5" cy="10" r="1.4" fill="{c}"/>'
+            f'<circle cx="10" cy="10" r="2" fill="{c}"/>'
+            f'</svg>', size, color)
+
+    @staticmethod
+    def alpha_coverage_icon(size: int = 20, color: str = None) -> 'QIcon':
+        """Shield + alpha — Alpha Coverage."""
+        c = color or '#cccccc'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<path d="M10 2 L17 5 L17 11 Q17 16 10 19 Q3 16 3 11 L3 5 Z"'
+            f' fill="none" stroke="{c}" stroke-width="1.5" stroke-linejoin="round"/>'
+            f'<text x="10" y="14" text-anchor="middle" font-size="9"'
+            f' font-family="serif" fill="{c}" font-style="italic">a</text>'
+            f'</svg>', size, color)
+
+
 def get_extract_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Extract icon - dotted border box with downward arrow"""
     icon = SVGIconFactory.get_extract_icon(size, color)
@@ -3863,6 +3920,7 @@ def get_dp5_panel_icon(size: int = 24, color: str = None, bg_color: str = None) 
         <path d="M14 10 L18 6" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.6"/>
         <circle cx="7" cy="19" r="1.5" fill="currentColor" fill-opacity="0.7"/>
     </svg>''', size, color, bg_color)
+
 
 def get_ipl_editor_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """IPL Editor — placement map with pin"""

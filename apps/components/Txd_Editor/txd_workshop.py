@@ -3036,38 +3036,100 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         controls_layout.addStretch()
 
-        # ── Tiled preview ──────────────────────────────────────────────────
+        # ── Tiled preview + tool buttons — 2-column icon grid ────────────
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         controls_layout.addWidget(sep)
+
+        # widen the controls frame to fit 2 columns
+        controls_frame.setMaximumWidth(60)
+
+        from PyQt6.QtWidgets import QGridLayout
+        grid_w = QWidget()
+        grid = QGridLayout(grid_w)
+        grid.setContentsMargins(1, 1, 1, 1)
+        grid.setSpacing(2)
+        controls_layout.addWidget(grid_w)
+
+        BTN = 26   # button size for 2-col layout
+        IC  = 18   # icon size
+
+        def _nav_btn(svg_fn, tip, slot, checkable=False):
+            b = QPushButton()
+            b.setFixedSize(BTN, BTN)
+            b.setCheckable(checkable)
+            b.setToolTip(tip)
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                b.setIcon(getattr(SVGIconFactory, svg_fn)(IC))
+                from PyQt6.QtCore import QSize
+                b.setIconSize(QSize(IC, IC))
+            except Exception:
+                b.setText(tip[:2])
+            b.clicked.connect(slot)
+            return b
+
+        # Row 0: Tiled preview label spanning 2 cols
         tile_lbl = QLabel("Tile")
         tile_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        tile_lbl.setStyleSheet("font-size:9px; color:#888;")
-        controls_layout.addWidget(tile_lbl)
+        tile_lbl.setStyleSheet("font-size:8px; color:#888;")
+        grid.addWidget(tile_lbl, 0, 0, 1, 2)
+
+        # Rows 1-2: 1×1, 2×2, 3×3 tiled preview buttons
         self._tile_btns = {}
-        for n, lbl in [(1,"1×1"),(2,"2×2"),(3,"3×3")]:
-            b = QPushButton(lbl)
-            b.setFixedHeight(20); b.setCheckable(True)
+        tile_defs = [
+            (1, "1×1 — single tile",  1, 0),
+            (2, "2×2 — tiled preview",1, 1),
+            (3, "3×3 — tiled preview",2, 0),
+        ]
+        for n, tip, row, col in tile_defs:
+            b = QPushButton()
+            b.setFixedSize(BTN, BTN)
+            b.setCheckable(True)
             b.setChecked(n == 1)
-            b.setStyleSheet("font-size:9px; padding:1px;")
+            b.setToolTip(tip)
+            # Inline SVG: grid of n×n squares
+            _N = n
+            cell = 7 if _N == 1 else (5 if _N == 2 else 3)
+            rects = "".join(
+                f'<rect x="{1+c*(cell+1)}" y="{1+r*(cell+1)}" '
+                f'width="{cell}" height="{cell}" fill="#aaa" rx="1"/>'
+                for r in range(_N) for c in range(_N)
+            )
+            total = _N * cell + (_N - 1) + 2
+            svg = (f'<svg xmlns="http://www.w3.org/2000/svg" '
+                   f'viewBox="0 0 {total} {total}">{rects}</svg>')
+            try:
+                from PyQt6.QtGui import QIcon
+                from PyQt6.QtSvg import QSvgRenderer
+                from PyQt6.QtCore import QByteArray, QSize
+                from PyQt6.QtGui import QPixmap, QPainter
+                renderer = QSvgRenderer(QByteArray(svg.encode()))
+                pm = QPixmap(IC, IC); pm.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(pm); renderer.render(painter); painter.end()
+                b.setIcon(QIcon(pm)); b.setIconSize(QSize(IC, IC))
+            except Exception:
+                b.setText(f"{n}×{n}")
+                b.setStyleSheet("font-size:7px;")
             b.clicked.connect(lambda chk=False, _n=n: self._set_tiled_preview(_n))
-            controls_layout.addWidget(b)
+            grid.addWidget(b, row, col)
             self._tile_btns[n] = b
 
-        # ── Quick tool buttons ─────────────────────────────────────────────
-        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
-        controls_layout.addWidget(sep2)
-        adj_lbl = QLabel("Edit")
-        adj_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        adj_lbl.setStyleSheet("font-size:9px; color:#888;")
-        controls_layout.addWidget(adj_lbl)
-        for label, slot_name in [("Adjust", "_open_colour_adjust"),
-                                  ("Seamless", "_open_seamless_tool"),
-                                  ("Snow", "_open_snow_tool")]:
-            b = QPushButton(label)
-            b.setFixedHeight(20)
-            b.setStyleSheet("font-size:9px; padding:1px;")
-            b.clicked.connect(lambda chk=False, s=slot_name: getattr(self, s)())
-            controls_layout.addWidget(b)
+        # Row 3: Edit tools label
+        edit_lbl = QLabel("Edit")
+        edit_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        edit_lbl.setStyleSheet("font-size:8px; color:#888;")
+        grid.addWidget(edit_lbl, 3, 0, 1, 2)
+
+        # Rows 4-5: Adjust(knob), Seamless(wave), Snow(snowflake), Alpha(shield)
+        tool_defs = [
+            ("knob_icon",           "Colour Adjustments…",  "_open_colour_adjust",  4, 0),
+            ("seamless_icon",       "Seamless Tool…",       "_open_seamless_tool",  4, 1),
+            ("snow_icon",           "Snow Effect…",         "_open_snow_tool",      5, 0),
+            ("alpha_coverage_icon", "Alpha Coverage…",      "_open_alpha_coverage", 5, 1),
+        ]
+        for svg_fn, tip, slot_name, row, col in tool_defs:
+            b = _nav_btn(svg_fn, tip, lambda chk=False, s=slot_name: getattr(self, s)())
+            grid.addWidget(b, row, col)
 
         return controls_frame
 
@@ -12450,29 +12512,42 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     def _get_current_rgba(self):
         """Return (rgba, w, h, name) for the selected texture, or (None,0,0,'')."""
-        if not self.txd_list:
+        t = getattr(self, 'selected_texture', None)
+        if not t:
             return None, 0, 0, ''
-        idx = self._get_selected_texture_index()
-        if idx < 0 or idx >= len(self.txd_list):
-            return None, 0, 0, ''
-        t = self.txd_list[idx]
         return (t.get('rgba_data', b''), t.get('width', 0),
-                t.get('height', 0), t.get('name', f'tex_{idx}'))
+                t.get('height', 0), t.get('name', 'texture'))
 
     def _set_current_rgba(self, rgba: bytes):
-        """Replace the selected texture's rgba_data and refresh preview."""
-        idx = self._get_selected_texture_index()
-        if 0 <= idx < len(self.txd_list):
-            self.txd_list[idx]['rgba_data'] = rgba
-            self.txd_list[idx]['modified']  = True
-            self._update_preview()
+        """Replace selected texture rgba_data and refresh preview."""
+        t = getattr(self, 'selected_texture', None)
+        if not t:
+            return
+        t['rgba_data'] = rgba
+        t['modified']  = True
+        # Also update the texture_list entry
+        row = self.texture_table.currentRow() if hasattr(self, 'texture_table') else -1
+        if row >= 0 and hasattr(self, 'texture_list') and row < len(self.texture_list):
+            self.texture_list[row]['rgba_data'] = rgba
+        # Refresh preview using the existing display pipeline
+        try:
+            self._update_texture_info(t)
+        except Exception:
+            try:
+                from PyQt6.QtGui import QImage, QPixmap
+                qi = QImage(rgba, t['width'], t['height'],
+                            t['width'] * 4, QImage.Format.Format_RGBA8888)
+                self.preview_widget.setPixmap(QPixmap.fromImage(qi))
+            except Exception:
+                pass
 
     def _open_colour_adjust(self): #vers 1
         """Colour adjustments — brightness/contrast/hue/sat/sharp/opacity."""
         from apps.methods.txd_tools import ColourAdjustDialog
         rgba, w, h, name = self._get_current_rgba()
         if not rgba:
-            self._set_status("Select a texture first"); return
+            if hasattr(self, 'status_label'): self.status_label.setText("Select a texture first")
+            return
         dlg = ColourAdjustDialog(rgba, w, h, name, self)
         dlg.applied.connect(self._set_current_rgba)
         dlg.exec()
@@ -12482,7 +12557,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         from apps.methods.txd_tools import SeamlessDialog
         rgba, w, h, name = self._get_current_rgba()
         if not rgba:
-            self._set_status("Select a texture first"); return
+            if hasattr(self, 'status_label'): self.status_label.setText("Select a texture first")
+            return
         dlg = SeamlessDialog(rgba, w, h, name, self)
         dlg.applied.connect(self._set_current_rgba)
         dlg.exec()
@@ -12492,7 +12568,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         from apps.methods.txd_tools import SnowDialog
         rgba, w, h, name = self._get_current_rgba()
         if not rgba:
-            self._set_status("Select a texture first"); return
+            if hasattr(self, 'status_label'): self.status_label.setText("Select a texture first")
+            return
         dlg = SnowDialog(rgba, w, h, name, self)
         dlg.applied.connect(self._set_current_rgba)
         dlg.exec()
@@ -12527,9 +12604,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                             Qt.AspectRatioMode.KeepAspectRatio,
                             Qt.TransformationMode.SmoothTransformation))
                 except Exception as e:
-                    self._set_status(f"Tiled preview error: {e}")
+                    if hasattr(self, 'status_label'):
+                        self.status_label.setText(f"Tiled preview error: {e}")
             elif n == 1:
-                self._update_preview()
+                t = getattr(self, 'selected_texture', None)
+                if t:
+                    try: self._update_texture_info(t)
+                    except Exception: pass
 
     def _open_alpha_coverage(self): #vers 1
         """Scale alpha for mipmap coverage (foliage, fences, decals)."""
@@ -12577,9 +12658,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             new_rgba = scale_alpha_for_coverage(rgba, w, h, target)
             self._set_current_rgba(new_rgba)
             new_cov = compute_mip0_coverage(new_rgba, w, h)
-            self._set_status(
-                f"Alpha coverage adjusted: {coverage:.1%} → {new_cov:.1%} "
-                f"(target {target:.1%})")
+            msg = "Alpha coverage adjusted: {:.1%} -> {:.1%} (target {:.1%})".format(
+                coverage, new_cov, target)
+            if hasattr(self, 'status_label'): self.status_label.setText(msg)
 
     def _open_xtd_file(self, file_path: str): #vers 1
         """Open a XTD texture dictionary (.wtd GTA IV / .ytd GTA V/RDR2).
