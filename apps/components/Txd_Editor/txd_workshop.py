@@ -2899,6 +2899,17 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     def _create_preview_controls(self): #vers 2
         """Create preview control buttons - vertical layout on right"""
+        from PyQt6.QtCore import QSize, QByteArray
+        from PyQt6.QtGui import QIcon, QPixmap, QPainter
+        try:
+            from PyQt6.QtSvg import QSvgRenderer as _QSvgRenderer
+        except ImportError:
+            _QSvgRenderer = None
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGIconFactory
+        except ImportError:
+            _SVGIconFactory = None
+
         controls_frame = QFrame()
         controls_frame.setFrameStyle(QFrame.Shape.StyledPanel)
         controls_frame.setMaximumWidth(50)
@@ -3059,10 +3070,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             b.setCheckable(checkable)
             b.setToolTip(tip)
             try:
-                from apps.methods.imgfactory_svg_icons import SVGIconFactory
-                b.setIcon(getattr(SVGIconFactory, svg_fn)(IC))
-                from PyQt6.QtCore import QSize
-                b.setIconSize(QSize(IC, IC))
+                if _SVGIconFactory:
+                    b.setIcon(getattr(_SVGIconFactory, svg_fn)(IC))
+                    b.setIconSize(QSize(IC, IC))
             except Exception:
                 b.setText(tip[:2])
             b.clicked.connect(slot)
@@ -3085,10 +3095,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             svg = (f'<svg xmlns="http://www.w3.org/2000/svg" '
                    f'viewBox="0 0 {total} {total}">{rects}</svg>')
             try:
-                from PyQt6.QtGui import QIcon, QPixmap, QPainter
-                from PyQt6.QtSvg import QSvgRenderer
-                from PyQt6.QtCore import QByteArray, QSize
-                renderer = QSvgRenderer(QByteArray(svg.encode()))
+                if _QSvgRenderer is None: return None
+                renderer = _QSvgRenderer(QByteArray(svg.encode()))
                 pm = QPixmap(IC, IC); pm.fill(Qt.GlobalColor.transparent)
                 p = QPainter(pm); renderer.render(p); p.end()
                 return QIcon(pm)
@@ -3106,7 +3114,6 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         icon1 = _make_tile_icon(1)
         if icon1:
             self._tile_btn.setIcon(icon1)
-            from PyQt6.QtCore import QSize
             self._tile_btn.setIconSize(QSize(IC, IC))
         else:
             self._tile_btn.setText("1×1")

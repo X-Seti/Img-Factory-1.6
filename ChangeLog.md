@@ -1,5 +1,74 @@
 #this belongs in root /ChangeLog.md - Version: 36
 
+## April 2026 — TXD Workshop, Model Workshop, XTD Parser, Bug Fixes
+
+### Build 233 — TXD Workshop texture tools + XTD parser + DFF→COL + UI fixes
+
+**TXD Workshop — Texture Tools:**
+- `ColourAdjustDialog`: Brightness / Contrast / Hue / Saturation / Sharpness / Opacity sliders,
+  Cutout Alpha Threshold (toggle + value), Premultiplied Alpha. Live before/after preview at 360px.
+- `SeamlessDialog`: 4 methods — Wrap Blend (gradient fade), Patch/Heal, Histogram-Preserving
+  Blend, Offset+Mirror. 1×1/2×2/3×3 tiled preview to evaluate seam quality. Pure Python/numpy.
+- `SnowDialog`: layered snow accumulation with luminance-biased noise.
+  B/W threshold, depth, coverage%, layers, tile controls.
+- `scale_alpha_for_coverage()`: binary search scales alpha channel so mip levels preserve
+  mip-0 opaque pixel fraction. Fixes SA foliage/fences disappearing at distance.
+- All tools accessible from Tools menu, preview sidebar buttons, and cycle tile button.
+
+**TXD Workshop — Right navbar (2-column icon grid):**
+- Tile preview cycle button: one click steps 1×1 → 2×2 → 3×3 → 1×1.
+  Icon updates each step to show the current grid pattern.
+- Tool buttons (2×2 grid): knob (Colour Adjustments), wave-grid (Seamless),
+  snowflake (Snow), shield-α (Alpha Coverage).
+- Transform icon panel docked: reduced from 32px/20px icon to 24px/16px.
+
+**XTD Parser (renamed from RAGE parser):**
+- `apps/methods/xtd_textures.py`: read-only RAGE texture dictionary importer.
+  RSC7 (GTA IV .wtd) and RSC8 (GTA V / RDR2 .ytd) formats.
+  DXT1/3/5, BC4, BC5, RGBA8, BGRA8 decoded in pure Python.
+  Opened via File > Open like any .txd — no menu entry, no documentation.
+- All internal names renamed: `XTDDict`, `XTDTexture`, `open_xtd_dict`,
+  `is_xtd_file`, `get_xtd_game`, `_open_xtd_file`.
+
+**Model Workshop — DFF→COL surface generation:**
+- `_dff_to_col_surfaces(single, batch)`: parses DFF geometry materials,
+  maps texture names to GTA surface type IDs using keyword matching
+  (road/concrete/sand/grass/water/wood/metal/glass/rock/foliage/snow etc.).
+- Interactive surface assignment table with per-row ComboBox override.
+- COL version selector (COL1/2/3), mesh face toggle.
+- Batch mode: pick directory, processes all .dff files.
+- Generates COLModel with bounds from DFF bounding sphere + full face/vertex geometry.
+- COL menu in Model Workshop: Build COL from DFF / Batch COL from DFFs /
+  Convert Surface / New Surface.
+
+**DP5 Workshop docked:**
+- Icons capped at 24px when docked (was up to 64px).
+- Column count stays 3+ (reduces height, not width).
+
+**New SVG icons in SVGIconFactory:**
+- `knob_icon`: rotary dial (Colour Adjustments)
+- `seamless_icon`: 4-square grid with wave (Seamless tool)
+- `snow_icon`: 8-arm snowflake (Snow effect)
+- `alpha_coverage_icon`: shield with italic 'a' (Alpha Coverage)
+
+**Bug fixes:**
+- `gui_layout.py edit_txd_file()`: `os` UnboundLocalError — `import os` was inside
+  a nested `if` block but used at function scope level. Moved to top of `try` block.
+- `txd_workshop.py _create_preview_controls()`: `QSize` UnboundLocalError —
+  `from PyQt6.QtCore import QSize` was inside a deeply nested closure but `QSize`
+  was used throughout the function. All imports hoisted to function top.
+  Same fix applied to `QIcon`, `QPainter`, `QPixmap`, `QByteArray`, `QSvgRenderer`,
+  `SVGIconFactory`.
+- `_get_current_rgba()`: removed call to non-existent `_get_selected_texture_index()`.
+  Now uses `self.selected_texture` directly.
+- `_set_current_rgba()`: removed call to non-existent `_update_preview()`.
+  Now calls `_update_texture_info(selected_texture)`.
+- All tool methods (`_open_colour_adjust`, `_open_seamless_tool`, `_open_snow_tool`,
+  `_open_alpha_coverage`, `_set_tiled_preview`): removed calls to non-existent
+  `_set_status()`. Now uses `self.status_label.setText()` with `hasattr` guard.
+- `model_workshop.py`: fixed pre-existing `COLModelListWidget` → `ModelListWidget`
+  name errors at lines 9348 and 9986.
+
 ## April 2026 — DP5 Workshop: Builds 278-299
 
 ### Build 299 — Amiga .info import rewritten from SDK docs
