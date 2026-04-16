@@ -5937,9 +5937,15 @@ class IMGFactory(QMainWindow):
         """Open IPF animation editor"""
         self.log_message("IPF editor functionality coming soon")
 
-    def open_ipl_editor(self): #vers 1
-        """Open IPL item placement editor"""
-        self.log_message("IPL editor functionality coming soon")
+    def open_ipl_editor(self): #vers 2
+        """Open IPL Workshop docked in a tab."""
+        try:
+            from apps.components.Ipl_Editor.ipl_workshop import open_ipl_workshop
+            open_ipl_workshop(self)
+        except Exception as e:
+            import traceback
+            self.log_message(f"IPL Workshop error: {e}")
+            traceback.print_exc()
 
     def toggle_dir_tree(self): #vers 3
         """Delegate to _show_dir_tree which uses left_stack."""

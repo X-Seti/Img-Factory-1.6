@@ -364,7 +364,7 @@ class IMGFactoryGUILayout:
             'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
             'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
-            'edit_ipl_file': lambda: self._open_ipl_file(),
+            'edit_ipl_file': lambda: self._open_ipl_workshop(),
             'edit_dat_file': self._open_dat_browser,
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
@@ -393,33 +393,19 @@ class IMGFactoryGUILayout:
         else:
             print(f"Method '{method_name}' not yet implemented")
 
-    def _open_ipl_file(self): #vers 1
-        """Open IPL file — selected in dir tree, or via dialog."""
+    def _open_ipl_workshop(self): #vers 1
+        """Open IPL Workshop docked — with optional pre-loaded file from dir tree."""
         try:
-            # Try dir tree selection first
-            fp = self._get_dir_tree_selected_file()
-            if fp and fp.lower().endswith('.ipl'):
-                from apps.core.notepad import open_text_file_in_editor
-                open_text_file_in_editor(fp, self.main_window)
-                return
-            # Try selected entry in current IMG
-            if hasattr(self.main_window, 'current_img') and self.main_window.current_img:
-                table = getattr(self.main_window.gui_layout, 'table', None)
-                if table:
-                    rows = table.selectedItems()
-                    if rows:
-                        name = table.item(rows[0].row(), 0)
-                        if name and name.text().lower().endswith('.ipl'):
-                            self._log_missing_method('edit_ipl_file')
-                            return
-            # Fallback — open file dialog
-            from PyQt6.QtWidgets import QFileDialog
-            fp, _ = QFileDialog.getOpenFileName(
-                self.main_window, "Open IPL File", "",
-                "IPL Files (*.ipl *.IPL);;All Files (*)")
-            if fp:
-                from apps.core.notepad import open_text_file_in_editor
-                open_text_file_in_editor(fp, self.main_window)
+            from apps.components.Ipl_Editor.ipl_workshop import open_ipl_workshop
+            # Check if a .ipl is selected in the dir tree
+            fp = None
+            try:
+                candidate = self._get_dir_tree_selected_file()
+                if candidate and candidate.lower().endswith('.ipl'):
+                    fp = candidate
+            except Exception:
+                pass
+            open_ipl_workshop(self.main_window, file_path=fp)
         except Exception as e:
             self._log_missing_method('edit_ipl_file')
 
