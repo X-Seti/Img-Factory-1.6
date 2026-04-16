@@ -636,6 +636,7 @@ class DP5Settings:
         'menu_bar_font_size':  9,         # topbar menubar font size (pt)
         'menu_bar_height':     22,        # topbar menubar height (px)
         'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
+        'splitter_sizes':    [],             # [left, canvas, right] — saved on close
     }
 
     def __init__(self): #vers 1
@@ -3849,6 +3850,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self._splitter.setCollapsible(2, False)
         right.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         # No setMaximumWidth — splitter controls the width freely
+
+        # Restore saved splitter sizes (if any)
+        from PyQt6.QtCore import QTimer
+        _saved_sizes = self.dp5_settings.get('splitter_sizes')
+        if _saved_sizes and len(_saved_sizes) == self._splitter.count():
+            QTimer.singleShot(0, lambda s=list(_saved_sizes): self._splitter.setSizes(s))
 
         # Left panel: hidden by default — toggle via DP5 Settings
         self._left_panel.setVisible(self.dp5_settings.get('show_bitmap_list'))
@@ -11051,6 +11058,10 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
 
     def closeEvent(self, event): #vers 1
+        # Save splitter positions so they restore on next open
+        if hasattr(self, '_splitter') and self._splitter:
+            self.dp5_settings.set('splitter_sizes', self._splitter.sizes())
+            self.dp5_settings.save()
         self.window_closed.emit()
         event.accept()
 
