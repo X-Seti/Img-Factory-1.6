@@ -12313,7 +12313,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             if not file_path:
                 file_path, _ = QFileDialog.getOpenFileName(
                     self, "Open TXD File", "",
-                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc *.tmb *.chk);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;PS2 Splash (*.chk);;All Files (*)"
+                    "All Texture Files (*.txd *.xtx *.txt *.dat *.toc *.tmb *.chk *.wtd *.ytd);;TXD Files (*.txd);;XTX Textures (*.xtx);;Mobile DB — open .dat or .txt (*.dat *.txt);;Mobile DB sidecar (*.toc *.tmb);;PS2 Splash (*.chk);;All Files (*)"
                 )
             if file_path:
                 self.current_txd_path = file_path  # Store the full path
@@ -12362,6 +12362,11 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                     self._open_xtx_file(file_path)
                     return
 
+                # ── Undocumented: RAGE texture dicts (.wtd/.ytd) ──────────────
+                if _ext in ('.wtd', '.ytd'):
+                    self._open_rage_dict(file_path)
+                    return
+
                 # Detect PS2 TXD before full parse
                 try:
                     with open(file_path, 'rb') as _f:
@@ -12395,6 +12400,92 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Failed to open TXD: {str(e)}")
 
 
+
+    def _open_rage_dict(self, file_path: str): #vers 1
+        """Open a RAGE texture dictionary (.wtd GTA IV / .ytd GTA V/RDR2).
+        Read-only import source — textures appear in the list for export or
+        transfer into a regular TXD session.  Completely unsupported/undocumented.
+        """
+        try:
+            from apps.methods.rage_textures import open_rage_dict, get_rage_game
+            from PyQt6.QtWidgets import QProgressDialog
+            from PyQt6.QtCore import Qt
+            import os
+
+            game = get_rage_game(file_path)
+            name = os.path.basename(file_path)
+
+            prog = QProgressDialog(f"Reading {name}…", None, 0, 0, self)
+            prog.setWindowModality(Qt.WindowModality.WindowModal)
+            prog.setMinimumDuration(300)
+            prog.show()
+            from PyQt6.QtWidgets import QApplication
+            QApplication.processEvents()
+
+            rd = open_rage_dict(file_path)
+            prog.close()
+
+            if rd.error:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Cannot open",
+                    f"{name}\n\n{rd.error}")
+                return
+
+            if not rd.textures:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "No textures",
+                    f"No textures found in {name}.")
+                return
+
+            # Build synthetic texture list matching our internal format
+            txd_list = []
+            for rt in rd.textures:
+                # Build a minimal texture dict matching what _load_txd_textures produces
+                entry = {
+                    'name':          rt.name,
+                    'width':         rt.width,
+                    'height':        rt.height,
+                    'format_name':   rt.fmt,
+                    'bit_depth':     32,
+                    'mipmap_count':  rt.mips,
+                    'rgba_data':     rt.rgba if rt.rgba else bytes(rt.width * rt.height * 4),
+                    'raw_data':      rt.raw,
+                    'has_alpha':     True,
+                    'has_bumpmap':   False,
+                    'bumpmap_data':  b'',
+                    'alpha_name':    '',
+                    'raster_format': 0x0500,  # RASTER_DEFAULT
+                    'platform_id':   9,        # PC
+                    'filter_flags':  0,
+                    'is_rage_import': True,    # marker — read-only
+                    'rage_game':     rd.game,
+                    'rage_fmt':      rt.fmt,
+                }
+                txd_list.append(entry)
+
+            self.txd_list = txd_list
+            self.current_txd_path  = file_path
+            self.current_txd_name  = name
+            self.txd_version_str   = f"RAGE RSC{'7' if rd.game=='IV' else '8'} v{rd.version}"
+            self.txd_platform_name = f"GTA {rd.game} PC"
+            self.txd_game          = f"GTA {rd.game}"
+
+            self._populate_txd_list()
+            self.setWindowTitle(f"TXD Workshop: {name} [GTA {rd.game}]")
+
+            # Status bar hint that this is read-only
+            self._set_status(
+                f"GTA {rd.game} — {len(txd_list)} textures  |  "
+                f"read-only import source  |  "
+                f"export or drag into a TXD session to use")
+
+            self.log_message(f"Opened {name}: {len(txd_list)} textures (GTA {rd.game})")
+
+        except Exception as e:
+            import traceback
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"Failed to open RAGE dict:\n{e}")
+            traceback.print_exc()
 
     def _open_xtx_file(self, file_path: str): #vers 1
         """Open a VCS PS2/PC XTX palettized texture and display it in the workshop."""
