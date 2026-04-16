@@ -76,6 +76,10 @@ TOOL_CROP          = 'crop'           # crop canvas to selection
 TOOL_RESIZE        = 'resize'         # resize canvas
 TOOL_DITHER        = 'dither'         # dither brush
 TOOL_SYMMETRY      = 'symmetry'       # symmetry/mirror drawing
+TOOL_BLUR_BRUSH    = 'blur_brush'     # blur brush (gaussian soften under cursor)
+TOOL_SMUDGE        = 'smudge'        # smudge/blend pixels under cursor
+TOOL_LIGHTEN       = 'lighten'       # dodge — lighten pixels under cursor
+TOOL_DARKEN        = 'darken'        # burn  — darken pixels under cursor
 
 # Shape tools that have an outline/fill toggle via right-click
 SHAPE_FILL_PAIRS = {
@@ -186,6 +190,10 @@ def _make_tool_icon(shape: str, size: int = 42,
         'resize':          'dp_resize_icon',
         'dither':          'dp_dither_icon',
         'symmetry':        'dp_symmetry_icon',
+        'blur_brush':      'dp_blur_brush_icon',
+        'smudge':          'dp_smudge_icon',
+        'lighten':         'dp_lighten_icon',
+        'darken':          'dp_darken_icon',
     }
 
     if ICONS_AVAILABLE and shape in _SVG_MAP:
@@ -1356,6 +1364,80 @@ class DP5Canvas(QWidget):
 
     # ── Paint ─────────────────────────────────────────────────────────────────
 
+    def _do_blur_brush(self, cx: int, cy: int): #vers 1
+        """Gaussian-soften the pixels within brush_size radius of (cx, cy)."""
+        r = max(1, self.brush_size * 3)
+        w, h = self.tex_w, self.tex_h
+        buf = self.rgba
+        x0 = max(0, cx - r); x1 = min(w, cx + r + 1)
+        y0 = max(0, cy - r); y1 = min(h, cy + r + 1)
+        bw, bh = x1 - x0, y1 - y0
+        if bw <= 0 or bh <= 0:
+            return
+        # Simple box blur (3 passes) as fast approximation
+        for _ in range(3):
+            for y in range(y0, y1):
+                for x in range(x0, x1):
+                    # skip pixels outside circular brush
+                    if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
+                        continue
+                    rc = gc = bc = ac = cnt = 0
+                    for dy in (-1, 0, 1):
+                        for dx in (-1, 0, 1):
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < w and 0 <= ny < h:
+                                i = (ny * w + nx) * 4
+                                rc += buf[i]; gc += buf[i+1]
+                                bc += buf[i+2]; ac += buf[i+3]
+                                cnt += 1
+                    if cnt:
+                        i = (y * w + x) * 4
+                        buf[i]   = rc // cnt; buf[i+1] = gc // cnt
+                        buf[i+2] = bc // cnt; buf[i+3] = ac // cnt
+
+    def _do_smudge(self, x0: int, y0: int, x1: int, y1: int): #vers 1
+        """Drag/smear pixels from (x0,y0) toward (x1,y1) within brush_size radius."""
+        r   = max(1, self.brush_size * 2)
+        w, h = self.tex_w, self.tex_h
+        buf = self.rgba
+        dx, dy = x1 - x0, y1 - y0
+        if dx == 0 and dy == 0:
+            return
+        # Smear: blend each pixel with its neighbour in the drag direction
+        strength = 0.4
+        px0 = max(0, min(x0, x1) - r); px1 = min(w, max(x0, x1) + r + 1)
+        py0 = max(0, min(y0, y1) - r); py1 = min(h, max(y0, y1) + r + 1)
+        for y in range(py0, py1):
+            for x in range(px0, px1):
+                if (x - x1) ** 2 + (y - y1) ** 2 > r * r:
+                    continue
+                sx = max(0, min(w - 1, x - dx))
+                sy = max(0, min(h - 1, y - dy))
+                si = (sy * w + sx) * 4
+                di = (y  * w + x ) * 4
+                for c in range(4):
+                    buf[di + c] = int(buf[di + c] * (1 - strength)
+                                    + buf[si + c] * strength)
+
+    def _do_dodge_burn(self, cx: int, cy: int, amount: int): #vers 1
+        """Lighten (amount>0) or darken (amount<0) pixels in brush radius."""
+        r  = max(1, self.brush_size * 3)
+        w, h = self.tex_w, self.tex_h
+        buf = self.rgba
+        for y in range(max(0, cy - r), min(h, cy + r + 1)):
+            for x in range(max(0, cx - r), min(w, cx + r + 1)):
+                if (x - cx) ** 2 + (y - cy) ** 2 > r * r:
+                    continue
+                i = (y * w + x) * 4
+                # Feather by distance
+                dist = ((x-cx)**2 + (y-cy)**2) ** 0.5
+                fade = max(0.0, 1.0 - dist / r)
+                adj  = int(amount * fade)
+                buf[i]   = max(0, min(255, buf[i]   + adj))
+                buf[i+1] = max(0, min(255, buf[i+1] + adj))
+                buf[i+2] = max(0, min(255, buf[i+2] + adj))
+
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
@@ -1614,6 +1696,23 @@ class DP5Canvas(QWidget):
             self._push_undo_canvas()
             self._do_spray(tx, ty); self.update()
 
+        elif self.tool == TOOL_BLUR_BRUSH:
+            self._push_undo_canvas()
+            self._do_blur_brush(tx, ty); self.update()
+
+        elif self.tool == TOOL_SMUDGE:
+            self._push_undo_canvas()
+            self._smudge_last = (tx, ty)
+            self._do_smudge(tx, ty, tx, ty); self.update()
+
+        elif self.tool == TOOL_LIGHTEN:
+            self._push_undo_canvas()
+            self._do_dodge_burn(tx, ty, 30); self.update()
+
+        elif self.tool == TOOL_DARKEN:
+            self._push_undo_canvas()
+            self._do_dodge_burn(tx, ty, -30); self.update()
+
         elif self.tool == TOOL_PICKER:
             c = self.get_pixel(tx, ty)
             if c.isValid():
@@ -1805,6 +1904,21 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_SPRAY:
             self._do_spray(tx, ty); self.update()
+
+        elif self.tool == TOOL_BLUR_BRUSH:
+            self._do_blur_brush(tx, ty); self.update()
+
+        elif self.tool == TOOL_LIGHTEN:
+            self._do_dodge_burn(tx, ty, 30); self.update()
+
+        elif self.tool == TOOL_DARKEN:
+            self._do_dodge_burn(tx, ty, -30); self.update()
+
+        elif self.tool == TOOL_SMUDGE:
+            lp = getattr(self, '_smudge_last', None)
+            if lp:
+                self._do_smudge(lp[0], lp[1], tx, ty)
+            self._smudge_last = (tx, ty); self.update()
 
         elif self.tool == TOOL_MOVE:
             if self._sel_floating and self._sel_drag_start:
@@ -4691,8 +4805,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             (TOOL_TEXT,     'text',     'Place text on canvas (I)'),
             (TOOL_CROP,     'crop',     'Crop canvas to selection (X)'),
             (TOOL_RESIZE,   'resize',   'Resize canvas (V)'),
-            (TOOL_DITHER,   'dither',   'Dither brush — checkerboard FG/BG pattern (D)'),
-            (TOOL_SYMMETRY, 'symmetry', 'Symmetry — click to cycle: H / V / Quad / Off (Y)'),
+            (TOOL_DITHER,   'dither',     'Dither brush — checkerboard FG/BG pattern (D)'),
+            (TOOL_SYMMETRY, 'symmetry',   'Symmetry — click to cycle: H / V / Quad / Off (Y)'),
+            (TOOL_BLUR_BRUSH,'blur_brush', 'Blur brush — soften under cursor (B)'),
+            (TOOL_SMUDGE,   'smudge',     'Smudge — blend/drag pixels (U)'),
+            (TOOL_LIGHTEN,  'lighten',    'Lighten (Dodge) — brighten under cursor (,)'),
+            (TOOL_DARKEN,   'darken',     'Darken (Burn) — darken under cursor (.)'),
         ]
         hidden_tools = self.dp5_settings.get('hidden_tools') or []
         TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
@@ -4955,6 +5073,34 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         user_pal_scroll.setMinimumHeight(12)
         self._user_pal_scroll = user_pal_scroll
         layout.addWidget(user_pal_scroll, stretch=1)
+
+        # ── Image operation quick buttons ────────────────────────────────
+        imgop_lbl = QLabel("Image Ops:")
+        imgop_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
+        layout.addWidget(imgop_lbl)
+
+        imgop_row = QHBoxLayout()
+        imgop_row.setSpacing(3)
+
+        def _imgop_btn(icon_method, tip, slot):
+            b = QPushButton()
+            b.setFixedSize(32, 32)
+            b.setToolTip(tip)
+            try:
+                b.setIcon(getattr(SVGIconFactory, icon_method)(20, icon_color))
+                b.setIconSize(QSize(20, 20))
+            except Exception:
+                b.setText(tip[:3])
+            b.clicked.connect(slot)
+            imgop_row.addWidget(b)
+            return b
+
+        _imgop_btn('dp_colour_correct_icon', 'Colour Adjustments…', self._open_dp5_colour_adjust)
+        _imgop_btn('dp_seamless_op_icon',    'Seamless Tool…',       self._open_dp5_seamless)
+        _imgop_btn('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
+        _imgop_btn('knob_icon',              'Zoom Lens…',           self._open_zoom_lens)
+        imgop_row.addStretch()
+        layout.addLayout(imgop_row)
 
         # Load default retro palette
         self._apply_retro_palette(self.dp5_settings.get('retro_palette'))
@@ -10830,6 +10976,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             Qt.Key.Key_E: TOOL_ERASER,
             Qt.Key.Key_F: TOOL_FILL,
             Qt.Key.Key_S: TOOL_SPRAY,
+        Qt.Key.Key_B: TOOL_BLUR_BRUSH,
+        Qt.Key.Key_U: TOOL_SMUDGE,
             Qt.Key.Key_K: TOOL_PICKER,
             Qt.Key.Key_Q: TOOL_CURVE,
             Qt.Key.Key_L: TOOL_LINE,

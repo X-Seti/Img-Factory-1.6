@@ -2967,6 +2967,85 @@ class SVGIconFactory: #vers 7
             f'</svg>', size, color)
 
 
+    @staticmethod
+    def dp_blur_brush_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """Blur brush — concentric softening circles."""
+        c = color or '#f0f0f4'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<circle cx="10" cy="10" r="7" fill="none" stroke="{c}" stroke-width="1.2" opacity="0.4"/>'
+            f'<circle cx="10" cy="10" r="5" fill="none" stroke="{c}" stroke-width="1.4" opacity="0.6"/>'
+            f'<circle cx="10" cy="10" r="3" fill="none" stroke="{c}" stroke-width="1.6" opacity="0.8"/>'
+            f'<circle cx="10" cy="10" r="1.2" fill="{c}"/>'
+            f'</svg>', size, color, bg_color)
+
+    @staticmethod
+    def dp_smudge_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """Smudge — curved drag trail."""
+        c = color or '#f0f0f4'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<path d="M4 16 Q6 10 10 8 Q14 6 16 4" fill="none" stroke="{c}"'
+            f' stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>'
+            f'<path d="M4 16 Q6 10 10 8 Q14 6 16 4" fill="none" stroke="{c}"'
+            f' stroke-width="1.2" stroke-linecap="round"/>'
+            f'<circle cx="16" cy="4" r="2" fill="{c}"/>'
+            f'</svg>', size, color, bg_color)
+
+    @staticmethod
+    def dp_lighten_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """Lighten / Dodge — sun with rays."""
+        c = color or '#f0f0f4'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<circle cx="10" cy="10" r="4" fill="{c}" opacity="0.9"/>'
+            f'<line x1="10" y1="2" x2="10" y2="4.5" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="10" y1="15.5" x2="10" y2="18" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="2" y1="10" x2="4.5" y2="10" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="15.5" y1="10" x2="18" y2="10" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="4.1" y1="4.1" x2="5.9" y2="5.9" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="14.1" y1="14.1" x2="15.9" y2="15.9" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="14.1" y1="4.1" x2="15.9" y2="5.9" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="4.1" y1="14.1" x2="5.9" y2="15.9" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'</svg>', size, color, bg_color)
+
+    @staticmethod
+    def dp_darken_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """Darken / Burn — crescent moon."""
+        c = color or '#f0f0f4'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<path d="M12 4 A7 7 0 1 0 12 16 A5 5 0 1 1 12 4 Z" fill="{c}"/>'
+            f'</svg>', size, color, bg_color)
+
+    @staticmethod
+    def dp_seamless_op_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """Seamless image op — 4-tile grid with wave."""
+        c = color or '#f0f0f4'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<rect x="1" y="1" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
+            f'<rect x="11" y="1" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
+            f'<rect x="1" y="11" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
+            f'<rect x="11" y="11" width="8" height="8" fill="none" stroke="{c}" stroke-width="1" rx="1"/>'
+            f'<path d="M2 10 Q6 6 10 10 Q14 14 18 10" fill="none" stroke="{c}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'</svg>', size, color, bg_color)
+
+    @staticmethod
+    def dp_colour_correct_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
+        """Colour correction — RGB sliders."""
+        c = color or '#f0f0f4'
+        return SVGIconFactory._create_icon(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            f'<line x1="2" y1="5" x2="18" y2="5" stroke="#ff6666" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<circle cx="11" cy="5" r="2.2" fill="#ff6666"/>'
+            f'<line x1="2" y1="10" x2="18" y2="10" stroke="#66ff88" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<circle cx="7" cy="10" r="2.2" fill="#66ff88"/>'
+            f'<line x1="2" y1="15" x2="18" y2="15" stroke="#6688ff" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<circle cx="14" cy="15" r="2.2" fill="#6688ff"/>'
+            f'</svg>', size, color, bg_color)
+
+
 def get_extract_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Extract icon - dotted border box with downward arrow"""
     icon = SVGIconFactory.get_extract_icon(size, color)
