@@ -297,6 +297,7 @@ class IPLWorkshop(GUIWorkshop):
     def _build_menus_into_qmenu(self, pm):
         fm = pm.addMenu("File")
         fm.addAction("Open IPL…  Ctrl+O",     self._open_file)
+        fm.addAction("Load all IPLs from DAT…", self._load_all_from_dat)
         fm.addAction("Save       Ctrl+S",      self._save_file)
         fm.addAction("Save As…",               self._save_as)
         fm.addSeparator()
@@ -350,6 +351,7 @@ class IPLWorkshop(GUIWorkshop):
                 b.setToolTip(tip); b.setFixedHeight(26)
                 b.clicked.connect(slot); br.addWidget(b); return b
             _pb("open_icon",   "Open IPL (Ctrl+O)",  self._open_file)
+            _pb("import_icon", "Load all IPLs from DAT…", self._load_all_from_dat)
             _pb("save_icon",   "Save (Ctrl+S)",       self._save_file)
             _pb("export_icon", "Export CSV",          self._export_csv)
             ll.addLayout(br)
@@ -468,6 +470,7 @@ class IPLWorkshop(GUIWorkshop):
              _nb("locate_icon",  "Select all (Ctrl+A)", self._select_all))
         _row(_nb("info_icon",    "Statistics",          self._show_stats),
              _nb("export_icon",  "Export CSV",          self._export_csv))
+        _row(_nb("import_icon",  "Load all IPLs from DAT…", self._load_all_from_dat))
         _sep()
         sl.addWidget(QLabel("IPL Workshop", alignment=Qt.AlignmentFlag.AlignCenter))
 
@@ -705,6 +708,189 @@ class IPLWorkshop(GUIWorkshop):
     def _current_inst_section(self) -> Optional[IPLSection]:
         if not self._ipl: return None
         return self._ipl.inst_section
+
+    # ── Load all from DAT ────────────────────────────────────────────────────
+    def _load_all_from_dat(self):
+        """Collect all IPL paths from a .dat file and load them as merged IPLFile."""
+        dat_path = self._pick_dat_path()
+        if not dat_path:
+            return
+        try:
+            self._do_load_all_from_dat(dat_path)
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "Load Error",
+                f"Failed to load from DAT:\n{e}\n\n{traceback.format_exc()[-500:]}")
+
+    def _pick_dat_path(self) -> str:
+        """Return a .dat path — from DAT Browser if open, else file dialog."""
+        # Try DAT Browser's loaded dat first
+        mw = self.main_window
+        if mw:
+            db = getattr(mw, 'dat_browser', None)
+            if db and hasattr(db, 'loader'):
+                main_dat = getattr(db.loader, 'main_dat', None)
+                if main_dat and getattr(main_dat, 'dat_path', ''):
+                    p = main_dat.dat_path
+                    reply = QMessageBox.question(self, "Load from DAT",
+                        f"Use DAT Browser's loaded file?\n\n{p}",
+                        QMessageBox.StandardButton.Yes |
+                        QMessageBox.StandardButton.No |
+                        QMessageBox.StandardButton.Cancel)
+                    if reply == QMessageBox.StandardButton.Cancel:
+                        return ""
+                    if reply == QMessageBox.StandardButton.Yes:
+                        return p
+        # File dialog
+        p, _ = QFileDialog.getOpenFileName(self, "Select DAT File", "",
+            "DAT Files (*.dat *.DAT);;All Files (*)")
+        return p
+
+    def _do_load_all_from_dat(self, dat_path: str):
+        """Parse DAT, collect all IPL entries, merge into one multi-section IPLFile."""
+        from apps.methods.gta_dat_parser import DATParser, GTAGame
+
+        # Detect game from DAT filename
+        name = Path(dat_path).stem.lower()
+        if "gta_sa" in name or "sa" in name:
+            game = GTAGame.SA
+        elif "vice" in name or "vc" in name:
+            game = GTAGame.VC
+        else:
+            game = GTAGame.GTA3
+
+        game_root = str(Path(dat_path).parent.parent)
+        dat = DATParser(game)
+        dat.parse(dat_path, game_root)
+        ipl_entries = dat.ipl_entries()
+
+        if not ipl_entries:
+            QMessageBox.information(self, "No IPL Files",
+                f"No IPL directives found in:\n{dat_path}")
+            return
+
+        # Show selection dialog
+        ipl_entries = [e for e in ipl_entries]  # all
+        sel = self._select_ipls_dialog(ipl_entries, dat_path)
+        if sel is None:  # cancelled
+            return
+        if not sel:
+            self._set_status("No IPL files selected")
+            return
+
+        # Load selected IPLs and merge
+        merged_ipl = IPLFile()
+        merged_ipl.path  = dat_path
+        merged_ipl.game  = "sa" if game == GTAGame.SA else "gta3"
+        merged_ipl.header_lines = [f"# Merged from {Path(dat_path).name}",
+                                    f"# {len(sel)} IPL files", ""]
+
+        total_inst = 0
+        failed     = []
+        for entry in sel:
+            if not entry.exists:
+                failed.append(f"MISSING: {entry.path}")
+                continue
+            sub = IPLFile()
+            try:
+                sub.load(entry.abs_path)
+                for sec in sub.sections:
+                    # Merge inst sections together; keep others separately
+                    if sec.is_inst():
+                        # Tag each entry with source filename
+                        for e in sec.entries:
+                            e.source_line = entry.path
+                        # Find or create merged inst section
+                        m_inst = merged_ipl.inst_section
+                        if m_inst is None:
+                            new_sec = IPLSection("inst")
+                            merged_ipl.sections.append(new_sec)
+                            m_inst = new_sec
+                        m_inst.entries.extend(sec.entries)
+                        total_inst += len(sec.entries)
+                    else:
+                        # Keep non-inst sections labelled by source
+                        sec_copy = IPLSection(f"{sec.name}_{Path(entry.abs_path).stem}")
+                        sec_copy.lines = [f"# from {Path(entry.abs_path).name}"] + sec.lines
+                        merged_ipl.sections.append(sec_copy)
+            except Exception as ex:
+                failed.append(f"ERROR {Path(entry.abs_path).name}: {ex}")
+
+        self._ipl = merged_ipl
+        self._file_path = dat_path
+        self.WS.add_recent(dat_path)
+        self._populate_section_list()
+        self._select_inst_section()
+        self._update_info()
+        self._dirty_lbl.setText("Modified: no")
+        self.save_btn.setEnabled(False)
+
+        msg = (f"Loaded {len(sel)} IPL files  |  {total_inst:,} total instances"
+               f"  |  game={merged_ipl.game}"
+               + (f"  |  {len(failed)} failed" if failed else ""))
+        self._set_status(msg)
+
+        if failed:
+            QMessageBox.warning(self, "Some Files Failed",
+                "The following IPL files could not be loaded:\n\n" +
+                "\n".join(failed[:20]))
+
+    def _select_ipls_dialog(self, entries, dat_path: str):
+        """Show a checklist dialog — let user pick which IPLs to load."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                      QListWidget, QDialogButtonBox,
+                                      QListWidgetItem, QPushButton, QLabel)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Select IPL Files — {Path(dat_path).name}")
+        dlg.resize(500, 500)
+        lo = QVBoxLayout(dlg)
+
+        lo.addWidget(QLabel(f"DAT: {dat_path}\n"
+                            f"Found {len(entries)} IPL files — select which to load:"))
+
+        lst = QListWidget()
+        lst.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        for e in entries:
+            label = Path(e.path).name + ("" if e.exists else "  ⚠ missing")
+            item  = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, e)
+            if not e.exists:
+                item.setForeground(QColor("#ff6666"))
+            lst.addItem(item)
+        # Select all existing by default
+        for i in range(lst.count()):
+            item = lst.item(i)
+            e = item.data(Qt.ItemDataRole.UserRole)
+            if e.exists:
+                item.setSelected(True)
+        lo.addWidget(lst)
+
+        # Select all / none buttons
+        br = QHBoxLayout()
+        for label, sel in [("All", True), ("None", False), ("Existing only", None)]:
+            b = QPushButton(label)
+            def _click(checked=False, s=sel, L=lst, E=entries):
+                for i in range(L.count()):
+                    item = L.item(i)
+                    e = item.data(Qt.ItemDataRole.UserRole)
+                    if s is None:
+                        item.setSelected(e.exists)
+                    else:
+                        item.setSelected(s)
+            b.clicked.connect(_click)
+            br.addWidget(b)
+        lo.addLayout(br)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                 QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lo.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return [lst.item(i).data(Qt.ItemDataRole.UserRole)
+                for i in range(lst.count()) if lst.item(i).isSelected()]
 
     # ── Entry operations ──────────────────────────────────────────────────────
     def _push_undo(self):
