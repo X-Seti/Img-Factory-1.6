@@ -2247,7 +2247,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         ip = getattr(self, '_transform_icon_panel_ref', None)
         if ip and ip.isVisible():
             pw = ip.width()
-            new_cols = max(4, pw // 28)
+            new_cols = max(1, pw // 26)
             if new_cols != getattr(self, '_icon_panel_last_cols', 0):
                 self._icon_panel_last_cols = new_cols
                 self._place_icon_grid(new_cols)
@@ -2625,32 +2625,31 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._right_panel_ref = panel   # used by visibility method
         has_bumpmap = False
         main_layout = QVBoxLayout(panel)
-        #main_layout.setContentsMargins(5, 5, 5, 5)
-        top_layout = QHBoxLayout()
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(3)
 
-        # Transform panels — icon strip (narrow) and text+icon panel (wide)
-        # Icon panel: always built, shown only when space is tight
+        # ── Toolbar row (full width above preview) ────────────────────────
+        # Icon panel spans the full panel width — fills with as many columns
+        # as fit, wrapping to more rows only when narrow.
         transform_icon_panel = self._create_transform_icon_panel()
         self._transform_icon_panel_ref = transform_icon_panel
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_icon_panel, stretch=1)
-        transform_icon_panel.setVisible(True)   # shown by default — fills width
+        transform_icon_panel.setVisible(True)
+        main_layout.addWidget(transform_icon_panel, stretch=0)
 
-        # Text+icon panel: wider labeled buttons, shown only when there is room
+        # Text panel — wide labeled buttons, hidden by default
         transform_text_panel = self._create_transform_text_panel()
         self._transform_text_panel_ref = transform_text_panel
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_text_panel)
-        transform_text_panel.setVisible(False)  # hidden by default — too tall
+        transform_text_panel.setVisible(False)
+        main_layout.addWidget(transform_text_panel, stretch=0)
 
-        # Preview area (center)
+        # ── Preview row (preview + controls side by side) ─────────────────
+        preview_row = QHBoxLayout()
+        preview_row.setSpacing(3)
         self.preview_widget = ZoomablePreview(self)
-        top_layout.addWidget(self.preview_widget, stretch=2)
-
-        # Preview controls (right side, vertical)
+        preview_row.addWidget(self.preview_widget, stretch=1)
         preview_controls = self._create_preview_controls()
-        top_layout.addWidget(preview_controls, stretch=0)
-        main_layout.addLayout(top_layout, stretch=1)
+        preview_row.addWidget(preview_controls, stretch=0)
+        main_layout.addLayout(preview_row, stretch=1)
 
         # Information group below
         info_group = QGroupBox("")
@@ -11295,7 +11294,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             def eventFilter(self, obj, event):
                 if event.type() == QEvent.Type.Resize:
                     pw = obj.width()
-                    new_cols = max(4, pw // 28)
+                    new_cols = max(1, pw // 26)
                     if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
                         _ws._icon_panel_last_cols = new_cols
                         _ws._place_icon_grid(new_cols)
@@ -11315,14 +11314,14 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         if not btns:
             return
 
-        btn_w = 28   # button width (24px) + gap (2px) + breathing room (2px)
+        btn_w = 26   # button (24px) + gap (2px)
 
         if n_cols is None:
             pw = panel.width()
-            if pw < btn_w * 2:
-                pw = btn_w * 2
-            # Fill horizontally — as many cols as fit, minimum 4
-            n_cols = max(4, pw // btn_w)
+            if pw < btn_w:
+                pw = panel.minimumWidth()
+            # Fill full width — at 17 icons × 26px = 442px for one row
+            n_cols = max(1, pw // btn_w)
 
         # Clear grid
         for i in range(grid.count() - 1, -1, -1):
@@ -11336,7 +11335,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Update panel min/max to reflect actual columns used
         panel_w = n_cols * btn_w + 4
-        panel.setMinimumWidth(4 * btn_w + 4)    # minimum 4 columns wide
+        panel.setMinimumWidth(btn_w + 4)         # minimum 1 column
         panel.setMaximumWidth(16777215)          # unconstrained — splitter controls width
 
     def _create_transform_text_panel(self): #vers 13
