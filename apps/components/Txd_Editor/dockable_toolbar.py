@@ -91,6 +91,7 @@ class _GripHandle(QPushButton):
         self._btn_size  = size
         self._pressing  = False
         self._dragged   = False
+        self._vertical  = False   # set by DockableToolbar.set_dock_position()
         self._press_pos = QPoint()
         self.setFixedSize(size, size)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
