@@ -11054,27 +11054,35 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         dialog.exec()
 
     #Left side vertical panel
-    def _create_transform_icon_panel(self): #vers 13
-        """2-column icon grid — auto-expands columns so all buttons fit vertically."""
-        self.transform_icon_panel = QFrame()
-        self.transform_icon_panel.setFrameStyle(QFrame.Shape.StyledPanel)
+    def _create_transform_icon_panel(self): #vers 14
+        """Dockable toolbar — grip handle + icon grid.
+        The toolbar can be dragged to float, snapped to any edge, collapsed."""
+        from apps.components.Txd_Editor.dockable_toolbar import DockableToolbar
+        from PyQt6.QtWidgets import QGridLayout
 
-        # Horizontal-first grid: fills width with as many cols as fit,
-        # wrapping to additional rows only when necessary.
-        outer = QVBoxLayout(self.transform_icon_panel)
-        outer.setContentsMargins(2, 2, 2, 2)
+        # Inner icon grid frame (the content that goes inside the toolbar)
+        icon_frame = QFrame()
+        icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        outer = QVBoxLayout(icon_frame)
+        outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        from PyQt6.QtWidgets import QGridLayout
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(2)
         outer.addLayout(grid)
         outer.addStretch()
 
-        # We will track all (btn, attr) pairs and place them after
-        self._icon_panel_grid = grid
-        self._icon_panel_buttons = []   # populated below; placed in _place_icon_grid()
+        self._icon_panel_grid    = grid
+        self._icon_panel_buttons = []
+        self._icon_frame         = icon_frame   # inner frame (content)
+
+        # Wrap in DockableToolbar
+        rp = getattr(self, '_right_panel_ref', None)
+        toolbar = DockableToolbar(rp or self)
+        toolbar.dock_position_changed.connect(self._on_toolbar_dock_changed)
+        self.transform_icon_panel = toolbar   # outer dockable widget
+        self._toolbar_widget      = toolbar
 
         btn_height = 24   # compact when docked — kept as local for compat
         btn_width  = 34
@@ -11082,7 +11090,6 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         spacer     = 0   # grid handles spacing
 
         def _add(btn):
-            """Register a button for grid placement."""
             self._icon_panel_buttons.append(btn)
             return btn
 
@@ -11294,14 +11301,14 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.props_btn.setToolTip("Show texture properties")
         layout.addWidget(self.props_btn)
 
-        # Initial placement
+        # Place buttons into grid and attach to toolbar
         self._place_icon_grid()
+        toolbar.set_grid_widget(icon_frame)
 
-        # Install event filter: resize reflow + right-click orientation toggle
+        # Event filter on icon_frame for resize reflow
         from PyQt6.QtCore import QObject, QEvent
-        from PyQt6.QtCore import Qt as _Qt
         _ws = self
-        class _PanelFilter(QObject):
+        class _FrameFilter(QObject):
             def eventFilter(self, obj, event):
                 if event.type() == QEvent.Type.Resize:
                     if not getattr(_ws, '_icon_panel_vertical', False):
@@ -11310,16 +11317,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                         if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
                             _ws._icon_panel_last_cols = new_cols
                             _ws._place_icon_grid(new_cols)
-                elif event.type() == QEvent.Type.ContextMenu:
-                    _ws._icon_panel_context_menu(event.globalPos())
-                    return True
                 return False
-        self._icon_panel_filter = _PanelFilter(self.transform_icon_panel)
-        self.transform_icon_panel.installEventFilter(self._icon_panel_filter)
-        self.transform_icon_panel.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.PreventContextMenu)  # filter handles it
+        self._icon_frame_filter = _FrameFilter(icon_frame)
+        icon_frame.installEventFilter(self._icon_frame_filter)
 
-        return self.transform_icon_panel
+        return toolbar
+
+    def _on_toolbar_dock_changed(self, pos: str): #vers 1
+        """Called when toolbar is docked/floated — update orientation state."""
+        from apps.components.Txd_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
+        is_vert = pos in (SNAP_LEFT, SNAP_RIGHT)
+        self._icon_panel_vertical = is_vert
+        self._place_icon_grid(1 if is_vert else None)
 
     def _icon_panel_context_menu(self, global_pos): #vers 1
         """Right-click menu on the icon toolbar — toggle horizontal/vertical."""
