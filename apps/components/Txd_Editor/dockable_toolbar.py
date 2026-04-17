@@ -7,7 +7,7 @@ the static resting float window support drag-to-move.
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QMenu,
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QMenu, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QPoint, QRect, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QCursor
@@ -135,34 +135,43 @@ class _FloatWindow(QWidget):
 
     def __init__(self, content: QWidget, parent_panel: QWidget,
                  overlay: _EdgeOverlay, initial_global: QPoint,
-                 start_dragging: bool = True):
+                 start_dragging: bool = True,
+                 extra_panels: list = None):
         super().__init__(None,
             Qt.WindowType.Tool |
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self._panel       = parent_panel
-        self._overlay     = overlay
+        self._panel        = parent_panel
+        self._extra_panels = extra_panels or []
+        self._overlay      = overlay
         self._dragging    = False
         self._drag_offset = QPoint()
         self._snap_zone   = SNAP_NONE
 
         lo = QVBoxLayout(self)
-        lo.setContentsMargins(1, 1, 1, 1)
+        lo.setContentsMargins(2, 2, 2, 2)
         lo.setSpacing(0)
+        lo.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
 
-        self._title = QLabel("⠿  Toolbar  — drag here · drop near edge to dock")
-        self._title.setFixedHeight(18)
+        self._title = QLabel("⠿  drag · right-click grip to dock")
+        self._title.setFixedHeight(14)
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._title.setStyleSheet(
-            "background:#2a2a3a; color:#aaa; font-size:8px;"
-            "border-bottom:1px solid #555; padding:0 4px;")
+            "background:#2a2a3a; color:#888; font-size:7px;"
+            "border-bottom:1px solid #444; padding:0 2px;")
         self._title.setCursor(Qt.CursorShape.SizeAllCursor)
         lo.addWidget(self._title)
         lo.addWidget(content)
-        self.setStyleSheet("background:#1e1e24; border:1px solid #666;")
+        self.setStyleSheet(
+            "QWidget { background:#1e1e24; }"
+            "QWidget#FloatWin { border:1px solid #666; }")
+        self.setObjectName("FloatWin")
+        # Use SetFixedSize so the window hugs its content exactly
+        self.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.adjustSize()
-        self.move(initial_global - QPoint(self.width()//2, 10))
+        self.move(initial_global - QPoint(self.width()//2, 8))
         self.show()
 
         # Poll timer — fires every 16 ms (~60 fps) while dragging
@@ -214,27 +223,62 @@ class _FloatWindow(QWidget):
                 self._title.setStyleSheet(
                     "background:#1a5a8a; color:#fff; font-size:8px;"
                     "border-bottom:1px solid #4af; padding:0 4px;")
-                self._title.setText(f"⠿  Release to dock → {names[zone]}")
+                self._title.setText(f"⠿  drop → {names[zone]}")
             else:
                 self._title.setStyleSheet(
                     "background:#2a2a3a; color:#aaa; font-size:8px;"
                     "border-bottom:1px solid #555; padding:0 4px;")
-                self._title.setText("⠿  Toolbar  — drag here · drop near edge to dock")
+                self._title.setText("⠿  drag · right-click grip to dock")
 
     def _calc_zone(self, global_pos: QPoint) -> str:
         pp = self._panel
         if not pp or not pp.isVisible():
             return SNAP_NONE
-        tl = pp.mapToGlobal(QPoint(0, 0))
-        w, h = pp.width(), pp.height()
-        T = SNAP_THRESHOLD
-        if not QRect(tl, QSize(w, h)).adjusted(-T,-T,T,T).contains(global_pos):
+        try:
+            tl = pp.mapToGlobal(QPoint(0, 0))
+        except Exception:
             return SNAP_NONE
+        w, h = pp.width(), pp.height()
+        if w <= 0 or h <= 0:
+            return SNAP_NONE
+        T = SNAP_THRESHOLD
         lc = global_pos - tl
-        dists = {SNAP_TOP:lc.y(), SNAP_BOTTOM:h-lc.y(),
-                 SNAP_LEFT:lc.x(), SNAP_RIGHT:w-lc.x()}
+        # Check if within expanded hitbox
+        if not QRect(tl.x()-T, tl.y()-T, w+T*2, h+T*2).contains(global_pos):
+            return SNAP_NONE
+        dists = {
+            SNAP_TOP:    max(0,  lc.y()),
+            SNAP_BOTTOM: max(0,  h - lc.y()),
+            SNAP_LEFT:   max(0,  lc.x()),
+            SNAP_RIGHT:  max(0,  w - lc.x()),
+        }
         zone, dist = min(dists.items(), key=lambda x: x[1])
-        return zone if dist <= T else SNAP_NONE
+        if dist <= T:
+            return zone
+        # Check extra panels (preview area, info bar, etc.)
+        for ep in self._extra_panels:
+            if not ep or not ep.isVisible():
+                continue
+            try:
+                etl = ep.mapToGlobal(QPoint(0, 0))
+            except Exception:
+                continue
+            ew, eh = ep.width(), ep.height()
+            if ew <= 0 or eh <= 0:
+                continue
+            elc = global_pos - etl
+            if not QRect(etl.x()-T, etl.y()-T, ew+T*2, eh+T*2).contains(global_pos):
+                continue
+            edists = {
+                SNAP_TOP:    max(0, elc.y()),
+                SNAP_BOTTOM: max(0, eh - elc.y()),
+                SNAP_LEFT:   max(0, elc.x()),
+                SNAP_RIGHT:  max(0, ew - elc.x()),
+            }
+            ez, ed = min(edists.items(), key=lambda x: x[1])
+            if ed <= T:
+                return ez
+        return SNAP_NONE
 
     # Title bar also allows dragging the static (non-active) float window
     def mousePressEvent(self, e):
@@ -257,6 +301,7 @@ class DockableToolbar(QWidget):
     def __init__(self, parent_panel: QWidget, parent=None):
         super().__init__(parent)
         self._panel     = parent_panel
+        self._extra_panels: list = []   # additional snap targets
         self._dock_pos  = SNAP_TOP
         self._collapsed = False
         self._floating  = False
@@ -316,7 +361,8 @@ class DockableToolbar(QWidget):
         self.show()
         overlay = self._get_overlay()
         win = _FloatWindow(self, self._panel, overlay, global_press,
-                           start_dragging=True)
+                           start_dragging=True,
+                           extra_panels=self._extra_panels)
         win.redock.connect(self._on_redock)
         self._float_win = win
         self.dock_position_changed.emit('float')
@@ -333,17 +379,21 @@ class DockableToolbar(QWidget):
             self._float_win = None
 
         if not zone:
-            # Stay floating but not dragging — re-use _FloatWindow, no drag start
+            # Dropped without snapping — show tight static float window
             self._floating = True
             overlay = self._get_overlay()
             win = _FloatWindow(self, self._panel, overlay,
-                               QCursor.pos(), start_dragging=False)
+                               QCursor.pos(), start_dragging=False,
+                               extra_panels=self._extra_panels)
             win.redock.connect(self._on_redock)
             self._float_win = win
             self.show()
         else:
             self._floating = False
             self._dock_to(zone)
+            # Let layout settle then emit reflow
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(50, lambda z=zone: self.reflow_requested.emit(z))
 
     def _remove_from_dock(self):
         pp = self._panel

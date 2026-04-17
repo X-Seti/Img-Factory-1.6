@@ -2671,6 +2671,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview_row.addWidget(preview_toolbar, stretch=0)
         main_layout.addLayout(preview_row, stretch=1)
 
+        # Register extra snap panels so toolbars can dock to preview edges
+        # (set after info_group is created below — done in _finish_panel_snap_targets)
+
         # Information group below
         info_group = QGroupBox("")
         info_group.setFont(self.title_font)
@@ -2908,6 +2911,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             info_layout.addLayout(mipbump_layout)
 
         main_layout.addWidget(info_group, stretch=0)
+
+        # Register preview_widget and info_group as extra snap targets
+        transform_icon_panel._extra_panels = [self.preview_widget, info_group]
+        preview_toolbar._extra_panels      = [self.preview_widget, info_group]
         return panel
 
 
