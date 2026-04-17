@@ -2930,7 +2930,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         controls_frame = QFrame()
         controls_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        controls_frame.setMinimumWidth(B * 2 + 6)   # at least 2 columns
+        controls_frame.setMinimumWidth(B + 6)        # minimum 1 column
         controls_frame.setMaximumWidth(16777215)     # unconstrained — splitter controls
 
         from PyQt6.QtWidgets import QGridLayout
@@ -3036,7 +3036,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             pw = frame.width() if frame else 0
             if pw < B * 2:
                 pw = B * 2 + 6
-            n_cols = max(2, pw // (B + 2))
+            n_cols = max(1, pw // (B + 2))
 
         # Clear grid
         for i in range(grid.count() - 1, -1, -1):
@@ -3050,6 +3050,22 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             grid.addWidget(b, idx // n_cols, idx % n_cols)
 
         self._preview_ctrl_last_cols = n_cols
+
+        # Constrain frame width to match column count
+        if frame:
+            margin = 6   # grid margins (2px each side × 2 + 2px breathing)
+            if n_cols == 1:
+                # Narrow: exactly one column wide
+                w = B + margin
+                frame.setMinimumWidth(w)
+                frame.setMaximumWidth(w)
+            elif n_cols >= len(view_btns) + len(tool_btns):
+                # Single row: let width be natural
+                frame.setMinimumWidth(B + margin)
+                frame.setMaximumWidth(16777215)
+            else:
+                frame.setMinimumWidth(B + margin)
+                frame.setMaximumWidth(16777215)
 
 
     def _update_toolbar_for_docking_state(self): #vers 1
