@@ -2634,6 +2634,16 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         transform_icon_panel = self._create_transform_icon_panel()
         self._transform_icon_panel_ref = transform_icon_panel
         transform_icon_panel.setVisible(True)
+        # Restore saved orientation
+        try:
+            if self.main_window and hasattr(self.main_window, 'app_settings'):
+                saved_vert = self.main_window.app_settings.get_setting(
+                    'txd_icon_panel_vertical', False)
+                self._icon_panel_vertical = bool(saved_vert)
+            else:
+                self._icon_panel_vertical = False
+        except Exception:
+            self._icon_panel_vertical = False
         main_layout.addWidget(transform_icon_panel, stretch=0)
 
         # Text panel — wide labeled buttons, hidden by default
@@ -11287,22 +11297,112 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Initial placement
         self._place_icon_grid()
 
-        # Install event filter to reflow on resize (safer than subclassing)
+        # Install event filter: resize reflow + right-click orientation toggle
         from PyQt6.QtCore import QObject, QEvent
+        from PyQt6.QtCore import Qt as _Qt
         _ws = self
         class _PanelFilter(QObject):
             def eventFilter(self, obj, event):
                 if event.type() == QEvent.Type.Resize:
-                    pw = obj.width()
-                    new_cols = max(1, pw // 26)
-                    if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
-                        _ws._icon_panel_last_cols = new_cols
-                        _ws._place_icon_grid(new_cols)
+                    if not getattr(_ws, '_icon_panel_vertical', False):
+                        pw = obj.width()
+                        new_cols = max(1, pw // 26)
+                        if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
+                            _ws._icon_panel_last_cols = new_cols
+                            _ws._place_icon_grid(new_cols)
+                elif event.type() == QEvent.Type.ContextMenu:
+                    _ws._icon_panel_context_menu(event.globalPos())
+                    return True
                 return False
         self._icon_panel_filter = _PanelFilter(self.transform_icon_panel)
         self.transform_icon_panel.installEventFilter(self._icon_panel_filter)
+        self.transform_icon_panel.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.PreventContextMenu)  # filter handles it
 
         return self.transform_icon_panel
+
+    def _icon_panel_context_menu(self, global_pos): #vers 1
+        """Right-click menu on the icon toolbar — toggle horizontal/vertical."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        is_vert = getattr(self, '_icon_panel_vertical', False)
+        toggle_act = menu.addAction(
+            "Switch to Horizontal" if is_vert else "Switch to Vertical")
+        menu.addSeparator()
+        menu.addAction("Reset to Horizontal", self._reset_icon_panel_horizontal)
+        act = menu.exec(global_pos)
+        if act is toggle_act:
+            self._toggle_icon_panel_orientation()
+
+    def _toggle_icon_panel_orientation(self): #vers 1
+        """Toggle the icon toolbar between horizontal (top) and vertical (left side)."""
+        is_vert = getattr(self, '_icon_panel_vertical', False)
+        self._icon_panel_vertical = not is_vert
+        self._apply_icon_panel_orientation()
+
+    def _reset_icon_panel_horizontal(self): #vers 1
+        self._icon_panel_vertical = False
+        self._apply_icon_panel_orientation()
+
+    def _apply_icon_panel_orientation(self): #vers 1
+        """Re-parent the icon panel into the correct layout position and reflow.
+        Also persists the orientation choice to app settings."""
+        from PyQt6.QtWidgets import QSizePolicy
+        # Save preference
+        is_vert = getattr(self, '_icon_panel_vertical', False)
+        try:
+            if self.main_window and hasattr(self.main_window, 'app_settings'):
+                self.main_window.app_settings.set_setting(
+                    'txd_icon_panel_vertical', is_vert)
+        except Exception:
+            pass
+        ip   = getattr(self, '_transform_icon_panel_ref', None)
+        rp   = getattr(self, '_right_panel_ref', None)
+        if ip is None or rp is None:
+            return
+
+        is_vert = getattr(self, '_icon_panel_vertical', False)
+        main_lo = rp.layout()   # QVBoxLayout of right_panel
+
+        # Find the preview_row (QHBoxLayout at index 1 or 2)
+        preview_row = None
+        for i in range(main_lo.count()):
+            item = main_lo.itemAt(i)
+            if item and item.layout() and hasattr(item.layout(), 'count'):
+                # The preview row is the HBox containing preview_widget
+                lo = item.layout()
+                for j in range(lo.count()):
+                    sub = lo.itemAt(j)
+                    if sub and sub.widget() is self.preview_widget:
+                        preview_row = lo
+                        preview_row_idx = i
+                        break
+            if preview_row:
+                break
+
+        if preview_row is None:
+            return
+
+        if is_vert:
+            # Remove icon panel from main_layout top
+            main_lo.removeWidget(ip)
+            # Insert it into the preview_row as left-most widget
+            preview_row.insertWidget(0, ip)
+            # In vertical mode: 1 column, auto height
+            ip.setMaximumWidth(30)   # single column: 26px + 4px margin
+            self._place_icon_grid(1)
+            ip.setSizePolicy(
+                QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        else:
+            # Remove from preview_row
+            preview_row.removeWidget(ip)
+            # Re-insert at top of main_layout
+            main_lo.insertWidget(0, ip)
+            ip.setMaximumWidth(16777215)
+            ip.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            pw = ip.width() or rp.width()
+            self._place_icon_grid(max(1, pw // 26))
 
     def _place_icon_grid(self, n_cols=None): #vers 2
         """Reflow icon buttons into as many columns as fit the panel width.
@@ -11333,10 +11433,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         for idx, btn in enumerate(btns):
             grid.addWidget(btn, idx // n_cols, idx % n_cols)
 
-        # Update panel min/max to reflect actual columns used
-        panel_w = n_cols * btn_w + 4
-        panel.setMinimumWidth(btn_w + 4)         # minimum 1 column
-        panel.setMaximumWidth(16777215)          # unconstrained — splitter controls width
+        # Update panel constraints based on orientation
+        if getattr(self, '_icon_panel_vertical', False):
+            panel.setMinimumWidth(btn_w + 4)
+            panel.setMaximumWidth(btn_w + 4)     # single column, fixed width
+        else:
+            panel.setMinimumWidth(btn_w + 4)
+            panel.setMaximumWidth(16777215)      # horizontal: unconstrained
 
     def _create_transform_text_panel(self): #vers 13
         """Text+icon buttons — shown when panel is wide enough.
