@@ -2969,7 +2969,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             _all_btns.append(b)
             return b
 
-        # ── View controls ─────────────────────────────────────────────────
+        # ── View controls: zoom, pan, pick, resize ───────────────────────
         _btn('_create_zoom_in_icon',        'Zoom In',            self.preview_widget.zoom_in)
         _btn('_create_zoom_out_icon',       'Zoom Out',           self.preview_widget.zoom_out)
         _btn('_create_reset_icon',          'Reset View',         self.preview_widget.reset_view)
@@ -2980,9 +2980,16 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _btn('_create_arrow_right_icon',    'Pan Right',          lambda: self._pan_preview(20, 0))
         _btn('_create_color_picker_icon',   'Pick Background',    self._pick_background_color)
         _btn('_create_resize_icon',         'Resize Texture',     self._resize_texture, attr='resize_texture_btn')
-        _btn('_create_checkerboard_icon',   'Checkerboard',       lambda: self.preview_widget.set_checkerboard_background())
 
-        # Background colour swatches — colour-coded, no icon needed
+        # ── Image tool buttons ────────────────────────────────────────────
+        _tool_btn('knob_icon',           'Colour Adjustments…', self._open_colour_adjust)
+        _tool_btn('seamless_icon',       'Seamless Tool…',      self._open_seamless_tool)
+        _tool_btn('snow_icon',           'Snow Effect…',        self._open_snow_tool)
+        _tool_btn('alpha_coverage_icon', 'Alpha Coverage…',     self._open_alpha_coverage)
+
+        # ── Background swatches at the end (checkerboard, black, grey, white)
+        _btn('_create_checkerboard_icon', 'Checkerboard',
+             lambda: self.preview_widget.set_checkerboard_background())
         for color, tip, qcol in [
             ('black',   'Black Background',  QColor(0,   0,   0  )),
             ('#2a2a2a', 'Gray Background',   QColor(42,  42,  42 )),
@@ -2995,20 +3002,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             b.clicked.connect(lambda c=False, q=qcol: self.preview_widget.set_background_color(q))
             _all_btns.append(b)
 
-        # ── Tool buttons (separator row then 2×2) ─────────────────────────
-        sep_btn = QFrame()
-        sep_btn.setFrameShape(QFrame.Shape.HLine)
-        sep_btn.setMaximumHeight(2)
-
-        _tool_btn('knob_icon',           'Colour Adjustments…', self._open_colour_adjust)
-        _tool_btn('seamless_icon',       'Seamless Tool…',      self._open_seamless_tool)
-        _tool_btn('snow_icon',           'Snow Effect…',        self._open_snow_tool)
-        _tool_btn('alpha_coverage_icon', 'Alpha Coverage…',     self._open_alpha_coverage)
-
-        # Store button lists on self so resizeEvent can reflow
-        self._preview_ctrl_view_btns = _all_btns[:14]
-        self._preview_ctrl_tool_btns = _all_btns[14:]
-        self._preview_ctrl_sep       = sep_btn
+        # Store — no separator needed
+        self._preview_ctrl_view_btns = _all_btns   # all in one flat list
+        self._preview_ctrl_tool_btns = []           # merged into view_btns
+        self._preview_ctrl_sep       = None         # no separator
         self._preview_ctrl_grid      = grid
         self._preview_ctrl_frame     = controls_frame
         self._preview_ctrl_B         = B
@@ -3045,22 +3042,11 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             if item and item.widget():
                 grid.removeWidget(item.widget())
 
-        # Place view buttons
-        row = 0
-        for idx, b in enumerate(view_btns):
+        # All buttons in one flat list — no separator
+        all_btns = view_btns + tool_btns
+        for idx, b in enumerate(all_btns):
             grid.addWidget(b, idx // n_cols, idx % n_cols)
-        row = (len(view_btns) - 1) // n_cols + 1
 
-        # Separator spanning all columns
-        if sep_btn:
-            grid.addWidget(sep_btn, row, 0, 1, n_cols)
-            row += 1
-
-        # Tool buttons
-        for idx, b in enumerate(tool_btns):
-            grid.addWidget(b, row + idx // n_cols, idx % n_cols)
-
-        # Update frame width tracking
         self._preview_ctrl_last_cols = n_cols
 
 

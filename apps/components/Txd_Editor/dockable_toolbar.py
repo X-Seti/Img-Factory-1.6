@@ -78,6 +78,7 @@ class _GripHandle(QWidget):
         super().__init__(parent)
         self._pressing     = False
         self._press_global = QPoint()
+        self._dragged      = False   # True while a drag is in flight
         self._vertical     = False
         self._set_size()
         self.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -111,12 +112,16 @@ class _GripHandle(QWidget):
         if self._pressing:
             if (e.globalPosition().toPoint() - self._press_global).manhattanLength() > 5:
                 self._pressing = False
+                self._dragged = True   # mark: drag in progress, ignore release
                 self.drag_started.emit(self._press_global)
 
     def mouseReleaseEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton and self._pressing:
-            self._pressing = False
-            self.click_release.emit()
+        if e.button() == Qt.MouseButton.LeftButton:
+            if self._pressing:          # short click — no drag
+                self._pressing = False
+                self.click_release.emit()
+            # If _dragged: release is handled by _poll_drag in _FloatWindow
+            self._dragged = False
 
 
 # ── Draggable float window ────────────────────────────────────────────────────
@@ -170,19 +175,21 @@ class _FloatWindow(QWidget):
 
     def _start_drag(self, global_pos: QPoint):
         self._dragging    = True
+        # Offset from cursor to window top-left so window doesn't jump
         self._drag_offset = global_pos - self.pos()
         self._poll.start()
+        self.raise_()
+        self.activateWindow()
 
     def _poll_drag(self):
         """Called every 16ms while dragging — moves window and updates snap."""
         if not self._dragging:
             self._poll.stop()
             return
-        # Check mouse buttons still held (works on Wayland/X11 without grabMouse)
-        from PyQt6.QtWidgets import QApplication
-        buttons = QApplication.mouseButtons()
+        from PyQt6.QtWidgets import QApplication as _QApp
+        buttons = _QApp.mouseButtons()
         if not (buttons & Qt.MouseButton.LeftButton):
-            # Button released — finalise
+            # Button released — finalise drop
             self._dragging = False
             self._poll.stop()
             self._overlay.set_zone(SNAP_NONE)
@@ -193,6 +200,8 @@ class _FloatWindow(QWidget):
         gp = QCursor.pos()
         self.move(gp - self._drag_offset)
         self._update_snap(gp)
+        # Keep window raised above other widgets
+        self.raise_()
 
     def _update_snap(self, global_pos: QPoint):
         zone = self._calc_zone(global_pos)
@@ -302,6 +311,8 @@ class DockableToolbar(QWidget):
         self._floating = True
         self._remove_from_dock()
 
+        # Show self briefly to get size before wrapping in float window
+        self.show()
         overlay = self._get_overlay()
         win = _FloatWindow(self, self._panel, overlay, global_press,
                            start_dragging=True)
