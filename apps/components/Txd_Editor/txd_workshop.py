@@ -2240,9 +2240,25 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
 
-    def _on_splitter_moved(self, pos, index): #vers 1
-        """Called when main splitter is dragged."""
+    def _on_splitter_moved(self, pos, index): #vers 2
+        """Called when main splitter is dragged — reflow both icon bars."""
         self._update_transform_text_panel_visibility()
+        # Reflow left icon panel
+        ip = getattr(self, '_transform_icon_panel_ref', None)
+        if ip and ip.isVisible():
+            pw = ip.width()
+            new_cols = max(2, pw // 36)
+            if new_cols != getattr(self, '_icon_panel_last_cols', 0):
+                self._icon_panel_last_cols = new_cols
+                self._place_icon_grid(new_cols)
+        # Reflow right preview controls
+        frame = getattr(self, '_preview_ctrl_frame', None)
+        if frame and frame.isVisible():
+            pw = frame.width()
+            B  = getattr(self, '_preview_ctrl_B', 28)
+            new_cols = max(2, pw // (B + 2))
+            if new_cols != getattr(self, '_preview_ctrl_last_cols', 0):
+                self._reflow_preview_controls(new_cols)
 
     def _update_transform_text_panel_visibility(self): #vers 3
         """Toggle between text+icon panel (wide) and icon-only strip (narrow).
@@ -2910,13 +2926,14 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         except ImportError:
             _SVGIconFactory = None
 
-        # 2-column grid — all buttons at 28px so 14 buttons = 7 rows × ~30px = ~210px
+        # Auto-column grid — button size 28px, fills available width
         B  = 28   # button size
         IC = 16   # icon size
 
         controls_frame = QFrame()
         controls_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        controls_frame.setMaximumWidth(B * 2 + 10)  # exactly 2 cols wide
+        controls_frame.setMinimumWidth(B * 2 + 6)   # at least 2 columns
+        controls_frame.setMaximumWidth(16777215)     # unconstrained — splitter controls
 
         from PyQt6.QtWidgets import QGridLayout
         grid = QGridLayout(controls_frame)
@@ -2992,26 +3009,63 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _tool_btn('snow_icon',           'Snow Effect…',        self._open_snow_tool)
         _tool_btn('alpha_coverage_icon', 'Alpha Coverage…',     self._open_alpha_coverage)
 
-        # Place all buttons into 2-column grid
-        n_cols = 2
-        # First 14 view/BG buttons, then separator spanning 2 cols, then 4 tool buttons
-        view_btns  = _all_btns[:14]
-        tool_btns  = _all_btns[14:]
-        row = 0
-        for idx, b in enumerate(view_btns):
-            grid.addWidget(b, idx // n_cols, idx % n_cols)
-            row = idx // n_cols
-        row += 1
-        grid.addWidget(sep_btn, row, 0, 1, 2)
-        row += 1
-        for idx, b in enumerate(tool_btns):
-            grid.addWidget(b, row + idx // n_cols, idx % n_cols)
+        # Store button lists on self so resizeEvent can reflow
+        self._preview_ctrl_view_btns = _all_btns[:14]
+        self._preview_ctrl_tool_btns = _all_btns[14:]
+        self._preview_ctrl_sep       = sep_btn
+        self._preview_ctrl_grid      = grid
+        self._preview_ctrl_frame     = controls_frame
+        self._preview_ctrl_B         = B
+
+        # Initial placement
+        self._reflow_preview_controls(2)
 
         # Keep tile state stubs for _set_tiled_preview compat
         self._tile_n    = 1
         self._tile_btns = {}
 
         return controls_frame
+
+    def _reflow_preview_controls(self, n_cols=None): #vers 1
+        """Reflow preview control buttons into as many columns as fit."""
+        grid      = getattr(self, '_preview_ctrl_grid', None)
+        view_btns = getattr(self, '_preview_ctrl_view_btns', [])
+        tool_btns = getattr(self, '_preview_ctrl_tool_btns', [])
+        sep_btn   = getattr(self, '_preview_ctrl_sep', None)
+        frame     = getattr(self, '_preview_ctrl_frame', None)
+        B         = getattr(self, '_preview_ctrl_B', 28)
+        if grid is None or not view_btns:
+            return
+
+        if n_cols is None:
+            pw = frame.width() if frame else 0
+            if pw < B * 2:
+                pw = B * 2 + 6
+            n_cols = max(2, pw // (B + 2))
+
+        # Clear grid
+        for i in range(grid.count() - 1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+
+        # Place view buttons
+        row = 0
+        for idx, b in enumerate(view_btns):
+            grid.addWidget(b, idx // n_cols, idx % n_cols)
+        row = (len(view_btns) - 1) // n_cols + 1
+
+        # Separator spanning all columns
+        if sep_btn:
+            grid.addWidget(sep_btn, row, 0, 1, n_cols)
+            row += 1
+
+        # Tool buttons
+        for idx, b in enumerate(tool_btns):
+            grid.addWidget(b, row + idx // n_cols, idx % n_cols)
+
+        # Update frame width tracking
+        self._preview_ctrl_last_cols = n_cols
 
 
     def _update_toolbar_for_docking_state(self): #vers 1
@@ -11250,30 +11304,58 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.props_btn.setToolTip("Show texture properties")
         layout.addWidget(self.props_btn)
 
-        # Place buttons into the 2-column grid
+        # Initial placement
         self._place_icon_grid()
+
+        # Install event filter to reflow on resize (safer than subclassing)
+        from PyQt6.QtCore import QObject, QEvent
+        _ws = self
+        class _PanelFilter(QObject):
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.Type.Resize:
+                    pw = obj.width()
+                    new_cols = max(2, pw // 36)
+                    if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
+                        _ws._icon_panel_last_cols = new_cols
+                        _ws._place_icon_grid(new_cols)
+                return False
+        self._icon_panel_filter = _PanelFilter(self.transform_icon_panel)
+        self.transform_icon_panel.installEventFilter(self._icon_panel_filter)
+
         return self.transform_icon_panel
 
-    def _place_icon_grid(self, n_cols=2): #vers 1
-        """Place registered icon buttons into the grid with n_cols columns.
-        Called after all buttons are registered. Also called on resize to reflow."""
-        grid = self._icon_panel_grid
-        btns = self._icon_panel_buttons
-        # Clear existing grid
-        for i in range(grid.count()-1, -1, -1):
+    def _place_icon_grid(self, n_cols=None): #vers 2
+        """Reflow icon buttons into as many columns as fit the panel width.
+        Called after all buttons are registered and on every resize.
+        n_cols: explicit override; if None, compute from panel width."""
+        panel = self.transform_icon_panel
+        grid  = self._icon_panel_grid
+        btns  = self._icon_panel_buttons
+        if not btns:
+            return
+
+        btn_w = 36   # button width + gap
+
+        if n_cols is None:
+            pw = panel.width()
+            if pw < btn_w:
+                pw = panel.minimumWidth()
+            n_cols = max(2, pw // btn_w)
+
+        # Clear grid
+        for i in range(grid.count() - 1, -1, -1):
             item = grid.itemAt(i)
             if item and item.widget():
                 grid.removeWidget(item.widget())
-        # Place in n_cols columns
+
+        # Place left-to-right, top-to-bottom
         for idx, btn in enumerate(btns):
-            row = idx // n_cols
-            col = idx % n_cols
-            grid.addWidget(btn, row, col)
-        # Set panel width to fit n_cols * btn_size
-        btn_w = 36   # 34 + 2px spacing
-        panel_w = n_cols * btn_w + 6
-        self.transform_icon_panel.setMinimumWidth(panel_w)
-        self.transform_icon_panel.setMaximumWidth(panel_w + 4)
+            grid.addWidget(btn, idx // n_cols, idx % n_cols)
+
+        # Update panel min/max to reflect actual columns used
+        panel_w = n_cols * btn_w + 4
+        panel.setMinimumWidth(2 * btn_w + 4)    # always allow at least 2 cols
+        panel.setMaximumWidth(16777215)          # unconstrained — splitter controls width
 
     def _create_transform_text_panel(self): #vers 13
         """Text+icon buttons — shown when panel is wide enough.
