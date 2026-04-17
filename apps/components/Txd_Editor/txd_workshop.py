@@ -2661,7 +2661,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Wrap preview controls in a DockableToolbar (right side, vertical)
         from apps.components.Txd_Editor.dockable_toolbar import DockableToolbar as _DT
         preview_controls_frame = self._create_preview_controls()
-        preview_toolbar = _DT(panel)
+        preview_toolbar = _DT(panel, settings_key='right_toolbar')
         preview_toolbar.set_content(preview_controls_frame)
         preview_toolbar.set_dock_position('right')
         preview_toolbar.dock_position_changed.connect(
@@ -11098,7 +11098,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Wrap in DockableToolbar
         rp = getattr(self, '_right_panel_ref', None)
-        toolbar = DockableToolbar(rp or self)
+        toolbar = DockableToolbar(rp or self, settings_key="left_toolbar")
         toolbar.dock_position_changed.connect(self._on_toolbar_dock_changed)
         toolbar.reflow_requested.connect(self._reflow_left_toolbar)
         self.transform_icon_panel = toolbar   # outer dockable widget
