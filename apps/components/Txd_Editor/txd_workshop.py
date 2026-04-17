@@ -2657,8 +2657,16 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview_row.setSpacing(3)
         self.preview_widget = ZoomablePreview(self)
         preview_row.addWidget(self.preview_widget, stretch=1)
-        preview_controls = self._create_preview_controls()
-        preview_row.addWidget(preview_controls, stretch=0)
+        # Wrap preview controls in a DockableToolbar (right side, vertical)
+        from apps.components.Txd_Editor.dockable_toolbar import DockableToolbar as _DT
+        preview_controls_frame = self._create_preview_controls()
+        preview_toolbar = _DT(panel)
+        preview_toolbar.set_content(preview_controls_frame)
+        preview_toolbar.set_dock_position('right')
+        preview_toolbar.dock_position_changed.connect(
+            lambda pos: None)   # future: handle redock
+        self._preview_toolbar = preview_toolbar
+        preview_row.addWidget(preview_toolbar, stretch=0)
         main_layout.addLayout(preview_row, stretch=1)
 
         # Information group below
@@ -11303,7 +11311,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Place buttons into grid and attach to toolbar
         self._place_icon_grid()
-        toolbar.set_grid_widget(icon_frame)
+        toolbar.set_content(icon_frame)
 
         # Event filter on icon_frame for resize reflow
         from PyQt6.QtCore import QObject, QEvent
