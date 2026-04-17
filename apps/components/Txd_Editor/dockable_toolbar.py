@@ -1,20 +1,20 @@
 """
-apps/components/Txd_Editor/dockable_toolbar.py  — Build 2
+apps/components/Txd_Editor/dockable_toolbar.py  — Build 3
 DockableToolbar: 3ds Max-style detachable/dockable toolbar.
 
 Grip handle (dotted lines) at the start:
   Click  → collapse / expand content
   Drag   → detach into floating window, follow the mouse
-  Drop   → near parent edge: snap & re-dock; elsewhere: stay floating
+  Drop   → near parent edge: highlight that edge, snap & re-dock on release
   Right-click → context menu (Dock to…, Float, Collapse)
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QFrame, QHBoxLayout, QVBoxLayout,
+    QWidget, QHBoxLayout, QVBoxLayout,
     QPushButton, QLabel, QMenu, QApplication,
 )
-from PyQt6.QtCore import Qt, QPoint, QRect, QSize, pyqtSignal, QObject, QEvent
-from PyQt6.QtGui import QPainter, QColor, QPen, QCursor
+from PyQt6.QtCore import Qt, QPoint, QRect, QSize, pyqtSignal, QTimer
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush
 
 SNAP_NONE   = ''
 SNAP_TOP    = 'top'
@@ -22,20 +22,87 @@ SNAP_BOTTOM = 'bottom'
 SNAP_LEFT   = 'left'
 SNAP_RIGHT  = 'right'
 SNAP_THRESHOLD = 60   # px from parent edge to trigger snap
+EDGE_THICKNESS = 6    # px thickness of the edge highlight band
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+class _EdgeOverlay(QWidget):
+    """Transparent overlay drawn over the parent panel that highlights
+    whichever edge the floating toolbar will snap to.
+
+    Painted as a semi-transparent coloured band along the target edge.
+    """
+
+    def __init__(self, parent_panel: QWidget):
+        super().__init__(parent_panel)
+        self._zone  = SNAP_NONE
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.SubWindow)
+        self.hide()
+
+    def set_zone(self, zone: str):
+        if zone == self._zone:
+            return
+        self._zone = zone
+        if zone:
+            self.setGeometry(self.parent().rect())
+            self.raise_()
+            self.show()
+        else:
+            self.hide()
+        self.update()
+
+    def paintEvent(self, _):
+        if not self._zone:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        T = EDGE_THICKNESS
+
+        # Coloured band on the snap edge
+        accent = QColor(30, 144, 255, 160)   # dodger blue, semi-transparent
+        outline = QColor(30, 144, 255, 220)
+
+        if self._zone == SNAP_TOP:
+            band = QRect(0, 0, w, T * 4)
+        elif self._zone == SNAP_BOTTOM:
+            band = QRect(0, h - T * 4, w, T * 4)
+        elif self._zone == SNAP_LEFT:
+            band = QRect(0, 0, T * 4, h)
+        else:  # RIGHT
+            band = QRect(w - T * 4, 0, T * 4, h)
+
+        p.fillRect(band, accent)
+        p.setPen(QPen(outline, 2))
+        p.drawRect(band.adjusted(1, 1, -1, -1))
+
+        # Arrow / label hint
+        p.setPen(QPen(QColor(255, 255, 255, 200), 1))
+        p.setFont(self.font())
+        labels = {
+            SNAP_TOP:    '▼  Dock Top',
+            SNAP_BOTTOM: '▲  Dock Bottom',
+            SNAP_LEFT:   '▶  Dock Left',
+            SNAP_RIGHT:  '◀  Dock Right',
+        }
+        p.drawText(band, Qt.AlignmentFlag.AlignCenter, labels[self._zone])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 class _GripHandle(QWidget):
     """Dotted-line grip — click = collapse, drag = float."""
     drag_started  = pyqtSignal(QPoint)   # global pos of press
-    click_release = pyqtSignal()         # short click (no drag)
+    click_release = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._pressing       = False
         self._press_global   = QPoint()
         self._drag_threshold = 5
-        self._vertical       = False     # True when toolbar is docked left/right
+        self._vertical       = False
         self._set_size()
         self.setCursor(Qt.CursorShape.SizeAllCursor)
         self.setToolTip(
@@ -43,10 +110,7 @@ class _GripHandle(QWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
     def _set_size(self):
-        if self._vertical:
-            self.setFixedSize(24, 12)
-        else:
-            self.setFixedSize(12, 24)
+        self.setFixedSize(24, 12) if self._vertical else self.setFixedSize(12, 24)
 
     def set_vertical(self, v: bool):
         self._vertical = v
@@ -56,14 +120,13 @@ class _GripHandle(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        c = QColor(160, 160, 160)
-        p.setPen(QPen(c, 1.5))
+        p.setPen(QPen(QColor(160, 160, 160), 1.5))
         w, h = self.width(), self.height()
-        if not self._vertical:            # horizontal toolbar → tall grip
+        if not self._vertical:
             for x in (w // 2 - 2, w // 2 + 2):
                 for y in range(3, h - 3, 4):
                     p.drawPoint(x, y)
-        else:                             # vertical toolbar → wide grip
+        else:
             for y in (h // 2 - 2, h // 2 + 2):
                 for x in range(3, w - 3, 4):
                     p.drawPoint(x, y)
@@ -75,8 +138,7 @@ class _GripHandle(QWidget):
 
     def mouseMoveEvent(self, e):
         if self._pressing:
-            delta = e.globalPosition().toPoint() - self._press_global
-            if delta.manhattanLength() > self._drag_threshold:
+            if (e.globalPosition().toPoint() - self._press_global).manhattanLength() > self._drag_threshold:
                 self._pressing = False
                 self.drag_started.emit(self._press_global)
 
@@ -88,29 +150,29 @@ class _GripHandle(QWidget):
 
 # ─────────────────────────────────────────────────────────────────────────────
 class _FloatWindow(QWidget):
-    """Frameless stay-on-top window that follows the mouse while dragging."""
+    """Frameless stay-on-top window that follows the mouse while dragging.
+    Shows an edge-highlight overlay on the parent panel when near a snap zone.
+    """
 
-    redock = pyqtSignal(str)   # zone: 'top'|'bottom'|'left'|'right'|''
+    redock = pyqtSignal(str)   # zone or '' to stay floating
 
     def __init__(self, content: QWidget, parent_panel: QWidget,
-                 initial_global: QPoint):
+                 overlay: '_EdgeOverlay', initial_global: QPoint):
         super().__init__(None,
             Qt.WindowType.Tool |
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self._panel   = parent_panel
-        self._content = content
+        self._panel        = parent_panel
+        self._overlay      = overlay
         self._dragging     = False
         self._drag_offset  = QPoint()
         self._snap_zone    = SNAP_NONE
-        self._snap_overlay = None   # future: rubber band
 
         lo = QVBoxLayout(self)
         lo.setContentsMargins(1, 1, 1, 1)
         lo.setSpacing(0)
 
-        # Title bar
         self._title = QLabel("⠿  Toolbar  — drop near edge to dock")
         self._title.setFixedHeight(18)
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -121,51 +183,57 @@ class _FloatWindow(QWidget):
         lo.addWidget(content)
         self.setStyleSheet("background:#1e1e24; border:1px solid #666;")
         self.adjustSize()
-
-        # Position: offset from where the drag started
         self.move(initial_global - QPoint(10, 10))
         self.show()
 
-        # Grab mouse immediately so we get all move events
+        # Grab mouse so all move events reach us regardless of child widgets
         self.grabMouse()
-        self._dragging    = True
+        self._dragging   = True
         self._drag_offset = initial_global - self.pos()
 
-    # Mouse events — window follows cursor globally
     def mouseMoveEvent(self, e):
         if self._dragging:
-            new_pos = e.globalPosition().toPoint() - self._drag_offset
-            self.move(new_pos)
-            self._update_snap_zone(e.globalPosition().toPoint())
+            self.move(e.globalPosition().toPoint() - self._drag_offset)
+            self._update_snap(e.globalPosition().toPoint())
 
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton and self._dragging:
             self._dragging = False
             self.releaseMouse()
+            self._overlay.set_zone(SNAP_NONE)   # clear highlight
             zone = self._snap_zone
-            self.redock.emit(zone)   # '' = stay floating
+            self._snap_zone = SNAP_NONE
+            self.redock.emit(zone)
 
-    def _update_snap_zone(self, global_pos: QPoint):
+    def _update_snap(self, global_pos: QPoint):
+        zone = self._calc_zone(global_pos)
+        if zone != self._snap_zone:
+            self._snap_zone = zone
+            self._overlay.set_zone(zone)   # show/hide edge highlight
+            # Update title bar colour
+            if zone:
+                self._title.setStyleSheet(
+                    "background:#1a5a8a; color:#fff; font-size:8px;"
+                    "border-bottom:1px solid #4af; padding:0 4px;")
+                names = {SNAP_TOP:'TOP', SNAP_BOTTOM:'BOTTOM',
+                         SNAP_LEFT:'LEFT', SNAP_RIGHT:'RIGHT'}
+                self._title.setText(f"⠿  Release to dock → {names[zone]}")
+            else:
+                self._title.setStyleSheet(
+                    "background:#2a2a3a; color:#aaa; font-size:8px;"
+                    "border-bottom:1px solid #555; padding:0 4px;")
+                self._title.setText("⠿  Toolbar  — drop near edge to dock")
+
+    def _calc_zone(self, global_pos: QPoint) -> str:
         pp = self._panel
         if not pp or not pp.isVisible():
-            self._snap_zone = SNAP_NONE
-            self._title.setStyleSheet(
-                "background:#2a2a3a; color:#aaa; font-size:8px;"
-                "border-bottom:1px solid #555;")
-            return
+            return SNAP_NONE
         tl = pp.mapToGlobal(QPoint(0, 0))
-        rect = QRect(tl, pp.size())
-        T = SNAP_THRESHOLD
-
-        if not rect.adjusted(-T, -T, T, T).contains(global_pos):
-            self._snap_zone = SNAP_NONE
-            self._title.setStyleSheet(
-                "background:#2a2a3a; color:#aaa; font-size:8px;"
-                "border-bottom:1px solid #555;")
-            return
-
-        lc = global_pos - tl
         w, h = pp.width(), pp.height()
+        T = SNAP_THRESHOLD
+        if not QRect(tl, QSize(w, h)).adjusted(-T, -T, T, T).contains(global_pos):
+            return SNAP_NONE
+        lc = global_pos - tl
         dists = {
             SNAP_TOP:    lc.y(),
             SNAP_BOTTOM: h - lc.y(),
@@ -173,30 +241,17 @@ class _FloatWindow(QWidget):
             SNAP_RIGHT:  w - lc.x(),
         }
         zone, dist = min(dists.items(), key=lambda x: x[1])
-        if dist > T:
-            self._snap_zone = SNAP_NONE
-            self._title.setStyleSheet(
-                "background:#2a2a3a; color:#aaa; font-size:8px;"
-                "border-bottom:1px solid #555;")
-        else:
-            self._snap_zone = zone
-            # Highlight title bar to indicate snap zone
-            self._title.setStyleSheet(
-                f"background:#1a5a8a; color:#fff; font-size:8px;"
-                f"border-bottom:1px solid #4af; padding:0 4px;")
-            self._title.setText(f"⠿  Drop to dock → {zone.upper()}")
+        return zone if dist <= T else SNAP_NONE
 
     def closeEvent(self, e):
         self.releaseMouse()
+        self._overlay.set_zone(SNAP_NONE)
         super().closeEvent(e)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 class DockableToolbar(QWidget):
-    """
-    Toolbar wrapper with a grip handle at the leading edge.
-    Manages docking, floating, and collapsing.
-    """
+    """Toolbar wrapper with grip handle. Manages docking, floating, collapsing."""
 
     dock_position_changed = pyqtSignal(str)
 
@@ -207,7 +262,8 @@ class DockableToolbar(QWidget):
         self._collapsed = False
         self._floating  = False
         self._float_win = None
-        self._content   = None   # the icon grid frame
+        self._content   = None
+        self._overlay   = None   # created lazily when first float happens
 
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -220,7 +276,7 @@ class DockableToolbar(QWidget):
             lambda p: self._show_menu(self._grip.mapToGlobal(p)))
         self._layout.addWidget(self._grip)
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # ── Public ────────────────────────────────────────────────────────────────
 
     def set_content(self, widget: QWidget):
         if self._content:
@@ -233,7 +289,6 @@ class DockableToolbar(QWidget):
         self._dock_pos = pos
         vert = pos in (SNAP_LEFT, SNAP_RIGHT)
         self._grip.set_vertical(vert)
-        # Flip layout axis
         if vert:
             self._layout.setDirection(QHBoxLayout.Direction.TopToBottom)
         else:
@@ -248,50 +303,53 @@ class DockableToolbar(QWidget):
 
     # ── Float / drag ─────────────────────────────────────────────────────────
 
+    def _get_overlay(self) -> '_EdgeOverlay':
+        """Return (creating if needed) the edge-highlight overlay on parent panel."""
+        if self._overlay is None or not self._overlay.parent():
+            self._overlay = _EdgeOverlay(self._panel)
+        return self._overlay
+
     def _on_drag_started(self, global_press: QPoint):
-        """Grip was dragged — detach toolbar into a floating window."""
-        if self._floating:
-            # Already floating: start dragging the existing window
-            if self._float_win:
-                self._float_win._dragging   = True
-                self._float_win._drag_offset = global_press - self._float_win.pos()
-                self._float_win.grabMouse()
+        if self._floating and self._float_win:
+            # Re-engage drag on existing float window
+            self._float_win._dragging    = True
+            self._float_win._drag_offset = global_press - self._float_win.pos()
+            self._float_win.grabMouse()
             return
 
         self._floating = True
-
-        # Remove from current layout
         self._remove_from_dock()
 
-        # Create float window with self as content
-        self._float_win = _FloatWindow(self, self._panel, global_press)
+        overlay = self._get_overlay()
+        self._float_win = _FloatWindow(self, self._panel, overlay, global_press)
         self._float_win.redock.connect(self._on_redock)
         self.dock_position_changed.emit('float')
 
     def _on_redock(self, zone: str):
-        """Float window released — dock if zone given, else stay floating."""
+        # Extract self from float window before destroying it
         if self._float_win:
-            # Take content back out of float window before closing
             self._float_win.layout().removeWidget(self)
             self._float_win.hide()
             self._float_win.deleteLater()
             self._float_win = None
 
         if not zone:
-            # Stay floating — re-create a non-dragging float window
+            # Stay floating — build a non-dragging static float window
             self._floating = True
             win = QWidget(None,
                 Qt.WindowType.Tool |
                 Qt.WindowType.FramelessWindowHint |
                 Qt.WindowType.WindowStaysOnTopHint)
+            win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
             lo = QVBoxLayout(win)
             lo.setContentsMargins(1, 1, 1, 1)
             lo.setSpacing(0)
-            title = QLabel("⠿  Toolbar  (drag to move, right-click grip to dock)")
+            title = QLabel("⠿  Toolbar  (right-click grip to dock)")
             title.setFixedHeight(18)
             title.setAlignment(Qt.AlignmentFlag.AlignCenter)
             title.setStyleSheet(
-                "background:#2a2a3a; color:#aaa; font-size:8px; border-bottom:1px solid #555;")
+                "background:#2a2a3a; color:#aaa; font-size:8px;"
+                "border-bottom:1px solid #555;")
             lo.addWidget(title)
             lo.addWidget(self)
             win.setStyleSheet("background:#1e1e24; border:1px solid #666;")
@@ -304,30 +362,20 @@ class DockableToolbar(QWidget):
             self._dock_to(zone)
 
     def _remove_from_dock(self):
-        """Remove self from whichever layout currently contains us."""
         pp = self._panel
         if not pp:
             return
         plo = pp.layout()
         if plo:
             plo.removeWidget(self)
-        # Also check preview row
-        self._remove_from_preview_row()
-
-    def _remove_from_preview_row(self):
-        pp = self._panel
-        if not pp:
-            return
-        plo = pp.layout()
-        if not plo:
-            return
-        for i in range(plo.count()):
-            item = plo.itemAt(i)
-            if item and item.layout():
-                item.layout().removeWidget(self)
+        # Also scan HBox sub-layouts (preview row)
+        if plo:
+            for i in range(plo.count()):
+                item = plo.itemAt(i)
+                if item and item.layout():
+                    item.layout().removeWidget(self)
 
     def _dock_to(self, pos: str):
-        self._dock_pos = pos
         pp  = self._panel
         plo = pp.layout() if pp else None
         if plo is None:
@@ -353,7 +401,6 @@ class DockableToolbar(QWidget):
         plo = pp.layout() if pp else None
         if not plo:
             return
-        # Find the HBoxLayout that contains a ZoomablePreview
         for i in range(plo.count()):
             item = plo.itemAt(i)
             if item and item.layout():
@@ -362,12 +409,8 @@ class DockableToolbar(QWidget):
                     sub = lo.itemAt(j)
                     if sub and sub.widget() and 'Preview' in type(sub.widget()).__name__:
                         lo.removeWidget(self)
-                        if side == SNAP_LEFT:
-                            lo.insertWidget(0, self, stretch=0)
-                        else:
-                            lo.addWidget(self, stretch=0)
+                        lo.insertWidget(0 if side == SNAP_LEFT else lo.count(), self, stretch=0)
                         return
-        # Fallback
         plo.insertWidget(0, self, stretch=0)
 
     # ── Context menu ─────────────────────────────────────────────────────────
