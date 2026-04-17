@@ -2674,6 +2674,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Register extra snap panels so toolbars can dock to preview edges
         # (set after info_group is created below — done in _finish_panel_snap_targets)
 
+        # Load saved toolbar layouts (deferred so layout is settled)
+        from PyQt6.QtCore import QTimer as _QTimer
+        _QTimer.singleShot(100, self._load_toolbar_layouts)
+
         # Information group below
         info_group = QGroupBox("")
         info_group.setFont(self.title_font)
@@ -3019,8 +3023,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._preview_ctrl_frame     = controls_frame
         self._preview_ctrl_B         = B
 
-        # Initial placement
-        self._reflow_preview_controls(2)
+        # Initial placement — 1 column (docked right by default)
+        self._reflow_preview_controls(1)
 
         # Keep tile state stubs for _set_tiled_preview compat
         self._tile_n    = 1
@@ -11366,6 +11370,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             self._place_icon_grid(None)    # auto-fill width
 
+    def _load_toolbar_layouts(self): #vers 1
+        """Restore saved toolbar layouts on startup."""
+        try:
+            tb_left  = getattr(self, '_transform_icon_panel_ref', None)
+            tb_right = getattr(self, '_preview_toolbar', None)
+            if tb_left:
+                tb_left.load_layout()
+            if tb_right:
+                tb_right.load_layout()
+        except Exception as e:
+            pass   # silently ignore — defaults are fine
+
     def _reflow_right_toolbar(self, pos: str): #vers 1
         """Reflow right preview controls based on dock state.
         Floating → single column (all icons stacked vertically).
@@ -16917,7 +16933,14 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
     def closeEvent(self, event): #vers 1
         """Handle window close event"""
-
+        # Save toolbar layouts
+        try:
+            for attr in ('_transform_icon_panel_ref', '_preview_toolbar'):
+                tb = getattr(self, attr, None)
+                if tb and hasattr(tb, 'save_layout'):
+                    tb.save_layout()
+        except Exception:
+            pass
         # Save settings before closing
         self._save_settings()
 

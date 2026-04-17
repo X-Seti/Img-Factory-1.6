@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QLabel, QMenu, QSizePolicy, QApplication, QPushButton,
 )
 from PyQt6.QtCore import Qt, QPoint, QRect, QSize, pyqtSignal, QTimer
-from PyQt6.QtGui import QPainter, QColor, QPen, QCursor
+from PyQt6.QtGui import QPainter, QColor, QPen, QCursor, QBrush, QPolygon
 
 SNAP_NONE   = ''
 SNAP_TOP    = 'top'
@@ -112,13 +112,26 @@ class _GripHandle(QPushButton):
         super().paintEvent(event)
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(QPen(QColor(180, 180, 180), 1.5))
+        c = QColor(190, 190, 190)
+        p.setPen(QPen(c, 1.5))
         w, h = self.width(), self.height()
-        # 3×3 dot grid centred in button
         cx, cy = w // 2, h // 2
-        for dy in (-4, 0, 4):
-            for dx in (-3, 3):
-                p.drawPoint(cx + dx, cy + dy)
+        # Draw ||> — two vertical bars then a right-pointing triangle
+        # Two bars (each 2px wide, 10px tall)
+        bar_h = 10
+        bar_top = cy - bar_h // 2
+        p.drawLine(cx - 6, bar_top, cx - 6, bar_top + bar_h)
+        p.drawLine(cx - 4, bar_top, cx - 4, bar_top + bar_h)
+        # Arrow triangle >
+        p.setBrush(QBrush(c))
+        p.setPen(Qt.PenStyle.NoPen)
+        from PyQt6.QtGui import QPolygon
+        tri = QPolygon([
+            QPoint(cx - 1, cy - 5),
+            QPoint(cx - 1, cy + 5),
+            QPoint(cx + 5, cy),
+        ])
+        p.drawPolygon(tri)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -312,6 +325,19 @@ class DockableToolbar(QWidget):
         self._collapsed = not self._collapsed
         if self._content:
             self._content.setVisible(not self._collapsed)
+        # When collapsed keep the toolbar visible — just the grip button
+        # Force a minimum size so the grip doesn't vanish into layout
+        vert = self._dock_pos in (SNAP_LEFT, SNAP_RIGHT)
+        if self._collapsed:
+            if vert:
+                self.setMaximumWidth(self._btn_size + 4)
+                self.setMaximumHeight(16777215)
+            else:
+                self.setMaximumHeight(self._btn_size + 4)
+                self.setMaximumWidth(16777215)
+        else:
+            self.setMaximumWidth(16777215)
+            self.setMaximumHeight(16777215)
 
     # ── Float ─────────────────────────────────────────────────────────────────
     def _on_drag_started(self, global_press: QPoint):
@@ -439,14 +465,23 @@ class DockableToolbar(QWidget):
             cfg  = data.get(self._settings_key, {})
             if not cfg:
                 return False
-            pos  = cfg.get('dock_pos', SNAP_TOP)
-            self._collapsed = cfg.get('collapsed', False)
-            if cfg.get('floating', False):
-                QTimer.singleShot(200,
+            pos       = cfg.get('dock_pos', SNAP_TOP)
+            collapsed = cfg.get('collapsed', False)
+            floating  = cfg.get('floating',  False)
+
+            if floating:
+                # Re-float after layout settles
+                QTimer.singleShot(250,
                     lambda: self._on_drag_started(
                         self.mapToGlobal(QPoint(self.width()//2, self.height()//2))))
             else:
+                # Redock to saved position — triggers reflow via signal
                 self._on_redock(pos)
+
+            # Restore collapsed state after redock
+            if collapsed != self._collapsed:
+                QTimer.singleShot(60, self._toggle_collapse)
+
             return True
         except Exception:
             return False
