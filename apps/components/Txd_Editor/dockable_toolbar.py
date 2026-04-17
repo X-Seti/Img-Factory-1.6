@@ -252,6 +252,7 @@ class _FloatWindow(QWidget):
 # ── DockableToolbar ───────────────────────────────────────────────────────────
 class DockableToolbar(QWidget):
     dock_position_changed = pyqtSignal(str)
+    reflow_requested      = pyqtSignal(str)   # 'float'|'top'|'bottom'|'left'|'right' 
 
     def __init__(self, parent_panel: QWidget, parent=None):
         super().__init__(parent)
@@ -319,6 +320,7 @@ class DockableToolbar(QWidget):
         win.redock.connect(self._on_redock)
         self._float_win = win
         self.dock_position_changed.emit('float')
+        self.reflow_requested.emit('float')
 
     def _on_redock(self, zone: str):
         # Remove self from float window before destroying it
@@ -369,10 +371,12 @@ class DockableToolbar(QWidget):
             self.set_dock_position(pos)
             self.show()
             self.dock_position_changed.emit(pos)
+            self.reflow_requested.emit(pos)
             return
         self.set_dock_position(pos)
         self.show()
         self.dock_position_changed.emit(pos)
+        self.reflow_requested.emit(pos)
 
     def _dock_beside_preview(self, side: str):
         pp  = self._panel

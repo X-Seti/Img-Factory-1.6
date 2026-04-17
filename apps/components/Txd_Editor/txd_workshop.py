@@ -2247,10 +2247,11 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         ip = getattr(self, '_transform_icon_panel_ref', None)
         if ip and ip.isVisible():
             pw = ip.width()
-            new_cols = max(1, pw // 26)
-            if new_cols != getattr(self, '_icon_panel_last_cols', 0):
-                self._icon_panel_last_cols = new_cols
-                self._place_icon_grid(new_cols)
+            if getattr(self, '_icon_panel_forced_cols', None) is None:
+                new_cols = max(1, pw // 26)
+                if new_cols != getattr(self, '_icon_panel_last_cols', 0):
+                    self._icon_panel_last_cols = new_cols
+                    self._place_icon_grid(new_cols)
         # Reflow right preview controls
         frame = getattr(self, '_preview_ctrl_frame', None)
         if frame and frame.isVisible():
@@ -2664,7 +2665,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview_toolbar.set_content(preview_controls_frame)
         preview_toolbar.set_dock_position('right')
         preview_toolbar.dock_position_changed.connect(
-            lambda pos: None)   # future: handle redock
+            lambda pos: None)
+        preview_toolbar.reflow_requested.connect(self._reflow_right_toolbar)
         self._preview_toolbar = preview_toolbar
         preview_row.addWidget(preview_toolbar, stretch=0)
         main_layout.addLayout(preview_row, stretch=1)
@@ -11075,6 +11077,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         rp = getattr(self, '_right_panel_ref', None)
         toolbar = DockableToolbar(rp or self)
         toolbar.dock_position_changed.connect(self._on_toolbar_dock_changed)
+        toolbar.reflow_requested.connect(self._reflow_left_toolbar)
         self.transform_icon_panel = toolbar   # outer dockable widget
         self._toolbar_widget      = toolbar
 
@@ -11305,12 +11308,14 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         class _FrameFilter(QObject):
             def eventFilter(self, obj, event):
                 if event.type() == QEvent.Type.Resize:
-                    if not getattr(_ws, '_icon_panel_vertical', False):
-                        pw = obj.width()
-                        new_cols = max(1, pw // 26)
-                        if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
-                            _ws._icon_panel_last_cols = new_cols
-                            _ws._place_icon_grid(new_cols)
+                    # Skip if cols are forced (floating/single-row/single-col state)
+                    if getattr(_ws, '_icon_panel_forced_cols', None) is None:
+                        if not getattr(_ws, '_icon_panel_vertical', False):
+                            pw = obj.width()
+                            new_cols = max(1, pw // 26)
+                            if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
+                                _ws._icon_panel_last_cols = new_cols
+                                _ws._place_icon_grid(new_cols)
                 return False
         self._icon_frame_filter = _FrameFilter(icon_frame)
         icon_frame.installEventFilter(self._icon_frame_filter)
@@ -11323,6 +11328,36 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         is_vert = pos in (SNAP_LEFT, SNAP_RIGHT)
         self._icon_panel_vertical = is_vert
         self._place_icon_grid(1 if is_vert else None)
+
+    def _reflow_left_toolbar(self, pos: str): #vers 1
+        """Reflow left icon bar based on dock state.
+        Floating → single row (all icons in one row).
+        Docked top/bottom → fill panel width (auto cols).
+        Docked left/right → single column."""
+        from apps.components.Txd_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
+        n = len(getattr(self, '_icon_panel_buttons', []))
+        if pos == 'float':
+            self._place_icon_grid(n)       # single row
+        elif pos in (SNAP_LEFT, SNAP_RIGHT):
+            self._place_icon_grid(1)       # single column
+        else:
+            self._place_icon_grid(None)    # auto-fill width
+
+    def _reflow_right_toolbar(self, pos: str): #vers 1
+        """Reflow right preview controls based on dock state.
+        Floating → single column (all icons stacked vertically).
+        Docked left/right → single column.
+        Docked top/bottom → single row."""
+        from apps.components.Txd_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT, SNAP_TOP, SNAP_BOTTOM
+        n = len(getattr(self, '_preview_ctrl_view_btns', []))
+        if pos == 'float':
+            self._reflow_preview_controls(1)    # single column while floating
+        elif pos in (SNAP_LEFT, SNAP_RIGHT):
+            self._reflow_preview_controls(1)    # single column on left/right
+        elif pos in (SNAP_TOP, SNAP_BOTTOM):
+            self._reflow_preview_controls(n)    # single row on top/bottom
+        else:
+            self._reflow_preview_controls(None) # auto
 
     def _icon_panel_context_menu(self, global_pos): #vers 1
         """Right-click menu on the icon toolbar — toggle horizontal/vertical."""
@@ -11407,10 +11442,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             pw = ip.width() or rp.width()
             self._place_icon_grid(max(1, pw // 26))
 
-    def _place_icon_grid(self, n_cols=None): #vers 2
-        """Reflow icon buttons into as many columns as fit the panel width.
-        Called after all buttons are registered and on every resize.
-        n_cols: explicit override; if None, compute from panel width."""
+    def _place_icon_grid(self, n_cols=None): #vers 3
+        """Reflow icon buttons.
+        n_cols: explicit count — stored as forced value, blocks auto-resize.
+                None — auto-compute from panel width, clears forced value."""
         panel = self.transform_icon_panel
         grid  = self._icon_panel_grid
         btns  = self._icon_panel_buttons
@@ -11419,12 +11454,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         btn_w = 26   # button (24px) + gap (2px)
 
-        if n_cols is None:
+        if n_cols is not None:
+            # Explicit: store as forced value so resize event doesn't override
+            self._icon_panel_forced_cols = n_cols
+        else:
+            # Auto: clear forced value, compute from width
+            self._icon_panel_forced_cols = None
             pw = panel.width()
             if pw < btn_w:
                 pw = panel.minimumWidth()
-            # Fill full width — at 17 icons × 26px = 442px for one row
             n_cols = max(1, pw // btn_w)
+
+        self._icon_panel_last_cols = n_cols
 
         # Clear grid
         for i in range(grid.count() - 1, -1, -1):
@@ -11436,13 +11477,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         for idx, btn in enumerate(btns):
             grid.addWidget(btn, idx // n_cols, idx % n_cols)
 
-        # Update panel constraints based on orientation
-        if getattr(self, '_icon_panel_vertical', False):
+        # Constrain panel size to fit the grid
+        if n_cols == 1:
+            # Single column — fix width
             panel.setMinimumWidth(btn_w + 4)
-            panel.setMaximumWidth(btn_w + 4)     # single column, fixed width
+            panel.setMaximumWidth(btn_w + 4)
+        elif n_cols >= len(btns):
+            # Single row — fix height, let width be natural
+            panel.setMinimumWidth(btn_w + 4)
+            panel.setMaximumWidth(16777215)
         else:
             panel.setMinimumWidth(btn_w + 4)
-            panel.setMaximumWidth(16777215)      # horizontal: unconstrained
+            panel.setMaximumWidth(16777215)
 
     def _create_transform_text_panel(self): #vers 13
         """Text+icon buttons — shown when panel is wide enough.
