@@ -113,25 +113,40 @@ class _GripHandle(QPushButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         c = QColor(190, 190, 190)
-        p.setPen(QPen(c, 1.5))
+        p.setBrush(QBrush(c))
         w, h = self.width(), self.height()
         cx, cy = w // 2, h // 2
-        # Draw ||> — two vertical bars then a right-pointing triangle
-        # Two bars (each 2px wide, 10px tall)
-        bar_h = 10
-        bar_top = cy - bar_h // 2
-        p.drawLine(cx - 6, bar_top, cx - 6, bar_top + bar_h)
-        p.drawLine(cx - 4, bar_top, cx - 4, bar_top + bar_h)
-        # Arrow triangle >
-        p.setBrush(QBrush(c))
-        p.setPen(Qt.PenStyle.NoPen)
-        from PyQt6.QtGui import QPolygon
-        tri = QPolygon([
-            QPoint(cx - 1, cy - 5),
-            QPoint(cx - 1, cy + 5),
-            QPoint(cx + 5, cy),
-        ])
-        p.drawPolygon(tri)
+
+        if not self._vertical:
+            # Horizontal bar: ||>  (bars vertical, arrow points right)
+            bar_h = 10
+            bar_top = cy - bar_h // 2
+            p.setPen(QPen(c, 1.5))
+            p.drawLine(cx - 6, bar_top, cx - 6, bar_top + bar_h)
+            p.drawLine(cx - 4, bar_top, cx - 4, bar_top + bar_h)
+            # Triangle pointing right
+            p.setPen(Qt.PenStyle.NoPen)
+            tri = QPolygon([
+                QPoint(cx - 1, cy - 5),
+                QPoint(cx - 1, cy + 5),
+                QPoint(cx + 5, cy),
+            ])
+            p.drawPolygon(tri)
+        else:
+            # Vertical bar: = over v  (bars horizontal, arrow points down)
+            bar_w = 10
+            bar_left = cx - bar_w // 2
+            p.setPen(QPen(c, 1.5))
+            p.drawLine(bar_left, cy - 6, bar_left + bar_w, cy - 6)
+            p.drawLine(bar_left, cy - 4, bar_left + bar_w, cy - 4)
+            # Triangle pointing down
+            p.setPen(Qt.PenStyle.NoPen)
+            tri = QPolygon([
+                QPoint(cx - 5, cy - 1),
+                QPoint(cx + 5, cy - 1),
+                QPoint(cx,     cy + 5),
+            ])
+            p.drawPolygon(tri)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
