@@ -149,6 +149,11 @@ class _GripHandle(QPushButton):
             ])
             p.drawPolygon(tri)
 
+    def set_vertical(self, v: bool):
+        """Called by DockableToolbar.set_dock_position() to update icon orientation."""
+        self._vertical = v
+        self.update()   # repaint with correct ||> vs =v icon
+
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
             self._pressing  = True
@@ -327,6 +332,7 @@ class DockableToolbar(QWidget):
     def set_dock_position(self, pos: str):
         self._dock_pos = pos
         vert = pos in (SNAP_LEFT, SNAP_RIGHT)
+        self._grip.set_vertical(vert)   # update icon orientation
         if vert:
             self._layout.setDirection(QHBoxLayout.Direction.TopToBottom)
         else:

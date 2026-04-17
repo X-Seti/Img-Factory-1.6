@@ -11083,18 +11083,15 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         from apps.components.Txd_Editor.dockable_toolbar import DockableToolbar
         from PyQt6.QtWidgets import QGridLayout
 
-        # Inner icon grid frame (the content that goes inside the toolbar)
+        # Inner icon grid frame — grid is the direct layout, no outer VBox
+        # (the VBox+stretch was causing the frame to occupy its own full row
+        #  in the DockableToolbar's HBoxLayout)
         icon_frame = QFrame()
         icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        outer = QVBoxLayout(icon_frame)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
 
-        grid = QGridLayout()
+        grid = QGridLayout(icon_frame)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(2)
-        outer.addLayout(grid)
-        outer.addStretch()
 
         self._icon_panel_grid    = grid
         self._icon_panel_buttons = []
