@@ -2247,7 +2247,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         ip = getattr(self, '_transform_icon_panel_ref', None)
         if ip and ip.isVisible():
             pw = ip.width()
-            new_cols = max(2, pw // 36)
+            new_cols = max(4, pw // 28)
             if new_cols != getattr(self, '_icon_panel_last_cols', 0):
                 self._icon_panel_last_cols = new_cols
                 self._place_icon_grid(new_cols)
@@ -2276,35 +2276,14 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             if ip: ip.setVisible(False)
             return
 
-        # Auto mode: measure the right panel width directly
-        rp = getattr(self, '_right_panel_ref', None)
-        if rp:
-            ref_w = rp.width()
-        else:
-            # fallback: walk up from text panel to find splitter child
-            splitter = getattr(self, '_main_splitter', None)
-            ref_w = self.width()
-            if splitter and tp:
-                w = tp
-                while w and w.parent() is not splitter:
-                    w = w.parent() if hasattr(w, 'parent') else None
-                if w:
-                    ref_w = w.width()
-
-        # Text panel (160px wide) + icon panel (46px) + some margin = needs ~220px
-        try:
-            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
-            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
-        except Exception:
-            threshold = 550
-        wide = ref_w >= threshold
-        if tp: tp.setVisible(wide)
-        if ip: ip.setVisible(not wide)
-
-        # Also sync the button_display_mode so bottom buttons collapse too
-        new_mode = 'both' if wide else 'icons'
-        if getattr(self, 'button_display_mode', 'both') != new_mode:
-            self.button_display_mode = new_mode
+        # Auto mode: icon panel always visible (horizontal compact strip).
+        # Text panel (wide labeled buttons) only shown if explicitly requested.
+        # Always keep icon panel on — it fills the available width.
+        if ip: ip.setVisible(True)
+        if tp: tp.setVisible(False)
+        # Keep button_display_mode as icons
+        if getattr(self, 'button_display_mode', 'icons') != 'icons':
+            self.button_display_mode = 'icons'
             self._update_all_buttons()
 
 
@@ -2654,15 +2633,15 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         transform_icon_panel = self._create_transform_icon_panel()
         self._transform_icon_panel_ref = transform_icon_panel
         top_layout.setSpacing(2)
-        top_layout.addWidget(transform_icon_panel)
-        transform_icon_panel.setVisible(False)   # hidden until splitter makes it narrow
+        top_layout.addWidget(transform_icon_panel, stretch=1)
+        transform_icon_panel.setVisible(True)   # shown by default — fills width
 
-        # Text+icon panel: shown by default
+        # Text+icon panel: wider labeled buttons, shown only when there is room
         transform_text_panel = self._create_transform_text_panel()
         self._transform_text_panel_ref = transform_text_panel
         top_layout.setSpacing(2)
         top_layout.addWidget(transform_text_panel)
-        transform_text_panel.setVisible(True)
+        transform_text_panel.setVisible(False)  # hidden by default — too tall
 
         # Preview area (center)
         self.preview_widget = ZoomablePreview(self)
@@ -4560,8 +4539,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
     def _setup_status_indicators(self): #vers 5
         """Setup status indicators with texture info and visible resize button"""
         self.status_frame = QFrame()
+        self.status_frame.setFixedHeight(24)
         self.status_layout = QHBoxLayout(self.status_frame)
-        self.status_layout.setContentsMargins(5, 2, 5, 2)
+        self.status_layout.setContentsMargins(5, 0, 5, 0)
 
         self.status_textures = QLabel("Textures: 0")
         self.status_layout.addWidget(self.status_textures)
@@ -11070,9 +11050,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.transform_icon_panel = QFrame()
         self.transform_icon_panel.setFrameStyle(QFrame.Shape.StyledPanel)
 
-        # Use a grid layout — buttons placed left-to-right, top-to-bottom in n_cols
+        # Horizontal-first grid: fills width with as many cols as fit,
+        # wrapping to additional rows only when necessary.
         outer = QVBoxLayout(self.transform_icon_panel)
-        outer.setContentsMargins(2, 4, 2, 4)
+        outer.setContentsMargins(2, 2, 2, 2)
         outer.setSpacing(0)
 
         from PyQt6.QtWidgets import QGridLayout
@@ -11314,7 +11295,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             def eventFilter(self, obj, event):
                 if event.type() == QEvent.Type.Resize:
                     pw = obj.width()
-                    new_cols = max(2, pw // 36)
+                    new_cols = max(4, pw // 28)
                     if new_cols != getattr(_ws, '_icon_panel_last_cols', 0):
                         _ws._icon_panel_last_cols = new_cols
                         _ws._place_icon_grid(new_cols)
@@ -11334,13 +11315,14 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         if not btns:
             return
 
-        btn_w = 36   # button width + gap
+        btn_w = 28   # button width (24px) + gap (2px) + breathing room (2px)
 
         if n_cols is None:
             pw = panel.width()
-            if pw < btn_w:
-                pw = panel.minimumWidth()
-            n_cols = max(2, pw // btn_w)
+            if pw < btn_w * 2:
+                pw = btn_w * 2
+            # Fill horizontally — as many cols as fit, minimum 4
+            n_cols = max(4, pw // btn_w)
 
         # Clear grid
         for i in range(grid.count() - 1, -1, -1):
@@ -11354,7 +11336,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Update panel min/max to reflect actual columns used
         panel_w = n_cols * btn_w + 4
-        panel.setMinimumWidth(2 * btn_w + 4)    # always allow at least 2 cols
+        panel.setMinimumWidth(4 * btn_w + 4)    # minimum 4 columns wide
         panel.setMaximumWidth(16777215)          # unconstrained — splitter controls width
 
     def _create_transform_text_panel(self): #vers 13
