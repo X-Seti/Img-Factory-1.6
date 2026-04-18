@@ -2922,42 +2922,34 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         return panel
 
 
-    def _create_preview_controls(self): #vers 2
-        """Create preview control buttons - vertical layout on right"""
-        from PyQt6.QtCore import QSize, QByteArray
-        from PyQt6.QtGui import QIcon, QPixmap, QPainter
-        try:
-            from PyQt6.QtSvg import QSvgRenderer as _QSvgRenderer
-        except ImportError:
-            _QSvgRenderer = None
-        try:
-            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGIconFactory
-        except ImportError:
-            _SVGIconFactory = None
-
-        # Auto-column grid — button size 28px, fills available width
+    def _create_preview_controls(self): #vers 3
+        """Create preview control buttons — all icons theme-aware via icon_factory."""
         B  = 28   # button size
         IC = 16   # icon size
+        icon_color = self._get_icon_color()
 
         controls_frame = QFrame()
         controls_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        controls_frame.setMinimumWidth(B + 6)        # minimum 1 column
-        controls_frame.setMaximumWidth(16777215)     # unconstrained — splitter controls
+        controls_frame.setMinimumWidth(B + 6)
+        controls_frame.setMaximumWidth(16777215)
 
         from PyQt6.QtWidgets import QGridLayout
         grid = QGridLayout(controls_frame)
         grid.setContentsMargins(2, 4, 2, 4)
         grid.setSpacing(2)
 
-        _all_btns = []   # (btn, row, col) — filled below
+        _all_btns = []
 
-        def _btn(icon_fn, tip, slot, style=None, attr=None):
+        def _btn(icon_method, tip, slot, style=None, attr=None):
+            """Create button using icon_factory for theme-aware icons."""
             b = QPushButton()
             b.setFixedSize(B, B)
             b.setToolTip(tip)
             try:
-                b.setIcon(getattr(self, icon_fn)())
-                b.setIconSize(QSize(IC, IC))
+                fn = getattr(self.icon_factory, icon_method, None)
+                if fn:
+                    b.setIcon(fn(color=icon_color))
+                    b.setIconSize(QSize(IC, IC))
             except Exception:
                 b.setText(tip[:2])
             if style:
@@ -2968,13 +2960,15 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             _all_btns.append(b)
             return b
 
-        def _tool_btn(icon_fn, tip, slot):
+        def _tool_btn(icon_method, tip, slot):
+            """Create tool button using icon_factory for theme-aware icons."""
             b = QPushButton()
             b.setFixedSize(B, B)
             b.setToolTip(tip)
             try:
-                if _SVGIconFactory:
-                    b.setIcon(getattr(_SVGIconFactory, icon_fn)(IC))
+                fn = getattr(self.icon_factory, icon_method, None)
+                if fn:
+                    b.setIcon(fn(color=icon_color))
                     b.setIconSize(QSize(IC, IC))
             except Exception:
                 b.setText(tip[:2])
@@ -2983,16 +2977,16 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             return b
 
         # ── View controls: zoom, pan, pick, resize ───────────────────────
-        _btn('_create_zoom_in_icon',        'Zoom In',            self.preview_widget.zoom_in)
-        _btn('_create_zoom_out_icon',       'Zoom Out',           self.preview_widget.zoom_out)
-        _btn('_create_reset_icon',          'Reset View',         self.preview_widget.reset_view)
-        _btn('_create_fit_icon',            'Fit to Window',      self.preview_widget.fit_to_window)
-        _btn('_create_arrow_up_icon',       'Pan Up',             lambda: self._pan_preview(0, -20))
-        _btn('_create_arrow_down_icon',     'Pan Down',           lambda: self._pan_preview(0, 20))
-        _btn('_create_arrow_left_icon',     'Pan Left',           lambda: self._pan_preview(-20, 0))
-        _btn('_create_arrow_right_icon',    'Pan Right',          lambda: self._pan_preview(20, 0))
-        _btn('_create_color_picker_icon',   'Pick Background',    self._pick_background_color)
-        _btn('_create_resize_icon',         'Resize Texture',     self._resize_texture, attr='resize_texture_btn')
+        _btn('zoom_in_icon',        'Zoom In',            self.preview_widget.zoom_in)
+        _btn('zoom_out_icon',       'Zoom Out',           self.preview_widget.zoom_out)
+        _btn('reset_icon',          'Reset View',         self.preview_widget.reset_view)
+        _btn('fit_icon',            'Fit to Window',      self.preview_widget.fit_to_window)
+        _btn('arrow_up_icon',       'Pan Up',             lambda: self._pan_preview(0, -20))
+        _btn('arrow_down_icon',     'Pan Down',           lambda: self._pan_preview(0, 20))
+        _btn('arrow_left_icon',     'Pan Left',           lambda: self._pan_preview(-20, 0))
+        _btn('arrow_right_icon',    'Pan Right',          lambda: self._pan_preview(20, 0))
+        _btn('color_picker_icon',   'Pick Background',    self._pick_background_color)
+        _btn('resize_icon',         'Resize Texture',     self._resize_texture, attr='resize_texture_btn')
 
         # ── Image tool buttons ────────────────────────────────────────────
         _tool_btn('knob_icon',           'Colour Adjustments…', self._open_colour_adjust)
@@ -3001,7 +2995,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _tool_btn('alpha_coverage_icon', 'Alpha Coverage…',     self._open_alpha_coverage)
 
         # ── Background swatches at the end (checkerboard, black, grey, white)
-        _btn('_create_checkerboard_icon', 'Checkerboard',
+        _btn('checkerboard_icon', 'Checkerboard',
              lambda: self.preview_widget.set_checkerboard_background())
         for color, tip, qcol in [
             ('black',   'Black Background',  QColor(0,   0,   0  )),
@@ -4244,6 +4238,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             ('invert_btn',         'build_icon'),
             ('gen_alpha_btn',      'paint_icon'),
             ('props_btn',          'properties_icon'),
+            # Right preview bar
+            ('resize_texture_btn',  'resize_icon'),
         ]
         for attr, method in _icon_map:
             btn = getattr(self, attr, None)
@@ -4259,6 +4255,34 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                     btn.setIcon(fn())
                 except Exception:
                     pass
+
+        # Refresh right preview bar icons on theme change
+        try:
+            c2 = self._get_icon_color()
+            tip_to_icon = {
+                'Zoom In': 'zoom_in_icon', 'Zoom Out': 'zoom_out_icon',
+                'Reset View': 'reset_icon', 'Fit to Window': 'fit_icon',
+                'Pan Up': 'arrow_up_icon', 'Pan Down': 'arrow_down_icon',
+                'Pan Left': 'arrow_left_icon', 'Pan Right': 'arrow_right_icon',
+                'Pick Background': 'color_picker_icon',
+                'Resize Texture': 'resize_icon',
+                'Checkerboard': 'checkerboard_icon',
+                'Colour Adjustments…': 'knob_icon',
+                'Seamless Tool…': 'seamless_icon',
+                'Snow Effect…': 'snow_icon',
+                'Alpha Coverage…': 'alpha_coverage_icon',
+            }
+            for btn in getattr(self, '_preview_ctrl_view_btns', []):
+                fn_name = tip_to_icon.get(btn.toolTip())
+                if fn_name:
+                    fn = getattr(self.icon_factory, fn_name, None)
+                    if fn:
+                        try:
+                            btn.setIcon(fn(color=c2))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
 
         # Update middle btn row visibility (may have changed docked state)
         if hasattr(self, '_middle_btn_row'):
