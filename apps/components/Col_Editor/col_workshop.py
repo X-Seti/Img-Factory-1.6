@@ -2602,7 +2602,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
-        def _refresh_icons(self): #vers 2
+    def _refresh_icons(self): #vers 2
         """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()

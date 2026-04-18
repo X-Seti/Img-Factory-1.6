@@ -4200,7 +4200,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
-        def _refresh_icons(self): #vers 1
+    def _refresh_icons(self): #vers 1
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
