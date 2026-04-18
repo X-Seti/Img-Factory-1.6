@@ -4028,6 +4028,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             def addSpacing(_, *a): pass
             def addStretch(_): pass
 
+        spacer = 0   # no-op — grid handles spacing
         layout = _FakeLayout()
         layout.addSpacing(0)
 
