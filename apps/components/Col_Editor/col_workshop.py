@@ -4021,9 +4021,10 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         btn_width  = 26
         icon_size  = QSize(16, 16)
 
-        # Fake layout — collects buttons into self._col_icon_buttons
+        # Fake layout — collects buttons and parents them to icon_frame
         class _FakeLayout:
             def addWidget(_, w, *a, **kw):
+                w.setParent(icon_frame)   # parent so Qt owns the widget
                 self._col_icon_buttons.append(w)
             def addSpacing(_, *a): pass
             def addStretch(_): pass
@@ -4200,8 +4201,28 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         return icon_frame
 
     def _col_icon_buttons_initial_place(self): #vers 1
-        """Initial single-row placement; reflow_requested signal handles later calls."""
-        self._reflow_col_left_toolbar('top')
+        """Place all buttons initially; defer auto-reflow until after show."""
+        n = len(self._col_icon_buttons)
+        # Place as single row initially — will reflow on first resize/show
+        self._reflow_col_left_toolbar_ncols(n)
+        # Deferred: reflow to fill actual width once window is visible
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(150, lambda: self._reflow_col_left_toolbar('top'))
+
+    def _reflow_col_left_toolbar_ncols(self, n_cols): #vers 1
+        """Place buttons into grid with explicit column count."""
+        grid = getattr(self, '_col_icon_grid', None)
+        btns = getattr(self, '_col_icon_buttons', [])
+        frame = getattr(self, '_col_icon_frame', None)
+        if not grid or not btns:
+            return
+        for i in range(grid.count() - 1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        for idx, btn in enumerate(btns):
+            btn.setFixedSize(26, 26)
+            grid.addWidget(btn, idx // n_cols, idx % n_cols)
 
     def _reflow_col_left_toolbar(self, pos: str): #vers 1
         """Reflow left toolbar icons based on dock position."""
@@ -4864,7 +4885,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._col_ctrl_frame   = f
 
         def btn(tip, icon_fn, callback, checkable=False, checked=False):
-            b = QPushButton()
+            b = QPushButton(f)   # parent to frame so it's owned
             b.setIcon(icon_fn(color=icon_color))
             b.setIconSize(QSize(16, 16))
             b.setFixedSize(26, 26)
