@@ -2604,42 +2604,52 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         c = self._get_icon_color()
         SVGIconFactory.set_theme_color(c)
 
-        # Map: attribute name → icon factory method
+        # Complete icon map — every themed button in Col Workshop
         _icon_map = [
-            # Toolbar
-            ('settings_btn',       'settings_icon'),
-            ('open_btn',           'open_icon'),
-            ('save_btn',           'save_icon'),
-            ('saveall_btn',        'saveas_icon'),
-            ('export_all_btn',     'package_icon'),
-            ('undo_btn',           'undo_icon'),
-            ('info_btn',           'info_icon'),
-            ('minimize_btn',       'minimize_icon'),
-            ('maximize_btn',       'maximize_icon'),
-            ('close_btn',          'close_icon'),
-            ('open_img_btn',       'folder_icon'),
-            ('from_img_btn',       'open_icon'),
-            # Middle panel mini-toolbar
-            ('open_col_btn',       'open_icon'),
-            ('save_col_btn',       'save_icon'),
-            ('export_col_btn',     'package_icon'),
-            ('undo_col_btn',       'undo_icon'),
-            # Transform icon panel
-            ('flip_vert_btn',      'flip_vert_icon'),
-            ('flip_horz_btn',      'flip_horz_icon'),
-            ('rotate_cw_btn',      'rotate_cw_icon'),
-            ('rotate_ccw_btn',     'rotate_ccw_icon'),
-            ('analyze_btn',        'analyze_icon'),
-            ('copy_btn',           'copy_icon'),
-            ('paste_btn',          'paste_icon'),
-            ('create_surface_btn', 'add_icon'),
-            ('delete_surface_btn', 'remove_icon'),
-            ('import_btn',         'import_icon'),
-            ('export_btn',         'export_icon'),
-            # Right panel toolbar buttons
-            ('switch_btn',         'flip_vert_icon'),
-            ('convert_btn',        'convert_icon'),
-            ('properties_btn',     'settings_icon'),
+            # Title bar / main toolbar
+            ('settings_btn',         'settings_icon'),
+            ('open_btn',             'open_icon'),
+            ('save_btn',             'save_icon'),
+            ('saveall_btn',          'saveas_icon'),
+            ('export_all_btn',       'package_icon'),
+            ('undo_btn',             'undo_icon'),
+            ('info_btn',             'info_icon'),
+            ('minimize_btn',         'minimize_icon'),
+            ('maximize_btn',         'maximize_icon'),
+            ('close_btn',            'close_icon'),
+            ('open_img_btn',         'folder_icon'),
+            ('from_img_btn',         'open_icon'),
+            # Middle panel mini-toolbar (docked mode)
+            ('open_col_btn',         'open_icon'),
+            ('save_col_btn',         'save_icon'),
+            ('export_col_btn',       'package_icon'),
+            ('undo_col_btn',         'undo_icon'),
+            # Left transform toolbar (all 14 icons)
+            ('flip_vert_btn',        'flip_vert_icon'),
+            ('flip_horz_btn',        'flip_horz_icon'),
+            ('rotate_cw_btn',        'rotate_cw_icon'),
+            ('rotate_ccw_btn',       'rotate_ccw_icon'),
+            ('analyze_btn',          'analyze_icon'),
+            ('copy_btn',             'copy_icon'),
+            ('paste_btn',            'paste_icon'),
+            ('create_surface_btn',   'add_icon'),
+            ('delete_surface_btn',   'delete_icon'),
+            ('duplicate_surface_btn','duplicate_icon'),
+            ('paint_btn',            'paint_icon'),
+            ('surface_type_btn',     'checkerboard_icon'),
+            ('surface_edit_btn',     'surfaceedit_icon'),
+            ('build_from_txd_btn',   'build_icon'),
+            # Right preview toolbar (zoom/pan/view)
+            ('view_spheres_btn',     'sphere_icon'),
+            ('view_boxes_btn',       'box_icon'),
+            ('view_mesh_btn',        'mesh_icon'),
+            ('backface_btn',         'backface_icon'),
+            # Info / bottom panel buttons
+            ('import_btn',           'import_icon'),
+            ('export_btn',           'export_icon'),
+            ('switch_btn',           'flip_vert_icon'),
+            ('convert_btn',          'convert_icon'),
+            ('paint_undo_btn',       'undo_paint_icon'),
         ]
         for attr, method in _icon_map:
             btn = getattr(self, attr, None)
@@ -2658,6 +2668,55 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 
 # - Settings Reusable
+
+        # Refresh right preview bar (zoom/pan/view controls)
+        try:
+            tip_to_icon = {
+                'Zoom In': 'zoom_in_icon', 'Zoom Out': 'zoom_out_icon',
+                'Reset View': 'reset_icon', 'Fit to Window': 'fit_icon',
+                'Pan Up': 'arrow_up_icon', 'Pan Down': 'arrow_down_icon',
+                'Pan Left': 'arrow_left_icon', 'Pan Right': 'arrow_right_icon',
+                'Render / Background Settings': 'color_picker_icon',
+                'Toggle Spheres': 'sphere_icon', 'Toggle Boxes': 'box_icon',
+                'Toggle Mesh': 'mesh_icon', 'Toggle Backface': 'backface_icon',
+            }
+            for btn in getattr(self, '_col_ctrl_buttons', []):
+                fn_name = tip_to_icon.get(btn.toolTip())
+                if fn_name:
+                    fn = getattr(self.icon_factory, fn_name, None)
+                    if fn:
+                        try: btn.setIcon(fn(color=c))
+                        except Exception: pass
+        except Exception:
+            pass
+
+        # Refresh left icon toolbar
+        try:
+            tip_to_icon_left = {
+                'Flip col vertically': 'flip_vert_icon',
+                'Flip col horizontally': 'flip_horz_icon',
+                'Rotate 90 degrees clockwise': 'rotate_cw_icon',
+                'Rotate 90 degrees counter-clockwise': 'rotate_ccw_icon',
+                'Analyze collision data': 'analyze_icon',
+                'Copy col to clipboard': 'copy_icon',
+                'Paste col from clipboard': 'paste_icon',
+                'Create new blank Collision': 'add_icon',
+                'Remove selected Collision': 'delete_icon',
+                'Clone selected Collision': 'duplicate_icon',
+                'Paint free hand on surface — assign materials': 'paint_icon',
+                'Surface types': 'checkerboard_icon',
+                'Surface Editor — edit mesh faces and vertices': 'surfaceedit_icon',
+                'Create col surface from txd texture names': 'build_icon',
+            }
+            for btn in getattr(self, '_col_icon_buttons', []):
+                fn_name = tip_to_icon_left.get(btn.toolTip())
+                if fn_name:
+                    fn = getattr(self.icon_factory, fn_name, None)
+                    if fn:
+                        try: btn.setIcon(fn(color=c))
+                        except Exception: pass
+        except Exception:
+            pass
 
         # Sync mini toolbar visibility with current dock state
         if hasattr(self, '_middle_btn_row'):
