@@ -459,7 +459,7 @@ class DockableToolbar(QWidget):
     def _settings_path(self) -> Path:
         cfg = Path.home() / '.config' / 'imgfactory'
         cfg.mkdir(parents=True, exist_ok=True)
-        return cfg / 'txd_toolbar_layout.json'
+        return cfg / 'col_toolbar_layout.json'
 
     def save_layout(self):
         try:

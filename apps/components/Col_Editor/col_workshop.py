@@ -3696,50 +3696,23 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Called when main splitter is dragged — update text panel visibility."""
         self._update_transform_text_panel_visibility()
 
-    def _update_transform_text_panel_visibility(self): #vers 2
-        """Toggle between text+icon panel (wide) and icon-only strip (narrow).
-        Reads threshold from IMG Factory settings. Also collapses bottom buttons."""
-        tp   = getattr(self, '_transform_text_panel_ref', None)
-        ip   = getattr(self, '_transform_icon_panel_ref', None)
-        mode = getattr(self, 'button_display_mode', 'both')
-
-        if mode == 'icons':
-            if tp: tp.setVisible(False)
-            if ip: ip.setVisible(True)
-            return
-        if mode == 'text':
-            if tp: tp.setVisible(True)
-            if ip: ip.setVisible(False)
-            return
-
-        # Measure right panel width directly
-        rp = getattr(self, '_right_panel_ref', None)
-        if rp:
-            ref_w = rp.width()
-        else:
-            splitter = getattr(self, '_main_splitter', None)
-            ref_w = self.width()
-            if splitter and tp:
-                w = tp
-                while w and w.parent() is not splitter:
-                    w = w.parent() if hasattr(w, 'parent') else None
-                if w:
-                    ref_w = w.width()
-
-        try:
-            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
-            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
-        except Exception:
-            threshold = 550
-        wide = ref_w >= threshold
-        if tp: tp.setVisible(wide)
-        if ip: ip.setVisible(not wide)
-
-        # Toggle bottom panel rows the same way
+    def _update_transform_text_panel_visibility(self): #vers 3
+        """DockableToolbar version — toolbars manage their own visibility.
+        Only handles bottom panel rows for backward compat."""
+        # DockableToolbar manages its own dock/float/collapse state — don't touch it
         btr = getattr(self, '_bottom_text_row', None)
         bir = getattr(self, '_bottom_icon_row', None)
-        if btr: btr.setVisible(wide)
-        if bir: bir.setVisible(not wide)
+        if btr or bir:
+            rp = getattr(self, '_right_panel_ref', None)
+            ref_w = rp.width() if rp else self.width()
+            try:
+                from apps.methods.imgfactory_ui_settings import get_collapse_threshold
+                threshold = get_collapse_threshold(getattr(self, 'main_window', None))
+            except Exception:
+                threshold = 550
+            wide = ref_w >= threshold
+            if btr: btr.setVisible(wide)
+            if bir: bir.setVisible(not wide)
 
     def resizeEvent(self, event): #vers 3
         """Keep resize grip in corner; auto-collapse text transform panel when narrow."""
