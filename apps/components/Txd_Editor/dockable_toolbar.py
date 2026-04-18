@@ -113,7 +113,10 @@ class _GripHandle(QPushButton):
         super().paintEvent(event)
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        c = QColor(190, 190, 190)
+        # Use palette foreground so grip is theme-aware (light/dark)
+        c = self.palette().color(self.foregroundRole())
+        if not c.isValid():
+            c = QColor(190, 190, 190)
         p.setBrush(QBrush(c))
         w, h = self.width(), self.height()
         cx, cy = w // 2, h // 2
@@ -424,7 +427,25 @@ class DockableToolbar(QWidget):
         if pos == SNAP_TOP:
             plo.insertWidget(0, self, stretch=0)
         elif pos == SNAP_BOTTOM:
-            plo.addWidget(self, stretch=0)
+            # Insert just BELOW the preview row (HBoxLayout containing preview widget),
+            # not at the absolute end (which is below info/status bars).
+            preview_row_idx = -1
+            for i in range(plo.count()):
+                item = plo.itemAt(i)
+                if item and item.layout():
+                    lo = item.layout()
+                    for j in range(lo.count()):
+                        sub = lo.itemAt(j)
+                        if sub and sub.widget() and any(
+                                x in type(sub.widget()).__name__
+                                for x in ('Preview', 'Viewport', '3D')):
+                            preview_row_idx = i
+                            break
+                if preview_row_idx >= 0:
+                    break
+            # Insert after preview row, or at end if not found
+            insert_at = preview_row_idx + 1 if preview_row_idx >= 0 else plo.count()
+            plo.insertWidget(insert_at, self, stretch=0)
         elif pos in (SNAP_LEFT, SNAP_RIGHT):
             self._dock_beside_preview(pos)
             self.set_dock_position(pos)
