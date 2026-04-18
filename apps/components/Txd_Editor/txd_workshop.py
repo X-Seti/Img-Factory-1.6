@@ -11109,6 +11109,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         btn_width  = 34
         icon_size  = QSize(16, 16)
         spacer     = 0   # grid handles spacing
+        icon_color = self._get_icon_color()   # theme-aware colour
 
         def _add(btn):
             self._icon_panel_buttons.append(btn)
@@ -11123,7 +11124,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Flip Vertical
         self.flip_vert_btn = QPushButton()
-        self.flip_vert_btn.setIcon(self._create_flip_vert_icon())
+        self.flip_vert_btn.setIcon(self.icon_factory.flip_vert_icon(color=icon_color))
         self.flip_vert_btn.setIconSize(icon_size)
         self.flip_vert_btn.setFixedHeight(btn_height)
         self.flip_vert_btn.setMinimumWidth(btn_width)
@@ -11135,7 +11136,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Flip Horizontal
         self.flip_horz_btn = QPushButton()
-        self.flip_horz_btn.setIcon(self._create_flip_horz_icon())
+        self.flip_horz_btn.setIcon(self.icon_factory.flip_horz_icon(color=icon_color))
         self.flip_horz_btn.setIconSize(icon_size)
         self.flip_horz_btn.setFixedHeight(btn_height)
         self.flip_horz_btn.setMinimumWidth(btn_width)
@@ -11147,7 +11148,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Rotate Clockwise
         self.rotate_cw_btn = QPushButton()
-        self.rotate_cw_btn.setIcon(self._create_rotate_cw_icon())
+        self.rotate_cw_btn.setIcon(self.icon_factory.rotate_cw_icon(color=icon_color))
         self.rotate_cw_btn.setIconSize(icon_size)
         self.rotate_cw_btn.setFixedHeight(btn_height)
         self.rotate_cw_btn.setMinimumWidth(btn_width)
@@ -11159,7 +11160,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Rotate Counter-Clockwise
         self.rotate_ccw_btn = QPushButton()
-        self.rotate_ccw_btn.setIcon(self._create_rotate_ccw_icon())
+        self.rotate_ccw_btn.setIcon(self.icon_factory.rotate_ccw_icon(color=icon_color))
         self.rotate_ccw_btn.setIconSize(icon_size)
         self.rotate_ccw_btn.setFixedHeight(btn_height)
         self.rotate_ccw_btn.setMinimumWidth(btn_width)
@@ -11171,7 +11172,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Copy
         self.copy_btn = QPushButton()
-        self.copy_btn.setIcon(self._create_copy_icon())
+        self.copy_btn.setIcon(self.icon_factory.copy_icon(color=icon_color))
         self.copy_btn.setIconSize(icon_size)
         self.copy_btn.setFixedHeight(btn_height)
         self.copy_btn.setMinimumWidth(btn_width)
@@ -11183,7 +11184,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Paste
         self.paste_btn = QPushButton()
-        self.paste_btn.setIcon(self._create_paste_icon())
+        self.paste_btn.setIcon(self.icon_factory.paste_icon(color=icon_color))
         self.paste_btn.setIconSize(icon_size)
         self.paste_btn.setFixedHeight(btn_height)
         self.paste_btn.setMinimumWidth(btn_width)
@@ -11195,7 +11196,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Create
         self.create_texture_btn = QPushButton()
-        self.create_texture_btn.setIcon(self._create_create_icon())
+        self.create_texture_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
         self.create_texture_btn.setIconSize(icon_size)
         self.create_texture_btn.setFixedHeight(btn_height)
         self.create_texture_btn.setMinimumWidth(btn_width)
@@ -11206,7 +11207,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Delete
         self.delete_texture_btn = QPushButton()
-        self.delete_texture_btn.setIcon(self._create_delete_icon())
+        self.delete_texture_btn.setIcon(self.icon_factory.delete_icon(color=icon_color))
         self.delete_texture_btn.setIconSize(icon_size)
         self.delete_texture_btn.setFixedHeight(btn_height)
         self.delete_texture_btn.setMinimumWidth(btn_width)
@@ -11218,7 +11219,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Duplicate
         self.duplicate_texture_btn = QPushButton()
-        self.duplicate_texture_btn.setIcon(self._create_duplicate_icon())
+        self.duplicate_texture_btn.setIcon(self.icon_factory.duplicate_icon(color=icon_color))
         self.duplicate_texture_btn.setIconSize(icon_size)
         self.duplicate_texture_btn.setFixedHeight(btn_height)
         self.duplicate_texture_btn.setMinimumWidth(btn_width)
@@ -11230,7 +11231,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Paint
         self.paint_btn = QPushButton()
-        self.paint_btn.setIcon(self._create_paint_icon())
+        self.paint_btn.setIcon(self.icon_factory.paint_icon(color=icon_color))
         self.paint_btn.setIconSize(icon_size)
         self.paint_btn.setFixedHeight(btn_height)
         self.paint_btn.setMinimumWidth(btn_width)
@@ -11242,7 +11243,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Check DFF
         self.check_dff_btn = QPushButton()
-        self.check_dff_btn.setIcon(self._create_check_icon())
+        self.check_dff_btn.setIcon(self.icon_factory.analyze_icon(color=icon_color))
         self.check_dff_btn.setIconSize(icon_size)
         self.check_dff_btn.setFixedHeight(btn_height)
         self.check_dff_btn.setMinimumWidth(btn_width)
@@ -11253,7 +11254,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Build from DFF
         self.build_from_dff_btn = QPushButton()
-        self.build_from_dff_btn.setIcon(self._create_build_icon())
+        self.build_from_dff_btn.setIcon(self.icon_factory.build_icon(color=icon_color))
         self.build_from_dff_btn.setIconSize(icon_size)
         self.build_from_dff_btn.setFixedHeight(btn_height)
         self.build_from_dff_btn.setMinimumWidth(btn_width)
@@ -11264,7 +11265,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Filters
         self.filters_btn = QPushButton()
-        self.filters_btn.setIcon(self._create_filter_icon())
+        self.filters_btn.setIcon(self.icon_factory.filter_icon(color=icon_color))
         self.filters_btn.setIconSize(icon_size)
         self.filters_btn.setFixedHeight(btn_height)
         self.filters_btn.setMinimumWidth(btn_width)
@@ -11276,7 +11277,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Switch
         self.switch_btn = QPushButton()
-        self.switch_btn.setIcon(self._create_flip_vert_icon())
+        self.switch_btn.setIcon(self.icon_factory.flip_vert_icon(color=icon_color))
         self.switch_btn.setIconSize(icon_size)
         self.switch_btn.setFixedHeight(btn_height)
         self.switch_btn.setMinimumWidth(btn_width)
@@ -11288,7 +11289,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Invert Alpha
         self.invert_btn = QPushButton()
-        self.invert_btn.setIcon(self.icon_factory.build_icon(color=self._get_icon_color()))
+        self.invert_btn.setIcon(self.icon_factory.build_icon(color=icon_color))
         self.invert_btn.setIconSize(icon_size)
         self.invert_btn.setFixedHeight(btn_height)
         self.invert_btn.setMinimumWidth(btn_width)
@@ -11301,7 +11302,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Generate Alpha
         self.gen_alpha_btn = QPushButton()
-        self.gen_alpha_btn.setIcon(self.icon_factory.paint_icon(color=self._get_icon_color()))
+        self.gen_alpha_btn.setIcon(self.icon_factory.paint_icon(color=icon_color))
         self.gen_alpha_btn.setIconSize(icon_size)
         self.gen_alpha_btn.setFixedHeight(btn_height)
         self.gen_alpha_btn.setMinimumWidth(btn_width)
@@ -11313,7 +11314,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Properties
         self.props_btn = QPushButton()
-        self.props_btn.setIcon(self.icon_factory.properties_icon(color=self._get_icon_color()))
+        self.props_btn.setIcon(self.icon_factory.properties_icon(color=icon_color))
         self.props_btn.setIconSize(icon_size)
         self.props_btn.setFixedHeight(btn_height)
         self.props_btn.setMinimumWidth(btn_width)
