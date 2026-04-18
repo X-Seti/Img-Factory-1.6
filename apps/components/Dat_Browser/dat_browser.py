@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QLineEdit, QComboBox,
     QFileDialog, QTreeWidget, QTreeWidgetItem,
     QProgressBar, QTextEdit, QAbstractItemView,
-    QMessageBox, QMenu, QApplication,
+    QMessageBox, QMenu, QApplication, QDialog,
+    QRadioButton, QCheckBox, QGroupBox, QProgressDialog,
 )
 from PyQt6.QtCore import QSize, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QColor
@@ -62,6 +63,372 @@ class _LoadThread(QThread): #vers 1
 # Main browser widget
 # ─────────────────────────────────────────────────────────────────────────────
 
+class TXDDumpDialog(QDialog): #vers 1
+    """Dialog for selectively dumping TXD files from game IMG archives.\n
+    Modes per game:
+      All games  — Dump ALL   : every .txd in every IMG
+      All games  — World only : excludes radar.*.txd, vehicles, peds txds
+      GTA3/VC    — Radar      : radar.*.txd from gta3.img
+      GTA3/VC    — Vehicles   : txds listed under [cars]/[peds] in default.ide
+      SA         — Radar      : radar.*.txd from gta3.img
+      SA         — Vehicles   : txds from vehicles.ide / peds.ide
+      SA         — Generics   : txds from generic.ide / generics.ide (SOL)
+      SOL        — Radar      : radartex.img entirely + radar.*.txd in gta3.img
+      SOL        — Vehicles   : vehicles.img, peds.img + vehicles/peds in gta3.ide/vehicles.ide
+      SOL        — Generics   : generics.ide txds
+    """
+
+    def __init__(self, loader, main_window=None, parent=None):
+        super().__init__(parent)
+        self.loader       = loader
+        self.main_window  = main_window
+        self.setWindowTitle("Dump TXD Files")
+        self.setMinimumWidth(540)
+        self.setMinimumHeight(420)
+        self._build_ui()
+
+    def _build_ui(self):
+        from apps.methods.gta_dat_parser import GTAGame
+        game  = self.loader.game
+        lay   = QVBoxLayout(self)
+        lay.setSpacing(8)
+
+        # ── Game / mode info ─────────────────────────────────────────────
+        game_names = {GTAGame.GTA3: "GTA III (LC)",
+                      GTAGame.VC:   "Vice City (VC)",
+                      GTAGame.SA:   "San Andreas (SA)",
+                      GTAGame.SOL:  "GTA SOL (multi-city)"}
+        info = QLabel(f"Game: <b>{game_names.get(game, game)}</b>  —  "
+                      f"{len(self.loader.objects)} IDE objects loaded")
+        info.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(info)
+
+        # ── Mode selection ────────────────────────────────────────────────
+        grp = QGroupBox("What to dump")
+        grp_lay = QVBoxLayout(grp)
+        self._mode_btns = {}
+
+        def _rb(key, label, tip, enabled=True):
+            rb = QRadioButton(label)
+            rb.setToolTip(tip)
+            rb.setEnabled(enabled)
+            self._mode_btns[key] = rb
+            grp_lay.addWidget(rb)
+            return rb
+
+        _rb('all',
+            "Dump ALL TXDs",
+            "Every .txd found in every IMG/CDIMAGE archive — no filtering")
+
+        _rb('world',
+            "World textures only",
+            "All TXDs except radar, vehicle and ped textures. Excludes radar.*.txd and txds from vehicles/peds IDE sections")
+
+        _rb('radar',
+            "Radar map TXDs",
+            "GTA3/VC/SA: radar.*.txd from gta3.img. SOL: also radartex.img")
+
+        _rb('vehicles',
+            "Vehicle & Ped TXDs",
+            "GTA3/VC: [cars]/[peds] from default.ide. SA: vehicles.ide+peds.ide. SOL: vehicles.img, peds.img")
+
+        is_sa_sol = game in (GTAGame.SA, GTAGame.SOL)
+        is_sol    = game == GTAGame.SOL
+        _rb('generics',
+            "Generic / prop TXDs  (SA / SOL only)",
+            "SA: txds from generic.ide. SOL: txds from generics.ide",
+            enabled=is_sa_sol)
+
+        # Select first enabled as default
+        for rb in self._mode_btns.values():
+            if rb.isEnabled():
+                rb.setChecked(True)
+                break
+        lay.addWidget(grp)
+
+        # ── Options ───────────────────────────────────────────────────────
+        opt_grp = QGroupBox("Options")
+        opt_lay = QVBoxLayout(opt_grp)
+        self._skip_existing = QCheckBox("Skip files that already exist in output folder")
+        self._skip_existing.setChecked(True)
+        opt_lay.addWidget(self._skip_existing)
+        self._open_in_txd = QCheckBox("Open dumped TXDs in TXD Workshop when done")
+        self._open_in_txd.setChecked(False)
+        self._open_in_txd.setEnabled(
+            self.main_window is not None and
+            hasattr(self.main_window, 'open_txd_workshop_docked'))
+        opt_lay.addWidget(self._open_in_txd)
+        lay.addWidget(opt_grp)
+
+        # ── Output folder ─────────────────────────────────────────────────
+        folder_row = QHBoxLayout()
+        folder_row.addWidget(QLabel("Output folder:"))
+        self._folder_edit = QLineEdit()
+        self._folder_edit.setPlaceholderText("Choose destination…")
+        folder_row.addWidget(self._folder_edit, 1)
+        browse_btn = QPushButton("Browse…")
+        browse_btn.clicked.connect(self._pick_folder)
+        folder_row.addWidget(browse_btn)
+        lay.addLayout(folder_row)
+
+        # ── Preview label ─────────────────────────────────────────────────
+        self._preview_lbl = QLabel("Select a mode to see what will be dumped.")
+        self._preview_lbl.setWordWrap(True)
+        self._preview_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
+        lay.addWidget(self._preview_lbl)
+
+        for rb in self._mode_btns.values():
+            rb.toggled.connect(self._update_preview)
+        self._update_preview()
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        lay.addStretch()
+        btn_row = QHBoxLayout()
+        self._dump_btn = QPushButton("Dump TXDs")
+        self._dump_btn.setDefault(True)
+        self._dump_btn.clicked.connect(self._run_dump)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addStretch()
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(self._dump_btn)
+        lay.addLayout(btn_row)
+
+    def _pick_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Output folder")
+        if folder:
+            self._folder_edit.setText(folder)
+
+    def _get_mode(self):
+        for key, rb in self._mode_btns.items():
+            if rb.isChecked():
+                return key
+        return 'all'
+
+    def _update_preview(self):
+        mode = self._get_mode()
+        txd_names = self._collect_txd_names(mode)
+        n = len(txd_names)
+        previews = sorted(list(txd_names))[:5]
+        sample = ", ".join(previews) + ("…" if n > 5 else "")
+        self._preview_lbl.setText(
+            f"{n} TXD file(s) will be extracted.  Sample: {sample}" if n
+            else "No TXDs match this filter with the current game data.")
+
+    def _collect_txd_names(self, mode: str) -> set:
+        """Return set of txd filenames (e.g. 'landstal.txd') for the chosen mode."""
+        from apps.methods.gta_dat_parser import GTAGame
+        game    = self.loader.game
+        objects = self.loader.objects       # dict: model_id → IDEObject
+        log     = self.loader.load_log      # list of (phase, type, abs_path, ok)
+
+        # All TXD stems referenced by any loaded IDE object
+        all_txd_stems = {obj.txd_name.lower()
+                         for obj in objects.values()
+                         if obj.txd_name and obj.txd_name.lower() not in ('null', '')}
+
+        # ── Radar stems ────────────────────────────────────────────────────
+        # radar.*.txd pattern — any txd name starting with "radar"
+        radar_stems = {s for s in all_txd_stems if s.startswith('radar')}
+
+        # ── Vehicle / ped IDE stems ────────────────────────────────────────
+        vehicle_ped_ide_stems = set()
+        veh_ped_sources = set()
+
+        if game == GTAGame.SA:
+            # SA: vehicles.ide and peds.ide are separate files
+            veh_ped_sources = {'vehicles.ide', 'peds.ide'}
+        elif game == GTAGame.SOL:
+            # SOL: gta3.ide in models/, + vehicles.ide/peds.ide in SOL/ if present
+            veh_ped_sources = {'gta3.ide', 'vehicles.ide', 'peds.ide'}
+        else:
+            # GTA3/VC: [cars] and [peds] sections in default.ide
+            veh_ped_sources = {'default.ide'}
+
+        for obj in objects.values():
+            src_base = os.path.basename(obj.source_ide or '').lower()
+            in_veh_source = src_base in veh_ped_sources
+            in_veh_section = obj.section in ('cars', 'peds', 'weap')
+            # For GTA3/VC default.ide only include cars/peds sections
+            if game in (GTAGame.GTA3, GTAGame.VC):
+                if in_veh_source and in_veh_section:
+                    vehicle_ped_ide_stems.add(obj.txd_name.lower())
+            elif in_veh_source or in_veh_section:
+                vehicle_ped_ide_stems.add(obj.txd_name.lower())
+
+        # ── Generic stems (SA/SOL) ─────────────────────────────────────────
+        generic_sources = {'generic.ide', 'generics.ide'}
+        generic_stems = set()
+        for obj in objects.values():
+            src_base = os.path.basename(obj.source_ide or '').lower()
+            if src_base in generic_sources:
+                generic_stems.add(obj.txd_name.lower())
+
+        # ── Build TXD file name set based on mode ─────────────────────────
+        if mode == 'all':
+            # Every TXD stem referenced by any IDE object → add .txd
+            return {s + '.txd' for s in all_txd_stems}
+
+        elif mode == 'world':
+            exclude = radar_stems | vehicle_ped_ide_stems
+            return {s + '.txd' for s in all_txd_stems - exclude}
+
+        elif mode == 'radar':
+            # Also include radartex.img for SOL (handled in _run_dump by IMG name)
+            return {s + '.txd' for s in radar_stems}
+
+        elif mode == 'vehicles':
+            return {s + '.txd' for s in vehicle_ped_ide_stems}
+
+        elif mode == 'generics':
+            return {s + '.txd' for s in generic_stems}
+
+        return set()
+
+    def _get_img_paths(self, mode: str) -> list:
+        """Return ordered list of IMG/CDIMAGE archive paths for this mode."""
+        from apps.methods.gta_dat_parser import GTAGame
+        game = self.loader.game
+
+        # All available IMGs from load log
+        all_imgs = []
+        for _phase, etype, path, ok in self.loader.load_log:
+            if ok and etype in ('IMG', 'CDIMAGE') and os.path.isfile(path):
+                if path not in all_imgs:
+                    all_imgs.append(path)
+
+        if mode == 'all':
+            return all_imgs
+
+        # For targeted modes — decide which IMGs to scan
+        img_stems = {os.path.splitext(os.path.basename(p))[0].lower(): p
+                     for p in all_imgs}
+
+        if mode == 'radar':
+            # Always gta3.img; SOL also radartex.img
+            result = []
+            for stem in ('gta3', 'radartex'):
+                if stem in img_stems:
+                    result.append(img_stems[stem])
+            return result or all_imgs  # fallback to all if not found
+
+        elif mode == 'vehicles':
+            # SOL: vehicles.img, peds.img first; all others as fallback
+            if game == 'sol':
+                priority = []
+                for stem in ('vehicles', 'peds', 'gta3'):
+                    if stem in img_stems:
+                        priority.append(img_stems[stem])
+                return priority or all_imgs
+            else:
+                return [img_stems.get('gta3', all_imgs[0])] if all_imgs else []
+
+        # world, generics — scan all IMGs (TXD filter handles it)
+        return all_imgs
+
+    def _run_dump(self):
+        """Execute the TXD dump with progress dialog."""
+        out_dir = self._folder_edit.text().strip()
+        if not out_dir:
+            self._pick_folder()
+            out_dir = self._folder_edit.text().strip()
+        if not out_dir:
+            return
+
+        os.makedirs(out_dir, exist_ok=True)
+        mode          = self._get_mode()
+        skip_existing = self._skip_existing.isChecked()
+        txd_names     = self._collect_txd_names(mode)   # set of "foo.txd"
+        img_paths     = self._get_img_paths(mode)
+
+        if not txd_names:
+            QMessageBox.warning(self, "Nothing to Dump",
+                "No TXD names match the selected filter for this game.")
+            return
+        if not img_paths:
+            QMessageBox.warning(self, "No IMGs",
+                "No IMG/CDIMAGE archives found for this game.")
+            return
+
+        prog = QProgressDialog("Starting…", "Cancel", 0, len(img_paths), self)
+        prog.setWindowTitle(f"Dumping TXDs — {mode}")
+        prog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        prog.show()
+
+        extracted, skipped, errors = 0, 0, []
+        remaining = set(txd_names)   # shrinks as we find each TXD
+
+        try:
+            from apps.methods.img_tools import IMGArchive
+        except ImportError as e:
+            prog.close()
+            QMessageBox.critical(self, "Error", f"Cannot import IMGArchive:\n{e}")
+            return
+
+        for i, img_path in enumerate(img_paths):
+            prog.setValue(i)
+            prog.setLabelText(
+                f"Scanning {os.path.basename(img_path)}…  "
+                f"({extracted} extracted, {len(remaining)} remaining)")
+            QApplication.processEvents()
+            if prog.wasCanceled():
+                break
+
+            try:
+                arc = IMGArchive(img_path)
+                for entry in arc.entries:
+                    ename = entry.name.lower()
+                    if not ename.endswith('.txd'):
+                        continue
+                    # Mode 'all' skips the name filter
+                    if mode != 'all' and ename not in txd_names:
+                        continue
+                    out_path = os.path.join(out_dir, entry.name)
+                    if skip_existing and os.path.exists(out_path):
+                        skipped += 1
+                        remaining.discard(ename)
+                        continue
+                    try:
+                        data = arc.read_entry(entry)
+                        with open(out_path, 'wb') as f:
+                            f.write(data)
+                        extracted += 1
+                        remaining.discard(ename)
+                    except Exception as e:
+                        errors.append(f"{entry.name}: {e}")
+            except Exception as e:
+                errors.append(f"{os.path.basename(img_path)}: {e}")
+
+        prog.setValue(len(img_paths))
+        prog.close()
+
+        # Summary
+        lines = [
+            f"Mode: {mode}",
+            f"Extracted: {extracted} TXD file(s)",
+            f"Skipped (already existed): {skipped}",
+            f"Not found in any IMG: {len(remaining)}",
+            f"Output: {out_dir}",
+        ]
+        if remaining and len(remaining) <= 20:
+            lines.append(f"Missing: {', '.join(sorted(remaining))}")
+        if errors:
+            lines.append(f"Errors ({len(errors)}): " + "; ".join(errors[:5]))
+
+        QMessageBox.information(self, "TXD Dump Complete", "\n".join(lines))
+
+        # Optionally open in TXD Workshop
+        if self._open_in_txd.isChecked() and extracted > 0:
+            mw = self.main_window
+            if mw and hasattr(mw, 'open_txd_workshop_docked'):
+                # Open the first extracted TXD
+                first = sorted(os.listdir(out_dir))[0]
+                mw.open_txd_workshop_docked(
+                    file_path=os.path.join(out_dir, first))
+
+        self.accept()
+
+
 class DATBrowserWidget(QWidget): #vers 2
     """
     Full DAT/IDE/IPL browser panel.
@@ -86,20 +453,8 @@ class DATBrowserWidget(QWidget): #vers 2
         self.setAutoFillBackground(True)
         from PyQt6.QtCore import Qt as _Qt
         self.setAttribute(_Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
-        try:
-            mw = main_window
-            bg = '#1e1e1e'  # safe dark default
-            if mw and hasattr(mw, 'app_settings'):
-                colors = mw.app_settings.get_theme_colors() or {}
-                bg = colors.get('panel_bg', colors.get('bg_primary', bg))
-            # Use stylesheet — survives re-parenting unlike palette
-            self.setStyleSheet(f"DATBrowserWidget {{ background-color: {bg}; }}")
-            from PyQt6.QtGui import QPalette, QColor
-            pal = self.palette()
-            pal.setColor(QPalette.ColorRole.Window, QColor(bg))
-            self.setPalette(pal)
-        except Exception:
-            pass
+        # Let Qt palette drive the background — theme-aware
+        self.setStyleSheet("DATBrowserWidget { background-color: palette(window); color: palette(windowText); }")
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
@@ -132,6 +487,11 @@ class DATBrowserWidget(QWidget): #vers 2
         self._load_btn.setToolTip("Load DAT/IDE/IPL world data")
         self._load_btn.clicked.connect(self._start_load)
 
+        # Wire theme changes
+        mw = self.main_window
+        if mw and hasattr(mw, 'app_settings') and hasattr(mw.app_settings, 'theme_changed'):
+            mw.app_settings.theme_changed.connect(self._on_theme_changed)
+
         # Track current compact state; icons loaded lazily on first compact switch
         self._toolbar_compact = False
 
@@ -140,6 +500,12 @@ class DATBrowserWidget(QWidget): #vers 2
         toolbar.addWidget(self._path_edit, 1)
         toolbar.addWidget(browse_btn)
         toolbar.addWidget(self._load_btn)
+
+        self._dump_txd_btn = QPushButton("Dump TXDs")
+        self._dump_txd_btn.setToolTip("Extract all TXD files from game IMG archives to a folder")
+        self._dump_txd_btn.setEnabled(False)
+        self._dump_txd_btn.clicked.connect(self._dump_all_game_txds)
+        toolbar.addWidget(self._dump_txd_btn)
 
         # Split/full panel toggle — mirrors gui_layout.split_toggle_btn exactly
         self._split_btn = QPushButton()
@@ -322,8 +688,7 @@ class DATBrowserWidget(QWidget): #vers 2
     # ── Browse / load ──────────────────────────────────────────────────────
 
     def _on_game_combo_changed(self, idx: int): #vers 1
-        """React immediately when the game combo selection changes.
-
+        """React immediately when the game combo selection changes.\n
         Index 5 = 'Game Root (Dir Tree)': grab the dir-tree path, auto-detect
         the game, switch the combo to the real entry, and start loading —
         no Browse or Load click required.
@@ -488,6 +853,8 @@ class DATBrowserWidget(QWidget): #vers 2
         self._populate_all()
         self._search_edit.setEnabled(True)
         self._type_filter.setEnabled(True)
+        if hasattr(self, '_dump_txd_btn'):
+            self._dump_txd_btn.setEnabled(bool(self.loader and self.loader.objects))
         self._log_text.setPlainText(self._build_log_text())
 
     # ── Populate ───────────────────────────────────────────────────────────
@@ -518,7 +885,7 @@ class DATBrowserWidget(QWidget): #vers 2
         if default_path:
             def_name = os.path.basename(default_path)
             def_item = QTreeWidgetItem([def_name, "DAT-1", "", "✓"])
-            def_item.setForeground(0, QColor("#888888"))
+            def_item.setForeground(0, self.palette().color(self.foregroundRole()).darker(150))
             root_item.addChild(def_item)
 
         for phase, entry_type, path, success in self.loader.load_log:
@@ -536,7 +903,7 @@ class DATBrowserWidget(QWidget): #vers 2
             child  = QTreeWidgetItem([bname, entry_type, str(count), status])
             if not success:
                 for col in range(4):
-                    child.setForeground(col, QColor("#cc4444"))
+                    child.setForeground(col, QColor(204, 68, 68))  # error red — intentionally fixed
             root_item.addChild(child)
 
         self._tree.expandAll()
@@ -701,7 +1068,7 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Context menu ───────────────────────────────────────────────────────
 
-    def _table_context_menu(self, table, pos): #vers 1
+    def _table_context_menu(self, table, pos): #vers 2
         index = table.indexAt(pos)
         if not index.isValid():
             return
@@ -712,6 +1079,25 @@ class DATBrowserWidget(QWidget): #vers 2
         copy_row  = menu.addAction("Copy row as text")
         menu.addSeparator()
         find_inst = menu.addAction("Find all instances of this model")
+
+        # TXD actions — only for Objects (IDE) table which has TXD column
+        open_txd_act = None
+        sel_txd_act  = None
+        dump_sel_act = None
+        if table is self._obj_table:
+            txd_item = table.item(row, 2)
+            txd_name = txd_item.text().strip() if txd_item else ''
+            if txd_name and txd_name not in ('—', ''):
+                menu.addSeparator()
+                open_txd_act = menu.addAction(f"Open {txd_name}.txd in TXD Workshop")
+            menu.addSeparator()
+            sel_rows = list({i.row() for i in table.selectedItems()})
+            if len(sel_rows) > 1:
+                dump_sel_act = menu.addAction(
+                    f"Extract TXDs for {len(sel_rows)} selected rows…")
+            dump_all_act = menu.addAction("Dump ALL game TXDs to folder…")
+        else:
+            dump_all_act = None
 
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if not chosen:
@@ -733,8 +1119,141 @@ class DATBrowserWidget(QWidget): #vers 2
             if name_it:
                 self._search_edit.setText(name_it.text())
                 self._tabs.setCurrentIndex(1)
+        elif open_txd_act and chosen == open_txd_act:
+            self._open_txd_from_row(table, row)
+        elif dump_sel_act and chosen == dump_sel_act:
+            self._dump_selected_txds(table)
+        elif dump_all_act and chosen == dump_all_act:
+            self._dump_all_game_txds()
 
     # ── Tree right-click — open source file in editor ─────────────────────
+
+    def _on_theme_changed(self): #vers 1
+        """Refresh palette-driven colors when theme switches."""
+        self.setStyleSheet(
+            "DATBrowserWidget { background-color: palette(window); color: palette(windowText); }")
+        self.update()
+        self.repaint()
+
+    def _get_txd_names_from_img(self, img_path: str) -> list:
+        """Return list of .txd entry names from an IMG archive."""
+        try:
+            from apps.methods.img_tools import IMGArchive
+            img = IMGArchive(img_path)
+            return [e.name for e in img.entries if e.name.lower().endswith('.txd')]
+        except Exception as e:
+            print(f"IMG read error: {e}")
+            return []
+
+    def _dump_all_game_txds(self): #vers 2
+        """Open the TXD Dump dialog."""
+        if not self.loader or not self.loader.objects:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "DAT Browser",
+                "Load a game first before dumping TXDs.")
+            return
+        dlg = TXDDumpDialog(self.loader, self.main_window, parent=self)
+        dlg.exec()
+
+    def _open_txd_from_row(self, table, row): #vers 1
+        """Open the TXD linked to the selected IDE row in TXD Workshop."""
+        txd_item  = table.item(row, 2)   # TXD column
+        if not txd_item:
+            return
+        txd_name = txd_item.text().strip()
+        if not txd_name or txd_name in ('—', ''):
+            return
+        mw = self.main_window
+        if not mw:
+            return
+        txd_file = txd_name.lower()
+        if not txd_file.endswith('.txd'):
+            txd_file += '.txd'
+
+        # Look in current_img first
+        img = getattr(mw, 'current_img', None)
+        if img and hasattr(mw, 'open_txd_workshop_docked'):
+            for entry in getattr(img, 'entries', []):
+                if entry.name.lower() == txd_file:
+                    mw.open_txd_workshop_docked(txd_name=txd_file)
+                    return
+
+        # Search across all game IMGs via load_log
+        if self.loader:
+            try:
+                from apps.methods.img_tools import IMGArchive
+                for _phase, etype, path, ok in self.loader.load_log:
+                    if not (ok and etype in ('IMG', 'CDIMAGE') and os.path.isfile(path)):
+                        continue
+                    try:
+                        arc = IMGArchive(path)
+                        for entry in arc.entries:
+                            if entry.name.lower() == txd_file:
+                                if mw and hasattr(mw, 'open_txd_workshop_docked'):
+                                    mw.open_txd_workshop_docked(file_path=path)
+                                    # TODO: auto-select the txd entry once workshop opens
+                                    return
+                    except Exception:
+                        continue
+            except ImportError:
+                pass
+
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "TXD Not Found",
+            f"Could not find {txd_file} in any loaded IMG archive.")
+
+    def _dump_selected_txds(self, table): #vers 1
+        """Extract TXDs for selected rows' TXD names to a folder."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox, QApplication
+        sel_rows = sorted({i.row() for i in table.selectedItems()})
+        txd_names = set()
+        for row in sel_rows:
+            it = table.item(row, 2)
+            if it and it.text().strip() not in ('', '—'):
+                name = it.text().strip().lower()
+                if not name.endswith('.txd'):
+                    name += '.txd'
+                txd_names.add(name)
+        if not txd_names:
+            QMessageBox.information(self, "No TXDs", "No TXD names found in selection.")
+            return
+        out_dir = QFileDialog.getExistingDirectory(
+            self, f"Extract {len(txd_names)} TXD(s) to folder")
+        if not out_dir:
+            return
+        extracted, skipped, errors = 0, 0, []
+        try:
+            from apps.methods.img_tools import IMGArchive
+            for _phase, etype, path, ok in self.loader.load_log:
+                if not (ok and etype in ('IMG', 'CDIMAGE') and os.path.isfile(path)):
+                    continue
+                if not txd_names:
+                    break
+                try:
+                    arc = IMGArchive(path)
+                    for entry in arc.entries:
+                        if entry.name.lower() in txd_names:
+                            out_path = os.path.join(out_dir, entry.name)
+                            if os.path.exists(out_path):
+                                skipped += 1
+                            else:
+                                try:
+                                    with open(out_path, 'wb') as f:
+                                        f.write(arc.read_entry(entry))
+                                    extracted += 1
+                                except Exception as e:
+                                    errors.append(f"{entry.name}: {e}")
+                            txd_names.discard(entry.name.lower())
+                except Exception as e:
+                    errors.append(str(e))
+        except ImportError as e:
+            QMessageBox.critical(self, "Error", str(e))
+            return
+        msg = f"Extracted {extracted} TXD(s) to {out_dir}"
+        if skipped: msg += f"\nSkipped (exist): {skipped}"
+        if txd_names: msg += f"\nNot found: {', '.join(sorted(txd_names))}"
+        if errors: msg += f"\nErrors: {len(errors)}"
+        QMessageBox.information(self, "TXD Extract", msg)
 
     def _setup_tree_context_menu(self): #vers 1
         """Enable right-click on the load-order tree to open IDE/IPL/DAT files."""
@@ -865,8 +1384,7 @@ def _wire_xref_signal(widget, main_window): #vers 2
 
 
 def show_dat_browser(main_window) -> bool: #vers 2
-    """Show the DAT Browser tab.
-
+    """Show the DAT Browser tab.\n
     If the tab was closed (widget still alive on main_window.dat_browser),
     re-adds it and switches to it.  If it was never created, calls
     integrate_dat_browser first.  Auto-fills game root from dir tree.
@@ -900,11 +1418,7 @@ def show_dat_browser(main_window) -> bool: #vers 2
         # Reapply stylesheet — palette is reset on re-parent
         try:
             mw = main_window
-            bg = '#1e1e1e'
-            if mw and hasattr(mw, 'app_settings'):
-                colors = mw.app_settings.get_theme_colors() or {}
-                bg = colors.get('panel_bg', colors.get('bg_primary', bg))
-            widget.setStyleSheet(f"DATBrowserWidget {{ background-color: {bg}; }}")
+            widget.setStyleSheet("DATBrowserWidget { background-color: palette(window); color: palette(windowText); }")
         except Exception:
             pass
         widget.update()
@@ -921,8 +1435,7 @@ def show_dat_browser(main_window) -> bool: #vers 2
 
 
 def _auto_fill_game_root(widget: "DATBrowserWidget", main_window) -> None: #vers 1
-    """Silently pre-fill the DAT Browser path field from the directory tree.
-
+    """Silently pre-fill the DAT Browser path field from the directory tree.\n
     Only updates the field if it is currently empty — never overwrites a path
     the user already set manually.  Does not trigger a load.
     """
@@ -1007,7 +1520,7 @@ def _register_dat_taskbar(widget, main_window): #vers 1
             return
         if 'dat' not in tb._tools:
             from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
-            icon_color = getattr(tb, '_txt', '#e0e0e0')
+            icon_color = getattr(tb, '_txt', None) or self.palette().color(self.foregroundRole()).name()
             icon = get_dat_browser_icon(16, icon_color)
             tb.register('dat', 'DAT', icon, widget, 'DAT Browser')
         else:
@@ -1018,8 +1531,7 @@ def _register_dat_taskbar(widget, main_window): #vers 1
 
 
 def integrate_dat_browser(main_window) -> bool: #vers 5
-    """Create DAT Browser widget and place it in the left_stack panel.
-    Use show_dat_browser() / _show_dat_browser() to open/focus it.
+    """Create DAT Browser widget and place it in the left_stack panel.\nUse show_dat_browser() / _show_dat_browser() to open/focus it.
     """
     try:
         from PyQt6.QtWidgets import QWidget as _QW
@@ -1049,7 +1561,7 @@ def integrate_dat_browser(main_window) -> bool: #vers 5
             tb = getattr(main_window, 'tool_taskbar', None)
             if tb and 'dat' not in tb._tools:
                 from apps.methods.imgfactory_svg_icons import get_dat_browser_icon
-                icon = get_dat_browser_icon(16, getattr(tb, '_txt', '#e0e0e0'))
+                icon = get_dat_browser_icon(16, getattr(tb, '_txt', None) or self.palette().color(self.foregroundRole()).name())
                 tb.register('dat', 'DAT', icon, widget, 'DAT Browser')
         except Exception:
             pass
