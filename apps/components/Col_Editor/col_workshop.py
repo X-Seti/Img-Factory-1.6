@@ -3777,6 +3777,13 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     def closeEvent(self, event): #vers 1
         """Handle close event"""
+        try:
+            for attr in ('_col_left_toolbar', '_col_right_toolbar'):
+                tb = getattr(self, attr, None)
+                if tb and hasattr(tb, 'save_layout'):
+                    tb.save_layout()
+        except Exception:
+            pass
         self.window_closed.emit()
         event.accept()
 
@@ -3992,24 +3999,37 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         return self.toolbar
 
     #Left side vertical panel
-    def _create_transform_icon_panel(self): #vers 12
-        """Create transform panel with icons - aligned with text panel"""
+    def _create_transform_icon_panel(self): #vers 13
+        """Icon toolbar — returns QFrame with QGridLayout.
+        Buttons are registered in self._col_icon_buttons for grid reflow."""
+        from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
-        self.transform_icon_panel = QFrame()
-        self.transform_icon_panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.transform_icon_panel.setMinimumWidth(45)
-        self.transform_icon_panel.setMaximumWidth(45)
 
-        layout = QVBoxLayout(self.transform_icon_panel)
-        layout.setContentsMargins(3, 5, 3, 5)
-        layout.setSpacing(1)
+        icon_frame = QFrame()
+        icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        grid = QGridLayout(icon_frame)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(2)
 
-        btn_height = 32
-        btn_width = 40
-        icon_size = QSize(20, 20)
-        spacer = 3
+        self._col_icon_grid    = grid
+        self._col_icon_buttons = []
+        self._col_icon_frame   = icon_frame
+        # Keep legacy ref pointing to the frame
+        self.transform_icon_panel = icon_frame
 
-        layout.addSpacing(2)
+        btn_height = 26
+        btn_width  = 26
+        icon_size  = QSize(16, 16)
+
+        # Fake layout — collects buttons into self._col_icon_buttons
+        class _FakeLayout:
+            def addWidget(_, w, *a, **kw):
+                self._col_icon_buttons.append(w)
+            def addSpacing(_, *a): pass
+            def addStretch(_): pass
+
+        layout = _FakeLayout()
+        layout.addSpacing(0)
 
         # Flip Vertical
         self.flip_vert_btn = QPushButton()
@@ -4174,8 +4194,54 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
         layout.addWidget(self.build_from_txd_btn)
 
-        layout.addStretch()
-        return self.transform_icon_panel
+        # Place buttons into grid and do initial reflow
+        self._col_icon_buttons_initial_place()
+        return icon_frame
+
+    def _col_icon_buttons_initial_place(self): #vers 1
+        """Initial single-row placement; reflow_requested signal handles later calls."""
+        self._reflow_col_left_toolbar('top')
+
+    def _reflow_col_left_toolbar(self, pos: str): #vers 1
+        """Reflow left toolbar icons based on dock position."""
+        from apps.components.Col_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
+        grid  = getattr(self, '_col_icon_grid', None)
+        btns  = getattr(self, '_col_icon_buttons', [])
+        frame = getattr(self, '_col_icon_frame', None)
+        if not grid or not btns:
+            return
+        n = len(btns)
+        btn_w = 28
+
+        if pos == 'float':
+            n_cols = n          # single row
+        elif pos in (SNAP_LEFT, SNAP_RIGHT):
+            n_cols = 1          # single column
+        else:
+            # Fill available width
+            pw = frame.width() if frame else 0
+            n_cols = max(1, pw // btn_w) if pw > 0 else n
+
+        # Clear grid
+        for i in range(grid.count() - 1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        # Place
+        for idx, btn in enumerate(btns):
+            grid.addWidget(btn, idx // n_cols, idx % n_cols)
+
+        # Resize buttons to compact size
+        for btn in btns:
+            btn.setFixedSize(26, 26)
+
+        # Constrain frame width when single column
+        if frame:
+            if n_cols == 1:
+                frame.setFixedWidth(26 + 4)
+            else:
+                frame.setMinimumWidth(0)
+                frame.setMaximumWidth(16777215)
 
 
     def _create_transform_text_panel(self): #vers 12
@@ -4512,46 +4578,57 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         return panel
 
 
-    def _create_right_panel(self): #vers 11
-        """Create right panel with editing controls - compact layout"""
+    def _create_right_panel(self): #vers 12
+        """Create right panel — dockable icon toolbars (TXD Workshop style)."""
+        from apps.components.Col_Editor.dockable_toolbar import DockableToolbar
         icon_color = self._get_icon_color()
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
         self._right_panel_ref = panel
-        has_bumpmap = False
         main_layout = QVBoxLayout(panel)
-        #main_layout.setContentsMargins(5, 5, 5, 5)
-        top_layout = QHBoxLayout()
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(3)
 
-        # Transform panel (icon) — shown when narrow
-        transform_icon_panel = self._create_transform_icon_panel()
-        self._transform_icon_panel_ref = transform_icon_panel
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_icon_panel)
-        transform_icon_panel.setVisible(False)  # hidden until panel is narrow
+        # ── Top toolbar (dockable, horizontal above viewport) ─────────────
+        left_toolbar = DockableToolbar(panel, settings_key='col_left_toolbar')
+        left_toolbar.reflow_requested.connect(self._reflow_col_left_toolbar)
+        self._col_left_toolbar = left_toolbar
+        icon_frame = self._create_transform_icon_panel()  # returns QFrame with grid
+        left_toolbar.set_content(icon_frame)
+        left_toolbar.set_dock_position('top')
+        main_layout.addWidget(left_toolbar, stretch=0)
 
-        # Transform panel (text) — shown when wide
-        transform_text_panel = self._create_transform_text_panel()
-        self._transform_text_panel_ref = transform_text_panel
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_text_panel)
-        transform_text_panel.setVisible(True)
+        # Keep legacy ref so existing code still works
+        self._transform_icon_panel_ref = left_toolbar
 
-        # Preview area (center) — viewport widget
+        # ── Preview row (viewport + right dockable toolbar) ───────────────
+        preview_row = QHBoxLayout()
+        preview_row.setSpacing(3)
+
         self.preview_widget = COL3DViewport()
-        self.preview_widget._workshop_ref = self  # direct ref — no parent-chain walk needed
-        top_layout.addWidget(self.preview_widget, stretch=2)
+        self.preview_widget._workshop_ref = self
+        preview_row.addWidget(self.preview_widget, stretch=1)
 
-        # Floating paint bar — child of the viewport, always visible on top
+        # Floating paint bar — child of the viewport
         self._create_paint_bar()
 
-        # paint_toolbar built by _build_float_paint_bar() — floats over preview_widget
+        right_toolbar = DockableToolbar(panel, settings_key='col_right_toolbar')
+        right_toolbar.reflow_requested.connect(self._reflow_col_right_toolbar)
+        self._col_right_toolbar = right_toolbar
+        ctrl_frame = self._create_preview_controls()  # returns QFrame
+        right_toolbar.set_content(ctrl_frame)
+        right_toolbar.set_dock_position('right')
+        preview_row.addWidget(right_toolbar, stretch=0)
 
-        # Preview controls (right side, vertical)
-        self.preview_controls = self._create_preview_controls()
-        top_layout.addWidget(self.preview_controls, stretch=0)
-        main_layout.addLayout(top_layout, stretch=1)
+        # Keep legacy ref
+        self.preview_controls = ctrl_frame
+
+        main_layout.addLayout(preview_row, stretch=1)
+
+        # Register extra snap panels
+        self._col_left_toolbar._extra_panels  = [self.preview_widget]
+        self._col_right_toolbar._extra_panels = [self.preview_widget]
 
         # Information group below
         info_group = QGroupBox("")
@@ -4768,29 +4845,34 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 _bar.raise_()
         vp.resizeEvent = _on_vp_resize
 
-    def _create_preview_controls(self): #vers 6
-        """Vertical button strip to the right of the preview viewport."""
+    def _create_preview_controls(self): #vers 7
+        """Right toolbar icon grid — returns QFrame with buttons registered
+        in self._col_ctrl_buttons for DockableToolbar reflow."""
+        from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
-        pw = self.preview_widget   # guaranteed to exist — called after _create_right_panel creates it
+        pw = self.preview_widget
 
         f = QFrame()
-        f.setFrameStyle(QFrame.Shape.StyledPanel)
-        f.setMaximumWidth(50)
-        lay = QVBoxLayout(f)
-        lay.setContentsMargins(5, 5, 5, 5)
-        lay.setSpacing(4)
+        f.setFrameStyle(QFrame.Shape.NoFrame)
+        grid = QGridLayout(f)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(2)
+
+        self._col_ctrl_grid    = grid
+        self._col_ctrl_buttons = []
+        self._col_ctrl_frame   = f
 
         def btn(tip, icon_fn, callback, checkable=False, checked=False):
             b = QPushButton()
             b.setIcon(icon_fn(color=icon_color))
-            b.setIconSize(QSize(20, 20))
-            b.setFixedSize(40, 40)
+            b.setIconSize(QSize(16, 16))
+            b.setFixedSize(26, 26)
             b.setToolTip(tip)
             if checkable:
                 b.setCheckable(True)
                 b.setChecked(checked)
             b.clicked.connect(callback)
-            lay.addWidget(b)
+            self._col_ctrl_buttons.append(b)
             return b
 
         btn("Zoom In",      self.icon_factory.zoom_in_icon,   pw.zoom_in)
@@ -4798,17 +4880,14 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         btn("Reset View",   self.icon_factory.reset_icon,     pw.reset_view)
         btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window)
 
-        lay.addSpacing(6)
         btn("Pan Up",    self.icon_factory.arrow_up_icon,    lambda: pw.pan( 0,  20))
         btn("Pan Down",  self.icon_factory.arrow_down_icon,  lambda: pw.pan( 0, -20))
         btn("Pan Left",  self.icon_factory.arrow_left_icon,  lambda: pw.pan(-20,  0))
         btn("Pan Right", self.icon_factory.arrow_right_icon, lambda: pw.pan( 20,  0))
 
-        lay.addSpacing(6)
         btn("Render / Background Settings",
             self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
 
-        lay.addSpacing(6)
         self.view_spheres_btn = btn("Toggle Spheres", self.icon_factory.sphere_icon,
                                     lambda checked: pw.set_show_spheres(checked),
                                     checkable=True, checked=True)
@@ -4822,8 +4901,47 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                                     lambda checked: pw.set_backface(checked),
                                     checkable=True, checked=False)
 
-        lay.addStretch()
+        # Initial placement (1 col — docked right by default)
+        self._reflow_col_right_toolbar('right')
         return f
+
+    def _reflow_col_right_toolbar(self, pos: str): #vers 1
+        """Reflow right toolbar icons based on dock position."""
+        from apps.components.Col_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT, SNAP_TOP, SNAP_BOTTOM
+        grid  = getattr(self, '_col_ctrl_grid', None)
+        btns  = getattr(self, '_col_ctrl_buttons', [])
+        frame = getattr(self, '_col_ctrl_frame', None)
+        if not grid or not btns:
+            return
+        n = len(btns)
+        btn_w = 28
+
+        if pos == 'float':
+            n_cols = 1          # single column while floating
+        elif pos in (SNAP_LEFT, SNAP_RIGHT):
+            n_cols = 1
+        elif pos in (SNAP_TOP, SNAP_BOTTOM):
+            n_cols = n          # single row
+        else:
+            pw = frame.width() if frame else 0
+            n_cols = max(1, pw // btn_w) if pw > 0 else 1
+
+        # Clear grid
+        for i in range(grid.count() - 1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        # Place
+        for idx, b in enumerate(btns):
+            grid.addWidget(b, idx // n_cols, idx % n_cols)
+
+        # Width constraint
+        if frame:
+            if n_cols == 1:
+                frame.setFixedWidth(26 + 4)
+            else:
+                frame.setMinimumWidth(0)
+                frame.setMaximumWidth(16777215)
 
 
     def _update_toolbar_for_docking_state(self): #vers 1
