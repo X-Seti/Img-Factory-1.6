@@ -6491,6 +6491,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     def open_dff_file(self, file_path: str): #vers 1
         """Open and display a GTA DFF model file."""
+        self.current_col_file = None   # clear COL mode
         try:
             from apps.methods.dff_parser import load_dff, detect_dff
             with open(file_path, 'rb') as f:
@@ -6605,7 +6606,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if 0 <= geom_idx < len(adapters):
                 self._show_dff_geometry(geom_idx)
                 # Also select the row in the compact list
-                self.mod_compact_list.setCurrentRow(geom_idx)
+                self.mod_compact_list.selectRow(geom_idx)
             frame = model.frames[frame_idx]
             name = frame.name or f"Frame_{frame_idx}"
             pos = frame.position
@@ -6614,14 +6615,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 f"pos=({pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f})  "
                 f"parent={frame.parent_index}")
 
-    def _display_dff_model(self, model): #vers 2
+    def _display_dff_model(self, model): #vers 3
         """Populate the workshop UI with a loaded DFF model.
-        Fills the mesh list and shows the first geometry in the 3D viewport."""
+        Fills the QTableWidget mesh list and shows first geometry in 3D viewport."""
         try:
             if not hasattr(self, 'mod_compact_list'):
                 return
 
-            self.mod_compact_list.clear()
+            tbl = self.mod_compact_list
+            tbl.setRowCount(0)
             self._dff_adapters = []   # keep adapters alive
 
             for i, geom in enumerate(model.geometries):
@@ -6629,14 +6631,21 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 frame_name = model.get_frame_name(atomic.frame_index) if atomic else f"geom_{i}"
                 adapter = _DFFGeometryAdapter(geom, i)
                 self._dff_adapters.append(adapter)
-                label = (f"[{i}]  {frame_name}  "
-                         f"({geom.vertex_count}v / {geom.triangle_count}t / "
-                         f"{geom.material_count}mat)")
-                from PyQt6.QtWidgets import QListWidgetItem
-                item = QListWidgetItem(label)
-                from PyQt6.QtCore import Qt
-                item.setData(Qt.ItemDataRole.UserRole, i)  # store geometry index
-                self.mod_compact_list.addItem(item)
+
+                row = tbl.rowCount()
+                tbl.insertRow(row)
+
+                # Col 0: name
+                name_item = QTableWidgetItem(f"[{i}] {frame_name}")
+                name_item.setData(Qt.ItemDataRole.UserRole, i)
+                name_item.setToolTip(f"{geom.vertex_count}v / {geom.triangle_count}t / {geom.material_count}mat")
+                tbl.setItem(row, 0, name_item)
+
+                # Col 1: stats
+                stats_item = QTableWidgetItem(
+                    f"{geom.vertex_count}v  {geom.triangle_count}t  {geom.material_count}m")
+                stats_item.setData(Qt.ItemDataRole.UserRole, i)
+                tbl.setItem(row, 1, stats_item)
 
             # Show first geometry in viewport
             if self._dff_adapters:
@@ -6644,17 +6653,29 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
             # Connect selection → viewport update (once)
             try:
-                self.mod_compact_list.currentRowChanged.disconnect(self._on_dff_geom_selected)
+                tbl.itemSelectionChanged.disconnect(self._on_dff_geom_selected)
             except Exception:
                 pass
-            self.mod_compact_list.currentRowChanged.connect(self._on_dff_geom_selected)
+            tbl.itemSelectionChanged.connect(self._on_dff_geom_selected_tbl)
 
-            if self.mod_compact_list.count() > 0:
-                self.mod_compact_list.setCurrentRow(0)
+            if tbl.rowCount() > 0:
+                tbl.selectRow(0)
 
         except Exception as e:
             import traceback; traceback.print_exc()
             print(f"DFF display error: {e}")
+
+    def _on_dff_geom_selected_tbl(self): #vers 1
+        """QTableWidget selection changed → update viewport."""
+        tbl = self.mod_compact_list
+        rows = tbl.selectionModel().selectedRows()
+        if rows:
+            row = rows[0].row()
+            item = tbl.item(row, 0)
+            if item:
+                idx = item.data(Qt.ItemDataRole.UserRole)
+                if idx is not None:
+                    self._show_dff_geometry(int(idx))
 
     def _on_dff_geom_selected(self, row: int): #vers 1
         """Called when user selects a geometry in the mesh list."""
@@ -6877,12 +6898,18 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
-    def _on_compact_col_selected(self): #vers 3
-        """Handle compact [=] list selection."""
+    def _on_compact_col_selected(self): #vers 4
+        """Handle compact [=] list selection — routes to DFF or COL handler."""
         try:
             rows = self.mod_compact_list.selectionModel().selectedRows()
-            if rows:
-                self._select_model_by_row(rows[0].row())
+            if not rows:
+                return
+            row = rows[0].row()
+            # DFF mode: _dff_adapters set when a DFF is loaded
+            if getattr(self, '_dff_adapters', None):
+                self._on_dff_geom_selected_tbl()
+            else:
+                self._select_model_by_row(row)
         except Exception as e:
             print("_on_compact_col_selected error: " + str(e))
 
@@ -7386,6 +7413,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     def open_col_file(self, file_path): #vers 3
         """Open standalone COL file - supports COL1, COL2, COL3"""
+        self._dff_adapters = []   # clear DFF mode
         try:
             from apps.methods.col_workshop_loader import COLFile
 
@@ -8170,10 +8198,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         except Exception as e:
             print("_on_collision_selected error: " + str(e))
 
-    def _select_model_by_row(self, row): #vers 2
-        """Load model by row index into preview — works for both list views."""
+    def _select_model_by_row(self, row): #vers 3
+        """Load model by row index into preview — COL mode only."""
         try:
-            if not self.current_col_file:
+            if getattr(self, '_dff_adapters', None):
+                return   # DFF mode — handled by _on_dff_geom_selected_tbl
+            if not getattr(self, 'current_col_file', None):
                 return
             models = getattr(self.current_col_file, 'models', [])
             if row < 0 or row >= len(models):
