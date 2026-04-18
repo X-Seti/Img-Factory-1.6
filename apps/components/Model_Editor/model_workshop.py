@@ -19,7 +19,6 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 
-
 # Add project root to path for standalone mode
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
@@ -30,6 +29,7 @@ if str(project_root) not in sys.path:
 from PyQt6.QtWidgets import (QApplication, QSlider, QCheckBox,
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, QDialog, QFormLayout, QSpinBox,  QListWidgetItem, QLabel, QPushButton, QFrame, QFileDialog, QLineEdit, QTextEdit, QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QColorDialog, QHeaderView, QAbstractItemView, QMenu, QComboBox, QInputDialog, QTabWidget, QDoubleSpinBox, QRadioButton, QStyledItemDelegate
 )
+
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 # QAction location varies by PyQt6 version — try bothQStyledItemDelegate
@@ -53,9 +53,7 @@ from apps.methods.col_workshop_parser import COLParser
 from apps.methods.col_workshop_loader import COLFile
 from apps.gui.tool_menu_mixin import ToolMenuMixin
 
-
 # Temporary 3D viewport placeholder
-
 
 # ── DFF → Viewport adapter ─────────────────────────────────────────────────────
 class _DFFGeometryAdapter:
@@ -1644,6 +1642,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._populate_collision_list()
         self.collision_list.selectRow(self.collision_list.rowCount()-1)
 
+
     def _delete_selected_model(self): #vers 2
         """Delete selected collision model(s) — uses currentRow() for reliability."""
         if not self.current_col_file: return
@@ -1681,6 +1680,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._populate_compact_col_list()
         self._set_status(f"Deleted {len(indices)} model(s).")
 
+
     def _duplicate_selected_model(self): #vers 1
         rows = self.collision_list.selectionModel().selectedRows()
         if not rows or not self.current_col_file: return
@@ -1696,6 +1696,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._populate_collision_list()
         self.collision_list.selectRow(row+1)
 
+
     def _copy_model_to_clipboard(self): #vers 1
         rows = self.collision_list.selectionModel().selectedRows()
         if not rows or not self.current_col_file: return
@@ -1709,6 +1710,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         if hasattr(self, 'paste_btn') and self.paste_btn:
             self.paste_btn.setEnabled(True)
 
+
     def _paste_model_from_clipboard(self): #vers 1
         if not hasattr(self, '_clipboard_model') or not self._clipboard_model: return
         if not self.current_col_file: return
@@ -1719,9 +1721,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._populate_collision_list()
         self.collision_list.selectRow(self.collision_list.rowCount()-1)
 
+
     def _open_surface_paint_dialog(self): #vers 2
         """Open material paint dialog (delegates to _open_paint_editor)."""
         self._open_paint_editor()
+
 
     def _open_surface_type_dialog(self): #vers 1
         """Show surface material type picker for selected model."""
@@ -4720,7 +4724,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        header = QLabel("COL Files")
+        header = QLabel("Model Files")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         layout.addWidget(header)
 
@@ -4743,7 +4747,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # ── Header row: title + [T] view-toggle ──────────────────────────
         hdr_row = QHBoxLayout()
-        header = QLabel("COL Models")
+        header = QLabel("Model Models")
         header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         hdr_row.addWidget(header)
         hdr_row.addStretch()
@@ -4840,6 +4844,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.collision_list.setVisible(False)  # hidden at startup — compact view is default
         layout.addWidget(self.collision_list)
 
+        #TODO need open, save controls like with col_Workshop for docked mode.
         # ── Compact list (thumbnail + name/version/counts, single row) ───
         self.mod_compact_list = QTableWidget()
         self.mod_compact_list.setColumnCount(2)
@@ -4954,7 +4959,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # === LINE 1: collision name ===
         name_layout = QHBoxLayout()
-        name_label = QLabel("COL Name:")
+        name_label = QLabel("Model Name:")
         name_label.setFont(self.panel_font)
         name_layout.addWidget(name_label)
 
@@ -4970,7 +4975,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         info_layout.addLayout(name_layout)
 
         # === LINES 2 & 3: Build BOTH rows, show/hide based on panel width ===
-        # ── Text+label row (wide) ────────────────────────────────────────
+        # - Text+label row (wide)
+        # Kept this part, Because we also need to export optimized collision files.
+
         self._bottom_text_row = QWidget()
         tr_lay = QVBoxLayout(self._bottom_text_row)
         tr_lay.setContentsMargins(0, 0, 0, 0)
@@ -4980,6 +4987,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         fmt_lay.setSpacing(5)
         self.format_combo = QComboBox()
         self.format_combo.setFont(self.panel_font)
+        #TODO Need a dff file version selection, instead of COL, but need the col version on export.
         self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
         self.format_combo.currentTextChanged.connect(self._change_format)
         self.format_combo.setMaximumWidth(100)
@@ -5027,7 +5035,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         tr_lay.addLayout(shd_lay)
         info_layout.addWidget(self._bottom_text_row)
 
-        # ── Icon-only row (narrow) ─────────────────────────────────────────
+        # - Icon-only row (narrow)
         self._bottom_icon_row = QWidget()
         ir_lay = QHBoxLayout(self._bottom_icon_row)
         ir_lay.setContentsMargins(0, 0, 0, 0)
@@ -5063,8 +5071,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # ── Paint mode row (hidden until paint mode active) ───────────────
         main_layout.addWidget(info_group, stretch=0)
         return panel
-
-
 
 
     def _create_paint_bar(self): #vers 3
