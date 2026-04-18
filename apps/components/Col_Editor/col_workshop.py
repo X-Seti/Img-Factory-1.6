@@ -4181,7 +4181,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Place buttons into grid BEFORE set_content (same as TXD Workshop)
         self._col_place_icon_grid(len(self._col_icon_buttons))
         toolbar.set_content(icon_frame)
-        toolbar.set_dock_position('top')
+        # Note: set_dock_position called from _create_right_panel, not here
 
         # Resize event reflows grid
         from PyQt6.QtCore import QObject, QEvent
@@ -4201,7 +4201,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         return toolbar
 
-    def _col_place_icon_grid(self, n_cols=None): #vers 1
+    def _col_place_icon_grid(self, n_cols=None): #vers 2
         """Place COL left toolbar icons into grid."""
         grid = getattr(self, '_col_icon_grid', None)
         btns = getattr(self, '_col_icon_buttons', [])
@@ -4216,6 +4216,9 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             else:
                 pw = frame.width() if frame else 0
                 n_cols = max(1, pw // btn_w) if pw > btn_w else len(btns)
+        else:
+            # Explicit n_cols: store as forced so resize events don't override
+            self._col_icon_forced_cols = n_cols
         self._col_icon_last_cols = n_cols
         for i in range(grid.count()-1, -1, -1):
             item = grid.itemAt(i)
@@ -4232,16 +4235,23 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             else:
                 frame.setMaximumWidth(16777215)
 
-    def _reflow_col_left_toolbar(self, pos): #vers 1
+    def _reflow_col_left_toolbar(self, pos): #vers 2
         from apps.components.Col_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
         n = len(getattr(self, '_col_icon_buttons', []))
         if pos == 'float':
-            self._col_icon_forced_cols = n
+            self._col_icon_forced_cols = n      # single row
+            self._col_place_icon_grid()
         elif pos in (SNAP_LEFT, SNAP_RIGHT):
-            self._col_icon_forced_cols = 1
+            self._col_icon_forced_cols = 1      # single col
+            self._col_place_icon_grid()
         else:
+            # top/bottom: auto-fill — clear forced so resize event takes over
             self._col_icon_forced_cols = None
-        self._col_place_icon_grid()
+            frame = getattr(self, '_col_icon_frame', None)
+            pw = frame.width() if frame else 0
+            n_cols = max(1, pw // 28) if pw > 28 else n
+            self._col_icon_last_cols = 0        # force refresh
+            self._col_place_icon_grid(n_cols)
 
 
     def _create_transform_text_panel(self): #vers 12
@@ -4617,9 +4627,17 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         main_layout.addLayout(preview_row, stretch=1)
 
+        # Set dock positions (like TXD Workshop)
+        left_toolbar.set_dock_position('top')
+        # right_toolbar already set to 'right' above
+
         # Extra snap targets
         left_toolbar._extra_panels  = [self.preview_widget]
         right_toolbar._extra_panels = [self.preview_widget]
+
+        # Load saved layouts after UI settles (like TXD Workshop)
+        from PyQt6.QtCore import QTimer as _QTimer
+        _QTimer.singleShot(100, self._load_col_toolbar_layouts)
 
         # Information group below
         info_group = QGroupBox("")
@@ -4921,6 +4939,18 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 frame.setMaximumWidth(btn_w + 4)
             else:
                 frame.setMaximumWidth(16777215)
+
+    def _load_col_toolbar_layouts(self): #vers 1
+        """Restore saved toolbar layouts on startup (like TXD _load_toolbar_layouts)."""
+        try:
+            tb_left  = getattr(self, '_col_left_toolbar', None)
+            tb_right = getattr(self, '_col_right_toolbar', None)
+            if tb_left:
+                tb_left.load_layout()
+            if tb_right:
+                tb_right.load_layout()
+        except Exception:
+            pass
 
     def _reflow_col_right_toolbar(self, pos): #vers 1
         from apps.components.Col_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT, SNAP_TOP, SNAP_BOTTOM
