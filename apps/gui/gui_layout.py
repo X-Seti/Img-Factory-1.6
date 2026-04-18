@@ -176,7 +176,7 @@ def edit_txd_file(main_window): #vers 6
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
 
-def edit_col_file(main_window): #vers 4
+def edit_col_file(main_window): #vers 4 # TODO; DFF file launcher
     """Open COL Workshop.
 
     Priority 1: dir tree .col selection  → open that file directly.
@@ -365,7 +365,7 @@ class IMGFactoryGUILayout:
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
             'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
             'edit_ipl_file': lambda: self._open_ipl_workshop(),
-            'edit_dat_file': self._open_dat_browser,
+            'edit_dat_file': lambda: self._open_dat_browser(),
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
             'edit_vehi_file': lambda: self._log_missing_method('edit_vehi_file'),
