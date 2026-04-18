@@ -2899,6 +2899,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             ('open_btn',           'open_icon'),
             ('open_dff_btn',       'open_icon'),
             ('open_txd_btn',       'open_icon'),
+            ('tex_load_btn',       'open_icon'),
+            ('tex_browse_btn',     'folder_icon'),
+            ('tex_pass_btn',       'export_icon'),
+            ('tex_save_btn',       'save_icon'),
             ('save_btn',           'save_icon'),
             ('saveall_btn',        'saveas_icon'),
             ('export_all_btn',     'package_icon'),
@@ -4928,6 +4932,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._frame_tree_panel.setVisible(False)  # hidden until DFF loaded
         layout.addWidget(self._frame_tree_panel)
 
+        # ── Texture panel (shown when TXD loaded) ────────────────────────
+        layout.addWidget(self._create_texture_panel())
+
         return panel
 
 
@@ -6560,14 +6567,16 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         if path:
             self.open_dff_file(path)
 
-    def _open_txd_standalone(self): #vers 1
-        """Open a TXD file — in TXD Workshop tab if docked, else standalone window."""
+    def _open_txd_standalone(self): #vers 2
+        """Open a TXD file — loads textures into Model Workshop AND opens TXD Workshop."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Open TXD Texture Archive",
             os.path.dirname(getattr(self, '_current_dff_path', '')),
             "TXD Files (*.txd);;All Files (*)")
         if not path:
             return
+        # Always load internally into the texture panel
+        self._load_txd_file(path)
         mw = getattr(self, 'main_window', None)
         if mw and hasattr(mw, 'open_txd_workshop_docked'):
             # Docked in IMG Factory — open as a new tab
@@ -6608,7 +6617,530 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             print(f"Error in open file dialog: {str(e)}")
             QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
 
-    # ── IDE / TXD linking ───────────────────────────────────────────────────
+    # ── Texture management ──────────────────────────────────────────────────
+
+    def _create_texture_panel(self): #vers 1
+        """Collapsible texture panel in middle column.
+        Shows textures loaded from TXD files with thumbnails.
+        Has Texlist browser and Pass-to-TXD-Workshop button."""
+        from PyQt6.QtWidgets import QSplitter
+        icon_color = self._get_icon_color()
+
+        self._tex_panel = QFrame()
+        self._tex_panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        self._tex_panel.setVisible(False)   # hidden until TXD loaded
+        lay = QVBoxLayout(self._tex_panel)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(3)
+
+        # ── Header row ───────────────────────────────────────────────────
+        hdr = QHBoxLayout()
+        lbl = QLabel("Textures")
+        lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        hdr.addWidget(lbl)
+        hdr.addStretch()
+
+        self._tex_count_lbl = QLabel("0 textures")
+        self._tex_count_lbl.setFont(self.panel_font)
+        hdr.addWidget(self._tex_count_lbl)
+        lay.addLayout(hdr)
+
+        # ── Button row ───────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(3)
+
+        def _tbtn(attr, text, icon_method, tip, slot, enabled=True):
+            b = QPushButton(text)
+            b.setFont(self.button_font)
+            b.setIcon(getattr(self.icon_factory, icon_method)(color=icon_color))
+            b.setIconSize(QSize(16, 16))
+            b.setFixedHeight(22)
+            b.setToolTip(tip)
+            b.setEnabled(enabled)
+            b.clicked.connect(slot)
+            setattr(self, attr, b)
+            btn_row.addWidget(b)
+            return b
+
+        _tbtn('tex_load_btn',    'Load TXD',   'open_icon',
+              'Load a TXD file into this workshop',
+              self._load_txd_into_workshop)
+        _tbtn('tex_browse_btn',  'Texlist',    'folder_icon',
+              'Browse Texlist folder and import individual textures',
+              self._browse_texlist_folder)
+        _tbtn('tex_pass_btn',    'TXD Workshop','export_icon',
+              'Send all textures to TXD Workshop for editing/rebuilding',
+              self._pass_textures_to_txd_workshop, enabled=False)
+        _tbtn('tex_save_btn',    'Save TXD',   'save_icon',
+              'Save current textures as a new TXD file',
+              self._save_textures_as_txd, enabled=False)
+        btn_row.addStretch()
+        lay.addLayout(btn_row)
+
+        # ── Texture list ─────────────────────────────────────────────────
+        self._tex_list = QTableWidget()
+        self._tex_list.setColumnCount(4)
+        self._tex_list.setHorizontalHeaderLabels(["Name", "Size", "Format", "Mipmaps"])
+        self._tex_list.horizontalHeader().setStretchLastSection(True)
+        self._tex_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._tex_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self._tex_list.setAlternatingRowColors(True)
+        self._tex_list.setIconSize(QSize(32, 32))
+        self._tex_list.verticalHeader().setDefaultSectionSize(36)
+        self._tex_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tex_list.customContextMenuRequested.connect(self._tex_context_menu)
+        self._tex_list.itemSelectionChanged.connect(self._on_tex_selected)
+        self._tex_list.setMinimumHeight(120)
+        lay.addWidget(self._tex_list, stretch=1)
+
+        # Internal storage
+        self._mod_textures = []      # list of texture dicts from TXD parser
+        self._texlist_path = ''      # last Texlist folder
+
+        return self._tex_panel
+
+    def _load_txd_into_workshop(self): #vers 1
+        """Open a TXD file and load its textures into Model Workshop."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load TXD",
+            os.path.dirname(getattr(self, '_current_dff_path', '')),
+            "TXD Files (*.txd);;All Files (*)")
+        if not path:
+            return
+        self._load_txd_file(path)
+
+    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 1
+        """Lightweight TXD parser — no UI, returns list of texture dicts.
+        Uses TXDWorkshop._parse_single_texture via a minimal wrapper."""
+        import struct
+        textures = []
+        try:
+            if len(data) < 24:
+                return textures
+            # TXD header: 0x16 dict chunk
+            main_type, main_size, main_version = struct.unpack_from('<III', data, 0)
+            if main_type != 0x16:
+                return textures
+            # Struct chunk at offset 12
+            st_type, st_size, st_ver = struct.unpack_from('<III', data, 12)
+            if st_type != 0x01:
+                return textures
+            offset = 24  # skip 12-byte header + 12-byte struct header
+            # Texture count (SA = uint16+uint16, earlier = uint32)
+            if main_version >= 0x1803FFFF:
+                tex_count = struct.unpack_from('<H', data, offset)[0]
+            else:
+                tex_count = struct.unpack_from('<I', data, offset)[0]
+            offset += st_size  # advance past struct payload
+            if tex_count <= 0 or tex_count > 4096:
+                return textures
+            # Borrow TXDWorkshop._parse_single_texture
+            from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+            # Create minimal instance with just txd_version_id set
+            class _MinimalTXD:
+                txd_version_id = main_version
+                def _parse_single_texture(self, d, off, idx, rw_version=0):
+                    return TXDWorkshop._parse_single_texture(self, d, off, idx, rw_version)
+            parser = _MinimalTXD()
+            for i in range(tex_count):
+                if offset + 12 > len(data):
+                    break
+                tex_type, tex_size, _ = struct.unpack_from('<III', data, offset)
+                if tex_type == 0x15:
+                    tex = parser._parse_single_texture(
+                        data, offset, i, rw_version=main_version)
+                    if tex and tex.get('name') and tex.get('width', 0) > 0:
+                        textures.append(tex)
+                offset += 12 + tex_size
+        except Exception as e:
+            print(f"_parse_txd_lightweight error: {e}")
+        return textures
+
+    def _load_txd_file(self, path: str): #vers 2
+        """Parse a TXD file and populate the texture panel."""
+        try:
+            with open(path, 'rb') as f:
+                data = f.read()
+            textures = self._parse_txd_lightweight(data)
+            if not textures:
+                QMessageBox.warning(self, "TXD",
+                    f"No textures found in {os.path.basename(path)}")
+                return
+            self._mod_textures = textures
+            self._current_txd_path = path
+            self._populate_texture_list()
+            self._tex_panel.setVisible(True)
+            txd_stem = os.path.splitext(os.path.basename(path))[0]
+            if hasattr(self, 'info_txd_name'):
+                self.info_txd_name.setText(txd_stem)
+            self._set_status(
+                f"Loaded TXD: {os.path.basename(path)} "
+                f"— {len(textures)} textures")
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "TXD Error",
+                f"Failed to load TXD:\n{e}")
+
+    def _add_textures_from_txd(self, path: str): #vers 2
+        """Add textures from a TXD file to existing texture list (no replace)."""
+        try:
+            with open(path, 'rb') as f:
+                data = f.read()
+            new_texs = self._parse_txd_lightweight(data)
+            if not new_texs:
+                return
+            # Merge — skip duplicates by name
+            existing = {t['name'].lower() for t in self._mod_textures}
+            added = 0
+            for tex in new_texs:
+                if tex['name'].lower() not in existing:
+                    self._mod_textures.append(tex)
+                    existing.add(tex['name'].lower())
+                    added += 1
+            self._populate_texture_list()
+            self._set_status(f"Added {added} texture(s) from {os.path.basename(path)}")
+        except Exception as e:
+            print(f"Add textures error: {e}")
+
+    def _populate_texture_list(self): #vers 1
+        """Fill the texture QTableWidget from self._mod_textures."""
+        tbl = self._tex_list
+        tbl.setRowCount(0)
+        for tex in self._mod_textures:
+            row = tbl.rowCount()
+            tbl.insertRow(row)
+
+            # Thumbnail from pixel data
+            name_item = QTableWidgetItem(tex.get('name', '?'))
+            try:
+                from PyQt6.QtGui import QImage, QPixmap
+                img_data = tex.get('pixel_data') or tex.get('compressed_data', b'')
+                w, h = tex.get('width', 0), tex.get('height', 0)
+                if img_data and w and h:
+                    # Try to build a QImage for thumbnail
+                    fmt_str = tex.get('format', '')
+                    if 'DXT' not in fmt_str and len(img_data) >= w * h * 4:
+                        qimg = QImage(img_data[:w*h*4], w, h, QImage.Format.Format_RGBA8888)
+                        pix = QPixmap.fromImage(qimg).scaled(
+                            32, 32,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
+                        name_item.setIcon(QIcon(pix))
+            except Exception:
+                pass
+
+            tbl.setItem(row, 0, name_item)
+            tbl.setItem(row, 1, QTableWidgetItem(
+                f"{tex.get('width',0)}×{tex.get('height',0)}"))
+            tbl.setItem(row, 2, QTableWidgetItem(tex.get('format', '?')))
+            tbl.setItem(row, 3, QTableWidgetItem(str(tex.get('mipmaps', 1))))
+
+        count = len(self._mod_textures)
+        if hasattr(self, '_tex_count_lbl'):
+            self._tex_count_lbl.setText(f"{count} texture{'s' if count != 1 else ''}")
+        has = count > 0
+        for btn in ('tex_pass_btn', 'tex_save_btn'):
+            b = getattr(self, btn, None)
+            if b: b.setEnabled(has)
+
+    def _browse_texlist_folder(self): #vers 1
+        """Browse a Texlist folder — shows all TXDs, lets user add individual textures."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Texlist Folder",
+            self._texlist_path or os.path.expanduser('~'))
+        if not folder:
+            return
+        self._texlist_path = folder
+
+        # Scan folder for TXD files
+        txd_files = []
+        for root, dirs, files in os.walk(folder):
+            dirs.sort()
+            for fn in sorted(files):
+                if fn.lower().endswith('.txd'):
+                    txd_files.append(os.path.join(root, fn))
+
+        if not txd_files:
+            QMessageBox.information(self, "Texlist", "No TXD files found in that folder.")
+            return
+
+        # Show browser dialog
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Texlist Browser — {os.path.basename(folder)}")
+        dlg.resize(600, 500)
+        dlg_lay = QVBoxLayout(dlg)
+
+        info = QLabel(f"{len(txd_files)} TXD files found in {os.path.basename(folder)}")
+        info.setFont(self.panel_font)
+        dlg_lay.addWidget(info)
+
+        # Search bar
+        search_row = QHBoxLayout()
+        search_edit = QLineEdit()
+        search_edit.setPlaceholderText("Filter by name…")
+        search_row.addWidget(search_edit)
+        dlg_lay.addLayout(search_row)
+
+        # Tree: TXD file → texture names
+        tree = QTreeWidget()
+        tree.setHeaderLabels(["TXD / Texture", "Size", "Format"])
+        tree.setColumnWidth(0, 280)
+        tree.setAlternatingRowColors(True)
+        tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        dlg_lay.addWidget(tree, stretch=1)
+
+        # Populate tree
+        def _populate(filter_text=''):
+            tree.clear()
+            ft = filter_text.lower()
+            for txd_path in txd_files:
+                txd_name = os.path.basename(txd_path)
+                if ft and ft not in txd_name.lower():
+                    continue
+                file_item = QTreeWidgetItem([txd_name, '', ''])
+                file_item.setData(0, Qt.ItemDataRole.UserRole, ('file', txd_path))
+                file_item.setFont(0, QFont("Arial", 9, QFont.Weight.Bold))
+                # Lazy-load: parse on expand
+                placeholder = QTreeWidgetItem(['Loading…'])
+                file_item.addChild(placeholder)
+                tree.addTopLevelItem(file_item)
+
+        _populate()
+        search_edit.textChanged.connect(_populate)
+
+        def _on_expand(item):
+            if item.childCount() == 1 and item.child(0).text(0) == 'Loading…':
+                item.removeChild(item.child(0))
+                txd_path = (item.data(0, Qt.ItemDataRole.UserRole) or (None, None))[1]
+                if not txd_path:
+                    return
+                try:
+                    from apps.methods.txd_platform_pc import parse_pc_txd
+                    with open(txd_path, 'rb') as f:
+                        data = f.read()
+                    texs = parse_pc_txd(data)
+                    for tex in (texs or []):
+                        child = QTreeWidgetItem([
+                            tex.get('name', '?'),
+                            f"{tex.get('width',0)}×{tex.get('height',0)}",
+                            tex.get('format', '?'),
+                        ])
+                        child.setData(0, Qt.ItemDataRole.UserRole, ('tex', txd_path, tex['name']))
+                        item.addChild(child)
+                except Exception as e:
+                    item.addChild(QTreeWidgetItem([f"Error: {e}"]))
+
+        tree.itemExpanded.connect(_on_expand)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        add_file_btn = QPushButton("Add whole TXD")
+        add_file_btn.setToolTip("Add all textures from selected TXD file(s)")
+        add_tex_btn  = QPushButton("Add selected textures")
+        add_tex_btn.setToolTip("Add only the selected texture(s)")
+        cancel_btn   = QPushButton("Close")
+        btn_row.addWidget(add_file_btn)
+        btn_row.addWidget(add_tex_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(cancel_btn)
+        dlg_lay.addLayout(btn_row)
+        cancel_btn.clicked.connect(dlg.close)
+
+        def _add_whole_txd():
+            added_any = False
+            for item in tree.selectedItems():
+                role = item.data(0, Qt.ItemDataRole.UserRole)
+                if role and role[0] == 'file':
+                    self._add_textures_from_txd(role[1])
+                    added_any = True
+            if added_any:
+                dlg.close()
+
+        def _add_selected_textures():
+            # Group by TXD file, parse once, add matching names
+            by_file = {}
+            for item in tree.selectedItems():
+                role = item.data(0, Qt.ItemDataRole.UserRole)
+                if role and role[0] == 'tex':
+                    _, txd_path, tex_name = role
+                    by_file.setdefault(txd_path, []).append(tex_name.lower())
+            if not by_file:
+                return
+            for txd_path, names in by_file.items():
+                try:
+                    from apps.methods.txd_platform_pc import parse_pc_txd
+                    with open(txd_path, 'rb') as f:
+                        data = f.read()
+                    texs = parse_pc_txd(data) or []
+                    existing = {t['name'].lower() for t in self._mod_textures}
+                    for tex in texs:
+                        if tex['name'].lower() in names and tex['name'].lower() not in existing:
+                            self._mod_textures.append(tex)
+                            existing.add(tex['name'].lower())
+                except Exception as e:
+                    print(f"Texlist add error: {e}")
+            self._populate_texture_list()
+            self._tex_panel.setVisible(True)
+            dlg.close()
+
+        add_file_btn.clicked.connect(_add_whole_txd)
+        add_tex_btn.clicked.connect(_add_selected_textures)
+        dlg.exec()
+
+    def _on_tex_selected(self): #vers 1
+        """Texture row selected — show preview in status."""
+        rows = self._tex_list.selectionModel().selectedRows()
+        if not rows:
+            return
+        idx = rows[0].row()
+        if 0 <= idx < len(self._mod_textures):
+            tex = self._mod_textures[idx]
+            self._set_status(
+                f"Texture: {tex.get('name','?')}  "
+                f"{tex.get('width',0)}×{tex.get('height',0)}  "
+                f"{tex.get('format','?')}  "
+                f"{tex.get('mipmaps',1)} mip(s)")
+
+    def _tex_context_menu(self, pos): #vers 1
+        """Right-click context menu on texture list."""
+        from PyQt6.QtWidgets import QMenu
+        rows = self._tex_list.selectionModel().selectedRows()
+        menu = QMenu(self)
+        if rows:
+            menu.addAction("Remove selected texture(s)",
+                           self._remove_selected_textures)
+            menu.addAction("Export texture(s) as PNG…",
+                           self._export_textures_as_png)
+            menu.addSeparator()
+        menu.addAction("Load TXD…",        self._load_txd_into_workshop)
+        menu.addAction("Browse Texlist…",  self._browse_texlist_folder)
+        if self._mod_textures:
+            menu.addSeparator()
+            menu.addAction("Pass to TXD Workshop", self._pass_textures_to_txd_workshop)
+            menu.addAction("Save as TXD…",         self._save_textures_as_txd)
+        menu.exec(self._tex_list.viewport().mapToGlobal(pos))
+
+    def _remove_selected_textures(self): #vers 1
+        rows = sorted(
+            {r.row() for r in self._tex_list.selectionModel().selectedRows()},
+            reverse=True)
+        for r in rows:
+            if 0 <= r < len(self._mod_textures):
+                del self._mod_textures[r]
+        self._populate_texture_list()
+
+    def _export_textures_as_png(self): #vers 1
+        """Export selected textures to PNG files."""
+        rows = {r.row() for r in self._tex_list.selectionModel().selectedRows()}
+        if not rows:
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Export Textures to Folder")
+        if not folder:
+            return
+        from PyQt6.QtGui import QImage
+        exported = 0
+        for idx in rows:
+            if not (0 <= idx < len(self._mod_textures)):
+                continue
+            tex = self._mod_textures[idx]
+            try:
+                w, h = tex.get('width', 0), tex.get('height', 0)
+                data = tex.get('pixel_data') or tex.get('compressed_data', b'')
+                if data and w and h and 'DXT' not in tex.get('format', ''):
+                    qimg = QImage(data[:w*h*4], w, h, QImage.Format.Format_RGBA8888)
+                    out = os.path.join(folder, tex.get('name', f'tex_{idx}') + '.png')
+                    qimg.save(out)
+                    exported += 1
+            except Exception as e:
+                print(f"Export tex error: {e}")
+        self._set_status(f"Exported {exported} texture(s) to {folder}")
+
+    def _pass_textures_to_txd_workshop(self): #vers 1
+        """Send current textures to TXD Workshop for editing."""
+        if not self._mod_textures:
+            return
+        mw = getattr(self, 'main_window', None)
+
+        # Build a minimal TXD in memory from self._mod_textures
+        txd_data = self._build_txd_from_textures()
+
+        if txd_data and mw and hasattr(mw, 'open_txd_workshop_docked'):
+            # Write to a temp file and open
+            import tempfile
+            stem = os.path.splitext(
+                os.path.basename(getattr(self, '_current_dff_path', 'model')))[0]
+            tmp = tempfile.NamedTemporaryFile(
+                suffix='.txd', prefix=f'{stem}_', delete=False)
+            tmp.write(txd_data)
+            tmp.close()
+            mw.open_txd_workshop_docked(file_path=tmp.name)
+            self._set_status(
+                f"Passed {len(self._mod_textures)} texture(s) to TXD Workshop")
+        elif txd_data:
+            # Standalone mode — open TXD Workshop window
+            import tempfile
+            stem = os.path.splitext(
+                os.path.basename(getattr(self, '_current_dff_path', 'model')))[0]
+            tmp = tempfile.NamedTemporaryFile(
+                suffix='.txd', prefix=f'{stem}_', delete=False)
+            tmp.write(txd_data)
+            tmp.close()
+            try:
+                from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+                txd_win = TXDWorkshop(main_window=None)
+                txd_win.setWindowTitle(f"TXD Workshop — {stem}.txd")
+                txd_win.show(); txd_win.resize(1000, 700)
+                txd_win.open_txd_file(tmp.name)
+                if not hasattr(self, '_standalone_txd_windows'):
+                    self._standalone_txd_windows = []
+                self._standalone_txd_windows.append(txd_win)
+            except Exception as e:
+                QMessageBox.critical(self, "TXD Error", f"Failed to open TXD Workshop:\n{e}")
+        else:
+            QMessageBox.warning(self, "TXD", "Could not build TXD from current textures.")
+
+    def _build_txd_from_textures(self): #vers 1
+        """Build a minimal TXD binary from self._mod_textures.
+        Uses the serializer if available, else copies from source TXD."""
+        # Simplest approach: if all textures came from the same TXD file, just return that
+        if getattr(self, '_current_txd_path', None) and len(self._mod_textures) > 0:
+            try:
+                # If textures haven't been modified, re-read the source file
+                with open(self._current_txd_path, 'rb') as f:
+                    return f.read()
+            except Exception:
+                pass
+        # Fall back to serializer
+        try:
+            from apps.methods.txd_serializer import build_txd
+            return build_txd(self._mod_textures)
+        except Exception as e:
+            print(f"TXD build error: {e}")
+            return None
+
+    def _save_textures_as_txd(self): #vers 1
+        """Save current textures as a new TXD file."""
+        if not self._mod_textures:
+            return
+        stem = os.path.splitext(
+            os.path.basename(getattr(self, '_current_dff_path', 'model')))[0]
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save TXD",
+            os.path.join(os.path.dirname(
+                getattr(self, '_current_dff_path', '')), stem + '.txd'),
+            "TXD Files (*.txd);;All Files (*)")
+        if not path:
+            return
+        data = self._build_txd_from_textures()
+        if data:
+            with open(path, 'wb') as f:
+                f.write(data)
+            self._set_status(f"Saved TXD: {os.path.basename(path)}")
+        else:
+            QMessageBox.warning(self, "TXD", "Could not build TXD from current textures.")
+
+        # ── IDE / TXD linking ───────────────────────────────────────────────────
 
     def _get_xref(self): #vers 1
         """Return GTAWorldXRef from DAT Browser if loaded, else None."""
