@@ -4178,8 +4178,19 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
         layout.addWidget(self.build_from_txd_btn)
 
-        # Place buttons into grid BEFORE set_content (same as TXD Workshop)
-        self._col_place_icon_grid(len(self._col_icon_buttons))
+        # Initial placement: 1 row (all cols) so grid is populated.
+        # forced_cols left as None so resize event auto-reflows to actual width.
+        n = len(self._col_icon_buttons)
+        for i in range(self._col_icon_grid.count()-1, -1, -1):
+            item = self._col_icon_grid.itemAt(i)
+            if item and item.widget():
+                self._col_icon_grid.removeWidget(item.widget())
+        for idx, btn in enumerate(self._col_icon_buttons):
+            if btn.parent() is not self._col_icon_frame:
+                btn.setParent(self._col_icon_frame)
+            self._col_icon_grid.addWidget(btn, 0, idx)  # single row
+            btn.show()
+        # _col_icon_forced_cols stays None → resize event will reflow to fill width
         toolbar.set_content(icon_frame)
         # Note: set_dock_position called from _create_right_panel, not here
 
@@ -4216,9 +4227,6 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             else:
                 pw = frame.width() if frame else 0
                 n_cols = max(1, pw // btn_w) if pw > btn_w else len(btns)
-        else:
-            # Explicit n_cols: store as forced so resize events don't override
-            self._col_icon_forced_cols = n_cols
         self._col_icon_last_cols = n_cols
         for i in range(grid.count()-1, -1, -1):
             item = grid.itemAt(i)
