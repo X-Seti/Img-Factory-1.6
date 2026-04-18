@@ -4974,6 +4974,58 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         name_layout.addWidget(self.info_name, stretch=1)
         info_layout.addLayout(name_layout)
 
+        # === LINE 1b: IDE / TXD link row =====================================
+        ide_layout = QHBoxLayout()
+        ide_layout.setSpacing(4)
+
+        ide_lbl = QLabel("IDE:")
+        ide_lbl.setFont(self.panel_font)
+        ide_lbl.setFixedWidth(28)
+        ide_layout.addWidget(ide_lbl)
+
+        self.info_ide_section = QLabel("—")
+        self.info_ide_section.setFont(self.panel_font)
+        self.info_ide_section.setToolTip("IDE section / object type")
+        self.info_ide_section.setFixedWidth(90)
+        ide_layout.addWidget(self.info_ide_section)
+
+        self.info_model_id = QLabel("ID: —")
+        self.info_model_id.setFont(self.panel_font)
+        self.info_model_id.setFixedWidth(70)
+        ide_layout.addWidget(self.info_model_id)
+
+        txd_lbl = QLabel("TXD:")
+        txd_lbl.setFont(self.panel_font)
+        txd_lbl.setFixedWidth(32)
+        ide_layout.addWidget(txd_lbl)
+
+        self.info_txd_name = QLabel("—")
+        self.info_txd_name.setFont(self.panel_font)
+        self.info_txd_name.setToolTip("Linked TXD name from IDE")
+        ide_layout.addWidget(self.info_txd_name, stretch=1)
+
+        self.load_txd_btn = QPushButton("Open TXD")
+        self.load_txd_btn.setFont(self.panel_font)
+        self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.load_txd_btn.setIconSize(QSize(14, 14))
+        self.load_txd_btn.setFixedHeight(22)
+        self.load_txd_btn.setToolTip("Open linked TXD in TXD Workshop")
+        self.load_txd_btn.clicked.connect(self._open_linked_txd)
+        self.load_txd_btn.setEnabled(False)
+        ide_layout.addWidget(self.load_txd_btn)
+
+        self.find_in_ide_btn = QPushButton("IDE…")
+        self.find_in_ide_btn.setFont(self.panel_font)
+        self.find_in_ide_btn.setIcon(self.icon_factory.search_icon(color=icon_color))
+        self.find_in_ide_btn.setIconSize(QSize(14, 14))
+        self.find_in_ide_btn.setFixedHeight(22)
+        self.find_in_ide_btn.setToolTip("Look up model in DAT Browser IDE entries")
+        self.find_in_ide_btn.clicked.connect(self._find_in_ide)
+        self.find_in_ide_btn.setEnabled(False)
+        ide_layout.addWidget(self.find_in_ide_btn)
+
+        info_layout.addLayout(ide_layout)
+
         # === LINES 2 & 3: Build BOTH rows, show/hide based on panel width ===
         # - Text+label row (wide)
         # Kept this part, Because we also need to export optimized collision files.
@@ -6495,6 +6547,149 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             print(f"Error in open file dialog: {str(e)}")
             QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
 
+    # ── IDE / TXD linking ───────────────────────────────────────────────────
+
+    def _get_xref(self): #vers 1
+        """Return GTAWorldXRef from DAT Browser if loaded, else None."""
+        mw = getattr(self, 'main_window', None)
+        if mw is None:
+            return None
+        # Try dat_browser.xref first, then mw.xref directly
+        db = getattr(mw, 'dat_browser', None)
+        xref = getattr(db, 'xref', None) if db else None
+        if xref is None:
+            xref = getattr(mw, 'xref', None)
+        return xref
+
+    def _lookup_ide_for_dff(self, dff_path: str): #vers 1
+        """Look up IDEObject for a DFF file path via DAT Browser xref.
+        Updates info panel labels and enables/disables TXD/IDE buttons."""
+        stem = os.path.splitext(os.path.basename(dff_path))[0].lower()
+        xref = self._get_xref()
+
+        # Reset labels
+        for lbl, val in [
+            ('info_ide_section', '—'),
+            ('info_model_id',    'ID: —'),
+            ('info_txd_name',    '—'),
+        ]:
+            w = getattr(self, lbl, None)
+            if w: w.setText(val)
+        for btn in ('load_txd_btn', 'find_in_ide_btn'):
+            b = getattr(self, btn, None)
+            if b: b.setEnabled(False)
+
+        if xref is None:
+            if hasattr(self, 'info_ide_section'):
+                self.info_ide_section.setText('No DAT loaded')
+            return None
+
+        obj = xref.model_map.get(stem)
+        if obj is None:
+            if hasattr(self, 'info_ide_section'):
+                self.info_ide_section.setText('Not in IDE')
+            return None
+
+        # Populate labels
+        _section_label = {
+            'objs': 'Static', 'tobj': 'Timed', 'cars': 'Vehicle',
+            'peds': 'Ped', 'weap': 'Weapon', 'hier': 'Hierarchy',
+            'anim': 'Animated', 'tanm': 'Timed Anim',
+        }
+        section = _section_label.get(obj.section, obj.section or 'Object')
+        ide_file = os.path.basename(obj.source_ide) if obj.source_ide else '?'
+
+        if hasattr(self, 'info_ide_section'):
+            self.info_ide_section.setText(section)
+            self.info_ide_section.setToolTip(f"{ide_file} — section [{obj.section}]")
+        if hasattr(self, 'info_model_id'):
+            self.info_model_id.setText(f"ID: {obj.model_id}")
+        if hasattr(self, 'info_txd_name'):
+            txd = obj.txd_name or '—'
+            self.info_txd_name.setText(txd)
+            # Check if TXD is findable
+            in_xref = obj.txd_name and obj.txd_name.lower() in xref.txd_stems
+            self.info_txd_name.setToolTip(
+                f"{txd}.txd — {'found in IMG' if in_xref else 'not found in IMG'}")
+
+        # Enable buttons
+        if hasattr(self, 'load_txd_btn') and obj.txd_name and obj.txd_name.lower() not in ('null', ''):
+            self.load_txd_btn.setEnabled(True)
+        if hasattr(self, 'find_in_ide_btn'):
+            self.find_in_ide_btn.setEnabled(True)
+
+        self._current_ide_obj = obj
+        return obj
+
+    def _open_linked_txd(self): #vers 1
+        """Open the IDE-linked TXD in TXD Workshop."""
+        obj = getattr(self, '_current_ide_obj', None)
+        if not obj or not obj.txd_name:
+            return
+        txd_name = obj.txd_name.lower()
+        mw = getattr(self, 'main_window', None)
+
+        # Try via main_window.open_txd_workshop_docked (IMG mode)
+        if mw and hasattr(mw, 'open_txd_workshop_docked'):
+            # Check if TXD is in the current IMG
+            img = getattr(mw, 'current_img', None) or getattr(self, 'current_img', None)
+            if img:
+                for entry in getattr(img, 'entries', []):
+                    if entry.name.lower() == txd_name + '.txd':
+                        mw.open_txd_workshop_docked(txd_name=txd_name + '.txd')
+                        return
+            # Try standalone via xref game_root
+            xref = self._get_xref()
+            game_root = getattr(xref, 'game_root', '') if xref else ''
+            if game_root:
+                # Search for the TXD file on disk
+                import glob
+                pattern = os.path.join(game_root, '**', txd_name + '.txd')
+                matches = glob.glob(pattern, recursive=True)
+                if matches:
+                    mw.open_txd_workshop_docked(file_path=matches[0])
+                    return
+
+        # Fallback: open file dialog pre-filtered to TXD
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Open TXD for {obj.txd_name}",
+            getattr(self, '_current_dff_path', ''),
+            "TXD Files (*.txd);;All Files (*)")
+        if path and mw and hasattr(mw, 'open_txd_workshop_docked'):
+            mw.open_txd_workshop_docked(file_path=path)
+        elif path:
+            from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+            open_txd_workshop(self, path)
+
+    def _find_in_ide(self): #vers 1
+        """Switch to DAT Browser tab and highlight this model's IDE entry."""
+        obj = getattr(self, '_current_ide_obj', None)
+        if not obj:
+            return
+        mw = getattr(self, 'main_window', None)
+        if not mw:
+            return
+        # Try to find and activate DAT browser tab
+        db = getattr(mw, 'dat_browser', None)
+        if db and hasattr(db, '_search_bar'):
+            # Switch to dat browser tab
+            if hasattr(mw, 'tab_widget'):
+                for i in range(mw.tab_widget.count()):
+                    if mw.tab_widget.widget(i) is db or                        db in mw.tab_widget.widget(i).findChildren(type(db)):
+                        mw.tab_widget.setCurrentIndex(i)
+                        break
+            # Set search to model name and trigger
+            try:
+                db._search_bar.setText(obj.model_name)
+                db._search_bar.returnPressed.emit()
+            except Exception:
+                pass
+        self._set_status(
+            f"IDE: {obj.model_name}  ID={obj.model_id}  "
+            f"TXD={obj.txd_name}  section={obj.section}  "
+            f"source={os.path.basename(obj.source_ide or '')}")
+
     def open_dff_file(self, file_path: str): #vers 1
         """Open and display a GTA DFF model file."""
         self.current_col_file = None   # clear COL mode
@@ -6529,6 +6724,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._populate_frame_tree(model)
             # Populate detail table with geometry info
             self._populate_dff_detail_table(model)
+            # Look up IDE entry → populate TXD/IDE link row
+            self._lookup_ide_for_dff(file_path)
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "DFF Error", f"Failed to open DFF:\n{e}")
