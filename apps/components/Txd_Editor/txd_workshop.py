@@ -4196,7 +4196,11 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             return colors.get('text_primary', '#000000')
         return '#000000'
 
-    def _refresh_icons(self): #vers 1
+    # TODO: Not all icons update on theme change yet.
+    # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
+    # labels/combos, and any icons created via _svg_to_icon() rather than
+    # icon_factory. Address in a future pass.
+        def _refresh_icons(self): #vers 1
         """Refresh all button icons after theme change."""
         SVGIconFactory.clear_cache()
         c = self._get_icon_color()
