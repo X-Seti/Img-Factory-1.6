@@ -3980,50 +3980,32 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Called when main splitter is dragged — update text panel visibility."""
         self._update_transform_text_panel_visibility()
 
-    def _update_transform_text_panel_visibility(self): #vers 2
-        """Toggle between text+icon panel (wide) and icon-only strip (narrow).
-        Reads threshold from IMG Factory settings. Also collapses bottom buttons."""
-        tp   = getattr(self, '_transform_text_panel_ref', None)
-        ip   = getattr(self, '_transform_icon_panel_ref', None)
-        mode = getattr(self, 'button_display_mode', 'both')
-
-        if mode == 'icons':
-            if tp: tp.setVisible(False)
-            if ip: ip.setVisible(True)
-            return
-        if mode == 'text':
-            if tp: tp.setVisible(True)
-            if ip: ip.setVisible(False)
-            return
-
-        # Measure right panel width directly
-        rp = getattr(self, '_right_panel_ref', None)
-        if rp:
-            ref_w = rp.width()
-        else:
-            splitter = getattr(self, '_main_splitter', None)
-            ref_w = self.width()
-            if splitter and tp:
-                w = tp
-                while w and w.parent() is not splitter:
-                    w = w.parent() if hasattr(w, 'parent') else None
-                if w:
-                    ref_w = w.width()
-
-        try:
-            from apps.methods.imgfactory_ui_settings import get_collapse_threshold
-            threshold = get_collapse_threshold(getattr(self, 'main_window', None))
-        except Exception:
-            threshold = 550
-        wide = ref_w >= threshold
-        if tp: tp.setVisible(wide)
-        if ip: ip.setVisible(not wide)
-
-        # Toggle bottom panel rows the same way
+    def _update_transform_text_panel_visibility(self): #vers 3
+        """DockableToolbar version — toolbars manage their own visibility."""
         btr = getattr(self, '_bottom_text_row', None)
         bir = getattr(self, '_bottom_icon_row', None)
-        if btr: btr.setVisible(wide)
-        if bir: bir.setVisible(not wide)
+        if btr or bir:
+            rp = getattr(self, '_right_panel_ref', None)
+            ref_w = rp.width() if rp else self.width()
+            try:
+                from apps.methods.imgfactory_ui_settings import get_collapse_threshold
+                threshold = get_collapse_threshold(getattr(self, 'main_window', None))
+            except Exception:
+                threshold = 550
+            wide = ref_w >= threshold
+            if btr: btr.setVisible(wide)
+            if bir: bir.setVisible(not wide)
+
+    def _load_mod_toolbar_layouts(self): #vers 1
+        """Restore saved toolbar layouts on startup."""
+        try:
+            if getattr(self, '_mod_left_toolbar', None):
+                self._mod_left_toolbar.load_layout()
+            if getattr(self, '_mod_right_toolbar', None):
+                self._mod_right_toolbar.load_layout()
+        except Exception:
+            pass
+
 
     def resizeEvent(self, event): #vers 3
         """Keep resize grip in corner; auto-collapse text transform panel when narrow."""
@@ -4061,6 +4043,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     def closeEvent(self, event): #vers 1
         """Handle close event"""
+        try:
+            for attr in ('_mod_left_toolbar', '_mod_right_toolbar'):
+                tb = getattr(self, attr, None)
+                if tb and hasattr(tb, 'save_layout'):
+                    tb.save_layout()
+        except Exception:
+            pass
         self.window_closed.emit()
         event.accept()
 
@@ -4276,24 +4265,45 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         return self.toolbar
 
     #Left side vertical panel
-    def _create_transform_icon_panel(self): #vers 12
-        """Create transform panel with icons - aligned with text panel"""
+    def _create_transform_icon_panel(self): #vers 13
+        """Icon grid panel — DockableToolbar pattern (same as COL Workshop)."""
+        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
+        from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
-        self.transform_icon_panel = QFrame()
-        self.transform_icon_panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.transform_icon_panel.setMinimumWidth(45)
-        self.transform_icon_panel.setMaximumWidth(45)
 
-        layout = QVBoxLayout(self.transform_icon_panel)
-        layout.setContentsMargins(3, 5, 3, 5)
-        layout.setSpacing(1)
+        icon_frame = QFrame()
+        icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        grid = QGridLayout(icon_frame)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(2)
+        icon_frame._grid = grid
 
-        btn_height = 32
-        btn_width = 40
-        icon_size = QSize(20, 20)
-        spacer = 3
+        self._mod_icon_grid    = icon_frame._grid
+        self._mod_icon_buttons = []
+        self._mod_icon_frame   = icon_frame
 
-        layout.addSpacing(2)
+        rp = getattr(self, '_right_panel_ref', None)
+        toolbar = DockableToolbar(rp or self, settings_key='model_left_toolbar')
+        toolbar.reflow_requested.connect(self._reflow_mod_left_toolbar)
+        self._mod_left_toolbar         = toolbar
+        self.transform_icon_panel      = toolbar
+        self._transform_icon_panel_ref = toolbar
+
+        btn_height = 26
+        btn_width  = 26
+        icon_size  = QSize(16, 16)
+        spacer     = 0
+
+        def _add(btn):
+            btn.setFixedSize(26, 26)
+            self._mod_icon_buttons.append(btn)
+            return btn
+
+        layout = type('_FakeLayout', (), {
+            'addWidget':  lambda s, w, *a, **kw: _add(w),
+            'addSpacing': lambda s, *a: None,
+            'addStretch': lambda s: None,
+        })()
 
         # Flip Vertical
         self.flip_vert_btn = QPushButton()
@@ -4458,8 +4468,81 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.build_from_txd_btn.clicked.connect(lambda: self._dff_to_col_surfaces(single=True))
         layout.addWidget(self.build_from_txd_btn)
 
-        layout.addStretch()
-        return self.transform_icon_panel
+        # Place into grid BEFORE set_content (same as COL/TXD pattern)
+        n = len(self._mod_icon_buttons)
+        for i in range(self._mod_icon_grid.count()-1, -1, -1):
+            item = self._mod_icon_grid.itemAt(i)
+            if item and item.widget():
+                self._mod_icon_grid.removeWidget(item.widget())
+        for idx, btn in enumerate(self._mod_icon_buttons):
+            if btn.parent() is not icon_frame:
+                btn.setParent(icon_frame)
+            self._mod_icon_grid.addWidget(btn, 0, idx)
+            btn.show()
+
+        toolbar.set_content(icon_frame)
+
+        # Resize event reflows grid
+        from PyQt6.QtCore import QObject, QEvent
+        _ws = self
+        class _Filter(QObject):
+            def eventFilter(self, obj, ev):
+                if ev.type() == QEvent.Type.Resize:
+                    if getattr(_ws, '_mod_icon_forced_cols', None) is None:
+                        pw = obj.width()
+                        new_cols = max(1, pw // 28)
+                        if new_cols != getattr(_ws, '_mod_icon_last_cols', 0):
+                            _ws._mod_icon_last_cols = new_cols
+                            _ws._mod_place_icon_grid(new_cols)
+                return False
+        self._mod_icon_filter = _Filter(icon_frame)
+        icon_frame.installEventFilter(self._mod_icon_filter)
+
+        return toolbar
+
+    def _mod_place_icon_grid(self, n_cols=None): #vers 1
+        grid  = getattr(self, '_mod_icon_grid', None)
+        btns  = getattr(self, '_mod_icon_buttons', [])
+        frame = getattr(self, '_mod_icon_frame', None)
+        if grid is None or not btns:
+            return
+        btn_w = 28
+        if n_cols is None:
+            forced = getattr(self, '_mod_icon_forced_cols', None)
+            if forced is not None:
+                n_cols = forced
+            else:
+                pw = frame.width() if frame else 0
+                n_cols = max(1, pw // btn_w) if pw > btn_w else len(btns)
+        self._mod_icon_last_cols = n_cols
+        for i in range(grid.count()-1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        for idx, btn in enumerate(btns):
+            if btn.parent() is not frame:
+                btn.setParent(frame)
+            grid.addWidget(btn, idx // n_cols, idx % n_cols)
+            btn.show()
+        if frame:
+            frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
+
+    def _reflow_mod_left_toolbar(self, pos): #vers 1
+        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
+        n = len(getattr(self, '_mod_icon_buttons', []))
+        if pos == 'float':
+            self._mod_icon_forced_cols = n
+        elif pos in (SNAP_LEFT, SNAP_RIGHT):
+            self._mod_icon_forced_cols = 1
+        else:
+            self._mod_icon_forced_cols = None
+            frame = getattr(self, '_mod_icon_frame', None)
+            pw = frame.width() if frame else 0
+            n_cols = max(1, pw // 28) if pw > 28 else n
+            self._mod_icon_last_cols = 0
+            self._mod_place_icon_grid(n_cols)
+            return
+        self._mod_place_icon_grid()
 
 
     def _create_transform_text_panel(self): #vers 12
@@ -4819,46 +4902,49 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         return panel
 
 
-    def _create_right_panel(self): #vers 11
-        """Create right panel with editing controls - compact layout"""
-        icon_color = self._get_icon_color()
+    def _create_right_panel(self): #vers 12
+        """Create right panel — DockableToolbar layout (same as COL Workshop)."""
+        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
+        icon_color = self._get_icon_color()   # used by info row buttons below
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
         self._right_panel_ref = panel
-        has_bumpmap = False
         main_layout = QVBoxLayout(panel)
-        #main_layout.setContentsMargins(5, 5, 5, 5)
-        top_layout = QHBoxLayout()
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(3)
 
-        # Transform panel (icon) — shown when narrow
-        transform_icon_panel = self._create_transform_icon_panel()
-        self._transform_icon_panel_ref = transform_icon_panel
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_icon_panel)
-        transform_icon_panel.setVisible(False)  # hidden until panel is narrow
+        # ── Top toolbar row ───────────────────────────────────────────────
+        left_toolbar = self._create_transform_icon_panel()
+        main_layout.addWidget(left_toolbar, stretch=0)
+        left_toolbar.set_dock_position('top')
 
-        # Transform panel (text) — shown when wide
-        transform_text_panel = self._create_transform_text_panel()
-        self._transform_text_panel_ref = transform_text_panel
-        top_layout.setSpacing(2)
-        top_layout.addWidget(transform_text_panel)
-        transform_text_panel.setVisible(True)
+        # ── Preview row: viewport + right dockable toolbar ────────────────
+        preview_row = QHBoxLayout()
+        preview_row.setSpacing(3)
 
-        # Preview area (center) — viewport widget
         self.preview_widget = COL3DViewport()
-        self.preview_widget._workshop_ref = self  # direct ref — no parent-chain walk needed
-        top_layout.addWidget(self.preview_widget, stretch=2)
+        self.preview_widget._workshop_ref = self
+        preview_row.addWidget(self.preview_widget, stretch=1)
 
-        # Floating paint bar — child of the viewport, always visible on top
         self._create_paint_bar()
 
-        # paint_toolbar built by _build_float_paint_bar() — floats over preview_widget
+        ctrl_frame = self._create_preview_controls()
+        right_toolbar = DockableToolbar(panel, settings_key='model_right_toolbar')
+        right_toolbar.set_content(ctrl_frame)
+        right_toolbar.set_dock_position('right')
+        right_toolbar.reflow_requested.connect(self._reflow_mod_right_toolbar)
+        self._mod_right_toolbar = right_toolbar
+        self.preview_controls   = ctrl_frame
+        preview_row.addWidget(right_toolbar, stretch=0)
 
-        # Preview controls (right side, vertical)
-        self.preview_controls = self._create_preview_controls()
-        top_layout.addWidget(self.preview_controls, stretch=0)
-        main_layout.addLayout(top_layout, stretch=1)
+        main_layout.addLayout(preview_row, stretch=1)
+
+        left_toolbar._extra_panels  = [self.preview_widget]
+        right_toolbar._extra_panels = [self.preview_widget]
+
+        from PyQt6.QtCore import QTimer as _QT
+        _QT.singleShot(100, self._load_mod_toolbar_layouts)
 
         # Information group below
         info_group = QGroupBox("")
@@ -5075,29 +5161,34 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 _bar.raise_()
         vp.resizeEvent = _on_vp_resize
 
-    def _create_preview_controls(self): #vers 6
-        """Vertical button strip to the right of the preview viewport."""
+    def _create_preview_controls(self): #vers 7
+        """Right toolbar icon grid — DockableToolbar pattern."""
+        from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
-        pw = self.preview_widget   # guaranteed to exist — called after _create_right_panel creates it
+        pw = self.preview_widget
 
-        f = QFrame()
-        f.setFrameStyle(QFrame.Shape.StyledPanel)
-        f.setMaximumWidth(50)
-        lay = QVBoxLayout(f)
-        lay.setContentsMargins(5, 5, 5, 5)
-        lay.setSpacing(4)
+        ctrl_frame = QFrame()
+        ctrl_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        grid = QGridLayout(ctrl_frame)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(2)
+        ctrl_frame._grid = grid
+
+        self._mod_ctrl_grid    = ctrl_frame._grid
+        self._mod_ctrl_buttons = []
+        self._mod_ctrl_frame   = ctrl_frame
 
         def btn(tip, icon_fn, callback, checkable=False, checked=False):
-            b = QPushButton()
+            b = QPushButton(ctrl_frame)
             b.setIcon(icon_fn(color=icon_color))
-            b.setIconSize(QSize(20, 20))
-            b.setFixedSize(40, 40)
+            b.setIconSize(QSize(16, 16))
+            b.setFixedSize(26, 26)
             b.setToolTip(tip)
             if checkable:
                 b.setCheckable(True)
                 b.setChecked(checked)
             b.clicked.connect(callback)
-            lay.addWidget(b)
+            self._mod_ctrl_buttons.append(b)
             return b
 
         btn("Zoom In",      self.icon_factory.zoom_in_icon,   pw.zoom_in)
@@ -5105,7 +5196,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         btn("Reset View",   self.icon_factory.reset_icon,     pw.reset_view)
         btn("Fit to Window",self.icon_factory.fit_icon,       pw.fit_to_window)
 
-        lay.addSpacing(6)
         _view_icons = [
             ("XY",  0,   0,  self.icon_factory.view_xy_icon),
             ("XZ",  0,  90,  self.icon_factory.view_xz_icon),
@@ -5117,23 +5207,53 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 pw._yaw = y; pw._pitch = p; pw.update()
             btn(f"View: {v_label}", v_icon_fn, _set_v)
 
-        lay.addSpacing(6)
         btn("Render / Background Settings",
             self.icon_factory.color_picker_icon, self._open_render_settings_dialog)
 
-        lay.addSpacing(6)
-        # DFF-relevant display toggles
-        self.view_mesh_btn    = btn("Toggle Mesh",    self.icon_factory.mesh_icon,
-                                    lambda checked: pw.set_show_mesh(checked),
-                                    checkable=True, checked=True)
-        self.backface_btn     = btn("Toggle Backface", self.icon_factory.backface_icon,
-                                    lambda checked: pw.set_backface(checked),
-                                    checkable=True, checked=False)
-        btn("Cycle Render Style",  self.icon_factory.color_picker_icon,
+        self.view_mesh_btn = btn("Toggle Mesh", self.icon_factory.mesh_icon,
+                                  lambda checked: pw.set_show_mesh(checked),
+                                  checkable=True, checked=True)
+        self.backface_btn  = btn("Toggle Backface", self.icon_factory.backface_icon,
+                                  lambda checked: pw.set_backface(checked),
+                                  checkable=True, checked=False)
+        btn("Cycle Render Style", self.icon_factory.color_picker_icon,
             self._cycle_view_render_style)
 
-        lay.addStretch()
-        return f
+        self._mod_place_ctrl_grid(1)
+        return ctrl_frame
+
+
+    def _mod_place_ctrl_grid(self, n_cols=None): #vers 1
+        grid  = getattr(self, '_mod_ctrl_grid', None)
+        btns  = getattr(self, '_mod_ctrl_buttons', [])
+        frame = getattr(self, '_mod_ctrl_frame', None)
+        if grid is None or not btns:
+            return
+        btn_w = 28
+        if n_cols is None:
+            n_cols = getattr(self, '_mod_ctrl_forced_cols', 1)
+        for i in range(grid.count()-1, -1, -1):
+            item = grid.itemAt(i)
+            if item and item.widget():
+                grid.removeWidget(item.widget())
+        for idx, b in enumerate(btns):
+            if b.parent() is not frame:
+                b.setParent(frame)
+            grid.addWidget(b, idx // n_cols, idx % n_cols)
+            b.show()
+        if frame:
+            frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
+
+    def _reflow_mod_right_toolbar(self, pos): #vers 1
+        from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT, SNAP_TOP, SNAP_BOTTOM
+        n = len(getattr(self, '_mod_ctrl_buttons', []))
+        if pos in ('float', SNAP_LEFT, SNAP_RIGHT):
+            self._mod_ctrl_forced_cols = 1
+        elif pos in (SNAP_TOP, SNAP_BOTTOM):
+            self._mod_ctrl_forced_cols = n
+        else:
+            self._mod_ctrl_forced_cols = 1
+        self._mod_place_ctrl_grid()
 
 
     def _update_toolbar_for_docking_state(self): #vers 1
