@@ -2897,6 +2897,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             # Toolbar
             ('settings_btn',       'settings_icon'),
             ('open_btn',           'open_icon'),
+            ('open_dff_btn',       'open_icon'),
+            ('open_txd_btn',       'open_icon'),
             ('save_btn',           'save_icon'),
             ('saveall_btn',        'saveas_icon'),
             ('export_all_btn',     'package_icon'),
@@ -4139,6 +4141,28 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.open_btn.setToolTip("Open DFF or COL model file (Ctrl+O)")
         self.open_btn.clicked.connect(self._open_file)
         layout.addWidget(self.open_btn)
+
+        # Open DFF (standalone — skips COL filter)
+        self.open_dff_btn = QPushButton()
+        self.open_dff_btn.setFont(self.button_font)
+        self.open_dff_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.open_dff_btn.setText("DFF")
+        self.open_dff_btn.setIconSize(QSize(20, 20))
+        self.open_dff_btn.setToolTip("Open a DFF model file directly (Ctrl+D)")
+        self.open_dff_btn.setShortcut("Ctrl+D")
+        self.open_dff_btn.clicked.connect(self._open_dff_standalone)
+        layout.addWidget(self.open_dff_btn)
+
+        # Open TXD (standalone — opens TXD Workshop)
+        self.open_txd_btn = QPushButton()
+        self.open_txd_btn.setFont(self.button_font)
+        self.open_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.open_txd_btn.setText("TXD")
+        self.open_txd_btn.setIconSize(QSize(20, 20))
+        self.open_txd_btn.setToolTip("Open a TXD texture file (Ctrl+T)")
+        self.open_txd_btn.setShortcut("Ctrl+T")
+        self.open_txd_btn.clicked.connect(self._open_txd_standalone)
+        layout.addWidget(self.open_txd_btn)
 
         # Save button
         self.save_btn = QPushButton()
@@ -6526,6 +6550,43 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
 
 #------ Col functions
+
+    def _open_dff_standalone(self): #vers 1
+        """Open a DFF file directly — skips COL/all-files filter."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open DFF Model",
+            os.path.dirname(getattr(self, '_current_dff_path', '')),
+            "DFF Models (*.dff);;All Files (*)")
+        if path:
+            self.open_dff_file(path)
+
+    def _open_txd_standalone(self): #vers 1
+        """Open a TXD file — in TXD Workshop tab if docked, else standalone window."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open TXD Texture Archive",
+            os.path.dirname(getattr(self, '_current_dff_path', '')),
+            "TXD Files (*.txd);;All Files (*)")
+        if not path:
+            return
+        mw = getattr(self, 'main_window', None)
+        if mw and hasattr(mw, 'open_txd_workshop_docked'):
+            # Docked in IMG Factory — open as a new tab
+            mw.open_txd_workshop_docked(file_path=path)
+        else:
+            # Standalone — open TXD Workshop as a floating window
+            try:
+                from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+                txd_win = TXDWorkshop(main_window=None)
+                txd_win.setWindowTitle(f"TXD Workshop — {os.path.basename(path)}")
+                txd_win.show()
+                txd_win.resize(1000, 700)
+                txd_win.open_txd_file(path)
+                # Keep a reference so it isn't garbage collected
+                if not hasattr(self, '_standalone_txd_windows'):
+                    self._standalone_txd_windows = []
+                self._standalone_txd_windows.append(txd_win)
+            except Exception as e:
+                QMessageBox.critical(self, "TXD Error", f"Failed to open TXD:\n{e}")
 
     def _open_file(self): #vers 1
         """Open file dialog — supports DFF (model) and COL (collision) files."""
