@@ -4205,11 +4205,10 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
         layout.addWidget(self.build_from_txd_btn)
 
+        # Place buttons into grid BEFORE set_content (same as TXD Workshop)
+        self._col_place_icon_grid(len(self._col_icon_buttons))
         toolbar.set_content(icon_frame)
         toolbar.set_dock_position('top')
-        # Defer grid placement until after window is shown (buttons need parent)
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: self._col_place_icon_grid(len(self._col_icon_buttons)))
 
         # Resize event reflows grid
         from PyQt6.QtCore import QObject, QEvent
@@ -4921,8 +4920,8 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                                     lambda checked: pw.set_backface(checked),
                                     checkable=True, checked=False)
 
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: self._col_place_ctrl_grid(1))
+        # Place buttons into grid immediately
+        self._col_place_ctrl_grid(1)
         return ctrl_frame
 
     def _col_place_ctrl_grid(self, n_cols=None): #vers 1
