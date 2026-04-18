@@ -4009,11 +4009,13 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         icon_frame = QFrame()
         icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
+        # Pass parent to constructor so Qt C++ owns the layout (prevents GC)
         grid = QGridLayout(icon_frame)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(2)
+        icon_frame._grid = grid   # extra Python ref on the frame object
 
-        self._col_icon_grid    = grid
+        self._col_icon_grid    = icon_frame._grid
         self._col_icon_buttons = []
         self._col_icon_frame   = icon_frame
 
@@ -4030,7 +4032,6 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         spacer     = 0
 
         def _add(btn):
-            btn.setParent(icon_frame)
             btn.setFixedSize(26, 26)
             self._col_icon_buttons.append(btn)
             return btn
@@ -4204,9 +4205,11 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
         layout.addWidget(self.build_from_txd_btn)
 
-        self._col_place_icon_grid()
         toolbar.set_content(icon_frame)
         toolbar.set_dock_position('top')
+        # Defer grid placement until after window is shown (buttons need parent)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self._col_place_icon_grid(len(self._col_icon_buttons)))
 
         # Resize event reflows grid
         from PyQt6.QtCore import QObject, QEvent
@@ -4231,7 +4234,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         grid = getattr(self, '_col_icon_grid', None)
         btns = getattr(self, '_col_icon_buttons', [])
         frame = getattr(self, '_col_icon_frame', None)
-        if not grid or not btns:
+        if grid is None or not btns:
             return
         btn_w = 28
         if n_cols is None:
@@ -4247,7 +4250,10 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             if item and item.widget():
                 grid.removeWidget(item.widget())
         for idx, btn in enumerate(btns):
+            if btn.parent() is not frame:
+                btn.setParent(frame)   # must be parented before grid.addWidget
             grid.addWidget(btn, idx // n_cols, idx % n_cols)
+            btn.show()
         if frame:
             if n_cols == 1:
                 frame.setMaximumWidth(btn_w + 4)
@@ -4870,8 +4876,9 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         grid = QGridLayout(ctrl_frame)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(2)
+        ctrl_frame._grid = grid   # extra Python ref on the frame object
 
-        self._col_ctrl_grid    = grid
+        self._col_ctrl_grid    = ctrl_frame._grid
         self._col_ctrl_buttons = []
         self._col_ctrl_frame   = ctrl_frame
 
@@ -4914,7 +4921,8 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                                     lambda checked: pw.set_backface(checked),
                                     checkable=True, checked=False)
 
-        self._col_place_ctrl_grid()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self._col_place_ctrl_grid(1))
         return ctrl_frame
 
     def _col_place_ctrl_grid(self, n_cols=None): #vers 1
@@ -4922,7 +4930,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         grid  = getattr(self, '_col_ctrl_grid', None)
         btns  = getattr(self, '_col_ctrl_buttons', [])
         frame = getattr(self, '_col_ctrl_frame', None)
-        if not grid or not btns:
+        if grid is None or not btns:
             return
         btn_w = 28
         if n_cols is None:
@@ -4932,7 +4940,10 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             if item and item.widget():
                 grid.removeWidget(item.widget())
         for idx, b in enumerate(btns):
+            if b.parent() is not frame:
+                b.setParent(frame)   # must be parented before grid.addWidget
             grid.addWidget(b, idx // n_cols, idx % n_cols)
+            b.show()
         if frame:
             if n_cols == 1:
                 frame.setMaximumWidth(btn_w + 4)
