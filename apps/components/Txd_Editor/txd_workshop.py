@@ -4340,12 +4340,24 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         print("======================\n")
 
 
-    def _apply_theme(self): #vers 4
-        """Apply theme from app_settings using shared workshop_theme module."""
+    def _apply_theme(self): #vers 5
+        """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
-            from apps.methods.workshop_theme import apply_workshop_theme
             mw = getattr(self, 'main_window', None)
-            apply_workshop_theme(self, mw)
+            app_settings = None
+            if hasattr(self, 'app_settings') and self.app_settings:
+                app_settings = self.app_settings
+            elif mw and hasattr(mw, 'app_settings'):
+                app_settings = mw.app_settings
+
+            if app_settings and hasattr(app_settings, 'get_stylesheet'):
+                # Apply to QApplication so all widgets inherit it
+                from PyQt6.QtWidgets import QApplication
+                ss = app_settings.get_stylesheet()
+                if ss:
+                    QApplication.instance().setStyleSheet(ss)
+            # Clear any widget-level override so we inherit from QApplication
+            self.setStyleSheet("")
         except Exception as e:
             print(f"Theme application error: {e}")
 
