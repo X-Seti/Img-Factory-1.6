@@ -580,6 +580,8 @@ class DATBrowserWidget(QWidget): #vers 2
             "QHeaderView::section { background-color: palette(button); "
             "color: palette(buttonText); border: none; padding: 2px; }")
         self._tree.viewport().setAutoFillBackground(True)
+        self._tree.viewport().setStyleSheet(
+            "background-color: palette(base); color: palette(text);")
         self._tree.itemClicked.connect(self._on_tree_click)
         ll.addWidget(self._tree)
         splitter.addWidget(left)
@@ -1150,6 +1152,8 @@ class DATBrowserWidget(QWidget): #vers 2
                 "color: palette(highlightedText); } "
                 "QHeaderView::section { background-color: palette(button); "
                 "color: palette(buttonText); border: none; padding: 2px; }")
+            self._tree.viewport().setStyleSheet(
+                "background-color: palette(base); color: palette(text);")
         self.update()
         self.repaint()
 

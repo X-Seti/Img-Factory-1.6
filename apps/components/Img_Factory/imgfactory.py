@@ -1447,10 +1447,37 @@ class IMGFactory(QMainWindow):
             self.log_message(f"DP5 standalone error: {str(e)}")
 
 
+    def _auto_load_dat_browser(self): #vers 1
+        """Auto-load DAT Browser if a game root is already set (deferred startup)."""
+        try:
+            widget = getattr(self, 'dat_browser', None)
+            if not widget:
+                return
+            # Don't auto-load if user has already interacted
+            if widget.loader and widget.loader.objects:
+                return
+            game_root = getattr(self, 'game_root', None)
+            if not game_root:
+                # Try to get from settings/project
+                try:
+                    from apps.methods.app_settings_system import AppSettings
+                    settings = getattr(self, 'app_settings', None)
+                    if settings:
+                        game_root = settings.get('last_game_root', '')
+                except Exception:
+                    pass
+            if game_root and os.path.isdir(game_root):
+                from apps.methods.gta_dat_parser import detect_game
+                if detect_game(game_root):
+                    widget.load_from_game_root(game_root)
+                    self.log_message(f"DAT Browser: auto-loading {game_root}")
+        except Exception as e:
+            pass   # auto-load is best-effort
+
     def open_model_workshop_docked(self, dff_name=None, file_path=None): #vers 1
         """Open Model Workshop in its own tab with icon"""
         try:
-            from apps.components.Model_Workshop.model_workshop import open_model_workshop
+            from apps.components.Model_Editor.model_workshop import open_model_workshop
             if file_path:
                 open_model_workshop(self, file_path)
             elif dff_name and hasattr(self, 'current_img') and self.current_img:
@@ -3221,10 +3248,13 @@ class IMGFactory(QMainWindow):
         # Setup unified signal system
         self.setup_unified_signals()
 
-        # Integrate DAT Browser tab (non-closable, wires xref tooltips)
+        # Integrate DAT Browser (places widget in left_stack, wires xref tooltips)
         try:
             from apps.components.Dat_Browser.dat_browser import integrate_dat_browser
             integrate_dat_browser(self)
+            # Auto-load if a game root is already known (e.g. from project/settings)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(800, self._auto_load_dat_browser)
         except Exception as e:
             print(f"DAT Browser integration failed: {e}")
 
@@ -3424,6 +3454,26 @@ class IMGFactory(QMainWindow):
                                            version='COL')
                 self._sync_taskbar_active("col")
                 self.log_message(f"→ {tab_name} (COL Workshop)")
+                return
+
+            # Check if this tab contains an embedded Model Workshop
+            from apps.components.Model_Editor.model_workshop import ModelWorkshop
+            model_workshops = current_tab.findChildren(ModelWorkshop)
+            if model_workshops:
+                workshop = model_workshops[0]
+                self.current_img = None
+                self.current_col = None
+                dff_path = getattr(workshop, '_current_dff_path', '') or ''
+                import os
+                file_size = os.path.getsize(dff_path) if dff_path and os.path.isfile(dff_path) else 0
+                if hasattr(self, 'update_img_status'):
+                    n_geoms = getattr(getattr(workshop, '_current_dff_model', None), 'geometry_count', 0)
+                    self.update_img_status(filename=dff_path or tab_name,
+                                           entry_count=n_geoms,
+                                           file_size=file_size,
+                                           version='DFF')
+                self._sync_taskbar_active("model")
+                self.log_message(f"→ {tab_name} (Model Workshop)")
                 return
 
             if file_type == 'COL':
@@ -5928,10 +5978,13 @@ class IMGFactory(QMainWindow):
             return None
 
 
-   #TODO below, coming soon.
     def open_dff_editor(self): #vers 1
-        """Open DFF model editor"""
-        self.log_message("DFF editor functionality coming soon")
+        """Open Model Workshop for DFF editing."""
+        try:
+            from apps.components.Model_Editor.model_workshop import open_model_workshop
+            open_model_workshop(self)
+        except Exception as e:
+            self.log_message(f"Model Workshop error: {e}")
 
     def open_ipf_editor(self): #vers 1
         """Open IPF animation editor"""

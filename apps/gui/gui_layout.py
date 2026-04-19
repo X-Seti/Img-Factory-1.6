@@ -262,6 +262,78 @@ def edit_col_file(main_window): #vers 4 # TODO; DFF file launcher
         main_window.log_message(f"Error opening COL Workshop: {e}")
 
 
+def edit_dff_file(main_window): #vers 1
+    """Open Model Workshop.
+
+    Priority 1: dir tree .dff selection  → open that file directly.
+    Priority 2: IMG table .dff entry highlighted → extract and open.
+    Priority 3: Nothing selected → open workshop standalone.
+    """
+    try:
+        import os
+        from apps.gui.gui_layout import _register_tool_taskbar
+        from apps.methods.imgfactory_svg_icons import get_tba_icon as get_model_workshop_icon
+
+        def _open(dff_path=None):
+            from apps.components.Model_Editor.model_workshop import open_model_workshop
+            w = open_model_workshop(main_window, dff_path)
+            _register_tool_taskbar(main_window, "model", "DFF",
+                get_model_workshop_icon, "Model Workshop", w)
+            msg = f"Model Workshop: {os.path.basename(dff_path)}" if dff_path else "Model Workshop opened"
+            main_window.log_message(msg)
+            return w
+
+        # Priority 1: dir tree .dff selection
+        selected = getattr(main_window, '_dir_tree_selected_file', None)
+        if not selected and hasattr(main_window, 'directory_tree'):
+            tree = main_window.directory_tree
+            for attr in ('tree', '_second_tree'):
+                t = getattr(tree, attr, None)
+                if t:
+                    item = t.currentItem()
+                    if item:
+                        from PyQt6.QtCore import Qt
+                        path = item.data(0, Qt.ItemDataRole.UserRole)
+                        if path and os.path.isfile(path):
+                            selected = path
+                            break
+        if selected and selected.lower().endswith('.dff'):
+            _open(selected); return
+
+        # Priority 2: IMG table .dff entry highlighted
+        from apps.methods.export_shared import get_active_table
+        entries_table = get_active_table(main_window)
+        selected_items = entries_table.selectedItems() if entries_table else []
+        if selected_items:
+            row = selected_items[0].row()
+            item0 = entries_table.item(row, 0)
+            filename = item0.text() if item0 else ""
+            if filename.lower().endswith('.dff'):
+                img = getattr(main_window, 'current_img', None)
+                if img and hasattr(img, 'entries') and 0 <= row < len(img.entries):
+                    entry = img.entries[row]
+                    try:
+                        import tempfile
+                        data = img.read_entry_data(entry)
+                        if data:
+                            tmp = tempfile.NamedTemporaryFile(
+                                delete=False, suffix='.dff',
+                                prefix=os.path.splitext(filename)[0] + '_')
+                            tmp.write(data); tmp.close()
+                            _open(tmp.name); return
+                    except Exception:
+                        pass
+                _open(); return
+
+        # Priority 3: standalone
+        _open()
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Model Workshop error: {e}")
+
+
 class IMGFactoryGUILayout:
     """Handles the complete GUI layout for IMG Factory 1.6 with theme system"""
     
@@ -361,7 +433,7 @@ class IMGFactoryGUILayout:
             # Editor methods
             'edit_col_file': lambda: edit_col_file(self.main_window),
             'edit_txd_file': lambda: edit_txd_file(self.main_window),
-            'edit_dff_file': lambda: self._log_missing_method('edit_dff_file'),
+            'edit_dff_file': lambda: edit_dff_file(self.main_window),
             'edit_ipf_file': lambda: self._log_missing_method('edit_ipf_file'),
             'edit_ide_file': lambda: getattr(self.main_window, 'open_ide_editor_docked', lambda: getattr(self.main_window, 'open_ide_editor', lambda: None)())(),
             'edit_ipl_file': lambda: self._open_ipl_workshop(),

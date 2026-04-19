@@ -780,24 +780,70 @@ def analyze_col_file_dialog(main_window): #vers 3
         return False
 
 # Other file type functions (keeping existing stubs for now)
-def edit_dff_model(main_window, row): #vers 1
-    """Edit DFF model"""
-    main_window.log_message(f"Edit DFF model from row {row} - not yet implemented")
+def edit_dff_model(main_window, row): #vers 2
+    """Extract DFF from IMG and open in Model Workshop."""
+    try:
+        import os, tempfile
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+        if not table:
+            main_window.log_message("No active table for DFF edit")
+            return
+        item = table.item(row, 0)
+        if not item:
+            return
+        filename = item.text()
+        img = getattr(main_window, 'current_img', None)
+        if img and hasattr(img, 'entries') and 0 <= row < len(img.entries):
+            entry = img.entries[row]
+            data = img.read_entry_data(entry)
+            if data:
+                tmp = tempfile.NamedTemporaryFile(
+                    delete=False, suffix='.dff',
+                    prefix=os.path.splitext(filename)[0] + '_')
+                tmp.write(data); tmp.close()
+                from apps.components.Model_Editor.model_workshop import open_model_workshop
+                open_model_workshop(main_window, tmp.name)
+                main_window.log_message(f"Model Workshop: {filename}")
+                return
+        main_window.log_message(f"Could not extract {filename} from IMG")
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        main_window.log_message(f"DFF edit error: {e}")
 
 
-def edit_txd_textures(main_window, row): #vers 1
-    """Edit TXD textures"""
-    main_window.log_message(f"Edit TXD textures from row {row} - not yet implemented")
+def edit_txd_textures(main_window, row): #vers 2
+    """Extract TXD from IMG and open in TXD Workshop."""
+    try:
+        import os, tempfile
+        from apps.methods.export_shared import get_active_table
+        table = get_active_table(main_window)
+        if not table:
+            return
+        item = table.item(row, 0)
+        if not item:
+            return
+        filename = item.text()
+        img = getattr(main_window, 'current_img', None)
+        if img and hasattr(img, 'entries') and 0 <= row < len(img.entries):
+            entry = img.entries[row]
+            txd_name = os.path.splitext(filename)[0]
+            if hasattr(main_window, 'open_txd_workshop_docked'):
+                main_window.open_txd_workshop_docked(txd_name=filename)
+                return
+        main_window.log_message(f"Could not open {filename} in TXD Workshop")
+    except Exception as e:
+        main_window.log_message(f"TXD edit error: {e}")
 
 
-def view_dff_model(main_window, row): #vers 1
-    """View DFF model"""
-    main_window.log_message(f"View DFF model from row {row} - not yet implemented")
+def view_dff_model(main_window, row): #vers 2
+    """View DFF model - same as edit_dff_model."""
+    edit_dff_model(main_window, row)
 
 
-def view_txd_textures(main_window, row): #vers 1
-    """View TXD textures"""
-    main_window.log_message(f"View TXD textures from row {row} - not yet implemented")
+def view_txd_textures(main_window, row): #vers 2
+    """View TXD textures - same as edit."""
+    edit_txd_textures(main_window, row)
 
 
 def replace_selected_entry(main_window, row): #vers 1
