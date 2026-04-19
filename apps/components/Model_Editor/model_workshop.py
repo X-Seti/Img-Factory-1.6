@@ -6957,14 +6957,22 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             offset += st_size  # advance past struct payload
             if tex_count <= 0 or tex_count > 4096:
                 return textures
-            # Borrow TXDWorkshop._parse_single_texture
+            # Use a real TXDWorkshop instance (created headlessly once, cached).
+            # The stub approach fails because _parse_single_texture calls many
+            # other self.* methods internally (_decompress_texture, etc.).
             from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
-            # Create minimal instance with just txd_version_id set
-            class _MinimalTXD:
-                txd_version_id = main_version
-                def _parse_single_texture(self, d, off, idx, rw_version=0):
-                    return TXDWorkshop._parse_single_texture(self, d, off, idx, rw_version)
-            parser = _MinimalTXD()
+            parser = getattr(ModelWorkshop, '_txd_parser_cache', None)
+            if parser is None:
+                try:
+                    parser = TXDWorkshop(main_window=None)
+                    ModelWorkshop._txd_parser_cache = parser
+                except Exception as _e:
+                    print(f"TXDWorkshop init failed: {_e}")
+                    return textures
+            # Set version for this TXD
+            parser.txd_version_id  = main_version
+            parser.txd_device_id   = 2
+            parser.txd_version_str = ''
             for i in range(tex_count):
                 if offset + 12 > len(data):
                     break
@@ -9421,39 +9429,28 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             print(f"_select_model_by_row error: {e}")
 
 
-    def _show_collision_context_menu(self, position): #vers 4
-        """Right-click context menu for both collision model lists."""
-        # Work out which list sent the signal and find the row
+    def _show_collision_context_menu(self, position): #vers 5
+        """Right-click on mod_compact_list — DFF material/texture mode or COL mode."""
         sender = self.sender()
-        if sender is self.mod_compact_list:
-            source_list = self.mod_compact_list
-        else:
-            source_list = self.collision_list
-
+        source_list = self.mod_compact_list if sender is self.mod_compact_list else self.collision_list
         item = source_list.itemAt(position)
-        if not item:
-            # Still show thumbnail-view submenu even on empty area
-            row, model = -1, None
-        else:
-            row = source_list.row(item)
-            if row < 0: row = -1
-            models = getattr(self.current_col_file, 'models', []) if self.current_col_file else []
-            model = models[row] if 0 <= row < len(models) else None
+        row = source_list.row(item) if item else -1
 
-        menu = QMenu(self)
+        # ── DFF mode: show texture/material menu ─────────────────────────
+        if getattr(self, '_dff_adapters', None):
+            self._show_dff_material_context_menu(position, source_list, row)
+            return
 
-        # ── Thumbnail view submenu (always shown) ─────────────────────────
+        # ── COL mode: existing collision menu ─────────────────────────────
+        models = getattr(self.current_col_file, 'models', []) if self.current_col_file else []
+        model  = models[row] if 0 <= row < len(models) else None
+        menu   = QMenu(self)
+
         view_menu = menu.addMenu("Thumbnail View")
-        axes = [
-            ("Top  (XY — Z up)",    0,   0),
-            ("Front (XZ — Y fwd)", 0,  90),
-            ("Side  (YZ — X right)",90,  0),
-            ("Isometric",          45,  35),
-            ("Bottom",              0, 180),
-            ("Back",              180,  90),
-        ]
+        axes = [("Top  (XY — Z up)", 0, 0), ("Front (XZ — Y fwd)", 0, 90),
+                ("Side  (YZ — X right)", 90, 0), ("Isometric", 45, 35),
+                ("Bottom", 0, 180), ("Back", 180, 90)]
         for label, yaw, pitch in axes:
-            # Tick current selection
             is_current = (abs(self._thumb_yaw - yaw) < 0.5 and
                           abs(self._thumb_pitch - pitch) < 0.5)
             act = view_menu.addAction(("✓ " if is_current else "    ") + label)
@@ -9463,58 +9460,102 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         if model is not None:
             menu.addSeparator()
-
-            # ── Info ──────────────────────────────────────────────────────
-            details_action = menu.addAction("Show Details")
-            details_action.triggered.connect(lambda: self._show_model_details(model, row))
-
-            copy_action = menu.addAction("Copy Info to Clipboard")
-            copy_action.triggered.connect(lambda: self._copy_model_info(model, row))
-
+            menu.addAction("Show Details").triggered.connect(
+                lambda: self._show_model_details(model, row))
+            menu.addAction("Copy Info to Clipboard").triggered.connect(
+                lambda: self._copy_model_info(model, row))
             menu.addSeparator()
-
-            # ── Rename ────────────────────────────────────────────────────
-            rename_action = menu.addAction("Rename Model...")
-            rename_action.triggered.connect(lambda: self._rename_col_model(model, row))
-
+            menu.addAction("Rename Model…").triggered.connect(
+                lambda: self._rename_col_model(model, row))
             menu.addSeparator()
-
-            # ── Export / Replace ──────────────────────────────────────────
-            export_action = menu.addAction("Export Model as COL...")
-            export_action.triggered.connect(lambda: self._export_col_model(model, row))
-
-            # DFF-specific export (when a DFF is loaded)
-            if getattr(self, '_current_dff_model', None):
-                obj_action = menu.addAction("Export DFF as OBJ / MTL…")
-                obj_action.triggered.connect(self._export_dff_obj)
-
-            import_action = menu.addAction("Replace with COL file...")
-            import_action.triggered.connect(lambda: self._import_replace_col_model(row))
-
+            menu.addAction("Export Model as COL…").triggered.connect(
+                lambda: self._export_col_model(model, row))
+            menu.addAction("Replace with COL file…").triggered.connect(
+                lambda: self._import_replace_col_model(row))
             menu.addSeparator()
-
-            # ── Pin (protect from editing) ─────────────────────────────
             is_pinned = self._is_model_pinned(row)
-            pin_action = menu.addAction(
-                "📌 Unpin (allow editing)" if is_pinned else "📌 Pin (protect from editing)")
-            pin_action.triggered.connect(self._toggle_pin_selected)
+            menu.addAction(
+                "📌 Unpin" if is_pinned else "📌 Pin").triggered.connect(
+                    self._toggle_pin_selected)
 
         menu.addSeparator()
-
-        # ── Select / Sort ──────────────────────────────────────────────
-        menu.addAction("Select All  [Ctrl+A]",  self._select_all_models)
+        menu.addAction("Select All  [Ctrl+A]",     self._select_all_models)
         menu.addAction("Invert Selection  [Ctrl+I]", self._invert_selection)
-        menu.addAction("Sort…",                 self._show_sort_menu)
-
+        menu.addAction("Sort…",                     self._show_sort_menu)
         menu.addSeparator()
-
-        # ── IDE-linked operations ──────────────────────────────────────
         ide_menu = menu.addMenu("IDE Operations")
-        ide_menu.addAction("Import matched by IDE…",    self._import_via_ide)
-        ide_menu.addAction("Export matched by IDE…",    self._export_via_ide)
+        ide_menu.addAction("Import matched by IDE…",      self._import_via_ide)
+        ide_menu.addAction("Export matched by IDE…",      self._export_via_ide)
         ide_menu.addAction("Remove unreferenced by IDE…", self._remove_via_ide)
+        menu.exec(source_list.mapToGlobal(position))
+
+    def _show_dff_material_context_menu(self, position, source_list, row): #vers 1
+        """DFF mode right-click — texture and material channel operations."""
+        menu = QMenu(self)
+        adapter  = (self._dff_adapters[row]
+                    if self._dff_adapters and 0 <= row < len(self._dff_adapters)
+                    else None)
+        model    = getattr(self, '_current_dff_model', None)
+        geom     = adapter._geometry if adapter else None
+
+        # ── Geometry info header ─────────────────────────────────────────
+        if adapter:
+            info = menu.addAction(
+                f"Geometry [{row}]: {adapter.vertex_count}v  "
+                f"{adapter.face_count}f  {len(geom.materials) if geom else 0} materials")
+            info.setEnabled(False)
+            menu.addSeparator()
+
+        # ── Texture channels ─────────────────────────────────────────────
+        tex_menu = menu.addMenu("🖼  Texture Channels")
+        if geom and geom.materials:
+            for mi, mat in enumerate(geom.materials):
+                tname = getattr(mat, 'texture_name', '') or '(no texture)'
+                in_cache = tname.lower() in getattr(
+                    self.preview_widget, '_tex_cache', {})
+                status = '✓' if in_cache else '✗'
+                mat_act = tex_menu.addAction(
+                    f"{status}  Mat {mi}: {tname}")
+                mat_act.setEnabled(False)
+            tex_menu.addSeparator()
+        load_txd_act = tex_menu.addAction("Load TXD for this geometry…")
+        load_txd_act.triggered.connect(self._load_txd_into_workshop)
+
+        auto_act = tex_menu.addAction("Auto-find TXD from IDE…")
+        auto_act.triggered.connect(self._open_linked_txd)
+
+        # ── Render mode ──────────────────────────────────────────────────
+        menu.addSeparator()
+        render_menu = menu.addMenu("🎨  Render Mode")
+        pw = getattr(self, 'preview_widget', None)
+        cur_style = getattr(pw, '_render_style', 'semi') if pw else 'semi'
+        for style, label in [('wireframe', 'Wireframe'),
+                              ('semi',     'Semi-transparent'),
+                              ('solid',    'Solid'),
+                              ('textured', 'Textured')]:
+            tick = '✓ ' if cur_style == style else '    '
+            act = render_menu.addAction(tick + label)
+            if pw:
+                act.triggered.connect(
+                    lambda _=False, s=style, p=pw: p.set_render_style(s))
+
+        # ── UV info ──────────────────────────────────────────────────────
+        if geom:
+            menu.addSeparator()
+            uv_layers = getattr(geom, 'uv_layers', [])
+            uv_info = menu.addAction(
+                f"UV layers: {len(uv_layers)}  "
+                f"({'has UVs' if uv_layers else 'no UVs — textured mode won\'t work'})")
+            uv_info.setEnabled(False)
+
+        # ── Export ───────────────────────────────────────────────────────
+        menu.addSeparator()
+        if model:
+            menu.addAction("Export DFF as OBJ / MTL…").triggered.connect(
+                self._export_dff_obj)
 
         menu.exec(source_list.mapToGlobal(position))
+
 
     def _rename_col_model(self, model, row): #vers 1
         """Rename a collision model entry in the list."""
