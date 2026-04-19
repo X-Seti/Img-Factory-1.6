@@ -903,8 +903,10 @@ class DATBrowserWidget(QWidget): #vers 2
 
             if entry_type in ("IMG", "CDIMAGE"):
                 label = "IMG" if entry_type == "IMG" else "CDIMAGE"
-                tag   = f"[{phase}]" if phase == "enforced" else ""
+                tag   = f" [{phase}]" if phase == "enforced" else ""
+                # Will be updated after tree is built — placeholder for now
                 child = QTreeWidgetItem([bname + tag, label, count_str, "✓" if success else "✗ missing"])
+                child.setData(0, Qt.ItemDataRole.UserRole, path)  # store abs path
             else:
                 status = "✓" if success else "✗ missing"
                 child  = QTreeWidgetItem([bname, entry_type, str(count), status])
@@ -914,6 +916,7 @@ class DATBrowserWidget(QWidget): #vers 2
             root_item.addChild(child)
 
         self._tree.expandAll()
+        self._refresh_img_loaded_indicators()
 
     def _populate_objects(self, filter_text="", filter_type="All types"): #vers 1
         table = self._obj_table
@@ -1029,6 +1032,82 @@ class DATBrowserWidget(QWidget): #vers 2
         elif entry_type == "DAT":
             self._search_edit.setText("")
             self._type_filter.setCurrentIndex(0)
+
+    def _open_single_img_in_factory(self, abs_path: str): #vers 1
+        """Open one specific IMG file in a new IMG Factory tab."""
+        mw = self.main_window
+        if not mw or not abs_path or not os.path.isfile(abs_path):
+            return
+        if hasattr(mw, '_load_img_file_in_new_tab'):
+            mw._load_img_file_in_new_tab(abs_path)
+            if hasattr(mw, 'log_message'):
+                mw.log_message(f"Loading {os.path.basename(abs_path)} in new tab…")
+            # Refresh indicators after a short delay
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(1500, self._refresh_img_loaded_indicators)
+        else:
+            # Fallback path (no tab system)
+            self._open_img_in_factory_item_fallback(abs_path)
+
+    def _open_img_in_factory_item_fallback(self, abs_path: str): #vers 1
+        """Fallback: load IMG directly into main_window without tab system."""
+        mw = self.main_window
+        if not mw:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            img = IMGFile(abs_path)
+            img.open()
+            mw.current_img = img
+            if hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"Loaded {os.path.basename(abs_path)} ({len(img.entries)} entries)")
+            if hasattr(mw, '_populate_real_img_table'):
+                mw._populate_real_img_table(img)
+        except Exception as e:
+            if hasattr(mw, 'log_message'):
+                mw.log_message(f"IMG load error: {e}")
+
+    def _dump_single_img_txds(self, img_path: str): #vers 1
+        """Extract all TXDs from one specific IMG to a folder."""
+        from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
+        from PyQt6.QtCore import Qt
+        out_dir = QFileDialog.getExistingDirectory(
+            self, f"Dump TXDs from {os.path.basename(img_path)}")
+        if not out_dir:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(img_path)
+            arc.open()
+            txd_entries = [e for e in arc.entries
+                           if e.name.lower().endswith('.txd')]
+            prog = QProgressDialog(
+                f"Extracting TXDs from {os.path.basename(img_path)}…",
+                "Cancel", 0, len(txd_entries), self)
+            prog.setWindowModality(Qt.WindowModality.ApplicationModal)
+            prog.show()
+            extracted = skipped = 0
+            from PyQt6.QtWidgets import QApplication
+            for i, entry in enumerate(txd_entries):
+                prog.setValue(i)
+                QApplication.processEvents()
+                if prog.wasCanceled():
+                    break
+                out_path = os.path.join(out_dir, entry.name)
+                if os.path.exists(out_path):
+                    skipped += 1; continue
+                try:
+                    with open(out_path, 'wb') as f:
+                        f.write(arc.read_entry_data(entry))
+                    extracted += 1
+                except Exception:
+                    pass
+            prog.close()
+            QMessageBox.information(self, "Done",
+                f"Extracted {extracted} TXDs to {out_dir}\nSkipped (exist): {skipped}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to dump TXDs:\n{e}")
 
     def _open_img_in_factory(self, tree_item): #vers 1
         """Open the IMG archive that was clicked in the load-order tree."""
@@ -1445,37 +1524,112 @@ class DATBrowserWidget(QWidget): #vers 2
         if errors: msg += f"\nErrors: {len(errors)}"
         QMessageBox.information(self, "TXD Extract", msg)
 
+    def _get_open_img_paths(self) -> set: #vers 1
+        """Return set of normalised abs paths for every IMG open in a main_window tab."""
+        mw = self.main_window
+        if not mw or not hasattr(mw, 'main_tab_widget'):
+            return set()
+        tw = mw.main_tab_widget
+        open_paths = set()
+        for i in range(tw.count()):
+            w = tw.widget(i)
+            if w and getattr(w, 'file_type', '') == 'IMG':
+                fp = getattr(w, 'file_path', '') or ''
+                if fp:
+                    open_paths.add(os.path.normcase(fp))
+        return open_paths
+
+    def _load_all_game_imgs(self): #vers 1
+        """Open every IMG/CDIMAGE in load_log as a new IMG Factory tab."""
+        mw = self.main_window
+        if not mw or not self.loader:
+            return
+        if not hasattr(mw, '_load_img_file_in_new_tab'):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Load all IMGs",
+                "Main window does not support loading IMG tabs.")
+            return
+        open_paths = self._get_open_img_paths()
+        queued = 0
+        for _phase, etype, path, ok in self.loader.load_log:
+            if not (ok and etype in ('IMG', 'CDIMAGE') and os.path.isfile(path)):
+                continue
+            if os.path.normcase(path) in open_paths:
+                continue   # already open
+            mw._load_img_file_in_new_tab(path)
+            open_paths.add(os.path.normcase(path))
+            queued += 1
+        if hasattr(mw, 'log_message'):
+            mw.log_message(f"DAT Browser: queued {queued} IMG(s) to load")
+
     def _setup_tree_context_menu(self): #vers 1
         """Enable right-click on the load-order tree to open IDE/IPL/DAT files."""
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_tree_context_menu)
 
-    def _on_tree_context_menu(self, pos): #vers 1
+    def _refresh_img_loaded_indicators(self): #vers 1
+        """Update the Status column on IMG tree items to show [open] if loaded in IMG Factory."""
+        open_paths = self._get_open_img_paths()
+        def _walk(item):
+            etype = item.text(1)
+            if etype in ("IMG", "CDIMAGE"):
+                path = item.data(0, Qt.ItemDataRole.UserRole) or ""
+                if os.path.normcase(path) in open_paths:
+                    item.setText(3, "◉ open")
+                    from PyQt6.QtGui import QColor
+                    item.setForeground(3, QColor("#16a34a"))
+                elif item.text(3) == "◉ open":
+                    item.setText(3, "✓")
+                    item.setForeground(3, self.palette().color(
+                        self.foregroundRole()))
+            for i in range(item.childCount()):
+                _walk(item.child(i))
+        root = self._tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            _walk(root.child(i))
+
+    def _on_tree_context_menu(self, pos): #vers 2
         item = self._tree.itemAt(pos)
         if not item:
             return
         entry_type = item.text(1)
-        bname      = item.text(0)
+        bname      = item.text(0).split('[')[0].strip()
 
-        # Resolve the abs path from load_log
-        abs_path = None
-        for _phase, _etype, _path, _ok in self.loader.load_log:
-            if os.path.basename(_path) == bname and _etype == entry_type:
-                abs_path = _path
-                break
+        # Resolve abs path — prefer stored UserRole data for IMG entries
+        abs_path = item.data(0, Qt.ItemDataRole.UserRole) or None
+        if not abs_path:
+            for _phase, _etype, _path, _ok in self.loader.load_log:
+                if os.path.basename(_path) == bname and _etype == entry_type:
+                    abs_path = _path
+                    break
 
         menu = QMenu(self)
 
-        if abs_path and os.path.isfile(abs_path):
+        # ── IMG / CDIMAGE specific options ───────────────────────────────
+        if entry_type in ("IMG", "CDIMAGE"):
+            mw = self.main_window
+            if abs_path and os.path.isfile(abs_path):
+                open_act = menu.addAction(f"⊞  Open in IMG Factory tab")
+                open_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_single_img_in_factory(p))
+            load_all_act = menu.addAction("⊞  Load ALL game IMGs into IMG Factory")
+            load_all_act.triggered.connect(self._load_all_game_imgs)
+            menu.addSeparator()
+            dump_act = menu.addAction("📦  Dump all TXDs from this IMG…")
+            if abs_path and os.path.isfile(abs_path):
+                dump_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._dump_single_img_txds(p))
+            else:
+                dump_act.setEnabled(False)
+            menu.addSeparator()
+
+        elif abs_path and os.path.isfile(abs_path):
             ext = os.path.splitext(abs_path)[1].lower()
-            # Text-editable types
             if ext in (".ide", ".ipl", ".dat", ".txt", ".cfg", ".ini"):
                 edit_act = menu.addAction(f"Edit  {bname}")
                 edit_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addSeparator()
-
-            # IDE → open structured IDE Editor
             if ext == ".ide":
                 ide_act = menu.addAction("Open in IDE Editor")
                 ide_act.triggered.connect(
