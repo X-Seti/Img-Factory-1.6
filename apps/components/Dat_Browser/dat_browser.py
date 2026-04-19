@@ -599,7 +599,7 @@ class DATBrowserWidget(QWidget): #vers 2
         self._log_text.setFont(QFont("Consolas", 9))
         self._tabs.addTab(self._log_text, "Load Log")
 
-    def _make_table(self, headers): #vers 4
+    def _make_table(self, headers): #vers 5
         from apps.methods.populate_img_table import DragSelectTableWidget
         t = DragSelectTableWidget()
         t.setColumnCount(len(headers))
@@ -613,7 +613,9 @@ class DATBrowserWidget(QWidget): #vers 2
         t.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         t.customContextMenuRequested.connect(
             lambda pos, tbl=t: self._table_context_menu(tbl, pos))
-        # Opaque viewport prevents bleed-through
+        # Double-click on Objects (IDE) table → open in Model Workshop
+        t.cellDoubleClicked.connect(
+            lambda row, col, tbl=t: self._on_ide_row_double_click(tbl, row))
         t.viewport().setAutoFillBackground(True)
         return t
 
@@ -1011,11 +1013,10 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Tree click — filter to selected file ───────────────────────────────
 
-    def _on_tree_click(self, item, col): #vers 1
-        bname      = item.text(0)
+    def _on_tree_click(self, item, col): #vers 2
+        bname      = item.text(0).rstrip('[enforced]').strip()
         entry_type = item.text(1)
         if entry_type == "IDE":
-            # Filter objects table to show only entries from this IDE
             self._search_edit.blockSignals(True)
             self._search_edit.setText("")
             self._search_edit.blockSignals(False)
@@ -1023,10 +1024,136 @@ class DATBrowserWidget(QWidget): #vers 2
         elif entry_type == "IPL":
             self._tabs.setCurrentIndex(1)
             self._populate_instances_for_ipl(bname)
+        elif entry_type in ("IMG", "CDIMAGE"):
+            self._open_img_in_factory(item)
         elif entry_type == "DAT":
-            # Reset filters to show everything
             self._search_edit.setText("")
             self._type_filter.setCurrentIndex(0)
+
+    def _open_img_in_factory(self, tree_item): #vers 1
+        """Open the IMG archive that was clicked in the load-order tree."""
+        mw = self.main_window
+        if not mw:
+            return
+        # Resolve the abs path from load_log
+        bname = tree_item.text(0).split('[')[0].strip()  # strip [enforced] tag
+        abs_path = None
+        for _phase, etype, path, ok in self.loader.load_log:
+            if etype in ('IMG', 'CDIMAGE') and os.path.basename(path) == bname:
+                abs_path = path
+                break
+        if not abs_path or not os.path.isfile(abs_path):
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"IMG not found on disk: {bname}")
+            return
+        # Open in IMG Factory
+        try:
+            if hasattr(mw, 'open_img_file_path'):
+                mw.open_img_file_path(abs_path)
+            elif hasattr(mw, '_load_img_file'):
+                mw._load_img_file(abs_path)
+            elif hasattr(mw, 'load_img'):
+                mw.load_img(abs_path)
+            else:
+                # Fallback: use IMGFile directly and set as current_img
+                from apps.methods.img_core_classes import IMGFile
+                img = IMGFile(abs_path)
+                img.open()
+                mw.current_img = img
+                if hasattr(mw, 'log_message'):
+                    mw.log_message(f"Loaded IMG: {bname} ({len(img.entries)} entries)")
+                if hasattr(mw, '_populate_real_img_table'):
+                    mw._populate_real_img_table(img)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            if hasattr(mw, 'log_message'):
+                mw.log_message(f"IMG open error: {e}")
+
+    def _on_ide_row_double_click(self, table, row): #vers 1
+        """Double-click on an IDE Objects row → open DFF + TXD in Model Workshop.
+        Uses the XRef to find model_name.dff and txd_name.txd in the IMG archives."""
+        if not self.loader or not self.xref:
+            return
+        model_item = table.item(row, 1)   # Model column
+        txd_item   = table.item(row, 2)   # TXD column
+        if not model_item:
+            return
+
+        model_name = model_item.text().strip()
+        txd_name   = txd_item.text().strip() if txd_item else ''
+        mw = self.main_window
+        if not mw:
+            return
+
+        # Find DFF and TXD in IMG archives via xref
+        load_log = self.loader.load_log
+        game_root = getattr(self.xref, 'game_root', '') or ''
+        try:
+            found = self.xref.find_in_imgs(model_name, load_log, game_root)
+        except Exception as e:
+            if hasattr(mw, 'log_message'):
+                mw.log_message(f"XRef search error: {e}")
+            return
+
+        dff_img = found.get('dff')
+        txd_img = found.get('txd')
+
+        if not dff_img:
+            if hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"DFF not found: {model_name}.dff not in any loaded IMG")
+            return
+
+        # Extract DFF to tempfile
+        import tempfile
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(dff_img)
+            arc.open()
+            dff_entry = next((e for e in arc.entries
+                              if e.name.lower() == model_name.lower() + '.dff'), None)
+            if not dff_entry:
+                if hasattr(mw, 'log_message'):
+                    mw.log_message(f"DFF entry not found in {os.path.basename(dff_img)}")
+                return
+            dff_data = arc.read_entry_data(dff_entry)
+            tmp = tempfile.NamedTemporaryFile(
+                delete=False, suffix='.dff', prefix=model_name + '_')
+            tmp.write(dff_data); tmp.close()
+            dff_tmp = tmp.name
+        except Exception as e:
+            if hasattr(mw, 'log_message'):
+                mw.log_message(f"DFF extract error: {e}")
+            return
+
+        # Open Model Workshop with DFF
+        from apps.components.Model_Editor.model_workshop import open_model_workshop
+        workshop = open_model_workshop(mw, dff_tmp)
+
+        # Also load TXD if found
+        if workshop and txd_img:
+            try:
+                arc2 = IMGFile(txd_img)
+                arc2.open()
+                txd_stem = (found.get('txd_name') or txd_name or model_name).lower()
+                txd_entry = next(
+                    (e for e in arc2.entries
+                     if e.name.lower() == txd_stem + '.txd'), None)
+                if txd_entry:
+                    txd_data = arc2.read_entry_data(txd_entry)
+                    txd_tmp = tempfile.NamedTemporaryFile(
+                        delete=False, suffix='.txd', prefix=txd_stem + '_')
+                    txd_tmp.write(txd_data); txd_tmp.close()
+                    if hasattr(workshop, '_load_txd_file'):
+                        workshop._load_txd_file(txd_tmp.name)
+                    if hasattr(mw, 'log_message'):
+                        mw.log_message(
+                            f"Model Workshop: {model_name}.dff + {txd_stem}.txd")
+            except Exception as e:
+                if hasattr(mw, 'log_message'):
+                    mw.log_message(f"TXD load error: {e}")
+        elif workshop and hasattr(mw, 'log_message'):
+            mw.log_message(f"Model Workshop: {model_name}.dff (no TXD found)")
 
     def _populate_objects_for_ide(self, ide_basename: str): #vers 1
         table = self._obj_table

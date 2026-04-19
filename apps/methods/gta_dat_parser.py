@@ -935,6 +935,50 @@ class GTAWorldXRef: #vers 1
         self.col_stems:  set = set()                  # col file stem.lower()
         self.img_stems:  set = set()                  # img/cdimage archive stems
 
+    def find_in_imgs(self, stem: str, load_log: list,
+                     game_root: str = "") -> dict: #vers 1
+        """Search all IMG archives in load_log for files matching stem.
+        Returns dict with keys 'dff', 'txd', 'col' → abs path or None.
+        stem should be the model name without extension (e.g. 'landstal').
+        Also resolves the txd_name from model_map to find the TXD archive."""
+        stem_lo = stem.lower()
+        result  = {'dff': None, 'txd': None, 'col': None, 'txd_name': None}
+
+        # Get txd_name from IDE xref
+        obj = self.model_map.get(stem_lo)
+        txd_stem = obj.txd_name.lower() if (obj and obj.txd_name
+                   and obj.txd_name.lower() not in ('null', '')) else None
+        result['txd_name'] = txd_stem
+
+        # Scan IMG archives in load log
+        try:
+            from apps.methods.img_core_classes import IMGFile
+        except ImportError:
+            return result
+
+        img_paths = [p for _, et, p, ok in load_log
+                     if ok and et in ('IMG', 'CDIMAGE') and os.path.isfile(p)]
+
+        for img_path in img_paths:
+            if result['dff'] and result['txd'] and result['col']:
+                break
+            try:
+                arc = IMGFile(img_path)
+                arc.open()
+                for entry in arc.entries:
+                    name_lo = entry.name.lower()
+                    entry_stem = name_lo.rsplit('.', 1)[0]
+                    if not result['dff'] and entry_stem == stem_lo and name_lo.endswith('.dff'):
+                        result['dff'] = img_path
+                    if not result['col'] and entry_stem == stem_lo and name_lo.endswith('.col'):
+                        result['col'] = img_path
+                    if not result['txd'] and txd_stem and entry_stem == txd_stem and name_lo.endswith('.txd'):
+                        result['txd'] = img_path
+            except Exception:
+                continue
+
+        return result
+
     def tooltip_for(self, filename: str) -> str: #vers 5
         """Return a single-line hover tooltip for an IMG entry filename, or '' if nothing known.
 
