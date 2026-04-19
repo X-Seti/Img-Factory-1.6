@@ -6942,8 +6942,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             pw = getattr(self, 'preview_widget', None)
             if pw and hasattr(pw, 'load_textures'):
                 pw.load_textures(textures)
-                if len(textures) > 0:
+                if len(textures) > 0 and getattr(pw, '_model', None) is not None:
+                    # Only auto-switch if a model is already loaded
                     pw.set_render_style('textured')
+                elif len(textures) > 0:
+                    # Store style for when model loads
+                    pw._render_style = 'textured' 
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "TXD Error",
@@ -7611,15 +7615,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 stats_item.setData(Qt.ItemDataRole.UserRole, i)
                 tbl.setItem(row, 1, stats_item)
 
-            # Connect selection → viewport update (once, before selectRow)
-            try:
-                tbl.itemSelectionChanged.disconnect(self._on_dff_geom_selected)
-            except Exception:
-                pass
-            try:
-                tbl.itemSelectionChanged.disconnect(self._on_dff_geom_selected_tbl)
-            except Exception:
-                pass
+            # Disconnect ALL existing handlers, then connect DFF-specific one
+            for handler in (self._on_compact_col_selected,
+                            self._on_dff_geom_selected,
+                            self._on_dff_geom_selected_tbl):
+                try:
+                    tbl.itemSelectionChanged.disconnect(handler)
+                except Exception:
+                    pass
             tbl.itemSelectionChanged.connect(self._on_dff_geom_selected_tbl)
 
             # selectRow(0) fires the signal which calls _show_dff_geometry(0)
@@ -8689,11 +8692,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
 
 
-    def _populate_left_panel_from_img(self, img): #vers 1
-        """Populate the left panel list from an already-open IMGFile object."""
+    def _populate_left_panel_from_img(self, img): #vers 2
+        """Populate the left panel list from an already-open IMGFile object.
+        Also stores img as self.current_img so _extract_col_from_img can read entries."""
         lw = getattr(self, 'col_list_widget', None)
         if lw is None:
             return
+        # Store so clicking entries can extract data
+        self.current_img = img
         from PyQt6.QtGui import QColor
         model_exts = ('.dff', '.col', '.txd')
         lw.clear()
@@ -8846,8 +8852,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             _verts    = getattr(model, 'vertices', [])
             _faces    = getattr(model, 'faces',    [])
             _mats     = getattr(model, 'materials', [])   # DFF materials
-            _uv_layer = getattr(getattr(model, '_geometry', model),
-                                'uv_layers', [[]])[0] if True else []
+            # UV layer from DFFGeometryAdapter._geometry or direct Geometry object
+            _geom_obj  = getattr(model, '_geometry', model)
+            _uv_layers = getattr(_geom_obj, 'uv_layers', [])
+            _uv_layer  = _uv_layers[0] if _uv_layers else []
             _tex_cache = getattr(vp, '_tex_cache', {}) if vp else {}
 
             if _verts and _faces:
@@ -8890,9 +8898,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     elif render_style == 'textured':
                         tex_img = None
                         if mat_obj:
-                            tname = getattr(mat_obj, 'texture_name', '')
-                            if tname:
-                                tex_img = _tex_cache.get(tname.lower())
+                            tname = (getattr(mat_obj, 'texture_name', '') or '').strip()
+                            if tname and tname.lower() not in ('', 'null', 'none'):
+                                # Try exact name, then stem without extension
+                                tex_img = (_tex_cache.get(tname.lower()) or
+                                           _tex_cache.get(tname.lower().split('.')[0]))
                         if tex_img and _uv_layer and all(i < len(_uv_layer) for i in idx):
                             # Affine UV mapping via QTransform per triangle
                             uvs = [_uv_layer[i] for i in idx]
