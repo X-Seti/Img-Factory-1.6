@@ -8598,14 +8598,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                         item.setForeground(QColor('#ffa726'))
                     lw.addItem(item)
 
-            # Also populate collision_list (COL-only sub-view)
+            # col_entries count for log only — collision_list (QTableWidget) is
+            # populated after COL parsing, not from raw IMG entries
             col_entries = [e for e in model_entries if e.name.lower().endswith('.col')]
-            if hasattr(self, 'collision_list') and col_entries:
-                self.collision_list.clear()
-                for entry in col_entries:
-                    item = QListWidgetItem(entry.name)
-                    item.setData(Qt.ItemDataRole.UserRole, entry)
-                    self.collision_list.addItem(item)
 
             n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
             n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
