@@ -18528,7 +18528,13 @@ class TexturePreviewWidget(QLabel): #vers 1
                     else:
                         painter.fillRect(x, y, checker_size, checker_size, dark_gray)
         elif self.bg_color:
-            painter.fillRect(self.rect(), self.bg_color)
+            # Use palette(base) if no explicit color set (theme-aware)
+          bg = self.bg_color
+          if bg is None:
+              from PyQt6.QtGui import QColor
+              win = self.palette().color(self.palette().ColorRole.Window)
+              bg = QColor(245, 245, 245) if win.lightness() > 128 else QColor(42, 42, 42)
+          painter.fillRect(self.rect(), bg)
         else:
             painter.fillRect(self.rect(), QColor(42, 42, 42))
 
@@ -18554,7 +18560,8 @@ class ZoomablePreview(QLabel): #vers 2
         self.pan_offset = QPoint(0, 0)
         self.dragging = False
         self.drag_start = QPoint(0, 0)
-        self.bg_color = QColor(42, 42, 42)
+        # Theme-aware default: set in first paintEvent from palette
+        self.bg_color = None   # None = auto from palette
         self.background_mode = 'solid'
         self._checkerboard_size = 16
         self.placeholder_text = "No texture loaded"
@@ -18603,7 +18610,13 @@ class ZoomablePreview(QLabel): #vers 2
         if self.background_mode == 'checkerboard':
             self._draw_checkerboard(painter)
         else:
-            painter.fillRect(self.rect(), self.bg_color)
+            # Use palette(base) if no explicit color set (theme-aware)
+          bg = self.bg_color
+          if bg is None:
+              from PyQt6.QtGui import QColor
+              win = self.palette().color(self.palette().ColorRole.Window)
+              bg = QColor(245, 245, 245) if win.lightness() > 128 else QColor(42, 42, 42)
+          painter.fillRect(self.rect(), bg)
 
         # Draw image if available
         if self.scaled_pixmap and not self.scaled_pixmap.isNull():
@@ -18687,10 +18700,16 @@ class ZoomablePreview(QLabel): #vers 2
         self.update()
 
 
-    def set_background_color(self, color): #vers 1
-        """Set solid background color"""
+    def set_background_color(self, color): #vers 2
+        """Set solid background color (None = auto from palette)"""
         self.background_mode = 'solid'
         self.bg_color = color
+        self.update()
+
+    def reset_background_to_theme(self): #vers 1
+        """Reset background to follow the current theme palette."""
+        self.bg_color = None
+        self.background_mode = 'solid'
         self.update()
 
 

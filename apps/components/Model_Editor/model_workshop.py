@@ -119,7 +119,9 @@ class COL3DViewport(QWidget): #vers 2
         self._show_mesh    = True
         self._backface     = False
         self._render_style = 'semi'
+        # Default background — will be overridden by _set_theme_bg() on first paint
         self._bg_color     = (25, 25, 35)
+        self._theme_bg_set = False  # flag so we only auto-set once
         # drag state
         self._left_drag    = None
         self._right_drag   = None
@@ -184,7 +186,17 @@ class COL3DViewport(QWidget): #vers 2
         self._flip_v = not self._flip_v; self.update()
 
     def set_background_color(self, rgb):
-        self._bg_color = rgb; self.update()
+        self._bg_color = rgb; self._theme_bg_set = True; self.update()
+
+    def _set_theme_bg(self, palette): #vers 1
+        """Set background from palette — light theme=white, dark=near-black."""
+        if self._theme_bg_set:
+            return  # user manually picked a colour — respect it
+        win = palette.color(palette.ColorRole.Window)
+        if win.lightness() > 128:   # light theme
+            self._bg_color = (245, 245, 245)
+        else:                        # dark theme
+            self._bg_color = (25, 25, 35)
 
     def set_show_spheres(self, v): self._show_spheres = v; self.update()
     def set_show_boxes(self,   v): self._show_boxes   = v; self.update()
@@ -711,6 +723,7 @@ class COL3DViewport(QWidget): #vers 2
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
+        self._set_theme_bg(self.palette())
         r2, g2, b2 = self._bg_color
         p.fillRect(self.rect(), QColor(r2, g2, b2))
 
@@ -6569,14 +6582,86 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
 #------ Col functions
 
-    def _open_dff_standalone(self): #vers 1
-        """Open a DFF file directly — skips COL/all-files filter."""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open DFF Model",
-            os.path.dirname(getattr(self, '_current_dff_path', '')),
-            "DFF Models (*.dff);;All Files (*)")
-        if path:
-            self.open_dff_file(path)
+    def _open_dff_standalone(self): #vers 2
+        """Open DFF + optionally TXD in one combined dialog sequence."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QCheckBox
+        start_dir = os.path.dirname(getattr(self, '_current_dff_path', ''))
+
+        # ── Dialog ───────────────────────────────────────────────────────
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Open DFF Model")
+        dlg.setMinimumWidth(520)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(8)
+
+        def _row(label_text, placeholder, browse_filter):
+            row = QHBoxLayout()
+            lbl = QLabel(label_text)
+            lbl.setFixedWidth(44)
+            edit = QLineEdit()
+            edit.setPlaceholderText(placeholder)
+            btn = QPushButton("…")
+            btn.setFixedWidth(28)
+            row.addWidget(lbl); row.addWidget(edit, 1); row.addWidget(btn)
+            lay.addLayout(row)
+            return edit, btn
+
+        dff_edit, dff_btn = _row("DFF:", "Select a DFF model file…",
+                                 "DFF Models (*.dff)")
+        txd_edit, txd_btn = _row("TXD:", "Select matching TXD (optional)…",
+                                 "TXD Files (*.txd)")
+
+        auto_txd_cb = QCheckBox("Auto-find TXD with same name in same folder")
+        auto_txd_cb.setChecked(True)
+        lay.addWidget(auto_txd_cb)
+
+        def _pick_dff():
+            p, _ = QFileDialog.getOpenFileName(
+                dlg, "Open DFF", start_dir, "DFF Models (*.dff);;All Files (*)")
+            if p:
+                dff_edit.setText(p)
+                # Auto-fill TXD if same-name .txd exists alongside
+                if auto_txd_cb.isChecked():
+                    txd_guess = os.path.splitext(p)[0] + '.txd'
+                    if os.path.isfile(txd_guess):
+                        txd_edit.setText(txd_guess)
+
+        def _pick_txd():
+            start = os.path.dirname(dff_edit.text()) or start_dir
+            p, _ = QFileDialog.getOpenFileName(
+                dlg, "Open TXD", start, "TXD Files (*.txd);;All Files (*)")
+            if p:
+                txd_edit.setText(p)
+
+        dff_btn.clicked.connect(_pick_dff)
+        txd_btn.clicked.connect(_pick_txd)
+
+        btn_row = QHBoxLayout()
+        ok_btn     = QPushButton("Open")
+        ok_btn.setDefault(True)
+        cancel_btn = QPushButton("Cancel")
+        btn_row.addStretch()
+        btn_row.addWidget(ok_btn)
+        btn_row.addWidget(cancel_btn)
+        lay.addLayout(btn_row)
+        ok_btn.clicked.connect(dlg.accept)
+        cancel_btn.clicked.connect(dlg.reject)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        dff_path = dff_edit.text().strip()
+        txd_path = txd_edit.text().strip()
+
+        if not dff_path:
+            return
+
+        # Load DFF
+        self.open_dff_file(dff_path)
+
+        # Load TXD if provided
+        if txd_path and os.path.isfile(txd_path):
+            self._load_txd_file(txd_path)
 
     def _open_txd_standalone(self): #vers 2
         """Open a TXD file — loads textures into Model Workshop AND opens TXD Workshop."""

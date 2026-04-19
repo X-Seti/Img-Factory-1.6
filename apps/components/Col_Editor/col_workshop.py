@@ -82,6 +82,7 @@ class COL3DViewport(QWidget): #vers 2
         self._backface     = False
         self._render_style = 'semi'
         self._bg_color     = (25, 25, 35)
+        self._theme_bg_set = False
         # drag state
         self._left_drag    = None
         self._right_drag   = None
@@ -146,7 +147,17 @@ class COL3DViewport(QWidget): #vers 2
         self._flip_v = not self._flip_v; self.update()
 
     def set_background_color(self, rgb):
-        self._bg_color = rgb; self.update()
+        self._bg_color = rgb; self._theme_bg_set = True; self.update()
+
+    def _set_theme_bg(self, palette): #vers 1
+        """Set background from palette — light theme=white, dark=near-black."""
+        if self._theme_bg_set:
+            return
+        win = palette.color(palette.ColorRole.Window)
+        if win.lightness() > 128:
+            self._bg_color = (245, 245, 245)
+        else:
+            self._bg_color = (25, 25, 35)
 
     def set_show_spheres(self, v): self._show_spheres = v; self.update()
     def set_show_boxes(self,   v): self._show_boxes   = v; self.update()
@@ -673,6 +684,7 @@ class COL3DViewport(QWidget): #vers 2
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
+        self._set_theme_bg(self.palette())
         r2, g2, b2 = self._bg_color
         p.fillRect(self.rect(), QColor(r2, g2, b2))
 
