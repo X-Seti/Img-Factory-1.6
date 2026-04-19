@@ -7075,13 +7075,20 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                     f"No .col entries found in {img_name}")
                 return False
 
-            # Populate the collision list widget with COL entries
-            if hasattr(self, 'collision_list'):
-                self.collision_list.clear()
-                for entry in col_entries:
-                    item = QListWidgetItem(entry.name)
-                    item.setData(Qt.ItemDataRole.UserRole, entry)
-                    self.collision_list.addItem(item)
+            # Populate the compact left-panel list with COL entries
+            # col_compact_list is the QTableWidget visible in default view
+            if hasattr(self, 'col_compact_list'):
+                tbl = self.col_compact_list
+                tbl.setRowCount(0)
+                for i, entry in enumerate(col_entries):
+                    tbl.insertRow(i)
+                    cell = QTableWidgetItem(entry.name)
+                    cell.setData(Qt.ItemDataRole.UserRole, entry)
+                    tbl.setItem(i, 0, cell)
+                    # Blank detail cell so delegate doesn't crash
+                    tbl.setItem(i, 1, QTableWidgetItem(""))
+                    tbl.setRowHeight(i, 22)
+                self._img_col_entries = col_entries   # store for selection handler
 
             count = len(col_entries)
             if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -9693,11 +9700,22 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         workshop.setWindowFlags(Qt.WindowType.Widget)
         tab_layout.addWidget(workshop)
 
-        if img_path and img_path.lower().endswith('.col'):
-            if hasattr(workshop, 'open_col_file'):
-                workshop.open_col_file(img_path)
-            elif hasattr(workshop, 'load_col_file'):
-                workshop.load_col_file(img_path)
+        if img_path:
+            ext = img_path.lower()
+            if ext.endswith('.col'):
+                if hasattr(workshop, 'open_col_file'):
+                    workshop.open_col_file(img_path)
+                elif hasattr(workshop, 'load_col_file'):
+                    workshop.load_col_file(img_path)
+            elif ext.endswith('.img'):
+                workshop.load_from_img_archive(img_path)
+        elif main_window:
+            # No explicit file — load from current IMG if available
+            img = getattr(main_window, 'current_img', None)
+            if img:
+                fp = getattr(img, 'file_path', '') or ''
+                if fp and os.path.isfile(fp):
+                    workshop.load_from_img_archive(fp)
 
         tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "COL Workshop"
         try:

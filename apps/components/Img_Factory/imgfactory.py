@@ -3259,15 +3259,45 @@ class IMGFactory(QMainWindow):
             print(f"DAT Browser integration failed: {e}")
 
 
-    def _create_initial_tab(self): #vers 5
-        #./components/img_close_functions.py: - def _create_initial_tab[self]
-        """Create initial empty tab with a standalone table"""
+    def _create_initial_tab(self): #vers 6
+        """Create initial tab — welcome screen + empty table for IMG drops."""
         from apps.methods.populate_img_table import DragSelectTableWidget
         tab_widget = QWidget()
         tab_widget.setAutoFillBackground(True)
         tab_layout = QVBoxLayout(tab_widget)
         tab_layout.setContentsMargins(0, 0, 0, 0)
         tab_layout.setSpacing(0)
+
+        # ── Welcome screen (shown when no file loaded) ────────────────────
+        try:
+            from apps.components.Img_Factory.welcome_screen import WelcomeScreen
+            ws = WelcomeScreen(main_window=self)
+            ws.open_img_requested.connect(self.open_img_file)
+            ws.open_dat_browser.connect(
+                lambda: self.gui_layout._open_dat_browser()
+                if hasattr(self, 'gui_layout') and
+                hasattr(self.gui_layout, '_open_dat_browser') else None)
+            ws.open_col_workshop.connect(
+                lambda: self.gui_layout.method_mappings.get(
+                    'edit_col_file', lambda: None)()
+                if hasattr(self, 'gui_layout') else None)
+            ws.open_txd_workshop.connect(
+                lambda: self.gui_layout.method_mappings.get(
+                    'edit_txd_file', lambda: None)()
+                if hasattr(self, 'gui_layout') else None)
+            ws.open_model_workshop.connect(
+                lambda: self.gui_layout.method_mappings.get(
+                    'edit_dff_file', lambda: None)()
+                if hasattr(self, 'gui_layout') else None)
+            ws.open_dir_tree.connect(
+                lambda: self.gui_layout.method_mappings.get(
+                    'switch_to_dir', lambda: None)()
+                if hasattr(self, 'gui_layout') else None)
+            tab_widget._welcome_screen = ws
+            tab_layout.addWidget(ws)
+        except Exception as e:
+            self.log_message(f"Welcome screen error: {e}")
+            import traceback; traceback.print_exc()
 
         # ── Tab header bar: tab name + search button ──────────────────────
         from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton
@@ -3316,8 +3346,9 @@ class IMGFactory(QMainWindow):
         tab_widget.table_ref = table
         tab_widget.file_type = 'NONE'
         tab_widget.file_object = None
+        tab_widget.table_ref   = None   # set when file loads into this tab
 
-        self.main_tab_widget.addTab(tab_widget, "No File")
+        self.main_tab_widget.addTab(tab_widget, "Home")
 
 
     def _find_table_in_tab(self, tab_widget): #vers 1
