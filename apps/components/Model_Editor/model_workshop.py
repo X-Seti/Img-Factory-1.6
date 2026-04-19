@@ -737,7 +737,9 @@ class COL3DViewport(QWidget): #vers 2
                              ('solid',    'Solid [V]'),
                              ('textured', 'Textured [V]')]:
             tick = '✓ ' if self._render_style == style else '    '
-            m.addAction(tick+label, lambda s=style: self.set_render_style(s))
+            m.addAction(tick+label, lambda s=style: (
+                self.set_render_style(s) if hasattr(self, 'set_render_style')
+                else setattr(self, '_render_style', s) or self.update()))
         m.exec(event.globalPos())
 
     def _set_angles(self, yaw, pitch):
@@ -7609,19 +7611,23 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 stats_item.setData(Qt.ItemDataRole.UserRole, i)
                 tbl.setItem(row, 1, stats_item)
 
-            # Show first geometry in viewport
-            if self._dff_adapters:
-                self._show_dff_geometry(0)
-
-            # Connect selection → viewport update (once)
+            # Connect selection → viewport update (once, before selectRow)
             try:
                 tbl.itemSelectionChanged.disconnect(self._on_dff_geom_selected)
             except Exception:
                 pass
+            try:
+                tbl.itemSelectionChanged.disconnect(self._on_dff_geom_selected_tbl)
+            except Exception:
+                pass
             tbl.itemSelectionChanged.connect(self._on_dff_geom_selected_tbl)
 
+            # selectRow(0) fires the signal which calls _show_dff_geometry(0)
             if tbl.rowCount() > 0:
                 tbl.selectRow(0)
+            elif self._dff_adapters:
+                # No table rows somehow — show manually
+                self._show_dff_geometry(0)
 
         except Exception as e:
             import traceback; traceback.print_exc()
