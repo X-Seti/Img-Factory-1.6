@@ -571,6 +571,15 @@ class DATBrowserWidget(QWidget): #vers 2
         self._tree.setColumnWidth(2, 55)
         self._tree.setColumnWidth(3, 55)
         self._tree.setAlternatingRowColors(True)
+        self._tree.setAutoFillBackground(True)
+        self._tree.setStyleSheet(
+            "QTreeWidget { background-color: palette(base); color: palette(text); "
+            "border: 1px solid palette(mid); } "
+            "QTreeWidget::item:selected { background-color: palette(highlight); "
+            "color: palette(highlightedText); } "
+            "QHeaderView::section { background-color: palette(button); "
+            "color: palette(buttonText); border: none; padding: 2px; }")
+        self._tree.viewport().setAutoFillBackground(True)
         self._tree.itemClicked.connect(self._on_tree_click)
         ll.addWidget(self._tree)
         splitter.addWidget(left)
@@ -1128,10 +1137,19 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Tree right-click — open source file in editor ─────────────────────
 
-    def _on_theme_changed(self): #vers 1
-        """Refresh palette-driven colors when theme switches."""
+    def _on_theme_changed(self): #vers 2
+        """Refresh all palette-driven colors when theme switches."""
         self.setStyleSheet(
             "DATBrowserWidget { background-color: palette(window); color: palette(windowText); }")
+        # Refresh tree
+        if hasattr(self, '_tree'):
+            self._tree.setStyleSheet(
+                "QTreeWidget { background-color: palette(base); color: palette(text); "
+                "border: 1px solid palette(mid); } "
+                "QTreeWidget::item:selected { background-color: palette(highlight); "
+                "color: palette(highlightedText); } "
+                "QHeaderView::section { background-color: palette(button); "
+                "color: palette(buttonText); border: none; padding: 2px; }")
         self.update()
         self.repaint()
 

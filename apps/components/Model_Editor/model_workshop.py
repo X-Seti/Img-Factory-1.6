@@ -11003,33 +11003,51 @@ import shutil
 import sys
 
 
-def open_model_workshop(main_window, dff_path=None): #vers 1
-    """Open Model Workshop — mirrors open_col_workshop pattern."""
-    return open_workshop(main_window, dff_path)
-
-def open_workshop(main_window, img_path=None): #vers 3
-    """Open Workshop from main window - works with or without IMG"""
+def open_model_workshop(main_window, dff_path=None): #vers 2
+    """Open Model Workshop — routes DFF/COL/IMG correctly."""
     try:
-        workshop = ModelWorkshop(main_window, main_window)
-
-        if img_path:
-            # Check if it's a col file or IMG file
-            if img_path.lower().endswith('.col'):
-                # Load standalone col file
-                workshop.open_col_file(img_path)
-            else:
-                # Load from IMG archive
-                workshop.load_from_img_archive(img_path)
+        # Try to dock in main window tab if available
+        if main_window and hasattr(main_window, 'main_tab_widget'):
+            tw = main_window.main_tab_widget
+            from PyQt6.QtWidgets import QWidget, QVBoxLayout
+            container = QWidget()
+            layout = QVBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            workshop = ModelWorkshop(main_window=main_window, parent=container)
+            layout.addWidget(workshop)
+            idx = tw.addTab(container, "Model Workshop")
+            tw.setCurrentIndex(idx)
         else:
-            # Open in standalone mode (no IMG loaded)
-            if main_window and hasattr(main_window, 'log_message'):
-                main_window.log_message(App_name + " opened in standalone mode")
+            # Standalone window
+            workshop = ModelWorkshop(main_window=main_window)
+            workshop.setWindowFlags(Qt.WindowType.Window)
+            workshop.setWindowTitle(f"Model Workshop — {App_name}")
+            workshop.resize(1200, 800)
+            workshop.show()
 
-        workshop.show()
+        # Route the file
+        if dff_path:
+            ext = dff_path.lower()
+            if ext.endswith('.dff'):
+                workshop.open_dff_file(dff_path)
+            elif ext.endswith('.col'):
+                workshop.open_col_file(dff_path)
+            elif ext.endswith('.img'):
+                workshop.load_from_img_archive(dff_path)
+        else:
+            if main_window and hasattr(main_window, 'log_message'):
+                main_window.log_message("Model Workshop opened")
+
         return workshop
     except Exception as e:
-        QMessageBox.critical(main_window, App_name * " Error", f"Failed to open: {str(e)}")
+        import traceback; traceback.print_exc()
+        if main_window and hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Model Workshop error: {e}")
         return None
+
+def open_workshop(main_window, img_path=None): #vers 4
+    """Legacy wrapper — calls open_model_workshop."""
+    return open_model_workshop(main_window, img_path)
 
 
 def open_col_workshop(main_window, img_path=None): #vers 2
