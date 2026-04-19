@@ -689,35 +689,36 @@ def show_dff_texture_list(main_window, row): #vers 3
             main_window.log_message(f"DFF texture list error: {e}")
 
 
-def show_dff_model_viewer(main_window, row):
-    """Show DFF model in viewer - needed for context menu"""
+def show_dff_model_viewer(main_window, row): #vers 2
+    """Extract DFF from current IMG and open in Model Workshop."""
     try:
-        if hasattr(main_window, 'current_img') and main_window.current_img:
-            if 0 <= row < len(main_window.current_img.entries):
-                entry = main_window.current_img.entries[row]
-                entry_info = {
-                    'name': entry.name,
-                    'is_dff': entry.name.lower().endswith('.dff'),
-                    'size': entry.size,
-                    'offset': entry.offset
-                }
-                
-                if entry_info['is_dff']:
-                    # Import from comprehensive fix if available
-                    try:
-                        from apps.components.Img_Factory.comprehensive_fix import show_dff_model_viewer as dff_viewer_func
-                        dff_viewer_func(main_window, row, entry_info)
-                    except ImportError:
-                        # Fallback implementation
-                        from PyQt6.QtWidgets import QMessageBox
-                        QMessageBox.information(main_window, "DFF Model Viewer", 
-                                              f"DFF Model Viewer for: {entry.name}\n\n"
-                                              f"Note: 3D model viewer functionality would be implemented here.\n"
-                                              f"This would load and display the DFF model in a 3D viewport.")
-                else:
-                    from PyQt6.QtWidgets import QMessageBox
-                    QMessageBox.warning(main_window, "DFF Model Viewer", 
-                                      "Selected file is not a DFF file")
+        import os, tempfile
+        img = getattr(main_window, 'current_img', None)
+        if not img or not hasattr(img, 'entries'):
+            return
+        if not (0 <= row < len(img.entries)):
+            return
+        entry = img.entries[row]
+        if not entry.name.lower().endswith('.dff'):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(main_window, "Model Workshop",
+                "Selected file is not a DFF model.")
+            return
+        data = img.read_entry_data(entry)
+        if not data:
+            return
+        tmp = tempfile.NamedTemporaryFile(
+            delete=False, suffix='.dff',
+            prefix=os.path.splitext(entry.name)[0] + '_')
+        tmp.write(data); tmp.close()
+        from apps.components.Model_Editor.model_workshop import open_model_workshop
+        open_model_workshop(main_window, tmp.name)
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Model Workshop: {entry.name}")
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Model Workshop error: {e}")
     except Exception as e:
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Error showing DFF model viewer: {str(e)}")

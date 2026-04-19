@@ -346,7 +346,8 @@ def show_dff_model_viewer_from_selection(main_window):
                 row = selected_items[0].row()
                 entry_info = get_entry_info(main_window, row)
                 if entry_info and entry_info['is_dff']:
-                    show_dff_model_viewer(main_window, row, entry_info)
+                    from apps.core.right_click_actions import show_dff_model_viewer
+                    show_dff_model_viewer(main_window, row)
                 else:
                     from PyQt6.QtWidgets import QMessageBox
                     QMessageBox.information(main_window, "DFF Model Viewer",

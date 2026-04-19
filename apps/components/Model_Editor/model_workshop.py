@@ -4822,48 +4822,53 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(3)
 
-        self.open_col_btn = QPushButton("Open")
-        self.open_col_btn.setFont(self.button_font)
-        self.open_col_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-        self.open_col_btn.setIconSize(QSize(20, 20))
-        self.open_col_btn.setToolTip("Open DFF/COL model file")
-        self.open_col_btn.clicked.connect(self._open_file)
+        def _icon_btn(icon, tooltip, slot, enabled=True):
+            b = QPushButton()
+            b.setIcon(icon)
+            b.setIconSize(QSize(20, 20))
+            b.setFixedSize(28, 28)
+            b.setToolTip(tooltip)
+            b.clicked.connect(slot)
+            b.setEnabled(enabled)
+            return b
+
+        # Load (DFF + TXD + COL multi-select)
+        self.open_col_btn = _icon_btn(
+            self.icon_factory.open_icon(color=icon_color),
+            "Load — DFF model, TXD textures, COL collision (multi-select)",
+            self._open_dff_standalone)
         btn_layout.addWidget(self.open_col_btn)
 
-        self.save_col_btn = QPushButton("Save")
-        self.save_col_btn.setFont(self.button_font)
-        self.save_col_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
-        self.save_col_btn.setIconSize(QSize(20, 20))
-        self.save_col_btn.setToolTip("Save model file")
-        self.save_col_btn.clicked.connect(self._save_file)
-        self.save_col_btn.setEnabled(True)
+        # Save
+        self.save_col_btn = _icon_btn(
+            self.icon_factory.save_icon(color=icon_color),
+            "Save current file",
+            self._save_file)
         btn_layout.addWidget(self.save_col_btn)
 
-        self.export_col_btn = QPushButton("Extract")
-        self.export_col_btn.setFont(self.button_font)
-        self.export_col_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
-        self.export_col_btn.setIconSize(QSize(20, 20))
-        self.export_col_btn.setToolTip("Export all COL models")
-        self.export_col_btn.clicked.connect(self._export_col_data)
-        self.export_col_btn.setEnabled(True)
+        # Import (other formats)
+        self.import_btn = _icon_btn(
+            self.icon_factory.import_icon(color=icon_color)
+                if hasattr(self.icon_factory, 'import_icon')
+                else self.icon_factory.open_icon(color=icon_color),
+            "Import — MDL, OBJ, FBX and other formats",
+            self._import_model)
+        btn_layout.addWidget(self.import_btn)
+
+        # Export (COL, CST, OBS, 3DS, OBJ…)
+        self.export_col_btn = _icon_btn(
+            self.icon_factory.export_icon(color=icon_color)
+                if hasattr(self.icon_factory, 'export_icon')
+                else self.icon_factory.package_icon(color=icon_color),
+            "Export — COL, CST, OBS, 3DS, OBJ and other formats",
+            self._export_model_menu)
         btn_layout.addWidget(self.export_col_btn)
 
-        self.export_obj_btn = QPushButton("OBJ")
-        self.export_obj_btn.setFont(self.button_font)
-        self.export_obj_btn.setIcon(self.icon_factory.export_icon(color=icon_color))
-        self.export_obj_btn.setIconSize(QSize(20, 20))
-        self.export_obj_btn.setToolTip("Export DFF as Wavefront OBJ")
-        self.export_obj_btn.clicked.connect(self._export_dff_obj)
-        self.export_obj_btn.setEnabled(False)   # enabled on DFF load
-        btn_layout.addWidget(self.export_obj_btn)
-
-        self.undo_col_btn = QPushButton()
-        self.undo_col_btn.setFont(self.button_font)
-        self.undo_col_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
-        self.undo_col_btn.setIconSize(QSize(20, 20))
-        self.undo_col_btn.setToolTip("Undo last change")
-        self.undo_col_btn.clicked.connect(self._undo_last_action)
-        self.undo_col_btn.setEnabled(True)
+        # Undo
+        self.undo_col_btn = _icon_btn(
+            self.icon_factory.undo_icon(color=icon_color),
+            "Undo last change",
+            self._undo_last_action)
         btn_layout.addWidget(self.undo_col_btn)
 
         btn_layout.addStretch()
@@ -6562,6 +6567,52 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
 
 #------ Col functions
+
+    def _import_model(self): #vers 1
+        """Import model from external format (MDL, OBJ, FBX…)."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Model",
+            os.path.dirname(getattr(self, '_current_dff_path', '') or ''),
+            "Model Files (*.obj *.mdl *.fbx *.3ds *.dae);;OBJ (*.obj);;MDL (*.mdl);;All Files (*)")
+        if not path:
+            return
+        ext = os.path.splitext(path)[1].lower()
+        if ext == '.obj':
+            self._import_obj(path)
+        else:
+            QMessageBox.information(self, "Import",
+                f"Import of {ext.upper()} format is not yet implemented.\n"
+                f"Supported: OBJ")
+
+    def _import_obj(self, path: str): #vers 1
+        """Import Wavefront OBJ as a new DFF geometry."""
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Import OBJ",
+            f"OBJ import: {os.path.basename(path)}\n(Not yet implemented)")
+
+    def _export_model_menu(self): #vers 1
+        """Show export format menu: COL, CST, OBS, 3DS, OBJ…"""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.addAction("Export as OBJ (Wavefront)",  self._export_dff_obj)
+        menu.addAction("Export as COL (collision)",   self._export_col_data)
+        menu.addSeparator()
+        menu.addAction("Export as 3DS (3D Studio)",
+            lambda: self._export_not_implemented("3DS"))
+        menu.addAction("Export as CST (Crysis)",
+            lambda: self._export_not_implemented("CST"))
+        menu.addAction("Export as OBS (OpenBVE)",
+            lambda: self._export_not_implemented("OBS"))
+        menu.addAction("Export as FBX",
+            lambda: self._export_not_implemented("FBX"))
+        menu.exec(self.export_col_btn.mapToGlobal(
+            self.export_col_btn.rect().bottomLeft()))
+
+    def _export_not_implemented(self, fmt: str): #vers 1
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, f"Export {fmt}",
+            f"{fmt} export is not yet implemented.")
 
     def _open_dff_standalone(self): #vers 2
         """Open DFF + optionally TXD in one combined dialog sequence."""
@@ -8511,50 +8562,65 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             QMessageBox.critical(self, "Error", f"Failed to open IMG:\n{str(e)}")
 
 
-    def load_from_img_archive(self, img_path): #vers 2
-        """Load all COL entries from an IMG archive and populate the collision list"""
+    def load_from_img_archive(self, img_path): #vers 3
+        """Load IMG archive — populates left panel with all DFF/COL/TXD entries."""
         try:
             from apps.methods.img_core_classes import IMGFile
-            from apps.methods.col_workshop_loader import COLFile
 
             img = IMGFile(img_path)
             img.open()
             self.current_img = img
+            self._current_img_path = img_path
 
             img_name = os.path.basename(img_path)
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Scanning {img_name} for COL entries...")
+                self.main_window.log_message(f"Model Workshop: scanning {img_name}…")
 
-            col_entries = [e for e in img.entries
-                           if getattr(e, 'name', '').lower().endswith('.col')]
+            model_exts = ('.dff', '.col', '.txd')
+            model_entries = [e for e in img.entries
+                             if getattr(e, 'name', '').lower().endswith(model_exts)]
 
-            if not col_entries:
-                QMessageBox.information(self, "No COL Files",
-                    f"No .col entries found in {img_name}")
-                return False
+            # Populate left panel with all model entries
+            lw = getattr(self, 'col_list_widget', None)
+            if lw is not None:
+                lw.clear()
+                for entry in model_entries:
+                    name = entry.name
+                    ext  = os.path.splitext(name)[1].lower()
+                    item = QListWidgetItem(name)
+                    item.setData(Qt.ItemDataRole.UserRole, entry)
+                    from PyQt6.QtGui import QColor
+                    if ext == '.dff':
+                        item.setForeground(QColor('#4db6ac'))
+                    elif ext == '.col':
+                        item.setForeground(QColor('#ef5350'))
+                    elif ext == '.txd':
+                        item.setForeground(QColor('#ffa726'))
+                    lw.addItem(item)
 
-            # Populate the collision list widget with COL entries
-            if hasattr(self, 'collision_list'):
+            # Also populate collision_list (COL-only sub-view)
+            col_entries = [e for e in model_entries if e.name.lower().endswith('.col')]
+            if hasattr(self, 'collision_list') and col_entries:
                 self.collision_list.clear()
                 for entry in col_entries:
                     item = QListWidgetItem(entry.name)
                     item.setData(Qt.ItemDataRole.UserRole, entry)
                     self.collision_list.addItem(item)
 
-            count = len(col_entries)
+            n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
+            n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
-                    f"Loaded {count} COL entr{'ies' if count != 1 else 'y'} from {img_name}")
+                    f"Model Workshop: {img_name} — "
+                    f"{n_dff} DFF, {len(col_entries)} COL, {n_txd} TXD")
 
-            self.setWindowTitle(f"COL Workshop: {img_name}")
+            self.setWindowTitle(f"Model Workshop: {img_name}")
             return True
 
         except Exception as e:
-            print(f"Error loading from IMG archive: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to load from IMG:\n{str(e)}")
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Failed to load from IMG:\n{e}")
             return False
-
-
     def _analyze_collision(self): #vers 1
         """Analyze current COL file"""
         try:
