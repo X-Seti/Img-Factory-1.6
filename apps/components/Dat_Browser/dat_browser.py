@@ -454,7 +454,7 @@ class DATBrowserWidget(QWidget): #vers 2
         from PyQt6.QtCore import Qt as _Qt
         self.setAttribute(_Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         # Let Qt palette drive the background — theme-aware
-        self.setStyleSheet("DATBrowserWidget { background-color: palette(window); color: palette(windowText); }")
+        self._apply_theme_stylesheet()
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
@@ -553,13 +553,11 @@ class DATBrowserWidget(QWidget): #vers 2
         # Main splitter: left = load-order tree  |  right = data tabs
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setAutoFillBackground(True)
-        splitter.setStyleSheet("QSplitter { background-color: palette(window); }")
         root.addWidget(splitter, 1)
 
         # Left — file load-order tree
         left = QWidget()
         left.setAutoFillBackground(True)
-        left.setStyleSheet("QWidget { background-color: palette(window); }")
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(QLabel("Load Order:"))
@@ -572,16 +570,7 @@ class DATBrowserWidget(QWidget): #vers 2
         self._tree.setColumnWidth(3, 55)
         self._tree.setAlternatingRowColors(True)
         self._tree.setAutoFillBackground(True)
-        self._tree.setStyleSheet(
-            "QTreeWidget { background-color: palette(base); color: palette(text); "
-            "border: 1px solid palette(mid); } "
-            "QTreeWidget::item:selected { background-color: palette(highlight); "
-            "color: palette(highlightedText); } "
-            "QHeaderView::section { background-color: palette(button); "
-            "color: palette(buttonText); border: none; padding: 2px; }")
         self._tree.viewport().setAutoFillBackground(True)
-        self._tree.viewport().setStyleSheet(
-            "background-color: palette(base); color: palette(text);")
         self._tree.itemClicked.connect(self._on_tree_click)
         ll.addWidget(self._tree)
         splitter.addWidget(left)
@@ -592,9 +581,6 @@ class DATBrowserWidget(QWidget): #vers 2
         # Right — tabbed result tables
         self._tabs = QTabWidget()
         self._tabs.setAutoFillBackground(True)
-        self._tabs.setStyleSheet(
-            "QTabWidget::pane { background-color: palette(window); }"
-        )
         splitter.addWidget(self._tabs)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 3)
@@ -1139,21 +1125,84 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Tree right-click — open source file in editor ─────────────────────
 
+    def _apply_theme_stylesheet(self): #vers 1
+        """Apply comprehensive theme-aware stylesheet to all child widgets."""
+        self.setStyleSheet("""
+            DATBrowserWidget {
+                background-color: palette(window);
+                color: palette(windowText);
+            }
+            QTreeWidget, QTableWidget, QListWidget {
+                background-color: palette(base);
+                alternate-background-color: palette(alternateBase);
+                color: palette(text);
+                border: 1px solid palette(mid);
+                gridline-color: palette(mid);
+            }
+            QTreeWidget::item, QTableWidget::item {
+                background-color: transparent;
+                color: palette(text);
+                padding: 1px;
+            }
+            QTreeWidget::item:selected, QTableWidget::item:selected {
+                background-color: palette(highlight);
+                color: palette(highlightedText);
+            }
+            QTreeWidget::item:hover, QTableWidget::item:hover {
+                background-color: palette(midlight);
+            }
+            QHeaderView::section {
+                background-color: palette(button);
+                color: palette(buttonText);
+                border: none;
+                border-right: 1px solid palette(mid);
+                border-bottom: 1px solid palette(mid);
+                padding: 3px 6px;
+            }
+            QTabWidget::pane {
+                background-color: palette(window);
+                border: 1px solid palette(mid);
+            }
+            QTabBar::tab {
+                background-color: palette(button);
+                color: palette(buttonText);
+                border: 1px solid palette(mid);
+                padding: 4px 12px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: palette(window);
+                color: palette(windowText);
+                border-bottom: none;
+            }
+            QTabBar::tab:hover {
+                background-color: palette(midlight);
+            }
+            QSplitter::handle {
+                background-color: palette(mid);
+            }
+            QLineEdit, QComboBox {
+                background-color: palette(base);
+                color: palette(text);
+                border: 1px solid palette(mid);
+                padding: 2px 4px;
+            }
+            QProgressBar {
+                background-color: palette(base);
+                color: palette(text);
+                border: 1px solid palette(mid);
+            }
+            QScrollBar:vertical, QScrollBar:horizontal {
+                background-color: palette(base);
+            }
+        """)
+
     def _on_theme_changed(self): #vers 2
         """Refresh all palette-driven colors when theme switches."""
-        self.setStyleSheet(
-            "DATBrowserWidget { background-color: palette(window); color: palette(windowText); }")
+        self._apply_theme_stylesheet()
         # Refresh tree
         if hasattr(self, '_tree'):
-            self._tree.setStyleSheet(
-                "QTreeWidget { background-color: palette(base); color: palette(text); "
-                "border: 1px solid palette(mid); } "
-                "QTreeWidget::item:selected { background-color: palette(highlight); "
-                "color: palette(highlightedText); } "
-                "QHeaderView::section { background-color: palette(button); "
-                "color: palette(buttonText); border: none; padding: 2px; }")
-            self._tree.viewport().setStyleSheet(
-                "background-color: palette(base); color: palette(text);")
+            pass  # master stylesheet handles all children
         self.update()
         self.repaint()
 
@@ -1440,7 +1489,7 @@ def show_dat_browser(main_window) -> bool: #vers 2
         # Reapply stylesheet — palette is reset on re-parent
         try:
             mw = main_window
-            widget.setStyleSheet("DATBrowserWidget { background-color: palette(window); color: palette(windowText); }")
+            widget._apply_theme_stylesheet()
         except Exception:
             pass
         widget.update()
