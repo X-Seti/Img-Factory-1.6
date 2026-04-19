@@ -2,6 +2,68 @@
 
 ## April 2026 — TXD Workshop UI, DP5 Workshop major update, Bug fixes
 
+### Build 234 — DAT Browser: IMG/CDIMAGE fix, theme-aware UI overhaul
+
+**DAT Browser — IMG/CDIMAGE archives now visible:**
+- `gta_dat_parser.py _inject_enforced_imgs #vers 3`: `models/gta3.img` is always
+  loaded by the game executable for GTA3, VC, SA and SOL — it never appears in
+  any `.dat` file. Now injected into `load_log` with phase `"enforced"` so the
+  DAT Browser tree, Dump TXDs, and XRef all see it.
+- `_process_dat #vers 3`: IMG/CDIMAGE entries from `.dat` files are now appended
+  to `load_log` (previously only IDE/IPL were logged). This makes all CDIMAGE paths
+  in SOL's `gta_sol.dat` (`sol\cdimages\*.img`) visible in the tree.
+- `load #vers 5` + `load_from_dat`: both call `_inject_enforced_imgs(game_root)`
+  before parsing, so `gta3.img` appears whether loading via game root or direct dat path.
+- Dedup by normalised basename stem prevents `gta3.img` / `radartex.img` appearing
+  twice when they are listed in both the enforced set and an explicit CDIMAGE line.
+- DAT Browser load-order tree now shows IMG/CDIMAGE entries with file size badge.
+
+**DAT Browser — theme-aware stylesheet (no more black bleed):**
+- Root cause: `widget.setStyleSheet(big_ss)` overrides `QApplication` global
+  stylesheet for that widget and all children, causing black fallback on anything
+  not explicitly styled. Dir Tree worked because it never set a widget stylesheet.
+- Fix: `_apply_theme_stylesheet #vers 3` now sets only a minimal 2-rule override
+  (`alternate-background-color` for row colouring). Everything else inherits from
+  `QApplication.instance().setStyleSheet(app_settings.get_stylesheet())`.
+- `_on_theme_changed #vers 4` simplified — just calls `_apply_theme_stylesheet()`.
+
+**All workshops — same stylesheet fix:**
+- `col_workshop`, `txd_workshop`, `model_workshop`, `dp5_workshop`
+  `_apply_theme #vers 5`: applies `app_settings.get_stylesheet()` to `QApplication`
+  then calls `self.setStyleSheet("")` to clear any widget-level override.
+
+**Shared theme module `apps/methods/workshop_theme.py` (new):**
+- `get_theme_colors(main_window)` — reads app_settings, merges with dark defaults.
+- `build_stylesheet(colors)` — comprehensive stylesheet covering all Qt widget types.
+- `apply_workshop_theme(widget, main_window)` — used by dp5, dolphin dialog,
+  directory tree as a fallback when no app_settings is connected.
+
+**Model Workshop — open_model_workshop #vers 2:**
+- Docks in `main_tab_widget` tab when available; floats standalone otherwise.
+- Routes by extension: `.dff → open_dff_file()`, `.col → open_col_file()`,
+  `.img → load_from_img_archive()`.
+- Fixed `App_name * " Error"` string multiplication bug → correct error log.
+
+**Model Workshop — Combined DFF + TXD open dialog (`_open_dff_standalone #vers 2`):**
+- Two-row dialog: DFF path + optional TXD path.
+- Auto-find TXD checkbox: if same-stem `.txd` exists alongside the `.dff`,
+  fills TXD field automatically on Browse.
+- On accept: `open_dff_file(dff)` then `_load_txd_file(txd)` in one step.
+
+**Preview backgrounds — all three workshops:**
+- `COL3DViewport._set_theme_bg(palette)`: auto-picks `(245,245,245)` on light
+  themes, `(25,25,35)` on dark. Fires on first `paintEvent` only; user colour
+  picks lock `_theme_bg_set=True`.
+- `ZoomablePreview.bg_color = None` (was `QColor(42,42,42)`): paintEvent reads
+  palette lightness and picks appropriate background automatically.
+
+**gui_context.py — stub functions implemented:**
+- `edit_dff_model #vers 2`: extracts DFF from IMG to tempfile → Model Workshop.
+- `edit_txd_textures #vers 2`: calls `open_txd_workshop_docked`.
+- `view_dff_model`, `view_txd_textures`: delegate to edit counterparts.
+
+**imgfactory.py — `_on_tab_changed`:** added ModelWorkshop detection block.
+
 ### Build 234 — DP5 Workshop: new tools, palette, FGBGSwatch, zoom, splitter
 
 **DP5 Workshop — New brush tools (in gadget grid):**

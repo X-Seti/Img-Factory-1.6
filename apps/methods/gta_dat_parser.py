@@ -632,10 +632,18 @@ class GTAWorldLoader: #vers 3
         self.stats       = ParseStats()
         self.progress_cb = None
 
-    def load(self, game_root: str, progress_cb=None) -> bool: #vers 4
-        """Full load from a game root directory."""
+    def load(self, game_root: str, progress_cb=None) -> bool: #vers 5
+        """Full load from a game root directory.
+        Always enforces models/gta3.img (called from game exe, not from any .dat)
+        so TXD Workshop and the Dump TXDs feature can always find it.
+        For SOL, also enforces models/radartex.img if present."""
         self.progress_cb = progress_cb
         self._reset()
+
+        # ── Inject exe-loaded archives (not in any .dat) ──────────────────
+        # gta3.img is always loaded by the game exe — enforce it here so
+        # the DAT Browser, Dump TXDs, and xref can see it for all games.
+        self._inject_enforced_imgs(game_root)
 
         # ── Locate phase-1 (default/special) dat ─────────────────────────
         default_path = find_default_dat(game_root, self.game)
@@ -662,6 +670,42 @@ class GTAWorldLoader: #vers 3
         self.stats.instances      = len(self.instances)
         return True
 
+    def _inject_enforced_imgs(self, game_root: str): #vers 3
+        """Inject models/gta3.img which the game exe always loads directly —
+        it never appears in any .dat file for GTA3, VC, SA or SOL.
+        We deduplicate both by normalised abs-path and by basename so that
+        a .dat that happens to list gta3.img explicitly won't cause a second
+        entry."""
+        # Only gta3.img is exe-loaded and absent from every game's .dat.
+        # radartex.img IS listed in gta_sol.dat so we don't enforce it;
+        # the _process_dat() call will pick it up from the dat entries.
+        rel = os.path.join("models", "gta3.img")
+
+        # Build sets for fast dedup: normalised full path + basename
+        seen_abs   = {os.path.normcase(p) for _, _, p, _ in self.load_log}
+        seen_stems = {os.path.splitext(os.path.basename(p))[0].lower()
+                      for _, _, p, _ in self.load_log
+                      if _.lower() in ('img', 'cdimage')
+                      for _ in ('')}  # dummy — rebuild below
+        seen_stems = {os.path.splitext(os.path.basename(p))[0].lower()
+                      for _, et, p, _ in self.load_log
+                      if et in ('IMG', 'CDIMAGE')}
+
+        if 'gta3' in seen_stems:
+            return   # already in log from a .dat
+
+        abs_path = _resolve_ci(game_root, rel)
+        if not abs_path:
+            abs_path = os.path.normpath(os.path.join(game_root, rel))
+
+        if os.path.normcase(abs_path) in seen_abs:
+            return   # already logged by abs path
+
+        exists = os.path.isfile(abs_path)
+        self.load_log.append(("enforced", "IMG", abs_path, exists))
+        if exists:
+            self.stats.img_files += 1
+
     def load_from_dat(self, dat_path: str, game_root: str = "",
                       progress_cb=None) -> bool: #vers 1
         """Load from an explicit .dat path."""
@@ -678,6 +722,7 @@ class GTAWorldLoader: #vers 3
                 self._progress(0, 1, f"Phase 1: {default_name}")
                 self.default_dat.parse(default_path, game_root)
                 self._process_dat(self.default_dat, "default")
+        self._inject_enforced_imgs(game_root)
         self._progress(0, 1, f"Phase 2: {os.path.basename(dat_path)}")
         self.main_dat.parse(dat_path, game_root)
         self._process_dat(self.main_dat, "main")
@@ -685,11 +730,16 @@ class GTAWorldLoader: #vers 3
         self.stats.instances      = len(self.instances)
         return True
 
-    def _process_dat(self, dat: DATParser, phase: str): #vers 2
+    def _process_dat(self, dat: DATParser, phase: str): #vers 3
         ide_list = [e for e in dat.entries if e.directive == "IDE"]
         ipl_list = [e for e in dat.entries if e.directive == "IPL"]
+        img_list = dat.img_entries()   # IMG + CDIMAGE entries
         total = len(ide_list) + len(ipl_list)
         done  = 0
+        # Log IMG/CDIMAGE archives so the tree and dump feature see them
+        for entry in img_list:
+            exists = entry.exists if hasattr(entry, 'exists') else os.path.isfile(entry.abs_path)
+            self.load_log.append((phase, "IMG", entry.abs_path, exists))
         for entry in ide_list:
             done += 1
             self._progress(done, total, f"IDE: {os.path.basename(entry.path)}")
@@ -701,7 +751,7 @@ class GTAWorldLoader: #vers 3
         self.stats.ide_files += len(ide_list)
         self.stats.ipl_files += len(ipl_list)
         self.stats.col_files += len(dat.col_entries())
-        self.stats.img_files += len(dat.img_entries())
+        self.stats.img_files += len(img_list)
 
     def _load_ide(self, entry: DATEntry, phase: str): #vers 2
         if not entry.exists:

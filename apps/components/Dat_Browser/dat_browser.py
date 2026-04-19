@@ -893,11 +893,23 @@ class DATBrowserWidget(QWidget): #vers 2
             elif entry_type == "IPL":
                 count = sum(1 for i in self.loader.instances
                             if i.source_ipl == bname)
+            elif entry_type in ("IMG", "CDIMAGE"):
+                # Show file size as proxy for entry count
+                try:
+                    sz = os.path.getsize(path) if success else 0
+                    count_str = f"{sz // 1024 // 1024} MB" if sz > 1024*1024 else (f"{sz // 1024} KB" if sz else "—")
+                except Exception:
+                    count_str = "—"
             else:
                 count = 0
 
-            status = "✓" if success else "✗ missing"
-            child  = QTreeWidgetItem([bname, entry_type, str(count), status])
+            if entry_type in ("IMG", "CDIMAGE"):
+                label = "IMG" if entry_type == "IMG" else "CDIMAGE"
+                tag   = f"[{phase}]" if phase == "enforced" else ""
+                child = QTreeWidgetItem([bname + tag, label, count_str, "✓" if success else "✗ missing"])
+            else:
+                status = "✓" if success else "✗ missing"
+                child  = QTreeWidgetItem([bname, entry_type, str(count), status])
             if not success:
                 for col in range(4):
                     child.setForeground(col, QColor(204, 68, 68))  # error red — intentionally fixed
