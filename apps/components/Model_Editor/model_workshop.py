@@ -68,7 +68,7 @@ class _DFFGeometryAdapter:
     class _FaceAdapter:
         """Wraps a DFF Triangle so the viewport can read it as a COL face."""
         __slots__ = ('vertex_indices', 'material', 'a', 'b', 'c')
-    def __init__(self, tri):
+        def __init__(self, tri):
             self.vertex_indices = (tri.v1, tri.v2, tri.v3)
             self.a = tri.v1
             self.b = tri.v2
@@ -7254,12 +7254,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             pw = getattr(self, 'preview_widget', None)
             if pw and hasattr(pw, 'load_textures'):
                 pw.load_textures(textures)
-                if len(textures) > 0 and getattr(pw, '_model', None) is not None:
-                    # Only auto-switch if a model is already loaded
+                if len(textures) > 0:
+                    # Always switch to textured when TXD loads
                     pw.set_render_style('textured')
-                elif len(textures) > 0:
-                    # Store style for when model loads
-                    pw._render_style = 'textured' 
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "TXD Error",
