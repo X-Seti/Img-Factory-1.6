@@ -223,7 +223,9 @@ class COL3DViewport(QWidget): #vers 2
                     pass
         self.update()
 
-        def set_render_style(self, s): self._render_style  = s; self.update()
+    def set_render_style(self, s): #vers 1
+        """Set render style: wireframe / semi / solid / textured."""
+        self._render_style = s; self.update()
 
     def toggle_gizmo_mode(self):
         self._gizmo_mode = 'rotate' if self._gizmo_mode == 'translate' else 'translate'
