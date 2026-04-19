@@ -1296,6 +1296,15 @@ class DolphinFileDialog(QDialog): #vers 1
         """Apply current file filter"""
         self._refresh_directory()
 
+    def _apply_theme(self): #vers 1
+        """Apply theme via shared workshop_theme module."""
+        try:
+            from apps.methods.workshop_theme import apply_workshop_theme
+            mw = getattr(self, 'main_window', None)
+            apply_workshop_theme(self, mw)
+        except Exception as e:
+            print(f"File browser theme error: {e}")
+
     def _apply_theme_styling(self): #vers 2
         """Apply IMG Factory theme to dialog"""
         try:

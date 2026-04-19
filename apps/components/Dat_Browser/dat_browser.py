@@ -1235,12 +1235,15 @@ class DATBrowserWidget(QWidget): #vers 2
         """
         self.setStyleSheet(ss)
 
-    def _on_theme_changed(self): #vers 2
-        """Refresh all palette-driven colors when theme switches."""
-        self._apply_theme_stylesheet()
-        # Refresh tree
-        if hasattr(self, '_tree'):
-            pass  # master stylesheet handles all children
+    def _on_theme_changed(self): #vers 3
+        """Refresh all colors when theme switches."""
+        self._apply_theme_stylesheet()   # DAT-specific row colors
+        try:
+            from apps.methods.workshop_theme import apply_workshop_theme
+            mw = getattr(self, 'main_window', None)
+            apply_workshop_theme(self, mw)
+        except Exception:
+            pass
         self.update()
         self.repaint()
 

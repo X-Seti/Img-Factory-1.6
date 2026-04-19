@@ -58,6 +58,16 @@ class DirectoryTreeWidget(QWidget):
         self.setup_ui()
         self.setup_connections()
         
+    def _apply_theme(self): #vers 1
+        """Apply theme via shared workshop_theme module."""
+        try:
+            from apps.methods.workshop_theme import apply_workshop_theme
+            mw = getattr(self, 'main_window', None)
+            apply_workshop_theme(self, mw)
+        except Exception as e:
+            print(f"Directory tree theme error: {e}")
+
+
     def setup_ui(self): #vers 1
         """Setup directory tree UI"""
         layout = QVBoxLayout(self)
@@ -149,6 +159,9 @@ class DirectoryTreeWidget(QWidget):
         
     def apply_tree_styling(self): #vers 2
         """Apply theme-aware styling using IMG Factory theme system"""
+        if hasattr(getattr(self, "app_settings", None), "theme_changed"):
+            self.app_settings.theme_changed.connect(self._apply_theme)
+
         try:
             # Get theme colors from main window's app_settings
             theme_colors = self.get_theme_colors()

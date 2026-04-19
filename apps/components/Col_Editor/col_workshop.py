@@ -6172,43 +6172,12 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         print("======================\n")
 
 
-    def _apply_theme(self): #vers 3
-        """Apply theme from app_settings"""
+    def _apply_theme(self): #vers 4
+        """Apply theme from app_settings using shared workshop_theme module."""
         try:
-            # Use self.app_settings first, then fall back to main_window
-            app_settings = None
-            if hasattr(self, 'app_settings') and self.app_settings:
-                app_settings = self.app_settings
-            elif self.main_window and hasattr(self.main_window, 'app_settings'):
-                app_settings = self.main_window.app_settings
-
-            if app_settings:
-                # Get current theme
-                theme_name = app_settings.current_settings.get('theme', 'App_Factory')
-                stylesheet = app_settings.get_stylesheet()
-
-                # Apply stylesheet
-                self.setStyleSheet(stylesheet)
-
-                # Force update
-                self.update()
-
-                print(f"Theme applied: {theme_name}")
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Theme applied: {theme_name}")
-            else:
-                # Fallback dark theme
-                self.setStyleSheet("""
-                    QWidget {
-                        background-color: #2b2b2b;
-                        color: #e0e0e0;
-                    }
-                    QListWidget, QTableWidget, QTextEdit {
-                        background-color: #1e1e1e;
-                        border: 1px solid #3a3a3a;
-                    }
-                """)
-                print("No app_settings found, using fallback theme")
+            from apps.methods.workshop_theme import apply_workshop_theme
+            mw = getattr(self, 'main_window', None)
+            apply_workshop_theme(self, mw)
         except Exception as e:
             print(f"Theme application error: {e}")
 

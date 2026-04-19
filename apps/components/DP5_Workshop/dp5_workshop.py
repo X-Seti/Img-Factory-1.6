@@ -10857,30 +10857,14 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
             QMessageBox.warning(self, "PNG Sequence Error", str(e))
 
 
-    def _apply_theme(self): #vers 2
+    def _apply_theme(self): #vers 4
+        """Apply theme via shared workshop_theme module."""
         try:
-            app_settings = self.app_settings
-            if not app_settings and self.main_window:
-                app_settings = getattr(self.main_window, 'app_settings', None)
-            if app_settings:
-                self.setStyleSheet(app_settings.get_stylesheet())
-            else:
-                self.setStyleSheet("""
-                    QWidget { background-color: #2b2b2b; color: #e0e0e0; }
-                    QTextEdit, QListWidget { background-color: #1e1e1e; border: 1px solid #3a3a3a; }
-                    QGroupBox { border: 1px solid #3a3a3a; margin-top: 6px; }
-                    QPushButton {
-                        background-color: #3c3f41; border: 1px solid #555;
-                        color: #e0e0e0; padding: 2px 4px;
-                    }
-                    QPushButton:checked { background-color: #1976d2; color: #fff; }
-                    QPushButton:hover   { background-color: #4a4d50; }
-                """)
-            self._update_color_swatches()
-            # Re-apply menubar style after theme so colours match
-            self._apply_menu_bar_style()
+            from apps.methods.workshop_theme import apply_workshop_theme
+            mw = getattr(self, 'main_window', None)
+            apply_workshop_theme(self, mw)
         except Exception as e:
-            print(f"[DP5 Workshop] Theme error: {e}")
+            print(f"DP5 theme error: {e}")
 
 
     def _refresh_icons(self): #vers 1
