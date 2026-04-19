@@ -748,6 +748,10 @@ class GTAWorldLoader: #vers 3
             done += 1
             self._progress(done, total, f"IPL: {os.path.basename(entry.path)}")
             self._load_ipl(entry, phase)
+        # Log COLFILE entries so DAT Browser tree can display and open them
+        for entry in dat.col_entries():
+            ok = os.path.isfile(entry.abs_path)
+            self.load_log.append((phase, "COLFILE", entry.abs_path, ok))
         self.stats.ide_files += len(ide_list)
         self.stats.ipl_files += len(ipl_list)
         self.stats.col_files += len(dat.col_entries())

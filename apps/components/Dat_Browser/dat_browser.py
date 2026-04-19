@@ -907,6 +907,13 @@ class DATBrowserWidget(QWidget): #vers 2
                 # Will be updated after tree is built — placeholder for now
                 child = QTreeWidgetItem([bname + tag, label, count_str, "✓" if success else "✗ missing"])
                 child.setData(0, Qt.ItemDataRole.UserRole, path)  # store abs path
+            elif entry_type == "COLFILE":
+                # COL file — show island index from extra field in abs path
+                status = "✓" if success else "✗ missing"
+                child  = QTreeWidgetItem([bname, "COL", str(count), status])
+                child.setData(0, Qt.ItemDataRole.UserRole, path)
+                if not success:
+                    child.setToolTip(0, f"Not found: {path}")
             else:
                 status = "✓" if success else "✗ missing"
                 child  = QTreeWidgetItem([bname, entry_type, str(count), status])
@@ -1029,9 +1036,37 @@ class DATBrowserWidget(QWidget): #vers 2
             self._populate_instances_for_ipl(bname)
         elif entry_type in ("IMG", "CDIMAGE"):
             self._open_img_in_factory(item)
+        elif entry_type == "COL":
+            self._open_col_in_workshop(item)
         elif entry_type == "DAT":
             self._search_edit.setText("")
             self._type_filter.setCurrentIndex(0)
+
+    def _open_col_in_workshop(self, tree_item): #vers 1
+        """Click on a COL tree entry → open in COL Workshop."""
+        path = tree_item.data(0, Qt.ItemDataRole.UserRole) or ''
+        if not path:
+            bname = tree_item.text(0)
+            for _ph, et, p, ok in self.loader.load_log:
+                if et == 'COLFILE' and os.path.basename(p) == bname:
+                    path = p; break
+        self._open_col_in_workshop_path(path)
+
+    def _open_col_in_workshop_path(self, abs_path: str): #vers 1
+        """Open a standalone .col file in COL Workshop."""
+        mw = self.main_window
+        if not abs_path or not os.path.isfile(abs_path):
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL file not found: {abs_path}")
+            return
+        try:
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            w = open_col_workshop(mw, abs_path)
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL Workshop: {os.path.basename(abs_path)}")
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL Workshop error: {e}")
 
     def _open_single_img_in_factory(self, abs_path: str): #vers 1
         """Open one specific IMG file in a new IMG Factory tab."""
@@ -1621,6 +1656,14 @@ class DATBrowserWidget(QWidget): #vers 2
                     lambda _=False, p=abs_path: self._dump_single_img_txds(p))
             else:
                 dump_act.setEnabled(False)
+            menu.addSeparator()
+
+        elif entry_type == "COL":
+            abs_path = item.data(0, Qt.ItemDataRole.UserRole) or abs_path
+            if abs_path and os.path.isfile(abs_path):
+                open_col_act = menu.addAction("⬛  Open in COL Workshop")
+                open_col_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_col_in_workshop_path(p))
             menu.addSeparator()
 
         elif abs_path and os.path.isfile(abs_path):

@@ -1936,6 +1936,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         load_txd_btn = QPushButton("Load TXD…")
         load_txd_btn.clicked.connect(self._load_txd_into_workshop)
         btn_row.addWidget(load_txd_btn)
+        auto_txd_btn = QPushButton("Auto-find from IMGs")
+        auto_txd_btn.setToolTip(
+            "Search all open IMG archives for the IDE-linked TXD")
+        auto_txd_btn.clicked.connect(lambda: (
+            self._auto_load_txd_from_imgs(),
+            tbl.viewport().update()))
+        btn_row.addWidget(auto_txd_btn)
         btn_row.addStretch()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dlg.accept)
@@ -5114,9 +5121,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        header = QLabel("Model Files")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        self._left_panel_header = QLabel("Model Files")
+        self._left_panel_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        layout.addWidget(self._left_panel_header)
 
         self.col_list_widget = QListWidget()
         self.col_list_widget.setAlternatingRowColors(True)
@@ -7165,6 +7172,59 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         return self._tex_panel
 
+    def _auto_load_txd_from_imgs(self, txd_stem: str = '') -> bool: #vers 1
+        """Search all open IMG tabs and current_img for txd_stem.txd.
+        Extracts and loads it into the texture cache. Returns True if found."""
+        mw = self.main_window
+        if not txd_stem:
+            # Try to get txd_stem from IDE link
+            txd_stem = (getattr(self, '_ide_txd_name', '') or '').strip().lower()
+            if not txd_stem:
+                return False
+
+        txd_stem_lo = txd_stem.lower().split('.')[0]  # strip extension if present
+        txd_filename = txd_stem_lo + '.txd'
+
+        # Gather all candidate IMG objects: current_img + all open tabs
+        img_candidates = []
+        ci = getattr(self, 'current_img', None) or (
+             getattr(mw, 'current_img', None) if mw else None)
+        if ci:
+            img_candidates.append(ci)
+
+        if mw and hasattr(mw, 'main_tab_widget'):
+            tw = mw.main_tab_widget
+            for i in range(tw.count()):
+                w = tw.widget(i)
+                if w and getattr(w, 'file_type', '') == 'IMG':
+                    fo = getattr(w, 'file_object', None)
+                    if fo and fo is not ci:
+                        img_candidates.append(fo)
+
+        for img in img_candidates:
+            entries = getattr(img, 'entries', [])
+            entry = next(
+                (e for e in entries if e.name.lower() == txd_filename),
+                None)
+            if entry:
+                try:
+                    data = img.read_entry_data(entry)
+                    if data:
+                        self._load_txd_file_from_data(data, txd_filename)
+                        if mw and hasattr(mw, 'log_message'):
+                            mw.log_message(
+                                f"Auto-loaded TXD: {txd_filename} "
+                                f"from {os.path.basename(img.file_path)}")
+                        return True
+                except Exception as e:
+                    if mw and hasattr(mw, 'log_message'):
+                        mw.log_message(f"TXD extract error: {e}")
+
+        if mw and hasattr(mw, 'log_message'):
+            mw.log_message(
+                f"TXD not found in any open IMG: {txd_filename}")
+        return False
+
     def _load_txd_into_workshop(self): #vers 1
         """Open a TXD file and load its textures into Model Workshop."""
         path, _ = QFileDialog.getOpenFileName(
@@ -8922,7 +8982,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Load IMG archive — populates left panel with all DFF/COL/TXD entries."""
         try:
             from apps.methods.img_core_classes import IMGFile
-
             img = IMGFile(img_path)
             img.open()
             self.current_img = img
@@ -8936,7 +8995,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             model_entries = [e for e in img.entries
                              if getattr(e, 'name', '').lower().endswith(model_exts)]
 
-            # Populate left panel with all model entries
             lw = getattr(self, 'col_list_widget', None)
             if lw is not None:
                 lw.clear()
@@ -8954,16 +9012,23 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                         item.setForeground(QColor('#ffa726'))
                     lw.addItem(item)
 
-            # col_entries count for log only — collision_list (QTableWidget) is
-            # populated after COL parsing, not from raw IMG entries
-            col_entries = [e for e in model_entries if e.name.lower().endswith('.col')]
+                # Update header counts
+                n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
+                n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
+                n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
+                hdr = getattr(self, '_left_panel_header', None)
+                if hdr:
+                    hdr.setText(
+                        f"Model Files  —  "
+                        f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
 
             n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
             n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
+            n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
                     f"Model Workshop: {img_name} — "
-                    f"{n_dff} DFF, {len(col_entries)} COL, {n_txd} TXD")
+                    f"{n_dff} DFF, {n_col} COL, {n_txd} TXD")
 
             self.setWindowTitle(f"Model Workshop: {img_name}")
             return True
@@ -8972,6 +9037,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Failed to load from IMG:\n{e}")
             return False
+
     def _analyze_collision(self): #vers 1
         """Analyze current COL file"""
         try:
@@ -9001,7 +9067,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
 
 
-    def _populate_left_panel_from_img(self, img): #vers 2
+    def _populate_left_panel_from_img(self, img): #vers 4
         """Populate the left panel list from an already-open IMGFile object.
         Also stores img as self.current_img so _extract_col_from_img can read entries."""
         lw = getattr(self, 'col_list_widget', None)
@@ -9009,25 +9075,35 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             return
         # Store so clicking entries can extract data
         self.current_img = img
-        from PyQt6.QtGui import QColor
-        model_exts = ('.dff', '.col', '.txd')
+
         lw.clear()
-        for entry in img.entries:
-            if not getattr(entry, 'name', '').lower().endswith(model_exts):
+        model_exts = ('.dff', '.col', '.txd')
+        n_dff = n_txd = n_col = 0
+        from PyQt6.QtGui import QColor
+        for entry in getattr(img, 'entries', []):
+            name = getattr(entry, 'name', '')
+            if not name.lower().endswith(model_exts):
                 continue
-            ext = os.path.splitext(entry.name)[1].lower()
-            item = QListWidgetItem(entry.name)
+            ext = os.path.splitext(name)[1].lower()
+            item = QListWidgetItem(name)
             item.setData(Qt.ItemDataRole.UserRole, entry)
             if ext == '.dff':
-                item.setForeground(QColor('#4db6ac'))
+                item.setForeground(QColor('#4db6ac')); n_dff += 1
             elif ext == '.col':
-                item.setForeground(QColor('#ef5350'))
+                item.setForeground(QColor('#ef5350')); n_col += 1
             elif ext == '.txd':
-                item.setForeground(QColor('#ffa726'))
+                item.setForeground(QColor('#ffa726')); n_txd += 1
             lw.addItem(item)
-        n = lw.count()
+
+        hdr = getattr(self, '_left_panel_header', None)
+        if hdr:
+            hdr.setText(
+                f"Model Files  —  DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
         if self.main_window and hasattr(self.main_window, 'log_message'):
-            self.main_window.log_message(f"Model Workshop: {n} entries in left panel")
+            self.main_window.log_message(
+                f"Model Workshop: {lw.count()} entries in left panel")
+        return
+
 
     def _load_txd_file_from_data(self, data: bytes, name: str): #vers 1
         """Load TXD from raw bytes into the texture panel."""
@@ -9761,8 +9837,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         load_txd_act = tex_menu.addAction("Load TXD for this geometry…")
         load_txd_act.triggered.connect(self._load_txd_into_workshop)
 
-        auto_act = tex_menu.addAction("Auto-find TXD from IDE…")
-        auto_act.triggered.connect(self._open_linked_txd)
+        auto_act = tex_menu.addAction("Auto-find TXD from open IMGs…")
+        auto_act.triggered.connect(lambda: self._auto_load_txd_from_imgs(
+            getattr(self, '_ide_txd_name', '') or
+            (geom.materials[0].texture_name if geom and geom.materials else '')))
 
         # ── Render mode ──────────────────────────────────────────────────
         menu.addSeparator()
