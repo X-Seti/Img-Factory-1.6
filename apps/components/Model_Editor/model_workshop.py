@@ -68,7 +68,7 @@ class _DFFGeometryAdapter:
     class _FaceAdapter:
         """Wraps a DFF Triangle so the viewport can read it as a COL face."""
         __slots__ = ('vertex_indices', 'material', 'a', 'b', 'c')
-        def __init__(self, tri):
+    def __init__(self, tri):
             self.vertex_indices = (tri.v1, tri.v2, tri.v3)
             self.a = tri.v1
             self.b = tri.v2
@@ -1834,6 +1834,249 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Open material paint dialog (delegates to _open_paint_editor)."""
         self._open_paint_editor()
 
+
+    def _open_material_list_or_surface_types(self): #vers 1
+        """Toolbar: Material List in DFF mode, Surface Types in COL mode."""
+        if getattr(self, '_dff_adapters', None):
+            self._open_dff_material_list()
+        else:
+            self._open_surface_type_dialog()
+
+    def _open_material_editor_or_surface_edit(self): #vers 1
+        """Toolbar: Material Editor in DFF mode, Surface Editor in COL mode."""
+        if getattr(self, '_dff_adapters', None):
+            self._open_dff_material_editor()
+        else:
+            self._open_surface_edit_dialog()
+
+    def _open_dff_material_list(self): #vers 1
+        """Show all DFF materials across all geometries in a panel dialog."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QTableWidget, QTableWidgetItem, QHeaderView, QLabel,
+            QPushButton, QDialogButtonBox, QAbstractItemView)
+        from PyQt6.QtGui import QColor, QPixmap, QIcon
+        from PyQt6.QtCore import Qt as _Qt
+
+        model = getattr(self, '_current_dff_model', None)
+        if not model:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Material List", "Load a DFF file first.")
+            return
+
+        vp = getattr(self, 'preview_widget', None)
+        tex_cache = getattr(vp, '_tex_cache', {}) if vp else {}
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Material List — DFF")
+        dlg.resize(600, 400)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(6)
+
+        tbl = QTableWidget()
+        tbl.setColumnCount(6)
+        tbl.setHorizontalHeaderLabels(
+            ["Geom", "Mat #", "Texture", "Colour", "In Cache", "UVs"])
+        tbl.horizontalHeader().setStretchLastSection(True)
+        tbl.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tbl.setAlternatingRowColors(True)
+        tbl.verticalHeader().setDefaultSectionSize(24)
+
+        row = 0
+        for gi, geom in enumerate(model.geometries):
+            uv_count = len(geom.uv_layers[0]) if geom.uv_layers else 0
+            for mi, mat in enumerate(geom.materials):
+                tbl.insertRow(row)
+                tname = (getattr(mat, 'texture_name', '') or '').strip()
+                c = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
+                col_hex = f"#{c.r:02x}{c.g:02x}{c.b:02x}" if c else "#808080"
+                in_cache = '✓' if tname.lower() in tex_cache else ('—' if not tname else '✗')
+
+                tbl.setItem(row, 0, QTableWidgetItem(f"Geom {gi}"))
+                tbl.setItem(row, 1, QTableWidgetItem(str(mi)))
+                tbl.setItem(row, 2, QTableWidgetItem(tname or '(none)'))
+
+                # Colour swatch
+                swatch_item = QTableWidgetItem("")
+                if c:
+                    px = QPixmap(14, 14)
+                    px.fill(QColor(c.r, c.g, c.b))
+                    swatch_item.setIcon(QIcon(px))
+                swatch_item.setToolTip(col_hex)
+                tbl.setItem(row, 3, swatch_item)
+
+                cache_item = QTableWidgetItem(in_cache)
+                if in_cache == '✓':
+                    cache_item.setForeground(QColor('#16a34a'))
+                elif in_cache == '✗':
+                    cache_item.setForeground(QColor('#dc2626'))
+                tbl.setItem(row, 4, cache_item)
+
+                has_uv = '✓' if uv_count > 0 else '✗'
+                uv_item = QTableWidgetItem(has_uv)
+                uv_item.setForeground(
+                    QColor('#16a34a') if has_uv == '✓' else QColor('#dc2626'))
+                tbl.setItem(row, 5, uv_item)
+
+                # Store (gi, mi) for editor
+                tbl.item(row, 0).setData(_Qt.ItemDataRole.UserRole, (gi, mi))
+                row += 1
+
+        tbl.resizeColumnsToContents()
+        lay.addWidget(tbl)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        edit_btn = QPushButton("Edit Selected Material…")
+        edit_btn.clicked.connect(lambda: (
+            self._open_dff_material_editor(
+                *tbl.item(tbl.currentRow(), 0).data(_Qt.ItemDataRole.UserRole))
+            if tbl.currentRow() >= 0 else None))
+        btn_row.addWidget(edit_btn)
+        load_txd_btn = QPushButton("Load TXD…")
+        load_txd_btn.clicked.connect(self._load_txd_into_workshop)
+        btn_row.addWidget(load_txd_btn)
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(close_btn)
+        lay.addLayout(btn_row)
+
+        dlg.exec()
+
+    def _open_dff_material_editor(self, geom_idx=0, mat_idx=0): #vers 1
+        """Edit a single DFF material — texture name, colour, load TXD."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QFormLayout, QLabel, QLineEdit, QPushButton, QDialogButtonBox,
+            QColorDialog, QFrame)
+        from PyQt6.QtGui import QColor, QPixmap, QIcon
+        from PyQt6.QtCore import Qt as _Qt
+
+        model = getattr(self, '_current_dff_model', None)
+        if not model:
+            return
+        if geom_idx >= len(model.geometries):
+            geom_idx = 0
+        geom = model.geometries[geom_idx]
+        if not geom.materials or mat_idx >= len(geom.materials):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Material Editor",
+                "This geometry has no materials.")
+            return
+
+        mat   = geom.materials[mat_idx]
+        vp    = getattr(self, 'preview_widget', None)
+        tc    = getattr(vp, '_tex_cache', {}) if vp else {}
+        tname = (getattr(mat, 'texture_name', '') or '').strip()
+        c     = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
+        chosen_color = [QColor(c.r, c.g, c.b) if c else QColor(160, 160, 160)]
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(
+            f"Material Editor — Geom {geom_idx}, Mat {mat_idx}")
+        dlg.setMinimumWidth(400)
+        lay = QVBoxLayout(dlg)
+        form = QFormLayout()
+        form.setSpacing(8)
+
+        # Texture name
+        tex_edit = QLineEdit(tname)
+        tex_edit.setPlaceholderText("texture_name (must match TXD entry)")
+        cache_lbl = QLabel(
+            "✓ in cache" if tname.lower() in tc else
+            "✗ not in cache" if tname else "—")
+        cache_lbl.setStyleSheet(
+            "color: #16a34a;" if tname.lower() in tc else "color: #dc2626;")
+        def _update_cache_lbl(txt):
+            t = txt.strip().lower()
+            in_c = t in tc
+            cache_lbl.setText("✓ in cache" if in_c else ("✗ not in cache" if t else "—"))
+            cache_lbl.setStyleSheet(
+                "color: #16a34a;" if in_c else "color: #dc2626;")
+        tex_edit.textChanged.connect(_update_cache_lbl)
+
+        tex_row = QHBoxLayout()
+        tex_row.addWidget(tex_edit, 1)
+        tex_row.addWidget(cache_lbl)
+        load_txd = QPushButton("Load TXD…")
+        load_txd.setFixedHeight(24)
+        load_txd.clicked.connect(lambda: (
+            self._load_txd_into_workshop(),
+            _update_cache_lbl(tex_edit.text())))
+        tex_row.addWidget(load_txd)
+        form.addRow("Texture Name:", tex_row)
+
+        # Colour swatch
+        swatch = QLabel()
+        swatch.setFixedSize(32, 24)
+        swatch.setFrameShape(QFrame.Shape.Box)
+        def _refresh_swatch():
+            col = chosen_color[0]
+            swatch.setStyleSheet(
+                f"background:{col.name()}; border:1px solid #555;")
+        _refresh_swatch()
+
+        def _pick_color():
+            col = QColorDialog.getColor(chosen_color[0], dlg, "Pick Material Colour")
+            if col.isValid():
+                chosen_color[0] = col
+                _refresh_swatch()
+        pick_btn = QPushButton("Pick…")
+        pick_btn.setFixedHeight(24)
+        pick_btn.clicked.connect(_pick_color)
+        col_row = QHBoxLayout()
+        col_row.addWidget(swatch)
+        col_row.addWidget(pick_btn)
+        col_row.addStretch()
+        form.addRow("Colour:", col_row)
+
+        # UV info (read-only)
+        uv_count = len(geom.uv_layers[0]) if geom.uv_layers else 0
+        uv_lbl = QLabel(
+            f"✓  {uv_count} UV coords" if uv_count > 0
+            else "✗  No UV data — textured mode will use solid colour")
+        uv_lbl.setStyleSheet(
+            "color: #16a34a;" if uv_count > 0 else "color: #dc2626;")
+        form.addRow("UV Layer:", uv_lbl)
+
+        lay.addLayout(form)
+
+        # Render mode shortcut
+        rm_row = QHBoxLayout()
+        rm_row.addWidget(QLabel("Preview as:"))
+        for style, label in [('solid','Solid'),('textured','Textured'),
+                               ('semi','Semi'),('wireframe','Wire')]:
+            b = QPushButton(label)
+            b.setFixedHeight(24)
+            b.clicked.connect(lambda _=False, s=style: (
+                vp.set_render_style(s) if vp else None))
+            rm_row.addWidget(b)
+        rm_row.addStretch()
+        lay.addLayout(rm_row)
+
+        lay.addSpacing(8)
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            # Apply changes back to material
+            new_name = tex_edit.text().strip()
+            mat.texture_name = new_name
+            nc = chosen_color[0]
+            if c:
+                c.r = nc.red(); c.g = nc.green()
+                c.b = nc.blue(); c.a = 255
+            # Refresh viewport
+            if vp:
+                vp.update()
+            # Refresh texture channels in context menu next open
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Material {mat_idx} updated: texture='{new_name}'")
 
     def _open_surface_type_dialog(self): #vers 1
         """Show surface material type picker for selected model."""
@@ -4587,25 +4830,25 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout.addWidget(self.paint_btn)
         layout.addSpacing(spacer)
 
-        # Surface Type
+        # Material List (DFF) / Surface Types (COL)
         self.surface_type_btn = QPushButton()
         self.surface_type_btn.setIcon(self.icon_factory.checkerboard_icon(color=icon_color))
         self.surface_type_btn.setIconSize(icon_size)
         self.surface_type_btn.setFixedHeight(btn_height)
         self.surface_type_btn.setMinimumWidth(btn_width)
-        self.surface_type_btn.setToolTip("Surface types")
-        self.surface_type_btn.clicked.connect(self._open_surface_type_dialog)
+        self.surface_type_btn.setToolTip("Material List (DFF) / Surface Types (COL)")
+        self.surface_type_btn.clicked.connect(self._open_material_list_or_surface_types)
         layout.addWidget(self.surface_type_btn)
         layout.addSpacing(spacer)
 
-        # Surface Edit
+        # Material Editor (DFF) / Surface Editor (COL)
         self.surface_edit_btn = QPushButton()
         self.surface_edit_btn.setIcon(self.icon_factory.surfaceedit_icon(color=icon_color))
         self.surface_edit_btn.setIconSize(icon_size)
         self.surface_edit_btn.setFixedHeight(btn_height)
         self.surface_edit_btn.setMinimumWidth(btn_width)
-        self.surface_edit_btn.setToolTip("Surface Editor — edit mesh faces and vertices")
-        self.surface_edit_btn.clicked.connect(self._open_surface_edit_dialog)
+        self.surface_edit_btn.setToolTip("Material Editor (DFF) / Surface Editor (COL)")
+        self.surface_edit_btn.clicked.connect(self._open_material_editor_or_surface_edit)
         layout.addWidget(self.surface_edit_btn)
         layout.addSpacing(spacer)
 
@@ -11160,7 +11403,7 @@ class COLEditorDialog(QDialog): #vers 3
             self.status_bar.showMessage(f"Error: {str(e)}")
 
 
-        def _set_camera_view(self, view_type): #vers 1
+    def _set_camera_view(self, view_type): #vers 1
             """Set predefined camera view"""
             if view_type == 'top':
                 self.viewer_3d.rotation_x = 0.0
@@ -11372,32 +11615,11 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
     try:
         viewer.set_view_options(**options)
         print(f"View options updated: {options}")
-
-        def _ensure_standalone_functionality(self): #vers 1
-            """Ensure popped-out windows work independently of img factory"""
-            try:
-                # When popped out, ensure all necessary functionality is available
-                if not self.is_docked or getattr(self, 'is_overlay', False) == False:
-                    # Enable all UI elements that might be disabled when docked
-                    if hasattr(self, 'toolbar') and self.toolbar:
-                        self.toolbar.setEnabled(True)
-
-                    # Ensure all buttons and controls work independently
-                    if hasattr(self, 'main_window') and self.main_window is None:
-                        # This is truly standalone, enable all features
-                        if hasattr(self, 'dock_btn'):
-                            self.dock_btn.setText("X")  # Change to close button when standalone
-                            self.dock_btn.setToolTip("Close window")
-
-                    # Set proper window flags for standalone operation
-                    if not getattr(self, 'is_overlay', False):
-                        self.setWindowFlags(Qt.WindowType.Window)
-
-            except Exception as e:
-                print(f"Error ensuring standalone functionality: {str(e)}")
-
     except Exception as e:
         print(f"Error updating view options: {str(e)}")
+
+
+# (moved into ModelWorkshop class — see _ensure_standalone_functionality method above)
 
 
 
@@ -11456,7 +11678,6 @@ def open_model_workshop(main_window, dff_path=None): #vers 2
             if main_window:
                 img = getattr(main_window, 'current_img', None)
                 if img and hasattr(img, 'entries'):
-                    # Use the existing IMGFile object — no need to re-open
                     workshop._populate_left_panel_from_img(img)
                 if hasattr(main_window, 'log_message'):
                     main_window.log_message("Model Workshop opened")
