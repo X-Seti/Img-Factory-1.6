@@ -832,8 +832,11 @@ class COL3DViewport(QWidget): #vers 2
         if _dff_mats:
             def mat_col(mat_id):
                 if 0 <= mat_id < len(_dff_mats):
-                    c = _dff_mats[mat_id].color
-                    return QColor(c.r, c.g, c.b, max(80, c.a) if c.a else 200)
+                    # DFF Material uses .colour (RGBA dataclass)
+                    mat = _dff_mats[mat_id]
+                    c = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
+                    if c:
+                        return QColor(c.r, c.g, c.b, max(80, c.a) if c.a else 200)
                 return QColor(160, 160, 160)
         else:
             try:
@@ -847,7 +850,14 @@ class COL3DViewport(QWidget): #vers 2
                     return QColor(120,120,120)
 
         # ── Mesh faces ────────────────────────────────────────────────────
-        rs = self._render_style  # 'wireframe' | 'semi' | 'solid'
+        rs = self._render_style  # 'wireframe' | 'semi' | 'solid' | 'textured'
+
+        # For textured mode: get UV layer and texture cache
+        _geom_obj  = getattr(model, '_geometry', None)
+        _uv_layers = getattr(_geom_obj, 'uv_layers', []) if _geom_obj else []
+        _uv_layer  = _uv_layers[0] if _uv_layers else []
+        _tex_cache = getattr(self, '_tex_cache', {})
+
         if self._show_mesh and verts and faces:
             for face_idx, face in enumerate(faces):
                 idx = getattr(face,'vertex_indices',None)
@@ -862,20 +872,71 @@ class COL3DViewport(QWidget): #vers 2
                 _mat_id = getattr(_mat,'material_id',_mat) if not isinstance(_mat,int) else _mat
                 mc = mat_col(_mat_id)
                 is_selected = (face_idx in self._selected_faces)
+
                 if is_selected:
                     p.setBrush(QBrush(QColor(255, 200, 50, 200)))
                     p.setPen(QPen(QColor(255, 230, 80), 2))
+                    p.drawPolygon(QPolygonF(pts))
+
+                elif rs == 'textured':
+                    # Look up texture image for this material
+                    tex_img = None
+                    mat_obj = _dff_mats[_mat_id] if 0 <= _mat_id < len(_dff_mats) else None
+                    if mat_obj:
+                        tname = (getattr(mat_obj, 'texture_name', '') or '').strip()
+                        if tname and tname.lower() not in ('', 'null', 'none'):
+                            tex_img = (_tex_cache.get(tname.lower()) or
+                                       _tex_cache.get(tname.lower().split('.')[0]))
+                    if tex_img and _uv_layer and all(i < len(_uv_layer) for i in idx):
+                        uvs = [_uv_layer[i] for i in idx]
+                        try:
+                            from PyQt6.QtGui import QTransform
+                            tw, th = tex_img.width(), tex_img.height()
+                            sx0,sy0 = uvs[0].u*tw, uvs[0].v*th
+                            sx1,sy1 = uvs[1].u*tw, uvs[1].v*th
+                            sx2,sy2 = uvs[2].u*tw, uvs[2].v*th
+                            dx0,dy0 = pts[0].x(), pts[0].y()
+                            dx1,dy1 = pts[1].x(), pts[1].y()
+                            dx2,dy2 = pts[2].x(), pts[2].y()
+                            det = (sx1-sx0)*(sy2-sy0)-(sx2-sx0)*(sy1-sy0)
+                            if abs(det) > 0.001:
+                                a11=((dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
+                                a12=((dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
+                                a21=((dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
+                                a22=((dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
+                                tx=dx0-a11*sx0-a12*sy0
+                                ty=dy0-a21*sx0-a22*sy0
+                                xf = QTransform(a11,a21,a12,a22,tx,ty)
+                                from PyQt6.QtGui import QRegion
+                                p.save()
+                                p.setClipRegion(QRegion(QPolygonF(pts).toPolygon()))
+                                p.setTransform(xf, combine=True)
+                                p.drawImage(0, 0, tex_img)
+                                p.restore()
+                            else:
+                                raise ValueError("degenerate")
+                        except Exception:
+                            p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
+                            p.drawPolygon(QPolygonF(pts))
+                    else:
+                        # No texture — solid fallback with thin edge
+                        p.setBrush(QBrush(mc if mat_obj else QColor(170,175,180)))
+                        p.setPen(QPen(QColor(80,80,80,60), 0.3))
+                        p.drawPolygon(QPolygonF(pts))
+
                 elif rs == 'solid':
                     p.setBrush(QBrush(mc))
                     p.setPen(QPen(mc.darker(130),0.5))
+                    p.drawPolygon(QPolygonF(pts))
                 elif rs == 'semi':
                     fill=QColor(mc.red(),mc.green(),mc.blue(),90)
                     p.setBrush(QBrush(fill))
                     p.setPen(QPen(QColor(mc.red()//2+60,mc.green()//2+60,mc.blue()//2+60),0.5))
+                    p.drawPolygon(QPolygonF(pts))
                 else:  # wireframe
                     p.setBrush(Qt.BrushStyle.NoBrush)
                     p.setPen(QPen(QColor(100,180,100),1))
-                p.drawPolygon(QPolygonF(pts))
+                    p.drawPolygon(QPolygonF(pts))
 
         # ── Boxes — draw all 12 edges of AABB ─────────────────────────────
         if self._show_boxes:
@@ -11350,18 +11411,12 @@ def open_model_workshop(main_window, dff_path=None): #vers 2
             elif ext.endswith('.img'):
                 workshop.load_from_img_archive(dff_path)
         else:
-            # No explicit file — try to populate from main window's loaded IMG
+            # No explicit file — use already-open IMG from main window directly
             if main_window:
                 img = getattr(main_window, 'current_img', None)
-                if img and hasattr(img, 'file_path') and img.file_path:
-                    workshop.load_from_img_archive(img.file_path)
-                elif img and hasattr(img, 'entries') and img.entries:
-                    # IMG object exists but may not have file_path attr
-                    fp = getattr(img, 'file_path', '') or getattr(img, 'path', '')
-                    if fp:
-                        workshop.load_from_img_archive(fp)
-                    else:
-                        workshop._populate_left_panel_from_img(img)
+                if img and hasattr(img, 'entries'):
+                    # Use the existing IMGFile object — no need to re-open
+                    workshop._populate_left_panel_from_img(img)
                 if hasattr(main_window, 'log_message'):
                     main_window.log_message("Model Workshop opened")
 
