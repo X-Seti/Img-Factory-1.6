@@ -108,7 +108,7 @@ class COL3DViewport(QWidget): #vers 2
         self.setMinimumSize(200, 200)
         self._model        = None
         self._yaw          = 30.0
-        self._pitch        = 20.0
+        self._pitch        = 20.0   # degrees — 0=side view, 90=top, -90=bottom
         self._zoom         = 1.0
         self._pan_x        = 0.0
         self._pan_y        = 0.0
@@ -119,6 +119,7 @@ class COL3DViewport(QWidget): #vers 2
         self._show_mesh    = True
         self._backface     = False
         self._render_style = 'semi'
+        self._tex_cache    = {}       # tex_name → QImage for textured render
         # Default background — will be overridden by _set_theme_bg() on first paint
         self._bg_color     = (25, 25, 35)
         self._theme_bg_set = False  # flag so we only auto-set once
@@ -202,7 +203,27 @@ class COL3DViewport(QWidget): #vers 2
     def set_show_boxes(self,   v): self._show_boxes   = v; self.update()
     def set_show_mesh(self,    v): self._show_mesh     = v; self.update()
     def set_backface(self,     v): self._backface      = v; self.update()
-    def set_render_style(self, s): self._render_style  = s; self.update()
+    def load_textures(self, mod_textures: list): #vers 1
+        """Build QImage cache from _mod_textures list for textured rendering.
+        Call this whenever _load_txd_file() populates the texture panel."""
+        from PyQt6.QtGui import QImage
+        self._tex_cache.clear()
+        for tex in mod_textures:
+            name = tex.get('name', '').lower()
+            if not name:
+                continue
+            rgba = tex.get('rgba_data', b'')
+            w    = tex.get('width',  0)
+            h    = tex.get('height', 0)
+            if rgba and w > 0 and h > 0:
+                try:
+                    img = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
+                    self._tex_cache[name] = img.copy()  # copy to own memory
+                except Exception:
+                    pass
+        self.update()
+
+        def set_render_style(self, s): self._render_style  = s; self.update()
 
     def toggle_gizmo_mode(self):
         self._gizmo_mode = 'rotate' if self._gizmo_mode == 'translate' else 'translate'
@@ -215,14 +236,21 @@ class COL3DViewport(QWidget): #vers 2
 
     # ── projection (self-contained, no workshop needed) ──────────────────
     def _proj(self, x, y, z):
-        """Project 3D world point → 2D screen pixel using current view state."""
+        """Project 3D world point → 2D screen pixel.
+        GTA coordinate system: X=right, Y=forward, Z=up (right-hand Z-up).
+        Screen Y is DOWN so we negate the vertical component.
+        Yaw rotates around Z (world up), pitch tilts the camera up/down."""
         import math
         yr = math.radians(self._yaw);   cy, sy = math.cos(yr), math.sin(yr)
         pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
-        rx = x*cy - y*sy
-        ry = x*sy + y*cy
-        ry2 = ry*cp - z*sp
-        return rx, ry2
+        # Rotate around Z axis (yaw)
+        rx =  x*cy - y*sy      # screen X — right
+        ry =  x*sy + y*cy      # depth
+        # Tilt around screen-X axis (pitch): Z-up becomes screen-up
+        # Negate result because screen-Y points DOWN but world-Z points UP
+        screen_x = rx
+        screen_y = -(ry*sp + z*cp)   # negate for screen coords
+        return screen_x, screen_y
 
     def _get_scale_origin(self):
         """Return (scale, ox, oy) mapping 3D projected coords to screen pixels."""
@@ -625,14 +653,14 @@ class COL3DViewport(QWidget): #vers 2
         if self._right_drag and (event.buttons() & Qt.MouseButton.RightButton):
             d = event.position() - self._right_drag
             self._yaw   = (self._yaw + d.x() * 0.4) % 360
-            self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.4))
+            self._pitch = (self._pitch + d.y() * 0.4) % 360
             self._right_drag = event.position(); self.update()
 
         # ── Free rotate (middle drag) ─────────────────────────────────────
         if self._mid_drag and (event.buttons() & Qt.MouseButton.MiddleButton):
             d = event.position() - self._mid_drag
             self._yaw   = (self._yaw + d.x() * 0.4) % 360
-            self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.4))
+            self._pitch = (self._pitch + d.y() * 0.4) % 360
             self._mid_drag = event.position(); self.update()
 
     def mouseReleaseEvent(self, event):
@@ -683,8 +711,9 @@ class COL3DViewport(QWidget): #vers 2
         else: super().keyPressEvent(event)
 
     def _cycle_render_style(self):
-        modes = ['wireframe','semi','solid']
-        self._render_style = modes[(modes.index(self._render_style)+1) % 3]                              if self._render_style in modes else 'semi'
+        modes = ['wireframe','semi','solid','textured']
+        self._render_style = modes[(modes.index(self._render_style)+1) % len(modes)] \
+            if self._render_style in modes else 'semi'
         self.update()
 
     def contextMenuEvent(self, event):
@@ -703,7 +732,8 @@ class COL3DViewport(QWidget): #vers 2
         m.addSeparator()
         for style,label in [('wireframe','Wireframe [V]'),
                              ('semi',     'Semi-transparent [V]'),
-                             ('solid',    'Solid [V]')]:
+                             ('solid',    'Solid [V]'),
+                             ('textured', 'Textured [V]')]:
             tick = '✓ ' if self._render_style == style else '    '
             m.addAction(tick+label, lambda s=style: self.set_render_style(s))
         m.exec(event.globalPos())
@@ -1096,8 +1126,8 @@ class COL3DViewport(QWidget): #vers 2
             p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,220))
             lbl='↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
             p.drawText(bx+4,by+15,lbl)
-            mode_lbl={'wireframe':'Wire','semi':'Semi','solid':'Solid'}.get(rs,'?')
-            mode_col={'wireframe':QColor(100,180,100),'semi':QColor(180,180,100),'solid':QColor(100,140,220)}.get(rs,QColor(180,180,180))
+            mode_lbl={'wireframe':'Wire','semi':'Semi','solid':'Solid','textured':'Tex'}.get(rs,'?')
+            mode_col={'wireframe':QColor(100,180,100),'semi':QColor(180,180,100),'solid':QColor(100,140,220),'textured':QColor(220,140,60)}.get(rs,QColor(180,180,180))
             p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(mode_col,1))
             p.drawRoundedRect(W-70,28,66,18,3,3)
             p.setPen(mode_col); p.setFont(QFont('Arial',7))
@@ -1768,9 +1798,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Cycle viewport render: wireframe -> semi -> solid."""
         pw = getattr(self, 'preview_widget', None)
         if not pw: return
-        modes = ['wireframe','semi','solid']
+        modes = ['wireframe','semi','solid','textured']
         cur = getattr(pw, '_render_style', 'semi')
-        pw._render_style = modes[(modes.index(cur)+1) % 3] if cur in modes else 'semi'
+        pw._render_style = modes[(modes.index(cur)+1) % len(modes)] if cur in modes else 'semi'
         pw.update()
 
 
@@ -6884,8 +6914,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             print(f"_parse_txd_lightweight error: {e}")
         return textures
 
-    def _load_txd_file(self, path: str): #vers 2
-        """Parse a TXD file and populate the texture panel."""
+    def _load_txd_file(self, path: str): #vers 3
+        """Parse a TXD file, populate texture panel, and feed textures into viewport."""
         try:
             with open(path, 'rb') as f:
                 data = f.read()
@@ -6904,6 +6934,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._set_status(
                 f"Loaded TXD: {os.path.basename(path)} "
                 f"— {len(textures)} textures")
+            # Push textures into the 3D viewport cache for textured rendering
+            pw = getattr(self, 'preview_widget', None)
+            if pw and hasattr(pw, 'load_textures'):
+                pw.load_textures(textures)
+                if len(textures) > 0:
+                    pw.set_render_style('textured')
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "TXD Error",
@@ -8797,24 +8833,106 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if hasattr(obj,'position'): return obj.position.x,obj.position.y,obj.position.z
             return float(obj[0]),float(obj[1]),float(obj[2])
 
-        # Mesh faces
+        # Mesh faces — render style: wireframe / semi / solid / textured
         if show_mesh:
-            _verts = getattr(model,'vertices',[])
-            _faces = getattr(model,'faces',[])
+            _verts    = getattr(model, 'vertices', [])
+            _faces    = getattr(model, 'faces',    [])
+            _mats     = getattr(model, 'materials', [])   # DFF materials
+            _uv_layer = getattr(getattr(model, '_geometry', model),
+                                'uv_layers', [[]])[0] if True else []
+            _tex_cache = getattr(vp, '_tex_cache', {}) if vp else {}
+
             if _verts and _faces:
-                painter.setPen(QPen(QColor(120,180,120,180), 0.5))
-                painter.setBrush(QBrush(QColor(60,120,60,80)))
                 for face in _faces:
-                    idx = getattr(face,'vertex_indices',None)
+                    idx = getattr(face, 'vertex_indices', None)
                     if idx is None:
-                        fa = getattr(face,'a',None)
-                        if fa is not None: idx=(fa,face.b,face.c)
-                    if idx and len(idx)==3:
-                        try:
-                            pts=[_P(*to_screen(*g3(_verts[i]))) for i in idx]
+                        fa = getattr(face, 'a', None)
+                        if fa is not None: idx = (fa, face.b, face.c)
+                    if not idx or len(idx) != 3:
+                        continue
+                    try:
+                        pts = [_P(*to_screen(*g3(_verts[i]))) for i in idx]
+                    except (IndexError, AttributeError):
+                        continue
+
+                    # Determine fill colour / texture
+                    mat_id  = getattr(face, 'material', 0)
+                    mat_id  = mat_id if isinstance(mat_id, int) else 0
+                    mat_obj = _mats[mat_id] if 0 <= mat_id < len(_mats) else None
+
+                    if render_style == 'wireframe':
+                        painter.setPen(QPen(QColor(120, 200, 120, 180), 0.5))
+                        painter.setBrush(Qt.BrushStyle.NoBrush)
+                        painter.drawPolygon(_PF(pts))
+
+                    elif render_style == 'semi':
+                        painter.setPen(QPen(QColor(120, 180, 120, 180), 0.5))
+                        painter.setBrush(QBrush(QColor(60, 120, 60, 80)))
+                        painter.drawPolygon(_PF(pts))
+
+                    elif render_style == 'solid':
+                        col = QColor(170, 175, 180)
+                        if mat_obj and hasattr(mat_obj, 'colour'):
+                            c = mat_obj.colour
+                            col = QColor(c.r, c.g, c.b, 255)
+                        painter.setPen(QPen(QColor(80, 80, 80, 120), 0.3))
+                        painter.setBrush(QBrush(col))
+                        painter.drawPolygon(_PF(pts))
+
+                    elif render_style == 'textured':
+                        tex_img = None
+                        if mat_obj:
+                            tname = getattr(mat_obj, 'texture_name', '')
+                            if tname:
+                                tex_img = _tex_cache.get(tname.lower())
+                        if tex_img and _uv_layer and all(i < len(_uv_layer) for i in idx):
+                            # Affine UV mapping via QTransform per triangle
+                            uvs = [_uv_layer[i] for i in idx]
+                            try:
+                                from PyQt6.QtGui import QTransform
+                                tw, th = tex_img.width(), tex_img.height()
+                                # Source: UV * texture size
+                                sx0,sy0 = uvs[0].u*tw, uvs[0].v*th
+                                sx1,sy1 = uvs[1].u*tw, uvs[1].v*th
+                                sx2,sy2 = uvs[2].u*tw, uvs[2].v*th
+                                # Dest: screen positions
+                                dx0,dy0 = pts[0].x(), pts[0].y()
+                                dx1,dy1 = pts[1].x(), pts[1].y()
+                                dx2,dy2 = pts[2].x(), pts[2].y()
+                                # Solve affine: src → dst
+                                det = (sx1-sx0)*(sy2-sy0)-(sx2-sx0)*(sy1-sy0)
+                                if abs(det) > 0.001:
+                                    a11=(( dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
+                                    a12=(( dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
+                                    a21=(( dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
+                                    a22=(( dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
+                                    tx=dx0-a11*sx0-a12*sy0
+                                    ty=dy0-a21*sx0-a22*sy0
+                                    xf = QTransform(a11,a21,a12,a22,tx,ty)
+                                    painter.save()
+                                    painter.setClipRegion(
+                                        __import__('PyQt6.QtGui',fromlist=['QRegion']).QRegion(
+                                            _PF(pts).toPolygon()))
+                                    painter.setTransform(xf, combine=True)
+                                    painter.drawImage(0, 0, tex_img)
+                                    painter.restore()
+                                else:
+                                    raise ValueError("degenerate")
+                            except Exception:
+                                # Fallback: solid colour
+                                col = QColor(170, 120, 80)
+                                painter.setPen(Qt.PenStyle.NoPen)
+                                painter.setBrush(QBrush(col))
+                                painter.drawPolygon(_PF(pts))
+                        else:
+                            # No texture: draw solid grey + wire
+                            col = QColor(170, 175, 180)
+                            if mat_obj and hasattr(mat_obj, 'colour'):
+                                c = mat_obj.colour
+                                col = QColor(c.r, c.g, c.b, 220)
+                            painter.setPen(QPen(QColor(80,80,80,80), 0.3))
+                            painter.setBrush(QBrush(col))
                             painter.drawPolygon(_PF(pts))
-                        except (IndexError,AttributeError):
-                            pass
 
         # Boxes
         if show_boxes:
