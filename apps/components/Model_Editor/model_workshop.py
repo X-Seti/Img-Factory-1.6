@@ -8650,19 +8650,71 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
 
 
-    def _on_col_selected(self, item): #vers 1
-        """Handle COL file selection"""
+    def _populate_left_panel_from_img(self, img): #vers 1
+        """Populate the left panel list from an already-open IMGFile object."""
+        lw = getattr(self, 'col_list_widget', None)
+        if lw is None:
+            return
+        from PyQt6.QtGui import QColor
+        model_exts = ('.dff', '.col', '.txd')
+        lw.clear()
+        for entry in img.entries:
+            if not getattr(entry, 'name', '').lower().endswith(model_exts):
+                continue
+            ext = os.path.splitext(entry.name)[1].lower()
+            item = QListWidgetItem(entry.name)
+            item.setData(Qt.ItemDataRole.UserRole, entry)
+            if ext == '.dff':
+                item.setForeground(QColor('#4db6ac'))
+            elif ext == '.col':
+                item.setForeground(QColor('#ef5350'))
+            elif ext == '.txd':
+                item.setForeground(QColor('#ffa726'))
+            lw.addItem(item)
+        n = lw.count()
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(f"Model Workshop: {n} entries in left panel")
+
+    def _load_txd_file_from_data(self, data: bytes, name: str): #vers 1
+        """Load TXD from raw bytes into the texture panel."""
         try:
-            entry = item.data(Qt.ItemDataRole.UserRole)
-            if entry:
-                txd_data = self._extract_col_from_img(entry)
-                if txd_data:
-                    self.current_col_data = col_data
-                    self.current_col_name = entry.name
-                    self._load_col_files(col_data, entry.name)
+            import tempfile
+            tmp = tempfile.NamedTemporaryFile(
+                delete=False, suffix='.txd',
+                prefix=os.path.splitext(name)[0] + '_')
+            tmp.write(data); tmp.close()
+            self._load_txd_file(tmp.name)
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Error selecting COL: {str(e)}")
+                self.main_window.log_message(f"TXD load error: {e}")
+
+    def _on_col_selected(self, item): #vers 2
+        """Handle entry selection from left panel — routes by extension."""
+        try:
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            if not entry:
+                return
+            name = entry.name.lower()
+            data = self._extract_col_from_img(entry)
+            if not data:
+                return
+            if name.endswith('.dff'):
+                import tempfile, os as _os
+                tmp = tempfile.NamedTemporaryFile(
+                    delete=False, suffix='.dff',
+                    prefix=_os.path.splitext(entry.name)[0] + '_')
+                tmp.write(data); tmp.close()
+                self.open_dff_file(tmp.name)
+            elif name.endswith('.col'):
+                self.current_col_data = data
+                self.current_col_name = entry.name
+                self._load_col_files(data, entry.name)
+            elif name.endswith('.txd'):
+                self._load_txd_file_from_data(data, entry.name)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Error selecting entry: {e}")
 
 
     def _extract_col_from_img(self, entry): #vers 2
@@ -11167,8 +11219,20 @@ def open_model_workshop(main_window, dff_path=None): #vers 2
             elif ext.endswith('.img'):
                 workshop.load_from_img_archive(dff_path)
         else:
-            if main_window and hasattr(main_window, 'log_message'):
-                main_window.log_message("Model Workshop opened")
+            # No explicit file — try to populate from main window's loaded IMG
+            if main_window:
+                img = getattr(main_window, 'current_img', None)
+                if img and hasattr(img, 'file_path') and img.file_path:
+                    workshop.load_from_img_archive(img.file_path)
+                elif img and hasattr(img, 'entries') and img.entries:
+                    # IMG object exists but may not have file_path attr
+                    fp = getattr(img, 'file_path', '') or getattr(img, 'path', '')
+                    if fp:
+                        workshop.load_from_img_archive(fp)
+                    else:
+                        workshop._populate_left_panel_from_img(img)
+                if hasattr(main_window, 'log_message'):
+                    main_window.log_message("Model Workshop opened")
 
         return workshop
     except Exception as e:
