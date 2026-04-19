@@ -1125,77 +1125,115 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Tree right-click — open source file in editor ─────────────────────
 
-    def _apply_theme_stylesheet(self): #vers 1
-        """Apply comprehensive theme-aware stylesheet to all child widgets."""
-        self.setStyleSheet("""
-            DATBrowserWidget {
-                background-color: palette(window);
-                color: palette(windowText);
-            }
-            QTreeWidget, QTableWidget, QListWidget {
-                background-color: palette(base);
-                alternate-background-color: palette(alternateBase);
-                color: palette(text);
-                border: 1px solid palette(mid);
-                gridline-color: palette(mid);
-            }
-            QTreeWidget::item, QTableWidget::item {
-                background-color: transparent;
-                color: palette(text);
+    def _apply_theme_stylesheet(self): #vers 2
+        """Apply stylesheet using theme colors from app_settings when available,
+        falling back to Qt palette roles otherwise."""
+        mw = getattr(self, 'main_window', None)
+        colors = {}
+        if mw and hasattr(mw, 'app_settings'):
+            try:
+                colors = mw.app_settings.get_theme_colors() or {}
+            except Exception:
+                pass
+
+        # Pull theme-specific colors with palette fallbacks
+        bg       = colors.get('panel_bg',       '')
+        row_odd  = colors.get('table_row_odd',  colors.get('bg_primary',    ''))
+        row_even = colors.get('table_row_even', colors.get('alternate_row', ''))
+        fg       = colors.get('text_primary',   '')
+        border   = colors.get('border',         '')
+        btn_bg   = colors.get('button_normal',  '')
+        btn_fg   = colors.get('button_text_color', '')
+        sel_bg   = colors.get('accent_primary', '')
+        sel_fg   = colors.get('selection_text', '')
+        panel_entries = colors.get('panel_entries', row_odd)
+
+        # Helper — return css value or palette fallback
+        def c(val, fallback):
+            return val if val else f'palette({fallback})'
+
+        ss = f"""
+            DATBrowserWidget {{
+                background-color: {c(bg, 'window')};
+                color: {c(fg, 'windowText')};
+            }}
+            QTreeWidget, QTableWidget, QListWidget {{
+                background-color: {c(row_odd, 'base')};
+                alternate-background-color: {c(row_even, 'alternateBase')};
+                color: {c(fg, 'text')};
+                border: 1px solid {c(border, 'mid')};
+                gridline-color: {c(border, 'mid')};
+            }}
+            QTreeWidget::item {{
+                background-color: {c(panel_entries, 'base')};
+                color: {c(fg, 'text')};
+                padding: 1px 3px;
+            }}
+            QTreeWidget::item:alternate {{
+                background-color: {c(row_even, 'alternateBase')};
+            }}
+            QTableWidget::item {{
+                color: {c(fg, 'text')};
                 padding: 1px;
-            }
-            QTreeWidget::item:selected, QTableWidget::item:selected {
-                background-color: palette(highlight);
-                color: palette(highlightedText);
-            }
-            QTreeWidget::item:hover, QTableWidget::item:hover {
-                background-color: palette(midlight);
-            }
-            QHeaderView::section {
-                background-color: palette(button);
-                color: palette(buttonText);
+            }}
+            QTreeWidget::item:selected, QTableWidget::item:selected {{
+                background-color: {c(sel_bg, 'highlight')};
+                color: {c(sel_fg, 'highlightedText')};
+            }}
+            QTreeWidget::item:hover, QTableWidget::item:hover {{
+                background-color: {c(row_even, 'midlight')};
+            }}
+            QHeaderView::section {{
+                background-color: {c(btn_bg, 'button')};
+                color: {c(btn_fg, 'buttonText')};
                 border: none;
-                border-right: 1px solid palette(mid);
-                border-bottom: 1px solid palette(mid);
+                border-right: 1px solid {c(border, 'mid')};
+                border-bottom: 1px solid {c(border, 'mid')};
                 padding: 3px 6px;
-            }
-            QTabWidget::pane {
-                background-color: palette(window);
-                border: 1px solid palette(mid);
-            }
-            QTabBar::tab {
-                background-color: palette(button);
-                color: palette(buttonText);
-                border: 1px solid palette(mid);
+                font-weight: bold;
+            }}
+            QTabWidget::pane {{
+                background-color: {c(bg, 'window')};
+                border: 1px solid {c(border, 'mid')};
+            }}
+            QTabBar::tab {{
+                background-color: {c(btn_bg, 'button')};
+                color: {c(btn_fg, 'buttonText')};
+                border: 1px solid {c(border, 'mid')};
                 padding: 4px 12px;
                 margin-right: 2px;
-            }
-            QTabBar::tab:selected {
-                background-color: palette(window);
-                color: palette(windowText);
+            }}
+            QTabBar::tab:selected {{
+                background-color: {c(bg, 'window')};
+                color: {c(fg, 'windowText')};
                 border-bottom: none;
-            }
-            QTabBar::tab:hover {
-                background-color: palette(midlight);
-            }
-            QSplitter::handle {
-                background-color: palette(mid);
-            }
-            QLineEdit, QComboBox {
-                background-color: palette(base);
-                color: palette(text);
-                border: 1px solid palette(mid);
+            }}
+            QTabBar::tab:hover {{
+                background-color: {c(row_even, 'midlight')};
+            }}
+            QSplitter::handle {{
+                background-color: {c(border, 'mid')};
+            }}
+            QLineEdit, QComboBox {{
+                background-color: {c(row_odd, 'base')};
+                color: {c(fg, 'text')};
+                border: 1px solid {c(border, 'mid')};
                 padding: 2px 4px;
-            }
-            QProgressBar {
-                background-color: palette(base);
-                color: palette(text);
-                border: 1px solid palette(mid);
-            }
-            QScrollBar:vertical, QScrollBar:horizontal {
-                background-color: palette(base);
-            }
-        """)
+            }}
+            QProgressBar {{
+                background-color: {c(row_odd, 'base')};
+                color: {c(fg, 'text')};
+                border: 1px solid {c(border, 'mid')};
+            }}
+            QScrollBar:vertical, QScrollBar:horizontal {{
+                background-color: {c(row_even, 'base')};
+            }}
+            QLabel {{
+                color: {c(fg, 'windowText')};
+                background-color: transparent;
+            }}
+        """
+        self.setStyleSheet(ss)
 
     def _on_theme_changed(self): #vers 2
         """Refresh all palette-driven colors when theme switches."""
