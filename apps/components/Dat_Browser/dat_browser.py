@@ -358,12 +358,7 @@ class TXDDumpDialog(QDialog): #vers 1
         extracted, skipped, errors = 0, 0, []
         remaining = set(txd_names)   # shrinks as we find each TXD
 
-        try:
-            from apps.methods.img_tools import IMGArchive
-        except ImportError as e:
-            prog.close()
-            QMessageBox.critical(self, "Error", f"Cannot import IMGArchive:\n{e}")
-            return
+        from apps.methods.img_core_classes import IMGFile
 
         for i, img_path in enumerate(img_paths):
             prog.setValue(i)
@@ -375,7 +370,8 @@ class TXDDumpDialog(QDialog): #vers 1
                 break
 
             try:
-                arc = IMGArchive(img_path)
+                arc = IMGFile(img_path)
+                arc.open()
                 for entry in arc.entries:
                     ename = entry.name.lower()
                     if not ename.endswith('.txd'):
@@ -389,7 +385,7 @@ class TXDDumpDialog(QDialog): #vers 1
                         remaining.discard(ename)
                         continue
                     try:
-                        data = arc.read_entry(entry)
+                        data = arc.read_entry_data(entry)
                         with open(out_path, 'wb') as f:
                             f.write(data)
                         extracted += 1
@@ -1137,10 +1133,10 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Tree right-click — open source file in editor ─────────────────────
 
-    def _apply_theme_stylesheet(self): #vers 3
-        """Clear any widget-level stylesheet and let the global QApplication
-        stylesheet (set by app_settings) handle all theming.
-        Only apply minimal overrides for DAT-specific alternating row colors."""
+    def _apply_theme_stylesheet(self): #vers 4
+        """Apply theme colors. Uses QApplication global stylesheet for most
+        styling; sets palette background explicitly to prevent resize flicker."""
+        from PyQt6.QtGui import QPalette, QColor
         mw = getattr(self, 'main_window', None)
         colors = {}
         if mw and hasattr(mw, 'app_settings'):
@@ -1149,21 +1145,45 @@ class DATBrowserWidget(QWidget): #vers 2
             except Exception:
                 pass
 
-        row_odd  = colors.get('table_row_odd',  colors.get('bg_primary',    ''))
+        bg       = colors.get('panel_bg', colors.get('bg_primary', ''))
+        row_odd  = colors.get('table_row_odd',  colors.get('bg_primary', ''))
         row_even = colors.get('table_row_even', colors.get('alternate_row', ''))
-        border   = colors.get('border', '')
+        fg       = colors.get('text_primary', '')
 
         def c(val, fallback):
             return val if val else f'palette({fallback})'
 
-        # Minimal override — only row colors which aren't in the global stylesheet
-        # Everything else inherits from QApplication.instance().styleSheet()
+        # Set palette background explicitly — prevents Qt repaint flicker on resize
+        # where Qt briefly shows a black rectangle before the stylesheet paints
+        if bg:
+            try:
+                pal = self.palette()
+                col = QColor(bg)
+                pal.setColor(QPalette.ColorRole.Window,     col)
+                pal.setColor(QPalette.ColorRole.Base,       QColor(row_odd)  if row_odd  else col)
+                pal.setColor(QPalette.ColorRole.AlternateBase, QColor(row_even) if row_even else col)
+                if fg:
+                    pal.setColor(QPalette.ColorRole.WindowText, QColor(fg))
+                    pal.setColor(QPalette.ColorRole.Text,       QColor(fg))
+                self.setPalette(pal)
+                # Propagate to tree and tables too
+                for child_attr in ('_tree', '_obj_table', '_inst_table',
+                                   '_zone_table', '_log_text'):
+                    child = getattr(self, child_attr, None)
+                    if child:
+                        child.setPalette(pal)
+            except Exception:
+                pass
+
+        # Minimal stylesheet override — row colors only
         ss = f"""
             QTreeWidget {{
                 alternate-background-color: {c(row_even, 'alternateBase')};
+                background-color: {c(row_odd, 'base')};
             }}
             QTableWidget {{
                 alternate-background-color: {c(row_even, 'alternateBase')};
+                background-color: {c(row_odd, 'base')};
             }}
         """
         self.setStyleSheet(ss)
@@ -1178,8 +1198,9 @@ class DATBrowserWidget(QWidget): #vers 2
     def _get_txd_names_from_img(self, img_path: str) -> list:
         """Return list of .txd entry names from an IMG archive."""
         try:
-            from apps.methods.img_tools import IMGArchive
-            img = IMGArchive(img_path)
+            from apps.methods.img_core_classes import IMGFile
+            img = IMGFile(img_path)
+            img.open()
             return [e.name for e in img.entries if e.name.lower().endswith('.txd')]
         except Exception as e:
             print(f"IMG read error: {e}")
@@ -1221,12 +1242,13 @@ class DATBrowserWidget(QWidget): #vers 2
         # Search across all game IMGs via load_log
         if self.loader:
             try:
-                from apps.methods.img_tools import IMGArchive
+                from apps.methods.img_core_classes import IMGFile
                 for _phase, etype, path, ok in self.loader.load_log:
                     if not (ok and etype in ('IMG', 'CDIMAGE') and os.path.isfile(path)):
                         continue
                     try:
-                        arc = IMGArchive(path)
+                        arc = IMGFile(path)
+                        arc.open()
                         for entry in arc.entries:
                             if entry.name.lower() == txd_file:
                                 if mw and hasattr(mw, 'open_txd_workshop_docked'):
@@ -1263,14 +1285,15 @@ class DATBrowserWidget(QWidget): #vers 2
             return
         extracted, skipped, errors = 0, 0, []
         try:
-            from apps.methods.img_tools import IMGArchive
+            from apps.methods.img_core_classes import IMGFile
             for _phase, etype, path, ok in self.loader.load_log:
                 if not (ok and etype in ('IMG', 'CDIMAGE') and os.path.isfile(path)):
                     continue
                 if not txd_names:
                     break
                 try:
-                    arc = IMGArchive(path)
+                    arc = IMGFile(path)
+                    arc.open()
                     for entry in arc.entries:
                         if entry.name.lower() in txd_names:
                             out_path = os.path.join(out_dir, entry.name)
@@ -1279,7 +1302,7 @@ class DATBrowserWidget(QWidget): #vers 2
                             else:
                                 try:
                                     with open(out_path, 'wb') as f:
-                                        f.write(arc.read_entry(entry))
+                                        f.write(arc.read_entry_data(entry))
                                     extracted += 1
                                 except Exception as e:
                                     errors.append(f"{entry.name}: {e}")
