@@ -338,8 +338,10 @@ class TXDDumpDialog(QDialog): #vers 1
         # world, generics — scan all IMGs (TXD filter handles it)
         return all_imgs
 
-    def _run_dump(self):
-        """Execute the TXD dump with progress dialog."""
+    def _run_dump(self): #vers 2
+        """Execute the TXD dump with progress dialog.
+        Reads _fmt_checks — if any image formats are ticked,
+        decodes each TXD and writes textures to texlist/<txd_name>/."""
         out_dir = self._folder_edit.text().strip()
         if not out_dir:
             self._pick_folder()
@@ -350,7 +352,7 @@ class TXDDumpDialog(QDialog): #vers 1
         os.makedirs(out_dir, exist_ok=True)
         mode          = self._get_mode()
         skip_existing = self._skip_existing.isChecked()
-        txd_names     = self._collect_txd_names(mode)   # set of "foo.txd"
+        txd_names     = self._collect_txd_names(mode)
         img_paths     = self._get_img_paths(mode)
 
         if not txd_names:
@@ -362,13 +364,51 @@ class TXDDumpDialog(QDialog): #vers 1
                 "No IMG/CDIMAGE archives found for this game.")
             return
 
+        # Which image formats to export (from checkboxes added in _build_ui)
+        fmt_map  = {'IFF/ILBM': 'iff', 'PNG': 'png',
+                    'TGA': 'tga', 'DDS': 'dds', 'BMP': 'bmp'}
+        sel_fmts = [fmt_map[k] for k, cb in self._fmt_checks.items()
+                    if cb.isChecked()]
+
+        # texlist/ holds decoded image files organised by TXD name
+        texlist_dir = os.path.join(out_dir, "texlist")
+        if sel_fmts:
+            os.makedirs(texlist_dir, exist_ok=True)
+
+        # Lazy-init TXD decode pipeline (one instance, reused for speed)
+        _txw = [None]
+        def _get_txw():
+            if _txw[0] is None:
+                try:
+                    from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+                    _txw[0] = TXDWorkshop(main_window=None)
+                except Exception:
+                    pass
+            return _txw[0]
+
+        def _parse_txd_data(data):
+            try:
+                from apps.components.Model_Editor.model_workshop import ModelWorkshop
+                from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+                parser = getattr(ModelWorkshop, '_txd_parser_cache', None)
+                if parser is None:
+                    parser = TXDWorkshop(main_window=None)
+                    ModelWorkshop._txd_parser_cache = parser
+                stub = ModelWorkshop.__new__(ModelWorkshop)
+                return ModelWorkshop._parse_txd_lightweight(stub, data)
+            except Exception:
+                return []
+
         prog = QProgressDialog("Starting…", "Cancel", 0, len(img_paths), self)
         prog.setWindowTitle(f"Dumping TXDs — {mode}")
         prog.setWindowModality(Qt.WindowModality.ApplicationModal)
         prog.show()
 
-        extracted, skipped, errors = 0, 0, []
-        remaining = set(txd_names)   # shrinks as we find each TXD
+        extracted_txd = 0
+        extracted_tex = 0
+        skipped       = 0
+        errors        = []
+        remaining     = set(txd_names)
 
         from apps.methods.img_core_classes import IMGFile
 
@@ -376,7 +416,7 @@ class TXDDumpDialog(QDialog): #vers 1
             prog.setValue(i)
             prog.setLabelText(
                 f"Scanning {os.path.basename(img_path)}…  "
-                f"({extracted} extracted, {len(remaining)} remaining)")
+                f"({extracted_txd} TXDs, {extracted_tex} textures)")
             QApplication.processEvents()
             if prog.wasCanceled():
                 break
@@ -388,63 +428,119 @@ class TXDDumpDialog(QDialog): #vers 1
                     ename = entry.name.lower()
                     if not ename.endswith('.txd'):
                         continue
-                    # Mode 'all' skips the name filter
                     if mode != 'all' and ename not in txd_names:
                         continue
-                    out_path = os.path.join(out_dir, entry.name)
-                    if skip_existing and os.path.exists(out_path):
-                        skipped += 1
-                        remaining.discard(ename)
-                        continue
+
+                    # Always write raw .txd file
+                    raw_out = os.path.join(out_dir, entry.name)
                     try:
                         data = arc.read_entry_data(entry)
-                        with open(out_path, 'wb') as f:
-                            f.write(data)
-                        extracted += 1
-                        remaining.discard(ename)
                     except Exception as e:
                         errors.append(f"{entry.name}: {e}")
+                        continue
+
+                    if skip_existing and os.path.exists(raw_out):
+                        skipped += 1
+                    else:
+                        try:
+                            with open(raw_out, 'wb') as fh:
+                                fh.write(data)
+                            extracted_txd += 1
+                        except Exception as e:
+                            errors.append(f"{entry.name}: {e}")
+                            continue
+
+                    remaining.discard(ename)
+
+                    # Decode and export image files if formats are selected
+                    if not sel_fmts:
+                        continue
+
+                    txd_stem   = os.path.splitext(entry.name)[0]
+                    tex_subdir = os.path.join(texlist_dir, txd_stem)
+                    os.makedirs(tex_subdir, exist_ok=True)
+
+                    prog.setLabelText(
+                        f"Decoding {entry.name}…  ({extracted_tex} textures)")
+                    QApplication.processEvents()
+
+                    textures = _parse_txd_data(data)
+                    txw = _get_txw()
+                    if not txw:
+                        errors.append(f"{entry.name}: TXD decoder unavailable")
+                        continue
+
+                    for tex in textures:
+                        tname = (tex.get('name') or 'texture').strip('\x00').strip()
+                        if not tname:
+                            tname = 'texture'
+                        rgba = tex.get('rgba_data')
+                        w    = tex.get('width', 0)
+                        h    = tex.get('height', 0)
+                        if not rgba or w == 0 or h == 0:
+                            for lv in (tex.get('mip_levels')
+                                       or tex.get('mipmap_levels') or []):
+                                rgba = lv.get('rgba_data')
+                                w    = lv.get('width', w)
+                                h    = lv.get('height', h)
+                                if rgba: break
+                        if not rgba or w == 0 or h == 0:
+                            continue
+                        rgba_b = bytes(rgba)
+                        for ext in sel_fmts:
+                            tex_path = os.path.join(tex_subdir,
+                                                     f"{tname}.{ext}")
+                            if skip_existing and os.path.exists(tex_path):
+                                skipped += 1
+                                continue
+                            try:
+                                txw._save_texture_format(rgba_b, w, h,
+                                                          tex_path,
+                                                          ext.upper())
+                                extracted_tex += 1
+                            except Exception as e:
+                                errors.append(
+                                    f"{entry.name}/{tname}.{ext}: {e}")
+
             except Exception as e:
                 errors.append(f"{os.path.basename(img_path)}: {e}")
 
         prog.setValue(len(img_paths))
         prog.close()
 
-        # Summary
         lines = [
             f"Mode: {mode}",
-            f"Extracted: {extracted} TXD file(s)",
-            f"Skipped (already existed): {skipped}",
+            f"TXD files written: {extracted_txd}",
+        ]
+        if sel_fmts:
+            lines.append(
+                f"Textures exported: {extracted_tex}"
+                f"  ({', '.join(ext.upper() for ext in sel_fmts)})"
+                f"  → texlist/")
+        lines += [
+            f"Skipped (existing): {skipped}",
             f"Not found in any IMG: {len(remaining)}",
-            f"Output: {out_dir}",
+            f"Output folder: {out_dir}",
         ]
         if remaining and len(remaining) <= 20:
             lines.append(f"Missing: {', '.join(sorted(remaining))}")
         if errors:
-            lines.append(f"Errors ({len(errors)}): " + "; ".join(errors[:5]))
+            lines.append(
+                f"Errors ({len(errors)}): " + "; ".join(errors[:5]))
 
-        QMessageBox.information(self, "TXD Dump Complete", "\n".join(lines))
+        QMessageBox.information(self, "TXD Dump Complete",
+                                "\n".join(lines))
 
-        # Optionally open in TXD Workshop
-        if self._open_in_txd.isChecked() and extracted > 0:
+        if self._open_in_txd.isChecked() and extracted_txd > 0:
             mw = self.main_window
             if mw and hasattr(mw, 'open_txd_workshop_docked'):
-                # Open the first extracted TXD
-                first = sorted(os.listdir(out_dir))[0]
-                mw.open_txd_workshop_docked(
-                    file_path=os.path.join(out_dir, first))
+                txds = [f for f in sorted(os.listdir(out_dir))
+                        if f.lower().endswith('.txd')]
+                if txds:
+                    mw.open_txd_workshop_docked(
+                        file_path=os.path.join(out_dir, txds[0]))
 
         self.accept()
-
-
-class DATBrowserWidget(QWidget): #vers 2
-    """
-    Full DAT/IDE/IPL browser panel.
-    Drop into any QTabWidget or use standalone.
-    """
-
-    open_img_requested = pyqtSignal(str)          # emits abs path to .img
-    xref_ready         = pyqtSignal(object)        # emits GTAWorldXRef after load
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
