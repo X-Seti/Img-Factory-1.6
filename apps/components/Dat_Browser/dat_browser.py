@@ -116,6 +116,7 @@ class TXDDumpDialog(QDialog): #vers 1
 
         # ── Load saved paths ──────────────────────────────────────────────
         saved = self._load_saved_paths()
+        _saved_flat = saved.get('_struct_flat', False)
 
         # ── Per-category rows ─────────────────────────────────────────────
         self._cat_rows = {}   # key → {'txd_rb','tex_rb','folder_edit','enabled'}
@@ -220,6 +221,24 @@ class TXDDumpDialog(QDialog): #vers 1
         # ── Options ───────────────────────────────────────────────────────
         opt_grp = QGroupBox("Options")
         opt_lay = QVBoxLayout(opt_grp)
+
+        # ── Texture output structure ──────────────────────────────────────
+        struct_row = QHBoxLayout()
+        struct_row.addWidget(QLabel("Texture folder structure:"))
+        from PyQt6.QtWidgets import QButtonGroup as _BG
+        self._struct_named = QRadioButton("texlist/<txd_name>/file.iff")
+        self._struct_named.setChecked(True)
+        self._struct_named.setToolTip("Each TXD textures go into a subfolder: texlist/landstal/chassis.iff  Best for many TXDs.")
+        self._struct_flat = QRadioButton("texlist/file.iff  (flat)")
+        self._struct_flat.setToolTip("Flat: texlist/chassis.iff  Convenient for DPaint/PPaint. Warning: name collisions possible.")
+        _bg_struct = _BG(opt_grp)
+        _bg_struct.addButton(self._struct_named)
+        _bg_struct.addButton(self._struct_flat)
+        struct_row.addWidget(self._struct_named)
+        struct_row.addWidget(self._struct_flat)
+        struct_row.addStretch()
+        opt_lay.addLayout(struct_row)
+
         self._skip_existing = QCheckBox("Skip files that already exist in output folder")
         self._skip_existing.setChecked(True)
         opt_lay.addWidget(self._skip_existing)
@@ -230,6 +249,10 @@ class TXDDumpDialog(QDialog): #vers 1
             hasattr(self.main_window,'open_txd_workshop_docked'))
         opt_lay.addWidget(self._open_in_txd)
         lay.addWidget(opt_grp)
+
+        # Restore saved structure choice
+        if _saved_flat:
+            self._struct_flat.setChecked(True)
 
         # ── Default output folder ─────────────────────────────────────────
         folder_row = QHBoxLayout()
@@ -322,7 +345,11 @@ class TXDDumpDialog(QDialog): #vers 1
 
     def _save_paths(self):
         import json, os
-        data = {'_default': self._folder_edit.text().strip()}
+        data = {
+            '_default': self._folder_edit.text().strip(),
+            '_struct_flat': (getattr(self,'_struct_flat',None)
+                             and self._struct_flat.isChecked()),
+        }
         for key, row in self._cat_rows.items():
             data[key] = {
                 'folder': row['folder_edit'].text().strip(),
@@ -601,7 +628,11 @@ class TXDDumpDialog(QDialog): #vers 1
                         if mode_str != 'textures' or not sel_fmts:
                             continue
                         txd_stem   = os.path.splitext(entry.name)[0]
-                        tex_subdir = os.path.join(texlist_dir, txd_stem)
+                        # Flat vs named subfolder structure
+                        if getattr(self,'_struct_flat',None) and self._struct_flat.isChecked():
+                            tex_subdir = texlist_dir          # flat: all in texlist/
+                        else:
+                            tex_subdir = os.path.join(texlist_dir, txd_stem)
                         os.makedirs(tex_subdir, exist_ok=True)
                         prog.setLabelText(f"Decoding {entry.name}…")
                         QApplication.processEvents()
