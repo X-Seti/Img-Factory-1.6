@@ -361,20 +361,29 @@ class IDEEditor(QDialog): #vers 1
         
         main_layout.addLayout(toolbar_layout)
         
-        # Main vertical splitter
+        # Main tabs: IDE Table | ID Map & Analysis
+        self._main_tabs = QTabWidget()
+
+        # Tab 1: IDE table + status log (original layout)
+        tab1_widget = QWidget()
+        tab1_layout = QVBoxLayout(tab1_widget)
+        tab1_layout.setContentsMargins(0,0,0,0)
+        tab1_layout.setSpacing(3)
+
         splitter = QSplitter(Qt.Orientation.Vertical)
-        
-        # Top panel - IDE table (takes most space)
         top_panel = self.create_table_panel()
         splitter.addWidget(top_panel)
-        
-        # Bottom panel - Status/log window (5 lines height)
         bottom_panel = self.create_status_panel()
         splitter.addWidget(bottom_panel)
-        
-        # Set splitter proportions (top gets most space, bottom is small)
         splitter.setSizes([650, 100])
-        main_layout.addWidget(splitter)
+        tab1_layout.addWidget(splitter)
+
+        self._main_tabs.addTab(tab1_widget, "📋  IDE Entries")
+
+        # Tab 2: ID Map reference + analysis
+        self._main_tabs.addTab(self.create_idmap_panel(), "🗂  ID Map / Analysis")
+
+        main_layout.addWidget(self._main_tabs)
         
         # Status bar
         self.status_bar = QStatusBar()
@@ -606,6 +615,272 @@ class IDEEditor(QDialog): #vers 1
         sort_img_col_action.triggered.connect(self.sort_col_by_ide)
         sort_menu.addAction(sort_img_col_action)
     
+
+    # ── SOL ID range reference ──────────────────────────────────────────
+    # Format: (start, end, label, ide_file, img_file)
+    # None end = open-ended / special section
+    SOL_ID_RANGES = [
+        # ── GTA3.IDE reserved blocks ──────────────────────────────────
+        (0,    129,   "Peds",               "gta3.ide",     "gta3.img"),
+        (130,  239,   "Vehicles",           "gta3.ide",     "gta3.img"),
+        (240,  245,   "Car components",     "gta3.ide",     "gta3.img"),
+        (246,  247,   "Ped components",     "gta3.ide",     "gta3.img"),
+        (250,  257,   "Wheels",             "gta3.ide",     "gta3.img"),
+        (258,  294,   "Weapons",            "gta3.ide",     "gta3.img"),
+        (295,  299,   "Air train",          "gta3.ide",     "gta3.img"),
+        # ── World / city ranges ────────────────────────────────────────
+        (300,  615,   "Special map objects","special.ide",  "special.img"),
+        (616,  1987,  "Generics",           "generics.ide", "Generics.img"),
+        (1987, 4766,  "VC City",            "game_vc.ide",  "game_vc.img"),
+        (4767, 6202,  "LC City",            "game_lc.ide",  "game_lc.img"),
+        (6203, 6479,  "Extended",           "game_ext.ide", "game_ext.img"),
+        (6480, 6679,  "Special (SP)",       "game_sp.ide",  "game_sp.img"),
+        (6680, 8314,  "LA (Los Angeles)",   "game_la.ide",  "game_la.img"),
+        (8315, 9590,  "San Fierro",         "game_sf.ide",  "game_sf.img"),
+        (9591, 10970, "Las Venturas",       "game_lv.ide",  "game_lv.img"),
+        (10971,12841, "San Andreas",        "game_sa.ide",  "game_sa.img"),
+        (13964,14763, "Mainland",           "game_mll.ide", "game_mll.img"),
+        (27071,30010, "Sky Effects",        "skyeffects.ide","skyeffects.img"),
+        (30100,30861, "Seabed",             "seabed.ide",   "seabed.img"),
+    ]
+
+    def create_idmap_panel(self) -> QWidget: #vers 1
+        """Build the ID Map / Analysis tab."""
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+            QSplitter, QGroupBox, QTableWidget, QTableWidgetItem,
+            QPushButton, QTextEdit, QLabel, QHeaderView, QProgressBar)
+        from PyQt6.QtGui import QColor, QFont
+        from PyQt6.QtCore import Qt as _Qt
+
+        panel = QWidget()
+        root  = QVBoxLayout(panel)
+        root.setContentsMargins(4,4,4,4)
+        root.setSpacing(6)
+
+        splitter = QSplitter(_Qt.Orientation.Horizontal)
+
+        # ── Left: ID range reference table ───────────────────────────
+        left = QWidget()
+        ll   = QVBoxLayout(left); ll.setContentsMargins(0,0,0,0)
+
+        lbl = QLabel("GTASOL Master ID Ranges  (max_id = 32767)")
+        lbl.setFont(QFont("Arial",10,QFont.Weight.Bold))
+        ll.addWidget(lbl)
+
+        ref_tbl = QTableWidget(len(self.SOL_ID_RANGES), 5)
+        ref_tbl.setHorizontalHeaderLabels(
+            ["Start","End","Label","IDE File","IMG File"])
+        ref_tbl.horizontalHeader().setStretchLastSection(True)
+        ref_tbl.setAlternatingRowColors(True)
+        ref_tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        ref_tbl.verticalHeader().setDefaultSectionSize(20)
+        ref_tbl.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows)
+
+        for row,(start,end,label,ide,img) in enumerate(self.SOL_ID_RANGES):
+            for col, val in enumerate([str(start),str(end),label,ide,img]):
+                item = QTableWidgetItem(val)
+                item.setTextAlignment(
+                    _Qt.AlignmentFlag.AlignRight|_Qt.AlignmentFlag.AlignVCenter
+                    if col < 2 else
+                    _Qt.AlignmentFlag.AlignLeft|_Qt.AlignmentFlag.AlignVCenter)
+                ref_tbl.setItem(row,col,item)
+
+        ref_tbl.resizeColumnsToContents()
+        ll.addWidget(ref_tbl)
+
+        # Capacity bar
+        total_slots = 32767
+        used_in_ranges = sum(e-s+1 for s,e,*_ in self.SOL_ID_RANGES)
+        bar = QProgressBar()
+        bar.setRange(0, total_slots)
+        bar.setValue(used_in_ranges)
+        bar.setFormat(f"  Mapped {used_in_ranges:,} / {total_slots:,} slots")
+        bar.setFixedHeight(18)
+        ll.addWidget(bar)
+
+        splitter.addWidget(left)
+
+        # ── Right: Analysis results ───────────────────────────────────
+        right = QWidget()
+        rl    = QVBoxLayout(right); rl.setContentsMargins(0,0,0,0)
+        rl.setSpacing(4)
+
+        hdr2 = QLabel("ID Analysis")
+        hdr2.setFont(QFont("Arial",10,QFont.Weight.Bold))
+        rl.addWidget(hdr2)
+
+        self._analysis_log = QTextEdit()
+        self._analysis_log.setReadOnly(True)
+        self._analysis_log.setFont(QFont("Courier New",9))
+        self._analysis_log.setPlaceholderText(
+            "Load an IDE file, then click Run Analysis.")
+        rl.addWidget(self._analysis_log, 1)
+
+        btn_row = QHBoxLayout()
+        run_btn = QPushButton("▶  Run Analysis")
+        run_btn.setFixedHeight(26)
+        run_btn.setToolTip(
+            "Analyse the loaded IDE file against SOL ID ranges.\n"
+            "Reports: range assignment, duplicate IDs, IDs over 32767.")
+        run_btn.clicked.connect(self._run_id_analysis)
+        btn_row.addWidget(run_btn)
+
+        copy_btn = QPushButton("Copy Report")
+        copy_btn.setFixedHeight(26)
+        copy_btn.clicked.connect(
+            lambda: __import__('PyQt6.QtWidgets',fromlist=['QApplication'])
+                    .QApplication.clipboard()
+                    .setText(self._analysis_log.toPlainText()))
+        btn_row.addWidget(copy_btn)
+        btn_row.addStretch()
+        rl.addLayout(btn_row)
+
+        splitter.addWidget(right)
+        splitter.setSizes([520, 480])
+        root.addWidget(splitter)
+        return panel
+
+    def _run_id_analysis(self): #vers 1
+        """Analyse loaded IDE data against the SOL ID range map."""
+        from PyQt6.QtWidgets import QApplication
+        from apps.methods.gta_dat_parser import IDEDatabase, GTAGame
+
+        if not self.ide_data:
+            self._analysis_log.setPlainText(
+                "No IDE entries loaded. Open a file first.")
+            return
+
+        lines = []
+        lines.append(f"ID Analysis — {len(self.ide_data)} entries loaded")
+        lines.append(f"Max ID (GTASOL/VC engine): 32767")
+        lines.append("")
+
+        # Build lookup maps from loaded data
+        id_to_entry = {}
+        name_counts = {}
+        id_counts   = {}
+        for e in self.ide_data:
+            eid   = e.get('id', -1)
+            ename = e.get('model','').lower()
+            id_counts[eid]    = id_counts.get(eid, 0) + 1
+            name_counts[ename]= name_counts.get(ename, 0) + 1
+            if eid not in id_to_entry:
+                id_to_entry[eid] = e
+
+        all_ids = sorted(id_to_entry.keys())
+
+        # ── Range assignment report ───────────────────────────────────
+        lines.append("── Range assignment ─────────────────────────────")
+        range_buckets = {label: [] for _,_,label,*_ in self.SOL_ID_RANGES}
+        unassigned = []
+        over_limit = []
+
+        for eid in all_ids:
+            if eid > 32767:
+                over_limit.append(eid)
+                continue
+            matched = False
+            for (start,end,label,ide_f,img_f) in self.SOL_ID_RANGES:
+                if start <= eid <= end:
+                    range_buckets[label].append(eid)
+                    matched = True
+                    break
+            if not matched:
+                unassigned.append(eid)
+
+        for (start,end,label,ide_f,img_f) in self.SOL_ID_RANGES:
+            bucket = range_buckets[label]
+            capacity = end - start + 1
+            used     = len(bucket)
+            free     = capacity - used
+            pct      = used/capacity*100 if capacity else 0
+            status   = "FULL" if free == 0 else ("NEAR" if pct > 80 else "OK")
+            lines.append(
+                f"  {start:>5}-{end:<5}  {label:<22} "
+                f"{used:>4}/{capacity:<5} used  {free:>4} free  [{status}]")
+
+        lines.append("")
+
+        # ── Problems ──────────────────────────────────────────────────
+        dup_ids   = [i for i,c in id_counts.items()   if c > 1]
+        dup_names = [n for n,c in name_counts.items() if c > 1]
+
+        lines.append("── Problems ─────────────────────────────────────")
+        if over_limit:
+            lines.append(
+                f"  ⚠  {len(over_limit)} ID(s) over 32767 limit:")
+            for i in over_limit[:20]:
+                e = id_to_entry.get(i, {})
+                lines.append(
+                    f"       {i}  {e.get('model','')}  "
+                    f"txd={e.get('txd','')}")
+            if len(over_limit) > 20:
+                lines.append(f"       … and {len(over_limit)-20} more")
+
+        if dup_ids:
+            lines.append(f"  ⚠  {len(dup_ids)} duplicate ID(s):")
+            for i in sorted(dup_ids)[:20]:
+                lines.append(f"       ID {i}  (appears {id_counts[i]}×)")
+            if len(dup_ids) > 20:
+                lines.append(f"       … and {len(dup_ids)-20} more")
+
+        if dup_names:
+            lines.append(f"  ⚠  {len(dup_names)} duplicate model name(s):")
+            for n in sorted(dup_names)[:20]:
+                lines.append(f"       {n}  (appears {name_counts[n]}×)")
+            if len(dup_names) > 20:
+                lines.append(f"       … and {len(dup_names)-20} more")
+
+        if unassigned:
+            lines.append(
+                f"  ℹ  {len(unassigned)} ID(s) not in any defined range:")
+            for i in unassigned[:20]:
+                e = id_to_entry.get(i,{})
+                lines.append(
+                    f"       {i}  {e.get('model','')}  "
+                    f"txd={e.get('txd','')}")
+
+        if not over_limit and not dup_ids and not dup_names:
+            lines.append("  ✓  No problems found.")
+
+        lines.append("")
+
+        # ── Free slot summary ─────────────────────────────────────────
+        used_set  = set(all_ids)
+        free_total= sum(1 for i in range(1,32768) if i not in used_set)
+        lines.append("── Free slots ───────────────────────────────────")
+        lines.append(f"  Total used: {len(all_ids):,}  /  32767")
+        lines.append(f"  Total free: {free_total:,}")
+        lines.append("")
+
+        # Show largest free blocks per range
+        lines.append("── Largest free block per range ─────────────────")
+        for (start,end,label,*_) in self.SOL_ID_RANGES:
+            free_in = [i for i in range(start,end+1) if i not in used_set]
+            if not free_in:
+                continue
+            # Find largest contiguous block
+            best_start = best_len = cur_start = cur_len = 0
+            for i,fid in enumerate(free_in):
+                if i==0 or fid != free_in[i-1]+1:
+                    cur_start=fid; cur_len=1
+                else:
+                    cur_len+=1
+                if cur_len > best_len:
+                    best_len=cur_len; best_start=cur_start
+            if best_len > 0:
+                lines.append(
+                    f"  {label:<22}  "
+                    f"{best_start}-{best_start+best_len-1}  "
+                    f"({best_len} free)")
+
+        self._analysis_log.setPlainText("\n".join(lines))
+        self.log_message(
+            f"ID analysis complete — {len(dup_ids)} dup IDs, "
+            f"{len(over_limit)} over limit")
+
+
     def create_table_panel(self) -> QWidget: #vers 1
         """Create table panel with right-click support"""
         panel = QWidget()
