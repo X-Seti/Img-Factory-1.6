@@ -1134,6 +1134,37 @@ class DATBrowserWidget(QWidget): #vers 2
         auto_lay.addWidget(cb_auto_imgs)
         lay.addWidget(auto_box)
 
+        # ── Texture Sources ───────────────────────────────────────────────
+        tex_box = QGroupBox("Texture Sources  (shared with Model Workshop)")
+        tex_lay = QVBoxLayout(tex_box)
+        tex_lay.addWidget(QLabel(
+            "texlist/ folder for pre-exported PNG/IFF/TGA textures. "
+            "Leave blank to auto-discover next to loaded DFF files."))
+        tl_row = QHBoxLayout()
+        tl_row.addWidget(QLabel("texlist/ folder:"))
+        self._texlist_edit = QLineEdit()
+        self._texlist_edit.setPlaceholderText("(auto-discover if blank)")
+        self._texlist_edit.setFixedHeight(24)
+        import json as _json
+        _mw_cfg = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        if os.path.isfile(_mw_cfg):
+            try:
+                self._texlist_edit.setText(
+                    _json.load(open(_mw_cfg)).get('texlist_folder',''))
+            except Exception:
+                pass
+        tl_row.addWidget(self._texlist_edit, 1)
+        tl_browse = QPushButton("…")
+        tl_browse.setFixedSize(28, 24)
+        tl_browse.clicked.connect(lambda: (
+            lambda f: self._texlist_edit.setText(f) if f else None)(
+                QFileDialog.getExistingDirectory(
+                    dlg, "Select texlist/ folder",
+                    self._texlist_edit.text() or os.path.expanduser('~'))))
+        tl_row.addWidget(tl_browse)
+        tex_lay.addLayout(tl_row)
+        lay.addWidget(tex_box)
+
         # ── Buttons ──────────────────────────────────────────────────────
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
@@ -1161,6 +1192,20 @@ class DATBrowserWidget(QWidget): #vers 2
         self._auto_open_imgs    = cb_auto_imgs.isChecked()
 
         self._apply_btn_style()
+
+        # Save texlist folder to model_workshop.json (shared with Model Workshop)
+        import json as _json2
+        _tl = self._texlist_edit.text().strip()
+        _mw_cfg2 = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        try:
+            _d = {}
+            if os.path.isfile(_mw_cfg2):
+                _d = _json2.load(open(_mw_cfg2))
+            _d['texlist_folder'] = _tl
+            os.makedirs(os.path.dirname(_mw_cfg2), exist_ok=True)
+            _json2.dump(_d, open(_mw_cfg2,'w'), indent=2)
+        except Exception:
+            pass
 
         # Persist to JSON settings
         self._save_dat_settings()

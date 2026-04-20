@@ -1948,13 +1948,31 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             tbl.viewport().update()))
         btn_row.addWidget(auto_txd_btn)
 
-        texlist_btn = QPushButton("Set texlist…")
-        texlist_btn.setFixedHeight(24)
-        texlist_btn.setToolTip(
-            "Set a texlist/ folder to scan for pre-exported PNG/IFF/TGA textures.\n"
-            "Used as fallback when TXD is not found in any open IMG.")
-        texlist_btn.clicked.connect(self._set_texlist_folder)
-        btn_row.addWidget(texlist_btn)
+        scan_btn = QPushButton("Scan texlist…")
+        scan_btn.setFixedHeight(24)
+        scan_btn.setToolTip(
+            "Scan the texlist/ folder for pre-exported PNG/IFF/TGA textures.\n"
+            "Configure the folder in Model Workshop Settings → Export → Texture Sources.")
+        def _do_scan_texlist():
+            stem = getattr(self, '_ide_txd_name', '') or ''
+            found = self._auto_load_from_texlist(stem)
+            # Refresh In Cache column
+            vp2 = getattr(self, 'preview_widget', None)
+            tc2 = getattr(vp2, '_tex_cache', {}) if vp2 else {}
+            for r in range(tbl.rowCount()):
+                tname2 = (tbl.item(r, 2).text() or '').strip().lower()
+                ic = '✓' if tname2 in tc2 else ('—' if not tname2 else '✗')
+                from PyQt6.QtGui import QColor as _QC
+                ci = tbl.item(r, 4); ci.setText(ic)
+                ci.setForeground(_QC('#16a34a') if ic=='✓' else _QC('#dc2626') if ic=='✗' else _QC('#888'))
+            if not found:
+                # Offer to set the folder if none configured
+                folder = getattr(self, '_texlist_folder', '') or ''
+                if not folder or not __import__('os').path.isdir(folder):
+                    self._set_texlist_folder()
+                    self._auto_load_from_texlist(stem)
+        scan_btn.clicked.connect(_do_scan_texlist)
+        btn_row.addWidget(scan_btn)
         btn_row.addStretch()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dlg.accept)
@@ -6365,6 +6383,40 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         compat_label.setStyleSheet("padding: 10px; background-color: #3a3a3a; border-radius: 4px;")
         export_layout.addWidget(compat_label)
 
+        # ── Texture Sources ──────────────────────────────────────────────
+        tex_src_group = QGroupBox("Texture Sources")
+        tex_src_layout = QVBoxLayout(tex_src_group)
+
+        tex_src_layout.addWidget(QLabel(
+            "texlist/ folder: pre-exported PNG/IFF/TGA textures.\nFallback when TXD not found in any open IMG."))
+
+        texlist_row = QHBoxLayout()
+        texlist_row.addWidget(QLabel("texlist/ folder:"))
+        texlist_edit = QLineEdit()
+        texlist_edit.setPlaceholderText("Browse to set, or leave blank for auto-discover")
+        texlist_edit.setText(getattr(self, '_texlist_folder', '') or '')
+        texlist_edit.setFixedHeight(24)
+        texlist_row.addWidget(texlist_edit, 1)
+
+        texlist_browse = QPushButton("…")
+        texlist_browse.setFixedSize(28, 24)
+        texlist_browse.setToolTip("Browse for texlist/ root folder")
+        texlist_browse.clicked.connect(lambda: (
+            (folder := __import__('PyQt6.QtWidgets', fromlist=['QFileDialog'])
+                       .QFileDialog.getExistingDirectory(
+                           dialog, "Select texlist/ folder",
+                           texlist_edit.text() or __import__('os').path.expanduser('~'))),
+            texlist_edit.setText(folder) if folder else None))
+        texlist_row.addWidget(texlist_browse)
+        tex_src_layout.addLayout(texlist_row)
+
+        auto_discover_lbl = QLabel(
+            "If blank: auto-discovers texlist/ next to the loaded DFF file.")
+        auto_discover_lbl.setStyleSheet("color: palette(mid); font-style: italic;")
+        tex_src_layout.addWidget(auto_discover_lbl)
+
+        export_layout.addWidget(tex_src_group)
+
         export_layout.addStretch()
         tabs.addTab(export_tab, "Export")
 
@@ -6613,6 +6665,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self.export_preserve_alpha = preserve_alpha_check.isChecked()
             self.export_shadow_separate = export_shadow_check.isChecked()
             self.export_create_subfolders = create_subfolders_check.isChecked()
+            # Texture Sources — texlist folder
+            new_texlist = texlist_edit.text().strip()
+            if new_texlist != getattr(self, '_texlist_folder', ''):
+                self._texlist_folder = new_texlist
+                self._save_texlist_setting()
 
             # Apply import settings
             self.import_auto_name = auto_name_check.isChecked()
