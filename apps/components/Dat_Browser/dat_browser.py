@@ -556,7 +556,48 @@ class DATBrowserWidget(QWidget): #vers 2
         left.setAutoFillBackground(True)
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 0, 0, 0)
-        ll.addWidget(QLabel("Load Order:"))
+        ll.setSpacing(2)
+
+        # ── Load Order toolbar ────────────────────────────────────────────
+        tree_hdr = QHBoxLayout()
+        tree_hdr.setContentsMargins(2, 2, 2, 0)
+        tree_hdr.setSpacing(4)
+        tree_hdr.addWidget(QLabel("Load Order:"))
+        tree_hdr.addStretch()
+
+        # Sort combo
+        self._sort_combo = QComboBox()
+        self._sort_combo.setFixedWidth(110)
+        self._sort_combo.setFixedHeight(22)
+        self._sort_combo.addItems(["Original", "A → Z", "Z → A",
+                                   "Largest first", "Smallest first", "By type"])
+        self._sort_combo.setToolTip("Sort load-order entries")
+        self._sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        tree_hdr.addWidget(self._sort_combo)
+
+        # Group toggle (SOL only — shown/hidden in _on_world_loaded)
+        self._group_btn = QPushButton("Group")
+        self._group_btn.setCheckable(True)
+        self._group_btn.setChecked(True)
+        self._group_btn.setFixedHeight(22)
+        self._group_btn.setFixedWidth(52)
+        self._group_btn.setToolTip("Group entries by city/section (SOL)")
+        self._group_btn.toggled.connect(lambda: self._populate_tree())
+        self._group_btn.setVisible(False)   # shown only when SOL is loaded
+        tree_hdr.addWidget(self._group_btn)
+
+        # COL-in-IMG toggle
+        self._show_col_in_img_btn = QPushButton("COL▾")
+        self._show_col_in_img_btn.setCheckable(True)
+        self._show_col_in_img_btn.setChecked(False)
+        self._show_col_in_img_btn.setFixedHeight(22)
+        self._show_col_in_img_btn.setFixedWidth(46)
+        self._show_col_in_img_btn.setToolTip(
+            "Show .col files embedded inside IMG archives as child nodes")
+        self._show_col_in_img_btn.toggled.connect(lambda: self._populate_tree())
+        tree_hdr.addWidget(self._show_col_in_img_btn)
+
+        ll.addLayout(tree_hdr)
 
         self._tree = QTreeWidget()
         self._tree.setHeaderLabels(["File", "Type", "Entries", "Status"])
@@ -867,8 +908,131 @@ class DATBrowserWidget(QWidget): #vers 2
         self._populate_instances()
         self._populate_zones()
 
-    def _populate_tree(self): #vers 2
+    # ── SOL group mapping ───────────────────────────────────────────────
+    _SOL_GROUPS = {
+        'special':    'Special',
+        'generics':   'Generics',
+        'game_vc':    'VC City',
+        'game_lc':    'LC City',
+        'game_la':    'LA (San Andreas)',
+        'game_sf':    'San Fierro',
+        'game_lv':    'Las Venturas',
+        'game_sa':    'San Andreas',
+        'game_mll':   'Mainland',
+        'game_ext':   'Extended',
+        'skyeffects': 'Sky Effects',
+        'radartex':   'Radar Textures',
+    }
+
+    def _stem_group(self, bname: str) -> str:
+        """Return group name for a basename, or empty string if ungrouped."""
+        stem = bname.lower().split('.')[0]
+        return self._SOL_GROUPS.get(stem, '')
+
+    def _sort_log(self, log: list) -> list:
+        """Sort load_log according to self._sort_combo selection."""
+        mode = getattr(self, '_sort_combo', None)
+        if not mode:
+            return log
+        idx = mode.currentIndex()
+        if idx == 0:   # Original
+            return log
+        elif idx == 1: # A → Z
+            return sorted(log, key=lambda e: os.path.basename(e[2]).lower())
+        elif idx == 2: # Z → A
+            return sorted(log, key=lambda e: os.path.basename(e[2]).lower(), reverse=True)
+        elif idx == 3: # Largest first
+            def _sz(e):
+                try: return os.path.getsize(e[2]) if e[3] else 0
+                except: return 0
+            return sorted(log, key=_sz, reverse=True)
+        elif idx == 4: # Smallest first
+            def _sz2(e):
+                try: return os.path.getsize(e[2]) if e[3] else 0
+                except: return 999_999_999
+            return sorted(log, key=_sz2)
+        elif idx == 5: # By type
+            order = {"IMG":0,"CDIMAGE":1,"IDE":2,"IPL":3,"COLFILE":4}
+            return sorted(log, key=lambda e: (order.get(e[1],9), os.path.basename(e[2]).lower()))
+        return log
+
+    def _on_sort_changed(self): #vers 1
+        """Re-populate tree when sort mode changes."""
+        if self.loader and self.loader.load_log:
+            self._populate_tree()
+
+    def _make_entry_child(self, phase, entry_type, path, success): #vers 1
+        """Build a QTreeWidgetItem for one load_log entry."""
+        bname = os.path.basename(path)
+        count = 0
+        count_str = "0"
+
+        if entry_type == "IDE":
+            count = sum(1 for o in self.loader.objects.values()
+                        if o.source_ide == bname)
+            count_str = str(count)
+        elif entry_type == "IPL":
+            count = sum(1 for i in self.loader.instances
+                        if i.source_ipl == bname)
+            count_str = str(count)
+        elif entry_type in ("IMG", "CDIMAGE"):
+            try:
+                sz = os.path.getsize(path) if success else 0
+                count_str = (f"{sz//1024//1024} MB" if sz > 1024*1024
+                             else f"{sz//1024} KB" if sz else "—")
+            except Exception:
+                count_str = "—"
+        elif entry_type == "COLFILE":
+            count_str = ""
+
+        label = ("IMG" if entry_type == "IMG"
+                 else "CDIMAGE" if entry_type == "CDIMAGE"
+                 else "COL"     if entry_type == "COLFILE"
+                 else entry_type)
+        tag   = f" [{phase}]" if phase == "enforced" else ""
+        status = "✓" if success else "✗ missing"
+
+        child = QTreeWidgetItem([bname + tag, label, count_str, status])
+        child.setData(0, Qt.ItemDataRole.UserRole, path)
+        if not success:
+            for col in range(4):
+                child.setForeground(col, QColor(204, 68, 68))
+            if entry_type == "COLFILE":
+                child.setToolTip(0, f"Not found: {path}")
+        return child
+
+    def _add_col_in_img_children(self, img_item, img_path): #vers 1
+        """Scan an IMG archive and add .col entries as child nodes."""
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(img_path)
+            arc.open()
+            col_entries = [e for e in arc.entries
+                           if e.name.lower().endswith('.col')]
+            for e in col_entries:
+                ci = QTreeWidgetItem([e.name, "COL▾", "", "✓"])
+                ci.setData(0, Qt.ItemDataRole.UserRole + 1, img_path)  # parent IMG
+                ci.setData(0, Qt.ItemDataRole.UserRole + 2, e.name)    # entry name
+                ci.setForeground(1, QColor("#ef5350"))
+                img_item.addChild(ci)
+        except Exception:
+            pass
+
+    def _populate_tree(self): #vers 3
         self._tree.clear()
+        if not self.loader:
+            return
+
+        from apps.methods.gta_dat_parser import GTAGame
+        is_sol   = getattr(self.loader, 'game', None) == GTAGame.SOL
+        do_group = is_sol and getattr(self, '_group_btn', None) and self._group_btn.isChecked()
+        do_col_in_img = (getattr(self, '_show_col_in_img_btn', None)
+                         and self._show_col_in_img_btn.isChecked())
+
+        # Show / hide group button
+        if hasattr(self, '_group_btn'):
+            self._group_btn.setVisible(is_sol)
+
         default_path = getattr(self.loader.default_dat, "dat_path", "")
         main_path    = getattr(self.loader.main_dat,    "dat_path", "")
         display_name = os.path.basename(main_path) if main_path else "unknown.dat"
@@ -880,47 +1044,69 @@ class DATBrowserWidget(QWidget): #vers 2
         if default_path:
             def_name = os.path.basename(default_path)
             def_item = QTreeWidgetItem([def_name, "DAT-1", "", "✓"])
-            def_item.setForeground(0, self.palette().color(self.foregroundRole()).darker(150))
+            def_item.setForeground(0, self.palette().color(
+                self.foregroundRole()).darker(150))
             root_item.addChild(def_item)
 
-        for phase, entry_type, path, success in self.loader.load_log:
-            bname = os.path.basename(path)
-            if entry_type == "IDE":
-                count = sum(1 for o in self.loader.objects.values()
-                            if o.source_ide == bname)
-            elif entry_type == "IPL":
-                count = sum(1 for i in self.loader.instances
-                            if i.source_ipl == bname)
-            elif entry_type in ("IMG", "CDIMAGE"):
-                # Show file size as proxy for entry count
-                try:
-                    sz = os.path.getsize(path) if success else 0
-                    count_str = f"{sz // 1024 // 1024} MB" if sz > 1024*1024 else (f"{sz // 1024} KB" if sz else "—")
-                except Exception:
-                    count_str = "—"
-            else:
-                count = 0
+        sorted_log = self._sort_log(list(self.loader.load_log))
 
-            if entry_type in ("IMG", "CDIMAGE"):
-                label = "IMG" if entry_type == "IMG" else "CDIMAGE"
-                tag   = f" [{phase}]" if phase == "enforced" else ""
-                # Will be updated after tree is built — placeholder for now
-                child = QTreeWidgetItem([bname + tag, label, count_str, "✓" if success else "✗ missing"])
-                child.setData(0, Qt.ItemDataRole.UserRole, path)  # store abs path
-            elif entry_type == "COLFILE":
-                # COL file — show island index from extra field in abs path
-                status = "✓" if success else "✗ missing"
-                child  = QTreeWidgetItem([bname, "COL", str(count), status])
-                child.setData(0, Qt.ItemDataRole.UserRole, path)
-                if not success:
-                    child.setToolTip(0, f"Not found: {path}")
-            else:
-                status = "✓" if success else "✗ missing"
-                child  = QTreeWidgetItem([bname, entry_type, str(count), status])
-            if not success:
-                for col in range(4):
-                    child.setForeground(col, QColor(204, 68, 68))  # error red — intentionally fixed
-            root_item.addChild(child)
+        if do_group:
+            # Group by city section
+            groups: dict = {}   # group_name → list of (phase, entry_type, path, success)
+            ungrouped = []
+            for entry in sorted_log:
+                bname = os.path.basename(entry[2])
+                grp   = self._stem_group(bname)
+                if grp:
+                    groups.setdefault(grp, []).append(entry)
+                else:
+                    ungrouped.append(entry)
+
+            # Group order follows _SOL_GROUPS insertion order
+            seen_groups = []
+            ordered_entries = []
+            for entry in sorted_log:
+                bname = os.path.basename(entry[2])
+                grp   = self._stem_group(bname)
+                if grp and grp not in seen_groups:
+                    seen_groups.append(grp)
+                    ordered_entries.append(('__group__', grp, groups[grp]))
+                elif not grp:
+                    ordered_entries.append(('__entry__',) + entry)
+
+            for item in ordered_entries:
+                if item[0] == '__group__':
+                    _, grp_name, entries = item
+                    # Count files in group
+                    n_img = sum(1 for e in entries if e[1] in ('IMG','CDIMAGE'))
+                    n_col = sum(1 for e in entries if e[1] == 'COLFILE')
+                    n_ide = sum(1 for e in entries if e[1] == 'IDE')
+                    n_ipl = sum(1 for e in entries if e[1] == 'IPL')
+                    summary = f"IMG:{n_img} IDE:{n_ide} COL:{n_col}"
+                    grp_item = QTreeWidgetItem([grp_name, "GROUP", summary, ""])
+                    grp_item.setExpanded(True)
+                    from PyQt6.QtGui import QFont as _QF
+                    f = _QF(); f.setBold(True)
+                    grp_item.setFont(0, f)
+                    root_item.addChild(grp_item)
+                    for phase, entry_type, path, success in entries:
+                        child = self._make_entry_child(phase, entry_type, path, success)
+                        grp_item.addChild(child)
+                        if do_col_in_img and entry_type in ('IMG','CDIMAGE') and success:
+                            self._add_col_in_img_children(child, path)
+                else:
+                    _, phase, entry_type, path, success = item
+                    child = self._make_entry_child(phase, entry_type, path, success)
+                    root_item.addChild(child)
+                    if do_col_in_img and entry_type in ('IMG','CDIMAGE') and success:
+                        self._add_col_in_img_children(child, path)
+        else:
+            # Flat list (original behaviour + sort)
+            for phase, entry_type, path, success in sorted_log:
+                child = self._make_entry_child(phase, entry_type, path, success)
+                root_item.addChild(child)
+                if do_col_in_img and entry_type in ('IMG','CDIMAGE') and success:
+                    self._add_col_in_img_children(child, path)
 
         self._tree.expandAll()
         self._refresh_img_loaded_indicators()
@@ -1023,8 +1209,8 @@ class DATBrowserWidget(QWidget): #vers 2
 
     # ── Tree click — filter to selected file ───────────────────────────────
 
-    def _on_tree_click(self, item, col): #vers 2
-        bname      = item.text(0).rstrip('[enforced]').strip()
+    def _on_tree_click(self, item, col): #vers 3
+        bname      = item.text(0).split('[')[0].strip()
         entry_type = item.text(1)
         if entry_type == "IDE":
             self._search_edit.blockSignals(True)
@@ -1035,12 +1221,68 @@ class DATBrowserWidget(QWidget): #vers 2
             self._tabs.setCurrentIndex(1)
             self._populate_instances_for_ipl(bname)
         elif entry_type in ("IMG", "CDIMAGE"):
+            # Single-click on IMG: bring its tab to front if already open,
+            # otherwise open it
             self._open_img_in_factory(item)
         elif entry_type == "COL":
             self._open_col_in_workshop(item)
+        elif entry_type == "COL▾":
+            # Embedded COL inside an IMG — extract and open in COL Workshop
+            self._open_embedded_col(item)
+        elif entry_type == "GROUP":
+            # Collapse / expand group
+            item.setExpanded(not item.isExpanded())
         elif entry_type == "DAT":
             self._search_edit.setText("")
             self._type_filter.setCurrentIndex(0)
+
+    def _open_embedded_col(self, tree_item): #vers 1
+        """Open a .col file that's embedded inside an IMG archive."""
+        img_path  = tree_item.data(0, Qt.ItemDataRole.UserRole + 1)
+        col_name  = tree_item.data(0, Qt.ItemDataRole.UserRole + 2)
+        mw = self.main_window
+        if not img_path or not col_name or not os.path.isfile(img_path):
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            import tempfile
+            arc = IMGFile(img_path); arc.open()
+            entry = next((e for e in arc.entries
+                          if e.name.lower() == col_name.lower()), None)
+            if not entry:
+                if mw and hasattr(mw,'log_message'):
+                    mw.log_message(f"COL entry not found: {col_name}")
+                return
+            data = arc.read_entry_data(entry)
+            tmp  = tempfile.NamedTemporaryFile(
+                delete=False, suffix='.col',
+                prefix=os.path.splitext(col_name)[0]+'_')
+            tmp.write(data); tmp.close()
+            from apps.components.Col_Editor.col_workshop import open_col_workshop
+            open_col_workshop(mw, tmp.name)
+            if mw and hasattr(mw,'log_message'):
+                mw.log_message(f"COL Workshop: {col_name} (from {os.path.basename(img_path)})")
+        except Exception as e:
+            if mw and hasattr(mw,'log_message'):
+                mw.log_message(f"Embedded COL error: {e}")
+
+    def _bring_img_tab_to_front(self, abs_path: str): #vers 1
+        """If abs_path is already open as a tab, switch to it. Otherwise open it."""
+        mw = self.main_window
+        if not mw or not hasattr(mw, 'main_tab_widget'):
+            return False
+        tw = mw.main_tab_widget
+        norm = os.path.normcase(abs_path)
+        for i in range(tw.count()):
+            w = tw.widget(i)
+            if (w and getattr(w,'file_type','') == 'IMG'
+                    and os.path.normcase(getattr(w,'file_path','')) == norm):
+                tw.setCurrentIndex(i)
+                if mw and hasattr(mw,'log_message'):
+                    mw.log_message(
+                        f"Switched to tab: {os.path.basename(abs_path)}")
+                return True
+        return False   # not open yet
 
     def _open_col_in_workshop(self, tree_item): #vers 1
         """Click on a COL tree entry → open in COL Workshop."""
@@ -1144,21 +1386,24 @@ class DATBrowserWidget(QWidget): #vers 2
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to dump TXDs:\n{e}")
 
-    def _open_img_in_factory(self, tree_item): #vers 1
-        """Open the IMG archive that was clicked in the load-order tree."""
+    def _open_img_in_factory(self, tree_item): #vers 2
+        """Open (or bring to front) the IMG archive clicked in the load-order tree."""
         mw = self.main_window
         if not mw:
             return
-        # Resolve the abs path from load_log
-        bname = tree_item.text(0).split('[')[0].strip()  # strip [enforced] tag
-        abs_path = None
-        for _phase, etype, path, ok in self.loader.load_log:
-            if etype in ('IMG', 'CDIMAGE') and os.path.basename(path) == bname:
-                abs_path = path
-                break
+        # Resolve abs path: prefer UserRole data stored on IMG items
+        abs_path = tree_item.data(0, Qt.ItemDataRole.UserRole) or None
+        if not abs_path:
+            bname = tree_item.text(0).split('[')[0].strip()
+            for _phase, etype, path, ok in self.loader.load_log:
+                if etype in ('IMG', 'CDIMAGE') and os.path.basename(path) == bname:
+                    abs_path = path; break
         if not abs_path or not os.path.isfile(abs_path):
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"IMG not found on disk: {bname}")
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"IMG not found on disk: {abs_path or '?'}")
+            return
+        # If already open as a tab, just bring it to front
+        if self._bring_img_tab_to_front(abs_path):
             return
         # Open in IMG Factory
         try:
@@ -1666,17 +1911,37 @@ class DATBrowserWidget(QWidget): #vers 2
                     lambda _=False, p=abs_path: self._open_col_in_workshop_path(p))
             menu.addSeparator()
 
+        elif entry_type == "COL▾":
+            # Embedded COL inside IMG
+            menu.addAction("⬛  Extract & open in COL Workshop").triggered.connect(
+                lambda _=False, it=item: self._open_embedded_col(it))
+            menu.addSeparator()
+
         elif abs_path and os.path.isfile(abs_path):
             ext = os.path.splitext(abs_path)[1].lower()
-            if ext in (".ide", ".ipl", ".dat", ".txt", ".cfg", ".ini"):
-                edit_act = menu.addAction(f"Edit  {bname}")
-                edit_act.triggered.connect(
+            if ext == ".ide":
+                menu.addAction(f"📋  Filter Objects to  {bname}").triggered.connect(
+                    lambda _=False, b=bname: (
+                        self._search_edit.blockSignals(True),
+                        self._search_edit.setText(""),
+                        self._search_edit.blockSignals(False),
+                        self._populate_objects_for_ide(b)))
+                menu.addAction(f"✏  Edit  {bname}").triggered.connect(
+                    lambda _=False, p=abs_path: self._open_path_in_editor(p))
+                menu.addAction("🔍  Open in IDE Editor").triggered.connect(
+                    lambda _=False, p=abs_path: self._open_in_ide_editor(p))
+                menu.addSeparator()
+            elif ext == ".ipl":
+                menu.addAction(f"📋  Filter Instances to  {bname}").triggered.connect(
+                    lambda _=False, b=bname: (
+                        self._tabs.setCurrentIndex(1),
+                        self._populate_instances_for_ipl(b)))
+                menu.addAction(f"✏  Edit  {bname}").triggered.connect(
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addSeparator()
-            if ext == ".ide":
-                ide_act = menu.addAction("Open in IDE Editor")
-                ide_act.triggered.connect(
-                    lambda _=False, p=abs_path: self._open_in_ide_editor(p))
+            elif ext in (".dat", ".txt", ".cfg", ".ini"):
+                menu.addAction(f"✏  Edit  {bname}").triggered.connect(
+                    lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addSeparator()
 
         copy_act = menu.addAction("Copy path")
