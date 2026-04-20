@@ -1225,6 +1225,9 @@ class IPLMapView(QFrame):  # vers 1
         self._path_nodes: list = []   # list of (x, y, z, type) tuples
         self._show_all_ipls   = True
         self._active_ipls: set= set()   # filter: only show these source_ipls
+        self._radar_image       = None   # QImage composite from RadarWorkshop
+        self._radar_world_bounds= (-3000.0, 3000.0, -3000.0, 3000.0)  # (xmin,xmax,ymin,ymax)
+        self._show_radar        = True
 
         # View state
         self._zoom   = 1.0
@@ -1287,6 +1290,14 @@ class IPLMapView(QFrame):  # vers 1
                         pass
         self.update()
 
+    def load_radar_image(self, radar_image, world_bounds): #vers 1
+        """Set the radar composite image for background overlay.
+        radar_image: QImage from RadarWorkshop.get_composite_image()
+        world_bounds: (xmin, xmax, ymin, ymax) from get_world_bounds()"""
+        self._radar_image        = radar_image
+        self._radar_world_bounds = world_bounds
+        self.update()
+
     def set_ipl_filter(self, active_ipls: set):
         self._active_ipls = active_ipls
         self.update()
@@ -1344,6 +1355,17 @@ class IPLMapView(QFrame):  # vers 1
 
         # Background
         p.fillRect(self.rect(), QColor(20, 22, 30))
+
+        # Radar map background image
+        if self._show_radar and self._radar_image and not self._radar_image.isNull():
+            xmin, xmax, ymin, ymax = self._radar_world_bounds
+            # World corners → screen corners
+            sx0, sy0 = self._world_to_screen(xmin, ymax)   # top-left (world Y max = screen top)
+            sx1, sy1 = self._world_to_screen(xmax, ymin)   # bottom-right
+            from PyQt6.QtCore import QRectF as _QRF2
+            p.setOpacity(0.55)
+            p.drawImage(_QRF2(sx0, sy0, sx1-sx0, sy1-sy0), self._radar_image)
+            p.setOpacity(1.0)
 
         # Grid lines
         self._draw_grid(p, W, H)
@@ -1619,6 +1641,21 @@ class IPLMapPanel(QFrame):  # vers 1
         path_btn.toggled.connect(lambda v: setattr(self._map,'_show_paths',v) or self._map.update())
         bar.addWidget(path_btn)
 
+        radar_btn = QPushButton("Radar 🗺")
+        radar_btn.setCheckable(True)
+        radar_btn.setChecked(True)
+        radar_btn.setFixedHeight(24)
+        radar_btn.setToolTip("Toggle radar map background (from open Radar Workshop tab)")
+        radar_btn.toggled.connect(lambda v: setattr(self._map,'_show_radar',v) or self._map.update())
+        bar.addWidget(radar_btn)
+
+        load_radar_btn = QPushButton("Load Radar…")
+        load_radar_btn.setFixedHeight(24)
+        load_radar_btn.setToolTip(
+            "Load radar from Radar Workshop tab or browse for BMP/PNG")
+        load_radar_btn.clicked.connect(self._load_radar)
+        bar.addWidget(load_radar_btn)
+
         bar.addStretch()
         self._sel_lbl = QLabel("No selection")
         self._sel_lbl.setStyleSheet("color: palette(mid);")
@@ -1704,6 +1741,68 @@ class IPLMapPanel(QFrame):  # vers 1
         if ok and name:
             mods = self._map.focusWidget()
             self._map.select_by_ipl(name)
+
+    def _load_radar(self): #vers 1
+        """Load radar composite from open Radar Workshop tab, or browse for image."""
+        # First try to find an open RadarWorkshop tab
+        mw = getattr(self._ws, 'main_window', None)
+        radar_ws = None
+        if mw and hasattr(mw, 'main_tab_widget'):
+            tw = mw.main_tab_widget
+            for i in range(tw.count()):
+                w = tw.widget(i)
+                # RadarWorkshop may be inside a container
+                from apps.components.Radar_Editor.radar_workshop import RadarWorkshop
+                if isinstance(w, RadarWorkshop):
+                    radar_ws = w; break
+                # Check children
+                for child in w.findChildren(RadarWorkshop) if w else []:
+                    radar_ws = child; break
+                if radar_ws:
+                    break
+
+        if radar_ws and radar_ws._tile_rgba:
+            img    = radar_ws.get_composite_image(max_size=4096)
+            bounds = radar_ws.get_world_bounds()
+            if img and not img.isNull():
+                self._map.load_radar_image(img, bounds)
+                n = len(radar_ws._tile_rgba)
+                if mw and hasattr(mw,'log_message'):
+                    mw.log_message(
+                        f"IPL Map: radar background loaded ({n} tiles, "
+                        f"bounds {bounds[0]:.0f}..{bounds[1]:.0f})")
+                return
+
+        # No radar workshop open — browse for a BMP/PNG file
+        from PyQt6.QtWidgets import QFileDialog, QInputDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load Radar Map Image", "",
+            "Images (*.bmp *.png *.jpg *.jpeg);;All Files (*)")
+        if not path:
+            return
+
+        from PyQt6.QtGui import QImage
+        img = QImage(path)
+        if img.isNull():
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self,"Load Failed","Could not load image:\n"+path)
+            return
+
+        # Ask for world bounds
+        game_presets = [
+            ("GTA III / VC  (-2000 to 2000)", (-2000.0, 2000.0, -2000.0, 2000.0)),
+            ("SA / SOL  (-3000 to 3000)",     (-3000.0, 3000.0, -3000.0, 3000.0)),
+            ("SOL Large  (-6000 to 6000)",    (-6000.0, 6000.0, -6000.0, 6000.0)),
+        ]
+        choice, ok = QInputDialog.getItem(
+            self, "World Bounds", "Select game world coverage:",
+            [g[0] for g in game_presets], 1, False)
+        if not ok:
+            return
+        bounds = next(g[1] for g in game_presets if g[0]==choice)
+        self._map.load_radar_image(img, bounds)
+        if mw and hasattr(mw,'log_message'):
+            mw.log_message(f"IPL Map: radar background loaded from {path}")
 
     def _apply_translate(self):
         dx = self._tx.value(); dy = self._ty.value(); dz = self._tz.value()

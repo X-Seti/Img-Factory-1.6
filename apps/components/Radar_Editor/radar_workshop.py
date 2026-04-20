@@ -1352,6 +1352,27 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
+# ── World bounds per game (GTA world units covered by the full radar map) ─────
+# Format: (world_min_x, world_max_x, world_min_y, world_max_y)
+# Tile grid origin is top-left = (world_min_x, world_max_y) — Y flips screen↔world
+_GAME_WORLD_BOUNDS = {
+    "III PC":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VC PC":    (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SA PC":    (-3000.0, 3000.0, -3000.0, 3000.0),
+    "LCS PC":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VCS PC":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SOL":      (-6000.0, 6000.0, -6000.0, 6000.0),
+    "III And":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VC And":   (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SA And":   (-3000.0, 3000.0, -3000.0, 3000.0),
+    "LCS iOS":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "SA iOS":   (-3000.0, 3000.0, -3000.0, 3000.0),
+    "LCS PSP":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "VCS PSP":  (-2000.0, 2000.0, -2000.0, 2000.0),
+    "Custom":   (-3000.0, 3000.0, -3000.0, 3000.0),
+}
+
+
 class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
     """Radar Workshop – skeleton class"""
 
@@ -1694,6 +1715,60 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Left panel: session list
+    def get_world_bounds(self): #vers 1
+        """Return (min_x, max_x, min_y, max_y) world-unit coverage for the
+        current game preset. Used by IPLMapView for radar image overlay."""
+        game = self._game_preset.get("label", "")
+        # Match label back to preset key
+        for key, preset in GAME_PRESETS.items():
+            if preset is self._game_preset:
+                return _GAME_WORLD_BOUNDS.get(key, (-3000.0, 3000.0, -3000.0, 3000.0))
+        return (-3000.0, 3000.0, -3000.0, 3000.0)
+
+    def get_composite_image(self, max_size: int = 2048): #vers 1
+        """Stitch all loaded tile RGBA buffers into a single QImage.
+        Tiles are arranged in row-major order (row 0 = north/top of map).
+        Returns QImage or None if no tiles are loaded.
+        max_size: output image is capped at max_size × max_size pixels."""
+        from PyQt6.QtGui import QImage
+        if not self._tile_rgba:
+            return None
+
+        preset = self._game_preset
+        cols   = preset.get("cols", 8)
+        rows   = preset.get("rows", 8)
+        tw     = self._tw
+        th     = self._th
+
+        out_w = cols * tw
+        out_h = rows * th
+
+        # Build output buffer (RGBA)
+        out = bytearray(out_w * out_h * 4)
+
+        for idx, rgba in self._tile_rgba.items():
+            col = idx % cols
+            row = idx // cols
+            if row >= rows or col >= cols:
+                continue
+            ox = col * tw
+            oy = row * th
+            for ty in range(th):
+                src_row  = ty * tw * 4
+                dst_row  = (oy + ty) * out_w * 4 + ox * 4
+                out[dst_row:dst_row + tw * 4] = rgba[src_row:src_row + tw * 4]
+
+        img = QImage(bytes(out), out_w, out_h, out_w * 4,
+                     QImage.Format.Format_RGBA8888)
+
+        # Scale down if too large
+        if out_w > max_size or out_h > max_size:
+            from PyQt6.QtCore import Qt as _Qt
+            img = img.scaled(max_size, max_size,
+                             _Qt.AspectRatioMode.KeepAspectRatio,
+                             _Qt.TransformationMode.SmoothTransformation)
+        return img.copy()   # detach from temp buffer
+
     def _create_left_panel(self): #vers 1
         # Hidden — template returns None in standalone
         return None
