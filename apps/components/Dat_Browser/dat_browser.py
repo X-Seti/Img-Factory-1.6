@@ -89,11 +89,12 @@ class TXDDumpDialog(QDialog): #vers 1
 
     # ── Category row specs ────────────────────────────────────────────────────
     _CAT_SPECS = [
-        ('all',      'Dump All',          'Every .txd in every IMG — no filtering'),
-        ('world',    'World Textures',     'All TXDs except radar / vehicle / ped'),
-        ('radar',    'Radar Map TXDs',     'radar.*.txd (SOL: also radartex.img)'),
-        ('vehicles', 'Vehicles & Peds',    'Cars/peds TXDs from vehicles/peds IDE'),
-        ('generics', 'Generics (SA/SOL)',  'Prop TXDs from generic.ide/generics.ide'),
+        ('all',      'Dump All',           'Every .txd in every IMG — no filtering'),
+        ('world',    'World Textures',      'All TXDs except radar / vehicle / ped'),
+        ('radar',    'Radar Map TXDs',      'radar.*.txd (SOL: also radartex.img)'),
+        ('vehicles', 'Vehicles',            'Car TXDs from vehicles.ide / [cars] section'),
+        ('peds',     'Peds',                'Ped TXDs from peds.ide / [peds] section'),
+        ('generics', 'Generics (SA/SOL)',   'Prop TXDs from generic.ide/generics.ide'),
     ]
 
     def _build_ui(self): #vers 2
@@ -138,22 +139,26 @@ class TXDDumpDialog(QDialog): #vers 1
             row_w = QWidget(); row_l = QHBoxLayout(row_w)
             row_l.setContentsMargins(0,0,0,0); row_l.setSpacing(6)
 
+            # Enable checkbox — controls whether this row is included in dump
+            enable_cb = QCheckBox()
+            enable_cb.setChecked(enabled)  # generics off by default if not SA/SOL
+            enable_cb.setFixedWidth(22)
+            enable_cb.setToolTip(f"Include {label} in dump")
+            row_l.addWidget(enable_cb)
+
             # Label
             lbl = QLabel(label)
             lbl.setFixedWidth(140)
-            lbl.setEnabled(enabled)
             lbl.setToolTip(tip)
             row_l.addWidget(lbl)
 
             # TXD radio
             txd_rb = QRadioButton("TXD")
             txd_rb.setChecked(True)
-            txd_rb.setEnabled(enabled)
             txd_rb.setFixedWidth(50)
 
-            # Textures radio (in same button group so they're mutually exclusive)
+            # Textures radio (mutually exclusive per row)
             tex_rb = QRadioButton("Textures")
-            tex_rb.setEnabled(enabled)
             tex_rb.setFixedWidth(75)
 
             bg = QButtonGroup(row_w)
@@ -164,16 +169,16 @@ class TXDDumpDialog(QDialog): #vers 1
             # Folder line edit
             folder_edit = QLineEdit()
             folder_edit.setPlaceholderText("(same as default output folder)")
-            folder_edit.setEnabled(enabled)
             folder_edit.setFixedHeight(24)
             if key in saved:
                 folder_edit.setText(saved[key].get('folder',''))
                 if saved[key].get('mode','txd') == 'textures':
                     tex_rb.setChecked(True)
+                if 'active' in saved[key]:
+                    enable_cb.setChecked(saved[key]['active'])
 
             browse = QPushButton("…")
             browse.setFixedWidth(28); browse.setFixedHeight(24)
-            browse.setEnabled(enabled)
             browse.setToolTip(f"Choose output folder for {label}")
             browse.clicked.connect(
                 lambda _=False, fe=folder_edit: fe.setText(
@@ -183,9 +188,19 @@ class TXDDumpDialog(QDialog): #vers 1
             row_l.addWidget(browse)
             cat_lay.addWidget(row_w)
 
+            # Wire enable checkbox to grey out / ungrey the row widgets
+            _row_widgets = [lbl, txd_rb, tex_rb, folder_edit, browse]
+            def _set_row_enabled(checked, widgets=_row_widgets):
+                for w in widgets:
+                    w.setEnabled(checked)
+            enable_cb.toggled.connect(_set_row_enabled)
+            _set_row_enabled(enable_cb.isChecked())  # apply initial state
+
             self._cat_rows[key] = {
+                'enable_cb': enable_cb,
                 'txd_rb': txd_rb, 'tex_rb': tex_rb,
-                'folder_edit': folder_edit, 'enabled': enabled,
+                'folder_edit': folder_edit,
+                'enabled': enabled,  # base availability (e.g. generics=SA/SOL only)
                 'bg': bg
             }
 
@@ -283,7 +298,8 @@ class TXDDumpDialog(QDialog): #vers 1
         lines = []
         for key, label, _ in self._CAT_SPECS:
             row = self._cat_rows.get(key,{})
-            if not row.get('enabled', False):
+            cb = row.get('enable_cb')
+            if not cb or not cb.isChecked():
                 continue
             mode_str = 'Textures' if row.get('tex_rb') and row['tex_rb'].isChecked() else 'TXD'
             n = len(self._collect_txd_names(key))
@@ -311,6 +327,7 @@ class TXDDumpDialog(QDialog): #vers 1
             data[key] = {
                 'folder': row['folder_edit'].text().strip(),
                 'mode': 'textures' if row['tex_rb'].isChecked() else 'txd',
+                'active': row['enable_cb'].isChecked() if 'enable_cb' in row else True,
             }
         os.makedirs(os.path.dirname(self._cfg_path()), exist_ok=True)
         json.dump(data, open(self._cfg_path(),'w'), indent=2)
@@ -344,30 +361,43 @@ class TXDDumpDialog(QDialog): #vers 1
         # radar.*.txd pattern — any txd name starting with "radar"
         radar_stems = {s for s in all_txd_stems if s.startswith('radar')}
 
-        # ── Vehicle / ped IDE stems ────────────────────────────────────────
-        vehicle_ped_ide_stems = set()
-        veh_ped_sources = set()
+        # ── Vehicle stems (cars/weap) ─────────────────────────────────────
+        vehicle_stems = set()
+        ped_stems     = set()
 
         if game == GTAGame.SA:
-            # SA: vehicles.ide and peds.ide are separate files
-            veh_ped_sources = {'vehicles.ide', 'peds.ide'}
+            veh_sources = {'vehicles.ide'}
+            ped_sources = {'peds.ide'}
         elif game == GTAGame.SOL:
-            # SOL: gta3.ide in models/, + vehicles.ide/peds.ide in SOL/ if present
-            veh_ped_sources = {'gta3.ide', 'vehicles.ide', 'peds.ide'}
+            veh_sources = {'gta3.ide', 'vehicles.ide'}
+            ped_sources = {'peds.ide'}
         else:
-            # GTA3/VC: [cars] and [peds] sections in default.ide
-            veh_ped_sources = {'default.ide'}
+            # GTA3/VC: [cars]/[weap] vs [peds] sections in default.ide
+            veh_sources = {'default.ide'}
+            ped_sources = {'default.ide'}
 
         for obj in objects.values():
-            src_base = os.path.basename(obj.source_ide or '').lower()
-            in_veh_source = src_base in veh_ped_sources
-            in_veh_section = obj.section in ('cars', 'peds', 'weap')
-            # For GTA3/VC default.ide only include cars/peds sections
+            src_base   = os.path.basename(obj.source_ide or '').lower()
+            txd_lower  = obj.txd_name.lower() if obj.txd_name else ''
+            if not txd_lower or txd_lower in ('null',''):
+                continue
+            in_veh_src = src_base in veh_sources
+            in_ped_src = src_base in ped_sources
+            section    = obj.section or ''
+
             if game in (GTAGame.GTA3, GTAGame.VC):
-                if in_veh_source and in_veh_section:
-                    vehicle_ped_ide_stems.add(obj.txd_name.lower())
-            elif in_veh_source or in_veh_section:
-                vehicle_ped_ide_stems.add(obj.txd_name.lower())
+                if in_veh_src and section in ('cars','weap'):
+                    vehicle_stems.add(txd_lower)
+                elif in_ped_src and section == 'peds':
+                    ped_stems.add(txd_lower)
+            else:
+                if in_veh_src or section in ('cars','weap'):
+                    vehicle_stems.add(txd_lower)
+                if in_ped_src or section == 'peds':
+                    ped_stems.add(txd_lower)
+
+        # Combined for world exclusion
+        vehicle_ped_ide_stems = vehicle_stems | ped_stems
 
         # ── Generic stems (SA/SOL) ─────────────────────────────────────────
         generic_sources = {'generic.ide', 'generics.ide'}
@@ -391,7 +421,10 @@ class TXDDumpDialog(QDialog): #vers 1
             return {s + '.txd' for s in radar_stems}
 
         elif mode == 'vehicles':
-            return {s + '.txd' for s in vehicle_ped_ide_stems}
+            return {s + '.txd' for s in vehicle_stems}
+
+        elif mode == 'peds':
+            return {s + '.txd' for s in ped_stems}
 
         elif mode == 'generics':
             return {s + '.txd' for s in generic_stems}
@@ -426,15 +459,16 @@ class TXDDumpDialog(QDialog): #vers 1
             return result or all_imgs  # fallback to all if not found
 
         elif mode == 'vehicles':
-            # SOL: vehicles.img, peds.img first; all others as fallback
-            if game == 'sol':
-                priority = []
-                for stem in ('vehicles', 'peds', 'gta3'):
-                    if stem in img_stems:
-                        priority.append(img_stems[stem])
-                return priority or all_imgs
-            else:
-                return [img_stems.get('gta3', all_imgs[0])] if all_imgs else []
+            from apps.methods.gta_dat_parser import GTAGame as _G
+            if game == _G.SOL:
+                return [img_stems[s] for s in ('vehicles','gta3') if s in img_stems] or all_imgs
+            return [img_stems[s] for s in ('gta3',) if s in img_stems] or all_imgs
+
+        elif mode == 'peds':
+            from apps.methods.gta_dat_parser import GTAGame as _G
+            if game == _G.SOL:
+                return [img_stems[s] for s in ('peds','gta3') if s in img_stems] or all_imgs
+            return [img_stems[s] for s in ('gta3',) if s in img_stems] or all_imgs
 
         # world, generics — scan all IMGs (TXD filter handles it)
         return all_imgs
@@ -450,7 +484,8 @@ class TXDDumpDialog(QDialog): #vers 1
         jobs = []
         for key, label, _ in self._CAT_SPECS:
             row = self._cat_rows.get(key, {})
-            if not row.get('enabled', False):
+            # Skip rows that are either base-disabled or unchecked by user
+            if not row.get('enable_cb', None) or not row['enable_cb'].isChecked():
                 continue
             cat_dir = row['folder_edit'].text().strip() or default_dir
             if not cat_dir:
