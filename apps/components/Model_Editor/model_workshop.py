@@ -2035,13 +2035,61 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         tex_row = QHBoxLayout()
         tex_row.addWidget(tex_edit, 1)
         tex_row.addWidget(cache_lbl)
+
+        # Load TXD uses IDE-linked txd_name, not a file browser
+        ide_obj  = getattr(self, '_current_ide_obj', None)
+        ide_txd  = (ide_obj.txd_name if ide_obj else '') or ''
+        dff_stem = os.path.splitext(
+            os.path.basename(getattr(self,'_current_dff_path','') or '')
+        )[0].lower()
+        # If no cached IDE obj, try xref lookup
+        if not ide_txd and dff_stem:
+            xref = self._get_xref()
+            if xref:
+                _o = xref.model_map.get(dff_stem)
+                if _o:
+                    ide_txd = _o.txd_name or ''
+
         load_txd = QPushButton("Load TXD…")
         load_txd.setFixedHeight(24)
-        load_txd.clicked.connect(lambda: (
-            self._load_txd_into_workshop(),
-            _update_cache_lbl(tex_edit.text())))
+        load_txd.setToolTip(
+            f"Load TXD from open IMGs: {ide_txd}.txd"
+            if ide_txd else "Browse for TXD file")
+        def _load_txd_smart():
+            txd = ide_txd  # captured from above
+            if txd:
+                ok = self._auto_load_txd_from_imgs(txd)
+                if not ok:
+                    ok = self._auto_load_from_texlist(txd)
+                if not ok:
+                    self._load_txd_into_workshop()
+            else:
+                self._load_txd_into_workshop()
+            _update_cache_lbl(tex_edit.text())
+        load_txd.clicked.connect(_load_txd_smart)
         tex_row.addWidget(load_txd)
         form.addRow("Texture Name:", tex_row)
+
+        # IDE line — show the full IDE entry so the TXD name is visible
+        if ide_obj:
+            import os as _os
+            ide_src = _os.path.basename(ide_obj.source_ide or '') or '?'
+            draw    = ide_obj.extra.get('draw_dist', ide_obj.extra.get('dist1', '—'))
+            flags   = ide_obj.extra.get('flags', '—')
+            ide_line = (f"{ide_obj.model_id}, {ide_obj.model_name}, "
+                        f"{ide_obj.txd_name}, {draw}, {flags}")
+            ide_lbl = QLabel(ide_line)
+            ide_lbl.setStyleSheet(
+                "color: palette(mid); font-size: 10px; font-family: monospace;")
+            ide_lbl.setToolTip(f"IDE source: {ide_src}  (line {ide_obj.line_no})")
+            ide_lbl.setWordWrap(True)
+            ide_lbl.setTextInteractionFlags(
+                _Qt.TextInteractionFlag.TextSelectableByMouse)
+            form.addRow("IDE:", ide_lbl)
+        elif dff_stem:
+            no_ide = QLabel("Not in IDE — TXD name unknown")
+            no_ide.setStyleSheet("color: palette(mid); font-style: italic;")
+            form.addRow("IDE:", no_ide)
 
         # Colour swatch
         swatch = QLabel()
