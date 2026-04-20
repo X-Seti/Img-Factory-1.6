@@ -456,11 +456,15 @@ class IPLWorkshop(GUIWorkshop):
         cl.addWidget(self._centre_tabs)
         return panel
 
-    def _on_centre_tab_changed(self, idx: int): #vers 1
-        """Refresh map when switching to the World Map tab."""
+    def _on_centre_tab_changed(self, idx: int): #vers 2
+        """Refresh map (and path overlay) when switching to the World Map tab."""
         if idx == 1:  # World Map tab
             entries = self._current_entries()
             self._map_panel.refresh(entries)
+            # Load path nodes from all path sections
+            if self._ipl:
+                path_secs = [s for s in self._ipl.sections if s.name == 'path']
+                self._map_panel._map.load_path_nodes(path_secs)
 
     def _current_entries(self) -> list: #vers 1
         """Return the currently visible inst entries (from active section)."""
@@ -1218,6 +1222,7 @@ class IPLMapView(QFrame):  # vers 1
         self._selected: set   = set()   # indices of selected entries
         self._ipl_colors: dict= {}      # source_ipl → QColor
         self._show_paths      = True
+        self._path_nodes: list = []   # list of (x, y, z, type) tuples
         self._show_all_ipls   = True
         self._active_ipls: set= set()   # filter: only show these source_ipls
 
@@ -1253,7 +1258,33 @@ class IPLMapView(QFrame):  # vers 1
                 r = max(r, mn); g = max(g, mn); b = max(b, mn)
                 self._ipl_colors[key] = QColor(r, g, b, 200)
 
+        # Also extract path nodes from path sections if available
+        self._path_nodes.clear()
         self._fit_all()
+        self.update()
+
+    def load_path_nodes(self, ipl_sections: list): #vers 1
+        """Load path nodes from IPL path sections for overlay on the map.
+        ipl_sections: list of IPLSection objects with name == 'path'."""
+        self._path_nodes.clear()
+        for sec in ipl_sections:
+            if not hasattr(sec, 'name') or sec.name != 'path':
+                continue
+            for line in getattr(sec, 'lines', []):
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = [p.strip() for p in line.split(',')]
+                if len(parts) >= 4:
+                    try:
+                        # path format: type, posX, posY, posZ[, ...]
+                        node_type = parts[0].strip()
+                        px = float(parts[1])
+                        py = float(parts[2])
+                        pz = float(parts[3])
+                        self._path_nodes.append((px, py, pz, node_type))
+                    except (ValueError, IndexError):
+                        pass
         self.update()
 
     def set_ipl_filter(self, active_ipls: set):
@@ -1345,13 +1376,25 @@ class IPLMapView(QFrame):  # vers 1
             p.setBrush(QBrush(QColor(100, 200, 255, 30)))
             p.drawRect(self._sel_rect)
 
+        # Path nodes overlay
+        if self._show_paths and self._path_nodes:
+            from PyQt6.QtCore import QRectF as _QRF
+            node_sz = max(3.0, 4.0 * self._zoom)
+            p.setPen(QPen(QColor(255, 200, 50, 180), 1.0))
+            p.setBrush(QBrush(QColor(255, 200, 50, 100)))
+            for nx, ny, nz, ntype in self._path_nodes:
+                sx2, sy2 = self._world_to_screen(nx, ny)
+                p.drawEllipse(_QRF(sx2-node_sz/2, sy2-node_sz/2, node_sz, node_sz))
+
         # HUD
         p.setPen(QColor(180, 180, 180))
         p.setFont(QFont('Arial', 9))
         n_sel = len(self._selected)
         n_vis = len(visible)
+        n_paths = len(self._path_nodes)
         p.drawText(6, 16,
             f"Zoom: {self._zoom:.2f}×   Objects: {n_vis:,}"
+            + (f"   Paths: {n_paths}" if n_paths else "")
             + (f"   Selected: {n_sel}" if n_sel else ""))
 
         p.end()
@@ -1567,6 +1610,14 @@ class IPLMapPanel(QFrame):  # vers 1
         clr_btn.setFixedHeight(24)
         clr_btn.clicked.connect(self._clear_sel)
         bar.addWidget(clr_btn)
+
+        path_btn = QPushButton("Paths ◎")
+        path_btn.setCheckable(True)
+        path_btn.setChecked(True)
+        path_btn.setFixedHeight(24)
+        path_btn.setToolTip("Toggle path node overlay (yellow circles)")
+        path_btn.toggled.connect(lambda v: setattr(self._map,'_show_paths',v) or self._map.update())
+        bar.addWidget(path_btn)
 
         bar.addStretch()
         self._sel_lbl = QLabel("No selection")

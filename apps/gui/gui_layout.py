@@ -176,6 +176,15 @@ def edit_txd_file(main_window): #vers 6
         main_window.log_message(f"Error opening TXD Workshop: {e}")
 
 
+def _open_scm_workshop_from_gui(main_window):
+    """Open SCM Workshop from the right-panel SCM Code button."""
+    try:
+        from apps.components.Scm_Workshop.scm_workshop import open_scm_workshop
+        open_scm_workshop(main_window)
+    except Exception as e:
+        main_window.log_message(f"SCM Workshop error: {e}")
+
+
 def edit_col_file(main_window): #vers 4 # TODO; DFF file launcher
     """Open COL Workshop.
 
@@ -449,7 +458,7 @@ class IMGFactoryGUILayout:
             'edit_weather': lambda: self._log_missing_method('edit_weather'),
             'edit_2dfx': lambda: self._log_missing_method('edit_2dfx'),
             'edit_objects': lambda: self._log_missing_method('edit_objects'),
-            'editscm': lambda: self._log_missing_method('editscm'),
+            'editscm': lambda: _open_scm_workshop_from_gui(self.main_window),
             'editgxt': lambda: self._log_missing_method('editgxt'),
             'editmenu': lambda: self._log_missing_method('editmenu'),
         }
