@@ -1589,6 +1589,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self.app_settings = None
         if hasattr(self.app_settings, 'theme_changed'):
             self.app_settings.theme_changed.connect(self._refresh_icons)
+        # Load persisted texlist folder path
+        self._texlist_folder = ''
+        self._load_texlist_setting()
 
         self._show_boxes = True
         self._show_mesh = True
@@ -1938,11 +1941,20 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         btn_row.addWidget(load_txd_btn)
         auto_txd_btn = QPushButton("Auto-find from IMGs")
         auto_txd_btn.setToolTip(
-            "Search all open IMG archives for the IDE-linked TXD")
+            "Search open IMG tabs for the IDE-linked TXD.\n"
+            "Falls back to texlist/ folder if not found in any IMG.")
         auto_txd_btn.clicked.connect(lambda: (
             self._auto_load_txd_from_imgs(),
             tbl.viewport().update()))
         btn_row.addWidget(auto_txd_btn)
+
+        texlist_btn = QPushButton("Set texlist…")
+        texlist_btn.setFixedHeight(24)
+        texlist_btn.setToolTip(
+            "Set a texlist/ folder to scan for pre-exported PNG/IFF/TGA textures.\n"
+            "Used as fallback when TXD is not found in any open IMG.")
+        texlist_btn.clicked.connect(self._set_texlist_folder)
+        btn_row.addWidget(texlist_btn)
         btn_row.addStretch()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dlg.accept)
@@ -7222,8 +7234,237 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(
-                f"TXD not found in any open IMG: {txd_filename}")
-        return False
+                f"TXD not in any open IMG: {txd_filename} — trying texlist/")
+        # Fallback: scan texlist/ folder for pre-exported image files
+        return self._auto_load_from_texlist(txd_stem_lo)
+
+
+    def _auto_load_from_texlist(self, txd_stem: str = '') -> bool: #vers 1
+        """Scan the configured texlist/ folder recursively for image files
+        matching the textures needed by the current DFF model.
+        Supports PNG, IFF/ILBM, TGA, BMP.  Returns True if at least one
+        texture was loaded into the viewport cache."""
+        txd_stem_lo = (txd_stem or '').lower().split('.')[0]
+        texlist_root = getattr(self, '_texlist_folder', '') or ''
+
+        # Auto-discover texlist/ relative to the current DFF or TXD file
+        if not texlist_root or not os.path.isdir(texlist_root):
+            for attr in ('_current_dff_path', '_current_txd_path'):
+                base = getattr(self, attr, '') or ''
+                if not base:
+                    continue
+                base_dir = os.path.dirname(base)
+                for rel in ('texlist',
+                            os.path.join('..', 'texlist'),
+                            os.path.join('..', '..', 'texlist')):
+                    cand = os.path.normpath(os.path.join(base_dir, rel))
+                    if os.path.isdir(cand):
+                        texlist_root = cand
+                        break
+                if texlist_root:
+                    break
+
+        if not texlist_root or not os.path.isdir(texlist_root):
+            mw = self.main_window
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    "texlist: no folder set — use 'Set texlist…' to configure")
+            return False
+
+        mw  = self.main_window
+        pw  = getattr(self, 'preview_widget', None)
+        extensions = ('.png', '.iff', '.tga', '.bmp', '.jpg', '.jpeg')
+
+        # Collect texture names we are looking for from the current model
+        needed = set()
+        for tex in getattr(self, '_mod_textures', []):
+            n = (tex.get('name') or '').lower().strip('\x00').strip()
+            if n:
+                needed.add(n)
+
+        # When _mod_textures is empty accept anything under the txd_stem subfolder
+        use_stem_only = not needed
+        if use_stem_only and not txd_stem_lo:
+            return False
+
+        found_count = 0
+
+        for dirpath, _dirs, filenames in os.walk(texlist_root):
+            # For named-structure dumps, prefer the txd_stem subfolder
+            rel_dir = os.path.relpath(dirpath, texlist_root).lower()
+            in_stem_folder = (
+                rel_dir == '.' or
+                rel_dir == txd_stem_lo or
+                txd_stem_lo in rel_dir.split(os.sep))
+
+            for fname in filenames:
+                ext = os.path.splitext(fname)[1].lower()
+                if ext not in extensions:
+                    continue
+                tex_name = os.path.splitext(fname)[0].lower()
+
+                if use_stem_only:
+                    if not in_stem_folder:
+                        continue
+                else:
+                    if tex_name not in needed:
+                        continue
+
+                fpath = os.path.join(dirpath, fname)
+                try:
+                    if ext == '.iff':
+                        qimg = self._load_iff_as_qimage(fpath)
+                    else:
+                        from PyQt6.QtGui import QImage
+                        qimg = QImage(fpath)
+
+                    if qimg is None or qimg.isNull():
+                        continue
+
+                    from PyQt6.QtGui import QImage as _QI
+                    if qimg.format() != _QI.Format.Format_RGBA8888:
+                        qimg = qimg.convertToFormat(_QI.Format.Format_RGBA8888)
+
+                    if pw and hasattr(pw, '_tex_cache'):
+                        pw._tex_cache[tex_name] = qimg.copy()
+                    found_count += 1
+
+                    if mw and hasattr(mw, 'log_message'):
+                        mw.log_message(f"texlist: {fname} -> {tex_name}")
+
+                except Exception as e:
+                    if mw and hasattr(mw, 'log_message'):
+                        mw.log_message(f"texlist load error {fname}: {e}")
+
+        if found_count:
+            if pw:
+                pw.set_render_style('textured')
+                pw.update()
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"texlist: {found_count} texture(s) loaded "
+                    f"from {texlist_root}")
+        else:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"texlist: no matching textures in {texlist_root}")
+
+        return found_count > 0
+
+    def _load_iff_as_qimage(self, path: str): #vers 1
+        """Load an Amiga IFF ILBM file and return a QImage (RGBA8888), or None.
+        Supports 24-bit true colour and 8-bit CMAP-indexed ILBM files."""
+        import struct
+        from PyQt6.QtGui import QImage
+        try:
+            data = open(path, 'rb').read()
+            if len(data) < 12 or data[:4] != b'FORM' or data[8:12] != b'ILBM':
+                return None
+            i = 12
+            bmhd = body = cmap = None
+            while i < len(data) - 8:
+                tag  = data[i:i+4]
+                size = struct.unpack_from('>I', data, i+4)[0]
+                chunk = data[i+8:i+8+size]
+                if   tag == b'BMHD': bmhd = struct.unpack_from('>HHhhBBBBHBBhh', chunk)
+                elif tag == b'CMAP': cmap = chunk
+                elif tag == b'BODY': body = chunk
+                i += 8 + size + (size % 2)
+                if i >= len(data):
+                    break
+
+            if not bmhd or body is None:
+                return None
+
+            w, h, n_planes = bmhd[0], bmhd[1], bmhd[4]
+            row_bytes = (w + 15) // 16 * 2
+
+            # 24-bit true colour (R8 G8 B8 interleaved bitplanes)
+            if n_planes == 24:
+                rgba = bytearray(w * h * 4)
+                bp = 0
+                for y in range(h):
+                    planes = []
+                    for _ in range(24):
+                        planes.append(body[bp:bp+row_bytes])
+                        bp += row_bytes
+                    for x in range(w):
+                        bx  = x // 8
+                        bit = 0x80 >> (x % 8)
+                        r = sum(1<<p for p in range(8) if bx<len(planes[p])   and planes[p][bx]   & bit)
+                        g = sum(1<<p for p in range(8) if bx<len(planes[8+p]) and planes[8+p][bx] & bit)
+                        b = sum(1<<p for p in range(8) if bx<len(planes[16+p])and planes[16+p][bx]& bit)
+                        off = (y*w+x)*4
+                        rgba[off]=r; rgba[off+1]=g; rgba[off+2]=b; rgba[off+3]=255
+                return QImage(bytes(rgba), w, h, w*4,
+                              QImage.Format.Format_RGBA8888).copy()
+
+            # 8-bit indexed with CMAP palette
+            if n_planes == 8 and cmap:
+                pal = [(cmap[j*3], cmap[j*3+1], cmap[j*3+2])
+                       for j in range(len(cmap)//3)]
+                rgba = bytearray(w * h * 4)
+                bp = 0
+                for y in range(h):
+                    planes = [body[bp+p*row_bytes:bp+p*row_bytes+row_bytes]
+                              for p in range(8)]
+                    bp += 8 * row_bytes
+                    for x in range(w):
+                        bx  = x // 8
+                        bit = 0x80 >> (x % 8)
+                        pv  = sum(1<<p for p in range(8)
+                                  if bx<len(planes[p]) and planes[p][bx] & bit)
+                        r, g, b = pal[pv] if pv < len(pal) else (0, 0, 0)
+                        off = (y*w+x)*4
+                        rgba[off]=r; rgba[off+1]=g; rgba[off+2]=b; rgba[off+3]=255
+                return QImage(bytes(rgba), w, h, w*4,
+                              QImage.Format.Format_RGBA8888).copy()
+
+            return None
+        except Exception:
+            return None
+
+    def _set_texlist_folder(self): #vers 1
+        """Browse for a texlist/ root folder and persist to settings."""
+        from PyQt6.QtWidgets import QFileDialog
+        current = getattr(self, '_texlist_folder', '') or os.path.expanduser('~')
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select texlist/ root folder", current)
+        if folder:
+            self._texlist_folder = folder
+            self._save_texlist_setting()
+            mw = self.main_window
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Model Workshop: texlist folder -> {folder}")
+
+    def _save_texlist_setting(self): #vers 1
+        """Persist the texlist folder path to ~/.config/imgfactory/model_workshop.json"""
+        import json
+        cfg_dir = os.path.expanduser('~/.config/imgfactory')
+        os.makedirs(cfg_dir, exist_ok=True)
+        try:
+            p = os.path.join(cfg_dir, 'model_workshop.json')
+            data = {}
+            if os.path.isfile(p):
+                data = json.load(open(p))
+            data['texlist_folder'] = getattr(self, '_texlist_folder', '')
+            json.dump(data, open(p, 'w'), indent=2)
+        except Exception:
+            pass
+
+    def _load_texlist_setting(self): #vers 1
+        """Load the texlist folder path from ~/.config/imgfactory/model_workshop.json"""
+        import json
+        p = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+        if os.path.isfile(p):
+            try:
+                data = json.load(open(p))
+                self._texlist_folder = data.get('texlist_folder', '')
+                return
+            except Exception:
+                pass
+        self._texlist_folder = ''
+
 
     def _load_txd_into_workshop(self): #vers 1
         """Open a TXD file and load its textures into Model Workshop."""
