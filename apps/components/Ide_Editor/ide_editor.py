@@ -619,8 +619,12 @@ class IDEEditor(QDialog): #vers 1
     # ── SOL ID range reference ──────────────────────────────────────────
     # Format: (start, end, label, ide_file, img_file)
     # None end = open-ended / special section
+    # IDs below this are reserved for base GTA3/VC assets.
+    # World objects (map geometry etc.) MUST start at or after this ID.
+    SOL_WORLD_OBJECT_MIN_ID = 1987
+
     SOL_ID_RANGES = [
-        # ── GTA3.IDE reserved blocks ──────────────────────────────────
+        # ── GTA3.IDE reserved blocks (DO NOT use for world objects) ───
         (0,    129,   "Peds",               "gta3.ide",     "gta3.img"),
         (130,  239,   "Vehicles",           "gta3.ide",     "gta3.img"),
         (240,  245,   "Car components",     "gta3.ide",     "gta3.img"),
@@ -663,7 +667,9 @@ class IDEEditor(QDialog): #vers 1
         left = QWidget()
         ll   = QVBoxLayout(left); ll.setContentsMargins(0,0,0,0)
 
-        lbl = QLabel("GTASOL Master ID Ranges  (max_id = 32767)")
+        lbl = QLabel(
+            "GTASOL Master ID Ranges  (max_id = 32767)"
+            "   |   ⚠ World objects must start at ID 1987+")
         lbl.setFont(QFont("Arial",10,QFont.Weight.Bold))
         ll.addWidget(lbl)
 
@@ -677,13 +683,23 @@ class IDEEditor(QDialog): #vers 1
         ref_tbl.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows)
 
+        WMIN = self.SOL_WORLD_OBJECT_MIN_ID
         for row,(start,end,label,ide,img) in enumerate(self.SOL_ID_RANGES):
+            is_reserved = end < WMIN   # entire range is below the world floor
+            is_boundary = start < WMIN <= end  # straddles 1987
             for col, val in enumerate([str(start),str(end),label,ide,img]):
                 item = QTableWidgetItem(val)
                 item.setTextAlignment(
                     _Qt.AlignmentFlag.AlignRight|_Qt.AlignmentFlag.AlignVCenter
                     if col < 2 else
                     _Qt.AlignmentFlag.AlignLeft|_Qt.AlignmentFlag.AlignVCenter)
+                if is_reserved:
+                    # Grey — reserved for base GTA3/VC assets
+                    item.setForeground(QColor("#888"))
+                    item.setToolTip("Reserved for base GTA3/VC — do not use for world objects")
+                elif is_boundary:
+                    item.setForeground(QColor("#f59e0b"))
+                    item.setToolTip(f"World objects start at ID {WMIN} within this range")
                 ref_tbl.setItem(row,col,item)
 
         ref_tbl.resizeColumnsToContents()
@@ -807,6 +823,41 @@ class IDEEditor(QDialog): #vers 1
         dup_names = [n for n,c in name_counts.items() if c > 1]
 
         lines.append("── Problems ─────────────────────────────────────")
+
+        # Objects placed below the world object floor (1987)
+        WORLD_MIN = self.SOL_WORLD_OBJECT_MIN_ID
+        # Reserved sections that legitimately live below 1987
+        reserved_labels = {
+            "Peds","Vehicles","Car components","Ped components",
+            "Wheels","Weapons","Air train","Special map objects","Generics",
+        }
+        wrong_range = []
+        for e in self.ide_data:
+            eid   = e.get('id', -1)
+            ename = e.get('model','')
+            if eid < 0 or eid >= WORLD_MIN:
+                continue
+            # Find which range this falls in
+            in_reserved = False
+            for (start,end,label,*_) in self.SOL_ID_RANGES:
+                if start <= eid <= end and label in reserved_labels:
+                    in_reserved = True
+                    break
+            if not in_reserved:
+                wrong_range.append((eid, ename, e.get('txd','')))
+
+        if wrong_range:
+            lines.append(
+                f"  ⚠  {len(wrong_range)} world object(s) placed below "
+                f"ID {WORLD_MIN} (reserved for base GTA3/VC assets):")
+            lines.append(
+                f"     Rule: world map objects must use IDs >= {WORLD_MIN}")
+            for eid, ename, txd in sorted(wrong_range)[:20]:
+                lines.append(f"       ID {eid:>5}  {ename}  txd={txd}")
+            if len(wrong_range) > 20:
+                lines.append(f"       … and {len(wrong_range)-20} more")
+            lines.append("")
+
         if over_limit:
             lines.append(
                 f"  ⚠  {len(over_limit)} ID(s) over 32767 limit:")
