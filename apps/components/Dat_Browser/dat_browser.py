@@ -515,15 +515,15 @@ class DATBrowserWidget(QWidget): #vers 2
         self._split_btn.setToolTip("Panel left | Files right → click to cycle layout")
         self._split_btn.clicked.connect(self._on_split_toggle)
         self._sync_split_icon()   # set initial icon
-        toolbar.addWidget(self._split_btn)
-
-        # Settings button — always icon-only
+        # Settings button — always icon-only (left of split toggle)
         self._settings_btn = QPushButton()
         self._settings_btn.setFixedSize(24, 24)
         self._settings_btn.setIconSize(QSize(18, 18))
         self._settings_btn.setToolTip("DAT Browser settings")
         self._settings_btn.clicked.connect(self._open_dat_settings)
         toolbar.addWidget(self._settings_btn)
+
+        toolbar.addWidget(self._split_btn)
         # Load settings icon after display is ready
         from PyQt6.QtCore import QTimer as _QT2
         _QT2.singleShot(100, self._load_toolbar_icons)
