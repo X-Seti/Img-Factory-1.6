@@ -83,77 +83,121 @@ class TXDDumpDialog(QDialog): #vers 1
         self.loader       = loader
         self.main_window  = main_window
         self.setWindowTitle("Dump TXD Files")
-        self.setMinimumWidth(540)
+        self.setMinimumWidth(680)
         self.setMinimumHeight(420)
         self._build_ui()
 
-    def _build_ui(self):
-        from apps.methods.gta_dat_parser import GTAGame
-        game  = self.loader.game
-        lay   = QVBoxLayout(self)
-        lay.setSpacing(8)
+    # ── Category row specs ────────────────────────────────────────────────────
+    _CAT_SPECS = [
+        ('all',      'Dump All',          'Every .txd in every IMG — no filtering'),
+        ('world',    'World Textures',     'All TXDs except radar / vehicle / ped'),
+        ('radar',    'Radar Map TXDs',     'radar.*.txd (SOL: also radartex.img)'),
+        ('vehicles', 'Vehicles & Peds',    'Cars/peds TXDs from vehicles/peds IDE'),
+        ('generics', 'Generics (SA/SOL)',  'Prop TXDs from generic.ide/generics.ide'),
+    ]
 
-        # ── Game / mode info ─────────────────────────────────────────────
-        game_names = {GTAGame.GTA3: "GTA III (LC)",
-                      GTAGame.VC:   "Vice City (VC)",
-                      GTAGame.SA:   "San Andreas (SA)",
-                      GTAGame.SOL:  "GTA SOL (multi-city)"}
-        info = QLabel(f"Game: <b>{game_names.get(game, game)}</b>  —  "
-                      f"{len(self.loader.objects)} IDE objects loaded")
+    def _build_ui(self): #vers 2
+        from apps.methods.gta_dat_parser import GTAGame
+        import json
+        game = self.loader.game
+        is_sa_sol = game in (GTAGame.SA, GTAGame.SOL)
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(6)
+
+        # ── Game info ─────────────────────────────────────────────────────
+        game_names = {GTAGame.GTA3:"GTA III (LC)", GTAGame.VC:"Vice City (VC)",
+                      GTAGame.SA:"San Andreas (SA)", GTAGame.SOL:"GTA SOL (multi-city)"}
+        info = QLabel(f"Game: <b>{game_names.get(game,str(game))}</b>"
+                      f"  —  {len(self.loader.objects)} IDE objects loaded")
         info.setTextFormat(Qt.TextFormat.RichText)
         lay.addWidget(info)
 
-        # ── Mode selection ────────────────────────────────────────────────
-        grp = QGroupBox("What to dump")
-        grp_lay = QVBoxLayout(grp)
-        self._mode_btns = {}
+        # ── Load saved paths ──────────────────────────────────────────────
+        saved = self._load_saved_paths()
 
-        def _rb(key, label, tip, enabled=True):
-            rb = QRadioButton(label)
-            rb.setToolTip(tip)
-            rb.setEnabled(enabled)
-            self._mode_btns[key] = rb
-            grp_lay.addWidget(rb)
-            return rb
+        # ── Per-category rows ─────────────────────────────────────────────
+        self._cat_rows = {}   # key → {'txd_rb','tex_rb','folder_edit','enabled'}
 
-        _rb('all',
-            "Dump ALL TXDs",
-            "Every .txd found in every IMG/CDIMAGE archive — no filtering")
+        cat_box = QGroupBox("What to dump")
+        cat_lay = QVBoxLayout(cat_box)
+        cat_lay.setSpacing(4)
 
-        _rb('world',
-            "World textures only",
-            "All TXDs except radar, vehicle and ped textures. Excludes radar.*.txd and txds from vehicles/peds IDE sections")
+        # Header
+        hdr = QHBoxLayout()
+        hdr.addWidget(QLabel("Category"), 3)
+        hdr.addWidget(QLabel("TXD"), 1)
+        hdr.addWidget(QLabel("Textures"), 1)
+        hdr.addWidget(QLabel("Output folder"), 4)
+        cat_lay.addLayout(hdr)
 
-        _rb('radar',
-            "Radar map TXDs",
-            "GTA3/VC/SA: radar.*.txd from gta3.img. SOL: also radartex.img")
+        from PyQt6.QtWidgets import QButtonGroup
+        for key, label, tip in self._CAT_SPECS:
+            enabled = True if key != 'generics' else is_sa_sol
 
-        _rb('vehicles',
-            "Vehicle & Ped TXDs",
-            "GTA3/VC: [cars]/[peds] from default.ide. SA: vehicles.ide+peds.ide. SOL: vehicles.img, peds.img")
+            row_w = QWidget(); row_l = QHBoxLayout(row_w)
+            row_l.setContentsMargins(0,0,0,0); row_l.setSpacing(6)
 
-        is_sa_sol = game in (GTAGame.SA, GTAGame.SOL)
-        is_sol    = game == GTAGame.SOL
-        _rb('generics',
-            "Generic / prop TXDs  (SA / SOL only)",
-            "SA: txds from generic.ide. SOL: txds from generics.ide",
-            enabled=is_sa_sol)
+            # Label
+            lbl = QLabel(label)
+            lbl.setFixedWidth(140)
+            lbl.setEnabled(enabled)
+            lbl.setToolTip(tip)
+            row_l.addWidget(lbl)
 
-        # Select first enabled as default
-        for rb in self._mode_btns.values():
-            if rb.isEnabled():
-                rb.setChecked(True)
-                break
-        lay.addWidget(grp)
+            # TXD radio
+            txd_rb = QRadioButton("TXD")
+            txd_rb.setChecked(True)
+            txd_rb.setEnabled(enabled)
+            txd_rb.setFixedWidth(50)
+
+            # Textures radio (in same button group so they're mutually exclusive)
+            tex_rb = QRadioButton("Textures")
+            tex_rb.setEnabled(enabled)
+            tex_rb.setFixedWidth(75)
+
+            bg = QButtonGroup(row_w)
+            bg.addButton(txd_rb); bg.addButton(tex_rb)
+            row_l.addWidget(txd_rb)
+            row_l.addWidget(tex_rb)
+
+            # Folder line edit
+            folder_edit = QLineEdit()
+            folder_edit.setPlaceholderText("(same as default output folder)")
+            folder_edit.setEnabled(enabled)
+            folder_edit.setFixedHeight(24)
+            if key in saved:
+                folder_edit.setText(saved[key].get('folder',''))
+                if saved[key].get('mode','txd') == 'textures':
+                    tex_rb.setChecked(True)
+
+            browse = QPushButton("…")
+            browse.setFixedWidth(28); browse.setFixedHeight(24)
+            browse.setEnabled(enabled)
+            browse.setToolTip(f"Choose output folder for {label}")
+            browse.clicked.connect(
+                lambda _=False, fe=folder_edit: fe.setText(
+                    QFileDialog.getExistingDirectory(self, "Output folder") or fe.text()))
+
+            row_l.addWidget(folder_edit, 1)
+            row_l.addWidget(browse)
+            cat_lay.addWidget(row_w)
+
+            self._cat_rows[key] = {
+                'txd_rb': txd_rb, 'tex_rb': tex_rb,
+                'folder_edit': folder_edit, 'enabled': enabled,
+                'bg': bg
+            }
+
+        lay.addWidget(cat_box)
 
         # ── Export formats ────────────────────────────────────────────────
-        fmt_grp = QGroupBox("Export format(s)")
+        fmt_grp = QGroupBox("Export format(s)  — used when Textures is selected")
         fmt_lay = QHBoxLayout(fmt_grp)
         self._fmt_checks = {}
-        for fmt, default in [('IFF/ILBM', True), ('PNG', True),
-                              ('TGA', False), ('DDS', False), ('BMP', False)]:
-            cb = QCheckBox(fmt)
-            cb.setChecked(default)
+        for fmt, default in [('IFF/ILBM',True),('PNG',True),
+                              ('TGA',False),('DDS',False),('BMP',False)]:
+            cb = QCheckBox(fmt); cb.setChecked(default)
             fmt_lay.addWidget(cb)
             self._fmt_checks[fmt] = cb
         lay.addWidget(fmt_grp)
@@ -164,68 +208,125 @@ class TXDDumpDialog(QDialog): #vers 1
         self._skip_existing = QCheckBox("Skip files that already exist in output folder")
         self._skip_existing.setChecked(True)
         opt_lay.addWidget(self._skip_existing)
-        self._open_in_txd = QCheckBox("Open dumped TXDs in TXD Workshop when done")
+        self._open_in_txd = QCheckBox("Open first TXD in TXD Workshop when done")
         self._open_in_txd.setChecked(False)
         self._open_in_txd.setEnabled(
             self.main_window is not None and
-            hasattr(self.main_window, 'open_txd_workshop_docked'))
+            hasattr(self.main_window,'open_txd_workshop_docked'))
         opt_lay.addWidget(self._open_in_txd)
         lay.addWidget(opt_grp)
 
-        # ── Output folder ─────────────────────────────────────────────────
+        # ── Default output folder ─────────────────────────────────────────
         folder_row = QHBoxLayout()
-        folder_row.addWidget(QLabel("Output folder:"))
+        folder_row.addWidget(QLabel("Default output folder:"))
         self._folder_edit = QLineEdit()
         self._folder_edit.setPlaceholderText("Choose destination…")
+        self._folder_edit.setText(saved.get('_default',''))
         folder_row.addWidget(self._folder_edit, 1)
-        browse_btn = QPushButton("Browse…")
-        browse_btn.clicked.connect(self._pick_folder)
-        folder_row.addWidget(browse_btn)
+        browse_default = QPushButton("Browse…")
+        browse_default.clicked.connect(self._pick_folder)
+        folder_row.addWidget(browse_default)
         lay.addLayout(folder_row)
 
-        # ── Preview label ─────────────────────────────────────────────────
-        self._preview_lbl = QLabel("Select a mode to see what will be dumped.")
+        # ── Preview ───────────────────────────────────────────────────────
+        self._preview_lbl = QLabel("")
         self._preview_lbl.setWordWrap(True)
-        self._preview_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
+        self._preview_lbl.setStyleSheet("font-style:italic; color:palette(mid);")
         lay.addWidget(self._preview_lbl)
-
-        for rb in self._mode_btns.values():
-            rb.toggled.connect(self._update_preview)
         self._update_preview()
 
-        # ── Buttons ───────────────────────────────────────────────────────
+        # ── Button row ────────────────────────────────────────────────────
         lay.addStretch()
         btn_row = QHBoxLayout()
-        self._dump_btn = QPushButton("Dump TXDs")
+
+        save_paths_btn = QPushButton("Save Paths")
+        save_paths_btn.setToolTip("Save all folder paths for next session")
+        save_paths_btn.clicked.connect(self._save_paths)
+
+        settings_btn = QPushButton()
+        settings_btn.setFixedSize(28,28)
+        settings_btn.setToolTip("Dump settings")
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            settings_btn.setIcon(SVGIconFactory.settings_icon(16))
+        except Exception:
+            settings_btn.setText("⚙")
+        settings_btn.clicked.connect(self._open_settings)
+
+        cancel_btn  = QPushButton("Cancel")
+        self._dump_btn = QPushButton("Dump")
         self._dump_btn.setDefault(True)
-        self._dump_btn.clicked.connect(self._run_dump)
-        cancel_btn = QPushButton("Cancel")
+
         cancel_btn.clicked.connect(self.reject)
+        self._dump_btn.clicked.connect(self._run_dump)
+
+        btn_row.addWidget(save_paths_btn)
+        btn_row.addWidget(settings_btn)
         btn_row.addStretch()
         btn_row.addWidget(cancel_btn)
         btn_row.addWidget(self._dump_btn)
         lay.addLayout(btn_row)
 
     def _pick_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Output folder")
+        folder = QFileDialog.getExistingDirectory(self, "Default output folder")
         if folder:
             self._folder_edit.setText(folder)
 
     def _get_mode(self):
-        for key, rb in self._mode_btns.items():
-            if rb.isChecked():
-                return key
+        """Return first enabled+active row key, or 'all' fallback."""
+        # In new UI, 'mode' is derived from which rows have Textures/TXD set
+        # For _collect_txd_names compatibility, return first checked-like key
+        # We iterate and dump all enabled rows, so this is a no-op compatibility shim
         return 'all'
 
     def _update_preview(self):
-        mode = self._get_mode()
-        txd_names = self._collect_txd_names(mode)
-        n = len(txd_names)
-        previews = sorted(list(txd_names))[:5]
-        sample = ", ".join(previews) + ("…" if n > 5 else "")
-        self._preview_lbl.setText(
-            f"{n} TXD file(s) will be extracted.  Sample: {sample}" if n
-            else "No TXDs match this filter with the current game data.")
+        lines = []
+        for key, label, _ in self._CAT_SPECS:
+            row = self._cat_rows.get(key,{})
+            if not row.get('enabled', False):
+                continue
+            mode_str = 'Textures' if row.get('tex_rb') and row['tex_rb'].isChecked() else 'TXD'
+            n = len(self._collect_txd_names(key))
+            lines.append(f"{label}: {n} TXD(s) — {mode_str}")
+        self._preview_lbl.setText("  |  ".join(lines) if lines else "")
+
+    def _cfg_path(self):
+        import os
+        return os.path.expanduser("~/.config/imgfactory/txd_dump_paths.json")
+
+    def _load_saved_paths(self) -> dict:
+        import json, os
+        p = self._cfg_path()
+        if os.path.isfile(p):
+            try:
+                return json.load(open(p))
+            except Exception:
+                pass
+        return {}
+
+    def _save_paths(self):
+        import json, os
+        data = {'_default': self._folder_edit.text().strip()}
+        for key, row in self._cat_rows.items():
+            data[key] = {
+                'folder': row['folder_edit'].text().strip(),
+                'mode': 'textures' if row['tex_rb'].isChecked() else 'txd',
+            }
+        os.makedirs(os.path.dirname(self._cfg_path()), exist_ok=True)
+        json.dump(data, open(self._cfg_path(),'w'), indent=2)
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Saved", "Folder paths saved.")
+
+    def _open_settings(self):
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QDialogButtonBox
+        dlg = QDialog(self); dlg.setWindowTitle("Dump Settings")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel(
+            "Saved paths: " + self._cfg_path() + "\n\n"
+            "Paths are loaded automatically on next open."))
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        bb.accepted.connect(dlg.accept); lay.addWidget(bb)
+        dlg.exec()
 
     def _collect_txd_names(self, mode: str) -> set:
         """Return set of txd filenames (e.g. 'landstal.txd') for the chosen mode."""
@@ -338,59 +439,58 @@ class TXDDumpDialog(QDialog): #vers 1
         # world, generics — scan all IMGs (TXD filter handles it)
         return all_imgs
 
-    def _run_dump(self): #vers 2
-        """Execute the TXD dump with progress dialog.
-        Reads _fmt_checks — if any image formats are ticked,
-        decodes each TXD and writes textures to texlist/<txd_name>/."""
-        out_dir = self._folder_edit.text().strip()
-        if not out_dir:
-            self._pick_folder()
-            out_dir = self._folder_edit.text().strip()
-        if not out_dir:
+
+    def _run_dump(self): #vers 3
+        """Execute dump for all enabled categories.
+        Each category uses its own output folder (falls back to default),
+        and its own TXD/Textures mode."""
+        default_dir = self._folder_edit.text().strip()
+
+        # Build job list: (key, out_dir, mode='txd'|'textures')
+        jobs = []
+        for key, label, _ in self._CAT_SPECS:
+            row = self._cat_rows.get(key, {})
+            if not row.get('enabled', False):
+                continue
+            cat_dir = row['folder_edit'].text().strip() or default_dir
+            if not cat_dir:
+                continue  # skip if no folder set
+            mode_str = 'textures' if row['tex_rb'].isChecked() else 'txd'
+            jobs.append((key, label, cat_dir, mode_str))
+
+        if not jobs:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Output Folders",
+                "Set a default output folder or per-category folders before dumping.")
             return
 
-        os.makedirs(out_dir, exist_ok=True)
-        mode          = self._get_mode()
+        # Collect format selections (for texture export)
+        fmt_map  = {'IFF/ILBM':'iff','PNG':'png','TGA':'tga','DDS':'dds','BMP':'bmp'}
+        sel_fmts = [fmt_map[k] for k,cb in self._fmt_checks.items() if cb.isChecked()]
         skip_existing = self._skip_existing.isChecked()
-        txd_names     = self._collect_txd_names(mode)
-        img_paths     = self._get_img_paths(mode)
 
-        if not txd_names:
-            QMessageBox.warning(self, "Nothing to Dump",
-                "No TXD names match the selected filter for this game.")
-            return
-        if not img_paths:
-            QMessageBox.warning(self, "No IMGs",
-                "No IMG/CDIMAGE archives found for this game.")
+        # Check at least one texture format is selected if any job is 'textures'
+        if any(m == 'textures' for _,_,_,m in jobs) and not sel_fmts:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Format Selected",
+                "Tick at least one export format (IFF/ILBM, PNG…) for texture jobs.")
             return
 
-        # Which image formats to export (from checkboxes added in _build_ui)
-        fmt_map  = {'IFF/ILBM': 'iff', 'PNG': 'png',
-                    'TGA': 'tga', 'DDS': 'dds', 'BMP': 'bmp'}
-        sel_fmts = [fmt_map[k] for k, cb in self._fmt_checks.items()
-                    if cb.isChecked()]
-
-        # texlist/ holds decoded image files organised by TXD name
-        texlist_dir = os.path.join(out_dir, "texlist")
-        if sel_fmts:
-            os.makedirs(texlist_dir, exist_ok=True)
-
-        # Lazy-init TXD decode pipeline (one instance, reused for speed)
+        # Lazy TXD decode pipeline
         _txw = [None]
         def _get_txw():
             if _txw[0] is None:
                 try:
                     from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
                     _txw[0] = TXDWorkshop(main_window=None)
-                except Exception:
-                    pass
+                except Exception: pass
             return _txw[0]
 
         def _parse_txd_data(data):
             try:
                 from apps.components.Model_Editor.model_workshop import ModelWorkshop
                 from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
-                parser = getattr(ModelWorkshop, '_txd_parser_cache', None)
+                parser = getattr(ModelWorkshop,'_txd_parser_cache',None)
                 if parser is None:
                     parser = TXDWorkshop(main_window=None)
                     ModelWorkshop._txd_parser_cache = parser
@@ -399,148 +499,140 @@ class TXDDumpDialog(QDialog): #vers 1
             except Exception:
                 return []
 
-        prog = QProgressDialog("Starting…", "Cancel", 0, len(img_paths), self)
-        prog.setWindowTitle(f"Dumping TXDs — {mode}")
-        prog.setWindowModality(Qt.WindowModality.ApplicationModal)
-        prog.show()
-
-        extracted_txd = 0
-        extracted_tex = 0
-        skipped       = 0
-        errors        = []
-        remaining     = set(txd_names)
-
         from apps.methods.img_core_classes import IMGFile
 
-        for i, img_path in enumerate(img_paths):
-            prog.setValue(i)
-            prog.setLabelText(
-                f"Scanning {os.path.basename(img_path)}…  "
-                f"({extracted_txd} TXDs, {extracted_tex} textures)")
-            QApplication.processEvents()
-            if prog.wasCanceled():
-                break
+        total_txd = total_tex = total_skip = 0
+        all_errors = []
+        first_txd_path = None
 
-            try:
-                arc = IMGFile(img_path)
-                arc.open()
-                for entry in arc.entries:
-                    ename = entry.name.lower()
-                    if not ename.endswith('.txd'):
-                        continue
-                    if mode != 'all' and ename not in txd_names:
-                        continue
+        for key, label, cat_dir, mode_str in jobs:
+            os.makedirs(cat_dir, exist_ok=True)
+            txd_names = self._collect_txd_names(key)
+            img_paths = self._get_img_paths(key)
+            if not txd_names or not img_paths:
+                continue
 
-                    # Always write raw .txd file
-                    raw_out = os.path.join(out_dir, entry.name)
-                    try:
-                        data = arc.read_entry_data(entry)
-                    except Exception as e:
-                        errors.append(f"{entry.name}: {e}")
-                        continue
+            # texlist subdir for decoded textures
+            texlist_dir = os.path.join(cat_dir, "texlist")
+            if mode_str == 'textures':
+                os.makedirs(texlist_dir, exist_ok=True)
 
-                    if skip_existing and os.path.exists(raw_out):
-                        skipped += 1
-                    else:
+            prog = QProgressDialog(
+                f"Dumping {label}…", "Cancel", 0, len(img_paths), self)
+            prog.setWindowTitle(f"Dumping — {label}")
+            prog.setWindowModality(Qt.WindowModality.ApplicationModal)
+            prog.show()
+
+            remaining = set(txd_names)
+            extracted_txd = extracted_tex = 0
+
+            for i, img_path in enumerate(img_paths):
+                prog.setValue(i)
+                prog.setLabelText(
+                    f"{os.path.basename(img_path)}  "
+                    f"({extracted_txd} TXDs, {extracted_tex} textures)")
+                QApplication.processEvents()
+                if prog.wasCanceled():
+                    break
+                try:
+                    arc = IMGFile(img_path); arc.open()
+                    for entry in arc.entries:
+                        ename = entry.name.lower()
+                        if not ename.endswith('.txd'):
+                            continue
+                        if key != 'all' and ename not in txd_names:
+                            continue
                         try:
-                            with open(raw_out, 'wb') as fh:
-                                fh.write(data)
-                            extracted_txd += 1
+                            data = arc.read_entry_data(entry)
                         except Exception as e:
-                            errors.append(f"{entry.name}: {e}")
-                            continue
+                            all_errors.append(f"{entry.name}: {e}"); continue
 
-                    remaining.discard(ename)
-
-                    # Decode and export image files if formats are selected
-                    if not sel_fmts:
-                        continue
-
-                    txd_stem   = os.path.splitext(entry.name)[0]
-                    tex_subdir = os.path.join(texlist_dir, txd_stem)
-                    os.makedirs(tex_subdir, exist_ok=True)
-
-                    prog.setLabelText(
-                        f"Decoding {entry.name}…  ({extracted_tex} textures)")
-                    QApplication.processEvents()
-
-                    textures = _parse_txd_data(data)
-                    txw = _get_txw()
-                    if not txw:
-                        errors.append(f"{entry.name}: TXD decoder unavailable")
-                        continue
-
-                    for tex in textures:
-                        tname = (tex.get('name') or 'texture').strip('\x00').strip()
-                        if not tname:
-                            tname = 'texture'
-                        rgba = tex.get('rgba_data')
-                        w    = tex.get('width', 0)
-                        h    = tex.get('height', 0)
-                        if not rgba or w == 0 or h == 0:
-                            for lv in (tex.get('mip_levels')
-                                       or tex.get('mipmap_levels') or []):
-                                rgba = lv.get('rgba_data')
-                                w    = lv.get('width', w)
-                                h    = lv.get('height', h)
-                                if rgba: break
-                        if not rgba or w == 0 or h == 0:
-                            continue
-                        rgba_b = bytes(rgba)
-                        for ext in sel_fmts:
-                            tex_path = os.path.join(tex_subdir,
-                                                     f"{tname}.{ext}")
-                            if skip_existing and os.path.exists(tex_path):
-                                skipped += 1
-                                continue
+                        # ── Write raw TXD ────────────────────────────────
+                        raw_out = os.path.join(cat_dir, entry.name)
+                        if skip_existing and os.path.exists(raw_out):
+                            total_skip += 1
+                        else:
                             try:
-                                txw._save_texture_format(rgba_b, w, h,
-                                                          tex_path,
-                                                          ext.upper())
-                                extracted_tex += 1
+                                with open(raw_out,'wb') as fh: fh.write(data)
+                                extracted_txd += 1
+                                if first_txd_path is None:
+                                    first_txd_path = raw_out
                             except Exception as e:
-                                errors.append(
-                                    f"{entry.name}/{tname}.{ext}: {e}")
+                                all_errors.append(f"{entry.name}: {e}"); continue
 
-            except Exception as e:
-                errors.append(f"{os.path.basename(img_path)}: {e}")
+                        remaining.discard(ename)
 
-        prog.setValue(len(img_paths))
-        prog.close()
+                        # ── Decode to image formats ───────────────────────
+                        if mode_str != 'textures' or not sel_fmts:
+                            continue
+                        txd_stem   = os.path.splitext(entry.name)[0]
+                        tex_subdir = os.path.join(texlist_dir, txd_stem)
+                        os.makedirs(tex_subdir, exist_ok=True)
+                        prog.setLabelText(f"Decoding {entry.name}…")
+                        QApplication.processEvents()
+                        textures = _parse_txd_data(data)
+                        txw = _get_txw()
+                        if not txw:
+                            all_errors.append(f"{entry.name}: decoder unavailable")
+                            continue
+                        for tex in textures:
+                            tname = (tex.get('name') or 'texture').strip('\x00').strip()
+                            if not tname: tname = 'texture'
+                            rgba = tex.get('rgba_data')
+                            w = tex.get('width',0); h = tex.get('height',0)
+                            if not rgba or w==0 or h==0:
+                                for lv in (tex.get('mip_levels') or
+                                           tex.get('mipmap_levels') or []):
+                                    rgba=lv.get('rgba_data'); w=lv.get('width',w)
+                                    h=lv.get('height',h)
+                                    if rgba: break
+                            if not rgba or w==0 or h==0: continue
+                            rgba_b = bytes(rgba)
+                            for ext in sel_fmts:
+                                tex_path = os.path.join(tex_subdir,f"{tname}.{ext}")
+                                if skip_existing and os.path.exists(tex_path):
+                                    total_skip += 1; continue
+                                try:
+                                    txw._save_texture_format(rgba_b,w,h,tex_path,
+                                                              ext.upper())
+                                    extracted_tex += 1
+                                except Exception as e:
+                                    all_errors.append(f"{tname}.{ext}: {e}")
+                except Exception as e:
+                    all_errors.append(f"{os.path.basename(img_path)}: {e}")
 
-        lines = [
-            f"Mode: {mode}",
-            f"TXD files written: {extracted_txd}",
-        ]
-        if sel_fmts:
-            lines.append(
-                f"Textures exported: {extracted_tex}"
-                f"  ({', '.join(ext.upper() for ext in sel_fmts)})"
-                f"  → texlist/")
-        lines += [
-            f"Skipped (existing): {skipped}",
-            f"Not found in any IMG: {len(remaining)}",
-            f"Output folder: {out_dir}",
-        ]
-        if remaining and len(remaining) <= 20:
-            lines.append(f"Missing: {', '.join(sorted(remaining))}")
-        if errors:
-            lines.append(
-                f"Errors ({len(errors)}): " + "; ".join(errors[:5]))
+            prog.setValue(len(img_paths)); prog.close()
+            total_txd += extracted_txd; total_tex += extracted_tex
 
-        QMessageBox.information(self, "TXD Dump Complete",
-                                "\n".join(lines))
+        # Summary
+        from PyQt6.QtWidgets import QMessageBox
+        lines = [f"TXD files written:   {total_txd}"]
+        if total_tex:
+            lines.append(f"Textures exported:   {total_tex}"
+                         f"  ({', '.join(ext.upper() for ext in sel_fmts)})")
+        if total_skip:
+            lines.append(f"Skipped (existing):  {total_skip}")
+        if all_errors:
+            lines.append(f"Errors ({len(all_errors)}): "
+                         + "; ".join(all_errors[:5]))
+        QMessageBox.information(self, "Dump Complete", "\n".join(lines))
 
-        if self._open_in_txd.isChecked() and extracted_txd > 0:
+        if self._open_in_txd.isChecked() and first_txd_path:
             mw = self.main_window
-            if mw and hasattr(mw, 'open_txd_workshop_docked'):
-                txds = [f for f in sorted(os.listdir(out_dir))
-                        if f.lower().endswith('.txd')]
-                if txds:
-                    mw.open_txd_workshop_docked(
-                        file_path=os.path.join(out_dir, txds[0]))
+            if mw and hasattr(mw,'open_txd_workshop_docked'):
+                mw.open_txd_workshop_docked(file_path=first_txd_path)
 
         self.accept()
+
+
+class DATBrowserWidget(QWidget): #vers 2
+    """
+    Full DAT/IDE/IPL browser panel.
+    Drop into any QTabWidget or use standalone.
+    """
+
+    open_img_requested = pyqtSignal(str)          # emits abs path to .img
+    xref_ready         = pyqtSignal(object)        # emits GTAWorldXRef after load
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
