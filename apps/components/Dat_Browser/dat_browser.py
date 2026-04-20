@@ -146,6 +146,18 @@ class TXDDumpDialog(QDialog): #vers 1
                 break
         lay.addWidget(grp)
 
+        # ── Export formats ────────────────────────────────────────────────
+        fmt_grp = QGroupBox("Export format(s)")
+        fmt_lay = QHBoxLayout(fmt_grp)
+        self._fmt_checks = {}
+        for fmt, default in [('IFF/ILBM', True), ('PNG', True),
+                              ('TGA', False), ('DDS', False), ('BMP', False)]:
+            cb = QCheckBox(fmt)
+            cb.setChecked(default)
+            fmt_lay.addWidget(cb)
+            self._fmt_checks[fmt] = cb
+        lay.addWidget(fmt_grp)
+
         # ── Options ───────────────────────────────────────────────────────
         opt_grp = QGroupBox("Options")
         opt_lay = QVBoxLayout(opt_grp)
@@ -1035,6 +1047,9 @@ class DATBrowserWidget(QWidget): #vers 2
             self._game_combo.setCurrentIndex(idx)
             names = {1: "GTA III", 2: "Vice City", 3: "San Andreas", 4: "GTASOL"}
             self._status_lbl.setText(f"Detected: {names.get(idx, 'unknown')}")
+            if getattr(self, '_auto_load_on_root', False):
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(300, self._start_load)
         else:
             self._status_lbl.setText("Game not auto-detected — select manually.")
         self._load_btn.setEnabled(True)
@@ -1111,6 +1126,10 @@ class DATBrowserWidget(QWidget): #vers 2
         if hasattr(self, '_dump_txd_btn'):
             self._dump_txd_btn.setEnabled(bool(self.loader and self.loader.objects))
         self._log_text.setPlainText(self._build_log_text())
+        # Auto-open all IMGs if the setting is enabled
+        if getattr(self, '_auto_open_imgs', False) and self.loader and self.loader.load_log:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(800, self._load_all_game_imgs)
 
     # ── Populate ───────────────────────────────────────────────────────────
 
@@ -1143,10 +1162,39 @@ class DATBrowserWidget(QWidget): #vers 2
         'radartex':   'Radar Textures',
     }
 
-    def _stem_group(self, bname: str) -> str:
-        """Return group name for a basename, or empty string if ungrouped."""
+    # IPL folder → city group (for SOL maps/XX/ layout)
+    _SOL_IPL_FOLDERS = {
+        'vc': 'VC City', 'lc': 'LC City', 'la': 'LA (San Andreas)',
+        'sf': 'San Fierro', 'lv': 'Las Venturas', 'sa': 'San Andreas',
+        'mll': 'Mainland', 'ext': 'Extended',
+        'ifx': 'Lighting (IFX)', 'zones': 'Zones',
+    }
+
+    def _stem_group(self, bname: str, full_path: str = '') -> str:
+        """Return group name for a basename/path, or empty string if ungrouped."""
         stem = bname.lower().split('.')[0]
-        return self._SOL_GROUPS.get(stem, '')
+        # Direct stem match (IMG/COL/IDE)
+        grp = self._SOL_GROUPS.get(stem, '')
+        if grp:
+            return grp
+        # For IPL files: group by parent folder name
+        if full_path and bname.lower().endswith(('.ipl', '.zon')):
+            parts = full_path.replace(os.sep, '/').lower().split('/')
+            # Look for folder name in _SOL_IPL_FOLDERS
+            for part in reversed(parts[:-1]):  # skip filename itself
+                match = self._SOL_IPL_FOLDERS.get(part, '')
+                if match:
+                    return match
+                # Handle maps/XX/ path structure
+                if 'maps' in parts:
+                    mi = parts.index('maps')
+                    if mi + 1 < len(parts) - 1:
+                        folder = parts[mi + 1]
+                        match = self._SOL_IPL_FOLDERS.get(folder, '')
+                        if match:
+                            return match
+                        return f'Maps/{folder.upper()}'
+        return ''
 
     def _sort_log(self, log: list) -> list:
         """Sort load_log according to self._sort_combo selection."""
@@ -1275,7 +1323,7 @@ class DATBrowserWidget(QWidget): #vers 2
             ungrouped = []
             for entry in sorted_log:
                 bname = os.path.basename(entry[2])
-                grp   = self._stem_group(bname)
+                grp   = self._stem_group(bname, entry[2])
                 if grp:
                     groups.setdefault(grp, []).append(entry)
                 else:
@@ -1286,7 +1334,7 @@ class DATBrowserWidget(QWidget): #vers 2
             ordered_entries = []
             for entry in sorted_log:
                 bname = os.path.basename(entry[2])
-                grp   = self._stem_group(bname)
+                grp   = self._stem_group(bname, entry[2])
                 if grp and grp not in seen_groups:
                     seen_groups.append(grp)
                     ordered_entries.append(('__group__', grp, groups[grp]))

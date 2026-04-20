@@ -384,14 +384,23 @@ class IPLWorkshop(GUIWorkshop):
         return panel
 
     # ── Centre panel — instance table + search ────────────────────────────────
-    def _create_centre_panel(self):
+    def _create_centre_panel(self): #vers 2
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         cl = QVBoxLayout(panel)
         cl.setContentsMargins(0, 0, 0, 0)
-        cl.setSpacing(2)
+        cl.setSpacing(0)
 
-        # Search / filter bar
+        # Tabs: Table editor | World Map
+        self._centre_tabs = QTabWidget()
+        self._centre_tabs.setTabPosition(QTabWidget.TabPosition.North)
+
+        # ── Tab 1: Table editor ───────────────────────────────────────────
+        table_widget = QFrame()
+        tl = QVBoxLayout(table_widget)
+        tl.setContentsMargins(0, 2, 0, 0)
+        tl.setSpacing(2)
+
         sbar = QHBoxLayout(); sbar.setSpacing(4); sbar.setContentsMargins(4,2,4,2)
         self._search_box = QLineEdit()
         self._search_box.setPlaceholderText("Search model name…")
@@ -409,9 +418,8 @@ class IPLWorkshop(GUIWorkshop):
         clr.setFixedSize(24, 24); clr.setToolTip("Clear search")
         clr.clicked.connect(self._clear_search)
         sbar.addWidget(clr)
-        cl.addLayout(sbar)
+        tl.addLayout(sbar)
 
-        # Instance table
         self._table = QTableWidget(0, self.NUM_COLS)
         self._table.setHorizontalHeaderLabels(self.COL_HEADERS)
         self._table.setAlternatingRowColors(True)
@@ -425,9 +433,8 @@ class IPLWorkshop(GUIWorkshop):
         self._table.itemChanged.connect(self._on_cell_edited)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_context_menu)
-        cl.addWidget(self._table)
+        tl.addWidget(self._table)
 
-        # Text view for non-inst sections
         from PyQt6.QtWidgets import QTextEdit
         self._text_view = QTextEdit()
         self._text_view.setReadOnly(False)
@@ -435,9 +442,36 @@ class IPLWorkshop(GUIWorkshop):
         self._text_view.setPlaceholderText("Section content appears here…")
         self._text_view.setVisible(False)
         self._text_view.textChanged.connect(self._on_text_edited)
-        cl.addWidget(self._text_view)
+        tl.addWidget(self._text_view)
 
+        self._centre_tabs.addTab(table_widget, "📋  Table")
+
+        # ── Tab 2: World Map ──────────────────────────────────────────────
+        self._map_panel = IPLMapPanel(self)
+        self._centre_tabs.addTab(self._map_panel, "🗺  World Map")
+
+        # Switch to map → refresh with current entries
+        self._centre_tabs.currentChanged.connect(self._on_centre_tab_changed)
+
+        cl.addWidget(self._centre_tabs)
         return panel
+
+    def _on_centre_tab_changed(self, idx: int): #vers 1
+        """Refresh map when switching to the World Map tab."""
+        if idx == 1:  # World Map tab
+            entries = self._current_entries()
+            self._map_panel.refresh(entries)
+
+    def _current_entries(self) -> list: #vers 1
+        """Return the currently visible inst entries (from active section)."""
+        if not self._ipl:
+            return []
+        sec_name = getattr(self, '_active_section', 'inst')
+        sec = next((s for s in self._ipl.sections if s.name == sec_name), None)
+        if sec and sec.is_inst():
+            return list(sec.entries)
+        # Fallback: all inst entries
+        return list(self._ipl.instances)
 
     # ── Right sidebar ─────────────────────────────────────────────────────────
     def _populate_sidebar(self):
@@ -1157,3 +1191,487 @@ if __name__ == "__main__":
         print(f"ERROR: {e}")
         traceback.print_exc()
         sys.exit(1)
+
+
+# ── IPL World Map ─────────────────────────────────────────────────────────────
+
+class IPLMapView(QFrame):  # vers 1
+    """Interactive 2D top-down world map showing IPL instances as cubes.
+    Supports pan (middle/left-drag), zoom (wheel), multi-select, and
+    bulk translate/rotate operations."""
+
+    selection_changed = pyqtSignal(list)   # emits list of selected IPLEntry
+
+    # GTA world extents (SA/SOL coordinate space)
+    WORLD_MIN_X, WORLD_MAX_X = -3000.0,  3000.0
+    WORLD_MIN_Y, WORLD_MAX_Y = -3000.0,  3000.0
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.setMinimumSize(400, 300)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+
+        self._entries: list   = []      # list of IPLEntry
+        self._selected: set   = set()   # indices of selected entries
+        self._ipl_colors: dict= {}      # source_ipl → QColor
+        self._show_paths      = True
+        self._show_all_ipls   = True
+        self._active_ipls: set= set()   # filter: only show these source_ipls
+
+        # View state
+        self._zoom   = 1.0
+        self._pan_x  = 0.0
+        self._pan_y  = 0.0
+        self._drag_start = None
+        self._drag_pan   = False
+        self._sel_rect   = None   # rubber-band selection (screen coords)
+
+        self._dirty = True
+
+    # ── Data loading ──────────────────────────────────────────────────────
+    def load_entries(self, entries: list, ipl_filter: set = None):
+        """Load IPL entries. ipl_filter: set of source_ipl basenames to show."""
+        self._entries = entries or []
+        self._selected.clear()
+        self._active_ipls = ipl_filter or set()
+
+        # Auto-colour each source IPL
+        import hashlib
+        self._ipl_colors.clear()
+        for e in self._entries:
+            key = e.source_line or ''
+            if key not in self._ipl_colors:
+                h = int(hashlib.md5(key.encode()).hexdigest()[:6], 16)
+                r = (h >> 16) & 0xFF
+                g = (h >> 8)  & 0xFF
+                b =  h        & 0xFF
+                # Ensure visible on dark bg — lift brightness
+                mn = 80
+                r = max(r, mn); g = max(g, mn); b = max(b, mn)
+                self._ipl_colors[key] = QColor(r, g, b, 200)
+
+        self._fit_all()
+        self.update()
+
+    def set_ipl_filter(self, active_ipls: set):
+        self._active_ipls = active_ipls
+        self.update()
+
+    # ── Coordinate transform ──────────────────────────────────────────────
+    def _world_to_screen(self, wx, wy):
+        """Convert GTA world XY → screen pixel."""
+        W, H = self.width(), self.height()
+        cx = W / 2 + self._pan_x
+        cy = H / 2 + self._pan_y
+        scale = min(W, H) / (self.WORLD_MAX_X - self.WORLD_MIN_X) * self._zoom
+        sx =  cx + wx * scale
+        sy =  cy - wy * scale   # Y flipped (screen Y down, world Y up)
+        return sx, sy
+
+    def _screen_to_world(self, sx, sy):
+        W, H = self.width(), self.height()
+        cx = W / 2 + self._pan_x
+        cy = H / 2 + self._pan_y
+        scale = min(W, H) / (self.WORLD_MAX_X - self.WORLD_MIN_X) * self._zoom
+        wx = (sx - cx) / scale
+        wy = (cy - sy) / scale
+        return wx, wy
+
+    def _fit_all(self):
+        """Fit all visible entries in view."""
+        visible = self._visible_entries()
+        if not visible:
+            self._zoom = 1.0; self._pan_x = self._pan_y = 0.0; return
+        xs = [e.px for e in visible]
+        ys = [e.py for e in visible]
+        cx = (min(xs) + max(xs)) / 2
+        cy = (min(ys) + max(ys)) / 2
+        rng = max(max(xs)-min(xs), max(ys)-min(ys), 100)
+        W, H = max(self.width(),400), max(self.height(),300)
+        scale = min(W, H) / (self.WORLD_MAX_X - self.WORLD_MIN_X)
+        self._zoom = min(W, H) / (rng + 200) / scale
+        # Pan so world (cx,cy) lands at screen centre
+        self._pan_x = -cx * (min(W,H) / (self.WORLD_MAX_X - self.WORLD_MIN_X) * self._zoom)
+        self._pan_y =  cy * (min(W,H) / (self.WORLD_MAX_X - self.WORLD_MIN_X) * self._zoom)
+
+    def _visible_entries(self):
+        if self._active_ipls:
+            return [e for e in self._entries
+                    if (e.source_line or '') in self._active_ipls]
+        return self._entries
+
+    # ── Paint ─────────────────────────────────────────────────────────────
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
+        from PyQt6.QtCore import QRectF
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        W, H = self.width(), self.height()
+
+        # Background
+        p.fillRect(self.rect(), QColor(20, 22, 30))
+
+        # Grid lines
+        self._draw_grid(p, W, H)
+
+        # Entries as cubes
+        visible = self._visible_entries()
+        cube_sz = max(2.0, 6.0 * self._zoom)
+        half    = cube_sz / 2
+
+        from PyQt6.QtCore import QRectF
+        for i, e in enumerate(self._entries):
+            if self._active_ipls and (e.source_line or '') not in self._active_ipls:
+                continue
+            sx, sy = self._world_to_screen(e.px, e.py)
+            col = self._ipl_colors.get(e.source_line or '', QColor(140, 160, 200, 180))
+            is_sel = i in self._selected
+
+            if is_sel:
+                p.setPen(QPen(QColor(255, 220, 50), 1.5))
+                p.setBrush(QBrush(QColor(255, 220, 50, 200)))
+            else:
+                p.setPen(QPen(col.darker(140), 0.5))
+                p.setBrush(QBrush(col))
+
+            p.drawRect(QRectF(sx - half, sy - half, cube_sz, cube_sz))
+
+        # Rubber-band selection rect
+        if self._sel_rect:
+            p.setPen(QPen(QColor(100, 200, 255), 1, Qt.PenStyle.DashLine))
+            p.setBrush(QBrush(QColor(100, 200, 255, 30)))
+            p.drawRect(self._sel_rect)
+
+        # HUD
+        p.setPen(QColor(180, 180, 180))
+        p.setFont(QFont('Arial', 9))
+        n_sel = len(self._selected)
+        n_vis = len(visible)
+        p.drawText(6, 16,
+            f"Zoom: {self._zoom:.2f}×   Objects: {n_vis:,}"
+            + (f"   Selected: {n_sel}" if n_sel else ""))
+
+        p.end()
+
+    def _draw_grid(self, p, W, H):
+        from PyQt6.QtGui import QPen, QColor
+        from PyQt6.QtCore import QLineF
+        # Draw world-space grid at nice intervals
+        for interval in [100, 500, 1000, 2000]:
+            sx0, _ = self._world_to_screen(0, 0)
+            sx1, _ = self._world_to_screen(interval, 0)
+            px_per_unit = abs(sx1 - sx0)
+            if px_per_unit > 40:
+                break
+        col = QColor(45, 50, 65)
+        col_axis = QColor(70, 80, 110)
+        p.setPen(QPen(col, 0.5))
+        x = -((self.WORLD_MAX_X) // interval) * interval
+        while x <= self.WORLD_MAX_X:
+            sx, _ = self._world_to_screen(x, 0)
+            pen = QPen(col_axis if x == 0 else col, 0.5)
+            p.setPen(pen)
+            p.drawLine(int(sx), 0, int(sx), H)
+            x += interval
+        y = -((self.WORLD_MAX_Y) // interval) * interval
+        while y <= self.WORLD_MAX_Y:
+            _, sy = self._world_to_screen(0, y)
+            pen = QPen(col_axis if y == 0 else col, 0.5)
+            p.setPen(pen)
+            p.drawLine(0, int(sy), W, int(sy))
+            y += interval
+
+    # ── Mouse interaction ─────────────────────────────────────────────────
+    def wheelEvent(self, event):
+        factor = 1.15 if event.angleDelta().y() > 0 else 1/1.15
+        self._zoom = max(0.05, min(200.0, self._zoom * factor))
+        self.update()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._drag_start = event.position()
+            self._drag_pan   = True
+        elif event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.position()
+            self._drag_pan   = False
+            self._sel_rect   = None
+
+    def mouseMoveEvent(self, event):
+        if self._drag_start is None:
+            return
+        dx = event.position().x() - self._drag_start.x()
+        dy = event.position().y() - self._drag_start.y()
+        if self._drag_pan or (event.buttons() & Qt.MouseButton.MiddleButton):
+            self._pan_x += dx; self._pan_y += dy
+            self._drag_start = event.position()
+            self.update()
+        elif event.buttons() & Qt.MouseButton.LeftButton:
+            from PyQt6.QtCore import QRectF
+            x0 = min(self._drag_start.x(), event.position().x())
+            y0 = min(self._drag_start.y(), event.position().y())
+            x1 = max(self._drag_start.x(), event.position().x())
+            y1 = max(self._drag_start.y(), event.position().y())
+            self._sel_rect = QRectF(x0, y0, x1-x0, y1-y0)
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._drag_start is not None:
+            if self._sel_rect and (self._sel_rect.width() > 4 or
+                                    self._sel_rect.height() > 4):
+                # Box select
+                mods = event.modifiers()
+                if not (mods & Qt.KeyboardModifier.ShiftModifier):
+                    self._selected.clear()
+                r = self._sel_rect
+                for i, e in enumerate(self._entries):
+                    if self._active_ipls and (e.source_line or '') not in self._active_ipls:
+                        continue
+                    sx, sy = self._world_to_screen(e.px, e.py)
+                    if r.contains(sx, sy):
+                        self._selected.add(i)
+            else:
+                # Point click — find nearest entry
+                px = event.position().x(); py = event.position().y()
+                best_i = None; best_d = 12.0
+                for i, e in enumerate(self._entries):
+                    if self._active_ipls and (e.source_line or '') not in self._active_ipls:
+                        continue
+                    sx, sy = self._world_to_screen(e.px, e.py)
+                    d = ((sx-px)**2 + (sy-py)**2)**0.5
+                    if d < best_d:
+                        best_d = d; best_i = i
+                mods = event.modifiers()
+                if best_i is not None:
+                    if mods & Qt.KeyboardModifier.ShiftModifier:
+                        if best_i in self._selected:
+                            self._selected.discard(best_i)
+                        else:
+                            self._selected.add(best_i)
+                    else:
+                        self._selected = {best_i}
+                elif not (mods & Qt.KeyboardModifier.ShiftModifier):
+                    self._selected.clear()
+
+            self._sel_rect = None
+            self.update()
+            self.selection_changed.emit(
+                [self._entries[i] for i in sorted(self._selected)])
+        self._drag_start = None
+        self._drag_pan   = False
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_A and \
+                event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._selected = set(range(len(self._entries)))
+            self.selection_changed.emit(list(self._entries))
+            self.update()
+        elif event.key() == Qt.Key.Key_Escape:
+            self._selected.clear()
+            self.selection_changed.emit([])
+            self.update()
+        elif event.key() == Qt.Key.Key_F:
+            self._fit_all(); self.update()
+
+    # ── Selection helpers ─────────────────────────────────────────────────
+    def select_by_ipl(self, ipl_name: str, add=False):
+        if not add:
+            self._selected.clear()
+        for i, e in enumerate(self._entries):
+            if (e.source_line or '') == ipl_name:
+                self._selected.add(i)
+        self.update()
+        self.selection_changed.emit(
+            [self._entries[i] for i in sorted(self._selected)])
+
+    def selected_entries(self):
+        return [self._entries[i] for i in sorted(self._selected)]
+
+    # ── Bulk operations ───────────────────────────────────────────────────
+    def translate_selected(self, dx: float, dy: float, dz: float):
+        """Move selected entries by (dx, dy, dz)."""
+        if not self._selected:
+            return
+        for i in self._selected:
+            e = self._entries[i]
+            e.px += dx
+            e.py += dy
+            e.pz += dz
+        self.update()
+
+    def rotate_selected_yaw(self, degrees: float):
+        """Rotate selected entries around Z axis (yaw) about their centroid."""
+        import math
+        if not self._selected:
+            return
+        sel = [self._entries[i] for i in self._selected]
+        cx = sum(e.px for e in sel) / len(sel)
+        cy = sum(e.py for e in sel) / len(sel)
+        rad = math.radians(degrees)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+        for i in self._selected:
+            e = self._entries[i]
+            rx = e.px - cx; ry = e.py - cy
+            e.px = cx + rx * cos_a - ry * sin_a
+            e.py = cy + rx * sin_a + ry * cos_a
+            # Update quaternion — rotate around Z
+            # Current quat: (rx, ry, rz, rw)
+            half = rad / 2
+            dqz, dqw = math.sin(half), math.cos(half)
+            qx, qy, qz, qw = e.rx, e.ry, e.rz, e.rw
+            e.rx = qw*0   + qx*dqw + qy*dqz - qz*0
+            e.ry = qw*0   - qx*dqz + qy*dqw + qz*0
+            e.rz = qw*dqz + qx*0   - qy*0   + qz*dqw
+            e.rw = qw*dqw - qx*0   - qy*0   - qz*dqz
+        self.update()
+
+
+class IPLMapPanel(QFrame):  # vers 1
+    """Full map panel with map view + translate/rotate controls."""
+
+    def __init__(self, workshop, parent=None):
+        super().__init__(parent)
+        self._ws = workshop
+        self._build_ui()
+
+    def _build_ui(self):
+        from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QGroupBox,
+            QDoubleSpinBox, QPushButton, QLabel, QCheckBox, QComboBox)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(2)
+
+        # ── Toolbar ───────────────────────────────────────────────────────
+        bar = QHBoxLayout(); bar.setContentsMargins(4, 2, 4, 2); bar.setSpacing(6)
+
+        fit_btn = QPushButton("Fit [F]")
+        fit_btn.setFixedHeight(24)
+        fit_btn.setToolTip("Fit all objects in view (F)")
+        fit_btn.clicked.connect(self._fit)
+        bar.addWidget(fit_btn)
+
+        sel_ipl_btn = QPushButton("Select by IPL")
+        sel_ipl_btn.setFixedHeight(24)
+        sel_ipl_btn.setToolTip("Select all objects from a specific IPL file")
+        sel_ipl_btn.clicked.connect(self._select_by_ipl_dialog)
+        bar.addWidget(sel_ipl_btn)
+
+        sel_all_btn = QPushButton("Select All [Ctrl+A]")
+        sel_all_btn.setFixedHeight(24)
+        sel_all_btn.clicked.connect(self._select_all)
+        bar.addWidget(sel_all_btn)
+
+        clr_btn = QPushButton("Clear [Esc]")
+        clr_btn.setFixedHeight(24)
+        clr_btn.clicked.connect(self._clear_sel)
+        bar.addWidget(clr_btn)
+
+        bar.addStretch()
+        self._sel_lbl = QLabel("No selection")
+        self._sel_lbl.setStyleSheet("color: palette(mid);")
+        bar.addWidget(self._sel_lbl)
+        root.addLayout(bar)
+
+        # ── Map view ──────────────────────────────────────────────────────
+        self._map = IPLMapView()
+        self._map.selection_changed.connect(self._on_selection_changed)
+        root.addWidget(self._map, stretch=1)
+
+        # ── Translate / Rotate controls ───────────────────────────────────
+        ctrl = QHBoxLayout(); ctrl.setContentsMargins(4, 2, 4, 4); ctrl.setSpacing(8)
+
+        # Translate group
+        tg = QGroupBox("Translate selection")
+        tl = QHBoxLayout(tg); tl.setSpacing(4)
+        self._tx = self._spin(-9999, 9999, 0, "X offset")
+        self._ty = self._spin(-9999, 9999, 0, "Y offset")
+        self._tz = self._spin(-9999, 9999, 0, "Z offset")
+        for lbl, sp in [("X:", self._tx), ("Y:", self._ty), ("Z:", self._tz)]:
+            tl.addWidget(QLabel(lbl)); tl.addWidget(sp)
+        apply_t = QPushButton("Apply")
+        apply_t.setFixedHeight(24)
+        apply_t.setToolTip("Move selected objects by X/Y/Z offset")
+        apply_t.clicked.connect(self._apply_translate)
+        tl.addWidget(apply_t)
+        ctrl.addWidget(tg)
+
+        # Rotate group
+        rg = QGroupBox("Rotate selection (yaw around Z)")
+        rl = QHBoxLayout(rg); rl.setSpacing(4)
+        self._rdeg = self._spin(-360, 360, 90, "Degrees to rotate")
+        rl.addWidget(QLabel("°:"))
+        rl.addWidget(self._rdeg)
+        for deg_lbl, deg_val in [("-90°", -90), ("+90°", 90), ("180°", 180)]:
+            b = QPushButton(deg_lbl); b.setFixedHeight(24); b.setFixedWidth(42)
+            b.clicked.connect(lambda _=False, d=deg_val: self._rotate(d))
+            rl.addWidget(b)
+        apply_r = QPushButton("Apply")
+        apply_r.setFixedHeight(24)
+        apply_r.clicked.connect(lambda: self._rotate(self._rdeg.value()))
+        rl.addWidget(apply_r)
+        ctrl.addWidget(rg)
+
+        root.addLayout(ctrl)
+
+    def _spin(self, lo, hi, val, tip):
+        from PyQt6.QtWidgets import QDoubleSpinBox
+        s = QDoubleSpinBox(); s.setRange(lo, hi); s.setValue(val)
+        s.setDecimals(2); s.setFixedWidth(72); s.setFixedHeight(24)
+        s.setToolTip(tip)
+        return s
+
+    def refresh(self, entries, ipl_filter=None):
+        self._map.load_entries(entries, ipl_filter)
+
+    def _fit(self):
+        self._map._fit_all(); self._map.update()
+
+    def _select_all(self):
+        self._map._selected = set(range(len(self._map._entries)))
+        self._map.update()
+        self._on_selection_changed(self._map._entries)
+
+    def _clear_sel(self):
+        self._map._selected.clear()
+        self._map.update()
+        self._on_selection_changed([])
+
+    def _on_selection_changed(self, entries):
+        n = len(entries)
+        self._sel_lbl.setText(
+            f"{n:,} object(s) selected" if n else "No selection")
+
+    def _select_by_ipl_dialog(self):
+        from PyQt6.QtWidgets import QInputDialog
+        ipls = sorted({(e.source_line or '') for e in self._map._entries} - {''})
+        if not ipls:
+            return
+        name, ok = QInputDialog.getItem(
+            self, "Select by IPL", "IPL file:", ipls, 0, False)
+        if ok and name:
+            mods = self._map.focusWidget()
+            self._map.select_by_ipl(name)
+
+    def _apply_translate(self):
+        dx = self._tx.value(); dy = self._ty.value(); dz = self._tz.value()
+        if dx == dy == dz == 0:
+            return
+        self._map.translate_selected(dx, dy, dz)
+        n = len(self._map._selected)
+        # Sync back to workshop table
+        if hasattr(self._ws, '_table'):
+            self._ws._populate_table(self._ws._current_entries())
+        if self._ws.main_window and hasattr(self._ws.main_window, 'log_message'):
+            self._ws.main_window.log_message(
+                f"IPL: moved {n} object(s) by X={dx:+.1f} Y={dy:+.1f} Z={dz:+.1f}")
+
+    def _rotate(self, degrees):
+        self._map.rotate_selected_yaw(degrees)
+        n = len(self._map._selected)
+        if hasattr(self._ws, '_table'):
+            self._ws._populate_table(self._ws._current_entries())
+        if self._ws.main_window and hasattr(self._ws.main_window, 'log_message'):
+            self._ws.main_window.log_message(
+                f"IPL: rotated {n} object(s) by {degrees:+.0f}°")
