@@ -8034,73 +8034,228 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
 
 
-    def export_all_textures(self): #vers 2
-        """Export all textures from the current TXD as PNG files."""
+    # ── IFF ILBM writer (24-bit true colour) ────────────────────────────
+    @staticmethod
+    def _rgba_to_iff_ilbm(rgba: bytes, w: int, h: int) -> bytes: #vers 1
+        """Write RGBA pixel data as 24-bit IFF ILBM (Amiga true colour).
+        Compatible with PPaint, DPaint 5, and any IFF-aware tool."""
+        import struct
+
+        def _iff_chunk(tag: str, data: bytes) -> bytes:
+            hdr = tag.encode('ascii') + struct.pack('>I', len(data))
+            return hdr + data + (b'\x00' if len(data) % 2 else b'')
+
+        n_planes = 24   # 8R + 8G + 8B bitplanes
+        row_bytes = (w + 15) // 16 * 2   # row width in bytes, word-aligned
+
+        # BMHD — bitmap header
+        bmhd = struct.pack('>HHhhBBBBHBBhh',
+            w, h,          # width, height
+            0, 0,          # x, y origin
+            n_planes,      # planes
+            0,             # masking (none)
+            0,             # compression (none — uncompressed)
+            0,             # pad
+            0,             # transparent colour
+            1, 1,          # x/y aspect
+            w, h)          # page width/height
+
+        # CAMG — Amiga viewport mode (0 = normal, no HAM/EHB)
+        camg = struct.pack('>I', 0x0000)
+
+        # BODY — interleaved bitplanes: for each scan row, 24 separate plane rows
+        # 8 planes for Red, 8 for Green, 8 for Blue (plane 0 = LSB)
+        body = bytearray()
+        for y in range(h):
+            # One row_bytes buffer per bitplane
+            planes_r = [bytearray(row_bytes) for _ in range(8)]
+            planes_g = [bytearray(row_bytes) for _ in range(8)]
+            planes_b = [bytearray(row_bytes) for _ in range(8)]
+            for x in range(w):
+                idx = (y * w + x) * 4
+                r, g, b = rgba[idx], rgba[idx+1], rgba[idx+2]
+                bx  = x // 8
+                bit = 0x80 >> (x % 8)
+                for p in range(8):
+                    if r & (1 << p): planes_r[p][bx] |= bit
+                    if g & (1 << p): planes_g[p][bx] |= bit
+                    if b & (1 << p): planes_b[p][bx] |= bit
+            # Write planes in order: R0..R7, G0..G7, B0..B7
+            for p in range(8): body += bytes(planes_r[p])
+            for p in range(8): body += bytes(planes_g[p])
+            for p in range(8): body += bytes(planes_b[p])
+
+        ilbm = (b'ILBM'
+                + _iff_chunk('BMHD', bmhd)
+                + _iff_chunk('CAMG', camg)
+                + _iff_chunk('BODY', bytes(body)))
+        return b'FORM' + struct.pack('>I', len(ilbm)) + ilbm
+
+    def _save_texture_format(self, rgba: bytes, w: int, h: int,
+                              path: str, fmt: str): #vers 1
+        """Save RGBA pixel data to path in the requested format.
+        fmt: 'PNG' | 'IFF' | 'TGA' | 'DDS' | 'BMP'"""
+        fmt = fmt.upper()
+        if fmt == 'IFF':
+            data = self._rgba_to_iff_ilbm(rgba, w, h)
+            with open(path, 'wb') as f:
+                f.write(data)
+        elif fmt == 'DDS':
+            # DDS: minimal DXT1 header — write as uncompressed RGBA8888
+            import struct
+            DDSD_CAPS=1; DDSD_HEIGHT=2; DDSD_WIDTH=4
+            DDSD_PIXELFORMAT=0x1000; DDSD_LINEARSIZE=0x80000
+            DDPF_ALPHAPIXELS=1; DDPF_RGB=0x40
+            flags = DDSD_CAPS|DDSD_HEIGHT|DDSD_WIDTH|DDSD_PIXELFORMAT|DDSD_LINEARSIZE
+            pitch = w * 4
+            pf = struct.pack('<II4sIIIIII',
+                32, DDPF_ALPHAPIXELS|DDPF_RGB, b'    ',
+                32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000, 0)
+            caps = struct.pack('<IIII', 0x1000, 0, 0, 0)  # DDSCAPS_TEXTURE
+            hdr = (b'DDS ' + struct.pack('<I', 124) +
+                   struct.pack('<IIIII', flags, h, w, pitch, 1) +
+                   b'\x00'*44 + pf + caps)
+            # Convert RGBA→BGRA for DDS
+            bgra = bytearray(len(rgba))
+            for i in range(0, len(rgba), 4):
+                bgra[i]=rgba[i+2]; bgra[i+1]=rgba[i+1]
+                bgra[i+2]=rgba[i]; bgra[i+3]=rgba[i+3]
+            with open(path,'wb') as f:
+                f.write(hdr); f.write(bytes(bgra))
+        elif fmt == 'TGA':
+            import struct
+            # TGA: uncompressed BGRA
+            hdr = struct.pack('<BBBHHBHHHHBB',
+                0, 0, 2, 0, 0, 0, 0, 0, w, h, 32, 8)
+            bgra = bytearray(len(rgba))
+            for i in range(0, len(rgba), 4):
+                bgra[i]=rgba[i+2]; bgra[i+1]=rgba[i+1]
+                bgra[i+2]=rgba[i]; bgra[i+3]=rgba[i+3]
+            with open(path,'wb') as f:
+                f.write(hdr); f.write(bytes(bgra))
+        else:
+            # PNG / BMP — use QImage
+            from PyQt6.QtGui import QImage
+            img = QImage(rgba, w, h, w*4, QImage.Format.Format_RGBA8888)
+            ext = 'BMP' if fmt == 'BMP' else 'PNG'
+            img.save(path, ext)
+
+    def export_all_textures(self): #vers 3
+        """Export all textures from the current TXD in chosen format(s)."""
         if not self.texture_list:
             QMessageBox.warning(self, "No Textures", "No textures loaded to export.")
             return
 
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QLabel, QCheckBox, QDialogButtonBox, QGroupBox, QFileDialog)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Export All Textures")
+        dlg.setMinimumWidth(340)
+        lay = QVBoxLayout(dlg)
+
+        lay.addWidget(QLabel(
+            f"Export {len(self.texture_list)} textures from current TXD:"))
+
+        fmt_box = QGroupBox("Output format(s)")
+        fmt_lay = QVBoxLayout(fmt_box)
+        fmt_checks = {}
+        for fmt, default in [('IFF / ILBM (Amiga)', True),
+                              ('PNG',                True),
+                              ('TGA',                False),
+                              ('DDS',                False),
+                              ('BMP',                False)]:
+            cb = QCheckBox(fmt)
+            cb.setChecked(default)
+            fmt_lay.addWidget(cb)
+            fmt_checks[fmt] = cb
+        lay.addWidget(fmt_box)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # Build list of selected (key→ext) pairs
+        fmt_map = {'IFF / ILBM (Amiga)': 'IFF', 'PNG': 'PNG',
+                   'TGA': 'TGA', 'DDS': 'DDS', 'BMP': 'BMP'}
+        ext_map  = {'IFF':'iff','PNG':'png','TGA':'tga','DDS':'dds','BMP':'bmp'}
+        selected = [fmt_map[k] for k, cb in fmt_checks.items() if cb.isChecked()]
+        if not selected:
+            QMessageBox.warning(self, "No Format", "Select at least one format.")
+            return
+
         output_dir = QFileDialog.getExistingDirectory(
-            self, "Select Folder for PNG Export")
+            self, "Select Export Folder")
         if not output_dir:
             return
 
-        exported = 0
-        skipped = 0
+        from PyQt6.QtWidgets import QProgressDialog, QApplication
+        from PyQt6.QtCore import Qt as _Qt
+        prog = QProgressDialog(
+            f"Exporting {len(self.texture_list)} textures…",
+            "Cancel", 0, len(self.texture_list), self)
+        prog.setWindowModality(_Qt.WindowModality.ApplicationModal)
+        prog.show()
+
+        exported = skipped = 0
         errors = []
 
-        try:
-            for i, texture in enumerate(self.texture_list):
-                name = texture.get('name', f'texture_{i}').strip('\x00')
-                if not name:
-                    name = f'texture_{i}'
+        for i, texture in enumerate(self.texture_list):
+            prog.setValue(i)
+            QApplication.processEvents()
+            if prog.wasCanceled():
+                break
 
-                # Resolve RGBA data — try rgba_data first, then mip levels
-                rgba_data = texture.get('rgba_data')
-                width  = texture.get('width', 0)
-                height = texture.get('height', 0)
+            name = (texture.get('name') or f'texture_{i}').strip('\x00').strip()
+            if not name:
+                name = f'texture_{i}'
 
-                if not rgba_data or width == 0 or height == 0:
-                    # Try first mip level
-                    levels = texture.get('mip_levels', [])
-                    if levels:
-                        lv = levels[0]
-                        rgba_data = lv.get('rgba_data')
-                        width  = lv.get('width', width)
-                        height = lv.get('height', height)
+            rgba_data = texture.get('rgba_data')
+            width  = texture.get('width', 0)
+            height = texture.get('height', 0)
+            if not rgba_data or width == 0 or height == 0:
+                levels = texture.get('mip_levels') or texture.get('mipmap_levels', [])
+                if levels:
+                    lv = levels[0]; rgba_data = lv.get('rgba_data')
+                    width  = lv.get('width', width)
+                    height = lv.get('height', height)
 
-                if not rgba_data or width == 0 or height == 0:
-                    skipped += 1
-                    continue
+            if not rgba_data or width == 0 or height == 0:
+                skipped += 1
+                continue
 
+            rgba_bytes = bytes(rgba_data)
+            for fmt in selected:
+                ext  = ext_map[fmt]
+                path = os.path.join(output_dir, f"{name}.{ext}")
                 try:
-                    out_path = os.path.join(output_dir, f"{name}.png")
-                    self._save_texture_png(rgba_data, width, height, out_path)
+                    self._save_texture_format(rgba_bytes, width, height, path, fmt)
                     exported += 1
                 except Exception as e:
-                    errors.append(f"{name}: {e}")
+                    errors.append(f"{name}.{ext}: {e}")
 
-            msg = f"Exported {exported} of {len(self.texture_list)} texture(s) to:\n{output_dir}"
-            if skipped:
-                msg += f"\n\nSkipped {skipped} (no decoded pixel data available)."
-            if errors:
-                msg += f"\n\nErrors ({len(errors)}):\n" + "\n".join(errors[:5])
+        prog.close()
 
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(
-                    f"TXD export: {exported} PNG(s) → {output_dir}"
-                    + (f" ({skipped} skipped)" if skipped else ""))
+        msg = (f"Exported {exported} file(s) to:\n{output_dir}"
+               f"\nFormats: {', '.join(selected)}")
+        if skipped:
+            msg += f"\nSkipped {skipped} (no pixel data)"
+        if errors:
+            msg += f"\nErrors ({len(errors)}):\n" + "\n".join(errors[:5])
 
-            if exported:
-                QMessageBox.information(self, "Export Complete", msg)
-            else:
-                QMessageBox.warning(self, "Nothing Exported",
-                    "No textures could be exported.\n"
-                    "The textures may not have decoded pixel data available.\n\n"
-                    "Try opening and viewing a texture first, then export.")
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(
+                f"TXD export: {exported} file(s) → {output_dir} "
+                f"[{', '.join(selected)}]"
+                + (f" ({skipped} skipped)" if skipped else ""))
 
-        except Exception as e:
-            QMessageBox.critical(self, "Export Failed", str(e))
+        QMessageBox.information(self, "Export Complete", msg)
 
 
     def _extract_alpha_channel(self, rgba_data): #vers 1

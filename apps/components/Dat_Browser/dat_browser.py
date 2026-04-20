@@ -1394,20 +1394,28 @@ class DATBrowserWidget(QWidget): #vers 2
         # Resolve abs path: prefer UserRole data stored on IMG items
         abs_path = tree_item.data(0, Qt.ItemDataRole.UserRole) or None
         if not abs_path:
-            bname = tree_item.text(0).split('[')[0].strip()
+            stem = tree_item.text(0).split('[')[0].strip()
             for _phase, etype, path, ok in self.loader.load_log:
-                if etype in ('IMG', 'CDIMAGE') and os.path.basename(path) == bname:
+                if etype in ('IMG', 'CDIMAGE') and os.path.basename(path) == stem:
                     abs_path = path; break
         if not abs_path or not os.path.isfile(abs_path):
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(f"IMG not found on disk: {abs_path or '?'}")
             return
+        # bname always derived from abs_path so it is always defined
+        bname = os.path.basename(abs_path)
         # If already open as a tab, just bring it to front
         if self._bring_img_tab_to_front(abs_path):
             return
         # Open in IMG Factory
         try:
-            if hasattr(mw, 'open_img_file_path'):
+            if hasattr(mw, '_load_img_file_in_new_tab'):
+                mw._load_img_file_in_new_tab(abs_path)
+                if hasattr(mw, 'log_message'):
+                    mw.log_message(f"Opening {bname} in new tab…")
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(1500, self._refresh_img_loaded_indicators)
+            elif hasattr(mw, 'open_img_file_path'):
                 mw.open_img_file_path(abs_path)
             elif hasattr(mw, '_load_img_file'):
                 mw._load_img_file(abs_path)
