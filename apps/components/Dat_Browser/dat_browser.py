@@ -490,6 +490,11 @@ class DATBrowserWidget(QWidget): #vers 2
 
         # Track current compact state; icons loaded lazily on first compact switch
         self._toolbar_compact = False
+        self._dat_btn_mode    = 'both'   # name | icon | both
+        self._auto_load_on_root = False
+        self._auto_open_imgs    = False
+        # Load persisted settings (after widgets exist)
+        self._load_dat_settings()
 
         toolbar.addWidget(QLabel("Game:"))
         toolbar.addWidget(self._game_combo)
@@ -511,6 +516,17 @@ class DATBrowserWidget(QWidget): #vers 2
         self._split_btn.clicked.connect(self._on_split_toggle)
         self._sync_split_icon()   # set initial icon
         toolbar.addWidget(self._split_btn)
+
+        # Settings button — always icon-only
+        self._settings_btn = QPushButton()
+        self._settings_btn.setFixedSize(24, 24)
+        self._settings_btn.setIconSize(QSize(18, 18))
+        self._settings_btn.setToolTip("DAT Browser settings")
+        self._settings_btn.clicked.connect(self._open_dat_settings)
+        toolbar.addWidget(self._settings_btn)
+        # Load settings icon after display is ready
+        from PyQt6.QtCore import QTimer as _QT2
+        _QT2.singleShot(100, self._load_toolbar_icons)
 
         root.addLayout(toolbar)
 
@@ -660,68 +676,271 @@ class DATBrowserWidget(QWidget): #vers 2
         t.viewport().setAutoFillBackground(True)
         return t
 
-    # ── Responsive toolbar — compact (icon-only) below 520 px wide ────────
+    # ── Responsive toolbar ─────────────────────────────────────────────────
+    _COMPACT_THRESHOLD = 520   # px width below which text→icon for all buttons
 
-    # Width threshold below which Browse/Load collapse to icon-only buttons
-    _COMPACT_THRESHOLD = 520
+    # Button spec: (attr_name, text_label, icon_method, tooltip)
+    # icon_method is a string — name of SVGIconFactory method to call
+    _BTN_SPECS = [
+        ('_browse_btn',    'Browse…',   'folder_icon',        'Browse for game root folder'),
+        ('_load_btn',      'Load',      'get_import_icon',    'Load DAT/IDE/IPL world data'),
+        ('_dump_txd_btn',  'Dump TXDs', 'package_icon',       'Dump all TXDs from game IMGs'),
+    ]
+
+    # Load-order tree button specs: (attr, text, icon_method, tooltip)
+    _TREE_BTN_SPECS = [
+        ('_group_btn',          'Group',  'get_tree_icon',     'Group by city section (SOL)'),
+        ('_show_col_in_img_btn','COL▾',  'get_col_file_icon', 'Show COL files inside IMG archives'),
+    ]
 
     def resizeEvent(self, event): #vers 1
         super().resizeEvent(event)
         self._update_toolbar_compact(event.size().width())
 
-    def _update_toolbar_compact(self, width: int): #vers 2
-        """Switch Browse/Load between full text and icon-only when narrow."""
+    def _load_toolbar_icons(self): #vers 1
+        """Load all SVG icons for toolbar and settings buttons (called once after show)."""
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        ic = self._get_icon_color()
+        sz = 18
+
+        for attr, _, icon_method, _ in self._BTN_SPECS:
+            btn = getattr(self, attr, None)
+            if btn is None:
+                continue
+            try:
+                fn = getattr(SVGIconFactory, icon_method)
+                btn._dat_icon = fn(sz, ic)
+            except Exception:
+                btn._dat_icon = None
+
+        for attr, _, icon_method, _ in self._TREE_BTN_SPECS:
+            btn = getattr(self, attr, None)
+            if btn is None:
+                continue
+            try:
+                fn = getattr(SVGIconFactory, icon_method)
+                btn._dat_icon = fn(sz, ic)
+            except Exception:
+                btn._dat_icon = None
+
+        # Settings button
+        try:
+            self._settings_btn._dat_icon = SVGIconFactory.settings_icon(sz, ic)
+            self._settings_btn.setIcon(self._settings_btn._dat_icon)
+        except Exception:
+            pass
+
+        # Apply current compact state
+        self._update_toolbar_compact(self.width())
+        self._apply_btn_style()   # apply name/icon/both setting
+
+    def _get_icon_color(self): #vers 1
+        """Return a suitable icon colour from current palette."""
+        try:
+            pal = self.palette()
+            txt = pal.color(pal.ColorRole.WindowText)
+            return f"#{txt.red():02x}{txt.green():02x}{txt.blue():02x}"
+        except Exception:
+            return '#cccccc'
+
+    def _update_toolbar_compact(self, width: int): #vers 3
+        """Switch main toolbar buttons between text+icon / icon-only when narrow."""
+        from PyQt6.QtGui import QIcon
+        from PyQt6.QtCore import QSize
+        from PyQt6.QtWidgets import QSizePolicy
+
         compact = width < self._COMPACT_THRESHOLD
         if compact == self._toolbar_compact:
             return
         self._toolbar_compact = compact
+        self._apply_btn_style()
 
-        from PyQt6.QtCore import QSize
+    def _apply_btn_style(self): #vers 1
+        """Apply name/icon/both display mode to all compact-aware buttons.
+        Reads self._dat_btn_mode: 'name' | 'icon' | 'both' (default 'both')."""
         from PyQt6.QtGui import QIcon
+        from PyQt6.QtCore import QSize
         from PyQt6.QtWidgets import QSizePolicy
 
-        bb = self._browse_btn
-        lb = self._load_btn
+        mode = getattr(self, '_dat_btn_mode', 'both')
+        compact = self._toolbar_compact
+        icon_size = QSize(18, 18)
 
-        if compact:
-            # Load icons lazily here (Qt display context guaranteed)
-            if not getattr(bb, "_icon_loaded", False):
-                try:
-                    from apps.methods.imgfactory_svg_icons import get_folder_icon, get_go_icon
-                    bb._icon = get_folder_icon(20)
-                    lb._icon = get_go_icon(20)
-                except Exception:
-                    bb._icon = None
-                    lb._icon = None
-                bb._icon_loaded = True
+        # In compact mode OR icon-only mode → show icons only
+        icon_only = compact or mode == 'icon'
+        # In name-only mode → show text only (never icons on text buttons)
+        name_only = (mode == 'name')
 
-            for btn, tip in (
-                (bb, "Browse for game root folder"),
-                (lb, "Load DAT world"),
-            ):
-                btn.setText("")
-                icon = getattr(btn, "_icon", None)
-                if icon and not icon.isNull():
-                    btn.setIcon(icon)
-                    btn.setIconSize(QSize(20, 20))
-                # Square button: fixed at 32px (icon 20 + 6px padding each side)
-                btn.setFixedSize(32, btn.sizeHint().height())
-                btn.setToolTip(tip)
-        else:
-            for btn, text, tip in (
-                (bb, "Browse…", "Browse for game root folder"),
-                (lb, "Load",    "Load DAT/IDE/IPL world data"),
-            ):
-                btn.setIcon(QIcon())           # clear icon
-                btn.setText(text)
+        all_specs = list(self._BTN_SPECS) + list(self._TREE_BTN_SPECS)
+        for attr, text_label, _, tooltip in all_specs:
+            btn = getattr(self, attr, None)
+            if btn is None:
+                continue
+            icon = getattr(btn, '_dat_icon', None)
+
+            if name_only or (icon is None):
+                # Text only
+                btn.setIcon(QIcon())
+                btn.setText(text_label)
                 btn.setMinimumWidth(0)
-                btn.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX — let Qt size it
-                btn.setSizePolicy(
-                    QSizePolicy.Policy.Preferred,
-                    QSizePolicy.Policy.Fixed)
-                btn.setToolTip(tip)
+                btn.setMaximumWidth(16_777_215)
+                btn.setSizePolicy(QSizePolicy.Policy.Preferred,
+                                  QSizePolicy.Policy.Fixed)
+            elif icon_only:
+                # Icon only — square button
+                btn.setIcon(icon)
+                btn.setIconSize(icon_size)
+                btn.setText("")
+                btn.setFixedSize(28, 28)
+            else:
+                # Both text and icon
+                btn.setIcon(icon)
+                btn.setIconSize(icon_size)
+                btn.setText(text_label)
+                btn.setMinimumWidth(0)
+                btn.setMaximumWidth(16_777_215)
+                btn.setSizePolicy(QSizePolicy.Policy.Preferred,
+                                  QSizePolicy.Policy.Fixed)
+            btn.setToolTip(tooltip)
 
-    # ── Browse / load ──────────────────────────────────────────────────────
+    def _open_dat_settings(self): #vers 1
+        """Open DAT Browser settings dialog."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QGroupBox, QRadioButton, QCheckBox, QLabel, QDialogButtonBox,
+            QButtonGroup, QSpinBox)
+        from PyQt6.QtCore import Qt as _Qt
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("DAT Browser — Settings")
+        dlg.setMinimumWidth(360)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(10)
+
+        # ── Button display ───────────────────────────────────────────────
+        disp_box = QGroupBox("Toolbar button display")
+        disp_lay = QVBoxLayout(disp_box)
+        disp_grp = QButtonGroup(dlg)
+
+        cur_mode = getattr(self, '_dat_btn_mode', 'both')
+        rb_both = QRadioButton("Icons and names")
+        rb_icon = QRadioButton("Icons only")
+        rb_name = QRadioButton("Names only")
+        for rb, val in [(rb_both,'both'),(rb_icon,'icon'),(rb_name,'name')]:
+            disp_grp.addButton(rb)
+            disp_lay.addWidget(rb)
+            if val == cur_mode:
+                rb.setChecked(True)
+        lay.addWidget(disp_box)
+
+        # ── Compact threshold ────────────────────────────────────────────
+        thresh_box = QGroupBox("Compact mode width threshold")
+        thresh_lay = QHBoxLayout(thresh_box)
+        thresh_lay.addWidget(QLabel("Collapse to icon-only below:"))
+        thresh_spin = QSpinBox()
+        thresh_spin.setRange(200, 1200)
+        thresh_spin.setValue(getattr(self, '_COMPACT_THRESHOLD', 520))
+        thresh_spin.setSuffix(" px")
+        thresh_lay.addWidget(thresh_spin)
+        lay.addWidget(thresh_box)
+
+        # ── Load-order tree options ──────────────────────────────────────
+        tree_box = QGroupBox("Load-order tree")
+        tree_lay = QVBoxLayout(tree_box)
+        cb_group = QCheckBox("Group entries by city (SOL)")
+        cb_group.setChecked(
+            getattr(self,'_group_btn',None) and self._group_btn.isChecked())
+        cb_col_img = QCheckBox("Show COL files inside IMG archives")
+        cb_col_img.setChecked(
+            getattr(self,'_show_col_in_img_btn',None)
+            and self._show_col_in_img_btn.isChecked())
+        tree_lay.addWidget(cb_group)
+        tree_lay.addWidget(cb_col_img)
+        lay.addWidget(tree_box)
+
+        # ── Auto-load ────────────────────────────────────────────────────
+        auto_box = QGroupBox("Auto-load")
+        auto_lay = QVBoxLayout(auto_box)
+        cb_auto_load = QCheckBox("Auto-load game assets when game root is set")
+        cb_auto_load.setChecked(getattr(self,'_auto_load_on_root', False))
+        cb_auto_imgs = QCheckBox("Auto-open all IMGs in IMG Factory after load")
+        cb_auto_imgs.setChecked(getattr(self,'_auto_open_imgs', False))
+        auto_lay.addWidget(cb_auto_load)
+        auto_lay.addWidget(cb_auto_imgs)
+        lay.addWidget(auto_box)
+
+        # ── Buttons ──────────────────────────────────────────────────────
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # Apply settings
+        if rb_both.isChecked():   mode = 'both'
+        elif rb_icon.isChecked(): mode = 'icon'
+        else:                     mode = 'name'
+
+        self._dat_btn_mode = mode
+        self._COMPACT_THRESHOLD = thresh_spin.value()
+
+        if hasattr(self,'_group_btn'):
+            self._group_btn.setChecked(cb_group.isChecked())
+        if hasattr(self,'_show_col_in_img_btn'):
+            self._show_col_in_img_btn.setChecked(cb_col_img.isChecked())
+        self._auto_load_on_root = cb_auto_load.isChecked()
+        self._auto_open_imgs    = cb_auto_imgs.isChecked()
+
+        self._apply_btn_style()
+
+        # Persist to JSON settings
+        self._save_dat_settings()
+
+    def _save_dat_settings(self): #vers 1
+        """Persist DAT Browser UI settings to ~/.config/imgfactory/dat_browser.json"""
+        import json
+        cfg_dir = os.path.expanduser('~/.config/imgfactory')
+        os.makedirs(cfg_dir, exist_ok=True)
+        cfg = {
+            'btn_mode':          getattr(self, '_dat_btn_mode', 'both'),
+            'compact_threshold': getattr(self, '_COMPACT_THRESHOLD', 520),
+            'group_sol':         (getattr(self,'_group_btn',None)
+                                  and self._group_btn.isChecked()),
+            'col_in_img':        (getattr(self,'_show_col_in_img_btn',None)
+                                  and self._show_col_in_img_btn.isChecked()),
+            'auto_load':         getattr(self,'_auto_load_on_root', False),
+            'auto_open_imgs':    getattr(self,'_auto_open_imgs', False),
+        }
+        try:
+            with open(os.path.join(cfg_dir, 'dat_browser.json'), 'w') as f:
+                json.dump(cfg, f, indent=2)
+        except Exception:
+            pass
+
+    def _load_dat_settings(self): #vers 1
+        """Load persisted DAT Browser settings from JSON."""
+        import json
+        path = os.path.expanduser('~/.config/imgfactory/dat_browser.json')
+        if not os.path.isfile(path):
+            return
+        try:
+            with open(path) as f:
+                cfg = json.load(f)
+            self._dat_btn_mode       = cfg.get('btn_mode', 'both')
+            self._COMPACT_THRESHOLD  = cfg.get('compact_threshold', 520)
+            self._auto_load_on_root  = cfg.get('auto_load', False)
+            self._auto_open_imgs     = cfg.get('auto_open_imgs', False)
+            if hasattr(self,'_group_btn'):
+                self._group_btn.setChecked(cfg.get('group_sol', True))
+            if hasattr(self,'_show_col_in_img_btn'):
+                self._show_col_in_img_btn.setChecked(cfg.get('col_in_img', False))
+        except Exception:
+            pass
+
+        # ── Browse / load ──────────────────────────────────────────────────────
 
     def _on_game_combo_changed(self, idx: int): #vers 1
         """React immediately when the game combo selection changes.\n
