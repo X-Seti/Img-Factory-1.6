@@ -1228,6 +1228,9 @@ class IPLMapView(QFrame):  # vers 1
         self._radar_image       = None   # QImage composite from RadarWorkshop
         self._radar_world_bounds= (-3000.0, 3000.0, -3000.0, 3000.0)  # (xmin,xmax,ymin,ymax)
         self._show_radar        = True
+        self._water_quads: list = []   # SA water quads: [{'corners':[{x,y}...],'flag':int}]
+        self._water_rects: list = []   # GTA3/VC water.dat rects: [(x1,y1,x2,y2,level)]
+        self._show_water        = True
 
         # View state
         self._zoom   = 1.0
@@ -1296,6 +1299,14 @@ class IPLMapView(QFrame):  # vers 1
         world_bounds: (xmin, xmax, ymin, ymax) from get_world_bounds()"""
         self._radar_image        = radar_image
         self._radar_world_bounds = world_bounds
+        self.update()
+
+    def load_water(self, quads: list, rects: list): #vers 1
+        """Load water geometry for overlay.
+        quads: SA water quads from SaWaterParser.quads
+        rects: GTA3/VC rects from WaterDatParser.rects"""
+        self._water_quads = quads or []
+        self._water_rects = rects or []
         self.update()
 
     def set_ipl_filter(self, active_ipls: set):
@@ -1408,15 +1419,46 @@ class IPLMapView(QFrame):  # vers 1
                 sx2, sy2 = self._world_to_screen(nx, ny)
                 p.drawEllipse(_QRF(sx2-node_sz/2, sy2-node_sz/2, node_sz, node_sz))
 
+        # Water overlay
+        if self._show_water and (self._water_quads or self._water_rects):
+            from PyQt6.QtCore import QRectF as _WQRF
+            from PyQt6.QtGui import QPainterPath as _QPP
+            p.setPen(QPen(QColor(30, 140, 255, 200), 1.0))
+            p.setBrush(QBrush(QColor(20, 100, 220, 40)))
+            # SA quads (4-corner polygons)
+            for q in self._water_quads:
+                corners = q.get("corners", [])
+                if len(corners) < 3:
+                    continue
+                pp = _QPP()
+                sx0, sy0 = self._world_to_screen(corners[0]["x"], corners[0]["y"])
+                pp.moveTo(sx0, sy0)
+                for c in corners[1:]:
+                    sx, sy = self._world_to_screen(c["x"], c["y"])
+                    pp.lineTo(sx, sy)
+                pp.closeSubpath()
+                p.drawPath(pp)
+            # GTA3/VC rects (x1,y1,x2,y2,level)
+            p.setPen(QPen(QColor(80, 160, 255, 180), 0.8))
+            p.setBrush(QBrush(QColor(20, 100, 220, 30)))
+            for r in self._water_rects:
+                if len(r) < 4:
+                    continue
+                sx0, sy0 = self._world_to_screen(r[0], r[3])  # x1,y2 (top-left in screen)
+                sx1, sy1 = self._world_to_screen(r[2], r[1])  # x2,y1 (bottom-right)
+                p.drawRect(_WQRF(sx0, sy0, sx1-sx0, sy1-sy0))
+
         # HUD
         p.setPen(QColor(180, 180, 180))
         p.setFont(QFont('Arial', 9))
-        n_sel = len(self._selected)
-        n_vis = len(visible)
+        n_sel   = len(self._selected)
+        n_vis   = len(visible)
         n_paths = len(self._path_nodes)
+        n_water = len(self._water_quads) + len(self._water_rects)
         p.drawText(6, 16,
             f"Zoom: {self._zoom:.2f}×   Objects: {n_vis:,}"
             + (f"   Paths: {n_paths}" if n_paths else "")
+            + (f"   Water: {n_water}" if n_water else "")
             + (f"   Selected: {n_sel}" if n_sel else ""))
 
         p.end()
@@ -1656,6 +1698,20 @@ class IPLMapPanel(QFrame):  # vers 1
         load_radar_btn.clicked.connect(self._load_radar)
         bar.addWidget(load_radar_btn)
 
+        water_btn = QPushButton("Water 💧")
+        water_btn.setCheckable(True)
+        water_btn.setChecked(True)
+        water_btn.setFixedHeight(24)
+        water_btn.setToolTip("Toggle water geometry overlay (blue polygons)")
+        water_btn.toggled.connect(lambda v: setattr(self._map,'_show_water',v) or self._map.update())
+        bar.addWidget(water_btn)
+
+        load_water_btn = QPushButton("Load Water…")
+        load_water_btn.setFixedHeight(24)
+        load_water_btn.setToolTip("Load water geometry from open Water Workshop tab or browse")
+        load_water_btn.clicked.connect(self._load_water)
+        bar.addWidget(load_water_btn)
+
         bar.addStretch()
         self._sel_lbl = QLabel("No selection")
         self._sel_lbl.setStyleSheet("color: palette(mid);")
@@ -1741,6 +1797,48 @@ class IPLMapPanel(QFrame):  # vers 1
         if ok and name:
             mods = self._map.focusWidget()
             self._map.select_by_ipl(name)
+
+    def _load_water(self): #vers 1
+        """Load water geometry from open Water Workshop tab."""
+        mw = getattr(self._ws, 'main_window', None)
+        water_ws = None
+        if mw and hasattr(mw, 'main_tab_widget'):
+            tw = mw.main_tab_widget
+            try:
+                from apps.components.Water_Editor.water_workshop import WaterWorkshop
+                for i in range(tw.count()):
+                    w = tw.widget(i)
+                    if isinstance(w, WaterWorkshop):
+                        water_ws = w; break
+                    for child in (w.findChildren(WaterWorkshop) if w else []):
+                        water_ws = child; break
+                    if water_ws:
+                        break
+            except ImportError:
+                pass
+
+        if water_ws:
+            quads = water_ws.get_water_quads()
+            rects = water_ws.get_water_rects()
+            if quads or rects:
+                self._map.load_water(quads, rects)
+                n = len(quads) + len(rects)
+                if mw and hasattr(mw,'log_message'):
+                    mw.log_message(
+                        f"IPL Map: water overlay loaded ({len(quads)} quads, {len(rects)} rects)")
+                return
+            else:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self,"No Water Data",
+                    "Water Workshop is open but no water file is loaded.")
+                return
+
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(
+            self,"No Water Workshop",
+            "Open Water Workshop and load a water.dat or waterpro.dat first,\n"
+            "then click Load Water to overlay it on the map.")
 
     def _load_radar(self): #vers 1
         """Load radar composite from open Radar Workshop tab, or browse for image."""

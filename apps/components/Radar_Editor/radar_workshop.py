@@ -1499,6 +1499,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._undo_stack: list = []          # list of (idx, rgba) snapshots
         self._redo_stack: list = []
         self._tile_rgba:    Dict[int, bytes] = {}
+        self._world_offset: tuple = (0.0, 0.0)  # (dx, dy) world repositioning
         self._tile_entries: List[dict] = []
         self._dirty_tiles:  set = set()
         self._list_items:   List[TileListItem] = []
@@ -1715,15 +1716,26 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
 
     # - Left panel: session list
-    def get_world_bounds(self): #vers 1
+    def get_world_bounds(self): #vers 2
         """Return (min_x, max_x, min_y, max_y) world-unit coverage for the
-        current game preset. Used by IPLMapView for radar image overlay."""
-        game = self._game_preset.get("label", "")
-        # Match label back to preset key
+        current game preset, adjusted by any world offset set via set_world_offset().
+        Used by IPLMapView for radar image overlay."""
+        base = (-3000.0, 3000.0, -3000.0, 3000.0)
         for key, preset in GAME_PRESETS.items():
             if preset is self._game_preset:
-                return _GAME_WORLD_BOUNDS.get(key, (-3000.0, 3000.0, -3000.0, 3000.0))
-        return (-3000.0, 3000.0, -3000.0, 3000.0)
+                base = _GAME_WORLD_BOUNDS.get(key, base)
+                break
+        ox, oy = getattr(self, '_world_offset', (0.0, 0.0))
+        return (base[0]+ox, base[1]+ox, base[2]+oy, base[3]+oy)
+
+    def set_world_offset(self, dx: float, dy: float): #vers 1
+        """Shift the world-space origin of the radar map by (dx, dy).
+        This repositions where the radar tiles are placed in world coordinates.
+        Used for SOL or custom map offsets. Does NOT modify tile pixel data."""
+        self._world_offset = (float(dx), float(dy))
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(
+                f"Radar world offset set: dX={dx:+.1f}  dY={dy:+.1f}")
 
     def get_composite_image(self, max_size: int = 2048): #vers 1
         """Stitch all loaded tile RGBA buffers into a single QImage.
@@ -1805,6 +1817,25 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self.import_btn = _cb('import_icon', "Import PNG sheet of tiles",    self._import_sheet)
         btn_row.addStretch()
         vl.addLayout(btn_row)
+
+        # ── World position / offset ───────────────────────────────────────────
+        from PyQt6.QtWidgets import QGroupBox, QFormLayout, QDoubleSpinBox
+        offset_box = QGroupBox("World position offset")
+        ofl        = QFormLayout(offset_box); ofl.setSpacing(3)
+        self._off_x = QDoubleSpinBox(); self._off_x.setRange(-9999,9999)
+        self._off_x.setDecimals(1); self._off_x.setFixedHeight(22); self._off_x.setValue(0)
+        self._off_y = QDoubleSpinBox(); self._off_y.setRange(-9999,9999)
+        self._off_y.setDecimals(1); self._off_y.setFixedHeight(22); self._off_y.setValue(0)
+        ofl.addRow("dX:", self._off_x)
+        ofl.addRow("dY:", self._off_y)
+        from PyQt6.QtWidgets import QPushButton as _RPB
+        apply_off = _RPB("Apply Offset"); apply_off.setFixedHeight(22)
+        apply_off.setToolTip(
+            "Shift world-space origin by dX/dY for IPL World Map overlay.")
+        apply_off.clicked.connect(
+            lambda: self.set_world_offset(self._off_x.value(), self._off_y.value()))
+        ofl.addRow("", apply_off)
+        vl.addWidget(offset_box)
 
         # ── Tile search bar ────────────────────────────────────────────────────
         search_row = QHBoxLayout()

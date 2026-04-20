@@ -133,6 +133,21 @@ class WaterDatParser:
         lines.append("* ;end of file")
         Path(path).write_text("\n".join(lines), encoding="latin1")
 
+    def translate_all(self, dx: float, dy: float, dz: float = 0.0): #vers 1
+        """Translate all water rectangles by (dx, dy). z is ignored for flat rects.
+        Rect format: (x1, y1, x2, y2, level)."""
+        self.rects = [
+            (r[0]+dx, r[1]+dy, r[2]+dx, r[3]+dy, r[4])
+            for r in self.rects
+        ]
+
+    def world_bbox(self):
+        if not self.rects:
+            return -3000, -3000, 3000, 3000
+        xs = [r[0] for r in self.rects] + [r[2] for r in self.rects]
+        ys = [r[1] for r in self.rects] + [r[3] for r in self.rects]
+        return min(xs), min(ys), max(xs), max(ys)
+
 
 class SaWaterParser:
     def __init__(self):
@@ -169,6 +184,16 @@ class SaWaterParser:
             )
             lines.append(row + f"  {q['flag']}")
         Path(path).write_text("\n".join(lines), encoding="latin1")
+
+    def translate_all(self, dx: float, dy: float, dz: float = 0.0): #vers 1
+        """Translate all quad corners by (dx, dy, dz)."""
+        for q in self.quads:
+            for c in q["corners"]:
+                c["x"] += dx
+                c["y"] += dy
+                # z-like values stored in c["f"][0..4] — shift f[0] as height
+                if dz and len(c["f"]) > 0:
+                    c["f"] = [c["f"][0]+dz] + c["f"][1:]
 
     def world_bbox(self):
         if not self.quads:
@@ -787,9 +812,37 @@ class WaterWorkshop(GUIWorkshop):
         sc2.setWidget(self._vis_canvas)
         sc2.setWidgetResizable(True)
         self._view_tabs.addTab(sc2, "Visible (128x128)")
+        # SA Quads tab: canvas + translate controls
+        sa_frame = QFrame()
+        sa_lay   = QVBoxLayout(sa_frame)
+        sa_lay.setContentsMargins(0, 0, 0, 0)
+        sa_lay.setSpacing(2)
         self._sa_canvas = SaWaterCanvas()
         self._sa_canvas.quad_selected.connect(self._on_quad_selected)
-        self._view_tabs.addTab(self._sa_canvas, "SA Quads")
+        sa_lay.addWidget(self._sa_canvas, 1)
+
+        # Translate bar
+        from PyQt6.QtWidgets import QGroupBox, QHBoxLayout, QDoubleSpinBox
+        tbar = QGroupBox("Translate all water data")
+        tbl  = QHBoxLayout(tbar); tbl.setSpacing(6)
+        self._wdx = QDoubleSpinBox(); self._wdx.setRange(-9999,9999); self._wdx.setDecimals(2)
+        self._wdx.setFixedWidth(90); self._wdx.setFixedHeight(24); self._wdx.setPrefix("dX: ")
+        self._wdy = QDoubleSpinBox(); self._wdy.setRange(-9999,9999); self._wdy.setDecimals(2)
+        self._wdy.setFixedWidth(90); self._wdy.setFixedHeight(24); self._wdy.setPrefix("dY: ")
+        self._wdz = QDoubleSpinBox(); self._wdz.setRange(-9999,9999); self._wdz.setDecimals(2)
+        self._wdz.setFixedWidth(90); self._wdz.setFixedHeight(24); self._wdz.setPrefix("dZ: ")
+        for sp in (self._wdx, self._wdy, self._wdz):
+            tbl.addWidget(sp)
+        from PyQt6.QtWidgets import QPushButton as _PB
+        apply_btn = _PB("Apply"); apply_btn.setFixedHeight(24)
+        apply_btn.setToolTip("Translate all water quads and rects by dX/dY/dZ")
+        apply_btn.clicked.connect(lambda: self.translate_water(
+            self._wdx.value(), self._wdy.value(), self._wdz.value()))
+        tbl.addWidget(apply_btn)
+        tbl.addStretch()
+        sa_lay.addWidget(tbar)
+
+        self._view_tabs.addTab(sa_frame, "SA Quads")
         cl.addWidget(self._view_tabs)
         return panel
 
@@ -1232,6 +1285,33 @@ class WaterWorkshop(GUIWorkshop):
         wp.water_levels_count -= 1
         self._refresh_levels_list()
         self._on_grid_changed()
+
+    def get_water_quads(self): #vers 1
+        """Return SA water quads list for external overlays (e.g. IPL World Map).
+        Each quad: {'corners': [{'x':f,'y':f,'f':[...]}, ...], 'flag': int}"""
+        return self._sa_water.quads if self._sa_water else []
+
+    def get_water_rects(self): #vers 1
+        """Return GTA3/VC water.dat rects for external overlays.
+        Each rect: (x1, y1, x2, y2, level)"""
+        return self._waterdat.rects if self._waterdat else []
+
+    def translate_water(self, dx: float, dy: float, dz: float = 0.0): #vers 1
+        """Translate all loaded water data by (dx, dy, dz) and refresh canvas."""
+        changed = False
+        if self._sa_water:
+            self._sa_water.translate_all(dx, dy, dz)
+            self._sa_canvas.setup(self._sa_water.quads, self._sa_water.world_bbox())
+            changed = True
+        if self._waterdat:
+            self._waterdat.translate_all(dx, dy, dz)
+            changed = True
+        if changed:
+            self._set_status(
+                f"Water translated  dX={dx:+.1f}  dY={dy:+.1f}  dZ={dz:+.1f}")
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"Water Workshop: translated by dX={dx:+.1f} dY={dy:+.1f} dZ={dz:+.1f}")
 
     def _on_quad_selected(self, idx):
         if not self._sa_water:
