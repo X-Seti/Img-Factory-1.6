@@ -1592,6 +1592,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Load persisted texlist folder path
         self._texlist_folder = ''
         self._load_texlist_setting()
+        # IDE database (lazy — populated on first lookup)
+        self._ide_db      = None
+        self._ide_db_root = ''
 
         self._show_boxes = True
         self._show_mesh = True
@@ -8029,6 +8032,48 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # ── IDE / TXD linking ───────────────────────────────────────────────────
 
+    def _get_ide_db(self): #vers 1
+        """Return or create an IDEDatabase. Scans game root from current
+        IMG/DFF path. Cached; re-scanned only when game root changes."""
+        try:
+            from apps.methods.gta_dat_parser import IDEDatabase, GTAGame
+        except ImportError:
+            return None
+        mw = getattr(self,'main_window',None)
+        img_path = ''
+        ci = (getattr(self,'current_img',None) or
+              (getattr(mw,'current_img',None) if mw else None))
+        if ci: img_path = getattr(ci,'file_path','') or ''
+        if not img_path:
+            img_path = getattr(self,'_current_dff_path','') or ''
+        if not img_path:
+            return None
+        # Walk up until we find a data/ sibling folder
+        candidate = os.path.dirname(img_path)
+        game_root = candidate
+        for _ in range(5):
+            try:
+                if any(d.lower()=='data' for d in os.listdir(candidate)
+                       if os.path.isdir(os.path.join(candidate,d))):
+                    game_root=candidate; break
+            except OSError: pass
+            parent=os.path.dirname(candidate)
+            if parent==candidate: break
+            candidate=parent
+        if getattr(self,'_ide_db_root','')==game_root and self._ide_db:
+            return self._ide_db
+        db = IDEDatabase(GTAGame.VC)
+        loaded = db.load_folder(game_root, recurse=True)
+        self._ide_db=db; self._ide_db_root=game_root
+        if mw and hasattr(mw,'log_message') and loaded:
+            mw.log_message(f"IDE DB: {loaded} objects, {len(db.source_files)} files, max_id={db.max_id}")
+        return db
+
+    def _lookup_ide_from_db(self, stem: str): #vers 1
+        """Look up a model in the standalone IDEDatabase fallback."""
+        db = self._get_ide_db()
+        return db.lookup(stem) if db else None
+
     def _get_xref(self): #vers 1
         """Return GTAWorldXRef from DAT Browser if loaded, else None."""
         mw = getattr(self, 'main_window', None)
@@ -8060,6 +8105,20 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if b: b.setEnabled(False)
 
         if xref is None:
+            # Try standalone IDEDatabase fallback — scan game root for .ide files
+            obj = self._lookup_ide_from_db(stem)
+            if obj:
+                self._current_ide_obj = obj
+                self._ide_txd_name    = obj.txd_name or ''
+                if hasattr(self, 'info_ide_section'):
+                    self.info_ide_section.setText(obj.section or 'object')
+                if hasattr(self, 'info_model_id'):
+                    self.info_model_id.setText(f"ID: {obj.model_id}")
+                if hasattr(self, 'info_txd_name'):
+                    self.info_txd_name.setText(obj.txd_name or '—')
+                if hasattr(self, 'load_txd_btn') and obj.txd_name:
+                    self.load_txd_btn.setEnabled(True)
+                return obj
             if hasattr(self, 'info_ide_section'):
                 self.info_ide_section.setText('No DAT loaded')
             return None

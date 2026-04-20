@@ -609,6 +609,154 @@ class IPLParser: #vers 2
         return None
 
 
+class IDEDatabase: #vers 1
+    """Lightweight standalone IDE database — loads all .ide files from a
+    folder tree without requiring a full DAT/world load.
+    Shared by Model Workshop (IDE lookup when DAT Browser not loaded),
+    IDE Editor (analysis tools), and DAT Browser settings.
+
+    ID limits:
+      GTA3 / VC / GTASOL  → 32767  (signed int16 in SCM bytecode)
+      SA (streaming only) → 65535  (uint16, but practical SA max ~26316)
+    """
+
+    GAME_MAX_ID = {
+        GTAGame.GTA3: 32767,
+        GTAGame.VC:   32767,
+        GTAGame.SA:   65535,
+        GTAGame.SOL:  32767,   # VC engine base — safe limit
+    }
+
+    def __init__(self, game = None):
+        self._game:       object           = game or GTAGame.VC
+        self.model_map:   Dict[str, 'IDEObject'] = {}   # stem→IDEObject
+        self.id_map:      Dict[int, 'IDEObject'] = {}   # id→IDEObject
+        self.source_files: List[str]       = []
+        self._loaded      = False
+
+    @property
+    def max_id(self) -> int:
+        return self.GAME_MAX_ID.get(self._game, 32767)
+
+    def load_folder(self, folder: str,
+                    game = None,
+                    recurse: bool = True) -> int:
+        """Scan folder for .ide files and parse them all.
+        Returns total number of objects loaded."""
+        if game:
+            self._game = game
+        if not os.path.isdir(folder):
+            return 0
+
+        ide_files = []
+        if recurse:
+            for dirpath, _, fnames in os.walk(folder):
+                for f in fnames:
+                    if f.lower().endswith('.ide'):
+                        ide_files.append(os.path.join(dirpath, f))
+        else:
+            ide_files = [os.path.join(folder, f)
+                         for f in os.listdir(folder)
+                         if f.lower().endswith('.ide')]
+
+        loaded = 0
+        parser = IDEParser(self._game)
+        for ide_path in ide_files:
+            parser.objects.clear()
+            if parser.parse(ide_path):
+                for obj in parser.objects:
+                    stem = obj.model_name.lower()
+                    self.model_map[stem] = obj
+                    self.id_map[obj.model_id] = obj
+                loaded += len(parser.objects)
+                self.source_files.append(ide_path)
+        self._loaded = True
+        return loaded
+
+    def load_file(self, ide_path: str, game = None) -> int:
+        """Load a single IDE file into the database."""
+        if game:
+            self._game = game
+        parser = IDEParser(self._game)
+        if parser.parse(ide_path):
+            for obj in parser.objects:
+                self.model_map[obj.model_name.lower()] = obj
+                self.id_map[obj.model_id] = obj
+            if ide_path not in self.source_files:
+                self.source_files.append(ide_path)
+            return len(parser.objects)
+        return 0
+
+    def lookup(self, model_name: str) -> Optional['IDEObject']:
+        """Look up an IDEObject by model name (case-insensitive)."""
+        return self.model_map.get(model_name.lower().split('.')[0])
+
+    def lookup_id(self, model_id: int) -> Optional['IDEObject']:
+        return self.id_map.get(model_id)
+
+    # ── Analysis tools ────────────────────────────────────────────────────
+
+    def find_duplicate_ids(self) -> List[int]:
+        """Return list of IDs that appear more than once across all loaded IDE files."""
+        from collections import Counter
+        counts: Counter = Counter()
+        parser = IDEParser(self._game)
+        for ide_path in self.source_files:
+            parser.objects.clear()
+            if parser.parse(ide_path):
+                for obj in parser.objects:
+                    counts[obj.model_id] += 1
+        return [id_ for id_, n in counts.items() if n > 1]
+
+    def find_duplicate_names(self) -> List[str]:
+        """Return model names that appear more than once."""
+        from collections import Counter
+        counts: Counter = Counter()
+        parser = IDEParser(self._game)
+        for ide_path in self.source_files:
+            parser.objects.clear()
+            if parser.parse(ide_path):
+                for obj in parser.objects:
+                    counts[obj.model_name.lower()] += 1
+        return [n for n, c in counts.items() if c > 1]
+
+    def find_missing_models(self, img_stems: set) -> List['IDEObject']:
+        """Return IDE objects whose DFF is not present in img_stems.
+        img_stems: set of lowercased model names from IMG entries (no extension)."""
+        return [obj for obj in self.model_map.values()
+                if obj.model_name.lower() not in img_stems]
+
+    def find_missing_txds(self, img_stems: set) -> List['IDEObject']:
+        """Return IDE objects whose TXD is not present in img_stems.
+        img_stems: set of lowercased txd names (no extension)."""
+        return [obj for obj in self.model_map.values()
+                if obj.txd_name and
+                   obj.txd_name.lower() not in ('null','') and
+                   obj.txd_name.lower() not in img_stems]
+
+    def find_unused_ids(self, used_id_set: set = None) -> List[int]:
+        """Return list of free/unused IDs in range 1..max_id.
+        If used_id_set is None, uses ids from the loaded IDE objects."""
+        if used_id_set is None:
+            used_id_set = set(self.id_map.keys())
+        return [i for i in range(1, self.max_id + 1) if i not in used_id_set]
+
+    def find_ids_over_limit(self) -> List['IDEObject']:
+        """Return IDE objects whose ID exceeds max_id for this game."""
+        return [obj for obj in self.model_map.values()
+                if obj.model_id > self.max_id]
+
+    def summary(self) -> str:
+        used = set(self.id_map.keys())
+        over = self.find_ids_over_limit()
+        dups = self.find_duplicate_ids()
+        return (f"IDE DB: {len(self.model_map)} objects  "
+                f"| {len(self.source_files)} files  "
+                f"| max_id={self.max_id}  "
+                f"| over limit={len(over)}  "
+                f"| dup IDs={len(dups)}")
+
+
 class GTAWorldLoader: #vers 3
     """
     Orchestrates the full two-phase GTA3/VC/SA load chain in engine order:
