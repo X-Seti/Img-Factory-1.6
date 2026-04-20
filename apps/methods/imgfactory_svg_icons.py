@@ -4032,6 +4032,28 @@ def get_weather_icon(size: int = 24, color: str = None, bg_color: str = None) ->
               stroke-linecap="round" stroke-linejoin="round"/>
     </svg>''', size, color, bg_color)
 
+def get_dff_edit_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """DFF / Model Editor — 3D mesh cube with edit pencil"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- 3D cube outline (isometric) -->
+        <polygon points="12,3 20,8 20,16 12,21 4,16 4,8"
+                 stroke="currentColor" stroke-width="1.8" fill="none"
+                 stroke-linejoin="round"/>
+        <!-- Top face -->
+        <polygon points="12,3 20,8 12,13 4,8"
+                 stroke="currentColor" stroke-width="1.4" fill="none"
+                 stroke-linejoin="round" opacity="0.7"/>
+        <!-- Centre vertical -->
+        <line x1="12" y1="13" x2="12" y2="21"
+              stroke="currentColor" stroke-width="1.4" opacity="0.7"/>
+        <!-- Edit pencil (bottom-right) -->
+        <line x1="17" y1="17" x2="21" y2="13"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M21 13 l1 2 -2 1 z"
+              fill="currentColor" opacity="0.9"/>
+    </svg>''', size, color, bg_color)
+
+
 def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """TBA / Not Yet Implemented — dashed box with question mark"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

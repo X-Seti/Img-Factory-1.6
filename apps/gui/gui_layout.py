@@ -1514,7 +1514,7 @@ class IMGFactoryGUILayout:
             "ide-editor": get_ide_editor_icon,
 
             # Other editor buttons - TBA where not yet implemented
-            "dff-edit": get_tba_icon,       "ipf-edit": get_tba_icon,
+            "dff-edit": get_dff_edit_icon,   "ipf-edit": get_tba_icon,
             "ide-edit": get_ide_editor_icon, "ipl-edit": get_ipl_editor_icon,
             "dat-edit": get_edit_icon,
             "zones-cull": get_tba_icon,

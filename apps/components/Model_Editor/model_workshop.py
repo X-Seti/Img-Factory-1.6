@@ -1593,8 +1593,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._texlist_folder = ''
         self._load_texlist_setting()
         # IDE database (lazy — populated on first lookup)
-        self._ide_db      = None
-        self._ide_db_root = ''
+        self._ide_db        = None
+        self._ide_db_root   = ''
+        self._source_img_path = ''
 
         self._show_boxes = True
         self._show_mesh = True
@@ -2110,7 +2111,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         def _reload_ide():
             # Force re-scan: clear cache then re-lookup
             self._ide_db = None; self._ide_db_root = ''
-            new_obj = self._lookup_ide_from_db(dff_stem)
+            db = self._get_ide_db()   # triggers scan + logging
+            new_obj = db.lookup(dff_stem) if db else None
             if new_obj:
                 self._current_ide_obj = new_obj
                 self._ide_txd_name    = new_obj.txd_name or ''
@@ -2122,9 +2124,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             ide_lbl_holder[0] = new_w
             mw3 = self.main_window
             if mw3 and hasattr(mw3,'log_message'):
-                mw3.log_message(
-                    f"IDE DB reloaded — "
-                    f"{'found: '+new_obj.txd_name if new_obj else 'not found'}")
+                db_size = len(db.model_map) if db else 0
+                if new_obj:
+                    mw3.log_message(
+                        f"IDE DB: found '{dff_stem}' → txd={new_obj.txd_name}")
+                else:
+                    mw3.log_message(
+                        f"IDE DB: '{dff_stem}' not in DB "
+                        f"({db_size} objects loaded)  "
+                        f"root={getattr(self,'_ide_db_root','?')}")
 
         reload_ide_btn = QPushButton("↻")
         reload_ide_btn.setFixedSize(24, 22)
@@ -7286,8 +7294,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             b = QPushButton(text)
             b.setFont(self.button_font)
             b.setIcon(getattr(self.icon_factory, icon_method)(color=icon_color))
-            b.setIconSize(QSize(16, 16))
-            b.setFixedHeight(22)
+            b.setIconSize(QSize(18, 18))
+            b.setFixedHeight(28)
+            b.setMinimumWidth(72)
             b.setToolTip(tip)
             b.setEnabled(enabled)
             b.clicked.connect(slot)
@@ -7299,9 +7308,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
               'Load a TXD file into this workshop',
               self._load_txd_into_workshop)
         _tbtn('tex_browse_btn',  'Texlist',    'folder_icon',
-              'Browse Texlist folder and import individual textures',
+              'Browse texlist/ folder and import individual textures',
               self._browse_texlist_folder)
-        _tbtn('tex_pass_btn',    'TXD Workshop','export_icon',
+        _tbtn('tex_pass_btn',    'TXD Wkshp',  'export_icon',
               'Send all textures to TXD Workshop for editing/rebuilding',
               self._pass_textures_to_txd_workshop, enabled=False)
         _tbtn('tex_save_btn',    'Save TXD',   'save_icon',
@@ -8094,14 +8103,21 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 return db_from_widget
         img_path = ''
 
-        # Try: current_img on workshop or main_window
+        # Priority 1: source IMG path stored at workshop-open time
+        src_img = getattr(self, '_source_img_path', '') or ''
+        if src_img and __import__('os').path.isfile(src_img):
+            img_path = src_img
+
+        # Priority 2: current_img on workshop or main_window
         ci = (getattr(self,'current_img',None) or
               (getattr(mw,'current_img',None) if mw else None))
         if ci: img_path = getattr(ci,'file_path','') or ''
 
-        # Try: current DFF path
+        # Priority 3: current DFF path (skip /tmp — extracted DFFs lose context)
         if not img_path:
-            img_path = getattr(self,'_current_dff_path','') or ''
+            _dff = getattr(self,'_current_dff_path','') or ''
+            if _dff and not _dff.startswith('/tmp'):
+                img_path = _dff
 
         # Try: left panel selected item (col_list_widget / img entries)
         if not img_path and mw and hasattr(mw,'main_tab_widget'):
@@ -8124,18 +8140,28 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         if not img_path:
             return None
-        # Walk up until we find a data/ sibling folder
+        # Walk up until we find a data/ or DATA/ sibling (case-insensitive)
+        # Also accept any folder that contains .ide files directly
         candidate = os.path.dirname(img_path)
-        game_root = candidate
-        for _ in range(5):
+        game_root = candidate   # default: use img folder
+        for _ in range(6):
             try:
-                if any(d.lower()=='data' for d in os.listdir(candidate)
-                       if os.path.isdir(os.path.join(candidate,d))):
-                    game_root=candidate; break
-            except OSError: pass
-            parent=os.path.dirname(candidate)
-            if parent==candidate: break
-            candidate=parent
+                entries = os.listdir(candidate)
+                # Case-insensitive match for data/ subfolder
+                has_data = any(
+                    e.lower() == 'data' and
+                    os.path.isdir(os.path.join(candidate, e))
+                    for e in entries)
+                # Or: folder directly contains .ide files
+                has_ide = any(e.lower().endswith('.ide') for e in entries)
+                if has_data or has_ide:
+                    game_root = candidate; break
+            except OSError:
+                pass
+            parent = os.path.dirname(candidate)
+            if parent == candidate:
+                break
+            candidate = parent
         if getattr(self,'_ide_db_root','')==game_root and self._ide_db:
             return self._ide_db
         db = IDEDatabase(GTAGame.VC)
@@ -8155,10 +8181,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if loaded:
                 mw.log_message(
                     f"IDE DB: {loaded} objects from {game_root} "
-                    f"({len(db.source_files)} IDE files)")
+                    f"({len(db.source_files)} IDE files)  max_id={db.max_id}")
             else:
                 mw.log_message(
-                    f"IDE DB: no .ide files found under {game_root}")
+                    f"IDE DB: no .ide files found under {game_root}  "
+                    f"(tried img_path={img_path})")
         return db
 
     def _lookup_ide_from_db(self, stem: str): #vers 1
@@ -12235,6 +12262,14 @@ def open_model_workshop(main_window, dff_path=None): #vers 2
             workshop.setWindowTitle(f"Model Workshop — {App_name}")
             workshop.resize(1200, 800)
             workshop.show()
+
+        # Store source IMG path — DFFs extracted to /tmp lose game context
+        if main_window:
+            _ci = getattr(main_window, 'current_img', None)
+            if _ci:
+                _sp = getattr(_ci, 'file_path', '') or ''
+                if _sp:
+                    workshop._source_img_path = _sp
 
         # Route the file
         if dff_path:
