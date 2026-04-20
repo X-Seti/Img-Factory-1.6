@@ -1417,6 +1417,39 @@ class DATBrowserWidget(QWidget): #vers 2
             except Exception as e:
                 if img_debugger:
                     img_debugger.warning(f"XRef build failed: {e}")
+
+            # Build IDEDatabase from already-parsed loader.objects so
+            # Model Workshop can look up IDE entries without re-reading files.
+            # Stored on main_window as .ide_db for global access.
+            try:
+                from apps.methods.gta_dat_parser import IDEDatabase
+                game = self.loader.game
+                ide_db = IDEDatabase(game)
+                # Populate directly from loader.objects — no disk I/O needed
+                for obj in self.loader.objects.values():
+                    stem = obj.model_name.lower()
+                    ide_db.model_map[stem]       = obj
+                    ide_db.id_map[obj.model_id]  = obj
+                # Record which IDE files were loaded
+                ide_db.source_files = [
+                    path for _, etype, path, ok in self.loader.load_log
+                    if etype == "IDE" and ok
+                ]
+                ide_db._loaded = True
+                # Attach to main_window for global access
+                mw = self.main_window
+                if mw:
+                    mw.ide_db = ide_db
+                self._ide_db = ide_db   # also keep on widget
+                n = len(ide_db.model_map)
+                f = len(ide_db.source_files)
+                if self.main_window and hasattr(self.main_window, 'log_message'):
+                    self.main_window.log_message(
+                        f"IDE DB: {n:,} objects from {f} IDE files  "
+                        f"[max_id={ide_db.max_id}]")
+            except Exception as e:
+                if img_debugger:
+                    img_debugger.warning(f"IDE DB build failed: {e}")
         else:
             self._status_lbl.setText("Load failed — see Load Log tab.")
         self._populate_all()

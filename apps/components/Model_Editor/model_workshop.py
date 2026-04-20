@@ -8072,14 +8072,26 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # ── IDE / TXD linking ───────────────────────────────────────────────────
 
-    def _get_ide_db(self): #vers 1
-        """Return or create an IDEDatabase. Scans game root from current
-        IMG/DFF path. Cached; re-scanned only when game root changes."""
+    def _get_ide_db(self): #vers 2
+        """Return IDEDatabase — prefers the one built by DAT Browser on load
+        (stored on main_window.ide_db), falls back to filesystem scan."""
         try:
             from apps.methods.gta_dat_parser import IDEDatabase, GTAGame
         except ImportError:
             return None
         mw = getattr(self,'main_window',None)
+
+        # Primary: DAT Browser already built the DB — use it directly
+        mw_db = getattr(mw, 'ide_db', None)
+        if mw_db and getattr(mw_db, '_loaded', False) and mw_db.model_map:
+            return mw_db
+
+        # Also check DAT Browser widget's own _ide_db
+        db_widget = getattr(mw, 'dat_browser', None)
+        if db_widget:
+            db_from_widget = getattr(db_widget, '_ide_db', None)
+            if db_from_widget and db_from_widget.model_map:
+                return db_from_widget
         img_path = ''
 
         # Try: current_img on workshop or main_window
