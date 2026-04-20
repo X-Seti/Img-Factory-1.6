@@ -2505,9 +2505,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Header row with search button
         hdr_row = QHBoxLayout()
-        header = QLabel("TXD Files")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(header)
+        self._txd_list_header = QLabel("TXD Files")
+        self._txd_list_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        hdr_row.addWidget(self._txd_list_header)
         hdr_row.addStretch()
         self.txd_search_btn = QPushButton()
         self.txd_search_btn.setFixedSize(24, 24)
@@ -2544,9 +2544,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.setSpacing(4)
 
         # Header label
-        header = QLabel("Textures")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(header)
+        self._textures_header = QLabel("Textures")
+        self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        layout.addWidget(self._textures_header)
 
         # ── Mini toolbar: 4 icon buttons — only shown when docked ─────────
         # (toolbar has these too; in docked mode the toolbar is hidden)
@@ -5665,10 +5665,15 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Batch export failed: {str(e)}")
 
 
-    def _update_status_indicators(self): #vers 1
+    def _update_status_indicators(self): #vers 2
         """Update status indicators"""
         if hasattr(self, 'status_textures'):
             self.status_textures.setText(f"Textures: {len(self.texture_list)}")
+        # Update middle panel header with texture count
+        hdr = getattr(self, '_textures_header', None)
+        if hdr:
+            n = len(self.texture_list)
+            hdr.setText(f"Textures  ({n})" if n else "Textures")
 
         if hasattr(self, 'status_selected'):
             if self.selected_texture:
@@ -5895,6 +5900,9 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                     item.setToolTip(f"{entry.name}\nSize: {size_kb:.1f} KB")
                     self.txd_list_widget.addItem(item)
 
+            hdr = getattr(self, '_txd_list_header', None)
+            if hdr:
+                hdr.setText(f"TXD Files  ({len(self.txd_list)})")
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"📋 Found {len(self.txd_list)} TXD files")
         except Exception as e:

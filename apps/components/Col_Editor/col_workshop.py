@@ -4514,9 +4514,9 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Header row with search button
         hdr_row = QHBoxLayout()
-        header = QLabel("COL Files")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(header)
+        self._col_list_header = QLabel("COL Files")
+        self._col_list_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        hdr_row.addWidget(self._col_list_header)
         hdr_row.addStretch()
         self.col_search_btn = QPushButton()
         self.col_search_btn.setFixedSize(24, 24)
@@ -4557,9 +4557,9 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # ── Header row: title + [T] view-toggle ──────────────────────────
         hdr_row = QHBoxLayout()
-        header = QLabel("COL Models")
-        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(header)
+        self._col_models_header = QLabel("COL Models")
+        self._col_models_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        hdr_row.addWidget(self._col_models_header)
         hdr_row.addStretch()
 
         self._col_view_mode = 'detail'   # start in compact thumbnail view
@@ -5112,6 +5112,9 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                     item.setToolTip(f"{entry.name}\nSize: {size_kb:.1f} KB")
                     self.col_list_widget.addItem(item)
 
+            hdr = getattr(self, '_col_list_header', None)
+            if hdr:
+                hdr.setText(f"COL Files  ({len(self.col_list)})")
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"📋 Found {len(self.col_list)} COL files")
         except Exception as e:
@@ -6317,6 +6320,11 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.col_compact_list.setRowHeight(i, 72)
 
             self.col_compact_list.setColumnWidth(0, 72)
+            # Update middle panel header with model count
+            hdr = getattr(self, '_col_models_header', None)
+            if hdr:
+                n = self.col_compact_list.rowCount()
+                hdr.setText(f"COL Models  ({n})" if n else "COL Models")
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
@@ -7091,6 +7099,9 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self._img_col_entries = col_entries   # store for selection handler
 
             count = len(col_entries)
+            hdr = getattr(self, '_col_list_header', None)
+            if hdr:
+                hdr.setText(f"COL Files  ({count})")
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
                     f"Loaded {count} COL entr{'ies' if count != 1 else 'y'} from {img_name}")
