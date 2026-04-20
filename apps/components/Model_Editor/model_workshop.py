@@ -1874,7 +1874,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Material List — DFF")
-        dlg.resize(600, 400)
+        dlg.resize(720, 420)
         lay = QVBoxLayout(dlg)
         lay.setSpacing(6)
 
@@ -1932,17 +1932,21 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         lay.addWidget(tbl)
 
         # Buttons
-        btn_row = QHBoxLayout()
-        edit_btn = QPushButton("Edit Selected Material…")
+        # Row 1: material editing
+        btn_row = QHBoxLayout(); btn_row.setSpacing(4)
+        edit_btn = QPushButton("Edit Material…")
+        edit_btn.setFixedHeight(26)
         edit_btn.clicked.connect(lambda: (
             self._open_dff_material_editor(
                 *tbl.item(tbl.currentRow(), 0).data(_Qt.ItemDataRole.UserRole))
             if tbl.currentRow() >= 0 else None))
         btn_row.addWidget(edit_btn)
         load_txd_btn = QPushButton("Load TXD…")
+        load_txd_btn.setFixedHeight(26)
         load_txd_btn.clicked.connect(self._load_txd_into_workshop)
         btn_row.addWidget(load_txd_btn)
-        auto_txd_btn = QPushButton("Auto-find from IMGs")
+        auto_txd_btn = QPushButton("Auto-find TXD")
+        auto_txd_btn.setFixedHeight(26)
         auto_txd_btn.setToolTip(
             "Search open IMG tabs for the IDE-linked TXD.\n"
             "Falls back to texlist/ folder if not found in any IMG.")
@@ -1978,6 +1982,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         btn_row.addWidget(scan_btn)
         btn_row.addStretch()
         close_btn = QPushButton("Close")
+        close_btn.setFixedHeight(26)
         close_btn.clicked.connect(dlg.accept)
         btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
@@ -2014,7 +2019,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         dlg = QDialog(self)
         dlg.setWindowTitle(
             f"Material Editor — Geom {geom_idx}, Mat {mat_idx}")
-        dlg.setMinimumWidth(400)
+        dlg.setMinimumWidth(480)
         lay = QVBoxLayout(dlg)
         form = QFormLayout()
         form.setSpacing(8)
@@ -2074,25 +2079,60 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         form.addRow("Texture Name:", tex_row)
 
         # IDE line — show the full IDE entry so the TXD name is visible
-        if ide_obj:
+        ide_row_layout = QHBoxLayout()
+
+        def _build_ide_lbl(obj):
+            """Build the IDE label from an IDEObject."""
             import os as _os
-            ide_src = _os.path.basename(ide_obj.source_ide or '') or '?'
-            draw    = ide_obj.extra.get('draw_dist', ide_obj.extra.get('dist1', '—'))
-            flags   = ide_obj.extra.get('flags', '—')
-            ide_line = (f"{ide_obj.model_id}, {ide_obj.model_name}, "
-                        f"{ide_obj.txd_name}, {draw}, {flags}")
-            ide_lbl = QLabel(ide_line)
-            ide_lbl.setStyleSheet(
+            if obj is None:
+                lbl2 = QLabel("Not found — click Reload IDE to scan game folder")
+                lbl2.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
+                return lbl2
+            ide_src = _os.path.basename(obj.source_ide or '') or '?'
+            draw    = obj.extra.get('draw_dist', obj.extra.get('dist1','—'))
+            flags   = obj.extra.get('flags','—')
+            line    = (f"{obj.model_id},  {obj.model_name},  "
+                       f"{obj.txd_name},  {draw},  {flags}")
+            lbl2 = QLabel(line)
+            lbl2.setStyleSheet(
                 "color: palette(mid); font-size: 10px; font-family: monospace;")
-            ide_lbl.setToolTip(f"IDE source: {ide_src}  (line {ide_obj.line_no})")
-            ide_lbl.setWordWrap(True)
-            ide_lbl.setTextInteractionFlags(
+            lbl2.setToolTip(
+                f"id, model, txd, draw_dist, flags\n"
+                f"Source: {ide_src}  line {obj.line_no}")
+            lbl2.setTextInteractionFlags(
                 _Qt.TextInteractionFlag.TextSelectableByMouse)
-            form.addRow("IDE:", ide_lbl)
-        elif dff_stem:
-            no_ide = QLabel("Not in IDE — TXD name unknown")
-            no_ide.setStyleSheet("color: palette(mid); font-style: italic;")
-            form.addRow("IDE:", no_ide)
+            return lbl2
+
+        ide_display = [ide_obj]   # mutable holder so reload can update it
+        ide_lbl_holder = [_build_ide_lbl(ide_obj)]
+        ide_row_layout.addWidget(ide_lbl_holder[0], 1)
+
+        def _reload_ide():
+            # Force re-scan: clear cache then re-lookup
+            self._ide_db = None; self._ide_db_root = ''
+            new_obj = self._lookup_ide_from_db(dff_stem)
+            if new_obj:
+                self._current_ide_obj = new_obj
+                self._ide_txd_name    = new_obj.txd_name or ''
+            ide_display[0] = new_obj
+            old_w = ide_lbl_holder[0]
+            new_w = _build_ide_lbl(new_obj)
+            ide_row_layout.replaceWidget(old_w, new_w)
+            old_w.deleteLater()
+            ide_lbl_holder[0] = new_w
+            mw3 = self.main_window
+            if mw3 and hasattr(mw3,'log_message'):
+                mw3.log_message(
+                    f"IDE DB reloaded — "
+                    f"{'found: '+new_obj.txd_name if new_obj else 'not found'}")
+
+        reload_ide_btn = QPushButton("↻")
+        reload_ide_btn.setFixedSize(24, 22)
+        reload_ide_btn.setToolTip(
+            "Reload IDE database — rescans .ide files from game folder")
+        reload_ide_btn.clicked.connect(_reload_ide)
+        ide_row_layout.addWidget(reload_ide_btn)
+        form.addRow("IDE:", ide_row_layout)
 
         # Colour swatch
         swatch = QLabel()
@@ -8041,11 +8081,35 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             return None
         mw = getattr(self,'main_window',None)
         img_path = ''
+
+        # Try: current_img on workshop or main_window
         ci = (getattr(self,'current_img',None) or
               (getattr(mw,'current_img',None) if mw else None))
         if ci: img_path = getattr(ci,'file_path','') or ''
+
+        # Try: current DFF path
         if not img_path:
             img_path = getattr(self,'_current_dff_path','') or ''
+
+        # Try: left panel selected item (col_list_widget / img entries)
+        if not img_path and mw and hasattr(mw,'main_tab_widget'):
+            tw = mw.main_tab_widget
+            for i in range(tw.count()):
+                w = tw.widget(i)
+                if w and getattr(w,'file_type','')=='IMG':
+                    fp = getattr(w,'file_path','') or getattr(
+                        getattr(w,'file_object',None),'file_path','')
+                    if fp: img_path=fp; break
+
+        # Try: any open IMG tab
+        if not img_path and mw and hasattr(mw,'main_tab_widget'):
+            tw = mw.main_tab_widget
+            for i in range(tw.count()):
+                w = tw.widget(i)
+                fp = getattr(w,'file_path','') if w else ''
+                if fp and fp.lower().endswith('.img'):
+                    img_path=fp; break
+
         if not img_path:
             return None
         # Walk up until we find a data/ sibling folder
@@ -8064,9 +8128,25 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             return self._ide_db
         db = IDEDatabase(GTAGame.VC)
         loaded = db.load_folder(game_root, recurse=True)
+
+        # If nothing found in game_root, also try the direct IMG folder
+        # (handles cases where IDE files sit alongside the IMG)
+        if loaded == 0:
+            img_dir = os.path.dirname(img_path) if img_path else ''
+            if img_dir and img_dir != game_root:
+                loaded = db.load_folder(img_dir, recurse=True)
+                if loaded > 0:
+                    game_root = img_dir  # update for cache key
+
         self._ide_db=db; self._ide_db_root=game_root
-        if mw and hasattr(mw,'log_message') and loaded:
-            mw.log_message(f"IDE DB: {loaded} objects, {len(db.source_files)} files, max_id={db.max_id}")
+        if mw and hasattr(mw,'log_message'):
+            if loaded:
+                mw.log_message(
+                    f"IDE DB: {loaded} objects from {game_root} "
+                    f"({len(db.source_files)} IDE files)")
+            else:
+                mw.log_message(
+                    f"IDE DB: no .ide files found under {game_root}")
         return db
 
     def _lookup_ide_from_db(self, stem: str): #vers 1
