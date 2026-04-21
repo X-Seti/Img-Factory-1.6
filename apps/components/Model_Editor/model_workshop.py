@@ -4837,6 +4837,323 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         return self.toolbar
 
     #Left side vertical panel
+
+    # ── DFF mode toolbar ────────────────────────────────────────────────────
+
+    def _enable_dff_toolbar(self, dff_mode: bool): #vers 1
+        """Switch left toolbar between DFF mode and COL mode.
+        DFF mode: enables paint, material, render-select buttons.
+        COL mode: enables COL-specific buttons, disables DFF ones."""
+        # Buttons only relevant for COL
+        col_only = [
+            'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
+            'analyze_btn', 'copy_btn', 'paste_btn', 'delete_surface_btn',
+            'duplicate_surface_btn', 'create_surface_btn',
+        ]
+        # Buttons relevant for DFF
+        dff_btns = [
+            'paint_btn', 'surface_type_btn', 'surface_edit_btn',
+        ]
+        for attr in col_only:
+            b = getattr(self, attr, None)
+            if b: b.setEnabled(not dff_mode)
+        for attr in dff_btns:
+            b = getattr(self, attr, None)
+            if b: b.setEnabled(dff_mode)
+
+        # Enable/disable DFF-only toolbar buttons
+        for btn in getattr(self, '_dff_only_toolbar_btns', []):
+            btn.setEnabled(dff_mode)
+            btn.setVisible(dff_mode)   # hide from grid when not relevant
+
+        # Update tooltips to clarify DFF context
+        if dff_mode:
+            if hasattr(self, 'paint_btn'):
+                self.paint_btn.setToolTip(
+                    "Open Material List — assign textures to DFF geometry")
+            if hasattr(self, 'surface_type_btn'):
+                self.surface_type_btn.setToolTip(
+                    "Material List — all materials in this DFF")
+
+    # ── Render / selection mode ──────────────────────────────────────────────
+
+    def _set_select_mode(self, mode: str): #vers 1
+        """Set viewport selection mode: vertex / edge / face / poly / object."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._select_mode = mode
+            vp.update()
+        self._set_status(f"Select mode: {mode}")
+        mw = self.main_window
+        if mw and hasattr(mw, 'log_message'):
+            mw.log_message(f"Model Workshop: select mode → {mode}")
+
+    def _toggle_backface_cull(self): #vers 1
+        """Toggle backface culling — when ON only the front face is visible/selectable."""
+        vp = getattr(self, 'preview_widget', None)
+        if not vp:
+            return
+        current = getattr(vp, '_backface', False)
+        vp.set_backface(not current)
+        state = "off (front+back)" if current else "on (front only)"
+        self._set_status(f"Backface cull: {state}")
+
+    def _toggle_front_only_paint(self): #vers 1
+        """Toggle front-face-only paint — prevents painting geometry behind the current view."""
+        vp = getattr(self, 'preview_widget', None)
+        if not vp:
+            return
+        current = getattr(vp, '_front_only_paint', False)
+        vp._front_only_paint = not current
+        btn = getattr(self, '_front_paint_btn', None)
+        if btn:
+            btn.setChecked(not current)
+        self._set_status(
+            f"Front-only paint: {'ON — only visible faces painted' if not current else 'OFF'}")
+
+    # ── Primitive creation ───────────────────────────────────────────────────
+
+    def _create_primitive_dialog(self): #vers 1
+        """Show dialog to create a primitive shape (box or sphere) as a new DFF geometry."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QFormLayout, QLabel, QComboBox, QSpinBox, QDoubleSpinBox,
+            QDialogButtonBox, QGroupBox)
+        from PyQt6.QtCore import Qt as _Qt
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Create Primitive")
+        dlg.setMinimumWidth(300)
+        lay = QVBoxLayout(dlg)
+        form = QFormLayout()
+
+        type_combo = QComboBox()
+        type_combo.addItems(["Box", "Sphere", "Cylinder", "Plane"])
+        form.addRow("Shape:", type_combo)
+
+        # Dimensions
+        dim_grp = QGroupBox("Dimensions")
+        dim_lay = QFormLayout(dim_grp)
+        sx = QDoubleSpinBox(); sx.setRange(0.01, 1000); sx.setValue(1.0); sx.setSingleStep(0.5)
+        sy = QDoubleSpinBox(); sy.setRange(0.01, 1000); sy.setValue(1.0); sy.setSingleStep(0.5)
+        sz = QDoubleSpinBox(); sz.setRange(0.01, 1000); sz.setValue(1.0); sz.setSingleStep(0.5)
+        dim_lay.addRow("Width (X):",  sx)
+        dim_lay.addRow("Height (Y):", sy)
+        dim_lay.addRow("Depth (Z):",  sz)
+        lay.addLayout(form)
+        lay.addWidget(dim_grp)
+
+        # Subdivisions
+        sub_grp = QGroupBox("Subdivisions")
+        sub_lay = QFormLayout(sub_grp)
+        seg_x = QSpinBox(); seg_x.setRange(1, 64); seg_x.setValue(1)
+        seg_y = QSpinBox(); seg_y.setRange(1, 64); seg_y.setValue(1)
+        seg_z = QSpinBox(); seg_z.setRange(1, 64); seg_z.setValue(1)
+        sub_lay.addRow("Segments X:", seg_x)
+        sub_lay.addRow("Segments Y:", seg_y)
+        sub_lay.addRow("Segments Z:", seg_z)
+        lay.addWidget(sub_grp)
+
+        # Hide irrelevant fields for sphere
+        def _on_type_changed(t):
+            is_box = t in ("Box", "Plane")
+            seg_z.setEnabled(is_box)
+            sz.setEnabled(t != "Plane")
+        type_combo.currentTextChanged.connect(_on_type_changed)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        shape  = type_combo.currentText()
+        w, h, d = sx.value(), sy.value(), sz.value()
+        nx, ny, nz = seg_x.value(), seg_y.value(), seg_z.value()
+
+        try:
+            verts, tris = self._build_primitive(shape, w, h, d, nx, ny, nz)
+            self._add_geometry_to_dff(verts, tris, name=f"{shape.lower()}_01")
+            self._set_status(
+                f"Created {shape}: {w:.2f}×{h:.2f}×{d:.2f}  "
+                f"segs {nx}×{ny}×{nz}  "
+                f"({len(verts)} verts, {len(tris)} tris)")
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Primitive Error", str(e))
+
+    def _build_primitive(self, shape: str,
+                          w: float, h: float, d: float,
+                          nx: int, ny: int, nz: int):  #vers 1
+        """Build vertex + triangle lists for a primitive.
+        Returns (verts: list[(x,y,z)], tris: list[(i,j,k)])."""
+        verts, tris = [], []
+
+        if shape == "Box":
+            # Generate a subdivided box
+            # Each face: (nx×ny), (nx×nz), (ny×nz) quads → 2 tris each
+            def _face_quad(p0, pu, pv, su, sv):
+                """Add a subdivided quad face."""
+                base = len(verts)
+                for iv in range(sv + 1):
+                    for iu in range(su + 1):
+                        x = p0[0] + pu[0]*iu/su + pv[0]*iv/sv
+                        y = p0[1] + pu[1]*iu/su + pv[1]*iv/sv
+                        z = p0[2] + pu[2]*iu/su + pv[2]*iv/sv
+                        verts.append((x, y, z))
+                for iv in range(sv):
+                    for iu in range(su):
+                        i0 = base + iv*(su+1) + iu
+                        i1 = i0 + 1
+                        i2 = i0 + (su+1)
+                        i3 = i2 + 1
+                        tris.append((i0, i1, i2))
+                        tris.append((i1, i3, i2))
+
+            hw, hh, hd = w/2, h/2, d/2
+            # +Y top
+            _face_quad((-hw, hh, -hd), (w,0,0), (0,0,d), nx, nz)
+            # -Y bottom
+            _face_quad((-hw,-hh,  hd), (w,0,0), (0,0,-d), nx, nz)
+            # +Z front
+            _face_quad((-hw,-hh,  hd), (w,0,0), (0,h,0), nx, ny)
+            # -Z back
+            _face_quad((-hw,-hh, -hd), (w,0,0), (0,h,0), nx, ny)
+            # -X left
+            _face_quad((-hw,-hh, -hd), (0,0,d), (0,h,0), nz, ny)
+            # +X right
+            _face_quad(( hw,-hh,  hd), (0,0,-d), (0,h,0), nz, ny)
+
+        elif shape == "Sphere":
+            import math
+            rings  = max(ny, 2)
+            slices = max(nx * 2, 4)
+            # Poles
+            verts.append((0,  h/2, 0))  # top
+            verts.append((0, -h/2, 0))  # bottom
+            top_idx, bot_idx = 0, 1
+            # Ring vertices
+            for ri in range(1, rings):
+                phi = math.pi * ri / rings
+                y   = (h/2) * math.cos(phi)
+                r   = (w/2) * math.sin(phi)
+                for si in range(slices):
+                    theta = 2 * math.pi * si / slices
+                    verts.append((r * math.cos(theta), y, r * math.sin(theta)))
+            ring_base = 2
+            def _ri(ring, seg): return ring_base + ring * slices + (seg % slices)
+            # Cap triangles
+            for si in range(slices):
+                tris.append((top_idx, _ri(0, si+1), _ri(0, si)))
+                tris.append((bot_idx, _ri(rings-2, si), _ri(rings-2, si+1)))
+            # Body quads
+            for ri in range(rings - 2):
+                for si in range(slices):
+                    tris.append((_ri(ri,si), _ri(ri,si+1), _ri(ri+1,si)))
+                    tris.append((_ri(ri,si+1), _ri(ri+1,si+1), _ri(ri+1,si)))
+
+        elif shape == "Plane":
+            hw, hd = w/2, d/2
+            for iz in range(nz + 1):
+                for ix in range(nx + 1):
+                    verts.append((-hw + w*ix/nx, 0, -hd + d*iz/nz))
+            for iz in range(nz):
+                for ix in range(nx):
+                    i0 = iz*(nx+1) + ix
+                    i1 = i0 + 1
+                    i2 = i0 + (nx+1)
+                    i3 = i2 + 1
+                    tris.append((i0, i1, i2))
+                    tris.append((i1, i3, i2))
+
+        elif shape == "Cylinder":
+            import math
+            slices = max(nx * 4, 8)
+            hw, hh = w/2, h/2
+            # Top + bottom centre
+            verts.append((0,  hh, 0)); top_c = 0
+            verts.append((0, -hh, 0)); bot_c = 1
+            # Top ring
+            top_base = len(verts)
+            for si in range(slices):
+                theta = 2*math.pi*si/slices
+                verts.append((hw*math.cos(theta), hh, hw*math.sin(theta)))
+            # Bottom ring
+            bot_base = len(verts)
+            for si in range(slices):
+                theta = 2*math.pi*si/slices
+                verts.append((hw*math.cos(theta), -hh, hw*math.sin(theta)))
+            # Body quads + caps
+            for si in range(slices):
+                nsi = (si+1) % slices
+                t0, t1 = top_base+si, top_base+nsi
+                b0, b1 = bot_base+si, bot_base+nsi
+                tris.append((t0, t1, b0))
+                tris.append((t1, b1, b0))
+                tris.append((top_c, t1, t0))
+                tris.append((bot_c, b0, b1))
+
+        return verts, tris
+
+    def _add_geometry_to_dff(self, verts: list, tris: list,
+                              name: str = "primitive"): #vers 1
+        """Add a new geometry to the current DFF model from raw verts+tris.
+        Creates a minimal DFF geometry object and refreshes the viewport."""
+        import types, math
+
+        model = getattr(self, '_current_dff_model', None)
+        if model is None:
+            raise RuntimeError("No DFF loaded. Load a DFF file first.")
+
+        # Build a minimal geometry-like object the viewport can render
+        # The DFF geometry stores vertex positions and face indices
+        geom = types.SimpleNamespace()
+        geom.vertices  = verts
+        geom.faces     = tris
+        geom.normals   = []
+        geom.uv_layers = []
+        geom.materials = []
+        geom.name      = name
+
+        # Calculate normals per face → per vertex (flat shading)
+        vert_normals = [(0.0, 0.0, 0.0)] * len(verts)
+        for i0, i1, i2 in tris:
+            v0, v1, v2 = verts[i0], verts[i1], verts[i2]
+            ax, ay, az = v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]
+            bx, by, bz = v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]
+            nx = ay*bz - az*by
+            ny = az*bx - ax*bz
+            nz = ax*by - ay*bx
+            ln = math.sqrt(nx*nx + ny*ny + nz*nz) or 1.0
+            nx, ny, nz = nx/ln, ny/ln, nz/ln
+            for idx in (i0, i1, i2):
+                ox, oy, oz = vert_normals[idx]
+                vert_normals[idx] = (ox+nx, oy+ny, oz+nz)
+        # Normalise accumulated normals
+        geom.normals = []
+        for nx, ny, nz in vert_normals:
+            ln = math.sqrt(nx*nx + ny*ny + nz*nz) or 1.0
+            geom.normals.append((nx/ln, ny/ln, nz/ln))
+
+        # Append to model geometries
+        if not hasattr(model, 'geometries'):
+            model.geometries = []
+        model.geometries.append(geom)
+        if not hasattr(model, 'geometry_count'):
+            model.geometry_count = 0
+        model.geometry_count = len(model.geometries)
+
+        # Refresh viewport
+        self._display_dff_model(model)
+        mw = self.main_window
+        if mw and hasattr(mw, 'log_message'):
+            mw.log_message(
+                f"Primitive '{name}': {len(verts)} verts, {len(tris)} tris added to DFF")
+
+
     def _create_transform_icon_panel(self): #vers 13
         """Icon grid panel — DockableToolbar pattern (same as COL Workshop)."""
         from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
@@ -5039,6 +5356,79 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
         self.build_from_txd_btn.clicked.connect(lambda: self._dff_to_col_surfaces(single=True))
         layout.addWidget(self.build_from_txd_btn)
+
+        # ── DFF-mode buttons (shown when DFF loaded, hidden for COL) ──────────
+        # Select mode buttons
+        def _sel_btn(attr, label, tip, mode):
+            b = QPushButton(label)
+            b.setFixedSize(btn_width, btn_height)
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
+            setattr(self, attr, b)
+            self._mod_icon_buttons.append(b)
+            return b
+
+        _sel_btn('_sel_vert_btn',  'V', 'Vertex select mode',  'vertex')
+        _sel_btn('_sel_edge_btn',  'E', 'Edge select mode',    'edge')
+        _sel_btn('_sel_face_btn',  'F', 'Face select mode',    'face')
+        _sel_btn('_sel_poly_btn',  'P', 'Polygon select mode', 'poly')
+
+        # Backface cull toggle
+        self._backface_cull_btn = QPushButton()
+        self._backface_cull_btn.setFixedSize(btn_width, btn_height)
+        self._backface_cull_btn.setCheckable(True)
+        self._backface_cull_btn.setToolTip(
+            "Backface culling — ON: only front faces visible\n"
+            "Prevents accidentally selecting/painting faces behind geometry")
+        try:
+            self._backface_cull_btn.setIcon(
+                self.icon_factory.backface_icon(color=icon_color))
+            self._backface_cull_btn.setIconSize(icon_size)
+        except Exception:
+            self._backface_cull_btn.setText("BF")
+        self._backface_cull_btn.toggled.connect(
+            lambda v: self._toggle_backface_cull())
+        self._mod_icon_buttons.append(self._backface_cull_btn)
+
+        # Front-only paint toggle
+        self._front_paint_btn = QPushButton()
+        self._front_paint_btn.setFixedSize(btn_width, btn_height)
+        self._front_paint_btn.setCheckable(True)
+        self._front_paint_btn.setToolTip(
+            "Front-only paint — only paint faces pointing toward the camera\n"
+            "Prevents painting hidden back faces through geometry")
+        try:
+            self._front_paint_btn.setIcon(
+                self.icon_factory.view_icon(color=icon_color))
+            self._front_paint_btn.setIconSize(icon_size)
+        except Exception:
+            self._front_paint_btn.setText("FP")
+        self._front_paint_btn.toggled.connect(
+            lambda v: self._toggle_front_only_paint())
+        self._mod_icon_buttons.append(self._front_paint_btn)
+
+        # Create Primitive button
+        self._prim_btn = QPushButton()
+        self._prim_btn.setFixedSize(btn_width, btn_height)
+        self._prim_btn.setToolTip(
+            "Create primitive shape (Box, Sphere, Cylinder, Plane)\n"
+            "Set dimensions and subdivision count")
+        try:
+            self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
+            self._prim_btn.setIconSize(icon_size)
+        except Exception:
+            self._prim_btn.setText("+□")
+        self._prim_btn.clicked.connect(self._create_primitive_dialog)
+        self._mod_icon_buttons.append(self._prim_btn)
+
+        # Store refs to DFF-only buttons for enable/disable
+        self._dff_only_toolbar_btns = [
+            self._sel_vert_btn, self._sel_edge_btn,
+            self._sel_face_btn, self._sel_poly_btn,
+            self._backface_cull_btn, self._front_paint_btn,
+            self._prim_btn,
+        ]
 
         # Place into grid BEFORE set_content (same as COL/TXD pattern)
         n = len(self._mod_icon_buttons)
@@ -8450,6 +8840,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._populate_dff_detail_table(model)
             # Look up IDE entry → populate TXD/IDE link row
             self._lookup_ide_for_dff(file_path)
+            # Enable DFF-mode toolbar buttons
+            self._enable_dff_toolbar(True)
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "DFF Error", f"Failed to open DFF:\n{e}")
@@ -9389,10 +9781,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
             # Store loaded file
             self.current_col_file = col_file
-            # Show/hide COL format combo based on file mode
             if hasattr(self, 'format_combo'):
                 self.format_combo.setVisible(True)
             self.current_file_path = file_path
+            self._enable_dff_toolbar(False)   # switch to COL mode
 
             # Update window title with model count
             model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
