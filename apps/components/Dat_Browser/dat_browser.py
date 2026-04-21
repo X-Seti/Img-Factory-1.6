@@ -706,6 +706,7 @@ class DATBrowserWidget(QWidget): #vers 2
         self.loader      = GTAWorldLoader()
         self.xref:       Optional[GTAWorldXRef] = None
         self._thread:    Optional[_LoadThread]  = None
+        self._asset_db   = None   # AssetDB for current profile
         self._setup_ui()
 
     # ── UI construction ────────────────────────────────────────────────────
@@ -774,6 +775,13 @@ class DATBrowserWidget(QWidget): #vers 2
         self._dump_txd_btn.clicked.connect(self._dump_all_game_txds)
         toolbar.addWidget(self._dump_txd_btn)
 
+        self._db_btn = QPushButton("⬡ DB")
+        self._db_btn.setFixedSize(38, 24)
+        self._db_btn.setToolTip("Asset Database — build/update/query the game asset index")
+        self._db_btn.setCheckable(True)
+        self._db_btn.clicked.connect(self._toggle_db_panel)
+        toolbar.addWidget(self._db_btn)
+
         # Split/full panel toggle — mirrors gui_layout.split_toggle_btn exactly
         self._split_btn = QPushButton()
         self._split_btn.setFixedSize(24, 24)
@@ -806,6 +814,11 @@ class DATBrowserWidget(QWidget): #vers 2
         self._status_lbl = QLabel("No game loaded.")
         self._status_lbl.setStyleSheet("font-style: italic;")
         root.addWidget(self._status_lbl)
+
+        # Asset DB panel (hidden by default, shown when DB button toggled)
+        self._db_panel = self._build_db_panel()
+        self._db_panel.setVisible(False)
+        root.addWidget(self._db_panel)
 
         # Search / filter row
         search_row = QHBoxLayout()
@@ -1458,6 +1471,12 @@ class DATBrowserWidget(QWidget): #vers 2
         if hasattr(self, '_dump_txd_btn'):
             self._dump_txd_btn.setEnabled(bool(self.loader and self.loader.objects))
         self._log_text.setPlainText(self._build_log_text())
+        # Enable DB Build button now we have a game root
+        if hasattr(self, '_db_build_btn'):
+            self._db_build_btn.setEnabled(True)
+        # Auto-update DB if already built for this profile
+        if hasattr(self, '_db_panel') and self._db_panel.isVisible():
+            self._db_load_stats()
         # Auto-open all IMGs if the setting is enabled
         if getattr(self, '_auto_open_imgs', False) and self.loader and self.loader.load_log:
             from PyQt6.QtCore import QTimer
@@ -2595,6 +2614,303 @@ class DATBrowserWidget(QWidget): #vers 2
 # ─────────────────────────────────────────────────────────────────────────────
 # Integration hook
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+    # ── Asset Database panel ────────────────────────────────────────────────
+
+    _BUILTIN_PROFILES = ['GTASOL', 'GTA3', 'VC', 'SA']
+
+    def _build_db_panel(self): #vers 1
+        """Build the collapsible Asset DB panel widget."""
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+            QGroupBox, QComboBox, QPushButton, QLabel, QProgressBar,
+            QInputDialog, QMessageBox)
+        from PyQt6.QtCore import Qt as _Qt
+
+        panel = QWidget()
+        panel.setObjectName("db_panel")
+        panel.setMaximumHeight(130)
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(4, 4, 4, 4)
+        pl.setSpacing(4)
+
+        # ── Row 1: profile selector + action buttons ───────────────────
+        row1 = QHBoxLayout(); row1.setSpacing(4)
+
+        row1.addWidget(QLabel("Profile:"))
+        self._db_profile_combo = QComboBox()
+        self._db_profile_combo.setFixedHeight(24)
+        self._db_profile_combo.setMinimumWidth(100)
+        self._db_profile_combo.setToolTip(
+            "Select which game database to use.\n"
+            "Each profile stores its own asset index.")
+        self._db_profile_combo.currentTextChanged.connect(
+            self._on_db_profile_changed)
+        row1.addWidget(self._db_profile_combo)
+
+        new_btn = QPushButton("New…")
+        new_btn.setFixedHeight(24); new_btn.setFixedWidth(44)
+        new_btn.setToolTip("Create a new named database profile")
+        new_btn.clicked.connect(self._db_new_profile)
+        row1.addWidget(new_btn)
+
+        del_btn = QPushButton("Del")
+        del_btn.setFixedHeight(24); del_btn.setFixedWidth(36)
+        del_btn.setToolTip("Delete selected database profile")
+        del_btn.clicked.connect(self._db_delete_profile)
+        row1.addWidget(del_btn)
+
+        row1.addStretch()
+
+        self._db_build_btn = QPushButton("⬡ Build DB")
+        self._db_build_btn.setFixedHeight(24)
+        self._db_build_btn.setToolTip(
+            "Index all IMG and IDE files in the current game root.\n"
+            "COL model names and TXD texture names are extracted\n"
+            "without full decoding — fast lightweight scan.")
+        self._db_build_btn.setEnabled(False)
+        self._db_build_btn.clicked.connect(self._db_build)
+        row1.addWidget(self._db_build_btn)
+
+        self._db_update_btn = QPushButton("↻ Update")
+        self._db_update_btn.setFixedHeight(24)
+        self._db_update_btn.setToolTip(
+            "Re-index only files that have changed since last build.")
+        self._db_update_btn.setEnabled(False)
+        self._db_update_btn.clicked.connect(self._db_update)
+        row1.addWidget(self._db_update_btn)
+
+        pl.addLayout(row1)
+
+        # ── Row 2: stats label ─────────────────────────────────────────
+        self._db_stats_lbl = QLabel("No database loaded.")
+        self._db_stats_lbl.setStyleSheet(
+            "font-size: 10px; color: palette(mid); font-style: italic;")
+        pl.addWidget(self._db_stats_lbl)
+
+        # ── Row 3: progress bar (hidden when idle) ─────────────────────
+        self._db_progress = QProgressBar()
+        self._db_progress.setFixedHeight(12)
+        self._db_progress.setTextVisible(True)
+        self._db_progress.setVisible(False)
+        pl.addWidget(self._db_progress)
+
+        # Populate profile list
+        self._db_refresh_profile_list()
+
+        return panel
+
+    def _toggle_db_panel(self): #vers 1
+        visible = self._db_panel.isVisible()
+        self._db_panel.setVisible(not visible)
+        self._db_btn.setChecked(not visible)
+        if not visible:
+            self._db_refresh_profile_list()
+            self._db_load_stats()
+
+    def _db_refresh_profile_list(self): #vers 1
+        """Reload profile dropdown from saved DBs + builtins."""
+        from apps.methods.asset_db import AssetDB
+        current = self._db_profile_combo.currentText()
+        saved   = AssetDB.list_profiles()
+        # Merge builtins with saved, deduplicate, sort
+        all_p   = sorted(set(self._BUILTIN_PROFILES) | set(saved))
+        self._db_profile_combo.blockSignals(True)
+        self._db_profile_combo.clear()
+        self._db_profile_combo.addItems(all_p)
+        # Auto-select profile matching current game
+        game_map = {'GTA3':'GTA3','VC':'VC','SA':'SA','SOL':'GTASOL'}
+        from apps.methods.gta_dat_parser import GTAGame
+        game_name = game_map.get(
+            getattr(self.loader, 'game', GTAGame.SOL), 'GTASOL')
+        if current in all_p:
+            self._db_profile_combo.setCurrentText(current)
+        elif game_name in all_p:
+            self._db_profile_combo.setCurrentText(game_name)
+        self._db_profile_combo.blockSignals(False)
+        self._db_profile_combo.currentTextChanged.emit(
+            self._db_profile_combo.currentText())
+
+    def _on_db_profile_changed(self, profile: str): #vers 1
+        self._asset_db = None   # clear cached DB object
+        self._db_load_stats()
+
+    def _get_asset_db(self): #vers 1
+        """Return AssetDB for the current profile, creating if needed."""
+        from apps.methods.asset_db import AssetDB
+        profile = self._db_profile_combo.currentText() or 'GTASOL'
+        cached  = getattr(self, '_asset_db', None)
+        if cached and getattr(cached, 'profile', '') == profile:
+            return cached
+        db = AssetDB(profile)
+        self._asset_db = db
+        # Expose on main_window for global access
+        mw = self.main_window
+        if mw:
+            mw.asset_db = db
+        return db
+
+    def _db_load_stats(self): #vers 1
+        """Update the stats label from the current DB."""
+        try:
+            db = self._get_asset_db()
+            s  = db.stats()
+            if s['source_files'] == 0:
+                self._db_stats_lbl.setText(
+                    "Database is empty — click Build DB to index game files.")
+                self._db_update_btn.setEnabled(False)
+            else:
+                self._db_stats_lbl.setText(
+                    f"  {s['img_entries']:,} IMG entries  ·  "
+                    f"{s['col_entries']:,} COL models  ·  "
+                    f"{s['txd_entries']:,} textures  ·  "
+                    f"{s['ide_entries']:,} IDE objects  "
+                    f"({s['source_files']} files indexed)")
+                self._db_update_btn.setEnabled(True)
+            # Enable Build whenever we have a game root
+            has_root = bool(getattr(self, '_path_edit', None) and
+                            self._path_edit.text().strip())
+            self._db_build_btn.setEnabled(has_root)
+        except Exception as e:
+            self._db_stats_lbl.setText(f"DB error: {e}")
+
+    def _db_new_profile(self): #vers 1
+        from PyQt6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(
+            self, "New Profile", "Profile name (e.g. MyMod):")
+        if ok and name.strip():
+            safe = ''.join(c for c in name.strip() if c.isalnum() or c in '-_')
+            if safe:
+                from apps.methods.asset_db import AssetDB
+                AssetDB(safe).close()   # create DB file
+                self._db_refresh_profile_list()
+                self._db_profile_combo.setCurrentText(safe.upper())
+
+    def _db_delete_profile(self): #vers 1
+        from PyQt6.QtWidgets import QMessageBox
+        from apps.methods.asset_db import AssetDB
+        profile = self._db_profile_combo.currentText()
+        if profile in self._BUILTIN_PROFILES:
+            QMessageBox.information(self, "Cannot Delete",
+                f"'{profile}' is a built-in profile.\n"
+                "You can clear it by rebuilding with no files.")
+            return
+        r = QMessageBox.question(
+            self, "Delete Profile",
+            f"Delete database '{profile}'?\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if r == QMessageBox.StandardButton.Yes:
+            AssetDB.delete_profile(profile)
+            self._asset_db = None
+            self._db_refresh_profile_list()
+
+    def _db_build(self): #vers 1
+        """Index entire game root into the asset DB."""
+        game_root = self._path_edit.text().strip()
+        if not game_root or not os.path.isdir(game_root):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Game Root",
+                "Load a game first (set the game root path).")
+            return
+
+        db = self._get_asset_db()
+        mw = self.main_window
+
+        self._db_progress.setVisible(True)
+        self._db_progress.setValue(0)
+        self._db_progress.setMaximum(0)   # indeterminate while scanning
+        self._db_build_btn.setEnabled(False)
+        self._db_update_btn.setEnabled(False)
+        QApplication.processEvents()
+
+        if mw and hasattr(mw, 'log_message'):
+            mw.log_message(f"Asset DB: building '{db.profile}' from {game_root}…")
+
+        total_added = 0
+        try:
+            # Count IMG+IDE files first for progress bar
+            all_files = []
+            for dirpath, _, fnames in os.walk(game_root):
+                for fn in fnames:
+                    ext = fn.rsplit('.',1)[-1].lower() if '.' in fn else ''
+                    if ext in ('img','ide'):
+                        all_files.append((os.path.join(dirpath,fn), ext))
+
+            self._db_progress.setMaximum(max(len(all_files), 1))
+            self._db_progress.setFormat("Scanning files… %v/%m")
+
+            for i, (fpath, ext) in enumerate(all_files):
+                self._db_progress.setValue(i)
+                self._db_progress.setFormat(
+                    f"{os.path.basename(fpath)}  ({i}/{len(all_files)})")
+                QApplication.processEvents()
+
+                if ext == 'img':
+                    n = db.index_img(fpath)
+                else:
+                    n = db.index_ide(fpath)
+                total_added += n
+
+            self._db_progress.setValue(len(all_files))
+            self._db_progress.setFormat("Complete")
+
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"Asset DB '{db.profile}': indexed {total_added:,} entries "
+                    f"from {len(all_files)} files")
+
+            # Also expose on main_window
+            if mw:
+                mw.asset_db = db
+
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Asset DB build error: {e}")
+        finally:
+            self._db_progress.setVisible(False)
+            self._db_build_btn.setEnabled(True)
+            self._db_load_stats()
+
+    def _db_update(self): #vers 1
+        """Re-index only changed files."""
+        db  = self._get_asset_db()
+        mw  = self.main_window
+
+        self._db_progress.setVisible(True)
+        self._db_progress.setMaximum(0)
+        self._db_progress.setFormat("Checking for changes…")
+        self._db_update_btn.setEnabled(False)
+        QApplication.processEvents()
+
+        try:
+            changed = db.update_changed()
+            total   = sum(changed.values())
+            if mw and hasattr(mw, 'log_message'):
+                if changed:
+                    mw.log_message(
+                        f"Asset DB: updated {len(changed)} file(s), "
+                        f"{total:,} entries re-indexed")
+                else:
+                    mw.log_message("Asset DB: all files up to date")
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"Asset DB update error: {e}")
+        finally:
+            self._db_progress.setVisible(False)
+            self._db_update_btn.setEnabled(True)
+            self._db_load_stats()
+
+    def _db_auto_build_after_load(self): #vers 1
+        """Called after world load completes — build/update DB in background
+        if a profile already exists and has indexed files."""
+        try:
+            db = self._get_asset_db()
+            if db.stats()['source_files'] > 0:
+                # Only update changed files — fast operation
+                self._db_update()
+        except Exception:
+            pass
+
 
 def _wire_xref_signal(widget, main_window): #vers 2
     """Connect widget.xref_ready to apply tooltips on ALL open IMG tabs."""
