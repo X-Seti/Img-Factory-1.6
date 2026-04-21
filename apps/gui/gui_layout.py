@@ -29,7 +29,7 @@ from apps.methods.imgfactory_svg_icons import (
     get_remove_via_icon, get_select_all_icon, get_select_inverse_icon,
     get_sort_icon, get_pin_icon, get_col_workshop_icon, get_txd_workshop_icon,
     get_hybrid_load_icon, get_scan_folder_icon,
-    get_recent_scans_icon, get_tba_icon,
+    get_recent_scans_icon, get_tba_icon, get_dff_edit_icon,
     get_dat_browser_icon, get_ide_editor_icon,
     get_radar_workshop_icon, get_water_workshop_icon,
     get_dp5_panel_icon, get_ipl_editor_icon, get_paths_map_icon,
