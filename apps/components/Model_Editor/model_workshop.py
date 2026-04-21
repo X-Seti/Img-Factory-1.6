@@ -2280,18 +2280,29 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         pw.update()
 
 
-    def _open_paint_editor(self): #vers 4
-        """Enter paint mode immediately — no dialog.
-        All material selection happens in the viewport overlay."""
+    def _open_paint_editor(self): #vers 5
+        """Enter paint mode — works on DFF model materials or COL faces.
+        When a DFF is loaded, opens the Material List for texture painting.
+        When a COL is loaded, enters face-paint mode for surface types."""
+        vp = getattr(self, 'preview_widget', None)
+
+        # DFF mode: open material list dialog for texture assignment
+        dff = getattr(self, '_current_dff_model', None)
+        if dff is not None:
+            self._open_dff_material_list()
+            return
+
+        # COL mode: enter face-paint mode
         if not self.current_col_file:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "No File", "Load a COL file first.")
+            QMessageBox.information(self, "No Model",
+                "Load a DFF or COL file first.")
             return
         model = self._get_selected_model()
         if model is None:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No Model Selected",
-                "Select a model in the list first.")
+                "Select a collision model in the list first.")
             return
         if not getattr(model, 'faces', []):
             from PyQt6.QtWidgets import QMessageBox
@@ -2299,11 +2310,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 f"'{model.name}' has no mesh faces to paint.")
             return
 
-        vp = getattr(self, 'preview_widget', None)
         if not vp:
             return
 
-        models  = getattr(self.current_col_file, 'models', [])
+        models    = getattr(self.current_col_file, 'models', [])
         model_idx = models.index(model) if model in models else -1
 
         # Use last active mat or default 0
@@ -5571,20 +5581,22 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         ide_layout.addWidget(self.info_txd_name, stretch=1)
 
         self.load_txd_btn = QPushButton("Open TXD")
-        self.load_txd_btn.setFont(self.panel_font)
+        self.load_txd_btn.setFont(self.button_font)
         self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-        self.load_txd_btn.setIconSize(QSize(14, 14))
-        self.load_txd_btn.setFixedHeight(22)
+        self.load_txd_btn.setIconSize(QSize(16, 16))
+        self.load_txd_btn.setFixedHeight(26)
+        self.load_txd_btn.setMinimumWidth(80)
         self.load_txd_btn.setToolTip("Open linked TXD in TXD Workshop")
         self.load_txd_btn.clicked.connect(self._open_linked_txd)
         self.load_txd_btn.setEnabled(False)
         ide_layout.addWidget(self.load_txd_btn)
 
-        self.find_in_ide_btn = QPushButton("IDE…")
-        self.find_in_ide_btn.setFont(self.panel_font)
+        self.find_in_ide_btn = QPushButton("IDE Ref")
+        self.find_in_ide_btn.setFont(self.button_font)
         self.find_in_ide_btn.setIcon(self.icon_factory.search_icon(color=icon_color))
-        self.find_in_ide_btn.setIconSize(QSize(14, 14))
-        self.find_in_ide_btn.setFixedHeight(22)
+        self.find_in_ide_btn.setIconSize(QSize(16, 16))
+        self.find_in_ide_btn.setFixedHeight(26)
+        self.find_in_ide_btn.setMinimumWidth(72)
         self.find_in_ide_btn.setToolTip("Look up model in DAT Browser IDE entries")
         self.find_in_ide_btn.clicked.connect(self._find_in_ide)
         self.find_in_ide_btn.setEnabled(False)
@@ -5605,10 +5617,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         fmt_lay.setSpacing(5)
         self.format_combo = QComboBox()
         self.format_combo.setFont(self.panel_font)
-        #TODO Need a dff file version selection, instead of COL, but need the col version on export.
         self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
         self.format_combo.currentTextChanged.connect(self._change_format)
         self.format_combo.setMaximumWidth(100)
+        self.format_combo.setVisible(False)   # shown only when COL is loaded
+        self.format_combo.setToolTip("COL export format — only relevant when exporting collision")
         fmt_lay.addWidget(self.format_combo)
         fmt_lay.addStretch()
         for attr, label, icon_fn, tip, slot in [
@@ -5662,6 +5675,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         fmt_ico.addItems(["COL","COL2","COL3","COL4"])
         fmt_ico.currentTextChanged.connect(self._change_format)
         fmt_ico.setMaximumWidth(65)
+        fmt_ico.setVisible(False)  # shown only when COL is loaded
         ir_lay.addWidget(fmt_ico)
         for icon_fn, tip, slot in [
             ('flip_vert_icon',  'Cycle render mode',  'switch_surface_view'),
@@ -8400,6 +8414,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
     def open_dff_file(self, file_path: str): #vers 1
         """Open and display a GTA DFF model file."""
         self.current_col_file = None   # clear COL mode
+        # Hide COL format combo when DFF is loaded
+        if hasattr(self, 'format_combo'):
+            self.format_combo.setVisible(False)
         try:
             from apps.methods.dff_parser import load_dff, detect_dff
             with open(file_path, 'rb') as f:
@@ -9372,6 +9389,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
             # Store loaded file
             self.current_col_file = col_file
+            # Show/hide COL format combo based on file mode
+            if hasattr(self, 'format_combo'):
+                self.format_combo.setVisible(True)
             self.current_file_path = file_path
 
             # Update window title with model count
