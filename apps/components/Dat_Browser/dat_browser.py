@@ -937,6 +937,15 @@ class DATBrowserWidget(QWidget): #vers 2
         self._log_text.setFont(QFont("Consolas", 9))
         self._tabs.addTab(self._log_text, "Load Log")
 
+        # COL DB tab — populated from asset_db when built
+        self._col_db_table = self._make_table(
+            ["COL File (IMG Entry)", "Model Name", "Model ID",
+             "COL Version", "Source IMG"])
+        self._col_db_table.doubleClicked.connect(self._on_col_db_double_click)
+        self._col_db_table.setToolTip(
+            "COL models indexed from all IMG archives.\nDouble-click to open in COL Workshop.")
+        self._tabs.addTab(self._col_db_table, "COL DB (0)")
+
     def _make_table(self, headers): #vers 5
         from apps.methods.populate_img_table import DragSelectTableWidget
         t = DragSelectTableWidget()
@@ -2861,6 +2870,82 @@ class DATBrowserWidget(QWidget): #vers 2
         # Refresh tree status column to show ● in DB
         self._db_refresh_tree_status()
 
+    def _populate_col_db_tab(self): #vers 1
+        """Fill the COL DB tab from asset_db.col_entries.
+        Shows every COL model indexed from any IMG in the DB."""
+        tbl = self._col_db_table
+        tbl.setRowCount(0)
+
+        db = getattr(self, '_asset_db', None)
+        if db is None:
+            mw = self.main_window
+            db = getattr(mw, 'asset_db', None) if mw else None
+        if db is None:
+            return
+
+        try:
+            rows = db._con.execute("""
+                SELECT ce.entry_name, ce.model_name, ce.model_id,
+                       ce.col_version, sf.path AS src_path
+                FROM   col_entries ce
+                JOIN   source_files sf ON sf.id = ce.source_id
+                ORDER  BY ce.entry_name, ce.model_name
+            """).fetchall()
+        except Exception:
+            return
+
+        tbl.setRowCount(len(rows))
+        import os
+        for r, row in enumerate(rows):
+            vals = [
+                row['entry_name'] or '',
+                row['model_name'] or '',
+                str(row['model_id'] or ''),
+                row['col_version'] or '',
+                os.path.basename(row['src_path'] or ''),
+            ]
+            for c, val in enumerate(vals):
+                from PyQt6.QtWidgets import QTableWidgetItem as _TWI
+                item = _TWI(val)
+                # Store full source path for double-click
+                if c == 0:
+                    item.setData(0x100, row['src_path'])   # Qt.UserRole
+                    item.setData(0x101, row['entry_name'])
+                tbl.setItem(r, c, item)
+
+        tbl.resizeColumnsToContents()
+        # Update tab label
+        idx = self._tabs.indexOf(tbl)
+        if idx >= 0:
+            self._tabs.setTabText(idx, f"COL DB ({len(rows):,})")
+
+    def _on_col_db_double_click(self, index): #vers 1
+        """Open the COL entry from the double-clicked DB row in COL Workshop."""
+        tbl  = self._col_db_table
+        row  = index.row()
+        item = tbl.item(row, 0)
+        if item is None:
+            return
+        src_path   = item.data(0x100)   # Qt.UserRole
+        entry_name = item.data(0x101)
+        model_name = (tbl.item(row, 1).text() if tbl.item(row, 1) else '')
+
+        mw = self.main_window
+        if not mw:
+            return
+
+        # Try to open via COL Workshop
+        if hasattr(mw, 'open_col_workshop_docked'):
+            mw.open_col_workshop_docked(
+                col_name=entry_name, file_path=src_path)
+            if hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"COL DB: opening {entry_name} "
+                    f"({model_name}) from {src_path}")
+        else:
+            if hasattr(mw, 'log_message'):
+                mw.log_message("COL Workshop not available")
+
     def _db_refresh_tree_status(self): #vers 1
         """Walk tree items and update status column to show ● in DB / ✓."""
         if not hasattr(self, '_tree'):
@@ -2991,6 +3076,7 @@ class DATBrowserWidget(QWidget): #vers 2
             self._db_progress.setVisible(False)
             self._db_build_btn.setEnabled(True)
             self._db_load_stats()
+            self._populate_col_db_tab()
 
     def _db_update(self): #vers 1
         """Re-index only changed files."""
@@ -3020,6 +3106,7 @@ class DATBrowserWidget(QWidget): #vers 2
             self._db_progress.setVisible(False)
             self._db_update_btn.setEnabled(True)
             self._db_load_stats()
+            self._populate_col_db_tab()
 
     def _db_auto_build_after_load(self): #vers 1
         """Called after world load completes — build/update DB in background

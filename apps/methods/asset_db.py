@@ -259,36 +259,52 @@ class AssetDB: #vers 1
         self._con.commit()
         return added
 
-    def _index_col_data(self, source_id: int, entry_name: str, data: bytes):
-        """Extract COL model names from raw COL blob and insert into col_entries."""
+    def _index_col_data(self, source_id: int, entry_name: str, data: bytes): #vers 2
+        """Extract all COL model names from a COL blob (may contain multiple models).
+        Handles COL1/COL2/COL3 chained blocks robustly."""
+        import struct
+        VALID_SIGS = {b'COL\x00', b'COL\x01', b'COL\x02', b'COL\x03', b'COLL'}
+        VER_MAP    = {b'COL\x00':'COL1', b'COL\x01':'COL2',
+                      b'COL\x02':'COL3', b'COL\x03':'COL3', b'COLL':'COL1'}
         offset = 0
-        while offset + 8 < len(data):
+        added  = 0
+        while offset + 8 <= len(data):
             sig = data[offset:offset+4]
-            if sig not in (b'COL\x00', b'COL\x01', b'COL\x02',
-                           b'COL\x03', b'COLL'):
-                break
+            if sig not in VALID_SIGS:
+                # Skip byte-by-byte until next valid sig or EOF
+                next_sig = -1
+                for s in VALID_SIGS:
+                    idx = data.find(s, offset+1)
+                    if idx >= 0 and (next_sig < 0 or idx < next_sig):
+                        next_sig = idx
+                if next_sig < 0:
+                    break
+                offset = next_sig
+                continue
             try:
-                import struct
                 block_size = struct.unpack_from('<I', data, offset+4)[0]
+                if block_size == 0 or offset + 8 + block_size > len(data) + 4:
+                    offset += 4; continue   # corrupt block
+                # Name: 22 bytes at offset+8
                 raw_name   = data[offset+8:offset+30]
                 model_name = raw_name.split(b'\x00')[0].decode(
                     'ascii', errors='ignore').strip()
-                # Model ID is a uint16 at offset+28 in COL2/3
-                model_id   = struct.unpack_from('<H', data, offset+28)[0] \
-                             if block_size > 30 else 0
-                ver_map    = {b'COL\x00':'COL1', b'COL\x01':'COL2',
-                              b'COL\x02':'COL3', b'COL\x03':'COL3',
-                              b'COLL':'COL1'}
-                col_ver    = ver_map.get(sig, 'COL?')
+                # Model ID: uint16 at offset+30
+                model_id = 0
+                if offset + 32 <= len(data):
+                    model_id = struct.unpack_from('<H', data, offset+30)[0]
+                col_ver  = VER_MAP.get(sig, 'COL?')
                 if model_name:
                     self._con.execute(
                         "INSERT INTO col_entries"
                         "(source_id,entry_name,model_name,model_id,col_version)"
                         " VALUES (?,?,?,?,?)",
                         (source_id, entry_name, model_name, model_id, col_ver))
+                    added += 1
                 offset += 8 + block_size
             except Exception:
-                break
+                offset += 4   # skip past bad data, keep trying
+        return added
 
     def _index_txd_names(self, source_id: int, entry_name: str, data: bytes):
         """Extract texture names from TXD header (no pixel decoding)."""
@@ -336,6 +352,27 @@ class AssetDB: #vers 1
             pass
 
     # ── IDE indexing ──────────────────────────────────────────────────────────
+
+    def index_col(self, col_path: str) -> int:
+        """Index a standalone .col file — extracts all model names.
+        Returns number of models added."""
+        source_id, needs = self._get_source_id(col_path, 'COL')
+        if source_id < 0 or not needs:
+            return 0
+        self._clear_entries(source_id)
+        try:
+            with open(col_path, 'rb') as f:
+                data = f.read()
+        except OSError:
+            return 0
+        self._index_col_data(source_id,
+                             os.path.basename(col_path), data)
+        self._con.commit()
+        # Count what was added
+        n = self._con.execute(
+            "SELECT COUNT(*) FROM col_entries WHERE source_id=?",
+            (source_id,)).fetchone()[0]
+        return n
 
     def index_ide(self, ide_path: str) -> int:
         """Index a .ide file. Returns number of objects added."""
@@ -407,6 +444,10 @@ class AssetDB: #vers 1
                 elif ext == 'ide':
                     n = self.index_ide(fpath)
                     results[fpath] = n
+                elif ext == 'col':
+                    # Standalone .col files (not inside an IMG)
+                    n = self.index_col(fpath)
+                    results[fpath] = n
         return results
 
     # ── Lookups ───────────────────────────────────────────────────────────────
@@ -434,6 +475,21 @@ class AssetDB: #vers 1
             WHERE te.texture_name = lower(?)
             LIMIT 1
         """, (texture_name,)).fetchone()
+
+    def find_col_file(self, entry_name: str) -> Optional[sqlite3.Row]:
+        """Find a COL file entry (e.g. 'generics.col') in an IMG.
+        Returns row with: source_path, entry_name, offset, size."""
+        col_name = entry_name.lower()
+        if not col_name.endswith('.col'):
+            col_name += '.col'
+        return self._con.execute("""
+            SELECT sf.path AS source_path,
+                   ie.entry_name, ie.offset, ie.size
+            FROM img_entries ie
+            JOIN source_files sf ON sf.id = ie.source_id
+            WHERE lower(ie.entry_name) = ?
+            LIMIT 1
+        """, (col_name,)).fetchone()
 
     def find_col_model(self, model_name: str) -> Optional[sqlite3.Row]:
         """Find a COL entry for a model name.
