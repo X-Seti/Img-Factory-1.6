@@ -4838,6 +4838,184 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     #Left side vertical panel
 
+
+    def _create_col_from_dff(self): #vers 1
+        """Generate a COL collision file from the currently loaded DFF model.
+        Creates one COL mesh per DFF geometry using the actual triangle data.
+        Opens the result in COL Workshop."""
+        from PyQt6.QtWidgets import QMessageBox, QInputDialog
+
+        model = getattr(self, '_current_dff_model', None)
+        if model is None:
+            QMessageBox.information(self, "No DFF",
+                "Load a DFF model first.")
+            return
+
+        dff_name = os.path.splitext(
+            os.path.basename(getattr(self, '_current_dff_path', 'model.dff') or 'model.dff')
+        )[0]
+
+        geoms = getattr(model, 'geometries', [])
+        if not geoms:
+            QMessageBox.information(self, "No Geometry",
+                "The loaded DFF has no geometry to convert.")
+            return
+
+        # Ask for COL version
+        ver, ok = QInputDialog.getItem(
+            self, "COL Version",
+            "Choose COL format for export:",
+            ["COL2 (GTA3/VC/SOL recommended)",
+             "COL3 (SA)",
+             "COL1 (legacy)"],
+            0, False)
+        if not ok:
+            return
+        col_ver = 2 if "COL2" in ver else 3 if "COL3" in ver else 1
+
+        mw = self.main_window
+        try:
+            import struct, tempfile
+
+            # Build minimal COL binary for each geometry
+            col_blobs = []
+            for gi, geom in enumerate(geoms):
+                verts = list(geom.vertices) if hasattr(geom,'vertices') else []
+                faces = list(geom.faces)    if hasattr(geom,'faces')    else []
+                if not verts or not faces:
+                    continue
+
+                name = (geom.name if hasattr(geom,'name') and geom.name
+                        else f"{dff_name}").encode('ascii','ignore')[:22]
+                name = name.ljust(22, b'\x00')
+
+                # Bounding sphere — centre + radius
+                xs = [v[0] for v in verts]
+                ys = [v[1] for v in verts]
+                zs = [v[2] for v in verts]
+                cx,cy,cz = sum(xs)/len(xs), sum(ys)/len(ys), sum(zs)/len(zs)
+                radius = max(
+                    ((v[0]-cx)**2+(v[1]-cy)**2+(v[2]-cz)**2)**0.5
+                    for v in verts)
+
+                # Bounding box
+                bx_min,bx_max = min(xs),max(xs)
+                by_min,by_max = min(ys),max(ys)
+                bz_min,bz_max = min(zs),max(zs)
+
+                if col_ver == 1:
+                    # COL1 format
+                    n_verts = len(verts)
+                    n_faces = len(faces)
+                    vert_data = b''.join(struct.pack('<fff',*v) for v in verts)
+                    face_data = b''.join(
+                        struct.pack('<HHHBBbb',
+                            f[0]&0xFFFF, f[1]&0xFFFF, f[2]&0xFFFF,
+                            0,0,0,0)  # material, lighting
+                        for f in faces)
+                    payload = struct.pack('<fff', cx,cy,cz)  # sphere centre
+                    payload += struct.pack('<f', radius)       # sphere radius
+                    payload += struct.pack('<fff', bx_min,by_min,bz_min)  # bb min
+                    payload += struct.pack('<fff', bx_max,by_max,bz_max)  # bb max
+                    payload += struct.pack('<H', 0)     # n_spheres
+                    payload += struct.pack('<H', 0)     # n_boxes
+                    payload += struct.pack('<H', n_verts)
+                    payload += struct.pack('<H', n_faces)
+                    payload += vert_data
+                    payload += face_data
+                    block = b'COLL' + struct.pack('<I', 4+22+len(payload))
+                    block += struct.pack('<H', 0) + name[:22] + payload
+
+                else:
+                    # COL2/3 format
+                    sig = b'COL\x02' if col_ver == 2 else b'COL\x03'
+                    n_verts = len(verts)
+                    n_faces = len(faces)
+
+                    # Offsets (relative to start of payload after sig+size+name+modelid)
+                    header_end = 0x68   # standard COL2 header size
+                    vert_off   = header_end
+                    face_off   = vert_off + n_verts * 6  # int16 x3 per vert
+
+                    vert_data = b''
+                    for v in verts:
+                        # Quantise to int16 (scale 128)
+                        vx = max(-32767,min(32767,int(v[0]*128)))
+                        vy = max(-32767,min(32767,int(v[1]*128)))
+                        vz = max(-32767,min(32767,int(v[2]*128)))
+                        vert_data += struct.pack('<hhh', vx,vy,vz)
+
+                    face_data = b''.join(
+                        struct.pack('<HHHBBBB',
+                            f[0]&0xFFFF, f[1]&0xFFFF, f[2]&0xFFFF,
+                            0, 0, 0, 0)  # material, lighting
+                        for f in faces)
+
+                    payload  = struct.pack('<fff', bx_min,by_min,bz_min)
+                    payload += struct.pack('<fff', bx_max,by_max,bz_max)
+                    payload += struct.pack('<fff', cx,cy,cz)
+                    payload += struct.pack('<f',   radius)
+                    # Counts
+                    payload += struct.pack('<HHHHHH',
+                        0,       # n_spheres
+                        0,       # n_boxes
+                        n_faces, # n_mesh_faces
+                        0,       # flags
+                        n_verts, # n_verts
+                        0)       # pad
+                    # Offsets
+                    payload += struct.pack('<IIII',
+                        vert_off, face_off, 0, 0)
+                    # Pad to header_end
+                    while len(payload) < header_end - 4:
+                        payload += b'\x00\x00\x00\x00'
+                    payload += vert_data
+                    payload += face_data
+
+                    model_id = 0
+                    block = sig + struct.pack('<I', 4 + 22 + 2 + len(payload))
+                    block += name[:22]
+                    block += struct.pack('<H', model_id)
+                    block += payload
+
+                col_blobs.append(block)
+
+            if not col_blobs:
+                QMessageBox.warning(self, "No Geometry",
+                    "No geometry with vertices and faces found in the DFF.")
+                return
+
+            # Write all COL blocks to temp file
+            col_data = b''.join(col_blobs)
+            with tempfile.NamedTemporaryFile(
+                    delete=False, suffix='.col',
+                    prefix=dff_name + '_') as tf:
+                tf.write(col_data)
+                tmp_path = tf.name
+
+            # Open in COL Workshop
+            if mw and hasattr(mw, 'open_col_workshop_docked'):
+                mw.open_col_workshop_docked(file_path=tmp_path)
+                if hasattr(mw, 'log_message'):
+                    mw.log_message(
+                        f"COL from DFF: {len(col_blobs)} model(s)  "
+                        f"{sum(len(g.vertices) for g in geoms if hasattr(g,'vertices'))} verts  "
+                        f"→ {os.path.basename(tmp_path)}")
+            else:
+                QMessageBox.information(self, "COL Created",
+                    f"COL file written to:\n{tmp_path}\n\n"
+                    f"{len(col_blobs)} model(s) from DFF geometry.")
+
+            self._set_status(
+                f"COL created from DFF: {len(col_blobs)} model(s)  "
+                f"({col_ver} format) — open in COL Workshop")
+
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "COL Error",
+                f"Failed to create COL from DFF:\n{e}")
+
+
     # ── DFF mode toolbar ────────────────────────────────────────────────────
 
     def _enable_dff_toolbar(self, dff_mode: bool): #vers 1
@@ -5347,32 +5525,44 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout.addWidget(self.surface_edit_btn)
         layout.addSpacing(spacer)
 
-        # Build from TXD
+        # Create COL from DFF geometry
         self.build_from_txd_btn = QPushButton()
-        self.build_from_txd_btn.setIcon(self.icon_factory.build_icon(color=icon_color))
+        try:
+            self.build_from_txd_btn.setIcon(
+                self.icon_factory.col_from_dff_icon(color=icon_color))
+        except Exception:
+            self.build_from_txd_btn.setIcon(
+                self.icon_factory.build_icon(color=icon_color))
         self.build_from_txd_btn.setIconSize(icon_size)
         self.build_from_txd_btn.setFixedHeight(btn_height)
         self.build_from_txd_btn.setMinimumWidth(btn_width)
-        self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
-        self.build_from_txd_btn.clicked.connect(lambda: self._dff_to_col_surfaces(single=True))
+        self.build_from_txd_btn.setToolTip(
+            "Create COL from DFF geometry\n"
+            "Generates a collision mesh from the loaded DFF model vertices")
+        self.build_from_txd_btn.clicked.connect(self._create_col_from_dff)
         layout.addWidget(self.build_from_txd_btn)
 
         # ── DFF-mode buttons (shown when DFF loaded, hidden for COL) ──────────
         # Select mode buttons
-        def _sel_btn(attr, label, tip, mode):
-            b = QPushButton(label)
+        def _sel_btn(attr, tip, mode, icon_fn_name):
+            b = QPushButton()
             b.setFixedSize(btn_width, btn_height)
             b.setCheckable(True)
             b.setToolTip(tip)
+            b.setIconSize(icon_size)
+            try:
+                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+            except Exception:
+                b.setText(mode[0].upper())
             b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
             setattr(self, attr, b)
             self._mod_icon_buttons.append(b)
             return b
 
-        _sel_btn('_sel_vert_btn',  'V', 'Vertex select mode',  'vertex')
-        _sel_btn('_sel_edge_btn',  'E', 'Edge select mode',    'edge')
-        _sel_btn('_sel_face_btn',  'F', 'Face select mode',    'face')
-        _sel_btn('_sel_poly_btn',  'P', 'Polygon select mode', 'poly')
+        _sel_btn('_sel_vert_btn',  'Vertex select — click individual vertices',  'vertex', 'vertex_select_icon')
+        _sel_btn('_sel_edge_btn',  'Edge select — click edges between vertices',  'edge',   'edge_select_icon')
+        _sel_btn('_sel_face_btn',  'Face select — click individual triangles',    'face',   'face_select_icon')
+        _sel_btn('_sel_poly_btn',  'Polygon select — click connected face groups','poly',   'poly_select_icon')
 
         # Backface cull toggle
         self._backface_cull_btn = QPushButton()
@@ -5381,10 +5571,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._backface_cull_btn.setToolTip(
             "Backface culling — ON: only front faces visible\n"
             "Prevents accidentally selecting/painting faces behind geometry")
+        self._backface_cull_btn.setIconSize(icon_size)
         try:
             self._backface_cull_btn.setIcon(
                 self.icon_factory.backface_icon(color=icon_color))
-            self._backface_cull_btn.setIconSize(icon_size)
         except Exception:
             self._backface_cull_btn.setText("BF")
         self._backface_cull_btn.toggled.connect(
@@ -5398,12 +5588,16 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._front_paint_btn.setToolTip(
             "Front-only paint — only paint faces pointing toward the camera\n"
             "Prevents painting hidden back faces through geometry")
+        self._front_paint_btn.setIconSize(icon_size)
         try:
             self._front_paint_btn.setIcon(
-                self.icon_factory.view_icon(color=icon_color))
-            self._front_paint_btn.setIconSize(icon_size)
+                self.icon_factory.front_paint_icon(color=icon_color))
         except Exception:
-            self._front_paint_btn.setText("FP")
+            try:
+                self._front_paint_btn.setIcon(
+                    self.icon_factory.view_icon(color=icon_color))
+            except Exception:
+                self._front_paint_btn.setText("FP")
         self._front_paint_btn.toggled.connect(
             lambda v: self._toggle_front_only_paint())
         self._mod_icon_buttons.append(self._front_paint_btn)
@@ -5414,9 +5608,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._prim_btn.setToolTip(
             "Create primitive shape (Box, Sphere, Cylinder, Plane)\n"
             "Set dimensions and subdivision count")
+        self._prim_btn.setIconSize(icon_size)
         try:
             self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
-            self._prim_btn.setIconSize(icon_size)
         except Exception:
             self._prim_btn.setText("+□")
         self._prim_btn.clicked.connect(self._create_primitive_dialog)

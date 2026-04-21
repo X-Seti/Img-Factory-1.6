@@ -2968,6 +2968,97 @@ class SVGIconFactory: #vers 7
 
 
     @staticmethod
+    def vertex_select_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Vertex select mode — dot at centre with radiating points"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+            <circle cx="4"  cy="4"  r="2" fill="currentColor" opacity="0.6"/>
+            <circle cx="20" cy="4"  r="2" fill="currentColor" opacity="0.6"/>
+            <circle cx="4"  cy="20" r="2" fill="currentColor" opacity="0.6"/>
+            <circle cx="20" cy="20" r="2" fill="currentColor" opacity="0.6"/>
+            <circle cx="12" cy="4"  r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="12" cy="20" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="4"  cy="12" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="20" cy="12" r="1.5" fill="currentColor" opacity="0.4"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def edge_select_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Edge select mode — highlighted edge on a triangle mesh"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="12,3 21,19 3,19"
+                     stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.5"/>
+            <polygon points="12,3 21,19 16,19"
+                     stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.3"/>
+            <line x1="12" y1="3" x2="21" y2="19"
+                  stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+            <circle cx="12" cy="3"  r="2" fill="currentColor"/>
+            <circle cx="21" cy="19" r="2" fill="currentColor"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def face_select_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Face select mode — filled triangle on mesh"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="3,3 21,3 21,21 3,21"
+                     stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.4"/>
+            <line x1="3" y1="3" x2="21" y2="21"
+                  stroke="currentColor" stroke-width="1" opacity="0.3"/>
+            <line x1="3" y1="21" x2="21" y2="3"
+                  stroke="currentColor" stroke-width="1" opacity="0.3"/>
+            <polygon points="12,3 21,21 3,21"
+                     fill="currentColor" opacity="0.75"
+                     stroke="currentColor" stroke-width="1"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def poly_select_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Polygon / object select mode — filled quad"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="16" height="16" rx="1"
+                  fill="currentColor" opacity="0.7"
+                  stroke="currentColor" stroke-width="1.6"/>
+            <line x1="4" y1="12" x2="20" y2="12"
+                  stroke="currentColor" stroke-width="0.8" opacity="0.4"/>
+            <line x1="12" y1="4" x2="12" y2="20"
+                  stroke="currentColor" stroke-width="0.8" opacity="0.4"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def col_from_dff_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Create COL from DFF — mesh cube producing a collision box"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- DFF mesh (wireframe cube, left) -->
+            <polygon points="3,6 10,3 10,13 3,16"
+                     stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.7"/>
+            <polygon points="10,3 17,6 10,9 3,6"
+                     stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.5"/>
+            <!-- Arrow right -->
+            <path d="M13 11 L17 11 L15 9 M17 11 L15 13"
+                  stroke="currentColor" stroke-width="1.6" fill="none"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- COL box (solid, right) -->
+            <rect x="17" y="8" width="6" height="8" rx="1"
+                  stroke="currentColor" stroke-width="1.6"
+                  fill="currentColor" opacity="0.25"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def front_paint_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Front-only paint — eye + paint brush facing front face"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="12" cy="10" rx="7" ry="4"
+                     stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <circle cx="12" cy="10" r="2.2" fill="currentColor"/>
+            <line x1="9" y1="15" x2="15" y2="15"
+                  stroke="currentColor" stroke-width="1.4" opacity="0.5"/>
+            <path d="M14 17 L16 21 L18 17"
+                  stroke="currentColor" stroke-width="1.4" fill="none"
+                  stroke-linecap="round" opacity="0.8"/>
+        </svg>''', size, color)
+
+
+    @staticmethod
     def dp_blur_brush_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
         """Blur brush — concentric softening circles."""
         c = color or '#f0f0f4'
