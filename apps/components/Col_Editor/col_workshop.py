@@ -6966,6 +6966,51 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             for btn in icon_panel.findChildren(QPushButton):
                 btn.setEnabled(enabled)
 
+    def _find_col_via_db(self, model_name: str) -> bool: #vers 1
+        """Look up a COL for model_name in the asset DB.
+        If found, extracts from the source IMG and loads it.
+        Returns True if successful."""
+        mw = getattr(self, 'main_window', None)
+        db = getattr(mw, 'asset_db', None)
+        if db is None:
+            return False
+        row = db.find_col_model(model_name)
+        if row is None:
+            return False
+        src_path   = row['source_path']
+        entry_name = row['entry_name']
+        if not src_path or not os.path.isfile(src_path):
+            return False
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(src_path)
+            arc.open()
+            entry = next(
+                (e for e in arc.entries
+                 if e.name.lower() == (entry_name or '').lower()),
+                None)
+            if entry is None:
+                return False
+            data = arc.read_entry_data(entry)
+            if not data:
+                return False
+            import tempfile
+            with tempfile.NamedTemporaryFile(
+                    delete=False, suffix='.col',
+                    prefix=os.path.splitext(entry_name)[0] + '_') as tf:
+                tf.write(data)
+                tmp_path = tf.name
+            self.open_col_file(tmp_path)
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"COL Workshop: loaded {entry_name} "
+                    f"from {os.path.basename(src_path)} via DB")
+            return True
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"COL DB lookup error: {e}")
+            return False
+
     def _pick_col_from_current_img(self): #vers 1
         """Pick a COL entry from the IMG currently loaded in IMG Factory and open it."""
         try:

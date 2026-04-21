@@ -1608,7 +1608,22 @@ class DATBrowserWidget(QWidget): #vers 2
                  else "COL"     if entry_type == "COLFILE"
                  else entry_type)
         tag   = f" [{phase}]" if phase == "enforced" else ""
-        status = "✓" if success else "✗ missing"
+        if not success:
+            status = "✗ missing"
+        else:
+            # Check if this file is indexed in the asset DB
+            db = getattr(self, '_asset_db', None)
+            if db is None:
+                mw = self.main_window
+                db = getattr(mw, 'asset_db', None) if mw else None
+            if db and db.stats().get('source_files', 0) > 0:
+                # Check if this specific path is tracked
+                row = db._con.execute(
+                    "SELECT id FROM source_files WHERE path=?",
+                    (path,)).fetchone()
+                status = "● in DB" if row else "✓"
+            else:
+                status = "✓"
 
         child = QTreeWidgetItem([bname + tag, label, count_str, status])
         child.setData(0, Qt.ItemDataRole.UserRole, path)
@@ -1617,6 +1632,8 @@ class DATBrowserWidget(QWidget): #vers 2
                 child.setForeground(col, QColor(204, 68, 68))
             if entry_type == "COLFILE":
                 child.setToolTip(0, f"Not found: {path}")
+        elif status == "● in DB":
+            child.setForeground(3, QColor("#4ade80"))   # green dot for DB entries
         return child
 
     def _add_col_in_img_children(self, img_item, img_path): #vers 1
@@ -2773,6 +2790,40 @@ class DATBrowserWidget(QWidget): #vers 2
             self._db_build_btn.setEnabled(has_root)
         except Exception as e:
             self._db_stats_lbl.setText(f"DB error: {e}")
+        # Refresh tree status column to show ● in DB
+        self._db_refresh_tree_status()
+
+    def _db_refresh_tree_status(self): #vers 1
+        """Walk tree items and update status column to show ● in DB / ✓."""
+        db = getattr(self, '_asset_db', None)
+        if not db:
+            return
+        has_db = db.stats().get('source_files', 0) > 0
+        from PyQt6.QtGui import QColor as _QC
+
+        def _walk(item):
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            if path and item.text(3) not in ("✗ missing", "✗ MISSING"):
+                if has_db:
+                    row = db._con.execute(
+                        "SELECT id FROM source_files WHERE path=?",
+                        (path,)).fetchone()
+                    if row:
+                        item.setText(3, "● in DB")
+                        item.setForeground(3, _QC("#4ade80"))
+                    else:
+                        item.setText(3, "✓")
+                        item.setForeground(3, _QC(""))
+                else:
+                    if item.text(3) == "● in DB":
+                        item.setText(3, "✓")
+                        item.setForeground(3, _QC(""))
+            for i in range(item.childCount()):
+                _walk(item.child(i))
+
+        root = self._tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            _walk(root.child(i))
 
     def _db_new_profile(self): #vers 1
         from PyQt6.QtWidgets import QInputDialog

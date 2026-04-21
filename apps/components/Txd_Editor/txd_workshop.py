@@ -12774,6 +12774,55 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Failed to open IMG: {str(e)}")
 
 
+    def _find_txd_via_db(self, txd_name: str) -> bool: #vers 1
+        """Look up a TXD by name in the asset DB and load it.
+        txd_name: stem (e.g. 'landstal') or full name ('landstal.txd').
+        Returns True if found and loaded."""
+        import os
+        mw  = getattr(self, 'main_window', None)
+        db  = getattr(mw, 'asset_db', None)
+        if db is None:
+            return False
+        stem  = os.path.splitext(txd_name.lower())[0]
+        fname = stem + '.txd'
+        # find_img_entry looks in img_entries by entry_name
+        row = db.find_img_entry(fname)
+        if row is None:
+            return False
+        src_path = row['source_path']
+        entry_nm = row['entry_name']
+        if not src_path or not os.path.isfile(src_path):
+            return False
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(src_path)
+            arc.open()
+            entry = next(
+                (e for e in arc.entries
+                 if e.name.lower() == entry_nm.lower()),
+                None)
+            if entry is None:
+                return False
+            data = arc.read_entry_data(entry)
+            if not data:
+                return False
+            import tempfile
+            with tempfile.NamedTemporaryFile(
+                    delete=False, suffix='.txd',
+                    prefix=stem + '_') as tf:
+                tf.write(data)
+                tmp = tf.name
+            self.open_txd_file(tmp)
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(
+                    f"TXD Workshop: loaded {entry_nm} "
+                    f"from {os.path.basename(src_path)} via DB")
+            return True
+        except Exception as e:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"TXD DB lookup error: {e}")
+            return False
+
     def open_txd_file(self, file_path=None): #vers 3
         """Open standalone TXD file with version detection"""
         try:

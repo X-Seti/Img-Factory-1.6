@@ -2067,9 +2067,41 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         def _load_txd_smart():
             txd = ide_txd  # captured from above
             if txd:
-                ok = self._auto_load_txd_from_imgs(txd)
+                # 1. Try asset DB (fastest — pre-indexed locations)
+                mw2 = getattr(self, 'main_window', None)
+                db2 = getattr(mw2, 'asset_db', None)
+                ok  = False
+                if db2:
+                    try:
+                        from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+                        # Find TXD in asset DB and extract from IMG
+                        txd_row = db2.find_img_entry(txd + '.txd')
+                        if txd_row:
+                            from apps.methods.img_core_classes import IMGFile
+                            arc = IMGFile(txd_row['source_path'])
+                            arc.open()
+                            entry = next(
+                                (e for e in arc.entries
+                                 if e.name.lower() == txd_row['entry_name'].lower()),
+                                None)
+                            if entry:
+                                data = arc.read_entry_data(entry)
+                                if data:
+                                    self._load_txd_file_from_data(data, txd + '.txd')
+                                    if mw2 and hasattr(mw2,'log_message'):
+                                        mw2.log_message(
+                                            f"TXD loaded via DB: {txd}.txd "
+                                            f"from {os.path.basename(txd_row["source_path"])}")
+                                    ok = True
+                    except Exception:
+                        pass
+                # 2. Try open IMG tabs
+                if not ok:
+                    ok = self._auto_load_txd_from_imgs(txd)
+                # 3. Try texlist/ folder
                 if not ok:
                     ok = self._auto_load_from_texlist(txd)
+                # 4. File browser fallback
                 if not ok:
                     self._load_txd_into_workshop()
             else:
