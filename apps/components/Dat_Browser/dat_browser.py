@@ -974,9 +974,11 @@ class DATBrowserWidget(QWidget): #vers 2
         ('_show_col_in_img_btn','COL▾',  'get_col_file_icon', 'Show COL files inside IMG archives'),
     ]
 
-    def resizeEvent(self, event): #vers 1
+    def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
         self._update_toolbar_compact(event.size().width())
+        if hasattr(self, '_db_panel') and self._db_panel.isVisible():
+            self._db_adapt_compact()
 
     def _load_toolbar_icons(self): #vers 1
         """Load all SVG icons for toolbar and settings buttons (called once after show)."""
@@ -2646,27 +2648,45 @@ class DATBrowserWidget(QWidget): #vers 2
 
     _BUILTIN_PROFILES = ['GTASOL', 'GTA3', 'VC', 'SA']
 
-    def _build_db_panel(self): #vers 1
-        """Build the collapsible Asset DB panel widget."""
+    def _build_db_panel(self): #vers 2
+        """Build the collapsible Asset DB panel widget.
+        Buttons use SVG icons. When panel is narrow (<400px)
+        labels are hidden and only icons + tooltips are shown."""
         from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-            QGroupBox, QComboBox, QPushButton, QLabel, QProgressBar,
-            QInputDialog, QMessageBox)
+            QComboBox, QPushButton, QLabel, QProgressBar,
+            QInputDialog, QMessageBox, QSizePolicy)
         from PyQt6.QtCore import Qt as _Qt
 
         panel = QWidget()
         panel.setObjectName("db_panel")
-        panel.setMaximumHeight(130)
+        panel.setMaximumHeight(120)
         pl = QVBoxLayout(panel)
         pl.setContentsMargins(4, 4, 4, 4)
-        pl.setSpacing(4)
+        pl.setSpacing(3)
 
-        # ── Row 1: profile selector + action buttons ───────────────────
+        # ── Helper: icon button ────────────────────────────────────────
+        def _ibtn(label, tip, slot, icon_fn_name,
+                  enabled=True, min_w=80, h=26):
+            b = QPushButton(label)
+            b.setFixedHeight(h)
+            b.setMinimumWidth(min_w)
+            b.setToolTip(tip)
+            b.setEnabled(enabled)
+            b.clicked.connect(slot)
+            b.setIconSize(QSize(16, 16))
+            b._db_label   = label       # remember for compact mode
+            b._icon_fn    = icon_fn_name
+            return b
+
+        # ── Row 1: profile selector + New / Del ───────────────────────
         row1 = QHBoxLayout(); row1.setSpacing(4)
 
-        row1.addWidget(QLabel("Profile:"))
+        self._db_profile_lbl = QLabel("Profile:")
+        row1.addWidget(self._db_profile_lbl)
+
         self._db_profile_combo = QComboBox()
-        self._db_profile_combo.setFixedHeight(24)
-        self._db_profile_combo.setMinimumWidth(100)
+        self._db_profile_combo.setFixedHeight(26)
+        self._db_profile_combo.setMinimumWidth(90)
         self._db_profile_combo.setToolTip(
             "Select which game database to use.\n"
             "Each profile stores its own asset index.")
@@ -2674,39 +2694,39 @@ class DATBrowserWidget(QWidget): #vers 2
             self._on_db_profile_changed)
         row1.addWidget(self._db_profile_combo)
 
-        new_btn = QPushButton("New…")
-        new_btn.setFixedHeight(24); new_btn.setFixedWidth(44)
-        new_btn.setToolTip("Create a new named database profile")
-        new_btn.clicked.connect(self._db_new_profile)
-        row1.addWidget(new_btn)
+        self._db_new_btn = _ibtn(
+            "New", "Create a new named database profile",
+            self._db_new_profile, "get_db_new_icon", min_w=46)
+        row1.addWidget(self._db_new_btn)
 
-        del_btn = QPushButton("Del")
-        del_btn.setFixedHeight(24); del_btn.setFixedWidth(36)
-        del_btn.setToolTip("Delete selected database profile")
-        del_btn.clicked.connect(self._db_delete_profile)
-        row1.addWidget(del_btn)
+        self._db_del_btn = _ibtn(
+            "Del", "Delete selected database profile",
+            self._db_delete_profile, "get_db_delete_icon", min_w=40)
+        row1.addWidget(self._db_del_btn)
 
         row1.addStretch()
 
-        self._db_build_btn = QPushButton("⬡ Build DB")
-        self._db_build_btn.setFixedHeight(24)
-        self._db_build_btn.setToolTip(
+        self._db_build_btn = _ibtn(
+            "Build DB",
             "Index all IMG and IDE files in the current game root.\n"
             "COL model names and TXD texture names are extracted\n"
-            "without full decoding — fast lightweight scan.")
-        self._db_build_btn.setEnabled(False)
-        self._db_build_btn.clicked.connect(self._db_build)
+            "without full decoding — fast lightweight scan.",
+            self._db_build, "get_db_build_icon",
+            enabled=False, min_w=80)
         row1.addWidget(self._db_build_btn)
 
-        self._db_update_btn = QPushButton("↻ Update")
-        self._db_update_btn.setFixedHeight(24)
-        self._db_update_btn.setToolTip(
-            "Re-index only files that have changed since last build.")
-        self._db_update_btn.setEnabled(False)
-        self._db_update_btn.clicked.connect(self._db_update)
+        self._db_update_btn = _ibtn(
+            "Update",
+            "Re-index only files that have changed since last build.",
+            self._db_update, "get_db_update_icon",
+            enabled=False, min_w=72)
         row1.addWidget(self._db_update_btn)
 
         pl.addLayout(row1)
+
+        # Load icons after widget is constructed
+        from PyQt6.QtCore import QTimer as _QT3
+        _QT3.singleShot(0, self._db_load_panel_icons)
 
         # ── Row 2: stats label ─────────────────────────────────────────
         self._db_stats_lbl = QLabel("No database loaded.")
@@ -2725,6 +2745,42 @@ class DATBrowserWidget(QWidget): #vers 2
         self._db_refresh_profile_list()
 
         return panel
+
+    def _db_load_panel_icons(self): #vers 1
+        """Load SVG icons onto all DB panel buttons, themed to current palette."""
+        try:
+            from apps.methods.imgfactory_svg_icons import (
+                get_db_build_icon, get_db_update_icon,
+                get_db_new_icon, get_db_delete_icon)
+            ic = self._get_icon_color()
+            sz = 16
+            pairs = [
+                (self._db_build_btn,  get_db_build_icon),
+                (self._db_update_btn, get_db_update_icon),
+                (self._db_new_btn,    get_db_new_icon),
+                (self._db_del_btn,    get_db_delete_icon),
+            ]
+            for btn, fn in pairs:
+                btn.setIcon(fn(sz, ic))
+        except Exception:
+            pass
+        self._db_adapt_compact()
+
+    def _db_adapt_compact(self): #vers 1
+        """Switch DB panel buttons between icon+label and icon-only
+        based on available panel width. Threshold: 420px."""
+        compact = self._db_panel.width() < 420
+        btns = [
+            (self._db_build_btn,  "Build DB"),
+            (self._db_update_btn, "Update"),
+            (self._db_new_btn,    "New"),
+            (self._db_del_btn,    "Del"),
+        ]
+        self._db_profile_lbl.setVisible(not compact)
+        for btn, label in btns:
+            btn.setText("" if compact else label)
+            btn.setMinimumWidth(28 if compact else 60)
+            btn.setFixedWidth(28 if compact else btn.sizeHint().width() + 8)
 
     def _toggle_db_panel(self): #vers 2
         visible = self._db_panel.isVisible()

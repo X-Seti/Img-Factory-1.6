@@ -4082,6 +4082,83 @@ def get_asset_db_icon(size: int = 24, color: str = None, bg_color: str = None) -
     </svg>''', size, color, bg_color)
 
 
+def get_db_build_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Build DB — database cylinder with a plus / lightning bolt"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="12" cy="6" rx="8" ry="2.5"
+                 stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <line x1="4" y1="6" x2="4" y2="16"
+              stroke="currentColor" stroke-width="1.6"/>
+        <line x1="20" y1="6" x2="20" y2="16"
+              stroke="currentColor" stroke-width="1.6"/>
+        <ellipse cx="12" cy="16" rx="8" ry="2.5"
+                 stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <ellipse cx="12" cy="11" rx="8" ry="2.5"
+                 stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.5"/>
+        <!-- Lightning bolt = build/index action -->
+        <path d="M13 4 L10 11 L13 11 L11 17 L15 9 L12 9 Z"
+              fill="currentColor" opacity="0.85"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_db_update_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Update DB — database cylinder with refresh arrows"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="12" cy="6" rx="8" ry="2.5"
+                 stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <line x1="4" y1="6" x2="4" y2="14"
+              stroke="currentColor" stroke-width="1.6"/>
+        <line x1="20" y1="6" x2="20" y2="14"
+              stroke="currentColor" stroke-width="1.6"/>
+        <ellipse cx="12" cy="14" rx="8" ry="2.5"
+                 stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <!-- Refresh arc bottom-right -->
+        <path d="M15 18 A4 4 0 1 0 9 18" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <polyline points="15,16 15,19 18,19"
+                  fill="none" stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_db_new_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """New DB profile — database cylinder with plus"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="10" cy="6" rx="7" ry="2.2"
+                 stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <line x1="3" y1="6" x2="3" y2="15"
+              stroke="currentColor" stroke-width="1.5"/>
+        <line x1="17" y1="6" x2="17" y2="11"
+              stroke="currentColor" stroke-width="1.5"/>
+        <ellipse cx="10" cy="15" rx="7" ry="2.2"
+                 stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <!-- Plus sign (top-right) -->
+        <line x1="19" y1="13" x2="19" y2="21"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="15" y1="17" x2="23" y2="17"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>''', size, color, bg_color)
+
+
+def get_db_delete_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Delete DB profile — database cylinder with X"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="10" cy="6" rx="7" ry="2.2"
+                 stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <line x1="3" y1="6" x2="3" y2="15"
+              stroke="currentColor" stroke-width="1.5"/>
+        <line x1="17" y1="6" x2="17" y2="11"
+              stroke="currentColor" stroke-width="1.5"/>
+        <ellipse cx="10" cy="15" rx="7" ry="2.2"
+                 stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <!-- X mark (top-right) -->
+        <line x1="15" y1="13" x2="22" y2="20"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+        <line x1="22" y1="13" x2="15" y2="20"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+    </svg>''', size, color, bg_color)
+
+
 def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """TBA / Not Yet Implemented — dashed box with question mark"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
