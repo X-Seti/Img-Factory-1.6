@@ -4054,6 +4054,34 @@ def get_dff_edit_icon(size: int = 24, color: str = None, bg_color: str = None) -
     </svg>''', size, color, bg_color)
 
 
+def get_asset_db_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
+    """Asset Database — classic cylinder stack (3-tier database symbol)"""
+    return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <!-- Bottom ellipse -->
+        <ellipse cx="12" cy="18" rx="8" ry="2.8"
+                 stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <!-- Middle tier sides -->
+        <line x1="4" y1="13" x2="4" y2="18"
+              stroke="currentColor" stroke-width="1.6"/>
+        <line x1="20" y1="13" x2="20" y2="18"
+              stroke="currentColor" stroke-width="1.6"/>
+        <!-- Middle ellipse -->
+        <ellipse cx="12" cy="13" rx="8" ry="2.8"
+                 stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <!-- Top tier sides -->
+        <line x1="4" y1="8" x2="4" y2="13"
+              stroke="currentColor" stroke-width="1.6"/>
+        <line x1="20" y1="8" x2="20" y2="13"
+              stroke="currentColor" stroke-width="1.6"/>
+        <!-- Top ellipse -->
+        <ellipse cx="12" cy="8" rx="8" ry="2.8"
+                 stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <!-- Top cap highlight -->
+        <ellipse cx="12" cy="8" rx="8" ry="2.8"
+                 fill="currentColor" opacity="0.15"/>
+    </svg>''', size, color, bg_color)
+
+
 def get_tba_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 1
     """TBA / Not Yet Implemented — dashed box with question mark"""
     return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

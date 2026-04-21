@@ -775,8 +775,9 @@ class DATBrowserWidget(QWidget): #vers 2
         self._dump_txd_btn.clicked.connect(self._dump_all_game_txds)
         toolbar.addWidget(self._dump_txd_btn)
 
-        self._db_btn = QPushButton("⬡ DB")
-        self._db_btn.setFixedSize(38, 24)
+        self._db_btn = QPushButton()
+        self._db_btn.setFixedSize(28, 24)
+        self._db_btn.setIconSize(QSize(18, 18))
         self._db_btn.setToolTip("Asset Database — build/update/query the game asset index")
         self._db_btn.setCheckable(True)
         self._db_btn.clicked.connect(self._toggle_db_panel)
@@ -815,10 +816,10 @@ class DATBrowserWidget(QWidget): #vers 2
         self._status_lbl.setStyleSheet("font-style: italic;")
         root.addWidget(self._status_lbl)
 
-        # Asset DB panel (hidden by default, shown when DB button toggled)
+        # Asset DB panel built here, inserted into left panel below tree_hdr
         self._db_panel = self._build_db_panel()
         self._db_panel.setVisible(False)
-        root.addWidget(self._db_panel)
+        self._db_panel.setAutoFillBackground(True)
 
         # Search / filter row
         search_row = QHBoxLayout()
@@ -893,6 +894,7 @@ class DATBrowserWidget(QWidget): #vers 2
         tree_hdr.addWidget(self._show_col_in_img_btn)
 
         ll.addLayout(tree_hdr)
+        ll.addWidget(self._db_panel)   # DB panel — hidden until ⬡ DB clicked
 
         self._tree = QTreeWidget()
         self._tree.setHeaderLabels(["File", "Type", "Entries", "Status"])
@@ -1008,6 +1010,13 @@ class DATBrowserWidget(QWidget): #vers 2
             self._settings_btn.setIcon(self._settings_btn._dat_icon)
         except Exception:
             pass
+
+        # Asset DB button
+        try:
+            from apps.methods.imgfactory_svg_icons import get_asset_db_icon
+            self._db_btn.setIcon(get_asset_db_icon(sz, ic))
+        except Exception:
+            self._db_btn.setText("DB")
 
         # Apply current compact state
         self._update_toolbar_compact(self.width())
@@ -2717,13 +2726,16 @@ class DATBrowserWidget(QWidget): #vers 2
 
         return panel
 
-    def _toggle_db_panel(self): #vers 1
+    def _toggle_db_panel(self): #vers 2
         visible = self._db_panel.isVisible()
         self._db_panel.setVisible(not visible)
         self._db_btn.setChecked(not visible)
         if not visible:
             self._db_refresh_profile_list()
             self._db_load_stats()
+        # Force full repaint so no ghost pixels from the panel remain
+        self.update()
+        self.repaint()
 
     def _db_refresh_profile_list(self): #vers 1
         """Reload profile dropdown from saved DBs + builtins."""
