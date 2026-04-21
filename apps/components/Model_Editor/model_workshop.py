@@ -4546,6 +4546,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             pass
 
 
+    def showEvent(self, event): #vers 1
+        """On first show, restore toolbar layouts after Qt has laid out everything."""
+        super().showEvent(event)
+        if not getattr(self, '_toolbar_layout_loaded', False):
+            self._toolbar_layout_loaded = True
+            from PyQt6.QtCore import QTimer as _QT2
+            _QT2.singleShot(500, self._load_mod_toolbar_layouts)
+
     def resizeEvent(self, event): #vers 3
         """Keep resize grip in corner; auto-collapse text transform panel when narrow."""
         super().resizeEvent(event)
@@ -5018,33 +5026,116 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     # ── DFF mode toolbar ────────────────────────────────────────────────────
 
-    def _enable_dff_toolbar(self, dff_mode: bool): #vers 1
+    def _apply_prelighting(self): #vers 1
+        """Apply vertex prelighting to DFF model — stub, full impl in next session."""
+        from PyQt6.QtWidgets import QMessageBox
+        model = getattr(self, '_current_dff_model', None)
+        if not model:
+            QMessageBox.information(self, "No DFF", "Load a DFF model first.")
+            return
+        # TODO: bake ambient + directional light into vertex colour channel
+        # Requires: light_dir, ambient_colour, diffuse_colour from setup dialog
+        QMessageBox.information(self, "Prelighting",
+            "Prelighting engine coming next session.\n"
+            "Will bake ambient + directional lights into vertex colours\n"
+            "for GTA3/VC/SOL compatibility.")
+
+    def _prelight_setup_dialog(self): #vers 1
+        """Light source setup for prelighting — stub."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout,
+            QDoubleSpinBox, QLabel, QHBoxLayout, QPushButton,
+            QDialogButtonBox, QColorDialog)
+        from PyQt6.QtGui import QColor
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Prelighting Setup")
+        dlg.setMinimumWidth(320)
+        lay = QVBoxLayout(dlg)
+        form = QFormLayout()
+        lay.addWidget(QLabel(
+            "Configure light sources for vertex prelighting.\n"
+            "These will be baked into the DFF vertex colour channel."))
+        lay.addLayout(form)
+
+        # Ambient
+        amb_r = QDoubleSpinBox(); amb_r.setRange(0,1); amb_r.setValue(0.3); amb_r.setSingleStep(0.05)
+        amb_g = QDoubleSpinBox(); amb_g.setRange(0,1); amb_g.setValue(0.3); amb_g.setSingleStep(0.05)
+        amb_b = QDoubleSpinBox(); amb_b.setRange(0,1); amb_b.setValue(0.3); amb_b.setSingleStep(0.05)
+        amb_row = QHBoxLayout()
+        for lbl, sp in [("R:", amb_r),("G:", amb_g),("B:", amb_b)]:
+            amb_row.addWidget(QLabel(lbl)); amb_row.addWidget(sp)
+        form.addRow("Ambient colour:", amb_row)
+
+        # Sun direction
+        sx = QDoubleSpinBox(); sx.setRange(-1,1); sx.setValue(0.5); sx.setSingleStep(0.1)
+        sy = QDoubleSpinBox(); sy.setRange(-1,1); sy.setValue(-0.8); sy.setSingleStep(0.1)
+        sz = QDoubleSpinBox(); sz.setRange(-1,1); sz.setValue(0.3); sz.setSingleStep(0.1)
+        sun_row = QHBoxLayout()
+        for lbl, sp in [("X:", sx),("Y:", sy),("Z:", sz)]:
+            sun_row.addWidget(QLabel(lbl)); sun_row.addWidget(sp)
+        form.addRow("Sun direction:", sun_row)
+
+        # Sun intensity
+        si = QDoubleSpinBox(); si.setRange(0,2); si.setValue(1.0); si.setSingleStep(0.1)
+        form.addRow("Sun intensity:", si)
+
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                              QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        lay.addWidget(bb)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            # Store settings for use by _apply_prelighting
+            self._prelight_ambient = (amb_r.value(), amb_g.value(), amb_b.value())
+            self._prelight_sun_dir = (sx.value(), sy.value(), sz.value())
+            self._prelight_sun_int = si.value()
+            self._set_status(
+                f"Prelight: ambient=({amb_r.value():.2f},{amb_g.value():.2f},{amb_b.value():.2f}) "
+                f"sun=({sx.value():.1f},{sy.value():.1f},{sz.value():.1f}) "
+                f"intensity={si.value():.1f}")
+            mw = self.main_window
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message("Prelight setup saved — click Apply to bake")
+
+    def _enable_dff_toolbar(self, dff_mode: bool): #vers 2
         """Switch left toolbar between DFF mode and COL mode.
-        DFF mode: enables paint, material, render-select buttons.
+        DFF mode: enables paint, material, render-select, prelighting.
         COL mode: enables COL-specific buttons, disables DFF ones."""
-        # Buttons only relevant for COL
+        # Buttons only relevant for COL — hide entirely in DFF mode
         col_only = [
             'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
             'analyze_btn', 'copy_btn', 'paste_btn', 'delete_surface_btn',
             'duplicate_surface_btn', 'create_surface_btn',
         ]
-        # Buttons relevant for DFF
-        dff_btns = [
-            'paint_btn', 'surface_type_btn', 'surface_edit_btn',
-        ]
+        # Buttons shared but context-switches
+        dff_btns = ['paint_btn', 'surface_type_btn', 'surface_edit_btn']
+
         for attr in col_only:
             b = getattr(self, attr, None)
-            if b: b.setEnabled(not dff_mode)
+            if b:
+                b.setEnabled(not dff_mode)
+                b.setVisible(not dff_mode)
+
         for attr in dff_btns:
             b = getattr(self, attr, None)
             if b: b.setEnabled(dff_mode)
 
-        # Enable/disable DFF-only toolbar buttons
+        # DFF-only toolbar buttons (V/E/F/P select, backface, front-paint, primitive)
         for btn in getattr(self, '_dff_only_toolbar_btns', []):
             btn.setEnabled(dff_mode)
-            btn.setVisible(dff_mode)   # hide from grid when not relevant
+            btn.setVisible(dff_mode)
 
-        # Update tooltips to clarify DFF context
+        # Prelighting row — shown in DFF mode
+        for attr in ('prelight_apply_btn', 'prelight_setup_btn'):
+            b = getattr(self, attr, None)
+            if b:
+                b.setEnabled(dff_mode)
+
+        # Bottom info_format label
+        lbl = getattr(self, 'info_format', None)
+        if lbl:
+            lbl.setText("Prelight: " if dff_mode else "Format: ")
+
+        # Update tooltips for DFF context
         if dff_mode:
             if hasattr(self, 'paint_btn'):
                 self.paint_btn.setToolTip(
@@ -6109,7 +6200,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         right_toolbar._extra_panels = [self.preview_widget]
 
         from PyQt6.QtCore import QTimer as _QT
-        _QT.singleShot(100, self._load_mod_toolbar_layouts)
+        # 400ms: wait for parent widget to be fully laid out before restoring
+        _QT.singleShot(400, self._load_mod_toolbar_layouts)
 
         # Information group below
         info_group = QGroupBox("")
@@ -6229,24 +6321,47 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         shd_lay = QHBoxLayout()
         shd_lay.setSpacing(5)
-        self.info_format = QLabel("Shadow Mesh: ")
+        self.info_format = QLabel("Prelight: ")
         self.info_format.setFont(self.panel_font)
-        self.info_format.setMinimumWidth(100)
+        self.info_format.setMinimumWidth(80)
         shd_lay.addWidget(self.info_format)
-        for attr, label, icon_fn, tip, slot in [
-            ('show_shadow_btn',   'View',   'view_icon',   'View Shadow Mesh',   '_open_mipmap_manager'),
-            ('create_shadow_btn', 'Create', 'add_icon',    'Create Shadow Mesh', 'shadow_dialog'),
-            ('remove_shadow_btn', 'Remove', 'delete_icon', 'Remove Shadow Mesh', '_remove_shadow'),
-        ]:
-            b = QPushButton(label)
-            b.setFont(self.button_font)
-            b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
-            b.setIconSize(QSize(20, 20))
-            b.setToolTip(tip)
-            b.clicked.connect(getattr(self, slot))
-            b.setEnabled(False)
-            setattr(self, attr, b)
-            shd_lay.addWidget(b)
+        # Prelighting buttons (DFF mode — replaces shadow mesh for model editing)
+        self.prelight_apply_btn = QPushButton("Apply")
+        self.prelight_apply_btn.setFont(self.button_font)
+        try:
+            self.prelight_apply_btn.setIcon(
+                self.icon_factory.color_picker_icon(color=icon_color))
+            self.prelight_apply_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            pass
+        self.prelight_apply_btn.setFixedHeight(24)
+        self.prelight_apply_btn.setToolTip(
+            "Apply vertex prelighting to DFF model\n"
+            "(ambient + directional light baked into vertex colours)")
+        self.prelight_apply_btn.setEnabled(False)
+        self.prelight_apply_btn.clicked.connect(self._apply_prelighting)
+        shd_lay.addWidget(self.prelight_apply_btn)
+
+        self.prelight_setup_btn = QPushButton("Setup…")
+        self.prelight_setup_btn.setFont(self.button_font)
+        try:
+            self.prelight_setup_btn.setIcon(
+                self.icon_factory.settings_icon(color=icon_color))
+            self.prelight_setup_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            pass
+        self.prelight_setup_btn.setFixedHeight(24)
+        self.prelight_setup_btn.setToolTip(
+            "Configure light sources for prelighting\n"
+            "Set ambient colour, directional lights and intensity")
+        self.prelight_setup_btn.clicked.connect(self._prelight_setup_dialog)
+        shd_lay.addWidget(self.prelight_setup_btn)
+
+        # Keep shadow refs for COL mode (hidden in DFF mode)
+        self.show_shadow_btn   = None
+        self.create_shadow_btn = None
+        self.remove_shadow_btn = None
+        shd_lay.addStretch()
         tr_lay.addLayout(shd_lay)
         info_layout.addWidget(self._bottom_text_row)
 
@@ -6268,9 +6383,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             ('uncompress_icon', 'Uncompress',         '_uncompress_surface'),
             ('import_icon',     'Import',             '_import_selected'),
             ('export_icon',     'Export',             'export_selected'),
-            ('view_icon',       'View Shadow',        '_open_mipmap_manager'),
-            ('add_icon',        'Create Shadow',      'shadow_dialog'),
-            ('delete_icon',     'Remove Shadow',      '_remove_shadow'),
+            ('color_picker_icon', 'Apply Prelighting',   '_apply_prelighting'),
+            ('settings_icon',     'Prelight Setup',      '_prelight_setup_dialog'),
         ]:
             b = QPushButton()
             b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))

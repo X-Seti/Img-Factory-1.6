@@ -217,7 +217,68 @@ class WelcomeScreen(QWidget):
             "QLabel { background: palette(alternateBase); border: 1px solid palette(mid); "
             "border-radius: 5px; padding: 8px 12px; color: palette(windowText); }")
         cl.addWidget(tip)
+
+        # ── Show on startup toggle ───────────────────────────────────────
+        from PyQt6.QtWidgets import QCheckBox
+        import json as _json
+        bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(0, 8, 0, 0)
+
+        self._show_startup_cb = QCheckBox("Show this screen on startup")
+        self._show_startup_cb.setFont(QFont("Arial", 9))
+        # Load saved preference
+        _pref_path = os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+        _show = True
+        try:
+            _show = _json.load(open(_pref_path)).get('show_on_startup', True)
+        except Exception:
+            pass
+        self._show_startup_cb.setChecked(_show)
+        self._show_startup_cb.toggled.connect(self._save_startup_pref)
+        bottom_row.addWidget(self._show_startup_cb)
+        bottom_row.addStretch()
+
+        dismiss_btn = QPushButton("Dismiss")
+        dismiss_btn.setFont(QFont("Arial", 9))
+        dismiss_btn.setFixedHeight(24)
+        dismiss_btn.setToolTip("Hide this screen (re-open via [Intro] in taskbar)")
+        dismiss_btn.clicked.connect(self._dismiss)
+        bottom_row.addWidget(dismiss_btn)
+        cl.addLayout(bottom_row)
         cl.addStretch()
+
+    def _save_startup_pref(self, show: bool): #vers 1
+        import json as _json
+        p = os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        try:
+            data = {}
+            try: data = _json.load(open(p))
+            except Exception: pass
+            data['show_on_startup'] = show
+            _json.dump(data, open(p,'w'), indent=2)
+        except Exception:
+            pass
+
+    def _dismiss(self): #vers 1
+        """Hide the welcome screen — parent tab will show the file table."""
+        self.setVisible(False)
+        # Show the file table if it's in the same parent layout
+        parent = self.parent()
+        if parent:
+            for child in parent.findChildren(QWidget):
+                if hasattr(child, '_is_file_table') or hasattr(child, 'setRowCount'):
+                    child.setVisible(True)
+
+    @staticmethod
+    def should_show_on_startup() -> bool: #vers 1
+        """Return True if the welcome screen should appear on startup."""
+        import json as _json
+        p = os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+        try:
+            return _json.load(open(p)).get('show_on_startup', True)
+        except Exception:
+            return True
 
     def _section(self, text: str) -> QLabel:
         lbl = QLabel(text)

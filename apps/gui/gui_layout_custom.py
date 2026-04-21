@@ -290,6 +290,8 @@ class ToolTaskbar(QWidget):  # vers 2
                         w = tw.widget(i)
                         if w is t or (w and t in w.findChildren(QWidget)):
                             tw.setCurrentIndex(i)
+                            # Force splitter open if content panel is collapsed
+                            self._ensure_content_visible(mw)
                             self._set_exclusive_active(key)
                             return
                     except RuntimeError:
@@ -303,6 +305,29 @@ class ToolTaskbar(QWidget):  # vers 2
                 self._set_exclusive_active(key)
             except RuntimeError:
                 self.unregister(key)
+
+    def _ensure_content_visible(self, mw) -> None: #vers 1
+        """Ensure the main content splitter is expanded so the tab is visible.
+        If content_splitter has the right panel collapsed, restore it."""
+        try:
+            splitter = getattr(mw, 'content_splitter', None)
+            if splitter is None:
+                return
+            sizes = splitter.sizes()
+            if not sizes:
+                return
+            # If the right/content panel (index 1) is collapsed, restore it
+            if len(sizes) >= 2 and sizes[-1] < 50:
+                total = sum(sizes)
+                # Restore to ~70% content, 30% file list
+                splitter.setSizes([int(total * 0.3), int(total * 0.7)])
+            # Also ensure main window is visible and on top
+            if not mw.isVisible():
+                mw.show()
+            mw.raise_()
+            mw.activateWindow()
+        except Exception:
+            pass
 
     def _open_tool(self, key: str) -> None:
         """Open or focus a tool panel."""

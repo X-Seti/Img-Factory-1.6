@@ -3297,6 +3297,37 @@ class IMGFactory(QMainWindow):
                 if hasattr(self, 'gui_layout') else None)
             tab_widget._welcome_screen = ws
             tab_layout.addWidget(ws)
+
+            # Honour show_on_startup preference
+            try:
+                from apps.components.Img_Factory.welcome_screen import WelcomeScreen as _WS
+                if not _WS.should_show_on_startup():
+                    ws.setVisible(False)
+            except Exception:
+                pass
+
+            # Register [Intro] taskbar button to re-open welcome screen
+            from PyQt6.QtCore import QTimer as _QTi
+            def _register_intro():
+                try:
+                    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                    _icon_fn = SVGIconFactory.info_icon
+                except Exception:
+                    _icon_fn = None
+                def _show_intro():
+                    ws.setVisible(True)
+                    # Switch back to first tab
+                    tw = getattr(self, 'main_tab_widget', None)
+                    if tw:
+                        for i in range(tw.count()):
+                            w = tw.widget(i)
+                            if w and hasattr(w, '_welcome_screen'):
+                                tw.setCurrentIndex(i); break
+                if hasattr(self, 'register_tool') and _icon_fn:
+                    self.register_tool('intro', 'Intro', _icon_fn,
+                                       _show_intro, 'Show welcome / intro screen')
+            _QTi.singleShot(800, _register_intro)
+
         except Exception as e:
             self.log_message(f"Welcome screen error: {e}")
             import traceback; traceback.print_exc()
