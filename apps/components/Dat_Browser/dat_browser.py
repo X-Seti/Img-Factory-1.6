@@ -1621,7 +1621,22 @@ class DATBrowserWidget(QWidget): #vers 2
             except Exception:
                 count_str = "—"
         elif entry_type == "COLFILE":
-            count_str = ""
+            # Show model count from DB if available, else blank
+            _db = getattr(self, '_asset_db', None)
+            if _db is None:
+                mw2 = self.main_window
+                _db = getattr(mw2, 'asset_db', None) if mw2 else None
+            if _db and success:
+                try:
+                    _bname = os.path.basename(path)
+                    _n = _db._con.execute(
+                        "SELECT COUNT(*) FROM col_entries WHERE entry_name=?",
+                        (_bname,)).fetchone()[0]
+                    count_str = str(_n) if _n else ""
+                except Exception:
+                    count_str = ""
+            else:
+                count_str = ""
 
         label = ("IMG" if entry_type == "IMG"
                  else "CDIMAGE" if entry_type == "CDIMAGE"
@@ -1637,11 +1652,21 @@ class DATBrowserWidget(QWidget): #vers 2
                 mw = self.main_window
                 db = getattr(mw, 'asset_db', None) if mw else None
             if db and db.stats().get('source_files', 0) > 0:
-                # Check if this specific path is tracked
+                # Check if path is tracked as a source file
                 row = db._con.execute(
                     "SELECT id FROM source_files WHERE path=?",
                     (path,)).fetchone()
-                status = "● in DB" if row else "✓"
+                if row:
+                    status = "● in DB"
+                elif entry_type == "COLFILE":
+                    # COL may be indexed via IMG even if not a source_file itself
+                    bname2 = os.path.basename(path)
+                    row2 = db._con.execute(
+                        "SELECT COUNT(*) FROM col_entries WHERE entry_name=?",
+                        (bname2,)).fetchone()
+                    status = "● in DB" if row2 and row2[0] > 0 else "✓"
+                else:
+                    status = "✓"
             else:
                 status = "✓"
 
@@ -3058,12 +3083,26 @@ class DATBrowserWidget(QWidget): #vers 2
                 total_added += n
 
             self._db_progress.setValue(len(all_files))
+            self._db_progress.setFormat("Indexing standalone COL files…")
+            QApplication.processEvents()
+
+            # Also index standalone .col files from the current load_log
+            # (COLFILE entries are on disk, not inside an IMG)
+            col_added = 0
+            if self.loader and self.loader.load_log:
+                for _phase, etype, fpath, ok in self.loader.load_log:
+                    if etype == "COLFILE" and ok and os.path.isfile(fpath):
+                        col_added += db.index_col(fpath)
+            if col_added:
+                total_added += col_added
+
             self._db_progress.setFormat("Complete")
 
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message(
                     f"Asset DB '{db.profile}': indexed {total_added:,} entries "
-                    f"from {len(all_files)} files")
+                    f"from {len(all_files)} files"
+                    + (f" + {col_added} COL models from standalone .col" if col_added else ""))
 
             # Also expose on main_window
             if mw:
@@ -3077,6 +3116,8 @@ class DATBrowserWidget(QWidget): #vers 2
             self._db_build_btn.setEnabled(True)
             self._db_load_stats()
             self._populate_col_db_tab()
+            # Refresh tree status column now DB has COL entries
+            self._db_refresh_tree_status()
 
     def _db_update(self): #vers 1
         """Re-index only changed files."""
