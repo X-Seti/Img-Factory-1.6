@@ -2795,6 +2795,8 @@ class DATBrowserWidget(QWidget): #vers 2
 
     def _db_refresh_tree_status(self): #vers 1
         """Walk tree items and update status column to show ● in DB / ✓."""
+        if not hasattr(self, '_tree'):
+            return   # called before tree is constructed
         db = getattr(self, '_asset_db', None)
         if not db:
             return
