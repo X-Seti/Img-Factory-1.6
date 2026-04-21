@@ -8113,6 +8113,23 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # ── IDE / TXD linking ───────────────────────────────────────────────────
 
+    def _find_col_via_db(self, model_name: str) -> bool: #vers 1
+        """Look up COL for model_name in asset_db and open in COL Workshop."""
+        mw = getattr(self,'main_window',None)
+        db = getattr(mw,'asset_db',None)
+        if db is None:
+            return False
+        row = db.find_col_model(model_name)
+        if not row:
+            return False
+        # Open in COL Workshop via main_window
+        if mw and hasattr(mw,'open_col_workshop_docked'):
+            mw.open_col_workshop_docked(
+                col_name=row['entry_name'],
+                file_path=row['source_path'])
+            return True
+        return False
+
     def _get_ide_db(self): #vers 2
         """Return IDEDatabase — prefers the one built by DAT Browser on load
         (stored on main_window.ide_db), falls back to filesystem scan."""

@@ -926,6 +926,55 @@ class IDEEditor(QDialog): #vers 1
                     f"{best_start}-{best_start+best_len-1}  "
                     f"({best_len} free)")
 
+        # ── Cross-reference against AssetDB if available ────────────────
+        try:
+            from PyQt6.QtWidgets import QApplication as _QApp
+            mw = None
+            for w in _QApp.topLevelWidgets():
+                if hasattr(w, 'asset_db') and w.asset_db:
+                    mw = w; break
+            db = getattr(mw, 'asset_db', None) if mw else None
+            if db and db.stats().get('img_entries', 0) > 0:
+                lines.append("── Asset DB cross-reference ─────────────────────")
+                # IMG stems (DFF files in IMGs)
+                rows = db._con.execute(
+                    "SELECT lower(replace(entry_name,'.dff','')) AS stem "
+                    "FROM img_entries WHERE lower(ext)='dff'").fetchall()
+                img_stems = {r['stem'] for r in rows}
+                txd_rows = db._con.execute(
+                    "SELECT lower(replace(entry_name,'.txd','')) AS stem "
+                    "FROM img_entries WHERE lower(ext)='txd'").fetchall()
+                txd_stems = {r['stem'] for r in txd_rows}
+
+                missing_dff, missing_txd = [], []
+                for e in self.ide_data:
+                    mn = e.get('model','').lower()
+                    tn = e.get('txd','').lower()
+                    if mn and mn not in img_stems:
+                        missing_dff.append(mn)
+                    if tn and tn not in ('null','') and tn not in txd_stems:
+                        missing_txd.append(tn)
+
+                if missing_dff:
+                    lines.append(
+                        f"  ⚠  {len(missing_dff)} model(s) with no DFF in any indexed IMG:")
+                    for n in sorted(set(missing_dff))[:15]:
+                        lines.append(f"       {n}")
+                    if len(missing_dff) > 15:
+                        lines.append(f"       … {len(missing_dff)-15} more")
+                if missing_txd:
+                    lines.append(
+                        f"  ⚠  {len(missing_txd)} TXD name(s) not found in any indexed IMG:")
+                    for n in sorted(set(missing_txd))[:15]:
+                        lines.append(f"       {n}")
+                    if len(missing_txd) > 15:
+                        lines.append(f"       … {len(missing_txd)-15} more")
+                if not missing_dff and not missing_txd:
+                    lines.append("  ✓  All models and TXDs found in indexed IMGs.")
+                lines.append("")
+        except Exception:
+            pass
+
         self._analysis_log.setPlainText("\n".join(lines))
         self.log_message(
             f"ID analysis complete — {len(dup_ids)} dup IDs, "

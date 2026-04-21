@@ -1840,6 +1840,11 @@ class IPLMapPanel(QFrame):  # vers 1
             "Open Water Workshop and load a water.dat or waterpro.dat first,\n"
             "then click Load Water to overlay it on the map.")
 
+    def _get_asset_db(self): #vers 1
+        """Return asset_db from main_window if available."""
+        mw = getattr(self,'main_window',None)
+        return getattr(mw,'asset_db',None) if mw else None
+
     def _load_radar(self): #vers 1
         """Load radar composite from open Radar Workshop tab, or browse for image."""
         # First try to find an open RadarWorkshop tab

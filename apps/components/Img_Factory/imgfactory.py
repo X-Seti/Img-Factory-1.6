@@ -406,7 +406,9 @@ class IMGFactory(QMainWindow):
         super().__init__()
 
         # === PHASE 1: CORE SETUP (Fast) ===
-        self.settings = settings
+        self.settings  = settings
+        self.ide_db    = None   # set by DAT Browser on world load
+        self.asset_db  = None   # set by DAT Browser after DB build
         self.app_settings = settings if hasattr(settings, 'themes') else AppSettings()
 
         # Set SVG icon color from theme before any UI is built
