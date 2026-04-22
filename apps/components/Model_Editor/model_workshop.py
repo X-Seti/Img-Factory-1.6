@@ -954,37 +954,48 @@ class COL3DViewport(QWidget): #vers 2
                     if tex_img and _uv_layer and all(i < len(_uv_layer) for i in idx):
                         uvs = [_uv_layer[i] for i in idx]
                         try:
-                            from PyQt6.QtGui import QTransform
+                            from PyQt6.QtGui import QTransform, QRegion
                             tw, th = tex_img.width(), tex_img.height()
-                            # UV coords in texture space (pixels)
+                            # Source UV positions in texture pixels
                             sx0,sy0 = uvs[0].u*tw, uvs[0].v*th
                             sx1,sy1 = uvs[1].u*tw, uvs[1].v*th
                             sx2,sy2 = uvs[2].u*tw, uvs[2].v*th
+                            # Destination screen positions
                             dx0,dy0 = pts[0].x(), pts[0].y()
                             dx1,dy1 = pts[1].x(), pts[1].y()
                             dx2,dy2 = pts[2].x(), pts[2].y()
-                            # Affine: texture-space → screen-space
-                            det = (sx1-sx0)*(sy2-sy0)-(sx2-sx0)*(sy1-sy0)
-                            if abs(det) > 0.01:
-                                a11=((dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
-                                a12=((dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
-                                a21=((dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
-                                a22=((dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
-                                tx = dx0 - a11*sx0 - a12*sy0
-                                ty = dy0 - a21*sx0 - a22*sy0
-                                # combine=False: absolute screen transform
-                                xf = QTransform(a11, a21, a12, a22, tx, ty)
-                                from PyQt6.QtGui import QRegion
+                            # Solve affine: screen = M * tex_pos + t
+                            # [ dx1-dx0 ]   [ sx1-sx0  sx2-sx0 ] [ a ]
+                            # [ dx2-dx0 ] = [ sy1-sy0  sy2-sy0 ] [ b ]
+                            det = (sx1-sx0)*(sy2-sy0) - (sx2-sx0)*(sy1-sy0)
+                            if abs(det) > 0.1:
+                                # Screen ← texture affine coefficients
+                                m00 = ((dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
+                                m01 = ((dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
+                                m10 = ((dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
+                                m11 = ((dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
+                                t0  = dx0 - m00*sx0 - m01*sy0
+                                t1  = dy0 - m10*sx0 - m11*sy0
+                                # QTransform(m11,m12,m21,m22,dx,dy) — Qt row-major
+                                xf = QTransform(m00, m10, m01, m11, t0, t1)
                                 p.save()
-                                # Clip to triangle polygon in SCREEN space
-                                clip_poly = QPolygonF(pts).toPolygon()
-                                p.setClipRegion(QRegion(clip_poly))
-                                # Switch to absolute transform (not combined with viewport)
-                                p.setWorldTransform(xf)
+                                # Clip to triangle in screen space (device coords)
+                                p.setClipRegion(QRegion(QPolygonF(pts).toPolygon()),
+                                    Qt.ClipOperation.ReplaceClip)
+                                # Apply affine tex→screen WITHOUT resetting device transform
+                                p.setTransform(xf)
                                 p.drawImage(0, 0, tex_img)
                                 p.restore()
+                                # Shading overlay on top (shadow only, not over-bright)
+                                shadow_alpha = int((1.0 - _shade) * 140)
+                                if shadow_alpha > 8:
+                                    p.save()
+                                    p.setBrush(QBrush(QColor(0,0,0,shadow_alpha)))
+                                    p.setPen(Qt.PenStyle.NoPen)
+                                    p.drawPolygon(QPolygonF(pts))
+                                    p.restore()
                             else:
-                                raise ValueError("degenerate UV")
+                                raise ValueError("degenerate UV det")
                         except Exception:
                             # Fallback: shaded solid face
                             _s2 = _shade
@@ -994,7 +1005,7 @@ class COL3DViewport(QWidget): #vers 2
                             p.setBrush(QBrush(fb)); p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
                     else:
-                        # No texture — solid shaded fallback
+                        # No texture — shaded solid fallback
                         _sc = mc if mat_obj else QColor(170,175,180)
                         _s3 = _shade
                         shaded_fb = QColor(
@@ -2385,9 +2396,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # Select first slot
         if all_mats:
-            _select_fn = list(_slot_btns[0][0].mousePressEvent.__closure__[0].cell_contents
-                              if hasattr(_slot_btns[0][0].mousePressEvent,'__closure__') else [None])
-            # Just call _on_slot_selected directly
             _slot_btns[0][0].setStyleSheet(
                 "QFrame{border:2px solid #f90;border-radius:3px;background:palette(alternateBase);}")
             _on_slot_selected(0)
@@ -8714,8 +8722,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
     # This modifies the material colour before drawing solid/semi faces.
     # For textured faces a semi-transparent shading overlay is applied.
 
-    def _compute_face_shade(self, v0, v1, v2, ambient=0.35,
-                            light=(0.6, 0.8, 0.4)): #vers 1
+    def _compute_face_shade(self, v0, v1, v2, ambient=0.30,
+                            light=(0.5, 0.5, 0.8)): #vers 2
+        # light=(0.5, 0.5, 0.8) = upper-front-right, suits GTA camera angles
         """Return a shade factor [0..1] for a triangle via Lambertian diffuse.
         v0/v1/v2 are (x,y,z) tuples in view space.
         light = normalised direction toward light source."""
