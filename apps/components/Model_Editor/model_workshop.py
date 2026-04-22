@@ -977,52 +977,49 @@ class COL3DViewport(QWidget): #vers 2
                         try:
                             from PyQt6.QtGui import QTransform, QRegion
                             tw, th = tex_img.width(), tex_img.height()
-                            # Source UV positions in texture pixels
                             sx0,sy0 = uvs[0].u*tw, uvs[0].v*th
                             sx1,sy1 = uvs[1].u*tw, uvs[1].v*th
                             sx2,sy2 = uvs[2].u*tw, uvs[2].v*th
-                            # Destination screen positions
                             dx0,dy0 = pts[0].x(), pts[0].y()
                             dx1,dy1 = pts[1].x(), pts[1].y()
                             dx2,dy2 = pts[2].x(), pts[2].y()
-                            # Solve affine: screen = M * tex_pos + t
-                            # [ dx1-dx0 ]   [ sx1-sx0  sx2-sx0 ] [ a ]
-                            # [ dx2-dx0 ] = [ sy1-sy0  sy2-sy0 ] [ b ]
+                            # Affine: texture-pixels → screen-pixels
                             det = (sx1-sx0)*(sy2-sy0) - (sx2-sx0)*(sy1-sy0)
                             if abs(det) > 0.1:
-                                # Screen ← texture affine coefficients
-                                m00 = ((dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
-                                m01 = ((dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
-                                m10 = ((dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
-                                m11 = ((dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
-                                t0  = dx0 - m00*sx0 - m01*sy0
-                                t1  = dy0 - m10*sx0 - m11*sy0
-                                # QTransform(m11,m12,m21,m22,dx,dy) — Qt row-major
-                                xf = QTransform(m00, m10, m01, m11, t0, t1)
-                                p.save()
-                                # Clip to triangle in screen space (device coords)
-                                p.setClipRegion(QRegion(QPolygonF(pts).toPolygon()),
-                                    Qt.ClipOperation.ReplaceClip)
-                                # Apply affine tex→screen WITHOUT resetting device transform
-                                p.setTransform(xf)
-                                p.drawImage(0, 0, tex_img)
-                                p.restore()
-                                # Shading overlay on top (shadow only, not over-bright)
-                                shadow_alpha = int((1.0 - _shade) * 140)
-                                if shadow_alpha > 8:
+                                m00=((dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
+                                m01=((dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
+                                m10=((dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
+                                m11=((dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
+                                t0 = dx0 - m00*sx0 - m01*sy0
+                                t1 = dy0 - m10*sx0 - m11*sy0
+                                xf = QTransform(m00,m10,m01,m11,t0,t1)
+                                # Invert to get screen→texture mapping for clip polygon
+                                xf_inv, invertible = xf.inverted()
+                                if invertible:
                                     p.save()
-                                    p.setBrush(QBrush(QColor(0,0,0,shadow_alpha)))
-                                    p.setPen(Qt.PenStyle.NoPen)
-                                    p.drawPolygon(QPolygonF(pts))
+                                    p.setTransform(xf)
+                                    # Clip polygon in TEXTURE space (after transform set)
+                                    tex_poly = xf_inv.map(QPolygonF(pts))
+                                    p.setClipRegion(
+                                        QRegion(tex_poly.toPolygon()),
+                                        Qt.ClipOperation.ReplaceClip)
+                                    p.drawImage(0, 0, tex_img)
                                     p.restore()
+                                    # Shading overlay in screen space
+                                    shadow_alpha = int((1.0 - _shade) * 140)
+                                    if shadow_alpha > 8:
+                                        p.save()
+                                        p.setBrush(QBrush(QColor(0,0,0,shadow_alpha)))
+                                        p.setPen(Qt.PenStyle.NoPen)
+                                        p.drawPolygon(QPolygonF(pts))
+                                        p.restore()
+                                else:
+                                    raise ValueError("not invertible")
                             else:
-                                raise ValueError("degenerate UV det")
+                                raise ValueError("degenerate UV")
                         except Exception:
-                            # Fallback: shaded solid face
                             _s2 = _shade
-                            fb = QColor(int(mc.red()*_s2),
-                                        int(mc.green()*_s2),
-                                        int(mc.blue()*_s2))
+                            fb = QColor(int(mc.red()*_s2),int(mc.green()*_s2),int(mc.blue()*_s2))
                             p.setBrush(QBrush(fb)); p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
                     else:
@@ -2058,20 +2055,66 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         left_lay.setContentsMargins(0,0,0,0)
         left_lay.setSpacing(4)
 
+        # Grid density header: cols selector + shape label
+        grid_hdr = QHBoxLayout()
+        grid_hdr.setSpacing(4)
+        density_lbl = QLabel("Grid:")
+        density_lbl.setFont(self.panel_font)
+        grid_hdr.addWidget(density_lbl)
+        _n_cols = [3]   # mutable: 3..6 columns
+        for nc in (3, 4, 5, 6):
+            b = QPushButton(str(nc))
+            b.setFixedSize(24, 20)
+            b.setFont(self.panel_font)
+            b.setCheckable(True)
+            b.setChecked(nc == _n_cols[0])
+            def _set_cols(checked, n=nc, btn=b):
+                if not checked: return
+                _n_cols[0] = n
+                _rebuild_grid()
+            b.toggled.connect(_set_cols)
+            grid_hdr.addWidget(b)
+            grid_hdr.addSpacing(1)
+        grid_hdr.addStretch()
+        left_lay.addLayout(grid_hdr)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        grid_widget = QWidget()
-        grid_lay    = QGridLayout(grid_widget)
-        grid_lay.setSpacing(4)
-        grid_lay.setContentsMargins(4,4,4,4)
-        scroll.setWidget(grid_widget)
+        grid_container = [None]   # mutable for rebuild
         left_lay.addWidget(scroll, 1)
 
-        SLOT_W, SLOT_H = 100, 116
-        N_COLS = 3
         _selected_row = [0]
         _slot_btns    = []
+
+        def _get_slot_size(n_cols):
+            # Slot size scales with column count: 3→88, 4→72, 5→62, 6→54
+            sizes = {3: (88,104), 4: (72,86), 5: (62,76), 6: (54,66)}
+            return sizes.get(n_cols, (72,86))
+
+        def _rebuild_grid():
+            nc = _n_cols[0]
+            sw, sh = _get_slot_size(nc)
+            old_w = grid_container[0]
+            new_w = QWidget()
+            gl    = QGridLayout(new_w)
+            gl.setSpacing(3)
+            gl.setContentsMargins(3,3,3,3)
+            scroll.setWidget(new_w)
+            grid_container[0] = new_w
+            for i,(gi,mi,mat,geom) in enumerate(all_mats):
+                slot, pix_lbl = _slot_btns[i]
+                slot.setFixedSize(sw, sh)
+                pix_w = sw - 8
+                pix_lbl.setFixedSize(pix_w, pix_w)
+                pix_lbl.setPixmap(_make_slot_pix(mat, geom, pix_w))
+                if slot.parent(): slot.setParent(new_w)
+                gl.addWidget(slot, i//nc, i%nc)
+            gl.setColumnStretch(nc, 1)
+            if old_w: old_w.deleteLater()
+
+        SLOT_W, SLOT_H = 88, 104   # initial
+        N_COLS = 3
 
         # Shared slot preview shape ('sphere'/'cube'/'flat') — persists during dialog
         _slot_shape = ['sphere']
@@ -2222,7 +2265,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             slot_lay.addWidget(name_lbl)
 
             slot._idx = idx
-            _slot_btns.append((slot, pix_lbl))
 
             def _select(ev=None, i=idx, s=slot):
                 _selected_row[0] = i
@@ -2241,26 +2283,29 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     _slot_context_menu(i, ev.globalPosition().toPoint())
             slot.mousePressEvent = _slot_mouse
             slot.setStyleSheet("QFrame{border:1px solid palette(mid);border-radius:3px;background:transparent;}")
-            grid_lay.addWidget(slot, idx//N_COLS, idx%N_COLS)
+            _slot_btns.append((slot, pix_lbl))
 
-        grid_lay.setColumnStretch(N_COLS, 1)
+        # Build grid initially
+        _rebuild_grid()
 
         # TXD action buttons below grid
-        txd_row = QHBoxLayout()
-        def _qb26(label, tip, slot_fn, icon_fn=None):
-            b = QPushButton(label); b.setFixedHeight(26); b.setFont(self.button_font)
+        txd_row = QHBoxLayout(); txd_row.setSpacing(3)
+        def _qb_txd(label, tip, slot_fn, icon_fn=None):
+            b = QPushButton(); b.setFixedHeight(26); b.setFixedWidth(26)
+            b.setFont(self.button_font)
             if icon_fn:
                 try: b.setIcon(getattr(self.icon_factory,icon_fn)(color=ic)); b.setIconSize(_QS(16,16))
-                except Exception: pass
-            b.setToolTip(tip); b.clicked.connect(slot_fn); return b
+                except Exception: b.setText(label[0])
+            else: b.setText(label[0])
+            b.setToolTip(f"{label}: {tip}"); b.clicked.connect(slot_fn); return b
 
-        txd_row.addWidget(_qb26("Load TXD","Load a TXD file",self._load_txd_into_workshop,"open_icon"))
-        txd_row.addWidget(_qb26("Auto-find","Search open IMGs for linked TXD",
+        txd_row.addWidget(_qb_txd("Load TXD","Load a TXD file",self._load_txd_into_workshop,"open_icon"))
+        txd_row.addWidget(_qb_txd("Auto-find","Search open IMGs for linked TXD",
             lambda: (self._auto_load_txd_from_imgs(), _refresh_all_slots()),"reset_icon"))
-        txd_row.addWidget(_qb26("Texlist","Scan texlist/ folder",
+        txd_row.addWidget(_qb_txd("Texlist","Scan texlist/ folder",
             lambda: (self._auto_load_from_texlist(getattr(self,'_ide_txd_name','')),
                      _refresh_all_slots()),"folder_icon"))
-        txd_row.addWidget(_qb26("Swap TXD","Change IDE TXD set",
+        txd_row.addWidget(_qb_txd("Swap TXD","Change IDE TXD set",
             lambda: swap_combo.setFocus(),"convert_icon"))
         txd_row.addStretch()
         left_lay.addLayout(txd_row)
@@ -2380,10 +2425,21 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 "PNG (*.png);;BMP (*.bmp)")
             if path: qi.save(path)
 
+        # Adaptive texture buttons - icon only below 320px right-panel width
+        _tex_btns = []
+        def _qb26_tex(label, tip, fn, icon_fn):
+            b = QPushButton(label); b.setFixedHeight(26); b.setFont(self.button_font)
+            try: b.setIcon(getattr(self.icon_factory,icon_fn)(color=ic)); b.setIconSize(_QS(16,16))
+            except Exception: pass
+            b.setToolTip(tip); b.clicked.connect(fn)
+            b._full_label = label
+            _tex_btns.append(b)
+            return b
+
         io_row = QHBoxLayout(); io_row.setSpacing(4)
-        io_row.addWidget(_qb26("Import","Import image as texture",_import_tex,"import_icon"))
-        io_row.addWidget(_qb26("Export","Export texture to file",_export_tex,"export_icon"))
-        io_row.addWidget(_qb26("Save Cache","Apply edits to texture cache",
+        io_row.addWidget(_qb26_tex("Import","Import image as texture",_import_tex,"import_icon"))
+        io_row.addWidget(_qb26_tex("Export","Export texture to file",_export_tex,"export_icon"))
+        io_row.addWidget(_qb26_tex("Save","Apply edits to texture cache",
             lambda: (self._populate_texture_list(),
                      vp.load_textures(getattr(self,'_mod_textures',[])) if vp else None,
                      vp.update() if vp else None),"save_icon"))
@@ -2392,11 +2448,19 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # Preview buttons
         pw = getattr(self, 'preview_widget', None)
-        prev_row = QHBoxLayout()
-        for style,label in [('solid','Solid'),('textured','Textured'),('semi','Semi'),('wire','Wire')]:
-            b = QPushButton(label); b.setFixedHeight(26)
+        prev_row = QHBoxLayout(); prev_row.setSpacing(3)
+        _prev_icons = {'solid':'solid_icon','textured':'texture_icon',
+                       'semi':'semi_icon','wire':'wireframe_icon'}
+        for style,label in [('solid','S'),('textured','T'),('semi','M'),('wire','W')]:
+            b = QPushButton(label); b.setFixedHeight(26); b.setFixedWidth(36)
+            b.setToolTip(f"{label} mode")
+            try:
+                ico_fn = _prev_icons.get(style)
+                if ico_fn: b.setIcon(getattr(self.icon_factory,ico_fn)(color=ic)); b.setIconSize(_QS(14,14))
+            except Exception: pass
             if pw: b.clicked.connect(lambda _=False,s=style,p=pw: p.set_render_style(s))
             prev_row.addWidget(b)
+        prev_row.addStretch()
         form.addRow("Preview:", prev_row)
 
         right_lay.addLayout(form)
