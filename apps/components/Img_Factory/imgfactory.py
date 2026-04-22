@@ -428,7 +428,7 @@ class IMGFactory(QMainWindow):
         self.apply_window_decoration_setting()
 
         # Get UI mode from img_settings (now initialized)
-        ui_mode = self.img_settings.get("ui_mode", "system")
+        ui_mode = self.img_settings.get("ui_mode", "custom")  # default to custom UI
         show_toolbar = self.img_settings.get("show_toolbar", True)
         show_status_bar = self.img_settings.get("show_status_bar", True)
         show_menu_bar = self.img_settings.get("show_menu_bar", True)
@@ -548,6 +548,8 @@ class IMGFactory(QMainWindow):
             if smb is not None and hasattr(self, 'menu_bar_system'):
                 self.menuBar().setVisible(False)
                 self.menuBar().setMaximumHeight(0)
+                self.menuBar().setMinimumHeight(0)
+                self.menuBar().setFixedHeight(0)
                 self.menu_bar_system.menu_bar = smb
                 smb.clear()
                 self.menu_bar_system._create_menus()
@@ -797,11 +799,19 @@ class IMGFactory(QMainWindow):
                 Qt.WindowType.WindowCloseButtonHint
             )
 
-        # Always hide Qt system menubar — standalone bar handles orientation
+        # Hard-clamp Qt system menubar — it must never allocate space on Windows
+        # setMaximumHeight(0) alone is insufficient; also need setFixedHeight(0)
+        # and hide it before the layout engine measures it.
         try:
             mb = self.menuBar()
             mb.setVisible(False)
             mb.setMaximumHeight(0)
+            mb.setMinimumHeight(0)
+            mb.setFixedHeight(0)
+            from PyQt6.QtWidgets import QSizePolicy
+            mb.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Fixed)
         except Exception:
             pass
 
@@ -3100,7 +3110,7 @@ class IMGFactory(QMainWindow):
         # IN CUSTOM UI MODE: Add toolbar FIRST (before tabs)
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, '_create_toolbar'):
             try:
-                ui_mode = self.img_settings.get("ui_mode", "system")
+                ui_mode = self.img_settings.get("ui_mode", "custom")  # default to custom UI
                 if ui_mode == "custom":
                     toolbar = self.gui_layout._create_toolbar()
                     toolbar.setVisible(True)

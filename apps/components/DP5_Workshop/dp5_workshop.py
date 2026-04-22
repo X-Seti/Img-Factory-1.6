@@ -608,7 +608,7 @@ class DP5Settings:
 
     DEFAULTS = {
         'show_bitmap_list':  False,    # left panel visible
-        'tool_icon_size':    42,       # tool button pixel size (20–64)
+        'tool_icon_size':    24,       # tool button pixel size (20–64)
         'tool_icon_color':   'color',  # 'color' | 'white' | 'dark'
         'tool_columns':      3,        # 3, 4, 5, or 6
         'hidden_tools':      [],       # list of tool_ids to hide
@@ -802,7 +802,7 @@ class DP5SettingsDialog(QDialog):
         gl.addWidget(QLabel("Click to toggle tool visibility (highlighted = visible):"))
         hidden = self.s.get('hidden_tools') or []
         icon_sz = self.s.get('tool_icon_size')
-        btn_sz  = max(48, icon_sz + 6)
+        btn_sz  = max(26, icon_sz + 2)  # min 26px so labels stay readable
         self._gadget_chks = {}
         TOOL_LABELS = [
             ('pencil','Pencil'), ('eraser','Eraser'), ('fill','Fill'),
