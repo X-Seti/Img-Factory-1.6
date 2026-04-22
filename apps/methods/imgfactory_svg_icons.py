@@ -3084,6 +3084,38 @@ class SVGIconFactory: #vers 7
             f'</svg>', size, color, bg_color)
 
     @staticmethod
+    def light_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Viewport light source — lightbulb with rays"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <!-- Bulb body -->
+            <path d="M9 21h6M10 17h4
+                     M12 3 C8.5 3 6 5.5 6 9 C6 11.5 7.5 13.5 9 15 L9 17 L15 17 L15 15
+                     C16.5 13.5 18 11.5 18 9 C18 5.5 15.5 3 12 3 Z"
+                  stroke="currentColor" stroke-width="1.6"
+                  fill="currentColor" fill-opacity="0.2"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Rays -->
+            <line x1="12" y1="1"  x2="12" y2="0"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="21" y1="9"  x2="22" y2="9"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="3"  y1="9"  x2="2"  y2="9"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="18.4" y1="4.6" x2="19.1" y2="3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="5.6"  y1="4.6" x2="4.9"  y2="3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def shading_off_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Shading disabled — flat shaded sphere with X"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="8"
+                    stroke="currentColor" stroke-width="1.6" fill="currentColor" fill-opacity="0.15"/>
+            <line x1="7" y1="7" x2="17" y2="17"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+            <line x1="17" y1="7" x2="7" y2="17"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+        </svg>''', size, color)
+
+
+    @staticmethod
     def dp_lighten_icon(size: int = 42, color: str = None, bg_color: str = None) -> 'QIcon':
         """Lighten / Dodge — sun with rays."""
         c = color or '#f0f0f4'

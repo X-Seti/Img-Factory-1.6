@@ -165,6 +165,11 @@ class COL3DViewport(QWidget): #vers 2
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.ArrowCursor)
+        # Viewport lighting state (used by _compute_face_shade in workshop)
+        self._shading_enabled = True
+        self._light_dir       = (0.5, 0.5, 0.8)   # normalised XYZ toward light
+        self._light_ambient   = 0.30               # 0..1
+        self._light_intensity = 1.0                # 0..2 multiplier
 
 
     # - public API
@@ -931,9 +936,25 @@ class COL3DViewport(QWidget): #vers 2
                 is_selected = (face_idx in self._selected_faces)
 
                 # Lambertian shading — compute per-face shade factor
+                _shade_on = getattr(self, '_shading_enabled', True)
                 try:
-                    g3v = [g3(verts[i]) for i in idx]
-                    _shade = self._compute_face_shade(g3v[0], g3v[1], g3v[2])
+                    if _shade_on:
+                        g3v   = [g3(verts[i]) for i in idx]
+                        _ldir = getattr(self, '_light_dir',     (0.5, 0.5, 0.8))
+                        _lamb = getattr(self, '_light_ambient', 0.30)
+                        _lint = getattr(self, '_light_intensity', 1.0)
+                        _ws   = getattr(self, '_find_workshop', lambda: None)()
+                        # workshop overrides if set via light dialog
+                        if _ws:
+                            _ldir = getattr(_ws, '_vp_light_dir',     _ldir)
+                            _lamb = getattr(_ws, '_vp_light_ambient',  _lamb)
+                            _lint = getattr(_ws, '_vp_light_intensity',_lint)
+                        _shade_raw = self._compute_face_shade(
+                            g3v[0], g3v[1], g3v[2],
+                            ambient=_lamb, light=_ldir)
+                        _shade = min(1.0, _shade_raw * _lint)
+                    else:
+                        _shade = 1.0   # no shading = full brightness
                 except Exception:
                     _shade = 0.7
 
@@ -5264,6 +5285,248 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     # - DFF mode toolbar
 
+
+    def _toggle_viewport_shading(self, enabled: bool): #vers 1
+        """Toggle Lambertian shading on/off in the viewport."""
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._shading_enabled = enabled
+            vp.update()
+        btn = getattr(self, '_shading_btn', None)
+        if btn:
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+                ic = self._get_icon_color()
+                btn.setIcon(
+                    _SVG.backface_icon(size=16, color=ic)
+                    if enabled else
+                    _SVG.shading_off_icon(size=16, color=ic))
+            except Exception:
+                btn.setText("S" if enabled else "F")
+        self._set_status(
+            f"Shading: {'ON (Lambertian)' if enabled else 'OFF (flat)'}")
+
+    def _open_light_setup_dialog(self): #vers 1
+        """Live-preview viewport light setup dialog.
+        Sliders update the viewport in real-time. Settings saved to JSON."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QFormLayout, QLabel, QSlider, QDoubleSpinBox, QPushButton,
+            QDialogButtonBox, QGroupBox, QCheckBox, QFrame, QComboBox)
+        from PyQt6.QtCore import Qt as _Qt
+        import json, math
+
+        vp = getattr(self, 'preview_widget', None)
+
+        # Load saved or use current
+        _dir   = getattr(self, '_vp_light_dir',      (0.5, 0.5, 0.8))
+        _amb   = getattr(self, '_vp_light_ambient',  0.30)
+        _int   = getattr(self, '_vp_light_intensity', 1.0)
+        _shade = getattr(self, '_shading_btn', None)
+        _shade_on = _shade.isChecked() if _shade else True
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Viewport Light Setup")
+        dlg.setMinimumWidth(340)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(8)
+
+        # ── Shading toggle ────────────────────────────────────────────
+        shade_cb = QCheckBox("Enable shading")
+        shade_cb.setChecked(_shade_on)
+        lay.addWidget(shade_cb)
+
+        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color:palette(mid);"); lay.addWidget(sep)
+
+        # ── Direction preset combo ────────────────────────────────────
+        grp_dir = QGroupBox("Light Direction")
+        dir_lay = QVBoxLayout(grp_dir)
+
+        preset_combo = QComboBox()
+        presets = [
+            ("Top-down (overhead)",      (0.0,  0.0,  1.0)),
+            ("Front upper-right (GTA)",  (0.5,  0.5,  0.8)),
+            ("Front-left high",          (-0.5, 0.5,  0.8)),
+            ("Side (East)",              (1.0,  0.0,  0.3)),
+            ("Low angle (sunset)",       (0.7,  0.0,  0.2)),
+            ("Custom…",                  None),
+        ]
+        for name, _ in presets:
+            preset_combo.addItem(name)
+        dir_lay.addWidget(preset_combo)
+
+        # XYZ spinboxes
+        xyz_lay = QFormLayout()
+        def _spin(lo, hi, val, step=0.05):
+            s = QDoubleSpinBox()
+            s.setRange(lo, hi); s.setValue(val)
+            s.setSingleStep(step); s.setDecimals(2)
+            return s
+
+        lx_spin = _spin(-1.0, 1.0, _dir[0])
+        ly_spin = _spin(-1.0, 1.0, _dir[1])
+        lz_spin = _spin(-1.0, 1.0, _dir[2])
+        xyz_lay.addRow("X (right +):",   lx_spin)
+        xyz_lay.addRow("Y (forward +):", ly_spin)
+        xyz_lay.addRow("Z (up +):",      lz_spin)
+        dir_lay.addLayout(xyz_lay)
+        lay.addWidget(grp_dir)
+
+        # ── Intensity & ambient ───────────────────────────────────────
+        grp_int = QGroupBox("Brightness")
+        int_lay = QFormLayout(grp_int)
+
+        int_spin = _spin(0.0, 2.0, _int, 0.05)
+        amb_spin = _spin(0.0, 1.0, _amb, 0.05)
+        int_lay.addRow("Intensity (0–2):", int_spin)
+        int_lay.addRow("Ambient (0–1):",   amb_spin)
+        lay.addWidget(grp_int)
+
+        # ── Live preview update ───────────────────────────────────────
+        def _apply_live():
+            if not vp:
+                return
+            lx, ly, lz = lx_spin.value(), ly_spin.value(), lz_spin.value()
+            # Normalise
+            ll = math.sqrt(lx*lx + ly*ly + lz*lz) or 1.0
+            nd = (lx/ll, ly/ll, lz/ll)
+            vp._light_dir     = nd
+            vp._light_ambient = amb_spin.value()
+            vp._shading_enabled = shade_cb.isChecked()
+            # Store on workshop too
+            self._vp_light_dir      = nd
+            self._vp_light_ambient  = amb_spin.value()
+            self._vp_light_intensity = int_spin.value()
+            vp.update()
+
+        # Wire all controls to live preview
+        for spin in (lx_spin, ly_spin, lz_spin, int_spin, amb_spin):
+            spin.valueChanged.connect(lambda _: _apply_live())
+        shade_cb.toggled.connect(lambda _: _apply_live())
+
+        def _on_preset(idx):
+            _, vec = presets[idx]
+            if vec is None:
+                return
+            lx_spin.blockSignals(True); ly_spin.blockSignals(True)
+            lz_spin.blockSignals(True)
+            lx_spin.setValue(vec[0]); ly_spin.setValue(vec[1])
+            lz_spin.setValue(vec[2])
+            lx_spin.blockSignals(False); ly_spin.blockSignals(False)
+            lz_spin.blockSignals(False)
+            _apply_live()
+
+        preset_combo.currentIndexChanged.connect(_on_preset)
+
+        # ── Shading toggle syncs the toolbar button ───────────────────
+        def _sync_shade_btn(on):
+            sb = getattr(self, '_shading_btn', None)
+            if sb:
+                sb.blockSignals(True); sb.setChecked(on); sb.blockSignals(False)
+            self._toggle_viewport_shading(on)
+        shade_cb.toggled.connect(_sync_shade_btn)
+
+        # ── Reset button ──────────────────────────────────────────────
+        reset_btn = QPushButton("Reset to defaults")
+        reset_btn.setFixedHeight(26)
+        def _reset():
+            lx_spin.setValue(0.5); ly_spin.setValue(0.5); lz_spin.setValue(0.8)
+            int_spin.setValue(1.0); amb_spin.setValue(0.30)
+            shade_cb.setChecked(True)
+            _apply_live()
+        reset_btn.clicked.connect(_reset)
+        lay.addWidget(reset_btn)
+
+        # ── OK / Cancel ───────────────────────────────────────────────
+        bb = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        lay.addWidget(bb)
+
+        def _save_and_close():
+            # Persist to model_workshop.json
+            import os
+            _apply_live()
+            cfg_path = os.path.expanduser(
+                '~/.config/imgfactory/model_workshop.json')
+            try:
+                try:
+                    cfg = json.load(open(cfg_path))
+                except Exception:
+                    cfg = {}
+                cfg['viewport_light'] = {
+                    'dir_x':     lx_spin.value(),
+                    'dir_y':     ly_spin.value(),
+                    'dir_z':     lz_spin.value(),
+                    'intensity': int_spin.value(),
+                    'ambient':   amb_spin.value(),
+                    'shading':   shade_cb.isChecked(),
+                }
+                os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
+                json.dump(cfg, open(cfg_path,'w'), indent=2)
+                mw = self.main_window
+                if mw and hasattr(mw, 'log_message'):
+                    mw.log_message(
+                        f"Viewport light saved: dir=({lx_spin.value():.2f},"
+                        f"{ly_spin.value():.2f},{lz_spin.value():.2f}) "
+                        f"intensity={int_spin.value():.2f} "
+                        f"ambient={amb_spin.value():.2f}")
+            except Exception as e:
+                pass
+            dlg.accept()
+
+        def _cancel():
+            # Restore original values
+            self._vp_light_dir      = _dir
+            self._vp_light_ambient  = _amb
+            self._vp_light_intensity = _int
+            if vp:
+                vp._light_dir       = _dir
+                vp._light_ambient   = _amb
+                vp._shading_enabled = _shade_on
+                vp.update()
+            _sync_shade_btn(_shade_on)
+            dlg.reject()
+
+        bb.accepted.connect(_save_and_close)
+        bb.rejected.connect(_cancel)
+
+        # Apply initial live preview
+        _apply_live()
+        dlg.exec()
+
+    def _load_viewport_light_settings(self): #vers 1
+        """Load saved viewport light settings from model_workshop.json."""
+        import json, os
+        cfg_path = os.path.expanduser(
+            '~/.config/imgfactory/model_workshop.json')
+        try:
+            cfg = json.load(open(cfg_path))
+            vl = cfg.get('viewport_light', {})
+            if vl:
+                lx = vl.get('dir_x', 0.5)
+                ly = vl.get('dir_y', 0.5)
+                lz = vl.get('dir_z', 0.8)
+                import math
+                ll = math.sqrt(lx*lx+ly*ly+lz*lz) or 1.0
+                self._vp_light_dir      = (lx/ll, ly/ll, lz/ll)
+                self._vp_light_ambient  = vl.get('ambient',   0.30)
+                self._vp_light_intensity = vl.get('intensity', 1.0)
+                shade_on = vl.get('shading', True)
+                vp = getattr(self, 'preview_widget', None)
+                if vp:
+                    vp._light_dir       = self._vp_light_dir
+                    vp._light_ambient   = self._vp_light_ambient
+                    vp._shading_enabled = shade_on
+                sb = getattr(self, '_shading_btn', None)
+                if sb:
+                    sb.blockSignals(True)
+                    sb.setChecked(shade_on)
+                    sb.blockSignals(False)
+        except Exception:
+            pass   # no saved settings — use defaults
+
+
     def _apply_prelighting(self): #vers 1
         """Apply vertex prelighting to DFF model — stub, full impl in next session."""
         from PyQt6.QtWidgets import QMessageBox
@@ -5940,11 +6203,47 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._mod_icon_buttons.append(self._prim_btn)
 
         # Store refs to DFF-only buttons for enable/disable
+        # Shading on/off toggle
+        self._shading_btn = QPushButton()
+        self._shading_btn.setFixedSize(btn_width, btn_height)
+        self._shading_btn.setCheckable(True)
+        self._shading_btn.setChecked(True)
+        self._shading_btn.setIconSize(icon_size)
+        self._shading_btn.setToolTip(
+            "Toggle viewport shading ON/OFF\n"
+            "OFF = flat unlit render (full brightness)")
+        try:
+            self._shading_btn.setIcon(
+                self.icon_factory.backface_icon(color=icon_color))
+        except Exception:
+            self._shading_btn.setText("S")
+        self._shading_btn.toggled.connect(self._toggle_viewport_shading)
+        self._mod_icon_buttons.append(self._shading_btn)
+
+        # Light setup button (lightbulb)
+        self._light_setup_btn = QPushButton()
+        self._light_setup_btn.setFixedSize(btn_width, btn_height)
+        self._light_setup_btn.setIconSize(icon_size)
+        self._light_setup_btn.setToolTip(
+            "Viewport light setup\n"
+            "Set light direction, intensity and ambient level\n"
+            "Changes preview immediately — saved to settings")
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+            self._light_setup_btn.setIcon(
+                _SVG.light_icon(size=16, color=icon_color))
+        except Exception:
+            self._light_setup_btn.setText("💡")
+        self._light_setup_btn.clicked.connect(self._open_light_setup_dialog)
+        self._mod_icon_buttons.append(self._light_setup_btn)
+
         self._dff_only_toolbar_btns = [
             self._sel_vert_btn, self._sel_edge_btn,
             self._sel_face_btn, self._sel_poly_btn,
             self._backface_cull_btn, self._front_paint_btn,
             self._prim_btn,
+            self._shading_btn,
+            self._light_setup_btn,
         ]
 
         # Place into grid BEFORE set_content (same as COL/TXD pattern)
@@ -9878,6 +10177,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._lookup_ide_for_dff(file_path)
             # Enable DFF-mode toolbar buttons
             self._enable_dff_toolbar(True)
+            # Restore saved viewport light settings
+            self._load_viewport_light_settings()
         except Exception as e:
             import traceback; traceback.print_exc()
             QMessageBox.critical(self, "DFF Error", f"Failed to open DFF:\n{e}")
