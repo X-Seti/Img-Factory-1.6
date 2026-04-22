@@ -2073,48 +2073,116 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         _selected_row = [0]
         _slot_btns    = []
 
-        def _make_slot_pix(mat, geom, size=80):
-            """Render a sphere-like material preview at `size`×`size`."""
+        # Shared slot preview shape ('sphere'/'cube'/'flat') — persists during dialog
+        _slot_shape = ['sphere']
+
+        def _make_slot_pix(mat, geom, size=80, shape=None):
+            """Render material preview: sphere (default), cube, or flat texture."""
+            shape = shape or _slot_shape[0]
             pix = QPixmap(size, size)
             pix.fill(_Qt.GlobalColor.transparent)
             p2 = QPainter(pix)
             p2.setRenderHint(QPainter.RenderHint.Antialiasing)
 
             tname = (getattr(mat,'texture_name','') or '').strip().lower()
-            tex   = (tex_cache.get(tname) or
-                     tex_cache.get(tname.split('.')[0]))
+            tex   = (tex_cache.get(tname) or tex_cache.get(tname.split('.')[0]))
             c     = getattr(mat,'colour',None) or getattr(mat,'color',None)
             base  = QColor(c.r,c.g,c.b) if c else QColor(160,160,160)
+            pad   = 4
 
-            if tex and isinstance(tex, QImage):
-                # Tile texture onto sphere silhouette
+            if shape == 'flat':
+                # Flat texture fill or colour swatch
+                if tex and isinstance(tex, QImage):
+                    scaled = tex.scaled(size-pad*2, size-pad*2,
+                        _Qt.AspectRatioMode.IgnoreAspectRatio,
+                        _Qt.TransformationMode.SmoothTransformation)
+                    p2.drawImage(pad, pad, scaled)
+                else:
+                    p2.fillRect(pad, pad, size-pad*2, size-pad*2, base)
+                p2.setPen(QPen(QColor(80,80,80,120), 1))
+                p2.drawRect(pad, pad, size-pad*2-1, size-pad*2-1)
+
+            elif shape == 'cube':
+                # Simple isometric cube with texture on top/front faces
+                from PyQt6.QtCore import QPointF
+                m = size // 2
+                top = [QPointF(m, pad), QPointF(size-pad, m//2+pad),
+                       QPointF(m, m), QPointF(pad, m//2+pad)]
+                front = [QPointF(pad, m//2+pad), QPointF(m, m),
+                         QPointF(m, size-pad), QPointF(pad, size-pad-m//2)]
+                right = [QPointF(m, m), QPointF(size-pad, m//2+pad),
+                         QPointF(size-pad, size-pad-m//2), QPointF(m, size-pad)]
+                def _face_brush(darken=0):
+                    if tex and isinstance(tex, QImage):
+                        sc = tex.scaled(size, size, _Qt.AspectRatioMode.IgnoreAspectRatio,
+                                        _Qt.TransformationMode.SmoothTransformation)
+                        b = QBrush(sc)
+                        if darken:
+                            b2 = QBrush(QColor(0,0,0,darken))
+                            return b, b2
+                        return b, None
+                    else:
+                        col = QColor(base.red()-darken, base.green()-darken,
+                                     base.blue()-darken)
+                        return QBrush(col), None
+                p2.setPen(QPen(QColor(30,30,30,150), 0.8))
+                for face, dk in [(top,0),(front,40),(right,70)]:
+                    fb, overlay = _face_brush(dk)
+                    poly = QPolygonF(face)
+                    p2.setBrush(fb); p2.drawPolygon(poly)
+                    if overlay:
+                        p2.setBrush(overlay); p2.drawPolygon(poly)
+
+            else:  # sphere (default)
                 cx, cy, r = size//2, size//2, size//2 - 2
-                p2.setClipRect(0,0,size,size)
-                brush = QBrush(tex.scaled(size,size,
-                    _Qt.AspectRatioMode.IgnoreAspectRatio,
-                    _Qt.TransformationMode.SmoothTransformation))
-                p2.setBrush(brush)
-                p2.setPen(_Qt.PenStyle.NoPen)
-                p2.drawEllipse(cx-r, cy-r, 2*r, 2*r)
-                # Sphere shading overlay
+                if tex and isinstance(tex, QImage):
+                    p2.setClipRect(0,0,size,size)
+                    brush = QBrush(tex.scaled(size,size,
+                        _Qt.AspectRatioMode.IgnoreAspectRatio,
+                        _Qt.TransformationMode.SmoothTransformation))
+                    p2.setBrush(brush); p2.setPen(_Qt.PenStyle.NoPen)
+                    p2.drawEllipse(cx-r, cy-r, 2*r, 2*r)
+                else:
+                    p2.setBrush(QBrush(base)); p2.setPen(_Qt.PenStyle.NoPen)
+                    p2.drawEllipse(cx-r, cy-r, 2*r, 2*r)
                 grad = QRadialGradient(cx-r//3, cy-r//3, r)
-                grad.setColorAt(0, QColor(255,255,255,80))
+                grad.setColorAt(0, QColor(255,255,255,90 if tex else 100))
                 grad.setColorAt(0.5, QColor(0,0,0,0))
-                grad.setColorAt(1, QColor(0,0,0,120))
-                p2.setBrush(QBrush(grad))
-                p2.drawEllipse(cx-r, cy-r, 2*r, 2*r)
-            else:
-                # Flat colour sphere with shading
-                cx,cy,r = size//2, size//2, size//2 - 2
-                p2.setBrush(QBrush(base))
-                p2.setPen(_Qt.PenStyle.NoPen)
-                p2.drawEllipse(cx-r, cy-r, 2*r, 2*r)
-                grad = QRadialGradient(cx-r//3, cy-r//3, r)
-                grad.setColorAt(0, QColor(255,255,255,100))
                 grad.setColorAt(1, QColor(0,0,0,130))
                 p2.setBrush(QBrush(grad)); p2.drawEllipse(cx-r,cy-r,2*r,2*r)
             p2.end()
             return pix
+
+        def _refresh_slot(i):
+            if i < len(_slot_btns) and i < len(all_mats):
+                _,lbl = _slot_btns[i]
+                gi2,mi2,mat2,geom2 = all_mats[i]
+                lbl.setPixmap(_make_slot_pix(mat2, geom2))
+
+        def _refresh_all_slots_shaped():
+            for i in range(len(_slot_btns)):
+                _refresh_slot(i)
+
+        def _slot_context_menu(slot_idx, global_pos):
+            from PyQt6.QtWidgets import QMenu
+            menu = QMenu()
+            for label, shape in [("● Sphere", "sphere"),
+                                  ("■ Cube",   "cube"),
+                                  ("▬ Flat",   "flat")]:
+                act = menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(_slot_shape[0] == shape)
+                def _set(checked, s=shape):
+                    _slot_shape[0] = s
+                    _refresh_all_slots_shaped()
+                act.triggered.connect(_set)
+            menu.addSeparator()
+            menu.addAction("Reload TXD from IMGs").triggered.connect(
+                lambda: (self._auto_load_txd_from_imgs(),
+                         _refresh_all_slots_shaped()))
+            menu.addAction("Open in TXD Workshop").triggered.connect(
+                self._open_linked_txd)
+            menu.exec(global_pos)
 
         for idx, (gi, mi, mat, geom) in enumerate(all_mats):
             tname  = (getattr(mat,'texture_name','') or '').strip()
@@ -2165,7 +2233,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                         "QFrame{border:1px solid palette(mid);border-radius:3px;background:transparent;}")
                 _on_slot_selected(i)
 
-            slot.mousePressEvent = _select
+            def _slot_mouse(ev, i=idx, s=slot):
+                from PyQt6.QtCore import Qt as _Qt2
+                if ev.button() == _Qt2.MouseButton.LeftButton:
+                    _select(i=i, s=s)
+                elif ev.button() == _Qt2.MouseButton.RightButton:
+                    _slot_context_menu(i, ev.globalPosition().toPoint())
+            slot.mousePressEvent = _slot_mouse
             slot.setStyleSheet("QFrame{border:1px solid palette(mid);border-radius:3px;background:transparent;}")
             grid_lay.addWidget(slot, idx//N_COLS, idx%N_COLS)
 
@@ -2221,17 +2295,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             cache_lbl.setStyleSheet("color:#16a34a;" if in_c else "color:#dc2626;" if t else "")
         tex_edit.textChanged.connect(_update_cache_lbl)
 
-        # IDE line
-        ide_edit_lbl = QLabel("—")
-        ide_edit_lbl.setStyleSheet("font-size:10px;font-family:monospace;color:palette(windowText);")
-        ide_edit_lbl.setWordWrap(True)
-        ide_edit_lbl.setTextInteractionFlags(_Qt.TextInteractionFlag.TextSelectableByMouse)
+        # IDE line removed from right panel — shown in top bar only
+        # Keep ide_edit_lbl as a stub so _refresh_ide() can update it silently
+        ide_edit_lbl = QLabel()   # invisible, updated by _refresh_ide
+        ide_edit_lbl.setVisible(False)
         reload_btn = QPushButton(); reload_btn.setFixedSize(26,26)
         try: reload_btn.setIcon(self.icon_factory.reset_icon(color=ic)); reload_btn.setIconSize(_QS(16,16))
         except Exception: reload_btn.setText("↻")
-        reload_btn.setToolTip("Reload IDE entry")
-        ide_row = QHBoxLayout(); ide_row.addWidget(ide_edit_lbl,1); ide_row.addWidget(reload_btn)
-        form.addRow("IDE:", ide_row)
+        reload_btn.setToolTip("Reload IDE entry (click to refresh top bar)")
+        # Add reload button inline with Use TXD row below
 
         # Use TXD / swap
         swap_combo = QComboBox(); swap_combo.setEditable(True)
@@ -2240,7 +2312,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             swap_combo.addItem(self._ide_txd_name)
         apply_btn = QPushButton("Apply"); apply_btn.setFixedHeight(26)
         apply_btn.setEnabled(False)
-        swap_row = QHBoxLayout(); swap_row.addWidget(swap_combo,1); swap_row.addWidget(apply_btn)
+        swap_row = QHBoxLayout()
+        swap_row.addWidget(swap_combo, 1)
+        swap_row.addWidget(apply_btn)
+        swap_row.addWidget(reload_btn)   # IDE reload moved here
         form.addRow("Use TXD:", swap_row)
 
         # Colour
@@ -2372,7 +2447,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         _current_mat = [None]
 
         def _refresh_all_slots():
-            new_tc = getattr(vp,'_tex_cache',{}) if vp else {}
             for i,(gi,mi,mat,geom) in enumerate(all_mats):
                 if i < len(_slot_btns):
                     _,pix_lbl = _slot_btns[i]
@@ -5306,194 +5380,223 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._set_status(
             f"Shading: {'ON (Lambertian)' if enabled else 'OFF (flat)'}")
 
-    def _open_light_setup_dialog(self): #vers 1
-        """Live-preview viewport light setup dialog.
-        Sliders update the viewport in real-time. Settings saved to JSON."""
+    def _open_light_setup_dialog(self): #vers 2
+        """Viewport light setup — visual position picker + sliders."""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QFormLayout, QLabel, QSlider, QDoubleSpinBox, QPushButton,
-            QDialogButtonBox, QGroupBox, QCheckBox, QFrame, QComboBox)
-        from PyQt6.QtCore import Qt as _Qt
-        import json, math
+            QLabel, QSlider, QPushButton, QDialogButtonBox,
+            QGroupBox, QCheckBox, QFrame, QComboBox)
+        from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QRadialGradient
+        from PyQt6.QtCore import Qt as _Qt, QPointF, QRectF
+        import json, math, os
 
         vp = getattr(self, 'preview_widget', None)
-
-        # Load saved or use current
         _dir   = getattr(self, '_vp_light_dir',      (0.5, 0.5, 0.8))
         _amb   = getattr(self, '_vp_light_ambient',  0.30)
         _int   = getattr(self, '_vp_light_intensity', 1.0)
-        _shade = getattr(self, '_shading_btn', None)
-        _shade_on = _shade.isChecked() if _shade else True
+        _sb    = getattr(self, '_shading_btn', None)
+        _shade_on = _sb.isChecked() if _sb else True
+
+        # Internal state (az=azimuth 0-360, el=elevation 0-90)
+        import math as _m
+        _az = [math.degrees(math.atan2(_dir[0], _dir[1])) % 360]
+        _el = [max(0, min(90, math.degrees(math.asin(max(-1, min(1, _dir[2]))))))]
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("Viewport Light Setup")
-        dlg.setMinimumWidth(340)
-        lay = QVBoxLayout(dlg)
-        lay.setSpacing(8)
+        dlg.setWindowTitle("Light Setup")
+        dlg.setFixedWidth(360)
+        root = QVBoxLayout(dlg); root.setSpacing(6)
 
-        # ── Shading toggle ────────────────────────────────────────────
+        # ── Shading toggle ─────────────────────────────────────────────
         shade_cb = QCheckBox("Enable shading")
-        shade_cb.setChecked(_shade_on)
-        lay.addWidget(shade_cb)
-
+        shade_cb.setChecked(_shade_on); root.addWidget(shade_cb)
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color:palette(mid);"); lay.addWidget(sep)
+        sep.setStyleSheet("color:palette(mid);"); root.addWidget(sep)
 
-        # ── Direction preset combo ────────────────────────────────────
-        grp_dir = QGroupBox("Light Direction")
-        dir_lay = QVBoxLayout(grp_dir)
+        # ── Visual position picker ─────────────────────────────────────
+        # Top-down circle = azimuth, height on circle = elevation
+        pos_grp = QGroupBox("Light Position")
+        pos_vlay = QVBoxLayout(pos_grp)
 
-        preset_combo = QComboBox()
-        presets = [
-            ("Top-down (overhead)",      (0.0,  0.0,  1.0)),
-            ("Front upper-right (GTA)",  (0.5,  0.5,  0.8)),
-            ("Front-left high",          (-0.5, 0.5,  0.8)),
-            ("Side (East)",              (1.0,  0.0,  0.3)),
-            ("Low angle (sunset)",       (0.7,  0.0,  0.2)),
-            ("Custom…",                  None),
-        ]
-        for name, _ in presets:
-            preset_combo.addItem(name)
-        dir_lay.addWidget(preset_combo)
+        class _PosPicker(QFrame):
+            def __init__(self):
+                super().__init__()
+                self.setFixedSize(200, 200)
+                self.setCursor(_Qt.CursorShape.CrossCursor)
+                self.az = _az[0]; self.el = _el[0]
+                self.on_change = None
+            def _az_el_to_xy(self, az, el):
+                r  = 88 * (1.0 - el/90.0)
+                ar = math.radians(az)
+                return (100 + r*math.sin(ar), 100 - r*math.cos(ar))
+            def _xy_to_az_el(self, x, y):
+                dx, dy = x-100, y-100
+                r = math.sqrt(dx*dx+dy*dy)
+                az = (math.degrees(math.atan2(dx,-dy))) % 360
+                el = max(0, min(90, 90*(1-r/88)))
+                return az, el
+            def paintEvent(self, ev):
+                p = QPainter(self)
+                p.setRenderHint(QPainter.RenderHint.Antialiasing)
+                # Background circle = top-down hemisphere
+                grad = QRadialGradient(100,100,90)
+                grad.setColorAt(0, QColor(60,80,120))
+                grad.setColorAt(1, QColor(20,25,40))
+                p.setBrush(QBrush(grad)); p.setPen(_Qt.PenStyle.NoPen)
+                p.drawEllipse(10,10,180,180)
+                # Rings
+                p.setPen(QPen(QColor(80,90,130,120), 0.8))
+                for frac in (0.33,0.66,1.0):
+                    r = int(88*frac)
+                    p.drawEllipse(100-r, 100-r, 2*r, 2*r)
+                # Compass ticks N/E/S/W
+                p.setPen(QPen(QColor(140,150,200), 1))
+                for az_t, lbl in [(0,"N"),(90,"E"),(180,"S"),(270,"W")]:
+                    ar = math.radians(az_t)
+                    x1,y1 = 100+80*math.sin(ar), 100-80*math.cos(ar)
+                    x2,y2 = 100+88*math.sin(ar), 100-88*math.cos(ar)
+                    p.drawLine(int(x1),int(y1),int(x2),int(y2))
+                    p.drawText(int(100+96*math.sin(ar))-6,
+                               int(100-96*math.cos(ar))+4, lbl)
+                # Light dot
+                lx,ly = self._az_el_to_xy(self.az, self.el)
+                # Ray from centre to dot
+                p.setPen(QPen(QColor(255,220,80,160), 1, _Qt.PenStyle.DashLine))
+                p.drawLine(100,100,int(lx),int(ly))
+                # Glow
+                glow = QRadialGradient(lx,ly,14)
+                glow.setColorAt(0,QColor(255,220,80,200))
+                glow.setColorAt(1,QColor(255,220,80,0))
+                p.setBrush(QBrush(glow)); p.setPen(_Qt.PenStyle.NoPen)
+                p.drawEllipse(int(lx)-14,int(ly)-14,28,28)
+                # Solid dot
+                p.setBrush(QBrush(QColor(255,220,80)))
+                p.setPen(QPen(QColor(255,255,255), 1.5))
+                p.drawEllipse(int(lx)-5,int(ly)-5,10,10)
+                # Elevation label
+                p.setPen(QPen(QColor(200,200,200)))
+                from PyQt6.QtGui import QFont
+                p.setFont(QFont("Arial",8))
+                p.drawText(4,196,f"El:{self.el:.0f}°  Az:{self.az:.0f}°")
+            def _drag(self, x, y):
+                az, el = self._xy_to_az_el(x,y)
+                self.az = az; self.el = el; _az[0]=az; _el[0]=el
+                self.update()
+                if self.on_change: self.on_change()
+            def mousePressEvent(self,ev): self._drag(ev.position().x(),ev.position().y())
+            def mouseMoveEvent(self,ev):
+                if ev.buttons() & _Qt.MouseButton.LeftButton:
+                    self._drag(ev.position().x(),ev.position().y())
 
-        # XYZ spinboxes
-        xyz_lay = QFormLayout()
-        def _spin(lo, hi, val, step=0.05):
-            s = QDoubleSpinBox()
-            s.setRange(lo, hi); s.setValue(val)
-            s.setSingleStep(step); s.setDecimals(2)
-            return s
+        picker = _PosPicker()
+        picker.az = _az[0]; picker.el = _el[0]
+        pos_vlay.addWidget(picker, 0, _Qt.AlignmentFlag.AlignHCenter)
 
-        lx_spin = _spin(-1.0, 1.0, _dir[0])
-        ly_spin = _spin(-1.0, 1.0, _dir[1])
-        lz_spin = _spin(-1.0, 1.0, _dir[2])
-        xyz_lay.addRow("X (right +):",   lx_spin)
-        xyz_lay.addRow("Y (forward +):", ly_spin)
-        xyz_lay.addRow("Z (up +):",      lz_spin)
-        dir_lay.addLayout(xyz_lay)
-        lay.addWidget(grp_dir)
+        # Preset quick-picks
+        preset_row = QHBoxLayout()
+        for label, az2, el2 in [
+            ("↑ Top",  0,   90),
+            ("↗ GTA",  45,  50),
+            ("→ Side", 90,  15),
+            ("↙ Sunset",225,10),
+        ]:
+            pb = QPushButton(label); pb.setFixedHeight(24)
+            def _set_preset(checked=False, a=az2, e=el2):
+                picker.az=a; picker.el=e; _az[0]=a; _el[0]=e
+                picker.update(); _apply_live()
+            pb.clicked.connect(_set_preset)
+            preset_row.addWidget(pb)
+        pos_vlay.addLayout(preset_row)
+        root.addWidget(pos_grp)
 
-        # ── Intensity & ambient ───────────────────────────────────────
-        grp_int = QGroupBox("Brightness")
-        int_lay = QFormLayout(grp_int)
+        # ── Brightness sliders ─────────────────────────────────────────
+        bri_grp = QGroupBox("Brightness")
+        bri_lay = QVBoxLayout(bri_grp)
 
-        int_spin = _spin(0.0, 2.0, _int, 0.05)
-        amb_spin = _spin(0.0, 1.0, _amb, 0.05)
-        int_lay.addRow("Intensity (0–2):", int_spin)
-        int_lay.addRow("Ambient (0–1):",   amb_spin)
-        lay.addWidget(grp_int)
+        def _slider_row(label, lo, hi, val, scale=100):
+            row = QHBoxLayout()
+            lbl = QLabel(label); lbl.setFixedWidth(72)
+            sl  = QSlider(_Qt.Orientation.Horizontal)
+            sl.setRange(int(lo*scale), int(hi*scale))
+            sl.setValue(int(val*scale))
+            val_lbl = QLabel(f"{val:.2f}"); val_lbl.setFixedWidth(36)
+            sl.valueChanged.connect(lambda v: val_lbl.setText(f"{v/scale:.2f}"))
+            sl.valueChanged.connect(lambda _: _apply_live())
+            row.addWidget(lbl); row.addWidget(sl,1); row.addWidget(val_lbl)
+            bri_lay.addLayout(row)
+            return sl
 
-        # ── Live preview update ───────────────────────────────────────
+        int_sl  = _slider_row("Intensity", 0, 2, _int, 100)
+        amb_sl  = _slider_row("Ambient",   0, 1, _amb, 100)
+        root.addWidget(bri_grp)
+
+        # ── Live preview ───────────────────────────────────────────────
         def _apply_live():
-            if not vp:
-                return
-            lx, ly, lz = lx_spin.value(), ly_spin.value(), lz_spin.value()
-            # Normalise
-            ll = math.sqrt(lx*lx + ly*ly + lz*lz) or 1.0
-            nd = (lx/ll, ly/ll, lz/ll)
-            vp._light_dir     = nd
-            vp._light_ambient = amb_spin.value()
-            vp._shading_enabled = shade_cb.isChecked()
-            # Store on workshop too
+            az_r = math.radians(_az[0])
+            el_r = math.radians(_el[0])
+            lx = math.sin(az_r)*math.cos(el_r)
+            ly = math.cos(az_r)*math.cos(el_r)
+            lz = math.sin(el_r)
+            nd = (lx,ly,lz)
             self._vp_light_dir      = nd
-            self._vp_light_ambient  = amb_spin.value()
-            self._vp_light_intensity = int_spin.value()
-            vp.update()
+            self._vp_light_ambient  = amb_sl.value()/100
+            self._vp_light_intensity = int_sl.value()/100
+            if vp:
+                vp._light_dir       = nd
+                vp._light_ambient   = self._vp_light_ambient
+                vp._shading_enabled = shade_cb.isChecked()
+                vp.update()
 
-        # Wire all controls to live preview
-        for spin in (lx_spin, ly_spin, lz_spin, int_spin, amb_spin):
-            spin.valueChanged.connect(lambda _: _apply_live())
+        picker.on_change = _apply_live
+
+        def _sync_shade(on):
+            sb2 = getattr(self,'_shading_btn',None)
+            if sb2: sb2.blockSignals(True); sb2.setChecked(on); sb2.blockSignals(False)
+            self._toggle_viewport_shading(on)
+        shade_cb.toggled.connect(_sync_shade)
         shade_cb.toggled.connect(lambda _: _apply_live())
 
-        def _on_preset(idx):
-            _, vec = presets[idx]
-            if vec is None:
-                return
-            lx_spin.blockSignals(True); ly_spin.blockSignals(True)
-            lz_spin.blockSignals(True)
-            lx_spin.setValue(vec[0]); ly_spin.setValue(vec[1])
-            lz_spin.setValue(vec[2])
-            lx_spin.blockSignals(False); ly_spin.blockSignals(False)
-            lz_spin.blockSignals(False)
-            _apply_live()
-
-        preset_combo.currentIndexChanged.connect(_on_preset)
-
-        # ── Shading toggle syncs the toolbar button ───────────────────
-        def _sync_shade_btn(on):
-            sb = getattr(self, '_shading_btn', None)
-            if sb:
-                sb.blockSignals(True); sb.setChecked(on); sb.blockSignals(False)
-            self._toggle_viewport_shading(on)
-        shade_cb.toggled.connect(_sync_shade_btn)
-
-        # ── Reset button ──────────────────────────────────────────────
-        reset_btn = QPushButton("Reset to defaults")
-        reset_btn.setFixedHeight(26)
+        # Reset
+        reset_btn = QPushButton("Reset to defaults"); reset_btn.setFixedHeight(26)
         def _reset():
-            lx_spin.setValue(0.5); ly_spin.setValue(0.5); lz_spin.setValue(0.8)
-            int_spin.setValue(1.0); amb_spin.setValue(0.30)
-            shade_cb.setChecked(True)
-            _apply_live()
+            picker.az=45; picker.el=50; _az[0]=45; _el[0]=50; picker.update()
+            int_sl.setValue(100); amb_sl.setValue(30)
+            shade_cb.setChecked(True); _apply_live()
         reset_btn.clicked.connect(_reset)
-        lay.addWidget(reset_btn)
+        root.addWidget(reset_btn)
 
-        # ── OK / Cancel ───────────────────────────────────────────────
-        bb = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel)
-        lay.addWidget(bb)
+        # OK / Cancel
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                              QDialogButtonBox.StandardButton.Cancel)
 
-        def _save_and_close():
-            # Persist to model_workshop.json
-            import os
+        def _save():
             _apply_live()
-            cfg_path = os.path.expanduser(
-                '~/.config/imgfactory/model_workshop.json')
+            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
             try:
-                try:
-                    cfg = json.load(open(cfg_path))
-                except Exception:
-                    cfg = {}
+                try: cfg = json.load(open(cfg_path))
+                except Exception: cfg = {}
+                nd = self._vp_light_dir
                 cfg['viewport_light'] = {
-                    'dir_x':     lx_spin.value(),
-                    'dir_y':     ly_spin.value(),
-                    'dir_z':     lz_spin.value(),
-                    'intensity': int_spin.value(),
-                    'ambient':   amb_spin.value(),
-                    'shading':   shade_cb.isChecked(),
+                    'dir_x':nd[0],'dir_y':nd[1],'dir_z':nd[2],
+                    'intensity':self._vp_light_intensity,
+                    'ambient':self._vp_light_ambient,
+                    'shading':shade_cb.isChecked(),
+                    'az':_az[0], 'el':_el[0],
                 }
-                os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
-                json.dump(cfg, open(cfg_path,'w'), indent=2)
-                mw = self.main_window
-                if mw and hasattr(mw, 'log_message'):
-                    mw.log_message(
-                        f"Viewport light saved: dir=({lx_spin.value():.2f},"
-                        f"{ly_spin.value():.2f},{lz_spin.value():.2f}) "
-                        f"intensity={int_spin.value():.2f} "
-                        f"ambient={amb_spin.value():.2f}")
-            except Exception as e:
-                pass
+                os.makedirs(os.path.dirname(cfg_path),exist_ok=True)
+                json.dump(cfg,open(cfg_path,'w'),indent=2)
+            except Exception: pass
             dlg.accept()
 
         def _cancel():
-            # Restore original values
-            self._vp_light_dir      = _dir
-            self._vp_light_ambient  = _amb
-            self._vp_light_intensity = _int
-            if vp:
-                vp._light_dir       = _dir
-                vp._light_ambient   = _amb
-                vp._shading_enabled = _shade_on
-                vp.update()
-            _sync_shade_btn(_shade_on)
-            dlg.reject()
+            self._vp_light_dir=_dir; self._vp_light_ambient=_amb
+            self._vp_light_intensity=_int
+            if vp: vp._light_dir=_dir; vp._light_ambient=_amb
+            vp._shading_enabled=_shade_on; vp.update()
+            _sync_shade(_shade_on); dlg.reject()
 
-        bb.accepted.connect(_save_and_close)
-        bb.rejected.connect(_cancel)
-
-        # Apply initial live preview
-        _apply_live()
-        dlg.exec()
+        bb.accepted.connect(_save); bb.rejected.connect(_cancel)
+        root.addWidget(bb)
+        _apply_live(); dlg.exec()
 
     def _load_viewport_light_settings(self): #vers 1
         """Load saved viewport light settings from model_workshop.json."""
