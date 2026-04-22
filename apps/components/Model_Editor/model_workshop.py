@@ -5330,7 +5330,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             'duplicate_surface_btn', 'create_surface_btn',
         ]
         # Buttons shared but context-switches
-        dff_btns = ['paint_btn', 'surface_type_btn', 'surface_edit_btn']
+        dff_btns = ['paint_btn', 'surface_type_btn']  # surface_edit_btn removed (merged into surface_type_btn)
 
         for attr in col_only:
             b = getattr(self, attr, None)
@@ -5365,7 +5365,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     "Open Material List — assign textures to DFF geometry")
             if hasattr(self, 'surface_type_btn'):
                 self.surface_type_btn.setToolTip(
-                    "Material List — all materials in this DFF")
+                    "Material Editor — view materials, textures, IDE info, swap TXD")
 
     # - Render / selection mode
 
@@ -5823,21 +5823,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.surface_type_btn.setIconSize(icon_size)
         self.surface_type_btn.setFixedHeight(btn_height)
         self.surface_type_btn.setMinimumWidth(btn_width)
-        self.surface_type_btn.setToolTip("Material List (DFF) / Surface Types (COL)")
+        self.surface_type_btn.setToolTip(
+            "Material Editor (DFF) — view all materials, textures, IDE info, swap TXD\n"
+            "Surface Types (COL) — paint collision surface materials")
         self.surface_type_btn.clicked.connect(self._open_material_list_or_surface_types)
         layout.addWidget(self.surface_type_btn)
         layout.addSpacing(spacer)
 
-        # Material Editor (DFF) / Surface Editor (COL)
-        self.surface_edit_btn = QPushButton()
-        self.surface_edit_btn.setIcon(self.icon_factory.surfaceedit_icon(color=icon_color))
-        self.surface_edit_btn.setIconSize(icon_size)
-        self.surface_edit_btn.setFixedHeight(btn_height)
-        self.surface_edit_btn.setMinimumWidth(btn_width)
-        self.surface_edit_btn.setToolTip("Material Editor (DFF) / Surface Editor (COL)")
-        self.surface_edit_btn.clicked.connect(self._open_material_editor_or_surface_edit)
-        layout.addWidget(self.surface_edit_btn)
-        layout.addSpacing(spacer)
+        # surface_edit_btn removed — unified Material Editor opened via surface_type_btn
+        self.surface_edit_btn = None  # kept as attr so _enable_dff_toolbar doesn't crash
 
         # Create COL from DFF geometry
         self.build_from_txd_btn = QPushButton()
