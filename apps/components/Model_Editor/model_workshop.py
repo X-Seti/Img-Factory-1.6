@@ -1887,6 +1887,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._open_paint_editor()
 
 
+    def _open_dff_material_editor(self, geom_idx=0, mat_idx=0): #vers 2
+        """Alias — opens the unified Material Editor, pre-selecting geom_idx/mat_idx."""
+        self._open_dff_material_list()
+
+
     def _open_material_list_or_surface_types(self): #vers 1
         """Toolbar: Material List in DFF mode, Surface Types in COL mode."""
         if getattr(self, '_dff_adapters', None):
@@ -1901,472 +1906,488 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         else:
             self._open_surface_edit_dialog()
 
-    def _open_dff_material_list(self): #vers 3
-        """Show all DFF materials across all geometries in a panel dialog."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+
+    def _open_dff_material_list(self): #vers 4
+        """Unified Material Editor — lists all geometry materials with thumbnails
+        on the left, and an edit panel for the selected material on the right.
+        Replaces both the old Material List and Material Editor dialogs."""
+        from PyQt6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QSplitter,
             QTableWidget, QTableWidgetItem, QHeaderView, QLabel,
-            QPushButton, QDialogButtonBox, QAbstractItemView)
-        from PyQt6.QtGui import QColor, QPixmap, QIcon
-        from PyQt6.QtCore import Qt as _Qt
+            QPushButton, QLineEdit, QComboBox, QColorDialog,
+            QFrame, QFormLayout, QAbstractItemView, QSizePolicy)
+        from PyQt6.QtGui import QColor, QPixmap, QIcon, QImage, QFont
+        from PyQt6.QtCore import Qt as _Qt, QSize as _QS
 
         model = getattr(self, '_current_dff_model', None)
         if not model:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Material List", "Load a DFF file first.")
+            QMessageBox.information(self, "Material Editor", "Load a DFF file first.")
             return
 
-        vp = getattr(self, 'preview_widget', None)
+        vp        = getattr(self, 'preview_widget', None)
         tex_cache = getattr(vp, '_tex_cache', {}) if vp else {}
+        ide_obj   = getattr(self, '_current_ide_obj', None)
+        ide_txd   = getattr(self, '_ide_txd_name', '') or ''
+        dff_name  = os.path.splitext(
+            os.path.basename(getattr(self, '_current_dff_path', '') or 'unknown.dff'))[0]
+
+        ic = self._get_icon_color()
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("Material List — DFF")
-        dlg.resize(720, 420)
-        lay = QVBoxLayout(dlg)
-        lay.setSpacing(6)
+        dlg.setWindowTitle(f"Material Editor  {dff_name}")
+        dlg.resize(900, 560)
+        dlg.setMinimumSize(700, 400)
+        root = QVBoxLayout(dlg)
+        root.setSpacing(4)
+        root.setContentsMargins(6, 6, 6, 6)
 
-        # IDE + TXD info header
-        ide_obj  = getattr(self, '_current_ide_obj', None)
-        ide_txd  = getattr(self, '_ide_txd_name', '') or ''
-        dff_name = os.path.splitext(
-            os.path.basename(getattr(self,'_current_dff_path','') or 'unknown.dff'))[0]
-
-        info_row = QHBoxLayout()
-        info_row.setSpacing(12)
-
-        # Model name
+        # ── Top info bar ──────────────────────────────────────────────────
+        info_bar = QHBoxLayout()
         model_lbl = QLabel(f"<b>{dff_name}</b>")
         model_lbl.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        info_row.addWidget(model_lbl)
+        info_bar.addWidget(model_lbl)
 
-        # IDE entry line
         if ide_obj:
-            draw = ide_obj.extra.get('draw_dist', ide_obj.extra.get('dist1', '—'))
+            draw    = ide_obj.extra.get('draw_dist', ide_obj.extra.get('dist1', '—'))
             ide_src = os.path.basename(ide_obj.source_ide or '') or '?'
-            ide_text = (f"ID: {ide_obj.model_id}   "
-                        f"TXD: {ide_obj.txd_name or '—'}   "
-                        f"Draw: {draw}   "
-                        f"Section: {ide_obj.section or '?'}   "
+            ide_text = (f"  ID: {ide_obj.model_id}  "
+                        f"TXD: {ide_obj.txd_name or '—'}  "
+                        f"Draw: {draw}  "
+                        f"Section: {ide_obj.section or '?'}  "
                         f"Source: {ide_src}")
             ide_lbl = QLabel(ide_text)
             ide_lbl.setStyleSheet(
                 "color: palette(mid); font-size: 10px; font-family: monospace;")
             ide_lbl.setToolTip(
-                f"IDE line: {ide_obj.model_id}, {ide_obj.model_name}, "
+                f"IDE: {ide_obj.model_id}, {ide_obj.model_name}, "
                 f"{ide_obj.txd_name}, {draw}, {ide_obj.extra.get('flags','—')}")
         else:
-            ide_lbl = QLabel("IDE: Not found — load a game via DAT Browser")
-            ide_lbl.setStyleSheet(
-                "color: #888; font-size: 10px; font-style: italic;")
-        info_row.addWidget(ide_lbl, 1)
+            ide_lbl = QLabel("  IDE: Not found — load a game via DAT Browser first")
+            ide_lbl.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        info_bar.addWidget(ide_lbl, 1)
 
-        # TXD cache status badge
+        # Cache badge
         n_cached = sum(
-            1 for gi2, g in enumerate(model.geometries)
+            1 for g in model.geometries
             for m in g.materials
-            if (getattr(m,'texture_name','') or '').strip().lower() in tex_cache)
+            if (getattr(m, 'texture_name', '') or '').strip().lower() in tex_cache)
         n_total  = sum(len(g.materials) for g in model.geometries)
-        badge_col = '#16a34a' if n_cached == n_total and n_total > 0 else                     '#ca8a04' if n_cached > 0 else '#dc2626'
-        cache_badge = QLabel(f"{n_cached}/{n_total} cached")
-        cache_badge.setStyleSheet(
-            f"color: {badge_col}; font-weight: bold; font-size: 10px;")
-        info_row.addWidget(cache_badge)
+        bc = '#16a34a' if n_cached == n_total and n_total > 0 else \
+             '#ca8a04' if n_cached > 0 else '#dc2626'
+        badge = QLabel(f"{n_cached}/{n_total} cached")
+        badge.setStyleSheet(f"color:{bc}; font-weight:bold; font-size:10px;")
+        info_bar.addWidget(badge)
+        root.addLayout(info_bar)
 
-        lay.addLayout(info_row)
-
-        # Separator
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: palette(mid);")
-        lay.addWidget(sep)
+        sep.setStyleSheet("color: palette(mid);"); root.addWidget(sep)
+
+        # ── Main splitter: left=material table, right=edit panel ──────────
+        splitter = QSplitter(_Qt.Orientation.Horizontal)
+        root.addWidget(splitter, 1)
+
+        # LEFT: material table with thumbnail column
+        left_w = QFrame()
+        left_lay = QVBoxLayout(left_w)
+        left_lay.setContentsMargins(0, 0, 0, 0)
+        left_lay.setSpacing(3)
 
         tbl = QTableWidget()
         tbl.setColumnCount(6)
         tbl.setHorizontalHeaderLabels(
-            ["Geom", "Mat #", "Texture", "Colour", "In Cache", "UVs"])
+            ["", "Geom", "Mat", "Texture", "Colour", "UVs"])
+        tbl.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Fixed)
+        tbl.setColumnWidth(0, 70)  # thumbnail
+        tbl.setColumnWidth(1, 52)
+        tbl.setColumnWidth(2, 40)
         tbl.horizontalHeader().setStretchLastSection(True)
         tbl.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         tbl.setAlternatingRowColors(True)
-        tbl.verticalHeader().setDefaultSectionSize(24)
+        tbl.verticalHeader().setDefaultSectionSize(68)  # room for 64px thumb
+        tbl.verticalHeader().setVisible(False)
 
-        row = 0
+        THUMB = 64
+        all_rows = []   # (gi, mi, mat) for editor use
+
         for gi, geom in enumerate(model.geometries):
             uv_count = len(geom.uv_layers[0]) if geom.uv_layers else 0
             for mi, mat in enumerate(geom.materials):
+                row = tbl.rowCount()
                 tbl.insertRow(row)
                 tname = (getattr(mat, 'texture_name', '') or '').strip()
-                c = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
-                col_hex = f"#{c.r:02x}{c.g:02x}{c.b:02x}" if c else "#808080"
-                in_cache = '✓' if tname.lower() in tex_cache else ('—' if not tname else '✗')
+                c     = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
 
-                tbl.setItem(row, 0, QTableWidgetItem(f"Geom {gi}"))
-                tbl.setItem(row, 1, QTableWidgetItem(str(mi)))
-                tbl.setItem(row, 2, QTableWidgetItem(tname or '(none)'))
+                # Thumbnail cell
+                thumb_lbl = QLabel()
+                thumb_lbl.setFixedSize(68, 68)
+                thumb_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+                thumb_lbl.setStyleSheet("background:#1e1e2a;")
+                rgba = (tex_cache.get(tname.lower()) or
+                        tex_cache.get(tname.lower().split('.')[0]))
+                if rgba is not None and not isinstance(rgba, QImage):
+                    pass  # already QImage from load_textures
+                if isinstance(rgba, QImage):
+                    pix = QPixmap.fromImage(rgba).scaled(
+                        THUMB, THUMB,
+                        _Qt.AspectRatioMode.KeepAspectRatio,
+                        _Qt.TransformationMode.SmoothTransformation)
+                    thumb_lbl.setPixmap(pix)
+                    in_cache = True
+                else:
+                    # Try rgba_data from _mod_textures
+                    raw_tex = next(
+                        (t for t in getattr(self, '_mod_textures', [])
+                         if t.get('name','').lower() == tname.lower()), None)
+                    if raw_tex:
+                        rd = raw_tex.get('rgba_data', b'')
+                        tw = raw_tex.get('width', 0)
+                        th = raw_tex.get('height', 0)
+                        if rd and tw > 0 and th > 0 and len(rd) >= tw*th*4:
+                            try:
+                                qi = QImage(rd[:tw*th*4], tw, th,
+                                            tw*4, QImage.Format.Format_RGBA8888)
+                                pix = QPixmap.fromImage(qi).scaled(
+                                    THUMB, THUMB,
+                                    _Qt.AspectRatioMode.KeepAspectRatio,
+                                    _Qt.TransformationMode.SmoothTransformation)
+                                thumb_lbl.setPixmap(pix)
+                                in_cache = True
+                            except Exception:
+                                in_cache = False
+                        else:
+                            in_cache = False
+                    else:
+                        in_cache = tname.lower() in tex_cache
+                        thumb_lbl.setStyleSheet(
+                            "background:#1e1e2a; border:1px solid #555;")
 
-                # Colour swatch
+                border = '#16a34a' if in_cache else ('transparent' if not tname else '#dc2626')
+                thumb_lbl.setStyleSheet(
+                    f"background:#1e1e2a; border:2px solid {border};")
+                thumb_lbl.setToolTip(
+                    f"{tname or '(none)'}\n{'✓ in cache' if in_cache else '✗ not in cache'}\n"
+                    "Click to view full size")
+
+                _raw = next(
+                    (t for t in getattr(self, '_mod_textures', [])
+                     if t.get('name','').lower() == tname.lower()), None)
+                if _raw:
+                    thumb_lbl.mousePressEvent = (
+                        lambda ev, t=_raw: self._show_tex_popup(t))
+                tbl.setCellWidget(row, 0, thumb_lbl)
+
+                # Other columns
+                tbl.setItem(row, 1, QTableWidgetItem(f"G{gi}"))
+                tbl.setItem(row, 2, QTableWidgetItem(str(mi)))
+                tbl.setItem(row, 3, QTableWidgetItem(tname or '(none)'))
+
                 swatch_item = QTableWidgetItem("")
                 if c:
-                    px = QPixmap(14, 14)
-                    px.fill(QColor(c.r, c.g, c.b))
+                    px = QPixmap(14, 14); px.fill(QColor(c.r, c.g, c.b))
                     swatch_item.setIcon(QIcon(px))
-                swatch_item.setToolTip(col_hex)
-                tbl.setItem(row, 3, swatch_item)
+                swatch_item.setToolTip(
+                    f"#{c.r:02x}{c.g:02x}{c.b:02x}" if c else "#808080")
+                tbl.setItem(row, 4, swatch_item)
 
-                cache_item = QTableWidgetItem(in_cache)
-                if in_cache == '✓':
-                    cache_item.setForeground(QColor('#16a34a'))
-                elif in_cache == '✗':
-                    cache_item.setForeground(QColor('#dc2626'))
-                tbl.setItem(row, 4, cache_item)
-
-                has_uv = '✓' if uv_count > 0 else '✗'
-                uv_item = QTableWidgetItem(has_uv)
+                uv_item = QTableWidgetItem('✓' if uv_count > 0 else '—')
                 uv_item.setForeground(
-                    QColor('#16a34a') if has_uv == '✓' else QColor('#dc2626'))
+                    QColor('#16a34a') if uv_count > 0 else QColor('#666'))
                 tbl.setItem(row, 5, uv_item)
 
-                # Store (gi, mi) for editor
-                tbl.item(row, 0).setData(_Qt.ItemDataRole.UserRole, (gi, mi))
-                row += 1
+                tbl.item(row, 1).setData(_Qt.ItemDataRole.UserRole, (gi, mi))
+                all_rows.append((gi, mi, mat))
 
-        tbl.resizeColumnsToContents()
-        lay.addWidget(tbl)
+        left_lay.addWidget(tbl)
 
-        # Buttons
-        # Row 1: material editing
+        # TXD action buttons below table
+        txd_row = QHBoxLayout(); txd_row.setSpacing(4)
+
+        def _qbtn(label, tip, slot, icon_fn=None):
+            b = QPushButton(label)
+            b.setFixedHeight(26); b.setFont(self.button_font)
+            if icon_fn:
+                try:
+                    b.setIcon(getattr(self.icon_factory, icon_fn)(color=ic))
+                    b.setIconSize(_QS(16,16))
+                except Exception: pass
+            b.setToolTip(tip); b.clicked.connect(slot)
+            return b
+
+        txd_row.addWidget(_qbtn("Load TXD",
+            "Load a TXD file to fill the texture cache",
+            self._load_txd_into_workshop, "open_icon"))
+        txd_row.addWidget(_qbtn("Auto-find",
+            "Search open IMGs for IDE-linked TXD automatically",
+            lambda: (self._auto_load_txd_from_imgs(), tbl.viewport().update()),
+            "reset_icon"))
+        txd_row.addWidget(_qbtn("Texlist",
+            "Scan texlist/ folder for pre-exported images",
+            lambda: (self._auto_load_from_texlist(ide_txd), tbl.viewport().update()),
+            "folder_icon"))
+
+        # Swap TXD: change which TXD the model uses
+        swap_btn = _qbtn("Swap TXD",
+            "Change TXD name in IDE for this model\n"
+            "(replaces texture set with another from game)",
+            lambda: None, "convert_icon")
+        txd_row.addWidget(swap_btn)
+        txd_row.addStretch()
+        left_lay.addLayout(txd_row)
+        splitter.addWidget(left_w)
+
+        # RIGHT: edit panel for selected material
+        right_w = QFrame()
+        right_w.setMinimumWidth(280)
+        right_lay = QVBoxLayout(right_w)
+        right_lay.setContentsMargins(8, 4, 4, 4)
+        right_lay.setSpacing(6)
+
+        edit_hdr = QLabel("Select a material row to edit")
+        edit_hdr.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        edit_hdr.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+        right_lay.addWidget(edit_hdr)
+
+        form = QFormLayout(); form.setSpacing(8)
+
+        tex_name_edit = QLineEdit()
+        tex_name_edit.setPlaceholderText("texture_name")
+        tex_name_edit.setEnabled(False)
+        cache_lbl = QLabel("—")
+        cache_lbl.setFixedWidth(80)
+        tx_row = QHBoxLayout()
+        tx_row.addWidget(tex_name_edit, 1)
+        tx_row.addWidget(cache_lbl)
+
+        def _make_load_btn():
+            b = QPushButton("Load TXD…")
+            b.setFixedHeight(24)
+            try:
+                b.setIcon(self.icon_factory.open_icon(color=ic))
+                b.setIconSize(_QS(14,14))
+            except Exception: pass
+            b.clicked.connect(self._load_txd_into_workshop)
+            return b
+        tx_row.addWidget(_make_load_btn())
+        form.addRow("Texture:", tx_row)
+
+        # IDE line with reload button
+        ide_edit_lbl = QLabel("—")
+        ide_edit_lbl.setStyleSheet(
+            "font-size: 10px; font-family: monospace; color: palette(mid);")
+        ide_edit_lbl.setWordWrap(True)
+        ide_edit_lbl.setTextInteractionFlags(
+            _Qt.TextInteractionFlag.TextSelectableByMouse)
+
+        reload_btn = QPushButton()
+        reload_btn.setFixedSize(26, 26)
+        try:
+            reload_btn.setIcon(self.icon_factory.reset_icon(color=ic))
+            reload_btn.setIconSize(_QS(16,16))
+        except Exception:
+            reload_btn.setText("↻")
+        reload_btn.setToolTip("Reload IDE entry from DAT Browser / rescan")
+        reload_btn.clicked.connect(lambda: _refresh_ide_lbl())
+
+        ide_edit_row = QHBoxLayout()
+        ide_edit_row.addWidget(ide_edit_lbl, 1)
+        ide_edit_row.addWidget(reload_btn)
+        form.addRow("IDE:", ide_edit_row)
+
+        # Swap TXD combo — change which TXD the IDE entry points to
+        swap_combo = QComboBox()
+        swap_combo.setEditable(True)
+        swap_combo.setEnabled(False)
+        swap_combo.setToolTip(
+            "Change the TXD name for this model's IDE entry\n"
+            "Type a TXD name or pick from recently loaded")
+        if ide_txd:
+            swap_combo.addItem(ide_txd)
+        swap_apply_btn = QPushButton("Apply")
+        swap_apply_btn.setFixedHeight(24)
+        swap_apply_btn.setEnabled(False)
+        swap_apply_btn.setToolTip(
+            "Set the selected TXD name and reload textures")
+        swap_row = QHBoxLayout()
+        swap_row.addWidget(swap_combo, 1)
+        swap_row.addWidget(swap_apply_btn)
+        form.addRow("Use TXD:", swap_row)
+
+        # Colour
+        chosen_color = [QColor(160, 160, 160)]
+        colour_swatch = QLabel()
+        colour_swatch.setFixedSize(32, 22)
+        colour_swatch.setFrameShape(QFrame.Shape.Box)
+        pick_btn = QPushButton("Pick…")
+        pick_btn.setFixedHeight(24)
+        pick_btn.setEnabled(False)
+        def _pick_colour():
+            col = QColorDialog.getColor(chosen_color[0], dlg, "Pick Colour")
+            if col.isValid():
+                chosen_color[0] = col
+                colour_swatch.setStyleSheet(
+                    f"background:{col.name()}; border:1px solid #555;")
+        pick_btn.clicked.connect(_pick_colour)
+        col_row = QHBoxLayout()
+        col_row.addWidget(colour_swatch); col_row.addWidget(pick_btn)
+        col_row.addStretch()
+        form.addRow("Colour:", col_row)
+
+        # UV info
+        uv_lbl = QLabel("—")
+        uv_lbl.setStyleSheet("color: #16a34a; font-size: 10px;")
+        form.addRow("UV Layer:", uv_lbl)
+
+        # Preview buttons
+        pw = getattr(self, 'preview_widget', None)
+        cur_style = getattr(pw, '_render_style', 'semi') if pw else 'semi'
+        prev_row = QHBoxLayout()
+        for style, label in [('solid','Solid'),('textured','Textured'),
+                              ('semi','Semi'),('wire','Wire')]:
+            b = QPushButton(label)
+            b.setFixedHeight(26)
+            if pw:
+                b.clicked.connect(
+                    lambda _=False, s=style, p=pw: p.set_render_style(s))
+            prev_row.addWidget(b)
+        form.addRow("Preview:", prev_row)
+
+        right_lay.addLayout(form)
+        right_lay.addStretch()
+
+        # OK / Cancel
+        ok_cancel = QHBoxLayout()
+        ok_btn = QPushButton("✓ OK"); ok_btn.setFixedHeight(28)
+        cancel_btn = QPushButton("✕ Cancel"); cancel_btn.setFixedHeight(28)
+        ok_cancel.addStretch()
+        ok_cancel.addWidget(ok_btn)
+        ok_cancel.addWidget(cancel_btn)
+        right_lay.addLayout(ok_cancel)
+        splitter.addWidget(right_w)
+        splitter.setSizes([520, 380])
+
+        # ── Wire up row selection → edit panel ────────────────────────────
+        _current = [None]   # [mat object]
+
+        def _refresh_ide_lbl():
+            xr = self._get_xref()
+            obj = self._current_ide_obj
+            stem = os.path.splitext(
+                getattr(self,'_original_dff_name','') or
+                os.path.basename(getattr(self,'_current_dff_path','') or ''))[0].lower()
+            if xr and not obj:
+                obj = xr.model_map.get(stem)
+                if obj is None:
+                    parts = stem.split('_')
+                    for n in range(len(parts)-1,0,-1):
+                        obj = xr.model_map.get('_'.join(parts[:n]))
+                        if obj: break
+                if obj:
+                    self._current_ide_obj = obj
+                    self._ide_txd_name = obj.txd_name or ''
+            if obj:
+                draw = obj.extra.get('draw_dist', obj.extra.get('dist1','—'))
+                ide_edit_lbl.setText(
+                    f"{obj.model_id}  {obj.model_name}  "
+                    f"TXD:{obj.txd_name}  Draw:{draw}  [{obj.section}]")
+                ide_edit_lbl.setToolTip(
+                    f"Source: {os.path.basename(obj.source_ide or '')}  "
+                    f"line {obj.line_no}")
+                swap_combo.setCurrentText(obj.txd_name or '')
+                swap_combo.setEnabled(True)
+                swap_apply_btn.setEnabled(True)
+            else:
+                ide_edit_lbl.setText("Not found — load a game via DAT Browser")
+                ide_edit_lbl.setStyleSheet(
+                    "font-size:10px; color:#888; font-style:italic;")
+            self._ide_label_refresh_fn = _refresh_ide_lbl
+
+        def _on_row_changed():
+            row = tbl.currentRow()
+            if row < 0 or row >= len(all_rows):
+                return
+            gi, mi, mat = all_rows[row]
+            tname = (getattr(mat, 'texture_name', '') or '').strip()
+            c     = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
+            uv_count = (len(model.geometries[gi].uv_layers[0])
+                        if model.geometries[gi].uv_layers else 0)
+
+            edit_hdr.setText(f"Geom {gi}  Mat {mi}: {tname or '(no texture)'}")
+            tex_name_edit.setText(tname)
+            tex_name_edit.setEnabled(True)
+            pick_btn.setEnabled(True)
+            _current[0] = mat
+
+            in_c = tname.lower() in tex_cache
+            cache_lbl.setText("✓ in cache" if in_c else ("✗ not found" if tname else "—"))
+            cache_lbl.setStyleSheet(
+                "color:#16a34a;" if in_c else "color:#dc2626;" if tname else "")
+
+            if c:
+                chosen_color[0] = QColor(c.r, c.g, c.b)
+                colour_swatch.setStyleSheet(
+                    f"background:{chosen_color[0].name()}; border:1px solid #555;")
+
+            uv_lbl.setText(f"✓ {uv_count} UV coords" if uv_count else "—")
+            uv_lbl.setStyleSheet(
+                "color:#16a34a; font-size:10px;" if uv_count else
+                "color:#888; font-size:10px;")
+
+            _refresh_ide_lbl()
+
+        tbl.itemSelectionChanged.connect(_on_row_changed)
+        if tbl.rowCount() > 0:
+            tbl.selectRow(0)
+
+        def _apply_swap_txd():
+            new_txd = swap_combo.currentText().strip()
+            if not new_txd:
+                return
+            self._ide_txd_name = new_txd
+            # Reload textures from new TXD
+            from PyQt6.QtCore import QTimer as _QTswap
+            _QTswap.singleShot(0, lambda t=new_txd:
+                self._auto_load_txd_from_imgs(t))
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(
+                    f"TXD swapped to '{new_txd}' — reloading textures")
+        swap_apply_btn.clicked.connect(_apply_swap_txd)
+        swap_btn.clicked.connect(lambda: (
+            swap_combo.setFocus(),
+            swap_combo.lineEdit().selectAll() if swap_combo.lineEdit() else None))
+
+        def _apply_and_close():
+            mat = _current[0]
+            if mat:
+                new_name = tex_name_edit.text().strip()
+                if hasattr(mat, 'texture_name'):
+                    mat.texture_name = new_name
+                c = chosen_color[0]
+                mc = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
+                if mc:
+                    mc.r = c.red(); mc.g = c.green(); mc.b = c.blue()
+                if vp:
+                    vp.update()
+            dlg.accept()
+
+        ok_btn.clicked.connect(_apply_and_close)
+        cancel_btn.clicked.connect(dlg.reject)
+
+        # Bottom button row
         btn_row = QHBoxLayout(); btn_row.setSpacing(4)
-        edit_btn = QPushButton("Edit Material…")
-        edit_btn.setFixedHeight(26)
-        edit_btn.clicked.connect(lambda: (
-            self._open_dff_material_editor(
-                *tbl.item(tbl.currentRow(), 0).data(_Qt.ItemDataRole.UserRole))
-            if tbl.currentRow() >= 0 else None))
-        btn_row.addWidget(edit_btn)
-        load_txd_btn = QPushButton("Load TXD…")
-        load_txd_btn.setFixedHeight(26)
-        load_txd_btn.clicked.connect(self._load_txd_into_workshop)
-        btn_row.addWidget(load_txd_btn)
-        auto_txd_btn = QPushButton("Auto-find TXD")
-        auto_txd_btn.setFixedHeight(26)
-        auto_txd_btn.setToolTip(
-            "Search open IMG tabs for the IDE-linked TXD.\n"
-            "Falls back to texlist/ folder if not found in any IMG.")
-        auto_txd_btn.clicked.connect(lambda: (
-            self._auto_load_txd_from_imgs(),
-            tbl.viewport().update()))
-        btn_row.addWidget(auto_txd_btn)
-
-        scan_btn = QPushButton("Scan texlist…")
-        scan_btn.setFixedHeight(26)
-        scan_btn.setToolTip(
-            "Scan the texlist/ folder for pre-exported PNG/IFF/TGA textures.\n"
-            "Configure the folder in Model Workshop Settings → Export → Texture Sources.")
-        def _do_scan_texlist():
-            stem = getattr(self, '_ide_txd_name', '') or ''
-            found = self._auto_load_from_texlist(stem)
-            # Refresh In Cache column
-            vp2 = getattr(self, 'preview_widget', None)
-            tc2 = getattr(vp2, '_tex_cache', {}) if vp2 else {}
-            for r in range(tbl.rowCount()):
-                tname2 = (tbl.item(r, 2).text() or '').strip().lower()
-                ic = '✓' if tname2 in tc2 else ('—' if not tname2 else '✗')
-                from PyQt6.QtGui import QColor as _QC
-                ci = tbl.item(r, 4); ci.setText(ic)
-                ci.setForeground(_QC('#16a34a') if ic=='✓' else _QC('#dc2626') if ic=='✗' else _QC('#888'))
-            if not found:
-                # Offer to set the folder if none configured
-                folder = getattr(self, '_texlist_folder', '') or ''
-                if not folder or not __import__('os').path.isdir(folder):
-                    self._set_texlist_folder()
-                    self._auto_load_from_texlist(stem)
-        scan_btn.clicked.connect(_do_scan_texlist)
-        btn_row.addWidget(scan_btn)
         btn_row.addStretch()
         close_btn = QPushButton("Close")
         close_btn.setFixedHeight(26)
         close_btn.clicked.connect(dlg.accept)
         btn_row.addWidget(close_btn)
-        lay.addLayout(btn_row)
+        root.addLayout(btn_row)
 
+        # Trigger initial IDE refresh
+        _refresh_ide_lbl()
         dlg.exec()
 
-    def _open_dff_material_editor(self, geom_idx=0, mat_idx=0): #vers 1
-        """Edit a single DFF material — texture name, colour, load TXD."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QFormLayout, QLabel, QLineEdit, QPushButton, QDialogButtonBox,
-            QColorDialog, QFrame)
-        from PyQt6.QtGui import QColor, QPixmap, QIcon
-        from PyQt6.QtCore import Qt as _Qt
-
-        model = getattr(self, '_current_dff_model', None)
-        if not model:
-            return
-        if geom_idx >= len(model.geometries):
-            geom_idx = 0
-        geom = model.geometries[geom_idx]
-        if not geom.materials or mat_idx >= len(geom.materials):
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Material Editor",
-                "This geometry has no materials.")
-            return
-
-        mat   = geom.materials[mat_idx]
-        vp    = getattr(self, 'preview_widget', None)
-        tc    = getattr(vp, '_tex_cache', {}) if vp else {}
-        tname = (getattr(mat, 'texture_name', '') or '').strip()
-        c     = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
-        chosen_color = [QColor(c.r, c.g, c.b) if c else QColor(160, 160, 160)]
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle(
-            f"Material Editor — Geom {geom_idx}, Mat {mat_idx}")
-        dlg.setMinimumWidth(480)
-        lay = QVBoxLayout(dlg)
-        form = QFormLayout()
-        form.setSpacing(8)
-
-        # Texture name
-        tex_edit = QLineEdit(tname)
-        tex_edit.setPlaceholderText("texture_name (must match TXD entry)")
-        cache_lbl = QLabel(
-            "✓ in cache" if tname.lower() in tc else
-            "✗ not in cache" if tname else "—")
-        cache_lbl.setStyleSheet(
-            "color: #16a34a;" if tname.lower() in tc else "color: #dc2626;")
-        def _update_cache_lbl(txt):
-            t = txt.strip().lower()
-            in_c = t in tc
-            cache_lbl.setText("✓ in cache" if in_c else ("✗ not in cache" if t else "—"))
-            cache_lbl.setStyleSheet(
-                "color: #16a34a;" if in_c else "color: #dc2626;")
-        tex_edit.textChanged.connect(_update_cache_lbl)
-
-        tex_row = QHBoxLayout()
-        tex_row.addWidget(tex_edit, 1)
-        tex_row.addWidget(cache_lbl)
-
-        # Load TXD uses IDE-linked txd_name, not a file browser
-        ide_obj  = getattr(self, '_current_ide_obj', None)
-        ide_txd  = (ide_obj.txd_name if ide_obj else '') or ''
-        dff_stem = os.path.splitext(
-            os.path.basename(getattr(self,'_current_dff_path','') or '')
-        )[0].lower()
-        # If no cached IDE obj, try xref lookup
-        if not ide_txd and dff_stem:
-            xref = self._get_xref()
-            if xref:
-                _o = xref.model_map.get(dff_stem)
-                if _o:
-                    ide_txd = _o.txd_name or ''
-
-        load_txd = QPushButton("Load TXD…")
-        load_txd.setFixedHeight(26)
-        load_txd.setToolTip(
-            f"Load TXD from open IMGs: {ide_txd}.txd"
-            if ide_txd else "Browse for TXD file")
-        def _load_txd_smart():
-            txd = ide_txd  # captured from above
-            if txd:
-                # 1. Try asset DB (fastest — pre-indexed locations)
-                mw2 = getattr(self, 'main_window', None)
-                db2 = getattr(mw2, 'asset_db', None)
-                ok  = False
-                if db2:
-                    try:
-                        from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
-                        # Find TXD in asset DB and extract from IMG
-                        txd_row = db2.find_img_entry(txd + '.txd')
-                        if txd_row:
-                            from apps.methods.img_core_classes import IMGFile
-                            arc = IMGFile(txd_row['source_path'])
-                            arc.open()
-                            entry = next(
-                                (e for e in arc.entries
-                                 if e.name.lower() == txd_row['entry_name'].lower()),
-                                None)
-                            if entry:
-                                data = arc.read_entry_data(entry)
-                                if data:
-                                    self._load_txd_file_from_data(data, txd + '.txd')
-                                    if mw2 and hasattr(mw2,'log_message'):
-                                        _src_bn = os.path.basename(
-                                            txd_row['source_path'])
-                                        mw2.log_message(
-                                            f"TXD loaded via DB: {txd}.txd "
-                                            f"from {_src_bn}")
-                                    ok = True
-                    except Exception:
-                        pass
-                # 2. Try open IMG tabs
-                if not ok:
-                    ok = self._auto_load_txd_from_imgs(txd)
-                # 3. Try texlist/ folder
-                if not ok:
-                    ok = self._auto_load_from_texlist(txd)
-                # 4. File browser fallback
-                if not ok:
-                    self._load_txd_into_workshop()
-            else:
-                self._load_txd_into_workshop()
-            _update_cache_lbl(tex_edit.text())
-        load_txd.clicked.connect(_load_txd_smart)
-        tex_row.addWidget(load_txd)
-        form.addRow("Texture Name:", tex_row)
-
-        # IDE line — show the full IDE entry so the TXD name is visible
-        ide_row_layout = QHBoxLayout()
-
-        def _build_ide_lbl(obj):
-            """Build the IDE label from an IDEObject."""
-            import os as _os
-            if obj is None:
-                lbl2 = QLabel("Not found — click Reload IDE to scan game folder")
-                lbl2.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
-                return lbl2
-            ide_src = _os.path.basename(obj.source_ide or '') or '?'
-            draw    = obj.extra.get('draw_dist', obj.extra.get('dist1','—'))
-            flags   = obj.extra.get('flags','—')
-            line    = (f"{obj.model_id},  {obj.model_name},  "
-                       f"{obj.txd_name},  {draw},  {flags}")
-            lbl2 = QLabel(line)
-            lbl2.setStyleSheet(
-                "color: palette(mid); font-size: 10px; font-family: monospace;")
-            lbl2.setToolTip(
-                f"id, model, txd, draw_dist, flags\n"
-                f"Source: {ide_src}  line {obj.line_no}")
-            lbl2.setTextInteractionFlags(
-                _Qt.TextInteractionFlag.TextSelectableByMouse)
-            return lbl2
-
-        ide_display = [ide_obj]   # mutable holder so reload can update it
-        ide_lbl_holder = [_build_ide_lbl(ide_obj)]
-        ide_row_layout.addWidget(ide_lbl_holder[0], 1)
-
-        def _reload_ide():
-            # Try xref first (fastest — already in memory from DAT load)
-            new_obj = None
-            xr = self._get_xref()
-            if xr:
-                stem_try = getattr(self, '_original_dff_name', '') or dff_stem
-                stem_try = os.path.splitext(stem_try)[0].lower()
-                new_obj = xr.model_map.get(stem_try)
-                if new_obj is None:
-                    # Progressive fallback
-                    parts = stem_try.split('_')
-                    for n in range(len(parts)-1, 0, -1):
-                        new_obj = xr.model_map.get('_'.join(parts[:n]))
-                        if new_obj: break
-            if new_obj is None:
-                # Fall back to IDEDatabase scan
-                self._ide_db = None; self._ide_db_root = ''
-                db = self._get_ide_db()
-                new_obj = db.lookup(dff_stem) if db else None
-            if new_obj:
-                self._current_ide_obj = new_obj
-                self._ide_txd_name    = new_obj.txd_name or ''
-                # Auto-load TXD after reload
-                if new_obj.txd_name and new_obj.txd_name.lower() not in ('null',''):
-                    from PyQt6.QtCore import QTimer as _QTR
-                    _QTR.singleShot(0, lambda txd=new_obj.txd_name:
-                        self._auto_load_txd_from_imgs(txd))
-            ide_display[0] = new_obj
-            old_w = ide_lbl_holder[0]
-            new_w = _build_ide_lbl(new_obj)
-            ide_row_layout.replaceWidget(old_w, new_w)
-            old_w.deleteLater()
-            ide_lbl_holder[0] = new_w
-            mw3 = self.main_window
-            if mw3 and hasattr(mw3,'log_message'):
-                db_size = len(db.model_map) if db else 0
-                if new_obj:
-                    mw3.log_message(
-                        f"IDE DB: found '{dff_stem}' → txd={new_obj.txd_name}")
-                else:
-                    mw3.log_message(
-                        f"IDE DB: '{dff_stem}' not in DB "
-                        f"({db_size} objects loaded)  "
-                        f"root={getattr(self,'_ide_db_root','?')}")
-
-        reload_ide_btn = QPushButton("↻")
-        reload_ide_btn.setFixedSize(24, 22)
-        reload_ide_btn.setToolTip(
-            "Reload IDE database — rescans .ide files from game folder")
-        reload_ide_btn.clicked.connect(_reload_ide)
-        ide_row_layout.addWidget(reload_ide_btn)
-        # Store callback so _lookup_ide_for_dff can trigger label refresh
-        self._ide_label_refresh_fn = _reload_ide
-        form.addRow("IDE:", ide_row_layout)
-
-        # Colour swatch
-        swatch = QLabel()
-        swatch.setFixedSize(32, 24)
-        swatch.setFrameShape(QFrame.Shape.Box)
-        def _refresh_swatch():
-            col = chosen_color[0]
-            swatch.setStyleSheet(
-                f"background:{col.name()}; border:1px solid #555;")
-        _refresh_swatch()
-
-        def _pick_color():
-            col = QColorDialog.getColor(chosen_color[0], dlg, "Pick Material Colour")
-            if col.isValid():
-                chosen_color[0] = col
-                _refresh_swatch()
-        pick_btn = QPushButton("Pick…")
-        pick_btn.setFixedHeight(26)
-        pick_btn.clicked.connect(_pick_color)
-        col_row = QHBoxLayout()
-        col_row.addWidget(swatch)
-        col_row.addWidget(pick_btn)
-        col_row.addStretch()
-        form.addRow("Colour:", col_row)
-
-        # UV info (read-only)
-        uv_count = len(geom.uv_layers[0]) if geom.uv_layers else 0
-        uv_lbl = QLabel(
-            f"✓  {uv_count} UV coords" if uv_count > 0
-            else "✗  No UV data — textured mode will use solid colour")
-        uv_lbl.setStyleSheet(
-            "color: #16a34a;" if uv_count > 0 else "color: #dc2626;")
-        form.addRow("UV Layer:", uv_lbl)
-
-        lay.addLayout(form)
-
-        # Render mode shortcut
-        rm_row = QHBoxLayout()
-        rm_row.addWidget(QLabel("Preview as:"))
-        for style, label in [('solid','Solid'),('textured','Textured'),
-                               ('semi','Semi'),('wireframe','Wire')]:
-            b = QPushButton(label)
-            b.setFixedHeight(26)
-            b.clicked.connect(lambda _=False, s=style: (
-                vp.set_render_style(s) if vp else None))
-            rm_row.addWidget(b)
-        rm_row.addStretch()
-        lay.addLayout(rm_row)
-
-        lay.addSpacing(8)
-        btns = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel)
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        lay.addWidget(btns)
-
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            # Apply changes back to material
-            new_name = tex_edit.text().strip()
-            mat.texture_name = new_name
-            nc = chosen_color[0]
-            if c:
-                c.r = nc.red(); c.g = nc.green()
-                c.b = nc.blue(); c.a = 255
-            # Refresh viewport
-            if vp:
-                vp.update()
-            # Refresh texture channels in context menu next open
-            if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(
-                    f"Material {mat_idx} updated: texture='{new_name}'")
 
     def _open_surface_type_dialog(self): #vers 1
         """Show surface material type picker for selected model."""
@@ -4739,12 +4760,28 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             from PyQt6.QtCore import QTimer as _QT2
             _QT2.singleShot(500, self._load_mod_toolbar_layouts)
 
-    def resizeEvent(self, event): #vers 3
-        """Keep resize grip in corner; auto-collapse text transform panel when narrow."""
+    def resizeEvent(self, event): #vers 4
+        """Keep resize grip in corner; auto-collapse panels when narrow."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
+        self._update_tex_btn_compact()
+
+    def _update_tex_btn_compact(self): #vers 1
+        """Show/hide label text on texture panel buttons based on available width.
+        Threshold: if panel width < 260px → icon-only (28px buttons).
+        Otherwise → icon + label (min 72px)."""
+        panel = getattr(self, '_tex_panel', None)
+        if not panel or not panel.isVisible():
+            return
+        compact = panel.width() < 260
+        for attr, label, _ in getattr(self, '_tex_btns_meta', []):
+            b = getattr(self, attr, None)
+            if b is None:
+                continue
+            b.setText("" if compact else label)
+            b.setMinimumWidth(28 if compact else 64)
 
 
     def mouseDoubleClickEvent(self, event): #vers 2
@@ -6277,38 +6314,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._show_collision_context_menu)
         self.collision_list.setVisible(False)  # hidden at startup — compact view is default
         layout.addWidget(self.collision_list)
-
-        # Open/Save toolbar row for docked mode
-        self._docked_toolbar_row = QWidget()
-        docked_row_lay = QHBoxLayout(self._docked_toolbar_row)
-        docked_row_lay.setContentsMargins(2, 2, 2, 2)
-        docked_row_lay.setSpacing(4)
-
-        def _dtb(tip, icon_fn, slot):
-            b = QPushButton()
-            b.setFixedSize(28, 26)
-            b.setToolTip(tip)
-            try:
-                b.setIcon(getattr(self.icon_factory, icon_fn)(color=self._get_icon_color()))
-                b.setIconSize(QSize(16, 16))
-            except Exception:
-                pass
-            b.clicked.connect(slot)
-            docked_row_lay.addWidget(b)
-            return b
-
-        _dtb("Open DFF model (Ctrl+O)", "open_icon", self._open_dff_standalone)
-        _dtb("Open TXD textures (Ctrl+T)", "open_icon", self._open_txd_combined)
-        _dtb("Save model (Ctrl+S)", "save_icon", lambda: self._save_file()
-             if hasattr(self, '_save_file') else None)
-        _dtb("Export OBJ/COL/DFF…", "export_icon",
-             lambda: self._export_model_menu()
-             if hasattr(self, '_export_model_menu') else None)
-        docked_row_lay.addStretch()
-        layout.addWidget(self._docked_toolbar_row)
-        # Only show in docked mode (standalone has its own titlebar toolbar)
-        self._docked_toolbar_row.setVisible(
-            getattr(self, 'is_docked', False))
 
         # - Compact list (thumbnail + name/version/counts, single row)
         self.mod_compact_list = QTableWidget()
@@ -8335,18 +8340,26 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         btn_row = QHBoxLayout()
         btn_row.setSpacing(3)
 
+        # tex buttons: adaptive — show label when panel wide enough, icon-only when narrow
+        self._tex_btns_meta = []   # [(attr, label, icon_method)] for compact update
+
         def _tbtn(attr, text, icon_method, tip, slot, enabled=True):
             b = QPushButton(text)
             b.setFont(self.button_font)
-            b.setIcon(getattr(self.icon_factory, icon_method)(color=icon_color))
-            b.setIconSize(QSize(18, 18))
+            try:
+                b.setIcon(getattr(self.icon_factory, icon_method)(color=icon_color))
+                b.setIconSize(QSize(16, 16))
+            except Exception:
+                pass
             b.setFixedHeight(26)
-            b.setMinimumWidth(72)
+            b.setMinimumWidth(28)   # icon-only minimum
             b.setToolTip(tip)
             b.setEnabled(enabled)
             b.clicked.connect(slot)
+            b._tex_label = text
             setattr(self, attr, b)
             btn_row.addWidget(b)
+            self._tex_btns_meta.append((attr, text, icon_method))
             return b
 
         _tbtn('tex_load_btn',    'Load TXD',   'open_icon',
@@ -8445,7 +8458,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         tc       = getattr(vp, '_tex_cache', {}) if vp else {}
 
         THUMB_SIZE = 64
-        COL_COUNT  = 3   # thumbnails per row
+        # Fit as many columns as the scroll area width allows (min 2)
+        scroll_w = getattr(self, '_tex_scroll', None)
+        avail_w  = scroll_w.viewport().width() if scroll_w else 220
+        COL_COUNT = max(2, avail_w // (THUMB_SIZE + 10))
 
         for i, tex in enumerate(textures):
             name     = tex.get('name', f'tex_{i}')
@@ -8482,7 +8498,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
             # Container widget for thumb + name label
             cell = QWidget()
-            cell.setFixedSize(THUMB_SIZE + 4, THUMB_SIZE + 22)
+            cell.setFixedSize(THUMB_SIZE + 4, THUMB_SIZE + 18)
             cell_lay = QVBoxLayout(cell)
             cell_lay.setContentsMargins(2, 2, 2, 2)
             cell_lay.setSpacing(1)
