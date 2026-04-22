@@ -930,6 +930,13 @@ class COL3DViewport(QWidget): #vers 2
                 mc = mat_col(_mat_id)
                 is_selected = (face_idx in self._selected_faces)
 
+                # Lambertian shading — compute per-face shade factor
+                try:
+                    g3v = [g3(verts[i]) for i in idx]
+                    _shade = self._compute_face_shade(g3v[0], g3v[1], g3v[2])
+                except Exception:
+                    _shade = 0.7
+
                 if is_selected:
                     p.setBrush(QBrush(QColor(255, 200, 50, 200)))
                     p.setPen(QPen(QColor(255, 230, 80), 2))
@@ -973,22 +980,47 @@ class COL3DViewport(QWidget): #vers 2
                             else:
                                 raise ValueError("degenerate")
                         except Exception:
-                            p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
+                            # Fallback: solid shaded face
+                            _s2 = _shade
+                            fb = QColor(int(mc.red()*_s2),
+                                        int(mc.green()*_s2),
+                                        int(mc.blue()*_s2))
+                            p.setBrush(QBrush(fb)); p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
                     else:
-                        # No texture — solid fallback with thin edge
-                        p.setBrush(QBrush(mc if mat_obj else QColor(170,175,180)))
+                        # No texture — solid shaded fallback
+                        _sc = mc if mat_obj else QColor(170,175,180)
+                        _s3 = _shade
+                        shaded_fb = QColor(
+                            int(_sc.red()   * _s3),
+                            int(_sc.green() * _s3),
+                            int(_sc.blue()  * _s3))
+                        p.setBrush(QBrush(shaded_fb))
                         p.setPen(QPen(QColor(80,80,80,60), 0.3))
                         p.drawPolygon(QPolygonF(pts))
 
                 elif rs == 'solid':
-                    p.setBrush(QBrush(mc))
-                    p.setPen(QPen(mc.darker(130),0.5))
+                    # Apply Lambertian shading
+                    _s = _shade
+                    shaded = QColor(
+                        int(mc.red()   * _s),
+                        int(mc.green() * _s),
+                        int(mc.blue()  * _s), mc.alpha())
+                    p.setBrush(QBrush(shaded))
+                    p.setPen(QPen(shaded.darker(120), 0.5))
                     p.drawPolygon(QPolygonF(pts))
                 elif rs == 'semi':
-                    fill=QColor(mc.red(),mc.green(),mc.blue(),90)
+                    _s = _shade
+                    fill = QColor(
+                        int(mc.red()   * _s),
+                        int(mc.green() * _s),
+                        int(mc.blue()  * _s), 90)
+                    edge = QColor(
+                        int((mc.red()   * _s)//2 + 60),
+                        int((mc.green() * _s)//2 + 60),
+                        int((mc.blue()  * _s)//2 + 60))
                     p.setBrush(QBrush(fill))
-                    p.setPen(QPen(QColor(mc.red()//2+60,mc.green()//2+60,mc.blue()//2+60),0.5))
+                    p.setPen(QPen(edge, 0.5))
                     p.drawPolygon(QPolygonF(pts))
                 else:  # wireframe
                     p.setBrush(Qt.BrushStyle.NoBrush)
@@ -1958,7 +1990,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                         f"Source: {ide_src}")
             ide_lbl = QLabel(ide_text)
             ide_lbl.setStyleSheet(
-                "color: palette(mid); font-size: 10px; font-family: monospace;")
+                "color: palette(windowText); font-size: 10px; "
+                "font-family: monospace; opacity: 0.85;")
             ide_lbl.setToolTip(
                 f"IDE: {ide_obj.model_id}, {ide_obj.model_name}, "
                 f"{ide_obj.txd_name}, {draw}, {ide_obj.extra.get('flags','—')}")
@@ -2075,8 +2108,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     (t for t in getattr(self, '_mod_textures', [])
                      if t.get('name','').lower() == tname.lower()), None)
                 if _raw:
-                    thumb_lbl.mousePressEvent = (
-                        lambda ev, t=_raw: self._show_tex_popup(t))
+                    # Hover thumbnail instead of click popup
+                    thumb_lbl._tex_raw = _raw
+                    thumb_lbl._hover_wnd = [None]
+                    def _enter(ev, lbl=thumb_lbl, ws=self):
+                        ws._show_tex_hover(lbl, getattr(lbl,'_tex_raw',None))
+                    def _leave(ev, lbl=thumb_lbl, ws=self):
+                        ws._hide_tex_hover(lbl)
+                    thumb_lbl.enterEvent = _enter
+                    thumb_lbl.leaveEvent = _leave
                 tbl.setCellWidget(row, 0, thumb_lbl)
 
                 # Other columns
@@ -2163,10 +2203,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         def _make_load_btn():
             b = QPushButton("Load TXD…")
-            b.setFixedHeight(24)
+            b.setFixedHeight(26)
             try:
                 b.setIcon(self.icon_factory.open_icon(color=ic))
-                b.setIconSize(_QS(14,14))
+                b.setIconSize(_QS(16,16))
             except Exception: pass
             b.clicked.connect(self._load_txd_into_workshop)
             return b
@@ -2176,7 +2216,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # IDE line with reload button
         ide_edit_lbl = QLabel("—")
         ide_edit_lbl.setStyleSheet(
-            "font-size: 10px; font-family: monospace; color: palette(mid);")
+            "font-size: 10px; font-family: monospace; "
+            "color: palette(windowText); opacity: 0.8;")
         ide_edit_lbl.setWordWrap(True)
         ide_edit_lbl.setTextInteractionFlags(
             _Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -2206,7 +2247,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         if ide_txd:
             swap_combo.addItem(ide_txd)
         swap_apply_btn = QPushButton("Apply")
-        swap_apply_btn.setFixedHeight(24)
+        swap_apply_btn.setFixedHeight(26)
         swap_apply_btn.setEnabled(False)
         swap_apply_btn.setToolTip(
             "Set the selected TXD name and reload textures")
@@ -2221,7 +2262,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         colour_swatch.setFixedSize(32, 22)
         colour_swatch.setFrameShape(QFrame.Shape.Box)
         pick_btn = QPushButton("Pick…")
-        pick_btn.setFixedHeight(24)
+        pick_btn.setFixedHeight(26)
         pick_btn.setEnabled(False)
         def _pick_colour():
             col = QColorDialog.getColor(chosen_color[0], dlg, "Pick Colour")
@@ -2239,6 +2280,121 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         uv_lbl = QLabel("—")
         uv_lbl.setStyleSheet("color: #16a34a; font-size: 10px;")
         form.addRow("UV Layer:", uv_lbl)
+
+        # Import / Export texture buttons
+        tex_io_row = QHBoxLayout()
+        tex_io_row.setSpacing(4)
+
+        def _qbtn26(label, tip, slot, icon_fn=None):
+            b = QPushButton(label)
+            b.setFixedHeight(26); b.setFont(self.button_font)
+            if icon_fn:
+                try:
+                    b.setIcon(getattr(self.icon_factory, icon_fn)(color=ic))
+                    b.setIconSize(_QS(16,16))
+                except Exception: pass
+            b.setToolTip(tip); b.clicked.connect(slot)
+            return b
+
+        def _import_tex():
+            """Import an image file and replace texture for selected material."""
+            from PyQt6.QtWidgets import QFileDialog
+            from PyQt6.QtGui import QImage
+            path, _ = QFileDialog.getOpenFileName(
+                dlg, "Import Texture",
+                getattr(self, '_texlist_folder', '') or '',
+                "Images (*.png *.jpg *.bmp *.tga *.iff);;All Files (*)")
+            if not path:
+                return
+            try:
+                qi = QImage(path)
+                if qi.isNull():
+                    return
+                qi = qi.convertToFormat(QImage.Format.Format_RGBA8888)
+                bdata = qi.bits().asarray(qi.width() * qi.height() * 4)
+                new_tex = {
+                    'name':       os.path.splitext(os.path.basename(path))[0],
+                    'width':      qi.width(),
+                    'height':     qi.height(),
+                    'format':     'RGBA8888',
+                    'mipmaps':    1,
+                    'rgba_data':  bytes(bdata),
+                }
+                # Add/replace in _mod_textures
+                tname_cur = tex_name_edit.text().strip() or new_tex['name']
+                new_tex['name'] = tname_cur
+                existing = [t for t in getattr(self,'_mod_textures',[])
+                            if t.get('name','').lower() == tname_cur.lower()]
+                if existing:
+                    existing[0].update(new_tex)
+                else:
+                    if not hasattr(self,'_mod_textures'):
+                        self._mod_textures = []
+                    self._mod_textures.append(new_tex)
+                # Push into viewport cache
+                vp2 = getattr(self, 'preview_widget', None)
+                if vp2:
+                    vp2._tex_cache[tname_cur.lower()] = qi
+                    vp2.update()
+                cache_lbl.setText("✓ in cache")
+                cache_lbl.setStyleSheet("color:#16a34a;")
+                if self.main_window and hasattr(self.main_window,'log_message'):
+                    self.main_window.log_message(
+                        f"Imported texture '{tname_cur}' from {os.path.basename(path)}")
+            except Exception as ex:
+                if self.main_window and hasattr(self.main_window,'log_message'):
+                    self.main_window.log_message(f"Import texture error: {ex}")
+
+        def _export_tex():
+            """Export the current material's texture to a file."""
+            from PyQt6.QtWidgets import QFileDialog
+            from PyQt6.QtGui import QImage
+            tname_cur = tex_name_edit.text().strip()
+            if not tname_cur:
+                return
+            vp2 = getattr(self, 'preview_widget', None)
+            qi  = None
+            if vp2:
+                qi = vp2._tex_cache.get(tname_cur.lower())
+            if qi is None:
+                raw = next((t for t in getattr(self,'_mod_textures',[])
+                            if t.get('name','').lower()==tname_cur.lower()), None)
+                if raw:
+                    rd = raw.get('rgba_data',b'')
+                    tw, th = raw.get('width',0), raw.get('height',0)
+                    if rd and tw and th and len(rd)>=tw*th*4:
+                        qi = QImage(rd[:tw*th*4], tw, th,
+                                    tw*4, QImage.Format.Format_RGBA8888)
+            if qi is None:
+                return
+            path, _ = QFileDialog.getSaveFileName(
+                dlg, "Export Texture",
+                os.path.join(getattr(self,'_texlist_folder','') or '', tname_cur+'.png'),
+                "PNG (*.png);;BMP (*.bmp);;All Files (*)")
+            if path:
+                qi.save(path)
+                if self.main_window and hasattr(self.main_window,'log_message'):
+                    self.main_window.log_message(
+                        f"Exported texture '{tname_cur}' to {os.path.basename(path)}")
+
+        def _save_to_txd():
+            """Save current texture changes back to the loaded TXD / workshop cache."""
+            self._populate_texture_list()
+            vp2 = getattr(self, 'preview_widget', None)
+            if vp2:
+                vp2.load_textures(getattr(self, '_mod_textures', []))
+                vp2.update()
+            if self.main_window and hasattr(self.main_window,'log_message'):
+                self.main_window.log_message("Texture changes saved to workshop cache")
+
+        tex_io_row.addWidget(_qbtn26("Import Tex", "Import image file as texture for this material",
+            _import_tex, "import_icon"))
+        tex_io_row.addWidget(_qbtn26("Export Tex", "Export this material's texture to a file",
+            _export_tex, "export_icon"))
+        tex_io_row.addWidget(_qbtn26("Save Changes", "Apply texture edits back to the TXD cache",
+            _save_to_txd, "save_icon"))
+        tex_io_row.addStretch()
+        form.addRow("Textures:", tex_io_row)
 
         # Preview buttons
         pw = getattr(self, 'preview_widget', None)
@@ -2259,8 +2415,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # OK / Cancel
         ok_cancel = QHBoxLayout()
-        ok_btn = QPushButton("✓ OK"); ok_btn.setFixedHeight(28)
-        cancel_btn = QPushButton("✕ Cancel"); cancel_btn.setFixedHeight(28)
+        ok_btn = QPushButton("✓ OK"); ok_btn.setFixedHeight(26)
+        cancel_btn = QPushButton("✕ Cancel"); cancel_btn.setFixedHeight(26)
         ok_cancel.addStretch()
         ok_cancel.addWidget(ok_btn)
         ok_cancel.addWidget(cancel_btn)
@@ -2301,7 +2457,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             else:
                 ide_edit_lbl.setText("Not found — load a game via DAT Browser")
                 ide_edit_lbl.setStyleSheet(
-                    "font-size:10px; color:#888; font-style:italic;")
+                    "font-size:10px; color:palette(placeholderText); font-style:italic;")
             self._ide_label_refresh_fn = _refresh_ide_lbl
 
         def _on_row_changed():
@@ -8515,8 +8671,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
             # Capture tex for lambda
             _tex = tex
-            img_lbl.mousePressEvent = (
-                lambda ev, t=_tex: self._show_tex_popup(t))
+            img_lbl._tex_raw  = _tex
+            img_lbl._hover_wnd = [None]
+            def _enter_g(ev, lbl=img_lbl, ws=self):
+                ws._show_tex_hover(lbl, getattr(lbl,'_tex_raw',None))
+            def _leave_g(ev, lbl=img_lbl, ws=self):
+                ws._hide_tex_hover(lbl)
+            img_lbl.enterEvent = _enter_g
+            img_lbl.leaveEvent = _leave_g
             cell_lay.addWidget(img_lbl)
 
             # Name label (truncated)
@@ -8615,6 +8777,111 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         pos = QCursor.pos()
         dlg.move(pos.x() + 10, pos.y() + 10)
         dlg.exec()
+
+
+
+    def _show_tex_hover(self, anchor_widget, tex: dict): #vers 1
+        """Show a frameless texture preview that follows the mouse into the popup.
+        Disappears when mouse leaves both the thumbnail and the popup itself."""
+        if not tex:
+            return
+        from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+        from PyQt6.QtGui import QImage, QPixmap, QColor, QFont, QCursor
+        from PyQt6.QtCore import Qt as _Qt
+
+        # Dismiss any existing hover window
+        self._hide_tex_hover(anchor_widget)
+
+        name = tex.get('name', 'texture')
+        rgba = tex.get('rgba_data', b'')
+        w    = tex.get('width',  0)
+        h    = tex.get('height', 0)
+        fmt  = tex.get('format', '?')
+        MAX_D = 192
+
+        popup = QWidget(None,
+            _Qt.WindowType.Tool |
+            _Qt.WindowType.FramelessWindowHint |
+            _Qt.WindowType.WindowStaysOnTopHint)
+        popup.setAttribute(_Qt.WidgetAttribute.WA_DeleteOnClose)
+        popup.setStyleSheet(
+            "QWidget { background:#1c1c28; border:1px solid #555; border-radius:3px; }"
+            "QLabel  { color:#ccc; background:transparent; }")
+
+        v = QVBoxLayout(popup)
+        v.setContentsMargins(6, 6, 6, 6)
+        v.setSpacing(4)
+
+        img_lbl = QLabel()
+        img_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+        pix = QPixmap(MAX_D, MAX_D)
+        pix.fill(QColor(40, 40, 55))
+        if rgba and w > 0 and h > 0 and len(rgba) >= w*h*4:
+            try:
+                qi = QImage(rgba[:w*h*4], w, h,
+                            w*4, QImage.Format.Format_RGBA8888)
+                if w > MAX_D or h > MAX_D:
+                    qi = qi.scaled(MAX_D, MAX_D,
+                        _Qt.AspectRatioMode.KeepAspectRatio,
+                        _Qt.TransformationMode.SmoothTransformation)
+                pix = QPixmap.fromImage(qi)
+            except Exception:
+                pass
+        img_lbl.setPixmap(pix)
+        img_lbl.setFixedSize(pix.width(), pix.height())
+        v.addWidget(img_lbl)
+
+        info = QLabel(f"{name}   {w}×{h}   {fmt}")
+        info.setFont(QFont("Arial", 8))
+        v.addWidget(info)
+
+        popup.adjustSize()
+        pos = QCursor.pos()
+        popup.move(pos.x() + 12, pos.y() + 8)
+
+        # Hide when mouse leaves the popup
+        popup.leaveEvent = lambda ev: popup.close()
+        # Also close on click
+        popup.mousePressEvent = lambda ev: popup.close()
+
+        popup.show()
+        anchor_widget._hover_wnd[0] = popup
+
+    def _hide_tex_hover(self, anchor_widget): #vers 1
+        """Close the hover popup if open."""
+        holder = getattr(anchor_widget, '_hover_wnd', [None])
+        w = holder[0] if holder else None
+        if w is not None:
+            try:
+                w.close()
+            except Exception:
+                pass
+            holder[0] = None
+
+
+    # Lighting is applied in paintEvent per-face using dot(normal, light_dir)
+    # This modifies the material colour before drawing solid/semi faces.
+    # For textured faces a semi-transparent shading overlay is applied.
+
+    def _compute_face_shade(self, v0, v1, v2, ambient=0.35,
+                            light=(0.6, 0.8, 0.4)): #vers 1
+        """Return a shade factor [0..1] for a triangle via Lambertian diffuse.
+        v0/v1/v2 are (x,y,z) tuples in view space.
+        light = normalised direction toward light source."""
+        import math
+        ax, ay, az = v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]
+        bx, by, bz = v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]
+        nx = ay*bz - az*by
+        ny = az*bx - ax*bz
+        nz = ax*by - ay*bx
+        ln = math.sqrt(nx*nx + ny*ny + nz*nz)
+        if ln < 1e-6:
+            return ambient
+        nx, ny, nz = nx/ln, ny/ln, nz/ln
+        lx, ly, lz = light
+        ll = math.sqrt(lx*lx + ly*ly + lz*lz) or 1.0
+        dot = max(0.0, nx*lx/ll + ny*ly/ll + nz*lz/ll)
+        return min(1.0, ambient + (1.0 - ambient) * dot)
 
 
     def _auto_load_txd_from_imgs(self, txd_stem: str = '') -> bool: #vers 1
