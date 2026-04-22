@@ -1924,6 +1924,60 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         lay = QVBoxLayout(dlg)
         lay.setSpacing(6)
 
+        # IDE + TXD info header
+        ide_obj  = getattr(self, '_current_ide_obj', None)
+        ide_txd  = getattr(self, '_ide_txd_name', '') or ''
+        dff_name = os.path.splitext(
+            os.path.basename(getattr(self,'_current_dff_path','') or 'unknown.dff'))[0]
+
+        info_row = QHBoxLayout()
+        info_row.setSpacing(12)
+
+        # Model name
+        model_lbl = QLabel(f"<b>{dff_name}</b>")
+        model_lbl.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        info_row.addWidget(model_lbl)
+
+        # IDE entry line
+        if ide_obj:
+            draw = ide_obj.extra.get('draw_dist', ide_obj.extra.get('dist1', '—'))
+            ide_src = os.path.basename(ide_obj.source_ide or '') or '?'
+            ide_text = (f"ID: {ide_obj.model_id}   "
+                        f"TXD: {ide_obj.txd_name or '—'}   "
+                        f"Draw: {draw}   "
+                        f"Section: {ide_obj.section or '?'}   "
+                        f"Source: {ide_src}")
+            ide_lbl = QLabel(ide_text)
+            ide_lbl.setStyleSheet(
+                "color: palette(mid); font-size: 10px; font-family: monospace;")
+            ide_lbl.setToolTip(
+                f"IDE line: {ide_obj.model_id}, {ide_obj.model_name}, "
+                f"{ide_obj.txd_name}, {draw}, {ide_obj.extra.get('flags','—')}")
+        else:
+            ide_lbl = QLabel("IDE: Not found — load a game via DAT Browser")
+            ide_lbl.setStyleSheet(
+                "color: #888; font-size: 10px; font-style: italic;")
+        info_row.addWidget(ide_lbl, 1)
+
+        # TXD cache status badge
+        n_cached = sum(
+            1 for gi2, g in enumerate(model.geometries)
+            for m in g.materials
+            if (getattr(m,'texture_name','') or '').strip().lower() in tex_cache)
+        n_total  = sum(len(g.materials) for g in model.geometries)
+        badge_col = '#16a34a' if n_cached == n_total and n_total > 0 else                     '#ca8a04' if n_cached > 0 else '#dc2626'
+        cache_badge = QLabel(f"{n_cached}/{n_total} cached")
+        cache_badge.setStyleSheet(
+            f"color: {badge_col}; font-weight: bold; font-size: 10px;")
+        info_row.addWidget(cache_badge)
+
+        lay.addLayout(info_row)
+
+        # Separator
+        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: palette(mid);")
+        lay.addWidget(sep)
+
         tbl = QTableWidget()
         tbl.setColumnCount(6)
         tbl.setHorizontalHeaderLabels(
@@ -8242,11 +8296,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     # - Texture management
 
-    def _create_texture_panel(self): #vers 1
+    def _create_texture_panel(self): #vers 2
         """Collapsible texture panel in middle column.
-        Shows textures loaded from TXD files with thumbnails.
-        Has Texlist browser and Pass-to-TXD-Workshop button."""
-        from PyQt6.QtWidgets import QSplitter
+        Shows textures loaded from TXD files.
+        Toggle between List view (table) and Thumbnail view (64x64 grid).
+        Click a thumbnail to see it at up to 128x128 in a popup."""
         icon_color = self._get_icon_color()
 
         self._tex_panel = QFrame()
@@ -8262,10 +8316,19 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         hdr.addWidget(lbl)
         hdr.addStretch()
-
         self._tex_count_lbl = QLabel("0 textures")
         self._tex_count_lbl.setFont(self.panel_font)
         hdr.addWidget(self._tex_count_lbl)
+
+        # View toggle: list ⇔ thumbnails
+        self._tex_view_mode = 'list'
+        self._tex_view_btn = QPushButton("⊞ Thumbnails")
+        self._tex_view_btn.setFixedHeight(22)
+        self._tex_view_btn.setFont(self.panel_font)
+        self._tex_view_btn.setToolTip(
+            "Toggle between list view and 64×64 thumbnail grid")
+        self._tex_view_btn.clicked.connect(self._toggle_tex_view)
+        hdr.addWidget(self._tex_view_btn)
         lay.addLayout(hdr)
 
         # - Button row
@@ -8301,27 +8364,248 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         btn_row.addStretch()
         lay.addLayout(btn_row)
 
-        # - Texture list
+        # - Stacked: List view (table) + Thumbnail view (scroll area)
+        from PyQt6.QtWidgets import QStackedWidget, QScrollArea, QGridLayout
+        self._tex_stack = QStackedWidget()
+        lay.addWidget(self._tex_stack, stretch=1)
+
+        # Page 0: Table list
         self._tex_list = QTableWidget()
         self._tex_list.setColumnCount(4)
-        self._tex_list.setHorizontalHeaderLabels(["Name", "Size", "Format", "Mipmaps"])
+        self._tex_list.setHorizontalHeaderLabels(
+            ["Name", "Size", "Format", "Mipmaps"])
         self._tex_list.horizontalHeader().setStretchLastSection(True)
-        self._tex_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._tex_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self._tex_list.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        self._tex_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tex_list.setAlternatingRowColors(True)
         self._tex_list.setIconSize(QSize(32, 32))
         self._tex_list.verticalHeader().setDefaultSectionSize(36)
         self._tex_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tex_list.customContextMenuRequested.connect(self._tex_context_menu)
         self._tex_list.itemSelectionChanged.connect(self._on_tex_selected)
-        self._tex_list.setMinimumHeight(120)
-        lay.addWidget(self._tex_list, stretch=1)
+        self._tex_stack.addWidget(self._tex_list)   # index 0
+
+        # Page 1: Thumbnail grid
+        self._tex_scroll = QScrollArea()
+        self._tex_scroll.setWidgetResizable(True)
+        self._tex_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._tex_grid_widget = QWidget()
+        self._tex_grid_layout = QGridLayout(self._tex_grid_widget)
+        self._tex_grid_layout.setContentsMargins(4, 4, 4, 4)
+        self._tex_grid_layout.setSpacing(6)
+        self._tex_scroll.setWidget(self._tex_grid_widget)
+        self._tex_stack.addWidget(self._tex_scroll)   # index 1
 
         # Internal storage
-        self._mod_textures = []      # list of texture dicts from TXD parser
-        self._texlist_path = ''      # last Texlist folder
+        self._mod_textures = []
+        self._texlist_path = ''
 
         return self._tex_panel
+
+
+    def _toggle_tex_view(self): #vers 1
+        """Switch texture panel between list view and 64×64 thumbnail grid."""
+        if getattr(self, '_tex_view_mode', 'list') == 'list':
+            self._tex_view_mode = 'thumb'
+            self._tex_view_btn.setText("☰ List")
+            self._tex_view_btn.setToolTip("Switch to list view")
+            stack = getattr(self, '_tex_stack', None)
+            if stack:
+                stack.setCurrentIndex(1)
+            self._populate_tex_thumbnails()
+        else:
+            self._tex_view_mode = 'list'
+            self._tex_view_btn.setText("⊞ Thumbnails")
+            self._tex_view_btn.setToolTip("Switch to 64×64 thumbnail grid")
+            stack = getattr(self, '_tex_stack', None)
+            if stack:
+                stack.setCurrentIndex(0)
+
+    def _populate_tex_thumbnails(self): #vers 1
+        """Fill the thumbnail grid with 64×64 previews of all loaded textures.
+        Each thumbnail is a clickable label — click opens a larger popup."""
+        from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QSizePolicy
+        from PyQt6.QtGui import QImage, QPixmap, QColor, QFont
+        from PyQt6.QtCore import Qt as _Qt
+
+        grid   = getattr(self, '_tex_grid_layout', None)
+        if grid is None:
+            return
+
+        # Clear previous thumbnails
+        while grid.count():
+            item = grid.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+
+        textures = getattr(self, '_mod_textures', [])
+        vp       = getattr(self, 'preview_widget', None)
+        tc       = getattr(vp, '_tex_cache', {}) if vp else {}
+
+        THUMB_SIZE = 64
+        COL_COUNT  = 3   # thumbnails per row
+
+        for i, tex in enumerate(textures):
+            name     = tex.get('name', f'tex_{i}')
+            rgba     = tex.get('rgba_data', b'')
+            w        = tex.get('width',  0)
+            h        = tex.get('height', 0)
+            fmt      = tex.get('format', '?')
+            in_cache = name.lower() in tc
+
+            # Build 64×64 pixmap
+            pix = QPixmap(THUMB_SIZE, THUMB_SIZE)
+            pix.fill(QColor(40, 40, 50))
+            if rgba and w > 0 and h > 0 and len(rgba) >= w * h * 4:
+                try:
+                    qimg = QImage(rgba[:w*h*4], w, h,
+                                  w * 4, QImage.Format.Format_RGBA8888)
+                    pix = QPixmap.fromImage(qimg).scaled(
+                        THUMB_SIZE, THUMB_SIZE,
+                        _Qt.AspectRatioMode.KeepAspectRatio,
+                        _Qt.TransformationMode.SmoothTransformation)
+                    # Pad to square
+                    if pix.width() != THUMB_SIZE or pix.height() != THUMB_SIZE:
+                        padded = QPixmap(THUMB_SIZE, THUMB_SIZE)
+                        padded.fill(QColor(40, 40, 50))
+                        from PyQt6.QtGui import QPainter
+                        p = QPainter(padded)
+                        x = (THUMB_SIZE - pix.width())  // 2
+                        y = (THUMB_SIZE - pix.height()) // 2
+                        p.drawPixmap(x, y, pix)
+                        p.end()
+                        pix = padded
+                except Exception:
+                    pass
+
+            # Container widget for thumb + name label
+            cell = QWidget()
+            cell.setFixedSize(THUMB_SIZE + 4, THUMB_SIZE + 22)
+            cell_lay = QVBoxLayout(cell)
+            cell_lay.setContentsMargins(2, 2, 2, 2)
+            cell_lay.setSpacing(1)
+
+            # Clickable image label
+            img_lbl = QLabel()
+            img_lbl.setFixedSize(THUMB_SIZE, THUMB_SIZE)
+            img_lbl.setPixmap(pix)
+            img_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+            img_lbl.setCursor(
+                __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.CursorShape.PointingHandCursor)
+            # Cache indicator border
+            border_col = '#16a34a' if in_cache else '#888'
+            img_lbl.setStyleSheet(
+                f"border: 2px solid {border_col}; background: #282830;")
+            img_lbl.setToolTip(
+                f"{name}\n{w}×{h}  {fmt}\n"
+                f"{'✓ in texture cache' if in_cache else '✗ not in cache'}\n"
+                "Click to view full size")
+
+            # Capture tex for lambda
+            _tex = tex
+            img_lbl.mousePressEvent = (
+                lambda ev, t=_tex: self._show_tex_popup(t))
+            cell_lay.addWidget(img_lbl)
+
+            # Name label (truncated)
+            name_lbl = QLabel(name[:12] + '…' if len(name) > 12 else name)
+            name_lbl.setFont(QFont("Arial", 7))
+            name_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+            name_lbl.setStyleSheet("color: palette(windowText);")
+            cell_lay.addWidget(name_lbl)
+
+            grid.addWidget(cell, i // COL_COUNT, i % COL_COUNT)
+
+        # Fill remaining cells with stretch
+        grid.setColumnStretch(COL_COUNT, 1)
+
+    def _show_tex_popup(self, tex: dict): #vers 1
+        """Show a texture at up to 128×128 (or native size if smaller) in a
+        floating popup. Click anywhere on the popup to dismiss it."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QHBoxLayout
+        from PyQt6.QtGui import QImage, QPixmap, QColor, QFont
+        from PyQt6.QtCore import Qt as _Qt
+
+        name = tex.get('name', 'texture')
+        rgba = tex.get('rgba_data', b'')
+        w    = tex.get('width',  0)
+        h    = tex.get('height', 0)
+        fmt  = tex.get('format', '?')
+        mips = tex.get('mipmaps', 1)
+
+        MAX_DISPLAY = 256   # cap for popup; shows at native if smaller
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Texture — {name}")
+        dlg.setWindowFlags(
+            _Qt.WindowType.Tool |
+            _Qt.WindowType.FramelessWindowHint |
+            _Qt.WindowType.WindowStaysOnTopHint)
+        dlg.setAttribute(
+            _Qt.WidgetAttribute.WA_DeleteOnClose)
+        dlg_lay = QVBoxLayout(dlg)
+        dlg_lay.setContentsMargins(8, 8, 8, 8)
+        dlg_lay.setSpacing(6)
+        dlg.setStyleSheet(
+            "QDialog { background: #1c1c28; border: 1px solid #444; border-radius: 4px; }"
+            "QLabel  { color: #ccc; }")
+
+        # Build display pixmap
+        pix = QPixmap(128, 128)
+        pix.fill(QColor(40, 40, 55))
+        disp_w, disp_h = w, h
+
+        if rgba and w > 0 and h > 0 and len(rgba) >= w * h * 4:
+            try:
+                qimg = QImage(rgba[:w*h*4], w, h,
+                              w * 4, QImage.Format.Format_RGBA8888)
+                if w > MAX_DISPLAY or h > MAX_DISPLAY:
+                    # Scale down preserving aspect ratio
+                    scaled = qimg.scaled(
+                        MAX_DISPLAY, MAX_DISPLAY,
+                        _Qt.AspectRatioMode.KeepAspectRatio,
+                        _Qt.TransformationMode.SmoothTransformation)
+                    disp_w, disp_h = scaled.width(), scaled.height()
+                    pix = QPixmap.fromImage(scaled)
+                else:
+                    disp_w, disp_h = w, h
+                    pix = QPixmap.fromImage(qimg)
+            except Exception as e:
+                pass
+
+        img_lbl = QLabel()
+        img_lbl.setPixmap(pix)
+        img_lbl.setFixedSize(disp_w or 128, disp_h or 128)
+        img_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+        dlg_lay.addWidget(img_lbl)
+
+        # Info strip
+        info_row = QHBoxLayout()
+        info_row.setSpacing(12)
+        for text in [name, f"{w}×{h}", fmt, f"{mips} mip"]:
+            lbl = QLabel(text)
+            lbl.setFont(QFont("Arial", 8))
+            info_row.addWidget(lbl)
+        info_row.addStretch()
+        close_lbl = QLabel("click to dismiss")
+        close_lbl.setFont(QFont("Arial", 7))
+        close_lbl.setStyleSheet("color: #666;")
+        info_row.addWidget(close_lbl)
+        dlg_lay.addLayout(info_row)
+
+        # Click anywhere to close
+        dlg.mousePressEvent = lambda ev: dlg.accept()
+        img_lbl.mousePressEvent = lambda ev: dlg.accept()
+
+        dlg.adjustSize()
+        # Position next to the cursor
+        from PyQt6.QtGui import QCursor
+        pos = QCursor.pos()
+        dlg.move(pos.x() + 10, pos.y() + 10)
+        dlg.exec()
+
 
     def _auto_load_txd_from_imgs(self, txd_stem: str = '') -> bool: #vers 1
         """Search all open IMG tabs and current_img for txd_stem.txd.
@@ -8789,6 +9073,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         for btn in ('tex_pass_btn', 'tex_save_btn'):
             b = getattr(self, btn, None)
             if b: b.setEnabled(has)
+        # Refresh thumbnail grid if it's currently visible
+        if getattr(self, '_tex_view_mode', 'list') == 'thumb':
+            self._populate_tex_thumbnails()
 
     def _browse_texlist_folder(self): #vers 1
         """Browse a Texlist folder — shows all TXDs, lets user add individual textures."""
