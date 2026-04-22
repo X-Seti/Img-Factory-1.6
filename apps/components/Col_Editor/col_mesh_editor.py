@@ -10,16 +10,6 @@ Features:
   - Mini viewport showing selected face highlighted
   - Full undo (each operation pushes state onto workshop undo stack)
   - Surface material picker per face
-
-Layout:
-  ┌─────────────────────────────────────────────────┐
-  │  [Face List]    │  [Vertex Table]  │  [Preview]  │
-  │  id  a  b  c  mat│  id  X   Y   Z  │             │
-  │  ...            │  ...             │  (mini view)│
-  ├─────────────────────────────────────────────────┤
-  │  [Add Face] [Del Face] [Del Vertex] [Move Vert] │
-  │  [Undo]  [Apply & Close]  [Close]               │
-  └─────────────────────────────────────────────────┘
 """
 
 import copy
@@ -41,7 +31,7 @@ from apps.methods.col_materials import (
     get_materials_for_version, COL_PRESET_GROUP
 )
 
-def _build_material_color_cache(game: COLGame = COLGame.SA) -> dict:
+def _build_material_color_cache(game: COLGame = COLGame.SA) -> dict: #vers 1
     """Build {material_id: QColor} from group colours for the given game."""
     cache = {}
     for mat_id, name, hex_col in get_materials_for_version(game, include_procedural=True):
@@ -55,7 +45,7 @@ _DEFAULT_MAT_COLOR = QColor(120, 120, 120)
 
 
 ##class COLMeshEditorViewport -
-class COLMeshEditorViewport(QWidget): #vers 1
+class COLMeshEditorViewport(QWidget):
     """Mini 2D viewport for the mesh editor — shows faces with selection highlight."""
 
     # Signal to editor that selection changed from viewport click
@@ -63,7 +53,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
     #  so we use a callback instead)
     on_selection_changed = None   # set by COLMeshEditor at creation
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self.setMinimumSize(180, 180)
         self._model        = None
@@ -83,21 +73,25 @@ class COLMeshEditorViewport(QWidget): #vers 1
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
-    def set_model(self, model):
+
+    def set_model(self, model): #vers 1
         self._model = model
         self._sel_faces.clear()
         self._sel_verts.clear()
         self.update()
 
-    def set_selected_faces(self, indices):
+
+    def set_selected_faces(self, indices): #vers 1
         self._sel_faces = set(indices)
         self.update()
 
-    def set_selected_verts(self, indices):
+
+    def set_selected_verts(self, indices): #vers 1
         self._sel_verts = set(indices)
         self.update()
 
-    def mousePressEvent(self, event):
+
+    def mousePressEvent(self, event): #vers 1
         import math
         mx, my = event.position().x(), event.position().y()
         ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
@@ -137,7 +131,8 @@ class COLMeshEditorViewport(QWidget): #vers 1
         elif event.button() == Qt.MouseButton.RightButton:
             self._drag = event.position()
 
-    def mouseMoveEvent(self, event):
+
+    def mouseMoveEvent(self, event): #vers 1
         if self._drag:
             d = event.position() - self._drag
             if event.buttons() & Qt.MouseButton.RightButton:
@@ -149,11 +144,13 @@ class COLMeshEditorViewport(QWidget): #vers 1
             self._drag = event.position()
             self.update()
 
-    def mouseReleaseEvent(self, event):
+
+    def mouseReleaseEvent(self, event): #vers 1
         self._drag = None
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
-    def _hit_vert(self, mx, my, radius=8):
+
+    def _hit_vert(self, mx, my, radius=8): #vers 1
         """Return vertex index under (mx,my) or None."""
         import math
         best, best_d = None, radius
@@ -163,7 +160,8 @@ class COLMeshEditorViewport(QWidget): #vers 1
                 best_d, best = d, i
         return best
 
-    def _hit_face(self, mx, my):
+
+    def _hit_face(self, mx, my): #vers 1
         """Return face index whose 2D triangle contains (mx,my) or None."""
         verts = getattr(self._model, 'vertices', [])
         faces = getattr(self._model, 'faces', [])
@@ -188,7 +186,8 @@ class COLMeshEditorViewport(QWidget): #vers 1
                 return fi
         return None
 
-    def _show_context_menu(self, pos):
+
+    def _show_context_menu(self, pos): #vers 1
         """Right-click context menu in viewport."""
         from PyQt6.QtWidgets import QMenu
         editor = self.parent()
@@ -214,12 +213,14 @@ class COLMeshEditorViewport(QWidget): #vers 1
         menu.addAction("Merge Close Vertices…",  editor._merge_verts_dialog)
         menu.exec(self.mapToGlobal(pos))
 
-    def wheelEvent(self, event):
+
+    def wheelEvent(self, event): #vers 1
         f = 1.15 if event.angleDelta().y() > 0 else 1/1.15
         self._zoom = max(0.05, min(20.0, self._zoom * f))
         self.update()
 
-    def paintEvent(self, event):
+
+    def paintEvent(self, event): #vers 1
         import math
         from PyQt6.QtGui import QPolygonF
         from PyQt6.QtCore import QPointF
@@ -236,7 +237,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
         verts = getattr(self._model, 'vertices', [])
         faces = getattr(self._model, 'faces', [])
 
-        # ── projection helpers ────────────────────────────────────────────
+        # - projection helpers
         yr = math.radians(self._yaw);   cy, sy = math.cos(yr), math.sin(yr)
         pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
 
@@ -276,7 +277,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
             px, py = proj3(x, y, z)
             return px*scale + ox, py*scale + oy
 
-        # ── reference grid ────────────────────────────────────────────────
+        # - reference grid
         raw_step = extent / 4.0
         mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
         step = round(raw_step / mag) * mag;  step = max(step, 0.01)
@@ -294,7 +295,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
             p.drawLine(int(x0), int(y0), int(x1), int(y1))
         p.setRenderHint(p.renderHints().__class__.Antialiasing, True)
 
-        # ── faces ─────────────────────────────────────────────────────────
+        # - faces
         if not verts or not faces:
             p.setPen(QColor(100, 100, 100))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No mesh")
@@ -325,7 +326,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
                 if vi < len(verts):
                     p.drawEllipse(int(scx(vi))-4, int(scy(vi))-4, 8, 8)
 
-        # ── XYZ gizmo (bottom-left) ───────────────────────────────────────
+        # - XYZ gizmo (bottom-left)
         gx, gy, arm = 42, H-42, 30
         axes = [((1,0,0), QColor(220,60,60), 'X'),
                 ((0,1,0), QColor(60,200,60), 'Y'),
@@ -346,7 +347,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
         p.setBrush(QBrush(QColor(220,220,220))); p.setPen(QPen(QColor(180,180,180),1))
         p.drawEllipse(gx-3, gy-3, 6, 6)
 
-        # ── HUD ───────────────────────────────────────────────────────────
+        # - HUD
         p.setPen(QColor(180, 180, 180))
         p.setFont(QFont('Arial', 7))
         p.drawText(4, 12, f"F:{len(faces)} V:{len(verts)}")
@@ -357,7 +358,7 @@ class COLMeshEditorViewport(QWidget): #vers 1
 class COLMeshEditor(QDialog): #vers 1
     """Dialog for editing COL mesh faces and vertices with undo support."""
 
-    def __init__(self, workshop, model_index, parent=None):
+    def __init__(self, workshop, model_index, parent=None): #vers 2
         super().__init__(parent)
         self.workshop    = workshop
         self.model_index = model_index
@@ -382,16 +383,16 @@ class COLMeshEditor(QDialog): #vers 1
         self.viewport.on_selection_changed = self._on_viewport_selection
         self._populate_all()
 
-    # ── UI construction ───────────────────────────────────────────────────
+    # - UI construction
 
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setSpacing(4)
 
-        # ── Main splitter: tabs left, viewport right ──────────────────────
+        # - Main splitter: tabs left, viewport right
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # ── Tab widget ────────────────────────────────────────────────────
+        # - Tab widget
         self.tabs = QTabWidget()
         self.tabs.setMinimumWidth(420)
 
@@ -406,7 +407,7 @@ class COLMeshEditor(QDialog): #vers 1
 
         splitter.addWidget(self.tabs)
 
-        # ── Viewport ──────────────────────────────────────────────────────
+        # - Viewport
         vp_grp = QGroupBox("Preview")
         vpl = QVBoxLayout(vp_grp)
         self.viewport = COLMeshEditorViewport()
@@ -417,7 +418,7 @@ class COLMeshEditor(QDialog): #vers 1
         splitter.setSizes([480, 260])
         root.addWidget(splitter, 1)
 
-        # ── Status + game selector ────────────────────────────────────────
+        # - Status + game selector
         stat_row = QHBoxLayout()
         self._status = QLabel("Ready")
         self._status.setStyleSheet("color:#aaa;font-size:10px;")
@@ -426,13 +427,14 @@ class COLMeshEditor(QDialog): #vers 1
         self._game_combo = QComboBox()
         self._game_combo.addItem("San Andreas (COL2/3)", COLGame.SA)
         self._game_combo.addItem("Vice City / GTA III (COL1)", COLGame.VC)
+
         # Pre-select based on detected version
         self._game_combo.setCurrentIndex(0 if self._game == COLGame.SA else 1)
         self._game_combo.currentIndexChanged.connect(self._on_game_changed)
         stat_row.addWidget(self._game_combo)
         root.addLayout(stat_row)
 
-        # ── Bottom buttons ────────────────────────────────────────────────
+        # - Bottom buttons
         bot = QHBoxLayout()
         self._undo_btn = self._btn(bot, "↩ Undo  [Ctrl+Z]", self._undo)
         self._undo_btn.setEnabled(False)
@@ -443,7 +445,8 @@ class COLMeshEditor(QDialog): #vers 1
         self._btn(bot, "Close",         self.reject)
         root.addLayout(bot)
 
-    def _build_mesh_tab(self):
+
+    def _build_mesh_tab(self): #vers 1
         """Faces + vertices sub-panel."""
         w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(4)
         inner = QSplitter(Qt.Orientation.Horizontal)
@@ -461,9 +464,9 @@ class COLMeshEditor(QDialog): #vers 1
         self.face_table.itemChanged.connect(self._on_face_cell_changed)
         fl.addWidget(self.face_table)
         fb = QHBoxLayout()
-        self._btn(fb, "Add Face",         self._add_face)
-        self._btn(fb, "Delete  [Del]",    self._delete_faces)
-        self._btn(fb, "Flip Normal",      self._flip_faces)
+        self._btn(fb, "Add Face", self._add_face)
+        self._btn(fb, "Delete  [Del]", self._delete_faces)
+        self._btn(fb, "Flip Normal", self._flip_faces)
         self._btn(fb, "Select Connected", self._select_connected)
         fl.addLayout(fb)
         inner.addWidget(face_grp)
@@ -481,9 +484,9 @@ class COLMeshEditor(QDialog): #vers 1
         self.vert_table.itemChanged.connect(self._on_vert_cell_changed)
         vl.addWidget(self.vert_table)
         vb = QHBoxLayout()
-        self._btn(vb, "Delete  [Del]",  self._delete_verts)
+        self._btn(vb, "Delete  [Del]", self._delete_verts)
         self._btn(vb, "Remove Orphans", self._remove_orphan_verts)
-        self._btn(vb, "Merge Close…",   self._merge_verts_dialog)
+        self._btn(vb, "Merge Close…", self._merge_verts_dialog)
         vl.addLayout(vb)
         inner.addWidget(vert_grp)
         inner.setSizes([240,200])
@@ -503,7 +506,8 @@ class COLMeshEditor(QDialog): #vers 1
         lay.addWidget(add_grp)
         return w
 
-    def _build_boxes_tab(self):
+
+    def _build_boxes_tab(self): #vers 1
         """Box editor tab."""
         w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(4)
 
@@ -518,9 +522,9 @@ class COLMeshEditor(QDialog): #vers 1
         lay.addWidget(self.box_table, 1)
 
         btns = QHBoxLayout()
-        self._btn(btns, "Add Box",    self._add_box)
+        self._btn(btns, "Add Box", self._add_box)
         self._btn(btns, "Delete Box", self._delete_boxes)
-        self._btn(btns, "Duplicate",  self._duplicate_boxes)
+        self._btn(btns, "Duplicate", self._duplicate_boxes)
         lay.addLayout(btns)
 
         # Quick-add form
@@ -538,13 +542,13 @@ class COLMeshEditor(QDialog): #vers 1
         lay.addWidget(add_grp)
         return w
 
-    def _build_spheres_tab(self):
+
+    def _build_spheres_tab(self): #vers 1
         """Sphere editor tab."""
         w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(4)
 
         self.sphere_table = QTableWidget(0, 6)
-        self.sphere_table.setHorizontalHeaderLabels(
-            ["#","Centre X","Centre Y","Centre Z","Radius","Material"])
+        self.sphere_table.setHorizontalHeaderLabels(["#","Centre X","Centre Y","Centre Z","Radius","Material"])
         self.sphere_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.sphere_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.sphere_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -553,9 +557,9 @@ class COLMeshEditor(QDialog): #vers 1
         lay.addWidget(self.sphere_table, 1)
 
         btns = QHBoxLayout()
-        self._btn(btns, "Add Sphere",    self._add_sphere)
+        self._btn(btns, "Add Sphere", self._add_sphere)
         self._btn(btns, "Delete Sphere", self._delete_spheres)
-        self._btn(btns, "Duplicate",     self._duplicate_spheres)
+        self._btn(btns, "Duplicate", self._duplicate_spheres)
         lay.addLayout(btns)
 
         add_grp = QGroupBox("Add Sphere")
@@ -566,6 +570,7 @@ class COLMeshEditor(QDialog): #vers 1
             if attr == "_sr": sp.setRange(0.001, 9999)
             sp.setMaximumWidth(72); setattr(self, attr, sp); al.addWidget(sp)
             if attr == "_sr": sp.setValue(1.0)
+
         al.addWidget(QLabel("Mat:"))
         self._s_mat = QSpinBox(); self._s_mat.setRange(0,70); self._s_mat.setMaximumWidth(48)
         al.addWidget(self._s_mat)
@@ -573,7 +578,8 @@ class COLMeshEditor(QDialog): #vers 1
         lay.addWidget(add_grp)
         return w
 
-    def _build_bounds_tab(self):
+
+    def _build_bounds_tab(self): #vers 2
         """Bounds editor — radius, centre, min, max."""
         w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(8)
         lay.addWidget(QLabel("Bounding volume for the entire model."))
@@ -588,22 +594,24 @@ class COLMeshEditor(QDialog): #vers 1
             return grp, spins
 
         grp_r = QGroupBox("Radius"); rl = QHBoxLayout(grp_r)
-        self._bd_r = QDoubleSpinBox(); self._bd_r.setRange(0,9999); self._bd_r.setDecimals(4)
+        self._bd_r = QDoubleSpinBox()
+        self._bd_r.setRange(0,9999)
+        self._bd_r.setDecimals(4)
         rl.addWidget(self._bd_r); lay.addWidget(grp_r)
 
         grp_c, self._bd_c = row("Centre (X, Y, Z)", ["X","Y","Z"]); lay.addWidget(grp_c)
-        grp_mn, self._bd_mn = row("Min (X, Y, Z)",   ["X","Y","Z"]); lay.addWidget(grp_mn)
-        grp_mx, self._bd_mx = row("Max (X, Y, Z)",   ["X","Y","Z"]); lay.addWidget(grp_mx)
+        grp_mn, self._bd_mn = row("Min (X, Y, Z)", ["X","Y","Z"]); lay.addWidget(grp_mn)
+        grp_mx, self._bd_mx = row("Max (X, Y, Z)", ["X","Y","Z"]); lay.addWidget(grp_mx)
 
         btn_row = QHBoxLayout()
         self._btn(btn_row, "Recalculate from Geometry", self._recalc_bounds)
-        self._btn(btn_row, "Apply Bounds",              self._apply_bounds)
+        self._btn(btn_row, "Apply Bounds", self._apply_bounds)
         lay.addLayout(btn_row)
         lay.addStretch()
         return w
 
 
-    # ── Material combo helpers ────────────────────────────────────────────
+    # - Material combo helpers
 
     def _refresh_material_combo(self): #vers 1
         """Repopulate the Add Face material combo for the current game."""
@@ -613,6 +621,7 @@ class COLMeshEditor(QDialog): #vers 1
         for mat_id, name, _ in get_materials_for_version(
                 self._game, include_procedural=True):
             self._af_mat.addItem(f"{mat_id} \u2014 {name}", mat_id)
+
         # Restore previous selection if possible
         if prev is not None:
             idx = self._af_mat.findData(prev)
@@ -627,9 +636,9 @@ class COLMeshEditor(QDialog): #vers 1
         self._populate_faces()      # update material names in face table
         self.viewport.update()      # update face colours
 
-    # ── Populate ──────────────────────────────────────────────────────────
 
-    def _populate_all(self):
+    # - Populate
+    def _populate_all(self): #vers 1
         self._refresh_material_combo()
         self._populate_faces()
         self._populate_verts()
@@ -638,7 +647,8 @@ class COLMeshEditor(QDialog): #vers 1
         self._populate_bounds()
         self.viewport.set_model(self._model)
 
-    def _populate_faces(self):
+
+    def _populate_faces(self): #vers 1
         self.face_table.blockSignals(True)
         faces = getattr(self._model, 'faces', [])
         self.face_table.setRowCount(len(faces))
@@ -650,9 +660,11 @@ class COLMeshEditor(QDialog): #vers 1
                 if col == 0:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.face_table.setItem(i, col, item)
+
         self.face_table.blockSignals(False)
 
-    def _populate_verts(self):
+
+    def _populate_verts(self): #vers 1
         self.vert_table.blockSignals(True)
         verts = getattr(self._model, 'vertices', [])
         self.vert_table.setRowCount(len(verts))
@@ -662,11 +674,12 @@ class COLMeshEditor(QDialog): #vers 1
                 if col == 0:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.vert_table.setItem(i, col, item)
+
         self.vert_table.blockSignals(False)
 
-    # ── Selection sync ────────────────────────────────────────────────────
 
-    def _on_face_selection(self):
+    # - Selection sync
+    def _on_face_selection(self): #vers 1
         rows = {idx.row() for idx in self.face_table.selectedIndexes()}
         self.viewport.set_selected_faces(rows)
         # Also highlight referenced vertices
@@ -676,13 +689,15 @@ class COLMeshEditor(QDialog): #vers 1
             if r < len(faces):
                 f = faces[r]
                 verts.update([f.a, f.b, f.c])
+
         self.viewport.set_selected_verts(verts)
 
     def _on_vert_selection(self):
         rows = {idx.row() for idx in self.vert_table.selectedIndexes()}
         self.viewport.set_selected_verts(rows)
 
-    # ── Inline cell editing ───────────────────────────────────────────────
+
+    # - Inline cell editing
 
     def _on_face_cell_changed(self, item):
         row = item.row()
@@ -690,6 +705,7 @@ class COLMeshEditor(QDialog): #vers 1
         faces = getattr(self._model, 'faces', [])
         if row >= len(faces) or col == 0:
             return
+
         self._push_undo("Edit face")
         try:
             val = int(item.text().split()[0])   # handles "5 Tarmac" format
@@ -727,9 +743,9 @@ class COLMeshEditor(QDialog): #vers 1
         except ValueError:
             self._populate_verts()
 
-    # ── Operations ────────────────────────────────────────────────────────
 
-    def _add_face(self):
+    # - Operations
+    def _add_face(self): #vers 1
         """Open add-face form (just scrolls to it — it's already visible)."""
         n = len(getattr(self._model, 'vertices', []))
         self._af_a.setMaximum(max(0, n-1))
@@ -737,7 +753,8 @@ class COLMeshEditor(QDialog): #vers 1
         self._af_c.setMaximum(max(0, n-1))
         self._status.setText(f"Set vertex indices (0–{n-1}) then click Add")
 
-    def _commit_add_face(self):
+
+    def _commit_add_face(self): #vers 1
         verts = getattr(self._model, 'vertices', [])
         a = self._af_a.value()
         b = self._af_b.value()
@@ -763,7 +780,8 @@ class COLMeshEditor(QDialog): #vers 1
         self._set_dirty()
         self._status.setText(f"Added face {last} ({a},{b},{c}) mat={mat}")
 
-    def _delete_faces(self):
+
+    def _delete_faces(self): #vers 1
         rows = sorted({idx.row() for idx in self.face_table.selectedIndexes()}, reverse=True)
         if not rows:
             self._status.setText("Select faces to delete first.")
@@ -778,11 +796,13 @@ class COLMeshEditor(QDialog): #vers 1
         self._set_dirty()
         self._status.setText(f"Deleted {len(rows)} face(s). {len(faces)} remaining.")
 
-    def _delete_verts(self):
+
+    def _delete_verts(self): #vers 1
         rows = sorted({idx.row() for idx in self.vert_table.selectedIndexes()}, reverse=True)
         if not rows:
             self._status.setText("Select vertices to delete first.")
             return
+
         # Check if any selected vertex is in use
         faces = getattr(self._model, 'faces', [])
         used = {f.a for f in faces} | {f.b for f in faces} | {f.c for f in faces}
@@ -795,6 +815,7 @@ class COLMeshEditor(QDialog): #vers 1
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
             if res != QMessageBox.StandardButton.Yes:
                 return
+
         self._push_undo(f"Delete {len(rows)} vertex/vertices")
         verts = self._model.vertices
         # Remap face indices
@@ -815,7 +836,8 @@ class COLMeshEditor(QDialog): #vers 1
         self._set_dirty()
         self._status.setText(f"Deleted {len(rows)} vert(s). {len(verts)} remaining.")
 
-    def _remove_orphan_verts(self):
+
+    def _remove_orphan_verts(self): #vers 1
         faces  = getattr(self._model, 'faces', [])
         verts  = getattr(self._model, 'vertices', [])
         used   = {f.a for f in faces} | {f.b for f in faces} | {f.c for f in faces}
@@ -841,15 +863,16 @@ class COLMeshEditor(QDialog): #vers 1
         self._set_dirty()
         self._status.setText(f"Removed {len(orphans)} orphan vert(s).")
 
-    # ── Undo ──────────────────────────────────────────────────────────────
+    # - Undo
 
-    def _push_undo(self, description=""):
+    def _push_undo(self, description=""): #vers 1
         self._undo_stack.append((description, copy.deepcopy(self._model)))
         self._undo_btn.setEnabled(True)
         if len(self._undo_stack) > 50:
             self._undo_stack.pop(0)
 
-    def _undo(self):
+
+    def _undo(self): #vers 1
         if not self._undo_stack:
             return
         desc, saved = self._undo_stack.pop()
@@ -858,9 +881,9 @@ class COLMeshEditor(QDialog): #vers 1
         self._undo_btn.setEnabled(bool(self._undo_stack))
         self._status.setText(f"Undone: {desc}")
 
-    # ── Dirty tracking + apply ────────────────────────────────────────────
 
-    def _set_dirty(self):
+    # - Dirty tracking + apply
+    def _set_dirty(self): #vers 1
         self._dirty = True
         n_f = len(getattr(self._model, 'faces', []))
         n_v = len(getattr(self._model, 'vertices', []))
@@ -868,21 +891,22 @@ class COLMeshEditor(QDialog): #vers 1
             f"Mesh Editor* — {getattr(self._model.header, 'name', 'Model')}  "
             f"F:{n_f} V:{n_v}")
 
-    # ── Box helpers ──────────────────────────────────────────────────────
 
+    # - Box helpers
     def _pt(self, obj):
         """Return (x,y,z) from Vector3, tuple, or list."""
         if hasattr(obj,'x'):  return obj.x, obj.y, obj.z
         if obj is None:       return 0.0, 0.0, 0.0
         return float(obj[0]), float(obj[1]), float(obj[2])
 
+
     def _box_pts(self, box):
         mn = getattr(box,'min_point', getattr(box,'min', None))
         mx = getattr(box,'max_point', getattr(box,'max', None))
         return mn, mx
 
-    # ── Box populate / edit ───────────────────────────────────────────────
 
+    # - Box populate / edit
     def _populate_boxes(self):
         self.box_table.blockSignals(True)
         boxes = getattr(self._model,'boxes',[])
@@ -897,9 +921,11 @@ class COLMeshEditor(QDialog): #vers 1
                 item = QTableWidgetItem(f"{val:.4f}" if isinstance(val,float) else str(val))
                 if col == 0: item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.box_table.setItem(i, col, item)
+
         self.box_table.blockSignals(False)
 
-    def _on_box_cell_changed(self, item):
+
+    def _on_box_cell_changed(self, item): #vers 1
         row, col = item.row(), item.column()
         boxes = getattr(self._model,'boxes',[])
         if row >= len(boxes) or col == 0: return
@@ -920,10 +946,12 @@ class COLMeshEditor(QDialog): #vers 1
         except ValueError:
             self._populate_boxes()
 
-    def _add_box(self):
+
+    def _add_box(self): #vers 1
         self._status.setText("Fill in coordinates below and click ➕ Add")
 
-    def _commit_add_box(self):
+
+    def _commit_add_box(self): #vers 1
         self._push_undo("Add box")
         from apps.methods.col_workshop_classes import COLBox
         from apps.methods.col_core_classes import Vector3
@@ -937,7 +965,8 @@ class COLMeshEditor(QDialog): #vers 1
         self.viewport.update(); self._set_dirty()
         self._status.setText(f"Added box {len(self._model.boxes)-1}")
 
-    def _delete_boxes(self):
+
+    def _delete_boxes(self): #vers 1
         rows = sorted({idx.row() for idx in self.box_table.selectedIndexes()}, reverse=True)
         if not rows: self._status.setText("Select boxes to delete first."); return
         self._push_undo(f"Delete {len(rows)} box(es)")
@@ -947,7 +976,8 @@ class COLMeshEditor(QDialog): #vers 1
         self._populate_boxes(); self.viewport.update(); self._set_dirty()
         self._status.setText(f"Deleted {len(rows)} box(es). {len(boxes)} remaining.")
 
-    def _duplicate_boxes(self):
+
+    def _duplicate_boxes(self): #vers 1
         import copy
         rows = sorted({idx.row() for idx in self.box_table.selectedIndexes()})
         if not rows: self._status.setText("Select boxes to duplicate."); return
@@ -957,9 +987,9 @@ class COLMeshEditor(QDialog): #vers 1
             if r < len(boxes): boxes.append(copy.deepcopy(boxes[r]))
         self._populate_boxes(); self._set_dirty()
 
-    # ── Sphere populate / edit ────────────────────────────────────────────
 
-    def _populate_spheres(self):
+    # - Sphere populate / edit
+    def _populate_spheres(self): #vers 1
         self.sphere_table.blockSignals(True)
         spheres = getattr(self._model,'spheres',[])
         self.sphere_table.setRowCount(len(spheres))
@@ -973,7 +1003,8 @@ class COLMeshEditor(QDialog): #vers 1
                 self.sphere_table.setItem(i, col, item)
         self.sphere_table.blockSignals(False)
 
-    def _on_sphere_cell_changed(self, item):
+
+    def _on_sphere_cell_changed(self, item): #vers 1
         row, col = item.row(), item.column()
         spheres = getattr(self._model,'spheres',[])
         if row >= len(spheres) or col==0: return
@@ -991,10 +1022,12 @@ class COLMeshEditor(QDialog): #vers 1
         except ValueError:
             self._populate_spheres()
 
-    def _add_sphere(self):
+
+    def _add_sphere(self): #vers 1
         self._status.setText("Fill in coordinates below and click ➕ Add")
 
-    def _commit_add_sphere(self):
+
+    def _commit_add_sphere(self): #vers 1
         self._push_undo("Add sphere")
         from apps.methods.col_workshop_classes import COLSphere
         from apps.methods.col_core_classes import Vector3
@@ -1007,7 +1040,8 @@ class COLMeshEditor(QDialog): #vers 1
         self.viewport.update(); self._set_dirty()
         self._status.setText(f"Added sphere {len(self._model.spheres)-1}")
 
-    def _delete_spheres(self):
+
+    def _delete_spheres(self): #vers 1
         rows = sorted({idx.row() for idx in self.sphere_table.selectedIndexes()}, reverse=True)
         if not rows: self._status.setText("Select spheres to delete first."); return
         self._push_undo(f"Delete {len(rows)} sphere(s)")
@@ -1017,7 +1051,8 @@ class COLMeshEditor(QDialog): #vers 1
         self._populate_spheres(); self.viewport.update(); self._set_dirty()
         self._status.setText(f"Deleted {len(rows)} sphere(s).")
 
-    def _duplicate_spheres(self):
+
+    def _duplicate_spheres(self): #vers 1
         import copy
         rows = sorted({idx.row() for idx in self.sphere_table.selectedIndexes()})
         if not rows: self._status.setText("Select spheres to duplicate."); return
@@ -1027,9 +1062,9 @@ class COLMeshEditor(QDialog): #vers 1
             if r < len(spheres): spheres.append(copy.deepcopy(spheres[r]))
         self._populate_spheres(); self._set_dirty()
 
-    # ── Bounds populate / edit ────────────────────────────────────────────
 
-    def _populate_bounds(self):
+    # - Bounds populate / edit
+    def _populate_bounds(self): #vers 1
         bounds = getattr(self._model,'bounds',None)
         if not bounds: return
         self._bd_r.setValue(getattr(bounds,'radius',0.0))
@@ -1040,7 +1075,8 @@ class COLMeshEditor(QDialog): #vers 1
         for sp,v in zip(self._bd_mn, [mnx,mny,mnz]): sp.setValue(v)
         for sp,v in zip(self._bd_mx, [mxx,mxy,mxz]): sp.setValue(v)
 
-    def _apply_bounds(self):
+
+    def _apply_bounds(self): #vers 1
         bounds = getattr(self._model,'bounds',None)
         if not bounds: return
         self._push_undo("Edit bounds")
@@ -1060,7 +1096,8 @@ class COLMeshEditor(QDialog): #vers 1
         else: bounds.max=Vector3(mxx,mxy,mxz)
         self._set_dirty(); self._status.setText("Bounds applied.")
 
-    def _recalc_bounds(self):
+
+    def _recalc_bounds(self): #vers 1
         """Recalculate bounding volume from all geometry."""
         self._push_undo("Recalculate bounds")
         import math
@@ -1094,9 +1131,9 @@ class COLMeshEditor(QDialog): #vers 1
         self._populate_bounds(); self._set_dirty()
         self._status.setText(f"Bounds recalculated: r={r:.3f} centre=({cx:.2f},{cy:.2f},{cz:.2f})")
 
-    # ── Keyboard shortcuts ───────────────────────────────────────────────
 
-    def keyPressEvent(self, event):
+    # - Keyboard shortcuts
+    def keyPressEvent(self, event): #vers 2
         key  = event.key()
         ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if key == Qt.Key.Key_Delete or key == Qt.Key.Key_Backspace:
@@ -1107,6 +1144,7 @@ class COLMeshEditor(QDialog): #vers 1
                     self._delete_faces()
                 elif self.viewport._sel_verts:
                     self._delete_verts()
+
             elif tab == 1: self._delete_boxes()
             elif tab == 2: self._delete_spheres()
         elif ctrl and key == Qt.Key.Key_A:
@@ -1118,9 +1156,9 @@ class COLMeshEditor(QDialog): #vers 1
         else:
             super().keyPressEvent(event)
 
-    # ── Selection sync viewport ↔ tables ──────────────────────────────────
 
-    def _on_viewport_selection(self, sel_faces, sel_verts):
+    # - Selection sync viewport ↔ tables
+    def _on_viewport_selection(self, sel_faces, sel_verts): #vers 4
         """Called when user clicks a face/vert in the viewport."""
         # Sync face table
         self.face_table.blockSignals(True)
@@ -1129,6 +1167,7 @@ class COLMeshEditor(QDialog): #vers 1
             if fi < self.face_table.rowCount():
                 self.face_table.selectRow(fi)
                 self.face_table.scrollToItem(self.face_table.item(fi,0))
+
         self.face_table.blockSignals(False)
         # Sync vert table
         self.vert_table.blockSignals(True)
@@ -1137,9 +1176,11 @@ class COLMeshEditor(QDialog): #vers 1
             if vi < self.vert_table.rowCount():
                 self.vert_table.selectRow(vi)
                 self.vert_table.scrollToItem(self.vert_table.item(vi,0))
+
         self.vert_table.blockSignals(False)
 
-    def _on_face_selection(self):
+
+    def _on_face_selection(self): #vers 2
         rows = {idx.row() for idx in self.face_table.selectedIndexes()}
         self.viewport.set_selected_faces(rows)
         verts = set()
@@ -1150,11 +1191,13 @@ class COLMeshEditor(QDialog): #vers 1
                 verts.update([f.a, f.b, f.c])
         self.viewport.set_selected_verts(verts)
 
-    def _on_vert_selection(self):
+
+    def _on_vert_selection(self): #vers 1
         rows = {idx.row() for idx in self.vert_table.selectedIndexes()}
         self.viewport.set_selected_verts(rows)
 
-    def _select_all(self):
+
+    def _select_all(self): #vers 1
         tab = self.tabs.currentIndex()
         if tab == 0:
             self.face_table.selectAll()
@@ -1163,15 +1206,16 @@ class COLMeshEditor(QDialog): #vers 1
         elif tab == 2:
             self.sphere_table.selectAll()
 
-    def _deselect_all(self):
+
+    def _deselect_all(self): #vers 1
         self.face_table.clearSelection()
         self.vert_table.clearSelection()
         self.viewport.set_selected_faces(set())
         self.viewport.set_selected_verts(set())
 
-    # ── Flip faces ────────────────────────────────────────────────────────
 
-    def _flip_faces(self, face_indices=None):
+    # - Flip faces
+    def _flip_faces(self, face_indices=None): #vers 1
         """Reverse winding order of selected faces (flips normal direction)."""
         faces = getattr(self._model, 'faces', [])
         targets = face_indices if face_indices is not None else                   {idx.row() for idx in self.face_table.selectedIndexes()}
@@ -1188,9 +1232,9 @@ class COLMeshEditor(QDialog): #vers 1
         self._set_dirty()
         self._status.setText(f"Flipped {len(targets)} face(s).")
 
-    # ── Select connected ──────────────────────────────────────────────────
 
-    def _select_connected(self, seed_faces=None):
+    # - Select connected
+    def _select_connected(self, seed_faces=None): #vers 1
         """Select all faces sharing at least one vertex with seed faces."""
         faces = getattr(self._model, 'faces', [])
         if seed_faces is None:
@@ -1223,9 +1267,9 @@ class COLMeshEditor(QDialog): #vers 1
         self.viewport.set_selected_faces(connected)
         self._status.setText(f"Selected {len(connected)} connected face(s).")
 
-    # ── Merge close vertices ──────────────────────────────────────────────
 
-    def _merge_verts_dialog(self):
+    # - Merge close vertices
+    def _merge_verts_dialog(self): #vers 1
         from PyQt6.QtWidgets import QInputDialog
         thresh, ok = QInputDialog.getDouble(
             self, "Merge Vertices",
@@ -1234,7 +1278,8 @@ class COLMeshEditor(QDialog): #vers 1
         if not ok: return
         self._merge_close_verts(thresh)
 
-    def _merge_close_verts(self, threshold):
+
+    def _merge_close_verts(self, threshold): #vers 1
         """Weld all vertices within threshold distance — remaps face indices."""
         import math
         verts = getattr(self._model, 'vertices', [])
@@ -1270,7 +1315,8 @@ class COLMeshEditor(QDialog): #vers 1
             f"Merged: removed {removed_v} vert(s), {removed_f} degenerate face(s). "
             f"Threshold: {threshold:.4f}")
 
-    def _apply_and_close(self):
+
+    def _apply_and_close(self): #vers 1
         """Write edited model back to the COL file and push to workshop undo."""
         ws = self.workshop
         # Push to workshop-level undo stack
@@ -1279,17 +1325,18 @@ class COLMeshEditor(QDialog): #vers 1
         # Refresh workshop UI
         ws._populate_collision_list()
         ws._populate_compact_col_list()
+
         if hasattr(ws, 'preview_widget'):
             ws.preview_widget.set_current_model(
                 ws.current_col_file.models[self.model_index], self.model_index)
         n_f = len(getattr(self._model, 'faces', []))
         n_v = len(getattr(self._model, 'vertices', []))
+
         if hasattr(ws, 'main_window') and ws.main_window:
             ws.main_window.log_message(
                 f"Mesh edit applied: {getattr(self._model.header,'name','')} "
                 f"F:{n_f} V:{n_v}")
         self.accept()
-
 
 ##Functions -
 def open_col_mesh_editor(workshop, parent=None): #vers 1
@@ -1304,7 +1351,9 @@ def open_col_mesh_editor(workshop, parent=None): #vers 1
     active = (workshop.col_compact_list
               if getattr(workshop, '_col_view_mode', 'list') == 'detail'
               else workshop.collision_list)
+
     rows = active.selectionModel().selectedRows()
+
     if rows:
         row = rows[0].row()
         item = active.item(row, 1) or active.item(row, 0)
@@ -1314,8 +1363,8 @@ def open_col_mesh_editor(workshop, parent=None): #vers 1
 
     if model_index is None:
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.warning(parent or workshop, "No model selected",
-                            "Select a model in the list first.")
+        QMessageBox.warning(parent or workshop, "No model selected", "Select a model in the list first.")
+
         return
 
     models = getattr(workshop.current_col_file, 'models', [])

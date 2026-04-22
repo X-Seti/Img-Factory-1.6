@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 #this belongs in apps/components/Mdl_Editor/model_workshop.py - Version: 89
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
+# [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
+# [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
+# [FIX] _rebuild_grid QWidget crash: removed redundant deleteLater (QScrollArea auto-deletes old widget).
+# [FIX] _rebuild_grid QFrame deletion crash: reparent slots before scroll widget swap.
 # X-Seti - April 4 2025 - Model editor
 
 import os
@@ -1907,7 +1911,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._populate_compact_col_list()
         self._set_status(f"Deleted {len(indices)} model(s).")
 
-
     def _duplicate_selected_model(self): #vers 1
         rows = self.collision_list.selectionModel().selectedRows()
         if not rows or not self.current_col_file: return
@@ -1973,39 +1976,55 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         else:
             self._open_surface_edit_dialog()
 
+    def _open_dff_material_list(self): #vers 9
 
-
-    def _open_dff_material_list(self): #vers 5
         """Material Editor — 3ds Max style.
         Left: grid of material slots (thumbnail sphere-style preview + name).
         Right: properties for the selected material.
         Compact, everything in one window."""
+
         from PyQt6.QtWidgets import (
             QDialog, QVBoxLayout, QHBoxLayout, QSplitter, QScrollArea,
             QGridLayout, QLabel, QPushButton, QLineEdit, QComboBox,
             QFrame, QFormLayout, QAbstractItemView, QSizePolicy,
             QCheckBox, QButtonGroup)
-        from PyQt6.QtGui import QColor, QPixmap, QIcon, QImage, QFont, QPainter, QBrush, QPen, QRadialGradient
+        from PyQt6.QtGui import QColor, QPixmap, QIcon, QImage, QFont, QPainter, QBrush, QPen, QRadialGradient, QPolygonF
         from PyQt6.QtCore import Qt as _Qt, QSize as _QS, QRectF
 
         model = getattr(self, '_current_dff_model', None)
+
         if not model:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(self, "Material Editor", "Load a DFF file first.")
             return
 
-        vp        = getattr(self, 'preview_widget', None)
+        vp = getattr(self, 'preview_widget', None)
         tex_cache = getattr(vp, '_tex_cache', {}) if vp else {}
-        ide_obj   = getattr(self, '_current_ide_obj', None)
-        dff_name  = os.path.splitext(
+        ide_obj = getattr(self, '_current_ide_obj', None)
+        dff_name = os.path.splitext(
             os.path.basename(getattr(self, '_current_dff_path', '') or 'model.dff'))[0]
         ic = self._get_icon_color()
 
-        # ── Collect all materials ─────────────────────────────────────────
+        # - Collect all materials
+
         all_mats = []   # (gi, mi, mat, geom)
-        for gi, geom in enumerate(model.geometries):
-            for mi, mat in enumerate(geom.materials):
-                all_mats.append((gi, mi, mat, geom))
+        geoms = getattr(model, 'geometries', [])
+
+        if not geoms:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Material Editor", "Loaded DFF has no geometries.")
+            return
+
+        for gi, geom in enumerate(geoms):
+            # FIX: Check for materials attribute and non-empty list
+            if hasattr(geom, 'materials') and geom.materials:
+                for mi, mat in enumerate(geom.materials):
+                    all_mats.append((gi, mi, mat, geom))
+
+        if not all_mats:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Material Editor", "No materials found in DFF geometries.")
+            return
 
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Material Editor  {dff_name}")
@@ -2015,7 +2034,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         root.setSpacing(4)
         root.setContentsMargins(6, 6, 6, 6)
 
-        # ── Top: IDE info bar ──────────────────────────────────────────────
+        # - Top: IDE info bar
+
         info_bar = QHBoxLayout()
         model_lbl = QLabel(f"<b>{dff_name}</b>")
         model_lbl.setFont(QFont("Arial", 10, QFont.Weight.Bold))
@@ -2027,17 +2047,19 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             ide_lbl = QLabel(
                 f"  ID:{ide_obj.model_id}  TXD:{ide_obj.txd_name or '—'}"
                 f"  Draw:{draw}  [{ide_obj.section}]  {ide_src}")
-            ide_lbl.setStyleSheet(
-                "color:palette(windowText); font-size:10px; font-family:monospace;")
+
+            ide_lbl.setStyleSheet("color:palette(windowText); font-size:10px; font-family:monospace;")
         else:
             ide_lbl = QLabel("  IDE: Not found — load a game via DAT Browser")
             ide_lbl.setStyleSheet("color:palette(placeholderText); font-size:10px;")
+
         info_bar.addWidget(ide_lbl, 1)
 
         n_cached = sum(1 for _,_,m,_ in all_mats
                        if (getattr(m,'texture_name','') or '').strip().lower() in tex_cache)
         bc = '#16a34a' if n_cached==len(all_mats) and all_mats else \
              '#ca8a04' if n_cached > 0 else '#dc2626'
+
         badge = QLabel(f"{n_cached}/{len(all_mats)} cached")
         badge.setStyleSheet(f"color:{bc}; font-weight:bold; font-size:10px;")
         info_bar.addWidget(badge)
@@ -2045,50 +2067,50 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet("color:palette(mid);"); root.addWidget(sep)
 
-        # ── Main splitter ─────────────────────────────────────────────────
+        # - Main splitter
+
         splitter = QSplitter(_Qt.Orientation.Horizontal)
         root.addWidget(splitter, 1)
 
-        # ── LEFT: Material grid (Max-style) ───────────────────────────────
+        # - LEFT: Material grid (Max-style)
+
         left_frame = QFrame()
         left_lay   = QVBoxLayout(left_frame)
         left_lay.setContentsMargins(0,0,0,0)
         left_lay.setSpacing(4)
-
-        # Grid density header: cols selector + shape label
         grid_hdr = QHBoxLayout()
         grid_hdr.setSpacing(4)
         density_lbl = QLabel("Grid:")
         density_lbl.setFont(self.panel_font)
         grid_hdr.addWidget(density_lbl)
-        _n_cols = [3]   # mutable: 3..6 columns
-        for nc in (3, 4, 5, 6):
+        _n_cols = [3]
+
+        for nc in (3, 4, 5, 6): # TODO; Need grid svg icons
             b = QPushButton(str(nc))
             b.setFixedSize(24, 20)
             b.setFont(self.panel_font)
             b.setCheckable(True)
             b.setChecked(nc == _n_cols[0])
+
             def _set_cols(checked, n=nc, btn=b):
                 if not checked: return
                 _n_cols[0] = n
                 _rebuild_grid()
             b.toggled.connect(_set_cols)
             grid_hdr.addWidget(b)
-            grid_hdr.addSpacing(1)
+
+        grid_hdr.addSpacing(1)
         grid_hdr.addStretch()
         left_lay.addLayout(grid_hdr)
-
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        grid_container = [None]   # mutable for rebuild
+        grid_container = [None]
         left_lay.addWidget(scroll, 1)
-
         _selected_row = [0]
         _slot_btns    = []
 
         def _get_slot_size(n_cols):
-            # Slot size scales with column count: 3→88, 4→72, 5→62, 6→54
             sizes = {3: (88,104), 4: (72,86), 5: (62,76), 6: (54,66)}
             return sizes.get(n_cols, (72,86))
 
@@ -2100,33 +2122,32 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             gl    = QGridLayout(new_w)
             gl.setSpacing(3)
             gl.setContentsMargins(3,3,3,3)
+            # Reparent slots to new_w BEFORE replacing scroll widget to prevent deletion
+
+            for s, _ in _slot_btns:
+                s.setParent(new_w)
             scroll.setWidget(new_w)
             grid_container[0] = new_w
+
             for i,(gi,mi,mat,geom) in enumerate(all_mats):
                 slot, pix_lbl = _slot_btns[i]
                 slot.setFixedSize(sw, sh)
                 pix_w = sw - 8
                 pix_lbl.setFixedSize(pix_w, pix_w)
                 pix_lbl.setPixmap(_make_slot_pix(mat, geom, pix_w))
-                if slot.parent(): slot.setParent(new_w)
                 gl.addWidget(slot, i//nc, i%nc)
             gl.setColumnStretch(nc, 1)
-            if old_w: old_w.deleteLater()
 
-        SLOT_W, SLOT_H = 88, 104   # initial
-        N_COLS = 3
-
-        # Shared slot preview shape ('sphere'/'cube'/'flat') — persists during dialog
+        SLOT_W, SLOT_H = 88, 104
+        N_COLS = 5
         _slot_shape = ['sphere']
 
         def _make_slot_pix(mat, geom, size=80, shape=None):
-            """Render material preview: sphere (default), cube, or flat texture."""
             shape = shape or _slot_shape[0]
             pix = QPixmap(size, size)
             pix.fill(_Qt.GlobalColor.transparent)
             p2 = QPainter(pix)
             p2.setRenderHint(QPainter.RenderHint.Antialiasing)
-
             tname = (getattr(mat,'texture_name','') or '').strip().lower()
             tex   = (tex_cache.get(tname) or tex_cache.get(tname.split('.')[0]))
             c     = getattr(mat,'colour',None) or getattr(mat,'color',None)
@@ -2134,19 +2155,18 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             pad   = 4
 
             if shape == 'flat':
-                # Flat texture fill or colour swatch
                 if tex and isinstance(tex, QImage):
                     scaled = tex.scaled(size-pad*2, size-pad*2,
-                        _Qt.AspectRatioMode.IgnoreAspectRatio,
-                        _Qt.TransformationMode.SmoothTransformation)
+                                        _Qt.AspectRatioMode.IgnoreAspectRatio,
+                                        _Qt.TransformationMode.SmoothTransformation)
                     p2.drawImage(pad, pad, scaled)
+
                 else:
                     p2.fillRect(pad, pad, size-pad*2, size-pad*2, base)
                 p2.setPen(QPen(QColor(80,80,80,120), 1))
                 p2.drawRect(pad, pad, size-pad*2-1, size-pad*2-1)
 
             elif shape == 'cube':
-                # Simple isometric cube with texture on top/front faces
                 from PyQt6.QtCore import QPointF
                 m = size // 2
                 top = [QPointF(m, pad), QPointF(size-pad, m//2+pad),
@@ -2155,6 +2175,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                          QPointF(m, size-pad), QPointF(pad, size-pad-m//2)]
                 right = [QPointF(m, m), QPointF(size-pad, m//2+pad),
                          QPointF(size-pad, size-pad-m//2), QPointF(m, size-pad)]
+
                 def _face_brush(darken=0):
                     if tex and isinstance(tex, QImage):
                         sc = tex.scaled(size, size, _Qt.AspectRatioMode.IgnoreAspectRatio,
@@ -2168,7 +2189,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                         col = QColor(base.red()-darken, base.green()-darken,
                                      base.blue()-darken)
                         return QBrush(col), None
+
                 p2.setPen(QPen(QColor(30,30,30,150), 0.8))
+
                 for face, dk in [(top,0),(front,40),(right,70)]:
                     fb, overlay = _face_brush(dk)
                     poly = QPolygonF(face)
@@ -2176,13 +2199,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     if overlay:
                         p2.setBrush(overlay); p2.drawPolygon(poly)
 
-            else:  # sphere (default)
+            else:  # sphere
                 cx, cy, r = size//2, size//2, size//2 - 2
+
                 if tex and isinstance(tex, QImage):
                     p2.setClipRect(0,0,size,size)
                     brush = QBrush(tex.scaled(size,size,
-                        _Qt.AspectRatioMode.IgnoreAspectRatio,
-                        _Qt.TransformationMode.SmoothTransformation))
+                                _Qt.AspectRatioMode.IgnoreAspectRatio,
+                                _Qt.TransformationMode.SmoothTransformation))
                     p2.setBrush(brush); p2.setPen(_Qt.PenStyle.NoPen)
                     p2.drawEllipse(cx-r, cy-r, 2*r, 2*r)
                 else:
@@ -2209,68 +2233,67 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         def _slot_context_menu(slot_idx, global_pos):
             from PyQt6.QtWidgets import QMenu
             menu = QMenu()
-            for label, shape in [("● Sphere", "sphere"),
-                                  ("■ Cube",   "cube"),
-                                  ("▬ Flat",   "flat")]:
+            for label, shape in [("Sphere", "sphere"),
+                                 ("Cube",   "cube"),
+                                 ("Flat",   "flat")]:
                 act = menu.addAction(label)
                 act.setCheckable(True)
                 act.setChecked(_slot_shape[0] == shape)
+
                 def _set(checked, s=shape):
                     _slot_shape[0] = s
                     _refresh_all_slots_shaped()
                 act.triggered.connect(_set)
+
             menu.addSeparator()
             menu.addAction("Reload TXD from IMGs").triggered.connect(
-                lambda: (self._auto_load_txd_from_imgs(),
-                         _refresh_all_slots_shaped()))
-            menu.addAction("Open in TXD Workshop").triggered.connect(
-                self._open_linked_txd)
+                lambda: (self._auto_load_txd_from_imgs(), _refresh_all_slots_shaped()))
+
+            menu.addAction("Open in TXD Workshop").triggered.connect(self._open_linked_txd)
             menu.exec(global_pos)
 
         for idx, (gi, mi, mat, geom) in enumerate(all_mats):
             tname  = (getattr(mat,'texture_name','') or '').strip()
             in_cache = tname.lower() in tex_cache if tname else False
-
             slot = QFrame()
             slot.setFixedSize(SLOT_W, SLOT_H)
             slot.setCursor(_Qt.CursorShape.PointingHandCursor)
             slot_lay = QVBoxLayout(slot)
             slot_lay.setContentsMargins(3,3,3,3); slot_lay.setSpacing(2)
-
             pix_lbl = QLabel()
             pix_lbl.setFixedSize(80,80)
             pix_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
             pix_lbl.setPixmap(_make_slot_pix(mat, geom))
-            # Hover preview
             _raw = next((t for t in getattr(self,'_mod_textures',[])
                          if t.get('name','').lower()==tname.lower()), None)
             if _raw:
                 pix_lbl._tex_raw = _raw
                 pix_lbl._hover_wnd = [None]
+
                 def _enter(ev, lb=pix_lbl, ws=self):
                     ws._show_tex_hover(lb, getattr(lb,'_tex_raw',None))
+
                 def _leave(ev, lb=pix_lbl, ws=self):
                     ws._hide_tex_hover(lb)
                 pix_lbl.enterEvent = _enter
                 pix_lbl.leaveEvent = _leave
             slot_lay.addWidget(pix_lbl, 0, _Qt.AlignmentFlag.AlignCenter)
-
             border = '#16a34a' if in_cache else ('#555' if not tname else '#dc2626')
             name_short = (tname[:12]+'…') if len(tname)>12 else (tname or '(none)')
             name_lbl = QLabel(name_short)
             name_lbl.setFont(QFont("Arial", 7))
             name_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+            # FIX: Theme-aware styling
             name_lbl.setStyleSheet("color:palette(windowText);")
             name_lbl.setToolTip(f"Mat {mi}  Texture: {tname or '(none)'}")
             slot_lay.addWidget(name_lbl)
-
             slot._idx = idx
 
             def _select(ev=None, i=idx, s=slot):
                 _selected_row[0] = i
                 for j,(sl,_) in enumerate(_slot_btns):
                     sl.setStyleSheet(
-                        "QFrame{border:2px solid #f90;border-radius:3px;background:palette(alternateBase);}"
+                        "QFrame{border:2px solid palette(highlight);border-radius:3px;background:palette(alternateBase);}"
                         if j==i else
                         "QFrame{border:1px solid palette(mid);border-radius:3px;background:transparent;}")
                 _on_slot_selected(i)
@@ -2284,12 +2307,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             slot.mousePressEvent = _slot_mouse
             slot.setStyleSheet("QFrame{border:1px solid palette(mid);border-radius:3px;background:transparent;}")
             _slot_btns.append((slot, pix_lbl))
-
-        # Build grid initially
         _rebuild_grid()
 
         # TXD action buttons below grid
         txd_row = QHBoxLayout(); txd_row.setSpacing(3)
+
         def _qb_txd(label, tip, slot_fn, icon_fn=None):
             b = QPushButton(); b.setFixedHeight(26); b.setFixedWidth(26)
             b.setFont(self.button_font)
@@ -2301,34 +2323,32 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         txd_row.addWidget(_qb_txd("Load TXD","Load a TXD file",self._load_txd_into_workshop,"open_icon"))
         txd_row.addWidget(_qb_txd("Auto-find","Search open IMGs for linked TXD",
-            lambda: (self._auto_load_txd_from_imgs(), _refresh_all_slots()),"reset_icon"))
+                                  lambda: (self._auto_load_txd_from_imgs(), _refresh_all_slots()),"reset_icon"))
         txd_row.addWidget(_qb_txd("Texlist","Scan texlist/ folder",
-            lambda: (self._auto_load_from_texlist(getattr(self,'_ide_txd_name','')),
-                     _refresh_all_slots()),"folder_icon"))
+                                  lambda: (self._auto_load_from_texlist(getattr(self,'_ide_txd_name','')),
+                                           _refresh_all_slots()),"folder_icon"))
         txd_row.addWidget(_qb_txd("Swap TXD","Change IDE TXD set",
-            lambda: swap_combo.setFocus(),"convert_icon"))
+                                  lambda: swap_combo.setFocus(),"convert_icon"))
         txd_row.addStretch()
         left_lay.addLayout(txd_row)
         splitter.addWidget(left_frame)
 
-        # ── RIGHT: Property panel ─────────────────────────────────────────
+        # - RIGHT: Property panel
+
         right_frame = QFrame(); right_frame.setMinimumWidth(280)
         right_lay   = QVBoxLayout(right_frame)
         right_lay.setContentsMargins(8,4,4,4); right_lay.setSpacing(6)
-
         hdr_lbl = QLabel("Select a material slot")
         hdr_lbl.setFont(QFont("Arial",9,QFont.Weight.Bold))
         right_lay.addWidget(hdr_lbl)
-
         form = QFormLayout(); form.setSpacing(8)
-
-        # Texture name + cache status
         tex_edit = QLineEdit(); tex_edit.setEnabled(False)
         tex_edit.setPlaceholderText("texture_name")
         cache_lbl = QLabel("—"); cache_lbl.setFixedWidth(80)
         load_btn = QPushButton("Load TXD…"); load_btn.setFixedHeight(26)
         try: load_btn.setIcon(self.icon_factory.open_icon(color=ic)); load_btn.setIconSize(_QS(16,16))
         except Exception: pass
+
         load_btn.clicked.connect(self._load_txd_into_workshop)
         tr = QHBoxLayout(); tr.addWidget(tex_edit,1); tr.addWidget(cache_lbl); tr.addWidget(load_btn)
         form.addRow("Texture:", tr)
@@ -2337,22 +2357,21 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             t = txt.strip().lower()
             in_c = t in tex_cache
             cache_lbl.setText("✓ in cache" if in_c else ("✗ not found" if t else "—"))
-            cache_lbl.setStyleSheet("color:#16a34a;" if in_c else "color:#dc2626;" if t else "")
-        tex_edit.textChanged.connect(_update_cache_lbl)
+            # FIX: Theme-aware color for cache status
+            cache_lbl.setStyleSheet("color:palette(link);" if in_c else ("color:palette(text);" if t else "color:palette(placeholderText);"))
 
-        # IDE line removed from right panel — shown in top bar only
-        # Keep ide_edit_lbl as a stub so _refresh_ide() can update it silently
-        ide_edit_lbl = QLabel()   # invisible, updated by _refresh_ide
+        tex_edit.textChanged.connect(_update_cache_lbl)
+        ide_edit_lbl = QLabel()
         ide_edit_lbl.setVisible(False)
         reload_btn = QPushButton(); reload_btn.setFixedSize(26,26)
+
         try: reload_btn.setIcon(self.icon_factory.reset_icon(color=ic)); reload_btn.setIconSize(_QS(16,16))
+
         except Exception: reload_btn.setText("↻")
         reload_btn.setToolTip("Reload IDE entry (click to refresh top bar)")
-        # Add reload button inline with Use TXD row below
-
-        # Use TXD / swap
         swap_combo = QComboBox(); swap_combo.setEditable(True)
         swap_combo.setEnabled(False)
+
         if getattr(self,'_ide_txd_name',''):
             swap_combo.addItem(self._ide_txd_name)
         apply_btn = QPushButton("Apply"); apply_btn.setFixedHeight(26)
@@ -2360,33 +2379,29 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         swap_row = QHBoxLayout()
         swap_row.addWidget(swap_combo, 1)
         swap_row.addWidget(apply_btn)
-        swap_row.addWidget(reload_btn)   # IDE reload moved here
+        swap_row.addWidget(reload_btn)
         form.addRow("Use TXD:", swap_row)
-
-        # Colour
         chosen_color = [QColor(160,160,160)]
         col_swatch = QLabel(); col_swatch.setFixedSize(32,22); col_swatch.setFrameShape(QFrame.Shape.Box)
         pick_btn = QPushButton("Pick…"); pick_btn.setFixedHeight(26); pick_btn.setEnabled(False)
+
         def _pick():
             from PyQt6.QtWidgets import QColorDialog
             c2 = QColorDialog.getColor(chosen_color[0], dlg, "Pick Colour")
             if c2.isValid():
                 chosen_color[0] = c2
-                col_swatch.setStyleSheet(f"background:{c2.name()};border:1px solid #555;")
+                col_swatch.setStyleSheet(f"background:{c2.name()};border:1px solid palette(mid);")
+
         pick_btn.clicked.connect(_pick)
         col_row = QHBoxLayout(); col_row.addWidget(col_swatch); col_row.addWidget(pick_btn); col_row.addStretch()
         form.addRow("Colour:", col_row)
-
-        # UV info
-        uv_lbl = QLabel("—"); uv_lbl.setStyleSheet("font-size:10px;color:#16a34a;")
+        uv_lbl = QLabel("—"); uv_lbl.setStyleSheet("font-size:10px;color:palette(link);")
         form.addRow("UV Layer:", uv_lbl)
 
-        # Import / Export / Save
         def _import_tex():
             from PyQt6.QtWidgets import QFileDialog
-            path,_ = QFileDialog.getOpenFileName(dlg,"Import Texture",
-                getattr(self,'_texlist_folder','') or '',
-                "Images (*.png *.jpg *.bmp *.tga);;All Files (*)")
+            path,_ = QFileDialog.getOpenFileName(dlg,"Import Texture", getattr(self,'_texlist_folder','') or '', "Images (*.png *.jpg *.bmp *.tga);;All Files (*)")
+
             if not path: return
             try:
                 qi = QImage(path)
@@ -2404,29 +2419,34 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 _update_cache_lbl(tname_cur)
                 _refresh_all_slots()
             except Exception as ex:
+
                 if self.main_window and hasattr(self.main_window,'log_message'):
                     self.main_window.log_message(f"Import tex error: {ex}")
 
         def _export_tex():
             from PyQt6.QtWidgets import QFileDialog
             tname_cur = tex_edit.text().strip()
+
             if not tname_cur: return
             qi = (vp._tex_cache.get(tname_cur.lower()) if vp else None)
+
             if qi is None:
                 raw = next((t for t in getattr(self,'_mod_textures',[])
-                            if t.get('name','').lower()==tname_cur.lower()),None)
+
+                if t.get('name','').lower()==tname_cur.lower()),None)
+
                 if raw:
                     rd=raw.get('rgba_data',b''); tw,th=raw.get('width',0),raw.get('height',0)
                     if rd and tw and th:
                         qi = QImage(rd[:tw*th*4],tw,th,tw*4,QImage.Format.Format_RGBA8888)
+
             if qi is None: return
-            path,_ = QFileDialog.getSaveFileName(dlg,"Export Texture",
-                os.path.join(getattr(self,'_texlist_folder','') or '',tname_cur+'.png'),
-                "PNG (*.png);;BMP (*.bmp)")
+            path,_ = QFileDialog.getSaveFileName(dlg,"Export Texture", os.path.join(getattr(self,'_texlist_folder','') or '',tname_cur+'.png'), "PNG (*.png);;BMP (*.bmp)")
+
             if path: qi.save(path)
 
-        # Adaptive texture buttons - icon only below 320px right-panel width
         _tex_btns = []
+
         def _qb26_tex(label, tip, fn, icon_fn):
             b = QPushButton(label); b.setFixedHeight(26); b.setFont(self.button_font)
             try: b.setIcon(getattr(self.icon_factory,icon_fn)(color=ic)); b.setIconSize(_QS(16,16))
@@ -2439,34 +2459,33 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         io_row = QHBoxLayout(); io_row.setSpacing(4)
         io_row.addWidget(_qb26_tex("Import","Import image as texture",_import_tex,"import_icon"))
         io_row.addWidget(_qb26_tex("Export","Export texture to file",_export_tex,"export_icon"))
-        io_row.addWidget(_qb26_tex("Save","Apply edits to texture cache",
-            lambda: (self._populate_texture_list(),
-                     vp.load_textures(getattr(self,'_mod_textures',[])) if vp else None,
-                     vp.update() if vp else None),"save_icon"))
+        io_row.addWidget(_qb26_tex("Save","Apply edits to texture cache", lambda: (self._populate_texture_list(), vp.load_textures(getattr(self,'_mod_textures',[]))
+
+        if vp else None, vp.update()
+        if vp else None),"save_icon"))
+
         io_row.addStretch()
         form.addRow("Textures:", io_row)
-
-        # Preview buttons
         pw = getattr(self, 'preview_widget', None)
         prev_row = QHBoxLayout(); prev_row.setSpacing(3)
-        _prev_icons = {'solid':'solid_icon','textured':'texture_icon',
-                       'semi':'semi_icon','wire':'wireframe_icon'}
+        _prev_icons = {'solid':'solid_icon','textured':'texture_icon', 'semi':'semi_icon','wire':'wireframe_icon'}
+
         for style,label in [('solid','S'),('textured','T'),('semi','M'),('wire','W')]:
             b = QPushButton(label); b.setFixedHeight(26); b.setFixedWidth(36)
             b.setToolTip(f"{label} mode")
             try:
                 ico_fn = _prev_icons.get(style)
                 if ico_fn: b.setIcon(getattr(self.icon_factory,ico_fn)(color=ic)); b.setIconSize(_QS(14,14))
+
             except Exception: pass
+
             if pw: b.clicked.connect(lambda _=False,s=style,p=pw: p.set_render_style(s))
             prev_row.addWidget(b)
+
         prev_row.addStretch()
         form.addRow("Preview:", prev_row)
-
         right_lay.addLayout(form)
         right_lay.addStretch()
-
-        # OK / Cancel
         ok_row = QHBoxLayout(); ok_row.addStretch()
         ok_btn = QPushButton("✓ OK"); ok_btn.setFixedHeight(26)
         cancel_btn = QPushButton("✕ Cancel"); cancel_btn.setFixedHeight(26)
@@ -2476,25 +2495,26 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         splitter.addWidget(right_frame)
         splitter.setSizes([380, 480])
 
-        # ── Wire IDE refresh ──────────────────────────────────────────────
+        # - Wire IDE refresh
         def _refresh_ide():
             obj = self._current_ide_obj
             if not obj:
                 xr = self._get_xref()
                 if xr:
                     stem = os.path.splitext(getattr(self,'_original_dff_name','') or
-                        os.path.basename(getattr(self,'_current_dff_path','') or ''))[0].lower()
+                                            os.path.basename(getattr(self,'_current_dff_path','') or ''))[0].lower()
                     obj = xr.model_map.get(stem)
-            if obj:
-                draw = obj.extra.get('draw_dist',obj.extra.get('dist1','—'))
-                ide_edit_lbl.setText(
-                    f"{obj.model_id}  {obj.model_name}  TXD:{obj.txd_name}  "
-                    f"Draw:{draw}  [{obj.section}]")
-                swap_combo.setCurrentText(obj.txd_name or '')
-                swap_combo.setEnabled(True); apply_btn.setEnabled(True)
-                self._current_ide_obj = obj
-            else:
-                ide_edit_lbl.setText("Not found")
+                    if obj:
+                        draw = obj.extra.get('draw_dist',obj.extra.get('dist1','—'))
+                        ide_edit_lbl.setText(
+                            f"{obj.model_id}  {obj.model_name}  TXD:{obj.txd_name}  "
+                            f"Draw:{draw}  [{obj.section}]")
+                        swap_combo.setCurrentText(obj.txd_name or '')
+                        swap_combo.setEnabled(True); apply_btn.setEnabled(True)
+                        self._current_ide_obj = obj
+                    else:
+                        ide_edit_lbl.setText("Not found")
+
             self._ide_label_refresh_fn = _refresh_ide
 
         reload_btn.clicked.connect(_refresh_ide)
@@ -2505,9 +2525,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self._ide_txd_name = new_txd
                 from PyQt6.QtCore import QTimer as _QTs
                 _QTs.singleShot(0, lambda t=new_txd: self._auto_load_txd_from_imgs(t))
+
         apply_btn.clicked.connect(_apply_swap)
 
-        # ── Slot selection → properties ───────────────────────────────────
+        # - Slot selection → properties
         _current_mat = [None]
 
         def _refresh_all_slots():
@@ -2518,12 +2539,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         def _on_slot_selected(i):
             if i >= len(all_mats): return
+
             gi, mi, mat, geom = all_mats[i]
             _current_mat[0] = mat
             tname = (getattr(mat,'texture_name','') or '').strip()
             c = getattr(mat,'colour',None) or getattr(mat,'color',None)
             uv_count = len(geom.uv_layers[0]) if geom.uv_layers else 0
-
             hdr_lbl.setText(f"Mat {mi}  —  {tname or '(no texture)'}")
             tex_edit.setText(tname); tex_edit.setEnabled(True)
             pick_btn.setEnabled(True)
@@ -2532,54 +2553,60 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if c:
                 chosen_color[0] = QColor(c.r,c.g,c.b)
                 col_swatch.setStyleSheet(
-                    f"background:{chosen_color[0].name()};border:1px solid #555;")
-
+                    f"background:{chosen_color[0].name()};border:1px solid palette(mid);")
             uv_lbl.setText(f"✓ {uv_count} UV coords" if uv_count else "—")
             uv_lbl.setStyleSheet(
-                "color:#16a34a;font-size:10px;" if uv_count else "color:#888;font-size:10px;")
+                "color:palette(link);font-size:10px;" if uv_count else "color:palette(placeholderText);font-size:10px;")
             _refresh_ide()
 
         def _apply_and_close():
             mat = _current_mat[0]
+
             if mat:
                 mat.texture_name = tex_edit.text().strip()
                 c2 = chosen_color[0]
                 mc = getattr(mat,'colour',None) or getattr(mat,'color',None)
                 if mc: mc.r=c2.red(); mc.g=c2.green(); mc.b=c2.blue()
-            if vp: vp.update()
+                if vp: vp.update()
             dlg.accept()
 
         ok_btn.clicked.connect(_apply_and_close)
         cancel_btn.clicked.connect(dlg.reject)
         close_btn.clicked.connect(dlg.accept)
-
         # Select first slot
+
         if all_mats:
             _slot_btns[0][0].setStyleSheet(
-                "QFrame{border:2px solid #f90;border-radius:3px;background:palette(alternateBase);}")
+                "QFrame{border:2px solid palette(highlight);border-radius:3px;background:palette(alternateBase);}")
             _on_slot_selected(0)
-
-        _refresh_ide()
+            _refresh_ide()
         dlg.exec()
 
 
     def _open_surface_type_dialog(self): #vers 1
         """Show surface material type picker for selected model."""
         rows = self.collision_list.selectionModel().selectedRows()
+
         if not rows or not self.current_col_file: return
         row = rows[0].row()
         item = self.collision_list.item(row, 1)
+
         if not item: return
         idx = item.data(Qt.ItemDataRole.UserRole)
+
         if idx is None: return
         model = self.current_col_file.models[idx]
-        types = {0:"Default",1:"Tarmac",2:"Gravel",3:"Grass",4:"Sand",5:"Water",
-                 6:"Metal",7:"Wood",8:"Concrete",63:"Obstacle"}
+        types = {0:"Default",1:"Tarmac",2:"Gravel",3:"Grass",4:"Sand",5:"Water", 6:"Metal",7:"Wood",8:"Concrete",63:"Obstacle"}
+
+        #TODO, Add support material support for GTA3, VC and SA exported col file _dff_to_col_surfaces
+
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QDialogButtonBox
         dlg = QDialog(self); dlg.setWindowTitle(f"Surface Type — {model.name}")
         lay = QVBoxLayout(dlg)
         lst = QListWidget()
+
         for k,v in types.items(): lst.addItem(f"{k:3d}  {v}")
+
         lay.addWidget(lst)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
