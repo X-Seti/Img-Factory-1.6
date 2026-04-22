@@ -1495,7 +1495,9 @@ class IMGFactory(QMainWindow):
                                     delete=False, suffix='.dff',
                                     prefix=os.path.splitext(dff_name)[0] + '_')
                                 tmp.write(data); tmp.close()
-                                open_model_workshop(self, tmp.name)
+                                # Pass original DFF entry name so IDE lookup works
+                                open_model_workshop(self, tmp.name,
+                                    original_dff_name=dff_name)
                                 return
                         except Exception as ex:
                             self.log_message(f"DFF extract error: {ex}")

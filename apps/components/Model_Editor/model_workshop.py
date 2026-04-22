@@ -2129,9 +2129,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                                 if data:
                                     self._load_txd_file_from_data(data, txd + '.txd')
                                     if mw2 and hasattr(mw2,'log_message'):
+                                        _src_bn = os.path.basename(
+                                            txd_row['source_path'])
                                         mw2.log_message(
                                             f"TXD loaded via DB: {txd}.txd "
-                                            f"from {os.path.basename(txd_row["source_path"])}")
+                                            f"from {_src_bn}")
                                     ok = True
                     except Exception:
                         pass
@@ -2181,13 +2183,32 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         ide_row_layout.addWidget(ide_lbl_holder[0], 1)
 
         def _reload_ide():
-            # Force re-scan: clear cache then re-lookup
-            self._ide_db = None; self._ide_db_root = ''
-            db = self._get_ide_db()   # triggers scan + logging
-            new_obj = db.lookup(dff_stem) if db else None
+            # Try xref first (fastest — already in memory from DAT load)
+            new_obj = None
+            xr = self._get_xref()
+            if xr:
+                stem_try = getattr(self, '_original_dff_name', '') or dff_stem
+                stem_try = os.path.splitext(stem_try)[0].lower()
+                new_obj = xr.model_map.get(stem_try)
+                if new_obj is None:
+                    # Progressive fallback
+                    parts = stem_try.split('_')
+                    for n in range(len(parts)-1, 0, -1):
+                        new_obj = xr.model_map.get('_'.join(parts[:n]))
+                        if new_obj: break
+            if new_obj is None:
+                # Fall back to IDEDatabase scan
+                self._ide_db = None; self._ide_db_root = ''
+                db = self._get_ide_db()
+                new_obj = db.lookup(dff_stem) if db else None
             if new_obj:
                 self._current_ide_obj = new_obj
                 self._ide_txd_name    = new_obj.txd_name or ''
+                # Auto-load TXD after reload
+                if new_obj.txd_name and new_obj.txd_name.lower() not in ('null',''):
+                    from PyQt6.QtCore import QTimer as _QTR
+                    _QTR.singleShot(0, lambda txd=new_obj.txd_name:
+                        self._auto_load_txd_from_imgs(txd))
             ide_display[0] = new_obj
             old_w = ide_lbl_holder[0]
             new_w = _build_ide_lbl(new_obj)
@@ -2212,6 +2233,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             "Reload IDE database — rescans .ide files from game folder")
         reload_ide_btn.clicked.connect(_reload_ide)
         ide_row_layout.addWidget(reload_ide_btn)
+        # Store callback so _lookup_ide_for_dff can trigger label refresh
+        self._ide_label_refresh_fn = _reload_ide
         form.addRow("IDE:", ide_row_layout)
 
         # Colour swatch
@@ -8212,13 +8235,22 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         txd_stem_lo = txd_stem.lower().split('.')[0]  # strip extension if present
         txd_filename = txd_stem_lo + '.txd'
 
-        # Gather all candidate IMG objects: current_img + all open tabs
-        img_candidates = []
+        # Gather all candidate IMG sources
+        img_candidates   = []   # IMGFile objects
+        img_path_search  = []   # raw paths to open directly if needed
+
+        # 1. current_img on workshop or main_window
         ci = getattr(self, 'current_img', None) or (
              getattr(mw, 'current_img', None) if mw else None)
         if ci:
             img_candidates.append(ci)
 
+        # 2. Source IMG path stored when DFF was extracted
+        src_img = getattr(self, '_source_img_path', '') or ''
+        if src_img and os.path.isfile(src_img):
+            img_path_search.append(src_img)
+
+        # 3. All open IMG tabs
         if mw and hasattr(mw, 'main_tab_widget'):
             tw = mw.main_tab_widget
             for i in range(tw.count()):
@@ -8227,6 +8259,23 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     fo = getattr(w, 'file_object', None)
                     if fo and fo is not ci:
                         img_candidates.append(fo)
+                # Also check file_path of any tab
+                fp = getattr(w, 'file_path', '') if w else ''
+                if fp and fp.lower().endswith('.img') and fp not in img_path_search:
+                    img_path_search.append(fp)
+
+        # 4. Search by opening the source IMG directly (for extracted DFFs)
+        seen_paths = {getattr(img, 'file_path', '') for img in img_candidates}
+        for ipath in img_path_search:
+            if ipath not in seen_paths:
+                try:
+                    from apps.methods.img_core_classes import IMGFile
+                    arc = IMGFile(ipath)
+                    arc.open()
+                    img_candidates.append(arc)
+                    seen_paths.add(ipath)
+                except Exception:
+                    pass
 
         for img in img_candidates:
             entries = getattr(img, 'entries', [])
@@ -9080,10 +9129,19 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             xref = getattr(mw, 'xref', None)
         return xref
 
-    def _lookup_ide_for_dff(self, dff_path: str): #vers 1
+    def _lookup_ide_for_dff(self, dff_path: str): #vers 2
         """Look up IDEObject for a DFF file path via DAT Browser xref.
-        Updates info panel labels and enables/disables TXD/IDE buttons."""
-        stem = os.path.splitext(os.path.basename(dff_path))[0].lower()
+        Updates info panel labels and enables/disables TXD/IDE buttons.
+        Handles /tmp paths where DFF was extracted with a random suffix."""
+        raw_stem = os.path.splitext(os.path.basename(dff_path))[0]
+
+        # If workshop has the original DFF entry name (set at open time), use it
+        orig = getattr(self, '_original_dff_name', '') or ''
+        if orig:
+            stem = os.path.splitext(orig)[0].lower()
+        else:
+            stem = raw_stem.lower()
+
         xref = self._get_xref()
 
         # Reset labels
@@ -9101,6 +9159,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         if xref is None:
             # Try standalone IDEDatabase fallback — scan game root for .ide files
             obj = self._lookup_ide_from_db(stem)
+            if obj is None:
+                # Progressive stem fallback
+                parts = stem.split('_')
+                for n in range(len(parts)-1, 0, -1):
+                    obj = self._lookup_ide_from_db('_'.join(parts[:n]))
+                    if obj:
+                        break
             if obj:
                 self._current_ide_obj = obj
                 self._ide_txd_name    = obj.txd_name or ''
@@ -9112,12 +9177,25 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     self.info_txd_name.setText(obj.txd_name or '—')
                 if hasattr(self, 'load_txd_btn') and obj.txd_name:
                     self.load_txd_btn.setEnabled(True)
+                # Auto-load TXD immediately
+                if obj.txd_name and obj.txd_name.lower() not in ('null',''):
+                    from PyQt6.QtCore import QTimer as _QTIDB
+                    _QTIDB.singleShot(0, lambda txd=obj.txd_name:
+                        self._auto_load_txd_from_imgs(txd))
                 return obj
             if hasattr(self, 'info_ide_section'):
                 self.info_ide_section.setText('No DAT loaded')
             return None
 
         obj = xref.model_map.get(stem)
+        if obj is None:
+            # Try progressively shorter stems (e.g. airportwall_2_2 → airportwall_2 → airportwall)
+            parts = stem.split('_')
+            for n in range(len(parts)-1, 0, -1):
+                shorter = '_'.join(parts[:n])
+                obj = xref.model_map.get(shorter)
+                if obj:
+                    break
         if obj is None:
             if hasattr(self, 'info_ide_section'):
                 self.info_ide_section.setText('Not in IDE')
@@ -9152,6 +9230,17 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self.find_in_ide_btn.setEnabled(True)
 
         self._current_ide_obj = obj
+        # Auto-load TXD immediately after IDE lookup — no user click needed
+        if obj and obj.txd_name and obj.txd_name.lower() not in ('null',''):
+            self._ide_txd_name = obj.txd_name
+            from PyQt6.QtCore import QTimer as _QTIDE
+            _QTIDE.singleShot(0, lambda txd=obj.txd_name:
+                self._auto_load_txd_from_imgs(txd))
+        # Refresh the IDE label in the material editor dialog if it's open
+        fn = getattr(self, '_ide_label_refresh_fn', None)
+        if fn and callable(fn):
+            from PyQt6.QtCore import QTimer as _QTLBL
+            _QTLBL.singleShot(50, fn)
         return obj
 
     def _open_linked_txd(self): #vers 1
@@ -13115,8 +13204,11 @@ import shutil
 import sys
 
 
-def open_model_workshop(main_window, dff_path=None): #vers 2
-    """Open Model Workshop — routes DFF/COL/IMG correctly."""
+def open_model_workshop(main_window, dff_path=None,
+                        original_dff_name=None): #vers 3
+    """Open Model Workshop — routes DFF/COL/IMG correctly.
+    original_dff_name: the DFF entry name from the IMG (e.g. 'airportwall_2_2.dff')
+    so that IDE lookup works even when the DFF was extracted to /tmp/ with a random suffix."""
     try:
         # Try to dock in main window tab if available
         if main_window and hasattr(main_window, 'main_tab_widget'):
@@ -13144,6 +13236,10 @@ def open_model_workshop(main_window, dff_path=None): #vers 2
                 _sp = getattr(_ci, 'file_path', '') or ''
                 if _sp:
                     workshop._source_img_path = _sp
+
+        # Store original DFF name BEFORE open_dff_file so _lookup_ide_for_dff sees it
+        if original_dff_name:
+            workshop._original_dff_name = original_dff_name
 
         # Route the file
         if dff_path:
