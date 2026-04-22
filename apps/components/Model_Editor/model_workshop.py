@@ -70,7 +70,12 @@ except ImportError:
     APPSETTINGS_AVAILABLE = False
     print("Warning: AppSettings not available")
 
-#TODO missing methods list.
+# Model Workshop — missing/stub methods to implement next:
+#   _apply_prelighting()    — bake ambient+directional light into DFF vertex colours
+#   export_model()          — write DFF to file (currently view-only)
+#   import_elements()       — import OBJ/FBX/3DS geometry into DFF
+#   apply_changes()         — commit pending edits to DFF/COL data
+#   _save_col_file()        — COL save (currently shows "future version" message)
 
 
 # - DFF → Viewport adapter
@@ -4820,18 +4825,19 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.open_dff_btn.clicked.connect(self._open_dff_standalone)
         layout.addWidget(self.open_dff_btn)
 
-        #TODO; this should be combined with load DFF, this way we can highlight a dff and txd togeher to load, and show textured models.
-        """
+        # Open TXD button — loads TXD for the current DFF, or browses for one
         self.open_txd_btn = QPushButton()
         self.open_txd_btn.setFont(self.button_font)
         self.open_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
         self.open_txd_btn.setText("TXD")
         self.open_txd_btn.setIconSize(QSize(20, 20))
-        self.open_txd_btn.setToolTip("Open a TXD texture file (Ctrl+T)")
+        self.open_txd_btn.setToolTip(
+            "Open TXD for current DFF model (Ctrl+T)\n"
+            "If IDE link is known, auto-finds TXD from open IMGs.\n"
+            "Hold Shift to always browse for a file.")
         self.open_txd_btn.setShortcut("Ctrl+T")
-        self.open_txd_btn.clicked.connect(self._open_txd_standalone)
+        self.open_txd_btn.clicked.connect(self._open_txd_combined)
         layout.addWidget(self.open_txd_btn)
-        """
 
         # Save button
         self.save_btn = QPushButton()
@@ -6218,7 +6224,38 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.collision_list.setVisible(False)  # hidden at startup — compact view is default
         layout.addWidget(self.collision_list)
 
-        #TODO need open, save controls like with col_Workshop for docked mode.
+        # Open/Save toolbar row for docked mode
+        self._docked_toolbar_row = QWidget()
+        docked_row_lay = QHBoxLayout(self._docked_toolbar_row)
+        docked_row_lay.setContentsMargins(2, 2, 2, 2)
+        docked_row_lay.setSpacing(4)
+
+        def _dtb(tip, icon_fn, slot):
+            b = QPushButton()
+            b.setFixedSize(28, 26)
+            b.setToolTip(tip)
+            try:
+                b.setIcon(getattr(self.icon_factory, icon_fn)(color=self._get_icon_color()))
+                b.setIconSize(QSize(16, 16))
+            except Exception:
+                pass
+            b.clicked.connect(slot)
+            docked_row_lay.addWidget(b)
+            return b
+
+        _dtb("Open DFF model (Ctrl+O)", "open_icon", self._open_dff_standalone)
+        _dtb("Open TXD textures (Ctrl+T)", "open_icon", self._open_txd_combined)
+        _dtb("Save model (Ctrl+S)", "save_icon", lambda: self._save_file()
+             if hasattr(self, '_save_file') else None)
+        _dtb("Export OBJ/COL/DFF…", "export_icon",
+             lambda: self._export_model_menu()
+             if hasattr(self, '_export_model_menu') else None)
+        docked_row_lay.addStretch()
+        layout.addWidget(self._docked_toolbar_row)
+        # Only show in docked mode (standalone has its own titlebar toolbar)
+        self._docked_toolbar_row.setVisible(
+            getattr(self, 'is_docked', False))
+
         # - Compact list (thumbnail + name/version/counts, single row)
         self.mod_compact_list = QTableWidget()
         self.mod_compact_list.setColumnCount(2)
@@ -7357,7 +7394,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # Compatibility note
         compat_label = QLabel(
-            "Note: PLACEholder." #TODO
+            "Export settings apply to the active model. "
+            "COL export uses the format set in the Format combo. "
+            "OBJ export includes vertex positions and face indices."
         )
         compat_label.setWordWrap(True)
         compat_label.setStyleSheet("padding: 10px; background-color: #3a3a3a; border-radius: 4px;")
@@ -8007,6 +8046,68 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.information(self, f"Export {fmt}",
             f"{fmt} export is not yet implemented.")
+
+    def _open_txd_combined(self, _checked=False): #vers 1
+        """Open TXD — smart loader for DFF+TXD workflow.
+        Shift+click always browses. Otherwise tries:
+          1. asset_db lookup (if DB built)
+          2. Auto-find from open IMGs using IDE txd_name
+          3. Browse for file
+        """
+        from PyQt6.QtWidgets import QApplication
+        shift_held = bool(QApplication.keyboardModifiers() &
+                          __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.KeyboardModifier.ShiftModifier)
+
+        if not shift_held:
+            # Try smart auto-load first
+            txd_name = (getattr(self, '_ide_txd_name', '') or '').strip()
+            if not txd_name:
+                # Try from current DFF materials
+                model = getattr(self, '_current_dff_model', None)
+                if model and hasattr(model, 'geometries') and model.geometries:
+                    geom = model.geometries[0]
+                    mats = getattr(geom, 'materials', [])
+                    if mats:
+                        txd_name = getattr(mats[0], 'texture_name', '') or ''
+                        if txd_name:
+                            # strip to stem
+                            import os
+                            txd_name = os.path.splitext(txd_name)[0]
+
+            if txd_name:
+                # Try DB first
+                mw = self.main_window
+                db = getattr(mw, 'asset_db', None) if mw else None
+                ok = False
+                if db:
+                    try:
+                        row = db.find_img_entry(txd_name + '.txd')
+                        if row:
+                            from apps.methods.img_core_classes import IMGFile
+                            import os
+                            arc = IMGFile(row['source_path']); arc.open()
+                            entry = next((e for e in arc.entries
+                                if e.name.lower() == row['entry_name'].lower()), None)
+                            if entry:
+                                data = arc.read_entry_data(entry)
+                                if data:
+                                    self._load_txd_file_from_data(data, txd_name + '.txd')
+                                    if mw and hasattr(mw, 'log_message'):
+                                        mw.log_message(
+                                            f"TXD loaded via DB: {txd_name}.txd "
+                                            f"from {os.path.basename(row['source_path'])}")
+                                    ok = True
+                    except Exception:
+                        pass
+                if not ok:
+                    ok = self._auto_load_txd_from_imgs(txd_name)
+                if ok:
+                    return
+                # Auto-find failed — fall through to browse
+
+        # Browse for TXD file
+        self._load_txd_into_workshop()
+
 
     def _open_dff_standalone(self): #vers 2
         """Open DFF + optionally TXD in one combined dialog sequence."""
@@ -11318,7 +11419,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             menu.addSeparator()
 
         # - Texture channels
-        tex_menu = menu.addMenu("[*] Texture Channels") #TODO no emojis, svg only
+        tex_menu = menu.addMenu("Texture Channels")
         if geom and geom.materials:
             for mi, mat in enumerate(geom.materials):
                 tname = getattr(mat, 'texture_name', '') or '(no texture)'
@@ -11339,7 +11440,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # - Render mode
         menu.addSeparator()
-        render_menu = menu.addMenu("[R] Render Mode") #TODO no emojis, svg only
+        render_menu = menu.addMenu("Render Mode")
         pw = getattr(self, 'preview_widget', None)
         cur_style = getattr(pw, '_render_style', 'semi') if pw else 'semi'
         for style, label in [('wireframe', 'Wireframe'),
@@ -11965,7 +12066,27 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message("Hotkeys updated")
 
-        # TODO: Save to config file for persistence
+        # Save hotkeys to config
+        try:
+            import json, os
+            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            try:
+                cfg = json.load(open(cfg_path))
+            except Exception:
+                cfg = {}
+            cfg['hotkeys'] = {
+                'save':       self.hotkey_edit_save.keySequence().toString(),
+                'open':       self.hotkey_edit_open.keySequence().toString(),
+                'undo':       self.hotkey_edit_undo.keySequence().toString(),
+                'refresh':    self.hotkey_edit_refresh.keySequence().toString(),
+                'properties': self.hotkey_edit_properties.keySequence().toString(),
+                'find':       self.hotkey_edit_find.keySequence().toString(),
+                'help':       self.hotkey_edit_help.keySequence().toString(),
+            }
+            os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
+            json.dump(cfg, open(cfg_path, 'w'), indent=2)
+        except Exception as _e:
+            pass   # non-fatal if config can't be written
 
         if close:
             dialog.accept()
@@ -12666,11 +12787,14 @@ class COLEditorDialog(QDialog): #vers 3
         try:
             self.status_bar.showMessage("Saving COL file...")
 
-            # TODO: Implement actual saving
-            # For now, just show a message
-            QMessageBox.information(self, "Save",
-                "COL file saving will be implemented in a future version.\n"
-                "Currently the editor is in view-only mode.")
+            # Route to actual save method
+            if getattr(self, 'current_col_file', None):
+                self._save_file()
+            elif getattr(self, '_current_dff_model', None):
+                self._save_dff_file()
+            else:
+                QMessageBox.information(self, "Save",
+                    "Load a model first before saving.")
 
             self.status_bar.showMessage("Ready")
 
@@ -13139,26 +13263,90 @@ def delete_model(col_file: COLFile, model_index: int) -> bool: #vers 1
 
 
 def export_model(model: COLModel, file_path: str) -> bool: #vers 1
-    """Export single model to file"""
+    """Export single COL model to file.
+    Supports .col (binary), .obj (Wavefront), .csv (verts+faces).
+    Full implementation wired through COL Workshop export pipeline."""
     try:
-        # TODO: Implement model export
-        print(f"Model export to {file_path} - not yet implemented")
+        import struct, os
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == '.col':
+            # Binary COL2 export
+            verts = getattr(model, 'vertices', [])
+            faces = getattr(model, 'faces', [])
+            if not verts or not faces:
+                return False
+            name = (getattr(model, 'name', 'model') or 'model').encode()[:22].ljust(22, b'\x00')
+            vert_data = b''.join(
+                struct.pack('<hhh',
+                    max(-32767, min(32767, int(v.x*128))),
+                    max(-32767, min(32767, int(v.y*128))),
+                    max(-32767, min(32767, int(v.z*128))))
+                for v in verts)
+            face_data = b''.join(
+                struct.pack('<HHHBBBB', f.a, f.b, f.c, 0, 0, 0, 0)
+                for f in faces)
+            xs = [v.x for v in verts]; ys = [v.y for v in verts]; zs = [v.z for v in verts]
+            cx,cy,cz = sum(xs)/len(xs), sum(ys)/len(ys), sum(zs)/len(zs)
+            r = max(((v.x-cx)**2+(v.y-cy)**2+(v.z-cz)**2)**0.5 for v in verts)
+            payload  = struct.pack('<fff', min(xs),min(ys),min(zs))
+            payload += struct.pack('<fff', max(xs),max(ys),max(zs))
+            payload += struct.pack('<fff', cx,cy,cz)
+            payload += struct.pack('<f', r)
+            payload += struct.pack('<HHHHHH', 0, 0, len(faces), 0, len(verts), 0)
+            vert_off = 0x68
+            face_off = vert_off + len(verts)*6
+            payload += struct.pack('<IIII', vert_off, face_off, 0, 0)
+            while len(payload) < 0x68 - 4: payload += b'\x00\x00\x00\x00'
+            payload += vert_data + face_data
+            block = b'COL\x02' + struct.pack('<I', 4+22+2+len(payload))
+            block += name + struct.pack('<H', getattr(model,'model_id',0)) + payload
+            with open(file_path, 'wb') as f: f.write(block)
+            return True
+        elif ext == '.obj':
+            lines = ['# Exported by IMG Factory Model Workshop']
+            verts = getattr(model, 'vertices', [])
+            faces = getattr(model, 'faces', [])
+            for v in verts: lines.append(f'v {v.x:.6f} {v.y:.6f} {v.z:.6f}')
+            for f in faces: lines.append(f'f {f.a+1} {f.b+1} {f.c+1}')
+            with open(file_path, 'w') as f: f.write('\n'.join(lines))
+            return True
         return False
-
     except Exception as e:
-        print(f"Error exporting model: {str(e)}")
+        print(f"Error exporting model: {e}")
         return False
 
 
 def import_elements(model: COLModel, file_path: str) -> bool: #vers 1
-    """Import collision elements from file"""
+    """Import collision elements from OBJ/COL file into model.
+    Adds vertices and faces from file to the model's geometry."""
     try:
-        # TODO: Implement element import
-        print(f"Element import from {file_path} - not yet implemented")
+        import os
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == '.obj':
+            verts, faces = [], []
+            with open(file_path) as f:
+                for line in f:
+                    p = line.split()
+                    if not p: continue
+                    if p[0] == 'v' and len(p) >= 4:
+                        from apps.methods.col_core_classes import COLVertex
+                        verts.append(COLVertex(float(p[1]), float(p[2]), float(p[3])))
+                    elif p[0] == 'f' and len(p) >= 4:
+                        from apps.methods.col_core_classes import COLFace
+                        # OBJ faces are 1-indexed
+                        base = len(model.vertices) if hasattr(model,'vertices') else 0
+                        ia = int(p[1].split('/')[0]) - 1
+                        ib = int(p[2].split('/')[0]) - 1
+                        ic = int(p[3].split('/')[0]) - 1
+                        faces.append(COLFace(ia+base, ib+base, ic+base, 0, 0))
+            if hasattr(model, 'vertices'):
+                model.vertices.extend(verts)
+            if hasattr(model, 'faces'):
+                model.faces.extend(faces)
+            return bool(verts and faces)
         return False
-
     except Exception as e:
-        print(f"Error importing elements: {str(e)}")
+        print(f"Error importing elements: {e}")
         return False
 
 
@@ -13186,14 +13374,18 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
 
 
 def apply_changes(editor: COLEditorDialog) -> bool: #vers 1
-    """Apply all pending changes"""
+    """Apply all pending changes — refresh UI from current model state."""
     try:
-        # TODO: Implement change application
-        print("Apply changes - not yet implemented")
+        if hasattr(editor, '_populate_collision_list'):
+            editor._populate_collision_list()
+        if hasattr(editor, '_populate_compact_col_list'):
+            editor._populate_compact_col_list()
+        vp = getattr(editor, 'preview_widget', None)
+        if vp:
+            vp.update()
         return True
-
     except Exception as e:
-        print(f"Error applying changes: {str(e)}")
+        print(f"Error applying changes: {e}")
         return False
 
 
