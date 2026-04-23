@@ -1,6 +1,53 @@
-#this belongs in root /ChangeLog.md - Version: 36
+#this belongs in root /ChangeLog.md - Version: 37
 
 ## April 2026 — TXD Workshop UI, DP5 Workshop major update, Bug fixes
+
+### Build 319–323 — Menu system unification, resize fixes, welcome screen height fix
+
+**Double menubar eliminated (`gui_menu.py` v23):**
+- `IMGFactoryMenuBar.__init__ #vers 2`: native Qt `self.menuBar()` is now
+  suppressed (`setVisible(False)`, `setFixedHeight(0)`, `setSizePolicy(Ignored)`)
+  *before* `_create_menus()` populates it. Previously the native bar was filled
+  with File/Edit/Settings/Tools menus and rendered on screen before the
+  suppression code in `_create_ui()` ran, producing two visible menu rows.
+- `menu_bar` pointer still starts on the native bar and is re-pointed to the
+  inline `_system_menu_bar` widget (embedded in the top button row) by
+  `imgfactory._create_ui()` after `gui_layout` builds it.
+
+**DP5 Workshop dual menu eliminated (`dp5_workshop.py` v4):**
+- Internal `_menu_bar_container` is now **standalone-only**. When docked,
+  it is always `setFixedHeight(0)` / hidden — imgfactory's top bar owns
+  the menus via `ToolMenuMixin` injection. Eliminates the second menu row
+  that appeared when DP5 docked into IMG Factory.
+- `set_menu_orientation #vers 5`: docked mode always suppresses the internal
+  bar regardless of style setting; explicitly notifies imgfactory to
+  inject/remove the tool menu via `menu_bar_system`.
+
+**Resize handles restored (`gui_layout.py` v6, `imgfactory.py`):**
+- `create_main_ui_with_splitters #vers 6`: `QSizeGrip` added at bottom-right
+  of main layout. Gives a native OS resize handle in system-titlebar mode
+  without requiring the custom corner overlay triangles.
+- `showEvent #vers 2`: corner overlay only created when `FramelessWindowHint`
+  is set — system titlebar mode now defers resize to KDE/Qt natively.
+- `mousePressEvent #vers 10`, `mouseMoveEvent #vers 4`, `mouseReleaseEvent #vers 4`:
+  all resize/drag logic gated behind `is_frameless` check. In system titlebar
+  mode events pass straight through to Qt/KDE.
+
+**Window geometry clamped to screen (`imgfactory.py`):**
+- `_restore_settings #vers 2`: after `restoreGeometry()`, window size and
+  position are clamped to `screen.availableGeometry()`. Fixes window going
+  off-screen due to stale saved geometry (e.g. from old double-menubar height
+  inflating the saved size). Stale geometry can be cleared with:
+  `python3 -c "from PyQt6.QtCore import QSettings; QSettings('XSeti','IMGFactory').remove('geometry')"`
+
+**Welcome screen height stretch fixed (`welcome_screen.py` v4, `imgfactory.py`):**
+- `_build_ui #vers 3`: removed stretch factor `1` from `root.addWidget(tabs, 1)`.
+  The stretch was telling Qt to demand all available vertical space, inflating
+  the entire window past the screen height on startup.
+- `__init__`: `setSizePolicy(Expanding, Preferred)` so height is governed by
+  `sizeHint` rather than infinite expansion.
+- Embed site in `imgfactory.py`: `ws.setMaximumHeight(600)` as a hard backstop.
+
 
 ### Build 234 — DAT Browser: IMG/CDIMAGE fix, theme-aware UI overhaul
 

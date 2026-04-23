@@ -1,6 +1,6 @@
 # IMG Factory 1.6
 
-**GTA modding toolkit** — Build 317  
+**GTA modding toolkit** — Build 323  
 PyQt6 · Python 3.11+ · Linux / Windows / macOS
 
 ---
