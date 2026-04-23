@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 6 (Build 327)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 7 (Build 328)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3805,13 +3805,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             toolbar.setMaximumHeight(0)
         main_layout.addWidget(toolbar)
 
-        # Docked-mode compact action bar — New / Load / Save / Undo / Clear
-        # Shown only when docked so user can still access file operations.
-        self._docked_bar = self._create_docked_bar()
-        self._docked_bar.setVisible(not self.standalone_mode)
-        if self.standalone_mode:
-            self._docked_bar.setMaximumHeight(0)
-        main_layout.addWidget(self._docked_bar)
+        # Docked compact bar removed — internal menubar now shown as topbar when docked
 
         # Internal menubar — standalone only.
         # When docked, menus are injected into imgfactory's top bar via
@@ -3841,9 +3835,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self._menu_bar_container.setVisible(False)
                 self._menu_bar_container.setFixedHeight(0)
         else:
-            # Docked: always hide internal bar — imgfactory bar handles menus
-            self._menu_bar_container.setVisible(False)
-            self._menu_bar_container.setFixedHeight(0)
+            # Docked: show internal menubar as topbar — imgfactory injection
+            # doesn't work yet (menu rework pending), so show it inline here.
+            self._menu_bar_container.setMinimumHeight(0)
+            self._menu_bar_container.setMaximumHeight(16777215)
+            self._menu_bar_container.setVisible(True)
 
         main_layout.addWidget(self._menu_bar_container)
 
