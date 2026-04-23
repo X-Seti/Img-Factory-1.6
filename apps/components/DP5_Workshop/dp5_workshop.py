@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 9 (Build 330)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 10 (Build 331)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3803,11 +3803,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             toolbar.setVisible(True)
         # Docked: don't add toolbar to layout at all — avoids any ghost height
 
-        # Docked compact bar removed — internal menubar now shown as topbar when docked
-
-        # Internal menubar — standalone only.
-        # When docked, menus are injected into imgfactory's top bar via
-        # ToolMenuMixin._inject_tool_menu(). No second bar needed here.
+        # Internal QMenuBar — built always so menus exist for both modes.
+        # Standalone: shown as topbar or hidden per settings.
+        # Docked: hidden — a single dropdown button provides access instead.
         from PyQt6.QtWidgets import QHBoxLayout as _QHL
         self._menu_bar_container = QWidget(self)
         self._menu_bar_container.setObjectName("dp5_menu_bar_container")
@@ -3815,14 +3813,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _chl.setContentsMargins(0, 0, 0, 0)
         _chl.setSpacing(0)
 
-        mb = QMenuBar(self._menu_bar_container)   # parent = container, NOT self
+        mb = QMenuBar(self._menu_bar_container)
         self._menu_bar = mb
         self._build_canvas_menus(mb)
-        self._apply_menu_bar_style()   # applies font size, height, colours
+        self._apply_menu_bar_style()
         _chl.addWidget(mb)
 
         if self.standalone_mode:
-            # Standalone: honour show_menubar + menu_style settings
             show_mb = (self.dp5_settings.get('show_menubar', False) and
                        self.dp5_settings.get('menu_style', 'dropdown') == 'topbar')
             if show_mb:
@@ -3832,14 +3829,48 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             else:
                 self._menu_bar_container.setVisible(False)
                 self._menu_bar_container.setFixedHeight(0)
+            main_layout.addWidget(self._menu_bar_container)
         else:
-            # Docked: show internal menubar as topbar — imgfactory injection
-            # doesn't work yet (menu rework pending), so show it inline here.
-            self._menu_bar_container.setMinimumHeight(0)
-            self._menu_bar_container.setMaximumHeight(16777215)
-            self._menu_bar_container.setVisible(True)
+            # Docked: hide the QMenuBar container entirely.
+            # A slim dropdown button row gives full menu access instead.
+            self._menu_bar_container.setVisible(False)
+            self._menu_bar_container.setFixedHeight(0)
+            # Don't add _menu_bar_container to layout — keeps zero height.
 
-        main_layout.addWidget(self._menu_bar_container)
+            # ── Docked menu button row ────────────────────────────────────
+            from PyQt6.QtWidgets import QHBoxLayout as _DBL
+            _drow = QWidget(self)
+            _drow.setFixedHeight(24)
+            _dhl = _DBL(_drow)
+            _dhl.setContentsMargins(2, 1, 2, 1)
+            _dhl.setSpacing(4)
+
+            dp5_menu_btn = QPushButton("DP5 Menu ▾")
+            dp5_menu_btn.setFixedHeight(22)
+            dp5_menu_btn.setToolTip("DP5 Paint — File, Edit, Canvas, Tools, Platform")
+            dp5_menu_btn.setFlat(False)
+
+            def _show_dp5_menu():
+                """Pop up a QMenu built from the internal QMenuBar menus."""
+                from PyQt6.QtWidgets import QMenu
+                popup = QMenu(dp5_menu_btn)
+                for action in self._menu_bar.actions():
+                    submenu = action.menu()
+                    if submenu:
+                        # Clone the top-level menu into the popup
+                        top = popup.addMenu(action.text())
+                        for sub_action in submenu.actions():
+                            top.addAction(sub_action)
+                    else:
+                        popup.addAction(action)
+                popup.exec(dp5_menu_btn.mapToGlobal(
+                    dp5_menu_btn.rect().bottomLeft()))
+
+            dp5_menu_btn.clicked.connect(_show_dp5_menu)
+            _dhl.addWidget(dp5_menu_btn)
+            _dhl.addStretch()
+            self._docked_menu_row = _drow
+            main_layout.addWidget(_drow)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.splitterMoved.connect(self._on_splitter_moved)
