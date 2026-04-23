@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 8 (Build 329)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 9 (Build 330)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3798,15 +3798,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         toolbar = self._create_toolbar()
         self._workshop_toolbar = toolbar
         if self.standalone_mode:
+            # Standalone: toolbar is the titlebar/drag handle — always visible
+            main_layout.addWidget(toolbar)
             toolbar.setVisible(True)
-        else:
-            # Hard-collapse toolbar when docked — setMaximumHeight(0) alone is
-            # not enough if _create_toolbar set a conflicting fixed/min height.
-            toolbar.setVisible(False)
-            toolbar.setMinimumHeight(0)
-            toolbar.setMaximumHeight(0)
-            toolbar.setFixedHeight(0)
-        main_layout.addWidget(toolbar)
+        # Docked: don't add toolbar to layout at all — avoids any ghost height
 
         # Docked compact bar removed — internal menubar now shown as topbar when docked
 
@@ -3845,20 +3840,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._menu_bar_container.setVisible(True)
 
         main_layout.addWidget(self._menu_bar_container)
-
-        # DEBUG — print heights of all children after layout
-        from PyQt6.QtCore import QTimer
-        def _dbg():
-            print("=== DP5 docked layout debug ===")
-            for i in range(main_layout.count()):
-                item = main_layout.itemAt(i)
-                w = item.widget()
-                if w:
-                    print(f"  [{i}] {w.__class__.__name__} '{w.objectName()}' "
-                          f"visible={w.isVisible()} "
-                          f"h={w.height()} minH={w.minimumHeight()} "
-                          f"maxH={w.maximumHeight()} fixedH={w.sizeHint().height()}")
-        QTimer.singleShot(500, _dbg)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.splitterMoved.connect(self._on_splitter_moved)
