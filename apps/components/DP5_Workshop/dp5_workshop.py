@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 4 (Build 321)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 5 (Build 326)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -11281,23 +11281,43 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay overlay widget
 
-    def _setup_corner_overlay(self): #vers 2
+    def _setup_corner_overlay(self): #vers 3
+        """Create or re-raise the corner resize overlay.
+        Only active in standalone (frameless) mode.
+        Called from showEvent and resizeEvent with a delay so all child
+        widgets are laid out before we raise_() above them.
+        """
+        if not self.standalone_mode:
+            return
+        if not (self.windowFlags() & Qt.WindowType.FramelessWindowHint):
+            return
         if hasattr(self, '_corner_overlay') and self._corner_overlay:
             self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
             self._corner_overlay.raise_()
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None), self.app_settings)
             return
         overlay = _CornerOverlay(self)
+        overlay.update_state(getattr(self, 'hover_corner', None), self.app_settings)
         self._corner_overlay = overlay
         overlay.setGeometry(0, 0, self.width(), self.height())
+        overlay.show()
         overlay.raise_()
 
-    def showEvent(self, event): #vers 1
+    def showEvent(self, event): #vers 2
         super().showEvent(event)
         from PyQt6.QtCore import QTimer
+        # Two-shot: 100ms for layout settle, 400ms to ensure all children rendered
         QTimer.singleShot(100, self._setup_corner_overlay)
+        QTimer.singleShot(400, self._setup_corner_overlay)
 
-    def _refresh_corner_overlay(self): #vers 1
-        if hasattr(self, '_corner_overlay'):
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(50, self._setup_corner_overlay)
+
+    def _refresh_corner_overlay(self): #vers 2
+        if hasattr(self, '_corner_overlay') and self._corner_overlay:
             self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
             self._corner_overlay.update_state(
                 getattr(self, 'hover_corner', None), self.app_settings)
