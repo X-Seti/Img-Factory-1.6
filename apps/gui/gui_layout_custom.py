@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 6
+#belongs in gui/gui_layout_custom.py - Version 7
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -859,6 +859,17 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.menu_btn.setToolTip("Main Menu")
         layout.addWidget(self.menu_btn)
 
+        # [DP5] tool button — hidden until DP5 docks, then shows between Menu and Settings
+        self.tool_menu_btn = QPushButton()
+        self.tool_menu_btn.setFont(self.button_font)
+        self.tool_menu_btn.setText("DP5")
+        self.tool_menu_btn.setToolTip("DP5 Paint menu")
+        self.tool_menu_btn.setVisible(False)   # hidden until a tool docks
+        self.tool_menu_btn.setFixedHeight(28)
+        self._tool_menu_popup = None           # set by register_tool_menu_btn()
+        self.tool_menu_btn.clicked.connect(self._show_tool_menu_popup)
+        layout.addWidget(self.tool_menu_btn)
+
         # Settings button - PREVENT DUPLICATE CONNECTIONS
         self.settings_btn = QPushButton()
         self.settings_btn.setFont(self.button_font)
@@ -1061,6 +1072,37 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
             layout.addWidget(self.close_btn)
 
         return self.titlebar
+
+    def _show_tool_menu_popup(self): #vers 1
+        """Show the docked tool's popup menu from the [DP5] titlebar button."""
+        popup = self._tool_menu_popup
+        if popup and callable(popup):
+            popup()
+        elif hasattr(self, 'tool_menu_btn'):
+            from PyQt6.QtWidgets import QMenu
+            m = QMenu(self.tool_menu_btn)
+            m.addAction("(no menu registered)").setEnabled(False)
+            m.exec(self.tool_menu_btn.mapToGlobal(
+                self.tool_menu_btn.rect().bottomLeft()))
+
+    def register_tool_menu_btn(self, label: str, popup_fn): #vers 1
+        """Called by a docking tool to claim the titlebar tool button.
+        label    — short text e.g. 'DP5'
+        popup_fn — callable that shows the tool's menu popup
+        """
+        if not hasattr(self, 'tool_menu_btn'):
+            return
+        self.tool_menu_btn.setText(label)
+        self.tool_menu_btn.setToolTip(f"{label} menu")
+        self._tool_menu_popup = popup_fn
+        self.tool_menu_btn.setVisible(True)
+
+    def unregister_tool_menu_btn(self): #vers 1
+        """Called when the tool tab closes — hides the button."""
+        if not hasattr(self, 'tool_menu_btn'):
+            return
+        self.tool_menu_btn.setVisible(False)
+        self._tool_menu_popup = None
 
     def _show_popup_menu(self): #vers 1
         """Show main popup menu"""

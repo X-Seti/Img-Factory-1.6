@@ -875,15 +875,17 @@ class IMGFactory(QMainWindow):
         if hasattr(self, 'gui_layout') and getattr(self.gui_layout, 'menu_btn', None) is not None:
             self.gui_layout.menu_btn.setVisible(not want_topbar)
 
-    def _update_tool_menu_for_tab(self, tab_widget): #vers 1
+    def _update_tool_menu_for_tab(self, tab_widget): #vers 2
         """Inject or remove tool menu based on which tool is in the active tab.
-        Any tool implementing ToolMenuMixin with dropdown style gets injected.
+        Also manages the titlebar [DP5]/[tool] button in custom UI mode.
         """
         if not hasattr(self, 'menu_bar_system'):
             return
 
-        # Remove previous tool menu
+        # Remove previous tool menu + unregister titlebar tool button
         self.menu_bar_system._remove_tool_menu()
+        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'unregister_tool_menu_btn'):
+            self.gui_layout.unregister_tool_menu_btn()
 
         if not tab_widget:
             return
@@ -892,11 +894,9 @@ class IMGFactory(QMainWindow):
         from apps.gui.tool_menu_mixin import ToolMenuMixin
         tool = None
 
-        # Direct check first
         if isinstance(tab_widget, ToolMenuMixin):
             tool = tab_widget
         else:
-            # Search all QWidget children for ToolMenuMixin instances
             from PyQt6.QtWidgets import QWidget as _QW
             for child in tab_widget.findChildren(_QW):
                 if isinstance(child, ToolMenuMixin):
@@ -906,7 +906,11 @@ class IMGFactory(QMainWindow):
         if not tool:
             return
 
-        # Only inject if tool prefers dropdown mode
+        # Register titlebar tool button if tool has one
+        if hasattr(tool, '_register_titlebar_tool_btn'):
+            tool._register_titlebar_tool_btn()
+
+        # Also inject into menu_bar_system (system UI mode)
         style = tool._get_tool_menu_style()
         if style == 'dropdown':
             self.menu_bar_system._inject_tool_menu(tool)

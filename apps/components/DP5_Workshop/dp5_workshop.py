@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 10 (Build 331)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 11 (Build 332)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3871,6 +3871,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             _dhl.addStretch()
             self._docked_menu_row = _drow
             main_layout.addWidget(_drow)
+
+            # Also register into imgfactory titlebar [DP5] button if available
+            self._register_titlebar_tool_btn()
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.splitterMoved.connect(self._on_splitter_moved)
@@ -11364,6 +11367,43 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     def paintEvent(self, event): #vers 2
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay overlay widget
+
+    def _register_titlebar_tool_btn(self): #vers 1
+        """Register [DP5] button in imgfactory custom titlebar when docked."""
+        mw = getattr(self, 'main_window', None)
+        if not mw:
+            return
+        gl = getattr(mw, 'gui_layout', None)
+        if not gl or not hasattr(gl, 'register_tool_menu_btn'):
+            return
+
+        def _popup():
+            from PyQt6.QtWidgets import QMenu
+            popup = QMenu()
+            for action in self._menu_bar.actions():
+                submenu = action.menu()
+                if submenu:
+                    top = popup.addMenu(action.text())
+                    for a in submenu.actions():
+                        top.addAction(a)
+                else:
+                    popup.addAction(action)
+            btn = getattr(gl, 'tool_menu_btn', None)
+            if btn:
+                popup.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+            else:
+                popup.exec()
+
+        gl.register_tool_menu_btn("DP5", _popup)
+
+    def _unregister_titlebar_tool_btn(self): #vers 1
+        """Remove [DP5] button from imgfactory titlebar."""
+        mw = getattr(self, 'main_window', None)
+        if not mw:
+            return
+        gl = getattr(mw, 'gui_layout', None)
+        if gl and hasattr(gl, 'unregister_tool_menu_btn'):
+            gl.unregister_tool_menu_btn()
 
     def _setup_corner_overlay(self): #vers 3
         """Create or re-raise the corner resize overlay.
