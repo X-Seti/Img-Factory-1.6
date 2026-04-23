@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 3 (Build 234)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 3 (Build 235)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4144,7 +4144,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
         return panel
 
-    def _build_canvas_menus(self, mb: QMenuBar): #vers 1
+    def _build_canvas_menus(self, mb): #vers 2
+        """Populate a QMenuBar (topbar) or QMenu (docked/dropdown) with all DP5 menus.
+        Both share the same addMenu()/addAction() API so one method serves all cases."""
         # File
         fm = mb.addMenu("File")
         fm.addAction("New canvas…",    self._new_canvas)
@@ -4467,204 +4469,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         """Read menu_style from dp5_settings."""
         return self.dp5_settings.get('menu_style', 'dropdown')
 
-    def _build_menus_into_qmenu(self, parent_menu): #vers 2
-        """Populate a QMenu with all DP5 canvas submenus.
-        Safe in both standalone and docked modes — no main_window access.
-        Each top-level group (File, Edit, Picture, View, Tools, Platform)
-        becomes a submenu of parent_menu.
-        """
-        from PyQt6.QtWidgets import QMenu
-
-        # ── File ──────────────────────────────────────────────────────────
-        fm = parent_menu.addMenu("File")
-        fm.addAction("New canvas…",    self._new_canvas)
-        fm.addSeparator()
-        fm.addAction("Open image…",    self._import_bitmap)
-        fim = fm.addMenu("Import")
-        fim.addAction("PNG / BMP / JPEG / WebP…", self._import_bitmap)
-        fim.addAction("TIFF…",          self._import_tiff)
-        fim.addAction("GIF (animated)…",self._import_gif)
-        fim.addAction("TGA…",           self._import_tga)
-        fim.addAction("PCX…",           self._import_pcx)
-        fim.addAction("DDS…",           self._import_dds)
-        fim.addAction("IFF ILBM…",      self._import_iff)
-        ai = fim.addMenu("Amiga .info Icon")
-        for lbl, mode in [("WB 3.9 AGA (256col)…","wb39"),("WB 3.9 XL (256col)…","wb39xl"),
-                          ("AGA 16col…","aga"),("MagicWB 8col…","magicwb"),
-                          ("OCS/ECS 4col…","ocs"),("User palette…","user")]:
-            ai.addAction(lbl, lambda _m=mode: self._import_amiga_info(_m))
-        fim.addAction("Windows ICO…",   self._import_ico)
-        fim.addAction("Apple ICNS…",    self._import_icns)
-        fim.addAction("SVG…",           self._import_svg)
-        fm.addSeparator()
-        fm.addAction("Save as PNG…",    self._export_bitmap)
-        fm.addAction("Export IFF…",     self._export_iff)
-        fm.addSeparator()
-        am = fm.addMenu("Animation")
-        am.addAction("Export animated GIF…",  self._anim_export_gif)
-        am.addAction("Export PNG sequence…",  self._anim_export_png_seq)
-        fm.addSeparator()
-        pm_menu = fm.addMenu("Platform")
-        pm_im = pm_menu.addMenu("Import")
-        pm_im.addAction("ZX Spectrum SCR…", self._import_scr)
-        pm_im.addAction("Atari ST PI1…",    self._import_pi1)
-        pm_im.addAction("C64 Koala…",       self._import_koala)
-        pm_im.addAction("ZX Next NXI…",     self._import_nxi)
-        pm_ex = pm_menu.addMenu("Export")
-        pm_ex.addAction("ZX Spectrum SCR…", self._export_scr)
-        pm_ex.addAction("Atari ST PI1…",    self._export_pi1)
-        pm_ex.addAction("C64 Koala…",       self._export_koala)
-        pm_ex.addAction("ZX Next NXI…",     self._export_nxi)
-        tx = fm.addMenu("Texture")
-        tx.addAction("Export PNG…",  self._export_texture_png)
-        tx.addAction("Export TGA…",  self._export_tga)
-        tx.addAction("Export DDS…",  self._export_dds)
-        ic = fm.addMenu("Icons")
-        ic.addAction("Export Windows ICO…",  self._export_ico)
-        ic.addAction("Export Linux SVG…",    self._export_svg_icon)
-        ic.addAction("Export Apple ICNS…",   self._export_icns)
-        ic.addAction("Export Amiga Icon…",   self._export_amiga_icon)
-        ic2 = ic.addMenu("Import Amiga .info")
-        for lbl, mode in [("WB 3.9 AGA (256col)…","wb39"),("WB 3.9 XL (256col)…","wb39xl"),
-                          ("AGA 16col…","aga"),("MagicWB 8col…","magicwb"),
-                          ("OCS/ECS 4col…","ocs"),("User palette…","user")]:
-            ic2.addAction(lbl, lambda _m=mode: self._import_amiga_info(_m))
-        ic.addAction("Import Windows ICO…",  self._import_ico)
-        ic.addAction("Import Apple ICNS…",   self._import_icns)
-
-        # ── Edit ──────────────────────────────────────────────────────────
-        em = parent_menu.addMenu("Edit")
-        em.addAction("Undo	Ctrl+Z",       self._undo_canvas)
-        em.addAction("Redo	Ctrl+Y",       self._redo_canvas)
-        em.addSeparator()
-        em.addAction("Cut	Ctrl+X",        self._cut_selection)
-        em.addAction("Copy	Ctrl+C",       self._copy_selection)
-        em.addAction("Paste	Ctrl+V",      self._paste_selection)
-        em.addSeparator()
-        em.addAction("Select All	Ctrl+A", self._select_all)
-        em.addAction("Deselect	Esc",      self._deselect)
-        em.addSeparator()
-        em.addAction("Clear canvas",       self._clear_canvas)
-        em.addAction("Fill with colour",   self._fill_canvas)
-
-        # ── Picture ───────────────────────────────────────────────────────
-        pm = parent_menu.addMenu("Picture")
-        pm.addAction("Flip horizontal",    self._mirror_h)
-        pm.addAction("Flip vertical",      self._mirror_v)
-        pm.addSeparator()
-        rm2 = pm.addMenu("Rotate")
-        rm2.addAction("90° clockwise",         self._rotate_90_cw)
-        rm2.addAction("90° counter-clockwise", self._rotate_90_ccw)
-        rm2.addAction("180°",                  self._rotate_180)
-        rm2.addAction("Arbitrary angle…",      self._rotate_arbitrary)
-        pm.addSeparator()
-        pm.addAction("Scale canvas…",      self._scale_canvas)
-        pm.addSeparator()
-        pm.addAction("Invert colours",     self._invert)
-        pm.addAction("Brighten +25",       lambda: self._adjust(25))
-        pm.addAction("Darken -25",         lambda: self._adjust(-25))
-        pm.addSeparator()
-        pm.addAction("Snap to user palette",           self._snap_canvas_to_user_palette)
-        pm.addAction("Snap to user palette (dither)…", self._snap_canvas_to_user_palette_dither)
-        dm2 = pm.addMenu("Dither")
-        dm2.addAction("Floyd-Steinberg…",  self._dither_floyd_steinberg)
-        dm2.addAction("Ordered Bayer 4×4…",self._dither_bayer_canvas)
-        dm2.addAction("Checkerboard…",     self._dither_checker_canvas)
-
-        # ── View ──────────────────────────────────────────────────────────
-        vm = parent_menu.addMenu("View")
-        vm.addAction("Zoom in",  lambda: self._set_zoom(
-            self._canvas_zoom * 1.25 if self._canvas_zoom < 1 else min(64, self._canvas_zoom + 1)))
-        vm.addAction("Zoom out", lambda: self._set_zoom(
-            max(0.05, self._canvas_zoom * 0.8 if self._canvas_zoom <= 1 else self._canvas_zoom - 1)))
-        vm.addSeparator()
-        for z in (0.25, 0.5, 1, 2, 4, 8, 16):
-            lbl = f"{int(z)}×" if z >= 1 else f"{z}×"
-            vm.addAction(lbl, lambda _, zz=z: self._set_zoom(zz))
-        vm.addSeparator()
-        ga = vm.addAction("Pixel grid")
-        ga.setCheckable(True)
-        ga.setChecked(self.dp5_settings.get('show_pixel_grid'))
-        ga.triggered.connect(self._set_show_grid)
-        sb = vm.addAction("Status bar")
-        sb.setCheckable(True); sb.setChecked(self.dp5_settings.get('show_statusbar'))
-        sb.triggered.connect(self._toggle_statusbar)
-        an = vm.addAction("Animation timeline")
-        an.setCheckable(True); an.setChecked(self.dp5_settings.get('show_anim_strip', False))
-        an.triggered.connect(self._toggle_anim_strip)
-        clash = vm.addAction("Colour clash visualiser")
-        clash.setCheckable(True); clash.setChecked(False)
-        clash.triggered.connect(self._toggle_clash_visualiser)
-        self._clash_act = clash
-        cm2 = vm.addMenu("Canvas Mode")
-        for mode_id, mode_label in [('free','Free'),('platform','Platform'),
-                                     ('texture','Texture'),('icon','Icon')]:
-            a = cm2.addAction(mode_label, lambda _, m=mode_id: self._set_canvas_mode(m, confirm=True))
-            a.setCheckable(True); a.setChecked(mode_id == self._canvas_mode)
-
-        # ── Tools ─────────────────────────────────────────────────────────
-        tm = parent_menu.addMenu("Tools")
-        bm2 = tm.addMenu("Batch Convert")
-        bm2.addAction("Icons…",    self._batch_convert_icons)
-        bm2.addAction("Textures…", self._batch_convert_textures)
-        tm.addSeparator()
-        tm.addAction("Character/Font Editor…", self._open_char_editor)
-        tm.addAction("Sprite Editor…",         self._open_sprite_editor)
-        tm.addSeparator()
-        rm3 = tm.addMenu("Render as")
-        rm3.addAction("ASCII art",  self._render_as_ascii)
-        rm3.addAction("ANSI art",   self._render_as_ansi)
-        rm3.addAction("PETSCII",    self._render_as_petscii)
-        rm3.addAction("Teletext",   self._render_as_teletext)
-
-        # ── Platform ──────────────────────────────────────────────────────
-        plm = parent_menu.addMenu("Platform")
-        plm.addAction("None (free)", lambda: self._set_platform('none'))
-        plm.addSeparator()
-
-        def _pm2(label, items):
-            sub = plm.addMenu(label)
-            for name, mode in items:
-                sub.addAction(name, lambda m=mode: self._set_platform(m))
-
-        _pm2("Amiga", [
-            ("OCS PAL 320×256 32col",    'amiga'),
-            ("OCS NTSC 320×200 32col",   'amiga_ntsc'),
-            ("OCS HiRes 640×256 32col",  'amiga_hi'),
-            ("ECS PAL 320×256 64col",    'amiga_ecs'),
-            ("AGA PAL 320×256 256col",   'amiga_aga'),
-            ("AGA HiRes 640×256 256col", 'amiga_aga_hi'),
-            ("HAM6 320×256 4096col",     'amiga_ham'),
-            ("HAM8 320×256 16Mcol",      'amiga_ham8'),
-            ("RTG 640×480",              'amiga_rtg'),
-        ])
-        _pm2("Commodore", [
-            ("C64 Hires 320×200",     'c64'),
-            ("C64 Multicolor 160×200",'c64m'),
-            ("VIC-20 176×184",        'vic20'),
-        ])
-        _pm2("Sinclair / ZX", [
-            ("Spectrum 48K 256×192",  'spectrum'),
-            ("ZX Next L2 320×256",    'specnext'),
-            ("Timex HiRes 512×192",   'timex_hi'),
-        ])
-        _pm2("Atari", [
-            ("800/XL 320×192 256col", 'atari_800'),
-            ("ST 320×200 16col",      'atari_st'),
-            ("Lynx 160×102",          'atari_lynx'),
-        ])
-        _pm2("Amstrad CPC", [
-            ("Mode 0 160×200 4col",   'cpc'),
-            ("Mode 1 320×200 2col",   'cpc1'),
-            ("CPC+ 320×200 4096col",  'cpc_plus'),
-        ])
-        _pm2("MSX", [
-            ("MSX1 256×192 16col",    'msx'),
-            ("MSX2 256×212 512col",   'msx2'),
-        ])
-        plm.addSeparator()
-        plm.addAction("Enforce colour constraints", self._toggle_colour_constraints)
-
+    def _build_menus_into_qmenu(self, parent_menu): #vers 3
+        """Alias — delegates to _build_canvas_menus which accepts QMenuBar or QMenu."""
+        self._build_canvas_menus(parent_menu)
 
     def _apply_menu_bar_style(self): #vers 3
         """Apply font size, height and colours to the topbar menubar.

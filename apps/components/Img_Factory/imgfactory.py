@@ -1427,33 +1427,36 @@ class IMGFactory(QMainWindow):
             self._ensure_tab_area_visible()
 
             # Inject DP5 submenus into IMG Factory menu bar when docked
-            try:
-                from PyQt6.QtWidgets import QMenu
-                # Try _standalone_menu_bar first (custom UI), fall back to menuBar()
-                smb = (getattr(self, '_standalone_menu_bar', None) or
-                       getattr(getattr(self, 'gui_layout', None),
-                               '_system_menu_bar', None))
-                if smb is None:
-                    smb = self.menuBar()
-                if smb and hasattr(workshop, '_build_menus_into_qmenu'):
-                    def _do_inject(smb=smb, workshop=workshop):
-                        # Remove stale DP5 menu if re-opening
-                        for act in list(smb.actions()):
-                            if act.text() == 'DP5 Workshop':
-                                smb.removeAction(act)
-                                break
-                        dp5_top = QMenu('DP5 Workshop', smb)
-                        workshop._build_menus_into_qmenu(dp5_top)
-                        smb.addMenu(dp5_top)
-                        smb.adjustSize()
-                        smb.update()
-                        smb.repaint()
-                        self.log_message("DP5 Workshop menu injected into menu bar")
-                    # Defer injection so workshop is fully initialised
-                    from PyQt6.QtCore import QTimer
-                    QTimer.singleShot(200, _do_inject)
-            except Exception as _me:
-                self.log_message(f"DP5 menu inject warning: {_me}")
+            def _do_dp5_inject(mw=self, ws=workshop):
+                try:
+                    from PyQt6.QtWidgets import QMenu
+                    # Resolve menu bar: custom inline bar → Qt native menuBar()
+                    smb = (getattr(mw, '_standalone_menu_bar', None) or
+                           getattr(getattr(mw, 'gui_layout', None),
+                                   '_system_menu_bar', None) or
+                           mw.menuBar())
+                    if smb is None:
+                        mw.log_message("DP5 menu inject: no menu bar found")
+                        return
+                    # Remove stale entry if DP5 already open
+                    for act in list(smb.actions()):
+                        if act.text() == 'DP5 Workshop':
+                            smb.removeAction(act)
+                            break
+                    # Build a QMenu and populate it via the single authoritative builder
+                    dp5_top = QMenu('DP5 Workshop', smb)
+                    ws._build_canvas_menus(dp5_top)   # works with QMenu and QMenuBar
+                    smb.addMenu(dp5_top)
+                    smb.adjustSize()
+                    smb.update()
+                    smb.repaint()
+                    mw.log_message("DP5 Workshop menu injected into menu bar")
+                except Exception as _e:
+                    import traceback
+                    mw.log_message(f"DP5 menu inject error: {_e}")
+                    traceback.print_exc()
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(300, _do_dp5_inject)
 
             self.log_message("DP5 Workshop opened (docked)")
 
