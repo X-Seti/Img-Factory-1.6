@@ -1,6 +1,62 @@
-#this belongs in root /ChangeLog.md - Version: 37
+#this belongs in root /ChangeLog.md - Version: 38
 
 ## April 2026 — TXD Workshop UI, DP5 Workshop major update, Bug fixes
+
+### Build 324–335 — Menu system fixes, DP5 docked access, unified titlebar tool button
+
+**System UI mode crash fixed (`imgfactory.py`):**
+- `_apply_img_menu_orientation #vers 2`: `hasattr(gui_layout, 'menu_btn')`
+  returned True even when `menu_btn = None` (set explicitly in system UI mode).
+  Guard changed to `getattr(..., None) is not None` — no more crash on
+  Settings apply in system UI mode.
+
+**DP5 docked — internal menubar reappearing fixed (`gui_menu.py` v24):**
+- `_inject_tool_menu #vers 2`: removed block that called
+  `self.menu_bar.setVisible(True)` in custom UI mode. Native bar is
+  hard-clamped hidden; Menu button popup is the entry point in custom mode.
+
+**DP5 standalone corner resize handles restored (`dp5_workshop.py`):**
+- `_setup_corner_overlay #vers 3`: guards against non-frameless/non-standalone
+  mode, calls `overlay.show()` before `raise_()`.
+- `showEvent #vers 2`: two-shot timer (100ms + 400ms) so overlay raises
+  after layout settles and after all children render.
+- `resizeEvent #vers 1`: re-raises overlay 50ms after every resize.
+
+**DP5 docked — gap below menubar fixed (`dp5_workshop.py`):**
+- Toolbar not added to `main_layout` at all when docked — `setFixedHeight(0)`
+  was insufficient because child buttons with fixed sizes prevented the
+  container shrinking to zero. Skipping `addWidget()` eliminates the ghost space.
+
+**DP5 docked — menu access via titlebar `[DP5]` button:**
+- `dp5_workshop.py`: when docked, registers a `[DP5]` button in the imgfactory
+  custom titlebar (between `[Menu]` and `[Settings]`). Clicking pops up the
+  full DP5 menu (File/Edit/Picture/View/Tools/Platform) as a `QMenu` dropdown.
+- Internal `_menu_bar_container` kept hidden when docked — no second bar.
+- `_unregister_titlebar_tool_btn` called on tab change to hide the button.
+
+**Unified titlebar tool button — all workshops (`tool_menu_mixin.py` v2):**
+- `_register_titlebar_tool_btn`: added to `ToolMenuMixin` base so every
+  workshop inherits it automatically. Builds a `QMenu` from
+  `_build_menus_into_qmenu()` and registers with `gui_layout_custom`'s
+  `register_tool_menu_btn()`.
+- `_unregister_titlebar_tool_btn`: clears button on tab change.
+- Workshop short labels for titlebar button:
+  - COL Workshop → `[COL]`
+  - Model Workshop → `[DFF]`
+  - TXD Workshop → `[TXD]`
+  - DP5 Workshop → `[DP5]`
+- `gui_layout_custom.py v7`: `tool_menu_btn` QPushButton added between
+  `menu_btn` and `settings_btn`; `register_tool_menu_btn()` /
+  `unregister_tool_menu_btn()` / `_show_tool_menu_popup()` helpers added.
+- `imgfactory.py _update_tool_menu_for_tab #vers 2`: calls
+  `_register_titlebar_tool_btn()` / `unregister_tool_menu_btn()` on tab change.
+
+**Combined build number (`app_info.py` v2):**
+- `App_imgfactory_version = N` mirrors `Version: N` comment in `imgfactory.py`.
+- `get_full_build()` returns `"Build 335.78"` — release.fileversion.
+- Rule: increment `App_imgfactory_version` on every change to `imgfactory.py`.
+- Title bar and custom titlebar label both use `get_full_build()`.
+
 
 ### Build 319–323 — Menu system unification, resize fixes, welcome screen height fix
 

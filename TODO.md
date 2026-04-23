@@ -1,4 +1,4 @@
-#this belongs in root /TODO.md - Version: 2
+#this belongs in root /TODO.md - Version: 3
 # X-Seti - October22 2025 - IMG Factory 1.5 TODO List
 
 # IMG Factory 1.5 - TODO List
@@ -45,6 +45,48 @@
 ---
 
 ## High Priority
+
+## Menu System Overhaul — Planned Rework
+
+**Priority:** High
+**Status:** Pending — temp fixes in place (Builds 319–335)
+
+### Problem summary
+Two competing menu systems exist and conflict depending on UI mode:
+
+- **System UI mode** — `_system_menu_bar` (inline `QMenuBar` in top button row)
+  works correctly. Tool injection via `ToolMenuMixin._inject_tool_menu()` adds
+  to this bar and is visible.
+- **Custom UI mode** — `menu_bar_system.menu_bar` points at the native
+  `self.menuBar()` which is hard-clamped hidden. Tool menus injected there
+  are never visible. Workaround: titlebar `[COL]/[DFF]/[TXD]/[DP5]` button
+  pops up a `QMenu` built from the tool's `_build_menus_into_qmenu()`.
+- **DP5 standalone** has its own internal `_menu_bar` / `_menu_bar_container`
+  separate from the `ToolMenuMixin` system entirely.
+
+### What the rework should achieve
+1. **One menu system** — `menu_bar_system` owns all menus in all modes.
+2. **Custom UI mode** — `[Menu]` button popup and titlebar tool buttons
+   both pull from `menu_bar_system` directly. No hidden native bar involved.
+3. **System UI mode** — inline `_system_menu_bar` as now (already works).
+4. **All workshops** — `get_menu_title()` + `_build_menus_into_qmenu()` fully
+   wired; tab switching injects/removes cleanly via `_update_tool_menu_for_tab`.
+5. **DP5** — retire the internal `_menu_bar` / `_menu_bar_container`; use
+   `ToolMenuMixin` path exclusively for both standalone and docked modes.
+6. **Radar Workshop** — currently uses a stub `ToolMenuMixin` fallback class;
+   needs real `get_menu_title()` + `_build_menus_into_qmenu()`.
+
+### Files to touch
+- `apps/gui/gui_menu.py` — `_inject_tool_menu`, `_remove_tool_menu`, popup path
+- `apps/gui/tool_menu_mixin.py` — unify topbar/dropdown/popup into one flow
+- `apps/gui/gui_layout_custom.py` — Menu button popup wired to `menu_bar_system`
+- `apps/components/Img_Factory/imgfactory.py` — remove dual-bar logic
+- `apps/components/DP5_Workshop/dp5_workshop.py` — retire internal menubar
+- `apps/components/Radar_Editor/radar_workshop.py` — implement real menu methods
+- All other workshops — review and confirm `_build_menus_into_qmenu` completeness
+
+---
+
 
 ### 1. Custom Dialog Integration - NEW TASK
 **Priority**: High
