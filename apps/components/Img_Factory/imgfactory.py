@@ -1426,21 +1426,34 @@ class IMGFactory(QMainWindow):
             workshop.show()
             self._ensure_tab_area_visible()
 
-            # Inject DP5 submenus into IMG Factory standalone menu bar when docked
+            # Inject DP5 submenus into IMG Factory menu bar when docked
             try:
                 from PyQt6.QtWidgets import QMenu
-                smb = getattr(self, '_standalone_menu_bar', None)
+                # Try _standalone_menu_bar first (custom UI), fall back to menuBar()
+                smb = (getattr(self, '_standalone_menu_bar', None) or
+                       getattr(getattr(self, 'gui_layout', None),
+                               '_system_menu_bar', None))
+                if smb is None:
+                    smb = self.menuBar()
                 if smb and hasattr(workshop, '_build_menus_into_qmenu'):
-                    # Remove stale DP5 menu if re-opening
-                    for act in list(smb.actions()):
-                        if act.text() == 'DP5 Workshop':
-                            smb.removeAction(act)
-                            break
-                    dp5_top = QMenu('DP5 Workshop', smb)
-                    workshop._build_menus_into_qmenu(dp5_top)
-                    smb.addMenu(dp5_top)
+                    def _do_inject(smb=smb, workshop=workshop):
+                        # Remove stale DP5 menu if re-opening
+                        for act in list(smb.actions()):
+                            if act.text() == 'DP5 Workshop':
+                                smb.removeAction(act)
+                                break
+                        dp5_top = QMenu('DP5 Workshop', smb)
+                        workshop._build_menus_into_qmenu(dp5_top)
+                        smb.addMenu(dp5_top)
+                        smb.adjustSize()
+                        smb.update()
+                        smb.repaint()
+                        self.log_message("DP5 Workshop menu injected into menu bar")
+                    # Defer injection so workshop is fully initialised
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(200, _do_inject)
             except Exception as _me:
-                pass   # menu injection is best-effort; workshop still opens
+                self.log_message(f"DP5 menu inject warning: {_me}")
 
             self.log_message("DP5 Workshop opened (docked)")
 
