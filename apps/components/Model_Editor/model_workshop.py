@@ -2316,7 +2316,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             b = QPushButton(); b.setFixedHeight(26); b.setFixedWidth(26)
             b.setFont(self.button_font)
             if icon_fn:
-                try: b.setIcon(getattr(self.icon_factory,icon_fn)(color=ic)); b.setIconSize(_QS(16,16))
+                try: b.setIcon(getattr(self.icon_factory,icon_fn)(color=ic)); b.setIconSize(_QS(20,20))
                 except Exception: b.setText(label[0])
             else: b.setText(label[0])
             b.setToolTip(f"{label}: {tip}"); b.clicked.connect(slot_fn); return b
@@ -2337,16 +2337,20 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         right_frame = QFrame(); right_frame.setMinimumWidth(280)
         right_lay   = QVBoxLayout(right_frame)
-        right_lay.setContentsMargins(8,4,4,4); right_lay.setSpacing(6)
+        right_lay.setContentsMargins(4,4,4,4); right_lay.setSpacing(6)
         hdr_lbl = QLabel("Select a material slot")
         hdr_lbl.setFont(QFont("Arial",9,QFont.Weight.Bold))
         right_lay.addWidget(hdr_lbl)
-        form = QFormLayout(); form.setSpacing(8)
-        tex_edit = QLineEdit(); tex_edit.setEnabled(False)
+        form = QFormLayout()
+        form.setSpacing(8)
+        tex_edit = QLineEdit()
+        tex_edit.setEnabled(False)
         tex_edit.setPlaceholderText("texture_name")
-        cache_lbl = QLabel("—"); cache_lbl.setFixedWidth(80)
-        load_btn = QPushButton("Load TXD…"); load_btn.setFixedHeight(26)
-        try: load_btn.setIcon(self.icon_factory.open_icon(color=ic)); load_btn.setIconSize(_QS(16,16))
+        cache_lbl = QLabel("-")
+        cache_lbl.setFixedWidth(80)
+        load_btn = QPushButton("Load TXD…")
+        load_btn.setFixedHeight(26)
+        try: load_btn.setIcon(self.icon_factory.open_icon(color=ic)); load_btn.setIconSize(_QS(20,20))
         except Exception: pass
 
         load_btn.clicked.connect(self._load_txd_into_workshop)
@@ -2356,7 +2360,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         def _update_cache_lbl(txt):
             t = txt.strip().lower()
             in_c = t in tex_cache
-            cache_lbl.setText("✓ in cache" if in_c else ("✗ not found" if t else "—"))
+            cache_lbl.setText("in cache" if in_c else ("not found" if t else "-"))
             # FIX: Theme-aware color for cache status
             cache_lbl.setStyleSheet("color:palette(link);" if in_c else ("color:palette(text);" if t else "color:palette(placeholderText);"))
 
@@ -2365,25 +2369,33 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         ide_edit_lbl.setVisible(False)
         reload_btn = QPushButton(); reload_btn.setFixedSize(26,26)
 
-        try: reload_btn.setIcon(self.icon_factory.reset_icon(color=ic)); reload_btn.setIconSize(_QS(16,16))
+        try: reload_btn.setIcon(self.icon_factory.reset_icon(color=ic)); reload_btn.setIconSize(_QS(20,20))
 
         except Exception: reload_btn.setText("↻")
         reload_btn.setToolTip("Reload IDE entry (click to refresh top bar)")
-        swap_combo = QComboBox(); swap_combo.setEditable(True)
+        swap_combo = QComboBox()
+        swap_combo.setEditable(True)
         swap_combo.setEnabled(False)
 
         if getattr(self,'_ide_txd_name',''):
             swap_combo.addItem(self._ide_txd_name)
-        apply_btn = QPushButton("Apply"); apply_btn.setFixedHeight(26)
+
+        apply_btn = QPushButton("Apply")
+        apply_btn.setFixedHeight(26)
         apply_btn.setEnabled(False)
         swap_row = QHBoxLayout()
         swap_row.addWidget(swap_combo, 1)
         swap_row.addWidget(apply_btn)
         swap_row.addWidget(reload_btn)
+
         form.addRow("Use TXD:", swap_row)
         chosen_color = [QColor(160,160,160)]
-        col_swatch = QLabel(); col_swatch.setFixedSize(32,22); col_swatch.setFrameShape(QFrame.Shape.Box)
-        pick_btn = QPushButton("Pick…"); pick_btn.setFixedHeight(26); pick_btn.setEnabled(False)
+        col_swatch = QLabel()
+        col_swatch.setFixedSize(32,26)
+        col_swatch.setFrameShape(QFrame.Shape.Box)
+        pick_btn = QPushButton("Pick…")
+        pick_btn.setFixedHeight(26)
+        pick_btn.setEnabled(False)
 
         def _pick():
             from PyQt6.QtWidgets import QColorDialog
@@ -2418,6 +2430,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 if vp: vp._tex_cache[tname_cur.lower()] = qi; vp.update()
                 _update_cache_lbl(tname_cur)
                 _refresh_all_slots()
+
             except Exception as ex:
 
                 if self.main_window and hasattr(self.main_window,'log_message'):
@@ -2470,7 +2483,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         prev_row = QHBoxLayout(); prev_row.setSpacing(3)
         _prev_icons = {'solid':'solid_icon','textured':'texture_icon', 'semi':'semi_icon','wire':'wireframe_icon'}
 
-        for style,label in [('solid','S'),('textured','T'),('semi','M'),('wire','W')]:
+        for style,label in [('solid','Solid'),('textured','Tex'),('semi','Semi'),('wire','Wire')]:
             b = QPushButton(label); b.setFixedHeight(26); b.setFixedWidth(36)
             b.setToolTip(f"{label} mode")
             try:
@@ -2487,10 +2500,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         right_lay.addLayout(form)
         right_lay.addStretch()
         ok_row = QHBoxLayout(); ok_row.addStretch()
-        ok_btn = QPushButton("✓ OK"); ok_btn.setFixedHeight(26)
-        cancel_btn = QPushButton("✕ Cancel"); cancel_btn.setFixedHeight(26)
-        close_btn  = QPushButton("Close");    close_btn.setFixedHeight(26)
-        ok_row.addWidget(ok_btn); ok_row.addWidget(cancel_btn); ok_row.addWidget(close_btn)
+        ok_btn = QPushButton("OK"); ok_btn.setFixedHeight(26)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFixedHeight(26)
+        close_btn  = QPushButton("Close")
+        close_btn.setFixedHeight(26)
+        ok_row.addWidget(ok_btn)
+        ok_row.addWidget(cancel_btn)
+        ok_row.addWidget(close_btn)
         right_lay.addLayout(ok_row)
         splitter.addWidget(right_frame)
         splitter.setSizes([380, 480])
@@ -5584,13 +5601,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # Preset quick-picks
         preset_row = QHBoxLayout()
-        for label, az2, el2 in [
-            ("↑ Top",  0,   90),
-            ("↗ GTA",  45,  50),
-            ("→ Side", 90,  15),
-            ("↙ Sunset",225,10),
+        for label, az2, el2 in [ # TODO: Need SVG icons
+            ("Top",  0,   90),
+            ("GTA",  45,  50),
+            ("Side", 90,  15),
+            ("Sunset",225,10),
         ]:
-            pb = QPushButton(label); pb.setFixedHeight(24)
+            pb = QPushButton(label); pb.setFixedHeight(26)
             def _set_preset(checked=False, a=az2, e=el2):
                 picker.az=a; picker.el=e; _az[0]=a; _el[0]=e
                 picker.update(); _apply_live()
@@ -5599,7 +5616,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         pos_vlay.addLayout(preset_row)
         root.addWidget(pos_grp)
 
-        # ── Brightness sliders ─────────────────────────────────────────
+        # - Brightness sliders
         bri_grp = QGroupBox("Brightness")
         bri_lay = QVBoxLayout(bri_grp)
 
@@ -5620,7 +5637,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         amb_sl  = _slider_row("Ambient",   0, 1, _amb, 100)
         root.addWidget(bri_grp)
 
-        # ── Live preview ───────────────────────────────────────────────
+        # - Live preview
         def _apply_live():
             az_r = math.radians(_az[0])
             el_r = math.radians(_el[0])
@@ -8830,7 +8847,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # View toggle: list ⇔ thumbnails
         self._tex_view_mode = 'list'
         self._tex_view_btn = QPushButton("⊞ Thumbnails")
-        self._tex_view_btn.setFixedHeight(22)
+        self._tex_view_btn.setFixedHeight(26)
         self._tex_view_btn.setFont(self.panel_font)
         self._tex_view_btn.setToolTip(
             "Toggle between list view and 64×64 thumbnail grid")
@@ -8850,7 +8867,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             b.setFont(self.button_font)
             try:
                 b.setIcon(getattr(self.icon_factory, icon_method)(color=icon_color))
-                b.setIconSize(QSize(16, 16))
+                b.setIconSize(QSize(18, 18))
             except Exception:
                 pass
             b.setFixedHeight(26)
@@ -8864,16 +8881,17 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._tex_btns_meta.append((attr, text, icon_method))
             return b
 
-        _tbtn('tex_load_btn',    'Load TXD',   'open_icon',
+        #TODO; reduce to icons when space is limited.
+        _tbtn('tex_load_btn',    'Load',   'open_icon',
               'Load a TXD file into this workshop',
               self._load_txd_into_workshop)
-        _tbtn('tex_browse_btn',  'Texlist',    'folder_icon',
+        _tbtn('tex_browse_btn',  'Texlist',    'folder_icon', #TODO use texlist icon
               'Browse texlist/ folder and import individual textures',
               self._browse_texlist_folder)
-        _tbtn('tex_pass_btn',    'TXD Wkshp',  'export_icon',
+        _tbtn('tex_pass_btn',    'WShop',  'export_icon', #TODO use txd_workshop_icon
               'Send all textures to TXD Workshop for editing/rebuilding',
               self._pass_textures_to_txd_workshop, enabled=False)
-        _tbtn('tex_save_btn',    'Save TXD',   'save_icon',
+        _tbtn('tex_save_btn',    'Save',   'save_icon',
               'Save current textures as a new TXD file',
               self._save_textures_as_txd, enabled=False)
         btn_row.addStretch()
@@ -8887,8 +8905,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Page 0: Table list
         self._tex_list = QTableWidget()
         self._tex_list.setColumnCount(4)
-        self._tex_list.setHorizontalHeaderLabels(
-            ["Name", "Size", "Format", "Mipmaps"])
+        self._tex_list.setHorizontalHeaderLabels(["Name", "Size", "Format", "Mipmaps"])
         self._tex_list.horizontalHeader().setStretchLastSection(True)
         self._tex_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
@@ -8924,7 +8941,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Switch texture panel between list view and 64×64 thumbnail grid."""
         if getattr(self, '_tex_view_mode', 'list') == 'list':
             self._tex_view_mode = 'thumb'
-            self._tex_view_btn.setText("☰ List")
+            self._tex_view_btn.setText("List")#TODO: Proper svg list icon
             self._tex_view_btn.setToolTip("Switch to list view")
             stack = getattr(self, '_tex_stack', None)
             if stack:
@@ -8932,7 +8949,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._populate_tex_thumbnails()
         else:
             self._tex_view_mode = 'list'
-            self._tex_view_btn.setText("⊞ Thumbnails")
+            self._tex_view_btn.setText("Thumbnails") #TODO: Proper svg Thumbnail icon
             self._tex_view_btn.setToolTip("Switch to 64×64 thumbnail grid")
             stack = getattr(self, '_tex_stack', None)
             if stack:

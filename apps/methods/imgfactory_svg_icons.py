@@ -763,7 +763,7 @@ class SVGIconFactory: #vers 7
         """Reset/refresh icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path d="M16 10A6 6 0 1 1 4 10M4 10l3-3m-3 3l3 3"
-                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                stroke="currentColor" stroke-width="2.9" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
     
