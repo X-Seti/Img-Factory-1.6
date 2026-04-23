@@ -1,4 +1,4 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 5
+#this belongs in methods/imgfactory_ui_settings.py - Version: 6
 # X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
@@ -128,6 +128,19 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.remember_pos_cb = QCheckBox("Remember window position")
         self.remember_pos_cb.setChecked(self.img_settings.get("remember_window_position", True))
         window_layout.addWidget(self.remember_pos_cb)
+
+        # Welcome / intro screen
+        import os, json as _j
+        _pref = os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+        _show_welcome = True
+        try: _show_welcome = _j.load(open(_pref)).get('show_on_startup', True)
+        except Exception: pass
+        self.show_welcome_cb = QCheckBox("Show welcome / intro screen on startup")
+        self.show_welcome_cb.setChecked(_show_welcome)
+        self.show_welcome_cb.setToolTip(
+            "Show the IMG Factory intro screen when the application starts.\n"
+            "Can also be toggled from the intro screen itself.")
+        window_layout.addWidget(self.show_welcome_cb)
 
         window_group.setLayout(window_layout)
         layout.addWidget(window_group)
@@ -766,6 +779,18 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.img_settings.set("preferred_ide_name", self.ide_combo.currentText())
         self.img_settings.set("remember_window_size", self.remember_size_cb.isChecked())
         self.img_settings.set("remember_window_position", self.remember_pos_cb.isChecked())
+        # Save welcome screen preference to its own JSON (shared with welcome_screen.py)
+        try:
+            import os, json as _j
+            _pref = os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+            _data = {}
+            try: _data = _j.load(open(_pref))
+            except Exception: pass
+            _data['show_on_startup'] = self.show_welcome_cb.isChecked()
+            os.makedirs(os.path.dirname(_pref), exist_ok=True)
+            _j.dump(_data, open(_pref, 'w'), indent=2)
+        except Exception:
+            pass
 
         # Interface tab
         self.img_settings.set("button_horizontal_spacing", self.h_spacing_spin.value())
