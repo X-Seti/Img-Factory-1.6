@@ -92,6 +92,9 @@ class _DFFGeometryAdapter:
     This adapter translates between the two.
     """
 
+# TODO: need a better Model Workshop Icon, based on the one img factory uses, copying the style. this can also be used on the dff edit button, or swap with img factory and have tiny letters in the Img-F svg icon.
+
+
     class _FaceAdapter:
         """Wraps a DFF Triangle so the viewport can read it as a COL face."""
         __slots__ = ('vertex_indices', 'material', 'a', 'b', 'c')
@@ -2481,10 +2484,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         form.addRow("Textures:", io_row)
         pw = getattr(self, 'preview_widget', None)
         prev_row = QHBoxLayout(); prev_row.setSpacing(3)
-        _prev_icons = {'solid':'solid_icon','textured':'texture_icon', 'semi':'semi_icon','wire':'wireframe_icon'}
+        _prev_icons = {'solid':'solid_icon','textured':'texture_icon', 'semi':'semi_icon','wire':'wireframe_icon'} #TODO need better icons
 
-        for style,label in [('solid','Solid'),('textured','Tex'),('semi','Semi'),('wire','Wire')]:
-            b = QPushButton(label); b.setFixedHeight(26); b.setFixedWidth(36)
+        for style,label in [('solid','Solid'),('textured','Texture'),('semi','Semi'),('wire','Wire')]:
+            b = QPushButton(label)
+            b.setFixedHeight(26)
+            b.setFixedWidth(80) #TODO: Need verible widths
             b.setToolTip(f"{label} mode")
             try:
                 ico_fn = _prev_icons.get(style)
@@ -5464,9 +5469,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             QMessageBox.critical(self, "COL Error",
                 f"Failed to create COL from DFF:\n{e}")
 
-
     # - DFF mode toolbar
-
 
     def _toggle_viewport_shading(self, enabled: bool): #vers 1
         """Toggle Lambertian shading on/off in the viewport."""
@@ -5514,13 +5517,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         dlg.setFixedWidth(360)
         root = QVBoxLayout(dlg); root.setSpacing(6)
 
-        # ── Shading toggle ─────────────────────────────────────────────
+        # - Shading toggle
         shade_cb = QCheckBox("Enable shading")
         shade_cb.setChecked(_shade_on); root.addWidget(shade_cb)
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet("color:palette(mid);"); root.addWidget(sep)
 
-        # ── Visual position picker ─────────────────────────────────────
+        # - Visual position picker
         # Top-down circle = azimuth, height on circle = elevation
         pos_grp = QGroupBox("Light Position")
         pos_vlay = QVBoxLayout(pos_grp)
@@ -6136,7 +6139,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
 
     def _create_transform_icon_panel(self): #vers 13
-        """Icon grid panel — DockableToolbar pattern (same as COL Workshop)."""
+        """Icon grid panel - DockableToolbar pattern (same as COL Workshop)."""
         from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
         from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
@@ -9607,7 +9610,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     parser = TXDWorkshop(main_window=None)
                     ModelWorkshop._txd_parser_cache = parser
                 except Exception as _e:
-                    print(f"TXDWorkshop init failed: {_e}")
+                    print(App_name + " init failed: {_e}")
                     return textures
             # Set version for this TXD
             parser.txd_version_id  = main_version
@@ -13282,7 +13285,6 @@ class ZoomablePreview(QLabel): #vers 2
         self.main_window = parent
         self.setMinimumSize(400, 400)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        #self.setStyleSheet("border: 2px solid #3a3a3a; background: #0a0a0a;")
         self.setStyleSheet("border: 1px solid #3a3a3a;")
         self.setMouseTracking(True)
 

@@ -474,6 +474,7 @@ class IMGFactoryGUILayout:
         else:
             print(f"Method '{method_name}' not yet implemented")
 
+
     def _open_ipl_workshop(self): #vers 1
         """Open IPL Workshop docked — with optional pre-loaded file from dir tree."""
         try:
@@ -490,6 +491,7 @@ class IMGFactoryGUILayout:
         except Exception as e:
             self._log_missing_method('edit_ipl_file')
 
+
     def _open_dat_browser(self): #vers 2
         """Open (or re-open) the DAT Browser tab — wired to the 'Dat Edit' button."""
         try:
@@ -502,6 +504,7 @@ class IMGFactoryGUILayout:
                 target=widget)
         except Exception as e:
             self._log_missing_method('edit_dat_file')
+
 
     def _open_selected_text_file(self, preferred_ext: str = None): #vers 1
         """Open a file from the dir tree selection in the text editor.
@@ -533,6 +536,7 @@ class IMGFactoryGUILayout:
             if hasattr(self.main_window, "log_message"):
                 self.main_window.log_message(f"Text editor open error: {e}")
 
+
     def _get_dir_tree_selected_file(self) -> str: #vers 1
         """Return the currently selected file path in the dir tree, or ''."""
         mw = self.main_window
@@ -552,6 +556,7 @@ class IMGFactoryGUILayout:
             except Exception:
                 pass
         return ""
+
 
     def _dat_edit_context_menu(self, btn, pos): #vers 1
         """Right-click context menu on the 'Dat Edit' button."""
@@ -574,6 +579,7 @@ class IMGFactoryGUILayout:
 
         menu.exec(btn.mapToGlobal(pos))
 
+
     def _set_dat_game_root_from_dir_tree(self): #vers 1
         """Push the dir-tree current path into the DAT Browser as game root."""
         try:
@@ -582,7 +588,6 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Set game root error: {e}")
-
 
 
     def _get_button_theme_template(self, theme_name="default"): #vers 2
@@ -779,6 +784,7 @@ class IMGFactoryGUILayout:
         except Exception as e:
             print(f"RW Ref error: {e}")
 
+
     def _show_system_popup_menu(self, btn): #vers 2
         """Show the imgfactory popup menu anchored to the Menu button (system UI mode).
         Creates custom_menu_manager on demand if not already present.
@@ -794,6 +800,7 @@ class IMGFactoryGUILayout:
             print(f"System menu error: {e}")
             import traceback; traceback.print_exc()
 
+
     def _show_system_settings(self): #vers 1
         """Open the IMG Factory settings dialog (not the app theme dialog)."""
         try:
@@ -802,6 +809,7 @@ class IMGFactoryGUILayout:
         except Exception as e:
             print(f"Settings error: {e}")
             import traceback; traceback.print_exc()
+
 
     def refresh_icons(self, color: str): #vers 2
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
@@ -823,6 +831,7 @@ class IMGFactoryGUILayout:
                 self.rw_scan_btn.setIconSize(__import__('PyQt6.QtCore', fromlist=['QSize']).QSize(18, 18))
         except Exception as e:
             print(f"refresh_icons failed: {e}")
+
 
     def set_theme_mode(self, theme_name): #vers 3
         """Set the current theme mode and refresh all styling"""
