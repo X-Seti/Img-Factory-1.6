@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 7
+#belongs in gui/gui_layout_custom.py - Version 8
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -900,8 +900,8 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         # App title in center
         try:
-            from apps.app_info import App_build_num as _bnum
-            _title_text = f"{App_name}  —  {_bnum}"
+            from apps.app_info import get_full_build as _gbuild
+            _title_text = f"{App_name}  —  {_gbuild()}"
         except ImportError:
             _title_text = App_name
         self.title_label = QLabel(_title_text)
