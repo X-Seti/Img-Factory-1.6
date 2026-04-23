@@ -847,7 +847,7 @@ class IMGFactory(QMainWindow):
         if was_visible:
             self.show()
 
-    def _apply_img_menu_orientation(self): #vers 1
+    def _apply_img_menu_orientation(self): #vers 2
         """Show/hide _standalone_menu_bar and Menu button per saved orientation."""
         orient = getattr(self, 'img_settings', None)
         orient = orient.get('img_menu_orientation', 'topbar') if orient else 'topbar'
@@ -870,7 +870,8 @@ class IMGFactory(QMainWindow):
             pass
 
         # Show/hide Menu button in custom titlebar
-        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'menu_btn'):
+        # menu_btn is None in system UI mode (set explicitly by gui_layout)
+        if hasattr(self, 'gui_layout') and getattr(self.gui_layout, 'menu_btn', None) is not None:
             self.gui_layout.menu_btn.setVisible(not want_topbar)
 
     def _update_tool_menu_for_tab(self, tab_widget): #vers 1
