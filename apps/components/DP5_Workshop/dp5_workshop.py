@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 3 (Build 235)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 3 (Build 236)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3672,7 +3672,7 @@ class _CornerOverlay(QWidget):
         painter.end()
 
 
-class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
+class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     """Deluxe Paint 5 inspired bitmap editor — standalone + embeddable."""
 
     workshop_closed = pyqtSignal()

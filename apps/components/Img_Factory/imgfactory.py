@@ -1426,37 +1426,12 @@ class IMGFactory(QMainWindow):
             workshop.show()
             self._ensure_tab_area_visible()
 
-            # Inject DP5 submenus into IMG Factory menu bar when docked
-            def _do_dp5_inject(mw=self, ws=workshop):
-                try:
-                    from PyQt6.QtWidgets import QMenu
-                    # Resolve menu bar: custom inline bar → Qt native menuBar()
-                    smb = (getattr(mw, '_standalone_menu_bar', None) or
-                           getattr(getattr(mw, 'gui_layout', None),
-                                   '_system_menu_bar', None) or
-                           mw.menuBar())
-                    if smb is None:
-                        mw.log_message("DP5 menu inject: no menu bar found")
-                        return
-                    # Remove stale entry if DP5 already open
-                    for act in list(smb.actions()):
-                        if act.text() == 'DP5 Workshop':
-                            smb.removeAction(act)
-                            break
-                    # Build a QMenu and populate it via the single authoritative builder
-                    dp5_top = QMenu('DP5 Workshop', smb)
-                    ws._build_canvas_menus(dp5_top)   # works with QMenu and QMenuBar
-                    smb.addMenu(dp5_top)
-                    smb.adjustSize()
-                    smb.update()
-                    smb.repaint()
-                    mw.log_message("DP5 Workshop menu injected into menu bar")
-                except Exception as _e:
-                    import traceback
-                    mw.log_message(f"DP5 menu inject error: {_e}")
-                    traceback.print_exc()
+            # Menu injection handled by _on_tab_changed → _update_tool_menu_for_tab
+            # DP5Workshop now inherits ToolMenuMixin so the standard path picks it up.
+            # Trigger it manually once for the initial open.
             from PyQt6.QtCore import QTimer
-            QTimer.singleShot(300, _do_dp5_inject)
+            QTimer.singleShot(300, lambda: self._update_tool_menu_for_tab(
+                self.main_tab_widget.currentWidget()))
 
             self.log_message("DP5 Workshop opened (docked)")
 
@@ -3265,8 +3240,6 @@ class IMGFactory(QMainWindow):
             self.open_files = {}
 
         # Create initial empty tab with just a table
-        # No File tab removed - start empty, tabs created on file load
-
         # Setup close manager BEFORE tab system
         self.close_manager = install_close_functions(self)
 
@@ -3276,6 +3249,9 @@ class IMGFactory(QMainWindow):
         # Migrate existing tabs if any
         if self.open_files:
             migrate_tabs(self)
+
+        # Create welcome / intro tab (shows on first launch)
+        self._create_initial_tab()
 
         # Create GUI layout system (single instance)
         self.gui_layout.create_status_bar()
