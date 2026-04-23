@@ -1842,6 +1842,37 @@ class SVGIconFactory: #vers 7
         return SVGIconFactory._create_icon(svg_data, size, color)
 
     @staticmethod
+    def solid_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Solid shaded sphere"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs><radialGradient id="sg" cx="35%" cy="35%">
+              <stop offset="0%" stop-color="white" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="currentColor" stop-opacity="1"/>
+            </radialGradient></defs>
+            <circle cx="12" cy="12" r="9" fill="url(#sg)" stroke="currentColor" stroke-width="1.2"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def texture_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Textured sphere — grid lines on sphere"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <ellipse cx="12" cy="12" rx="5" ry="9" fill="none" stroke="currentColor" stroke-width="0.9"/>
+            <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="0.9"/>
+            <line x1="3.5" y1="7"  x2="20.5" y2="7"  stroke="currentColor" stroke-width="0.7"/>
+            <line x1="3.5" y1="17" x2="20.5" y2="17" stroke="currentColor" stroke-width="0.7"/>
+        </svg>''', size, color)
+
+    @staticmethod
+    def semi_icon(size: int = 20, color: str = None) -> 'QIcon': #vers 1
+        """Semi-transparent — sphere with dashed edge"""
+        return SVGIconFactory._create_icon('''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="9" fill="currentColor" fill-opacity="0.25"
+                    stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2"/>
+        </svg>''', size, color)
+
+
+    @staticmethod
     def wireframe_icon(size: int = 20, color: str = None) -> QIcon: #vers 1
         """Wireframe display mode — grid/mesh outline."""
         svg = (

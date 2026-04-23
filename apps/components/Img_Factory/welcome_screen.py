@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 2
+# apps/components/Img_Factory/welcome_screen.py — Version 3
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -30,7 +30,15 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
 
 
-_PREF_PATH = os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+def _get_pref_path() -> str:
+    """Cross-platform config path for welcome screen prefs."""
+    import sys
+    if sys.platform == 'win32':
+        base = os.environ.get('APPDATA', os.path.expanduser('~'))
+        return os.path.join(base, 'ImgFactory', 'welcome_prefs.json')
+    return os.path.expanduser('~/.config/imgfactory/welcome_prefs.json')
+
+_PREF_PATH = _get_pref_path()
 
 
 class WelcomeCard(QFrame):

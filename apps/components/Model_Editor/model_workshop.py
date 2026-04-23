@@ -2102,16 +2102,18 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         grid_hdr.addWidget(density_lbl)
         _n_cols = [3]
 
-        for nc in (3, 4, 5, 6):  # icons: grid_icon available from SVGIconFactory
+        _col_btns = []
+        for nc in (3, 4, 5, 6):
             b = QPushButton(str(nc))
             b.setFixedSize(24, 20)
             b.setFont(self.panel_font)
             b.setCheckable(True)
             b.setChecked(nc == _n_cols[0])
-
-            def _set_cols(checked, n=nc, btn=b):
+            _col_btns.append(b)
+            def _set_cols(checked, n=nc, all_b=_col_btns):
                 if not checked: return
                 _n_cols[0] = n
+                for ob in all_b: ob.setChecked(ob.text() == str(n))
                 _rebuild_grid()
             b.toggled.connect(_set_cols)
             grid_hdr.addWidget(b)
@@ -2124,6 +2126,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         grid_container = [None]
         left_lay.addWidget(scroll, 1)
+        N_ROWS = 6           # grid is always N_ROWS rows; extras = empty placeholder spheres
         _selected_row = [0]
         _slot_btns    = []
 
@@ -2132,27 +2135,68 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             return sizes.get(n_cols, (72,86))
 
         def _rebuild_grid():
-            nc = _n_cols[0]
+            nc   = _n_cols[0]
+            total = nc * N_ROWS          # always nc columns × 6 rows
             sw, sh = _get_slot_size(nc)
-            old_w = grid_container[0]
+            pix_w  = sw - 8
+
             new_w = QWidget()
             gl    = QGridLayout(new_w)
             gl.setSpacing(3)
             gl.setContentsMargins(3,3,3,3)
-            # Reparent slots to new_w BEFORE replacing scroll widget to prevent deletion
 
+            # Reparent real slots first
             for s, _ in _slot_btns:
                 s.setParent(new_w)
             scroll.setWidget(new_w)
             grid_container[0] = new_w
 
-            for i,(gi,mi,mat,geom) in enumerate(all_mats):
+            # Place real material slots
+            for i, (gi, mi, mat, geom) in enumerate(all_mats):
+                if i >= total: break
                 slot, pix_lbl = _slot_btns[i]
                 slot.setFixedSize(sw, sh)
-                pix_w = sw - 8
                 pix_lbl.setFixedSize(pix_w, pix_w)
                 pix_lbl.setPixmap(_make_slot_pix(mat, geom, pix_w))
-                gl.addWidget(slot, i//nc, i%nc)
+                slot.setVisible(True)
+                gl.addWidget(slot, i // nc, i % nc)
+
+            # Fill remaining cells with empty placeholder slots
+            for j in range(len(all_mats), total):
+                row, col = j // nc, j % nc
+                empty = QFrame()
+                empty.setFixedSize(sw, sh)
+                empty.setStyleSheet(
+                    "QFrame { border: 1px dashed palette(mid); border-radius: 4px; "
+                    "background: palette(base); }")
+                # Grey sphere placeholder
+                ph = QLabel()
+                ph.setFixedSize(pix_w, pix_w)
+                ph.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+                ph_pix = QPixmap(pix_w, pix_w)
+                ph_pix.fill(_Qt.GlobalColor.transparent)
+                _pp = QPainter(ph_pix)
+                _pp.setRenderHint(QPainter.RenderHint.Antialiasing)
+                from PyQt6.QtGui import QRadialGradient as _RG
+                cx, cy, r = pix_w//2, pix_w//2, pix_w//2 - 3
+                _g = _RG(cx, cy, r)
+                _g.setColorAt(0, QColor(80,80,90,60))
+                _g.setColorAt(1, QColor(40,40,50,40))
+                from PyQt6.QtGui import QBrush as _QB
+                _pp.setBrush(_QB(_g)); _pp.setPen(_Qt.PenStyle.NoPen)
+                _pp.drawEllipse(cx-r, cy-r, 2*r, 2*r)
+                _pp.end()
+                ph.setPixmap(ph_pix)
+                el = QVBoxLayout(empty)
+                el.setContentsMargins(4,4,4,4); el.setSpacing(2)
+                el.addWidget(ph, 0, _Qt.AlignmentFlag.AlignCenter)
+                sl = QLabel(f"{j+1}")
+                sl.setFont(QFont("Arial", 6))
+                sl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
+                sl.setStyleSheet("color: palette(placeholderText);")
+                el.addWidget(sl)
+                gl.addWidget(empty, row, col)
+
             gl.setColumnStretch(nc, 1)
 
         SLOT_W, SLOT_H = 88, 104
@@ -2498,22 +2542,26 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         form.addRow("Textures:", io_row)
         pw = getattr(self, 'preview_widget', None)
         prev_row = QHBoxLayout(); prev_row.setSpacing(3)
-        _prev_icons = {'solid':'solid_icon','textured':'texture_icon', 'semi':'semi_icon','wire':'wireframe_icon'}  # use existing icons; replace when dedicated ones added
-
-        for style,label in [('solid','Solid'),('textured','Texture'),('semi','Semi'),('wire','Wire')]:
+        _prev_icons = {'solid':'solid_icon','textured':'texture_icon',
+                        'semi':'semi_icon','wire':'wireframe_icon'}
+        _prev_btns = []
+        for style, label in [('solid','Solid'),('textured','Texture'),
+                              ('semi','Semi'),('wire','Wire')]:
             b = QPushButton(label)
             b.setFixedHeight(26)
-            b.setMinimumWidth(52); b.setMaximumWidth(90)
-            b.setToolTip(f"{label} mode")
+            b.setMinimumWidth(26); b.setMaximumWidth(80)
+            b.setToolTip(f"{label} render mode")
             try:
                 ico_fn = _prev_icons.get(style)
-                if ico_fn: b.setIcon(getattr(self.icon_factory,ico_fn)(color=ic)); b.setIconSize(_QS(14,14))
-
-            except Exception: pass
-
-            if pw: b.clicked.connect(lambda _=False,s=style,p=pw: p.set_render_style(s))
+                if ico_fn:
+                    b.setIcon(getattr(self.icon_factory, ico_fn)(color=ic))
+                    b.setIconSize(_QS(16, 16))
+            except Exception:
+                pass
+            if pw:
+                b.clicked.connect(lambda _=False, s=style, p=pw: p.set_render_style(s))
             prev_row.addWidget(b)
-
+            _prev_btns.append((b, label))
         prev_row.addStretch()
         form.addRow("Preview:", prev_row)
         right_lay.addLayout(form)
