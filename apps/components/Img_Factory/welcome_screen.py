@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 3
+# apps/components/Img_Factory/welcome_screen.py — Version 4
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -107,8 +107,11 @@ class WelcomeScreen(QWidget):
         super().__init__(parent)
         self.main_window = main_window
         self._build_ui()
+        # Do not expand vertically beyond preferred size — prevents the welcome
+        # screen from stretching the host window taller than the screen.
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-    def _build_ui(self): #vers 2
+    def _build_ui(self): #vers 3
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -135,7 +138,7 @@ class WelcomeScreen(QWidget):
         # Tab bar: Quick Start | Functions | Workflows | Shortcuts
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
-        root.addWidget(tabs, 1)
+        root.addWidget(tabs)   # no stretch — let sizeHint govern height
 
         tabs.addTab(self._build_quickstart_tab(), "Quick Start")
         tabs.addTab(self._build_functions_tab(),  "All Functions")

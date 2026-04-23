@@ -3313,6 +3313,10 @@ class IMGFactory(QMainWindow):
                     'switch_to_dir', lambda: None)()
                 if hasattr(self, 'gui_layout') else None)
             tab_widget._welcome_screen = ws
+            # Cap height so the welcome screen never forces the window taller
+            # than the screen. 600px fits comfortably on a 1080p display;
+            # the QScrollArea inside handles overflow gracefully.
+            ws.setMaximumHeight(600)
             tab_layout.addWidget(ws)
 
             # Honour show_on_startup preference
