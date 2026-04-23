@@ -1,4 +1,4 @@
-#this belongs in gui/gui_menu.py - Version: 22
+#this belongs in gui/gui_menu.py - Version: 23
 from apps.app_info import App_name, App_build, App_auth
 # X-Seti - August14 2025 - IMG Factory 1.5
 
@@ -435,10 +435,9 @@ that players, vehicles, and objects interact with in the game world.</p>
 class IMGFactoryMenuBar:
     """Complete IMG Factory menu bar with all original functionality"""
 
-    def __init__(self, main_window, panel_manager: PanelManager = None):
+    def __init__(self, main_window, panel_manager: PanelManager = None): #vers 2
         self.main_window = main_window
         self.panel_manager = panel_manager
-        self.menu_bar = main_window.menuBar()
         self.callbacks: Dict[str, Callable] = {}
         self.actions: Dict[str, QAction] = {}
         self.menus: Dict[str, QMenu] = {}
@@ -447,13 +446,25 @@ class IMGFactoryMenuBar:
         self._preferences_dialog = None
         self._gui_settings_dialog = None
 
-        # Clear any existing menus first
-        self.menu_bar.clear()
+        # Suppress the native Qt system menubar immediately — before _create_menus()
+        # populates it. The inline _system_menu_bar (a QMenuBar embedded in the
+        # top_bar widget) is the real target; menu_bar gets re-pointed there later
+        # by imgfactory._create_ui() once gui_layout builds it.
+        native_mb = main_window.menuBar()
+        native_mb.clear()
+        native_mb.setVisible(False)
+        native_mb.setMaximumHeight(0)
+        native_mb.setMinimumHeight(0)
+        native_mb.setFixedHeight(0)
+        from PyQt6.QtWidgets import QSizePolicy
+        native_mb.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+
+        # Start pointing at native bar — will be re-pointed to inline bar later
+        self.menu_bar = native_mb
 
         self.menu_definition = MenuDefinition()
         self._create_menus()
         self._create_tools_menu()
-        #self.col_menu()
 
         # Set up default callbacks
         self._setup_default_callbacks()

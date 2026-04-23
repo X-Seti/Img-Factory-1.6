@@ -6994,10 +6994,13 @@ class IMGFactory(QMainWindow):
         self._corner_overlay = CornerOverlay(self)
         self._corner_overlay.raise_()
 
-    def showEvent(self, event): #vers 1
+    def showEvent(self, event): #vers 2
         super().showEvent(event)
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(100, self.setup_corner_overlay)
+        from PyQt6.QtCore import Qt, QTimer
+        # Corner overlay only makes sense in frameless mode — system titlebar
+        # mode lets the OS/KDE handle window resizing natively.
+        if self.windowFlags() & Qt.WindowType.FramelessWindowHint:
+            QTimer.singleShot(100, self.setup_corner_overlay)
 
     def refresh_corner_overlay(self): #vers 1
         if hasattr(self, '_corner_overlay'):
@@ -7038,7 +7041,7 @@ class IMGFactory(QMainWindow):
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
 
-    def mousePressEvent(self, event): #vers 9
+    def mousePressEvent(self, event): #vers 10
         """Handle ALL mouse press - dragging and resizing"""
         from PyQt6.QtCore import Qt
 
@@ -7047,65 +7050,70 @@ class IMGFactory(QMainWindow):
             return
 
         pos = event.pos()
+        is_frameless = bool(self.windowFlags() & Qt.WindowType.FramelessWindowHint)
 
-        # Check corner resize FIRST
-        resize_corner = self._get_resize_corner(pos)
-        if resize_corner:
-            # Store state in gui_layout
-            self.gui_layout.resizing = True
-            self.gui_layout.resize_corner = resize_corner
-            self.gui_layout.drag_position = event.globalPosition().toPoint()
-            self.gui_layout.initial_geometry = self.geometry()
-            event.accept()
-            return
+        if is_frameless:
+            # Check corner resize FIRST
+            resize_corner = self._get_resize_corner(pos)
+            if resize_corner:
+                self.gui_layout.resizing = True
+                self.gui_layout.resize_corner = resize_corner
+                self.gui_layout.drag_position = event.globalPosition().toPoint()
+                self.gui_layout.initial_geometry = self.geometry()
+                event.accept()
+                return
 
-        # Check if on titlebar for dragging
-        if hasattr(self.gui_layout, 'titlebar') and self.gui_layout.titlebar:
-            titlebar_geometry = self.gui_layout.titlebar.geometry()
-            if titlebar_geometry.contains(pos):
-                titlebar_pos = self.gui_layout.titlebar.mapFromParent(pos)
-                if hasattr(self.gui_layout, '_is_on_draggable_area') and self.gui_layout._is_on_draggable_area(titlebar_pos):
-                    self.windowHandle().startSystemMove()
-                    event.accept()
-                    return
+            # Check if on titlebar for dragging
+            if hasattr(self.gui_layout, 'titlebar') and self.gui_layout.titlebar:
+                titlebar_geometry = self.gui_layout.titlebar.geometry()
+                if titlebar_geometry.contains(pos):
+                    titlebar_pos = self.gui_layout.titlebar.mapFromParent(pos)
+                    if hasattr(self.gui_layout, '_is_on_draggable_area') and self.gui_layout._is_on_draggable_area(titlebar_pos):
+                        self.windowHandle().startSystemMove()
+                        event.accept()
+                        return
 
         super().mousePressEvent(event)
 
 
-    def mouseMoveEvent(self, event): #vers 3
+    def mouseMoveEvent(self, event): #vers 4
         """Handle mouse move for resizing and hover effects"""
         from PyQt6.QtCore import Qt
 
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            # Active resize
-            if hasattr(self.gui_layout, 'resizing') and self.gui_layout.resizing:
-                if hasattr(self.gui_layout, 'resize_corner') and self.gui_layout.resize_corner:
-                    self._handle_corner_resize_window(event.globalPosition().toPoint())
-                    event.accept()
-                    return
-        else:
-            # Update hover state and cursor
-            corner = self._get_resize_corner(event.pos())
-            if hasattr(self.gui_layout, 'hover_corner'):
-                if corner != self.gui_layout.hover_corner:
-                    self.gui_layout.hover_corner = corner
-                    self.refresh_corner_overlay()
-            self._update_cursor(corner)
+        is_frameless = bool(self.windowFlags() & Qt.WindowType.FramelessWindowHint)
+
+        if is_frameless:
+            if event.buttons() == Qt.MouseButton.LeftButton:
+                # Active resize
+                if hasattr(self.gui_layout, 'resizing') and self.gui_layout.resizing:
+                    if hasattr(self.gui_layout, 'resize_corner') and self.gui_layout.resize_corner:
+                        self._handle_corner_resize_window(event.globalPosition().toPoint())
+                        event.accept()
+                        return
+            else:
+                # Update hover state and cursor
+                corner = self._get_resize_corner(event.pos())
+                if hasattr(self.gui_layout, 'hover_corner'):
+                    if corner != self.gui_layout.hover_corner:
+                        self.gui_layout.hover_corner = corner
+                        self.refresh_corner_overlay()
+                self._update_cursor(corner)
 
         super().mouseMoveEvent(event)
 
 
-    def mouseReleaseEvent(self, event): #vers 3
+    def mouseReleaseEvent(self, event): #vers 4
         """Handle mouse release"""
         from PyQt6.QtCore import Qt
 
         if event.button() == Qt.MouseButton.LeftButton:
-            # Clear resize state
-            if hasattr(self.gui_layout, 'resizing'):
-                self.gui_layout.resizing = False
-            if hasattr(self.gui_layout, 'resize_corner'):
-                self.gui_layout.resize_corner = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+            is_frameless = bool(self.windowFlags() & Qt.WindowType.FramelessWindowHint)
+            if is_frameless:
+                if hasattr(self.gui_layout, 'resizing'):
+                    self.gui_layout.resizing = False
+                if hasattr(self.gui_layout, 'resize_corner'):
+                    self.gui_layout.resize_corner = None
+                self.setCursor(Qt.CursorShape.ArrowCursor)
             event.accept()
         else:
             super().mouseReleaseEvent(event)
