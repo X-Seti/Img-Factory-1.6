@@ -1584,7 +1584,7 @@ class IMGFactoryGUILayout:
         return short_map.get(localized_label, localized_label)
 
 
-    def create_main_ui_with_splitters(self, main_layout): #vers 5
+    def create_main_ui_with_splitters(self, main_layout): #vers 6
 
         """Create the main UI with 3-panel layout similar to COL Workshop"""
 
@@ -1731,6 +1731,22 @@ class IMGFactoryGUILayout:
 
         # Add splitter to main layout
         main_layout.addWidget(self.main_splitter)
+
+        # QSizeGrip — visible in system-titlebar mode so the user can drag-resize
+        # the window from the bottom-right corner. In frameless/custom mode the
+        # custom corner overlay triangles handle resizing instead.
+        from PyQt6.QtWidgets import QSizeGrip, QHBoxLayout as _QHLS
+        _grip_row = _QHLS()
+        _grip_row.setContentsMargins(0, 0, 0, 0)
+        _grip_row.addStretch(1)
+        self._size_grip = QSizeGrip(self.main_window)
+        _grip_row.addWidget(self._size_grip)
+        main_layout.addLayout(_grip_row)
+
+        # Hide grip in frameless mode — corner overlay takes over
+        from PyQt6.QtCore import Qt as _Qt
+        _is_frameless = bool(self.main_window.windowFlags() & _Qt.WindowType.FramelessWindowHint)
+        self._size_grip.setVisible(not _is_frameless)
 
 
     def _create_left_file_list_panel_disabled(self): #vers 2

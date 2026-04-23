@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 3 (Build 236)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 4 (Build 321)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3805,9 +3805,9 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             toolbar.setMaximumHeight(0)
         main_layout.addWidget(toolbar)
 
-        # Menu bar container — wraps QMenuBar in a plain QWidget so Qt does NOT
-        # promote it to the QMainWindow menubar area when docked (Qt auto-promotes
-        # a bare QMenuBar that is a direct child of a QMainWindow-hosted widget).
+        # Internal menubar — standalone only.
+        # When docked, menus are injected into imgfactory's top bar via
+        # ToolMenuMixin._inject_tool_menu(). No second bar needed here.
         from PyQt6.QtWidgets import QHBoxLayout as _QHL
         self._menu_bar_container = QWidget(self)
         self._menu_bar_container.setObjectName("dp5_menu_bar_container")
@@ -3821,14 +3821,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._apply_menu_bar_style()   # applies font size, height, colours
         _chl.addWidget(mb)
 
-        show_mb = (self.dp5_settings.get('show_menubar', False) and
-                   self.dp5_settings.get('menu_style', 'dropdown') == 'topbar')
-
-        if show_mb:
-            self._menu_bar_container.setMinimumHeight(0)
-            self._menu_bar_container.setMaximumHeight(16777215)
-            self._menu_bar_container.setVisible(True)
+        if self.standalone_mode:
+            # Standalone: honour show_menubar + menu_style settings
+            show_mb = (self.dp5_settings.get('show_menubar', False) and
+                       self.dp5_settings.get('menu_style', 'dropdown') == 'topbar')
+            if show_mb:
+                self._menu_bar_container.setMinimumHeight(0)
+                self._menu_bar_container.setMaximumHeight(16777215)
+                self._menu_bar_container.setVisible(True)
+            else:
+                self._menu_bar_container.setVisible(False)
+                self._menu_bar_container.setFixedHeight(0)
         else:
+            # Docked: always hide internal bar — imgfactory bar handles menus
             self._menu_bar_container.setVisible(False)
             self._menu_bar_container.setFixedHeight(0)
 
@@ -4544,28 +4549,38 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             # Don't touch height here if hiding — setup_ui and set_menu_orientation handle that
 
 
-    def set_menu_orientation(self, style: str): #vers 4
+    def set_menu_orientation(self, style: str): #vers 5
         """Switch DP5 menu between 'topbar' (internal) and 'dropdown' (host menubar).
-        Called from imgfactory Settings when the orientation radio changes.
+        When docked the internal bar is always suppressed regardless of style —
+        imgfactory's top bar owns the menus via ToolMenuMixin injection.
         """
         self.dp5_settings.set('menu_style', style)
         self.dp5_settings.set('show_menubar', style == 'topbar')
 
-        # Toggle the container (not the bare QMenuBar) so Qt doesn't promote it
         container = getattr(self, '_menu_bar_container', None) or getattr(self, '_menu_bar', None)
         if container:
-            if style == 'topbar':
+            if style == 'topbar' and self.standalone_mode:
+                # Only show internal bar in standalone mode
                 container.setMinimumHeight(0)
                 container.setMaximumHeight(16777215)
                 container.setVisible(True)
                 container.updateGeometry()
-                # Re-apply style so height/font are correct
                 self._apply_menu_bar_style()
             else:
+                # Docked always hides internal bar; dropdown mode always hides it too
                 container.setVisible(False)
                 container.setMinimumHeight(0)
                 container.setMaximumHeight(0)
                 container.setFixedHeight(0)
+
+        # Notify imgfactory to inject/remove tool menu when docked
+        if not self.standalone_mode:
+            mw = getattr(self, 'main_window', None)
+            if mw and hasattr(mw, 'menu_bar_system'):
+                if style == 'dropdown':
+                    mw.menu_bar_system._inject_tool_menu(self)
+                else:
+                    mw.menu_bar_system._remove_tool_menu()
 
 
     def _create_right_panel(self): #vers 2
