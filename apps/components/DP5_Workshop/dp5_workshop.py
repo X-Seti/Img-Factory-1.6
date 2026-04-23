@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 2 (Build 233)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 3 (Build 234)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -4262,6 +4262,8 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         em.addAction("Select All\tCtrl+A", self._select_all)
         em.addAction("Deselect\tEsc",      self._deselect)
         em.addSeparator()
+        em.addAction("Rotate Selection…",  self._rotate_selection_dialog)
+        em.addSeparator()
         em.addAction("Clear canvas",       self._clear_canvas)
         em.addAction("Fill with colour",   self._fill_canvas)
         # Picture
@@ -4465,10 +4467,9 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         """Read menu_style from dp5_settings."""
         return self.dp5_settings.get('menu_style', 'dropdown')
 
-    def _build_menus_into_qmenu(self, parent_menu): #vers 1
+    def _build_menus_into_qmenu(self, parent_menu): #vers 2
         """Populate a QMenu with all DP5 canvas submenus.
-        Used when docked into a host menubar — avoids the proxy QMenuBar
-        approach which loses actions during reparenting.
+        Safe in both standalone and docked modes — no main_window access.
         Each top-level group (File, Edit, Picture, View, Tools, Platform)
         becomes a submenu of parent_menu.
         """
@@ -5190,6 +5191,12 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 actual_tool = SHAPE_FILL_PAIRS[tool_id]
 
         if self.dp5_canvas:
+            # Clear selection marching-ants when leaving SELECT tool
+            if self.dp5_canvas.tool in (TOOL_SELECT, 'lasso') and actual_tool not in (TOOL_SELECT, 'lasso'):
+                self.dp5_canvas._sel_active    = False
+                self.dp5_canvas._selection_rect = None
+                self.dp5_canvas._sel_floating   = False
+                self.dp5_canvas.update()
             self.dp5_canvas.tool = actual_tool
             self.dp5_canvas._curve_pts = []
             self.dp5_canvas._poly_pts  = []
@@ -5453,15 +5460,20 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
                 c.setVisible(on)
 
 
-    def _show_dropdown_menu(self): #vers 1
-        """Pop up the canvas menus as a single QMenu dropdown."""
+    def _show_dropdown_menu(self): #vers 2
+        """Pop up the canvas menus as a single QMenu dropdown — standalone safe."""
+        from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
-        self._build_canvas_menus(menu)
+        try:
+            self._build_menus_into_qmenu(menu)
+        except Exception as _e:
+            menu.addAction(f"Menu error: {_e}").setEnabled(False)
         btn = getattr(self, 'menu_toggle_btn', None)
         if btn:
             menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
         else:
-            menu.exec(self.cursor().pos())
+            from PyQt6.QtGui import QCursor
+            menu.exec(QCursor.pos())
 
 
     def _toggle_menubar(self, on: bool): #vers 3
@@ -5982,6 +5994,111 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
         self.dp5_canvas.update()
         self._select_tool(TOOL_SELECT)
         self._set_status("All selected")
+
+    def _rotate_selection_dialog(self): #vers 1
+        """Rotate the active selection by preset or arbitrary degrees.
+        Works on the selection buffer — rotates the pixels, expands if needed,
+        updates _sel_buffer/_sel_buf_w/_sel_buf_h and re-floats the selection."""
+        if not self.dp5_canvas: return
+        c = self.dp5_canvas
+        if not (c._sel_active and c._selection_rect):
+            self._set_status("No selection to rotate — use Select tool first")
+            return
+
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QDialogButtonBox, QPushButton, QDoubleSpinBox, QLabel, QSlider)
+        from PyQt6.QtCore import Qt as _Qt
+
+        # Auto-copy if buffer not filled yet
+        if not c._sel_buffer:
+            c.copy_selection()
+        if not c._sel_buffer:
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Rotate Selection")
+        dlg.setFixedWidth(300)
+        lay = QVBoxLayout(dlg); lay.setSpacing(8)
+
+        # Degree input
+        lay.addWidget(QLabel("Rotation angle (°):"))
+        deg_spin = QDoubleSpinBox()
+        deg_spin.setRange(-359.9, 359.9)
+        deg_spin.setDecimals(1)
+        deg_spin.setSingleStep(1.0)
+        deg_spin.setValue(0.0)
+        deg_spin.setSuffix("°")
+        lay.addWidget(deg_spin)
+
+        # Slider for quick scrub
+        sl = QSlider(_Qt.Orientation.Horizontal)
+        sl.setRange(-180, 180); sl.setValue(0)
+        sl.valueChanged.connect(lambda v: deg_spin.setValue(float(v)))
+        deg_spin.valueChanged.connect(lambda v: sl.setValue(int(v)))
+        lay.addWidget(sl)
+
+        # Quick-angle preset buttons
+        preset_row = QHBoxLayout()
+        for label, angle in [("−90°", -90), ("−45°", -45), ("+45°", 45), ("+90°", 90), ("180°", 180)]:
+            b = QPushButton(label); b.setFixedHeight(26)
+            b.clicked.connect(lambda _=False, a=angle: deg_spin.setValue(float(a)))
+            preset_row.addWidget(b)
+        lay.addLayout(preset_row)
+
+        # Expand checkbox
+        from PyQt6.QtWidgets import QCheckBox
+        expand_cb = QCheckBox("Expand selection to fit rotated content")
+        expand_cb.setChecked(True)
+        lay.addWidget(expand_cb)
+
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                              QDialogButtonBox.StandardButton.Cancel)
+        lay.addWidget(bb)
+        bb.accepted.connect(dlg.accept)
+        bb.rejected.connect(dlg.reject)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        angle = deg_spin.value()
+        if angle == 0.0:
+            return
+
+        self._apply_selection_rotation(angle, expand=expand_cb.isChecked())
+
+    def _apply_selection_rotation(self, angle: float, expand: bool = True): #vers 1
+        """Rotate the selection buffer by angle degrees (CCW positive).
+        Updates _sel_buffer and re-floats the selection."""
+        c = self.dp5_canvas
+        if not c._sel_buffer or c._sel_buf_w <= 0:
+            return
+        try:
+            from PIL import Image
+            w, h = c._sel_buf_w, c._sel_buf_h
+            img = Image.frombytes('RGBA', (w, h), bytes(c._sel_buffer))
+            # PIL rotate: positive = CCW; we want CW for consistency with _rotate_90_cw
+            rotated = img.rotate(-angle, expand=expand,
+                                 resample=Image.Resampling.BILINEAR,
+                                 fillcolor=(0, 0, 0, 0))
+            nw, nh = rotated.size
+            c._sel_buffer = bytearray(rotated.tobytes())
+            c._sel_buf_w  = nw
+            c._sel_buf_h  = nh
+            # Float the selection at its original position
+            if c._selection_rect and not c._sel_floating:
+                ox = c._selection_rect.x() + (c._selection_rect.width()  - nw) // 2
+                oy = c._selection_rect.y() + (c._selection_rect.height() - nh) // 2
+                c._sel_float_pos = (max(0, ox), max(0, oy))
+            c._sel_floating = True
+            c._sel_active   = True
+            c._selection_rect = None   # float replaces rect
+            c.update()
+            self._set_status(f"Selection rotated {angle:+.1f}°  —  stamp with TOOL_MOVE or ✓")
+        except ImportError:
+            self._set_status("PIL (Pillow) not available — install with: pip install Pillow")
+        except Exception as e:
+            self._set_status(f"Rotate error: {e}")
+
 
     def _deselect(self): #vers 1
         if not self.dp5_canvas: return
@@ -7985,112 +8102,173 @@ class DP5Workshop(ColorPalPresetsMixin, QWidget):  # ToolMenuMixin-compatible
 
     # ── Zoom Lens ────────────────────────────────────────────────────────────────
 
-    def _open_zoom_lens(self): #vers 1
-        """Stay-on-top zoom lens window — shows a magnified view of the canvas
-        centred on the current cursor/scroll position. Updates live."""
-        if hasattr(self, '_zoom_lens') and self._zoom_lens and self._zoom_lens.isVisible():
-            self._zoom_lens.raise_()
+    def _open_zoom_lens(self): #vers 2
+        """Embedded overlay zoom lens — top-left corner of the canvas scroll area.
+        Never drops behind. Resizable by scroll wheel or +/- buttons when hovered.
+        Toggle: calling again hides/shows."""
+        # Toggle if already open
+        existing = getattr(self, '_zoom_lens', None)
+        if existing:
+            existing.setVisible(not existing.isVisible())
+            if existing.isVisible():
+                existing.raise_()
+                existing._refresh()
             return
-        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-                                      QLabel, QSlider, QSpinBox)
-        from PyQt6.QtCore import Qt, QTimer, QPoint
-        from PyQt6.QtGui import QImage, QPixmap
 
-        lens = QWidget(None)
-        lens.setWindowTitle("Zoom Lens")
-        lens.setWindowFlags(Qt.WindowType.Window |
-                            Qt.WindowType.WindowStaysOnTopHint |
-                            Qt.WindowType.Tool)
-        lens.resize(320, 340)
-        self._zoom_lens = lens
+        from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+        from PyQt6.QtCore import Qt, QTimer, QRect
+        from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
 
-        lo = QVBoxLayout(lens)
-        lo.setContentsMargins(4, 4, 4, 4)
-        lo.setSpacing(4)
+        # Parent = scroll area viewport so it stays inside and never goes behind
+        sa = getattr(self, '_canvas_scroll', None)
+        if not sa:
+            return
+        parent_vp = sa.viewport()
 
-        # Controls
-        ctrl = QHBoxLayout()
-        ctrl.addWidget(QLabel("Lens zoom:"))
-        mag_sl = QSlider(Qt.Orientation.Horizontal)
-        mag_sl.setRange(2, 32); mag_sl.setValue(8)
-        mag_sp = QSpinBox(); mag_sp.setRange(2, 32); mag_sp.setValue(8)
-        mag_sl.valueChanged.connect(mag_sp.setValue)
-        mag_sp.valueChanged.connect(mag_sl.setValue)
-        ctrl.addWidget(mag_sl, 1); ctrl.addWidget(mag_sp)
-        lo.addLayout(ctrl)
+        class _ZoomOverlay(QWidget):
+            """Overlay lens widget — parented to canvas viewport, top-left anchored."""
 
-        # Lens view
-        lbl = QLabel(); lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setMinimumSize(300, 300)
-        lbl.setStyleSheet("background:#111; border:1px solid #444;")
-        lo.addWidget(lbl, 1)
+            def __init__(self, workshop):
+                super().__init__(parent_vp)
+                self._ws   = workshop
+                self._mag  = [8]    # mutable magnification
+                self._sz   = [180]  # overlay pixel size (square)
+                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+                self.setMouseTracking(True)
+                self._hovered = False
+                self._drag_start = None
+                self._rebuild()
+                self._timer = QTimer(self)
+                self._timer.timeout.connect(self._refresh)
+                self._timer.start(80)
+                self._place()
 
-        info = QLabel("Move cursor over canvas")
-        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        info.setStyleSheet("font-size:9px; color:#888;")
-        lo.addWidget(info)
+            def _rebuild(self):
+                sz = self._sz[0]
+                self.setFixedSize(sz, sz + 22)   # +22 for header bar
 
-        def _refresh():
-            if not self.dp5_canvas or not lens.isVisible():
-                return
-            try:
-                canvas = self.dp5_canvas
-                z = self.dp5_canvas.zoom
-                mag = mag_sl.value()
+            def _place(self):
+                self.move(4, 4)
 
-                # Canvas pixel at cursor centre — use scroll area centre as fallback
-                if hasattr(self, '_canvas_scroll'):
-                    sa = self._canvas_scroll
-                    vp_cx = sa.viewport().width() // 2
-                    vp_cy = sa.viewport().height() // 2
-                    # Map to canvas pixel coords
-                    cx = (sa.horizontalScrollBar().value() + vp_cx) / max(1, z)
-                    cy = (sa.verticalScrollBar().value() + vp_cy) / max(1, z)
+            def _refresh(self):
+                if not self.isVisible(): return
+                ws = self._ws
+                canvas = getattr(ws, 'dp5_canvas', None)
+                if not canvas: return
+                try:
+                    mag = self._mag[0]
+                    z   = getattr(canvas, 'zoom', 1)
+                    sa2 = getattr(ws, '_canvas_scroll', None)
+                    if sa2:
+                        cx = int((sa2.horizontalScrollBar().value()
+                                  + sa2.viewport().width() // 2) / max(1, z))
+                        cy = int((sa2.verticalScrollBar().value()
+                                  + sa2.viewport().height() // 2) / max(1, z))
+                    else:
+                        cx, cy = canvas.tex_w // 2, canvas.tex_h // 2
+
+                    tw, th = canvas.tex_w, canvas.tex_h
+                    sz  = self._sz[0]
+                    lw  = max(1, sz // mag); lh = max(1, sz // mag)
+                    x0  = max(0, min(cx - lw // 2, tw - lw))
+                    y0  = max(0, min(cy - lh // 2, th - lh))
+                    x1, y1 = x0 + lw, y0 + lh
+
+                    rgba     = bytes(canvas.rgba)
+                    crop_w   = x1 - x0; crop_h = y1 - y0
+                    if crop_w <= 0 or crop_h <= 0: return
+
+                    cropped = bytearray(crop_h * crop_w * 4)
+                    for row in range(crop_h):
+                        s = ((y0 + row) * tw + x0) * 4
+                        d = row * crop_w * 4
+                        cropped[d:d + crop_w * 4] = rgba[s:s + crop_w * 4]
+
+                    qi = QImage(bytes(cropped), crop_w, crop_h,
+                                crop_w * 4, QImage.Format.Format_RGBA8888)
+                    self._pixmap = QPixmap.fromImage(qi).scaled(
+                        sz, sz,
+                        Qt.AspectRatioMode.IgnoreAspectRatio,
+                        Qt.TransformationMode.FastTransformation)
+                    self._info = f"{cx},{cy}  {mag}×"
+                    self.update()
+                except Exception:
+                    pass
+
+            def paintEvent(self, ev):
+                from PyQt6.QtGui import QPainter, QColor, QPen, QFont
+                p = QPainter(self)
+                sz = self._sz[0]
+                # Header bar
+                p.fillRect(0, 0, sz, 22, QColor(30, 30, 40, 220))
+                p.setPen(QColor(180, 180, 200))
+                f = QFont("Arial", 8); p.setFont(f)
+                info = getattr(self, '_info', 'Zoom Lens')
+                p.drawText(4, 15, f"🔍 {info}")
+                # +/- buttons hint
+                p.setPen(QColor(120, 120, 140))
+                p.drawText(sz - 36, 15, "+  -")
+                # Lens image
+                pm = getattr(self, '_pixmap', None)
+                if pm:
+                    p.drawPixmap(0, 22, pm)
                 else:
-                    cx, cy = canvas.tex_w // 2, canvas.tex_h // 2
+                    p.fillRect(0, 22, sz, sz, QColor(20, 20, 30))
+                # Border
+                p.setPen(QPen(QColor(80, 80, 120), 1))
+                p.drawRect(0, 0, sz - 1, sz + 22 - 1)
+                # Crosshair
+                mid = sz // 2
+                p.setPen(QPen(QColor(255, 80, 80, 160), 1))
+                p.drawLine(mid - 8, 22 + mid, mid + 8, 22 + mid)
+                p.drawLine(mid, 22 + mid - 8, mid, 22 + mid + 8)
 
-                cx, cy = int(cx), int(cy)
-                tw, th = canvas.tex_w, canvas.tex_h
+            def _change_mag(self, delta):
+                self._mag[0] = max(2, min(32, self._mag[0] + delta))
+                self._refresh()
 
-                # Lens viewport size in canvas pixels
-                lw, lh = lbl.width() // mag, lbl.height() // mag
-                lw = max(1, lw); lh = max(1, lh)
-                x0 = max(0, cx - lw // 2); y0 = max(0, cy - lh // 2)
-                x1 = min(tw, x0 + lw); y1 = min(th, y0 + lh)
-                x0 = max(0, x1 - lw); y0 = max(0, y1 - lh)
+            def _change_size(self, delta):
+                self._sz[0] = max(100, min(400, self._sz[0] + delta))
+                self._rebuild()
+                self.update()
 
-                # Grab pixel data from canvas rgba
-                rgba = bytes(canvas.rgba)
-                crop_w, crop_h = x1 - x0, y1 - y0
-                if crop_w <= 0 or crop_h <= 0:
-                    return
+            def wheelEvent(self, ev):
+                """Scroll to resize the overlay panel."""
+                delta = 1 if ev.angleDelta().y() > 0 else -1
+                self._change_size(delta * 20)
+                ev.accept()
 
-                # Build QImage from cropped region
-                row_bytes = tw * 4
-                cropped = bytearray(crop_h * crop_w * 4)
-                for row in range(crop_h):
-                    src_off = ((y0 + row) * tw + x0) * 4
-                    dst_off = row * crop_w * 4
-                    cropped[dst_off:dst_off + crop_w * 4] = rgba[src_off:src_off + crop_w * 4]
+            def mousePressEvent(self, ev):
+                sz = self._sz[0]
+                x, y = ev.position().x(), ev.position().y()
+                if y < 22:   # header — check +/- or start drag
+                    if x > sz - 36:
+                        if x > sz - 18:
+                            self._change_mag(-1)
+                        else:
+                            self._change_mag(1)
+                    else:
+                        self._drag_start = ev.globalPosition().toPoint() - self.pos()
+                ev.accept()
 
-                qi = QImage(bytes(cropped), crop_w, crop_h,
-                            crop_w * 4, QImage.Format.Format_RGBA8888)
-                pm = QPixmap.fromImage(qi).scaled(
-                    crop_w * mag, crop_h * mag,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.FastTransformation)
-                lbl.setPixmap(pm)
-                info.setText(f"Canvas ({cx},{cy})  |  {crop_w}×{crop_h} px  |  {mag}× mag")
-            except Exception as e:
-                info.setText(f"Error: {e}")
+            def mouseMoveEvent(self, ev):
+                if self._drag_start and ev.buttons() & Qt.MouseButton.LeftButton:
+                    new_pos = ev.globalPosition().toPoint() - self._drag_start
+                    # Clamp within parent
+                    pw = self.parent().width()  - self.width()
+                    ph = self.parent().height() - self.height()
+                    self.move(max(0, min(new_pos.x(), pw)),
+                              max(0, min(new_pos.y(), ph)))
+                ev.accept()
 
-        timer = QTimer(lens)
-        timer.timeout.connect(_refresh)
-        timer.start(100)   # 10 fps refresh
-        self._zoom_lens_timer = timer
+            def mouseReleaseEvent(self, ev):
+                self._drag_start = None
+                ev.accept()
 
-        lens.show()
-        _refresh()
+        overlay = _ZoomOverlay(self)
+        overlay.show()
+        overlay.raise_()
+        self._zoom_lens = overlay
 
     # ── Image tools (seamless, colour correction, snow, sharpen, blur) ─────────
 

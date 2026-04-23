@@ -1426,8 +1426,21 @@ class IMGFactory(QMainWindow):
             workshop.show()
             self._ensure_tab_area_visible()
 
-            # DP5 docked menu disabled — use DP5's own internal topbar menu
-            # (The _menu_bar_container inside DP5Workshop handles this)
+            # Inject DP5 submenus into IMG Factory standalone menu bar when docked
+            try:
+                from PyQt6.QtWidgets import QMenu
+                smb = getattr(self, '_standalone_menu_bar', None)
+                if smb and hasattr(workshop, '_build_menus_into_qmenu'):
+                    # Remove stale DP5 menu if re-opening
+                    for act in list(smb.actions()):
+                        if act.text() == 'DP5 Workshop':
+                            smb.removeAction(act)
+                            break
+                    dp5_top = QMenu('DP5 Workshop', smb)
+                    workshop._build_menus_into_qmenu(dp5_top)
+                    smb.addMenu(dp5_top)
+            except Exception as _me:
+                pass   # menu injection is best-effort; workshop still opens
 
             self.log_message("DP5 Workshop opened (docked)")
 
