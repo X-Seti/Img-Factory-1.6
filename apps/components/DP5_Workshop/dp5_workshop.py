@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 5 (Build 326)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 6 (Build 327)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3800,10 +3800,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if self.standalone_mode:
             toolbar.setVisible(True)
         else:
-            # Collapse toolbar completely when docked — setVisible alone leaves space
+            # Collapse full toolbar when docked — setVisible alone leaves space
             toolbar.setVisible(False)
             toolbar.setMaximumHeight(0)
         main_layout.addWidget(toolbar)
+
+        # Docked-mode compact action bar — New / Load / Save / Undo / Clear
+        # Shown only when docked so user can still access file operations.
+        self._docked_bar = self._create_docked_bar()
+        self._docked_bar.setVisible(not self.standalone_mode)
+        if self.standalone_mode:
+            self._docked_bar.setMaximumHeight(0)
+        main_layout.addWidget(self._docked_bar)
 
         # Internal menubar — standalone only.
         # When docked, menus are injected into imgfactory's top bar via
@@ -4028,7 +4036,58 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return self.toolbar
 
-    # ── Left panel: bitmap list ───────────────────────────────────────────────
+    # ── Docked compact action bar ────────────────────────────────────────────
+
+    def _create_docked_bar(self): #vers 1
+        """Compact New/Load/Save/Undo/Clear bar shown only when docked.
+        Gives access to essential file ops that the hidden standalone toolbar
+        and suppressed menubar would otherwise block.
+        """
+        from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy
+        from PyQt6.QtCore import QSize
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+
+        bar = QWidget()
+        bar.setFixedHeight(28)
+        bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        hl  = QHBoxLayout(bar)
+        hl.setContentsMargins(2, 1, 2, 1)
+        hl.setSpacing(2)
+
+        icon_color = '#cccccc'
+        if self.app_settings:
+            try:
+                colors = self.app_settings.get_theme_colors()
+                icon_color = colors.get('text_primary', '#cccccc')
+            except Exception:
+                pass
+
+        def _btn(label, tip, slot, icon_fn):
+            b = QPushButton(label)
+            b.setFixedHeight(24)
+            b.setToolTip(tip)
+            try:
+                b.setIcon(icon_fn(14, icon_color))
+                b.setIconSize(QSize(14, 14))
+            except Exception:
+                pass
+            b.clicked.connect(slot)
+            return b
+
+        hl.addWidget(_btn("New",   "New canvas",          self._new_canvas,     SVGIconFactory.new_icon))
+        hl.addWidget(_btn("Load",  "Load image",          self._show_load_menu, SVGIconFactory.open_icon))
+        hl.addWidget(_btn("Save",  "Save / export",       self._export_bitmap,  SVGIconFactory.save_icon))
+        hl.addWidget(_btn("Undo",  "Undo  (Ctrl+Z)",      self._undo_canvas,    SVGIconFactory.undo_icon))
+        hl.addWidget(_btn("Clear", "Clear canvas",        self._clear_canvas,   SVGIconFactory.new_icon))
+        hl.addStretch()
+
+        # IFF round-trip save (native DP5 format)
+        iff_btn = _btn("IFF", "Save as IFF ILBM (native DP5)", self._export_iff, SVGIconFactory.save_icon)
+        hl.addWidget(iff_btn)
+
+        return bar
+
+        # ── Left panel: bitmap list ───────────────────────────────────────────────
 
     def _create_left_panel(self): #vers 1
         panel = QFrame()
