@@ -558,17 +558,18 @@ class IMGFactory(QMainWindow):
                 self.menu_bar_system._create_tools_menu()
                 self.menu_bar_system.set_callbacks(callbacks)
             else:
-                # No inline bar (custom UI mode or gui_layout unavailable).
-                # Re-point menu_bar_system back to native bar and make it visible
-                # so menus are not lost — custom titlebar will show Menu button instead.
+                # No inline bar — custom UI mode. menu_bar_system.menu_bar stays
+                # pointed at the native bar (already suppressed in __init__).
+                # Repopulate it so actions exist for the Menu button popup,
+                # but keep it permanently hidden — never call setVisible(True) on it.
                 nb = self.menuBar()
                 self.menu_bar_system.menu_bar = nb
                 nb.clear()
                 self.menu_bar_system._create_menus()
                 self.menu_bar_system._create_tools_menu()
                 self.menu_bar_system.set_callbacks(callbacks)
-                nb.setVisible(False)   # custom titlebar Menu button is the entry point
-                nb.setMaximumHeight(0)
+                nb.setVisible(False)
+                nb.setFixedHeight(0)   # hard-clamp — _inject_tool_menu must not un-hide this
         except Exception as _me:
             import traceback; traceback.print_exc()
             print(f"Menu bar setup error: {_me}")

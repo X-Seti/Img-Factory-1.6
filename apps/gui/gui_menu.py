@@ -1,4 +1,4 @@
-#this belongs in gui/gui_menu.py - Version: 23
+#this belongs in gui/gui_menu.py - Version: 24
 from apps.app_info import App_name, App_build, App_auth
 # X-Seti - August14 2025 - IMG Factory 1.5
 
@@ -704,10 +704,12 @@ class IMGFactoryMenuBar:
         """Disabled — DP5 docked menu removed. DP5 uses its own internal topbar."""
         pass
 
-    def _inject_tool_menu(self, workshop, restore_menubar: bool = True): #vers 1
+    def _inject_tool_menu(self, workshop, restore_menubar: bool = True): #vers 2
         """Inject a docked tool's menus into the imgfactory menu bar.
         Removes any previously injected tool menu first.
         Works for any tool implementing ToolMenuMixin.
+        In custom UI mode the menu_bar is the hidden native bar — never show it.
+        The Menu button popup is the entry point in custom mode.
         """
         self._remove_tool_menu()
 
@@ -719,14 +721,14 @@ class IMGFactoryMenuBar:
         if hasattr(workshop, '_build_menus_into_qmenu'):
             workshop._build_menus_into_qmenu(tool_menu)
 
-        # Ensure host menubar visible in custom UI mode
+        # In system UI mode only — ensure the inline menu bar stays visible.
+        # Custom UI mode uses the Menu button popup; never un-hide the native bar.
         mw = self.main_window
         ui_mode = getattr(getattr(mw, 'img_settings', None), 'get',
                           lambda k, d=None: d)('ui_mode', 'system')
-        if ui_mode == 'custom':
+        if ui_mode != 'custom':
             self.menu_bar.setMaximumHeight(16777215)
             self.menu_bar.setVisible(True)
-            mw._dp5_showed_menubar = True
 
         return tool_menu
 
