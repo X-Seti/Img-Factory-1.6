@@ -1,4 +1,4 @@
-#this belongs in methods/imgfactory_ui_settings.py - Version: 4
+#this belongs in methods/imgfactory_ui_settings.py - Version: 5
 # X-Seti - February04 2026 - IMG Factory 1.6 - IMG Factory Settings Dialog
 
 """
@@ -16,6 +16,8 @@ from PyQt6.QtGui import QFont
 from apps.methods.img_factory_settings import IMGFactorySettings
 
 ##Methods list -
+# apply_compact_buttons
+# get_collapse_threshold
 # show_imgfactory_settings_dialog
 
 ##Classes -
@@ -995,3 +997,33 @@ def show_imgfactory_settings_dialog(main_window): #vers 2
             "Error",
             f"Failed to open IMG Factory Settings: {str(e)}"
         )
+
+
+def apply_compact_buttons(buttons_meta: list, available_width: int,
+                           compact_threshold: int = 260): #vers 1
+    """Global adaptive button helper — icon-only when width < compact_threshold.
+    buttons_meta: list of (widget, full_label) tuples.
+    compact_threshold: pixel width below which text is hidden (default 260).
+    Called from resizeEvent or splitter moves in any workshop."""
+    compact = available_width < compact_threshold
+    for btn, label in buttons_meta:
+        if btn is None:
+            continue
+        btn.setText("" if compact else label)
+        btn.setMinimumWidth(26 if compact else 52)
+        btn.setMaximumWidth(26 if compact else 16777215)
+
+
+def apply_compact_buttons(buttons_meta: list, available_width: int,
+                           compact_threshold: int = 260): #vers 1
+    """Global adaptive button helper — icon-only when width < compact_threshold.
+    buttons_meta: list of (widget, full_label) tuples.
+    compact_threshold: pixel width below which text is hidden (default 260).
+    Called from resizeEvent or splitter moves in any workshop."""
+    compact = available_width < compact_threshold
+    for btn, label in buttons_meta:
+        if btn is None:
+            continue
+        btn.setText("" if compact else label)
+        btn.setMinimumWidth(26 if compact else 52)
+        btn.setMaximumWidth(26 if compact else 16777215)

@@ -2295,7 +2295,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 pix_lbl.enterEvent = _enter
                 pix_lbl.leaveEvent = _leave
             slot_lay.addWidget(pix_lbl, 0, _Qt.AlignmentFlag.AlignCenter)
-            border = '#16a34a' if in_cache else ('#555' if not tname else '#dc2626')
+            border = 'palette(link)' if in_cache else ('palette(mid)' if not tname else 'palette(placeholderText)')
             name_short = (tname[:12]+'…') if len(tname)>12 else (tname or '(none)')
             name_lbl = QLabel(name_short)
             name_lbl.setFont(QFont("Arial", 7))
@@ -4997,28 +4997,34 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             from PyQt6.QtCore import QTimer as _QT2
             _QT2.singleShot(500, self._load_mod_toolbar_layouts)
 
-    def resizeEvent(self, event): #vers 4
-        """Keep resize grip in corner; auto-collapse panels when narrow."""
+    def resizeEvent(self, event): #vers 5
+        """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
         self._update_tex_btn_compact()
+        # Auto icon-only for middle button row when window is narrow
+        try:
+            from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+            mid_btns = getattr(self, '_mid_compact_btns', [])
+            if mid_btns:
+                apply_compact_buttons(mid_btns, self.width(), compact_threshold=520)
+        except Exception:
+            pass
 
-    def _update_tex_btn_compact(self): #vers 1
-        """Show/hide label text on texture panel buttons based on available width.
-        Threshold: if panel width < 260px → icon-only (28px buttons).
-        Otherwise → icon + label (min 72px)."""
+    def _update_tex_btn_compact(self): #vers 2
+        """Icon-only when texture panel is narrow — delegates to shared helper."""
         panel = getattr(self, '_tex_panel', None)
         if not panel or not panel.isVisible():
             return
-        compact = panel.width() < 260
-        for attr, label, _ in getattr(self, '_tex_btns_meta', []):
-            b = getattr(self, attr, None)
-            if b is None:
-                continue
-            b.setText("" if compact else label)
-            b.setMinimumWidth(28 if compact else 64)
+        try:
+            from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+            meta = [(getattr(self, attr, None), label)
+                    for attr, label, _ in getattr(self, '_tex_btns_meta', [])]
+            apply_compact_buttons(meta, panel.width())
+        except Exception:
+            pass
 
 
     def mouseDoubleClickEvent(self, event): #vers 2
@@ -6838,6 +6844,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
         self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
+        # Register for adaptive compact display
+        self._mid_compact_btns = [
+            (getattr(self, 'open_col_btn',  None), "Open"),
+            (getattr(self, 'save_col_btn',  None), "Save"),
+            (getattr(self, 'import_btn',    None), "Import"),
+            (getattr(self, 'export_col_btn',None), "Export"),
+            (getattr(self, 'undo_col_btn',  None), "Undo"),
+        ]
 
         # - Model table (detail view)
         self.collision_list = QTableWidget()
@@ -9073,9 +9087,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             img_lbl.setCursor(
                 __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.CursorShape.PointingHandCursor)
             # Cache indicator border
-            border_col = '#16a34a' if in_cache else '#888'
+            border_col = 'palette(link)' if in_cache else 'palette(mid)'
             img_lbl.setStyleSheet(
-                f"border: 2px solid {border_col}; background: #282830;")
+                f"border: 2px solid {border_col}; background: palette(base);")
             img_lbl.setToolTip(
                 f"{name}\n{w}×{h}  {fmt}\n"
                 f"{'✓ in texture cache' if in_cache else '✗ not in cache'}\n"
@@ -12774,7 +12788,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     background: #0a0a0a;
                     border: 2px solid #3a3a3a;
                     border-radius: 3px;
-                    color: #888;
+                    color: palette(placeholderText);
                 }
             """)
             preview.setText("Preview Area\n\nSelect a collision model to preview")

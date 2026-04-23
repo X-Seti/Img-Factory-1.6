@@ -1512,6 +1512,8 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         self.undo_stack = []
         self.button_display_mode = 'both'
+        self.icon_display_mode = 'icons_and_text'  # 'icons_and_text'|'icons_only'|'text_only'
+        self._col_compact_btns = []   # list of (widget, full_label) for adaptive display
         self.last_save_directory = None
         # Thumbnail spin animation state
         self._spin_timer  = None
@@ -3867,6 +3869,40 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
 
+    def _set_icon_display_mode(self, mode: str): #vers 1
+        """Set icon display mode: 'icons_and_text' | 'icons_only' | 'text_only'.
+        Persists to img_settings and immediately updates all compact-aware buttons."""
+        self.icon_display_mode = mode
+        try:
+            if self.main_window and hasattr(self.main_window, 'img_settings'):
+                self.main_window.img_settings.set('col_icon_display_mode', mode)
+        except Exception:
+            pass
+        self._apply_col_btn_display()
+
+    def _apply_col_btn_display(self): #vers 1
+        """Apply current icon_display_mode to all compact-aware toolbar buttons."""
+        mode = getattr(self, 'icon_display_mode', 'icons_and_text')
+        icon_only = (mode == 'icons_only')
+        text_only = (mode == 'text_only')
+        for btn, label in getattr(self, '_col_compact_btns', []):
+            if btn is None:
+                continue
+            if icon_only:
+                btn.setText("")
+                btn.setMinimumWidth(26)
+                btn.setMaximumWidth(40)
+            elif text_only:
+                btn.setText(label)
+                btn.setIcon(type(btn)().icon())   # clear icon
+                btn.setMinimumWidth(52)
+                btn.setMaximumWidth(16777215)
+            else:   # icons_and_text
+                btn.setText(label)
+                btn.setMinimumWidth(52)
+                btn.setMaximumWidth(16777215)
+
+
     def _on_splitter_moved(self, pos, index): #vers 1
         """Called when main splitter is dragged — update text panel visibility."""
         self._update_transform_text_panel_visibility()
@@ -3889,12 +3925,21 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             if btr: btr.setVisible(wide)
             if bir: bir.setVisible(not wide)
 
-    def resizeEvent(self, event): #vers 3
-        """Keep resize grip in corner; auto-collapse text transform panel when narrow."""
+    def resizeEvent(self, event): #vers 4
+        """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
+        # Auto icon-only when window is narrow (overrides saved mode only if narrower)
+        try:
+            from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+            apply_compact_buttons(
+                getattr(self, '_col_compact_btns', []),
+                self.width(),
+                compact_threshold=480)
+        except Exception:
+            pass
 
 
     def mouseDoubleClickEvent(self, event): #vers 2
@@ -4065,6 +4110,25 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.undo_btn.setEnabled(True)
         self.undo_btn.setToolTip("Undo last change")
         layout.addWidget(self.undo_btn)
+
+        # Register compact-aware buttons (adaptive icon/text display)
+        self._col_compact_btns = [
+            (getattr(self, 'settings_btn',    None), "Settings"),
+            (getattr(self, 'open_btn',        None), "Open"),
+            (getattr(self, 'save_btn',        None), "Save"),
+            (getattr(self, 'export_all_btn',  None), "Extract"),
+            (getattr(self, 'undo_btn',        None), "Undo"),
+            (getattr(self, 'open_img_btn',    None), "OpenIMG"),
+            (getattr(self, 'from_img_btn',    None), "From IMG"),
+        ]
+        # Restore saved mode
+        try:
+            if self.main_window and hasattr(self.main_window, 'img_settings'):
+                saved = self.main_window.img_settings.get('col_icon_display_mode', 'icons_and_text')
+                self.icon_display_mode = saved
+                self._apply_col_btn_display()
+        except Exception:
+            pass
 
         # Info button
         self.info_btn = QPushButton("")
@@ -4838,7 +4902,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.info_name.setText("Click to edit...")
         self.info_name.setFont(self.panel_font)
         self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: px; border: 1px solid #3a3a3a;")
+        self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
         #self.info_name.returnPressed.connect(self._save_surface_name)
         #self.info_name.editingFinished.connect(self._save_surface_name)
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
@@ -4953,12 +5017,12 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         bar.setObjectName("paint_bar")
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar.setStyleSheet(
-            "QWidget#paint_bar { background:#1a1a2e; border-bottom:2px solid #ff8c00; }"
+            "QWidget#paint_bar { background:palette(base); border-bottom:2px solid palette(highlight); }"
             "QLabel  { color:#ddd; background:transparent; }"
-            "QComboBox { background:#252535; color:#eee; border:1px solid #555; }"
-            "QPushButton { background:#252535; color:#eee; border:1px solid #555; border-radius:3px; }"
+            "QComboBox { background:palette(base); color:palette(text); border:1px solid palette(mid); }"
+            "QPushButton { background:palette(button); color:palette(buttonText); border:1px solid palette(mid); border-radius:3px; }"
             "QPushButton:hover   { background:#353548; }"
-            "QPushButton:checked { background:#ff8c00; color:#000; border:1px solid #ff8c00; }"
+            "QPushButton:checked { background:palette(highlight); color:palette(highlightedText); border:1px solid palette(highlight); }"
         )
         bar.setFixedHeight(34)
 
@@ -5020,7 +5084,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.paint_exit_btn.setFixedSize(28, 28)
         self.paint_exit_btn.setToolTip("Exit paint mode")
         self.paint_exit_btn.setStyleSheet(
-            "color:#ff6b35; font-weight:bold; background:#252535; border:1px solid #555; border-radius:3px;")
+            "color:palette(highlight); font-weight:bold; background:palette(base); border:1px solid palette(mid); border-radius:3px;")
         self.paint_exit_btn.clicked.connect(self._exit_paint_mode)
         lay.addWidget(self.paint_exit_btn)
 
@@ -5244,7 +5308,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Set checkerboard background"""
         # Create checkerboard pattern
         self.preview_widget.setStyleSheet("""
-            border: 1px solid #3a3a3a;
+            border: 1px solid palette(mid);
             background-image:
                 linear-gradient(45deg, #333 25%, transparent 25%),
                 linear-gradient(-45deg, #333 25%, transparent 25%),
@@ -5262,7 +5326,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         card.setStyleSheet("""
             QFrame {
                 background: #1e1e1e;
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 5px;
             }
             QFrame:hover {
@@ -5310,7 +5374,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview.setStyleSheet("""
             QLabel {
                 background: #0a0a0a;
-                border: 2px solid #3a3a3a;
+                border: 2px solid palette(mid);
                 border-radius: 3px;
             }
         """)
@@ -5486,7 +5550,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             edit_btn = QPushButton("Edit")
             edit_btn.setStyleSheet("""
                 QPushButton {
-                    background: #3a3a3a;
+                    background: palette(mid);
                     border: 1px solid #4a4a4a;
                     color: white;
                     padding: 6px 12px;
@@ -8256,7 +8320,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             preview.setStyleSheet("""
                 QLabel {
                     background: #0a0a0a;
-                    border: 2px solid #3a3a3a;
+                    border: 2px solid palette(mid);
                     border-radius: 3px;
                     color: #888;
                 }
@@ -8808,8 +8872,8 @@ class ZoomablePreview(QLabel): #vers 2
         self.main_window = parent
         self.setMinimumSize(400, 400)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        #self.setStyleSheet("border: 2px solid #3a3a3a; background: #0a0a0a;")
-        self.setStyleSheet("border: 1px solid #3a3a3a;")
+        #self.setStyleSheet("border: 2px solid palette(mid); background: #0a0a0a;")
+        self.setStyleSheet("border: 1px solid palette(mid);")
         self.setMouseTracking(True)
 
         # Display state
@@ -9347,7 +9411,7 @@ class COLEditorDialog(QDialog): #vers 3
         controls_widget.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
         controls_widget.setStyleSheet("""
             QFrame {
-                background-color: #3a3a3a;
+                background-color: palette(mid);
                 border: 1px solid #555555;
                 border-radius: 3px;
                 padding: 3px;
