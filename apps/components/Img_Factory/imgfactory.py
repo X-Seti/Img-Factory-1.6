@@ -2624,7 +2624,7 @@ class IMGFactory(QMainWindow):
             if hasattr(self.gui_layout, btn_name):
                 button = getattr(self.gui_layout, btn_name)
                 if hasattr(button, 'setEnabled'):
-                    # Enable for IMG files with selection, open edit for COL and TXD - TODO
+                    # STUB: enable for IMG files with selection, open edit for COL and TXD
                     button.setEnabled(has_selection and has_img and has_col and has_txd)
 
         # These buttons only need an IMG (no selection required) - DISABLE for COL and TXD
@@ -2641,7 +2641,7 @@ class IMGFactory(QMainWindow):
                     if btn_name == 'rebuild_btn':
                         button.setEnabled(has_img and not has_col and not has_txd)
                     else:
-                        # Import/Close/Validate work for IMG or COL, but open TXD - TODO
+                        # STUB: Import/Close/Validate for IMG or COL; TXD open pending
                         button.setEnabled((has_img or has_col) and has_txd)
 
 
@@ -3906,7 +3906,7 @@ class IMGFactory(QMainWindow):
           2. .col entries inside the IMG itself (GTA3/VC/SA world props)
           3. models/coll/ sub-models (SA/SOL vehicles, peds, weapons)
 
-        The interleaved paired-row table view is TODO — currently logs pairing
+        The interleaved paired-row table view is STUB — currently logs pairing
         summary and loads the IMG normally, storing pairs on the tab.
         """
         try:

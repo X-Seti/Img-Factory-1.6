@@ -12,7 +12,7 @@
 # STATUS: Struct layout confirmed from RenderWare spec and community research.
 #         Pixel decode (palette unswizzle, GS_PSM decode) NOT yet confirmed
 #         from binary analysis of real PS2 TXD files in this project.
-#         Current implementation reads raw mip bytes only — decode is a TODO.
+#         Current implementation reads raw mip bytes only — STUB: full decode pending
 
 """
 PS2 TXD Platform Parser
@@ -285,7 +285,7 @@ def parse_ps2_nativetex(txd_data: bytes, chunk_offset: int,
         # SA adds skyMipMapValue u32 here — skip if present
         # (detected by rw_version >= 0x1803FFFF in caller)
         # For now, advance past it always to avoid corruption
-        # TODO: make this conditional on rw_version passed in
+        # STUB: make swizzle conditional on rw_version parameter
         pos += 4
 
         fmt, has_alpha = _ps2_raster_format(raster_flags, pal_fmt)

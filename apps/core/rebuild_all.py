@@ -515,7 +515,7 @@ def _validate_batch_targets(targets: List[Dict], main_window) -> List[Dict]:
 
             # For folder-based targets, need to load and validate
             elif target['file_path'] and os.path.exists(target['file_path']):
-                # TODO: Load IMG file for validation
+                # STUB: load IMG for validation after rebuild
                 # For now, assume valid if file exists
                 valid_targets.append(target)
 

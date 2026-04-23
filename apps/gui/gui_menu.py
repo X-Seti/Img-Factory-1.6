@@ -27,7 +27,7 @@ except ImportError:
 from .panel_manager import PanelManager
 from apps.methods.img_factory_settings import IMGFactorySettings
 
-#TODO - Menus need SVG icons.
+# STUB: menu SVG icons — add via icon_factory.X_icon() per menu item
 
 class MenuAction:
     """Represents a menu action with properties"""
@@ -478,7 +478,7 @@ class IMGFactoryMenuBar:
                     if menu_action.shortcut:
                         action.setShortcut(QKeySequence(menu_action.shortcut))
 
-                    # Set icon if specified - using SVG icons TODO - add get_move_icon
+                    # Set icon if specified - using SVG icons; move_icon pending in SVGIconFactory
                     if menu_action.icon:
                         try:
                             # Import the appropriate SVG icon based on the icon string
@@ -984,7 +984,7 @@ class IMGFactoryMenuBar:
             print(f"_apply_gui_changes error: {str(e)}")
 
 
-    def _setup_default_callbacks(self): # TODO - ._move_selected_entries, up or down the file list.
+    def _setup_default_callbacks(self): # STUB: _move_selected_entries callback not yet wired
         """Set up default menu callbacks"""
         default_callbacks = {
             # File menu
@@ -2309,11 +2309,11 @@ class IMGFactoryMenuBar:
         batch_process_action.triggered.connect(lambda: open_col_batch_processor(img_factory_instance))
         col_menu.addAction(batch_process_action)
 
-        analyze_action = QAction("Analyze DFF", img_factory_instance) # TODO finish function
+        analyze_action = QAction("Analyze DFF", img_factory_instance) # STUB: analysis not yet implemented
         analyze_action.triggered.connect(lambda: analyze_dff_file_dialog(img_factory_instance))
         dff_menu.addAction(analyze_action)
 
-        analyze_action = QAction("Analyze TXD", img_factory_instance) # TODO finish function
+        analyze_action = QAction("Analyze TXD", img_factory_instance) # STUB: analysis not yet implemented
         analyze_action.triggered.connect(lambda: analyze_txd_file_dialog(img_factory_instance))
         txd_menu.addAction(analyze_action)
 
@@ -2322,7 +2322,7 @@ class IMGFactoryMenuBar:
         col_menu.addAction(analyze_action)
 
         # Analyze file action
-        analyze_action = QAction("Analyze File", img_factory_instance) # TODO finish function
+        analyze_action = QAction("Analyze File", img_factory_instance) # STUB: analysis not yet implemented
         if row is not None and entry_info:
             analyze_action.triggered.connect(lambda: analyze_file(main_window, row, entry_info))
         else:

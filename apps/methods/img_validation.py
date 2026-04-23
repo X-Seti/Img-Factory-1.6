@@ -181,7 +181,7 @@ class IMGValidator:
             result.add_error("Unknown IMG version")
             return
 
-        # Version 1 specific validation TODO, need to seprate SOL imgs version 1,5
+        # STUB: separate SOL img validation for version 1 vs 1.5
         if version == IMGVersion.VERSION_1:
             dir_path = img_file.file_path.replace('.img', '.dir')
             if not os.path.exists(dir_path):

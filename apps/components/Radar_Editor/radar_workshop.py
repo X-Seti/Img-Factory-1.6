@@ -1856,7 +1856,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         self._tile_list.customContextMenuRequested.connect(self._on_tile_list_context)
         self._tile_list.itemDoubleClicked.connect(lambda item: self._edit_tile_popup(item.idx))
         vl.addWidget(self._tile_list, 1)
-        # TODO add bitdepth after tile size
+        # STUB: add bitdepth column after tile size
         self._dirty_lbl = QLabel("Modified: 0")
         self._dirty_lbl.setFont(self.infobar_font)
         vl.addWidget(self._dirty_lbl)
@@ -4085,7 +4085,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             t = QTextEdit(); t.setReadOnly(True); t.setHtml(html); return t
 
         # ── Quick Start ────────────────────────────────────────────────────────
-        # App_name App_build App_auth Build = TODO - add auther info above Quickstart
+        # STUB: add App_name/App_build/App_auth above Quickstart section
         quickstart = """<p style="font-size:11px; color:#888; margin-bottom:8px;">
 <b>{}</b> &nbsp;·&nbsp; {}&nbsp;·&nbsp; {}&nbsp;·&nbsp; {}
 </p>

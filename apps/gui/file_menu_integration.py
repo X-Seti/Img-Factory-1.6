@@ -721,7 +721,7 @@ def validate_game_root_folder(folder_path: str, main_window=None) -> dict: #vers
         return None
 
 
-def detect_gta_installations_with_info() -> list: #vers 2 -  # TODO - add custom game paths, not just windows / linux path names like.
+def detect_gta_installations_with_info() -> list: #vers 2 -  # STUB: add custom game path detection beyond default Windows/Linux paths
     """Detect GTA installations and return path + detailed info"""
     installations = []
     
@@ -763,7 +763,7 @@ def detect_gta_installations_with_info() -> list: #vers 2 -  # TODO - add custom
     return installations
 
 
-def detect_gta_installations() -> list: #vers 3 # TODO - add custom game paths, not just windows / linux path names like.
+def detect_gta_installations() -> list: #vers 3 # STUB: add custom game path detection beyond default Windows/Linux paths
     """Detect GTA installations on system using EXE + DAT validation"""
     potential_paths = []
     

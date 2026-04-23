@@ -4082,7 +4082,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         menu.addSeparator()
 
-        # Icon display mode submenu # TODO icon only system is missing.
+        # Icon display mode submenu — auto-compact handled by resizeEvent
         display_menu = menu.addMenu("Platform Display")
 
         icons_text_action = display_menu.addAction("Icons & Text")
@@ -4196,7 +4196,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             return colors.get('text_primary', '#000000')
         return '#000000'
 
-    # TODO: Not all icons update on theme change yet.
+    # STUB: dock_btn/tearoff_btn icons do not yet update on theme change
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
     # labels/combos, and any icons created via _svg_to_icon() rather than
     # icon_factory. Address in a future pass.
@@ -5522,7 +5522,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview_label.setStyleSheet("border: 1px solid #3a3a3a; background: #2a2a2a;")
 
         if has_bumpmap:
-            # TODO: Display actual bumpmap preview
+            # STUB: bumpmap preview not yet implemented
             preview_label.setText("Bumpmap data present\n(Preview coming soon)")
         else:
             preview_label.setText("No bumpmap data")
@@ -9041,7 +9041,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             )
 
             if ok and format_choice:
-                # TODO: Implement actual format conversion logic
+                # STUB: format conversion not yet implemented
                 QMessageBox.information(
                     self,
                     "Format Conversion",
@@ -12355,7 +12355,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
     # ── TXD method aliases and stubs (Build 131) ─────────────────────
     def _export_all_textures(self, *a, **kw): return self.export_all_textures(*a, **kw)
     def _export_selected_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)
-    def _open_txd_file(self, *a, **kw): pass  # TODO: _open_file
+    def _open_txd_file(self, *a, **kw): pass  # STUB: delegate to _open_file
     def copy_texture(self, *a, **kw): return self._copy_texture(*a, **kw)
     def delete_texture(self, *a, **kw): return self._delete_texture(*a, **kw)
     def duplicate_texture(self, *a, **kw): return self._duplicate_texture(*a, **kw)
@@ -12555,7 +12555,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         dlg.exec()
 
 
-    def flip_texture(self): #vers 2 - TODO - to be rmeoved.
+    def flip_texture(self): #vers 2  # deprecated, pending removal
         """Flip between normal and alpha channel view (only if alpha exists)"""
         if not self.selected_texture:
             QMessageBox.warning(self, "No Selection", "Please select a texture first")
@@ -14265,7 +14265,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             return
 
         # Check if modified
-        # TODO: Check modification state
+        # STUB: check modification state before close
 
         self.txd_tabs.removeTab(index)
 
@@ -14275,7 +14275,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         if index < 0:
             return
 
-        # TODO: Load texture list for this tab
+        # STUB: load texture list for this tab
         tab_name = self.txd_tabs.tabText(index)
 
         if self.main_window and hasattr(self.main_window, 'log_message'):
@@ -15063,7 +15063,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message("Hotkeys updated")
 
-        # TODO: Save to config file for persistence
+        # STUB: save hotkeys to config
 
         if close:
             dialog.accept()

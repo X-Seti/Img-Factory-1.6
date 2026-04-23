@@ -682,5 +682,5 @@ __all__ = [
     'rename_img_entry',
     'rename_col_model',
     'integrate_rename_functions'
-    #'rename_txd_texture' TODO
+    # STUB: rename_txd_texture not yet implemented
 ]

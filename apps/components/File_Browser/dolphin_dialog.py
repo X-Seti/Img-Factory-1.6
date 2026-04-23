@@ -1086,7 +1086,7 @@ class DolphinFileDialog(QDialog): #vers 1
 
     def _change_view_mode(self, index): #vers 1
         """Change view mode (Details/Icons/List)"""
-        # TODO: Implement different view modes
+        # STUB: additional view modes (list/compact) not yet implemented
         # For now, only details view is implemented
         pass
 

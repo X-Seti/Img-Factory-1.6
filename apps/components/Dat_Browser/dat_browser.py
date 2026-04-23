@@ -2427,7 +2427,7 @@ class DATBrowserWidget(QWidget): #vers 2
                             if entry.name.lower() == txd_file:
                                 if mw and hasattr(mw, 'open_txd_workshop_docked'):
                                     mw.open_txd_workshop_docked(file_path=path)
-                                    # TODO: auto-select the txd entry once workshop opens
+                                    # STUB: auto-select TXD entry after workshop open
                                     return
                     except Exception:
                         continue

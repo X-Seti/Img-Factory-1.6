@@ -185,7 +185,7 @@ def _open_scm_workshop_from_gui(main_window):
         main_window.log_message(f"SCM Workshop error: {e}")
 
 
-def edit_col_file(main_window): #vers 4 # TODO; DFF file launcher
+def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
     """Open COL Workshop.
 
     Priority 1: dir tree .col selection  → open that file directly.
@@ -430,7 +430,7 @@ class IMGFactoryGUILayout:
             'toggle_dir_tree': lambda: getattr(self.main_window, 'toggle_dir_tree',    lambda: None)(),
             'move_entry_down': lambda: getattr(self.main_window, '_move_entries_down', lambda: None)(),
 
-            # Removed, TODO need to choose the ide file, to sort with.
+            # STUB: IDE file chooser for sort not yet implemented
             #'sort_entries_to_match_ide': lambda: self.sort_entries_to_match_ide(),
             'pin_selected_entries': lambda: self.pin_selected_entries(),
 
@@ -654,7 +654,7 @@ class IMGFactoryGUILayout:
     def _get_nav_buttons_data(self): #vers 1
         """Get IMG buttons data with theme colors"""
         colors = self._get_button_theme_template()
-            # TODO Only show on gui_layout.py but hidden on gui_layout_custom.py
+            # STUB: hide this on gui_layout_custom.py
         return [
             ("File List", "filelist", "doc-filelist", colors['filelistwindow'], "switch_to_img_file"),
             ("Merge View", "dirtree", "doc-dirtree", colors['dirtree'], "switch_to_dirlist"),

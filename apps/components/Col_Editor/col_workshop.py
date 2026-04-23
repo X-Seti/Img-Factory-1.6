@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components.Col_Editor.col_workshop.py - Version: 74
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 75
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -1266,6 +1266,108 @@ VIEWPORT_AVAILABLE = True
 App_name = "Col Workshop"
 DEBUG_STANDALONE = False
 
+##Methods list -
+# COL3DViewport._apply_to_all_faces
+# COL3DViewport._apply_to_selected_faces
+# COL3DViewport._cycle_render_style
+# COL3DViewport._find_workshop
+# COL3DViewport._get_scale_origin
+# COL3DViewport._gizmo_arm
+# COL3DViewport._gizmo_centre
+# COL3DViewport._hit_gizmo
+# COL3DViewport._pick_face
+# COL3DViewport._proj
+# COL3DViewport._set_angles
+# COL3DViewport._set_gizmo
+# COL3DViewport._set_theme_bg
+# COL3DViewport._show_face_context_menu
+# COL3DViewport._to_screen
+# COL3DViewport.contextMenuEvent
+# COL3DViewport.fit_to_window
+# COL3DViewport.flip_horizontal
+# COL3DViewport.flip_vertical
+# COL3DViewport.keyPressEvent
+# COL3DViewport.mouseMoveEvent
+# COL3DViewport.mousePressEvent
+# COL3DViewport.mouseReleaseEvent
+# COL3DViewport.paintEvent
+# COL3DViewport.pan
+# COL3DViewport.reset_view
+# COL3DViewport.resizeEvent
+# COL3DViewport.rotate_ccw
+# COL3DViewport.rotate_cw
+# COL3DViewport.set_backface
+# COL3DViewport.set_background_color
+# COL3DViewport.set_current_file
+# COL3DViewport.set_current_model
+# COL3DViewport.set_paint_mode
+# COL3DViewport.set_render_style
+# COL3DViewport.set_show_boxes
+# COL3DViewport.set_show_mesh
+# COL3DViewport.set_show_spheres
+# COL3DViewport.set_view_options
+# COL3DViewport.toggle_gizmo_mode
+# COL3DViewport.wheelEvent
+# COL3DViewport.zoom_in
+# COL3DViewport.zoom_out
+# COLEditorDialog._add_import_export_functionality
+# COLEditorDialog._create_viewport_controls
+# COLEditorDialog._import_col_data
+# COLEditorDialog._set_camera_view
+# COLEditorDialog._svg_to_icon
+# COLEditorDialog.analyze_file
+# COLEditorDialog.closeEvent
+# COLEditorDialog.connect_signals
+# COLEditorDialog.load_col_file
+# COLEditorDialog.on_model_selected
+# COLEditorDialog.on_property_changed
+# COLEditorDialog.open_file
+# COLEditorDialog.save_file
+# COLEditorDialog.save_file_as
+# COLEditorDialog.setup_ui
+# COLModelListWidget.on_selection_changed
+# COLModelListWidget.populate_models
+# COLModelListWidget.show_context_menu
+# COLWorkshop._analyze_collision
+# COLWorkshop._apply_always_on_top
+# COLWorkshop._apply_button_font
+# COLWorkshop._apply_button_mode
+# COLWorkshop._apply_fonts_to_widgets
+# COLWorkshop._apply_hotkey_settings
+# COLWorkshop._apply_infobar_font
+# COLWorkshop._apply_panel_font
+# COLWorkshop._apply_settings
+# COLWorkshop._apply_theme
+# COLWorkshop._apply_title_font
+# COLWorkshop._apply_to_selected_faces_paint
+# COLWorkshop._apply_window_flags
+# COLWorkshop._build_col_from_txd
+# COLWorkshop._build_menus_into_qmenu
+# COLWorkshop._change_format
+# COLWorkshop._close_col_tab
+# COLWorkshop._col_place_ctrl_grid
+# COLWorkshop._col_place_icon_grid
+# COLWorkshop._compress_col
+# COLWorkshop._compress_surface
+# COLWorkshop._connect_all_buttons
+# COLWorkshop._convert_surface
+# COLWorkshop._copy_model_info
+# COLWorkshop._copy_model_to_clipboard
+# COLWorkshop._copy_surface
+# COLWorkshop._copy_text_to_clipboard
+# COLWorkshop._create_action_section
+# COLWorkshop._create_info_section
+# COLWorkshop._create_left_panel
+# COLWorkshop._create_level_card
+# COLWorkshop._create_middle_panel
+# COLWorkshop._create_new_model
+# COLWorkshop._create_new_surface
+# COLWorkshop._create_paint_bar
+# COLWorkshop._create_preview_controls
+# COLWorkshop._create_preview_widget
+# COLWorkshop._create_right_panel
+# COLWorkshop._create_shadow_mesh
+
 # Import AppSettings
 try:
     from apps.utils.app_settings_system import AppSettings, SettingsDialog
@@ -1779,7 +1881,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             except: pass
             btn.clicked.connect(self._exit_paint_mode)
             btn.setText("[ ] Exit Paint")
-            btn.setStyleSheet("color:#ff6b35; font-weight:bold;")
+            btn.setStyleSheet("color:palette(link); font-weight:bold;")
 
         self._set_status(
             "Paint mode — click faces to paint  |  ◀▶ change material  "
@@ -1811,16 +1913,16 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         popup = QFrame(vp)
         popup.setFrameStyle(QFrame.Shape.StyledPanel)
         popup.setStyleSheet(
-            "QFrame { background:#1a1a2e; border:1px solid #ff8c00; border-radius:4px; }"
-            "QListWidget { background:#1a1a2e; color:#eee; border:none; }"
+            "QFrame { background:palette(base); border:1px solid palette(highlight); border-radius:4px; }"
+            "QListWidget { background:palette(base); color:palette(windowText); border:none; }"
             "QListWidget::item { padding:2px 4px; }"
-            "QListWidget::item:hover { background:#252540; }"
-            "QListWidget::item:selected { background:#ff8c00; color:#000; }"
-            "QLineEdit { background:#252535; color:#eee; border:1px solid #555; "
+            "QListWidget::item:hover { background:palette(alternateBase); }"
+            "QListWidget::item:selected { background:palette(highlight); color:palette(highlightedText); }"
+            "QLineEdit { background:palette(base); color:palette(windowText); border:1px solid palette(mid); "
             "            border-radius:3px; padding:2px 4px; }"
-            "QPushButton { background:transparent; color:#ff6b35; border:none; "
+            "QPushButton { background:transparent; color:palette(link); border:none; "
             "              font-weight:bold; font-size:14px; }"
-            "QPushButton:hover { color:#ff3300; }"
+            "QPushButton:hover { color:palette(highlight); }"
         )
 
         lay = QVBoxLayout(popup)
@@ -2610,10 +2712,8 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         return status_bar
 
-    # TODO: Not all icons update on theme change yet.
-    # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel
-    # labels/combos, and any icons created via _svg_to_icon() rather than
-    # icon_factory. Address in a future pass.
+    # STUB: dock_btn, tearoff_btn, colour swatch buttons and _svg_to_icon()
+    # created icons do not yet update on theme change. Wire to _refresh_icons.
     def _refresh_icons(self): #vers 2
         """Refresh all button icons after theme change — picks up current text_primary colour."""
         SVGIconFactory.clear_cache()
@@ -5680,10 +5780,10 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Compatibility note
         compat_label = QLabel(
-            "Note: PLACEholder." #TODO
+            "Note: Export format support varies by game version. COL1 is compatible with GTA3/VC. COL2/COL3 requires SA or later."
         )
         compat_label.setWordWrap(True)
-        compat_label.setStyleSheet("padding: 10px; background-color: #3a3a3a; border-radius: 4px;")
+        compat_label.setStyleSheet("padding: 10px; background-color: palette(base); border-radius: 4px;")
         export_layout.addWidget(compat_label)
 
         export_layout.addStretch()
@@ -6043,7 +6143,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         menu.addSeparator()
 
-        # Icon display mode submenu # TODO icon only system is missing.
+        # Icon display mode submenu — auto-compact via resizeEvent/_update_transform_text_panel_visibility
         display_menu = menu.addMenu("Platform Display")
 
         icons_text_action = display_menu.addAction("Icons & Text")
@@ -8438,7 +8538,17 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message("Hotkeys updated")
 
-        # TODO: Save to config file for persistence
+        # Save hotkeys to img_settings JSON
+        try:
+            mw = getattr(self, 'main_window', None)
+            settings = getattr(mw, 'img_settings', None)
+            if settings:
+                settings.set('col_hotkeys', {
+                    'find':    self.hotkey_edit_find.keySequence().toString(),
+                    'help':    self.hotkey_edit_help.keySequence().toString(),
+                })
+        except Exception:
+            pass
 
         if close:
             dialog.accept()
@@ -9139,11 +9249,10 @@ class COLEditorDialog(QDialog): #vers 3
         try:
             self.status_bar.showMessage("Saving COL file...")
 
-            # TODO: Implement actual saving
-            # For now, just show a message
+            # STUB: COL binary write — currently view-only
             QMessageBox.information(self, "Save",
-                "COL file saving will be implemented in a future version.\n"
-                "Currently the editor is in view-only mode.")
+                "COL file saving is not yet implemented.\n"
+                "The editor is currently view-only.")
 
             self.status_bar.showMessage("Ready")
 
@@ -9614,7 +9723,7 @@ def delete_model(col_file: COLFile, model_index: int) -> bool: #vers 1
 def export_model(model: COLModel, file_path: str) -> bool: #vers 1
     """Export single model to file"""
     try:
-        # TODO: Implement model export
+        # STUB: COL model export not yet implemented
         print(f"Model export to {file_path} - not yet implemented")
         return False
 
@@ -9626,7 +9735,7 @@ def export_model(model: COLModel, file_path: str) -> bool: #vers 1
 def import_elements(model: COLModel, file_path: str) -> bool: #vers 1
     """Import collision elements from file"""
     try:
-        # TODO: Implement element import
+        # STUB: COL element import not yet implemented
         print(f"Element import from {file_path} - not yet implemented")
         return False
 
@@ -9682,7 +9791,7 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
 def apply_changes(editor: COLEditorDialog) -> bool: #vers 1
     """Apply all pending changes"""
     try:
-        # TODO: Implement change application
+        # STUB: pending change application not yet implemented
         print("Apply changes - not yet implemented")
         return True
 

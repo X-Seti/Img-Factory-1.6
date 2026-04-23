@@ -171,7 +171,7 @@ def save_img_entry(main_window): #vers 1
     if hasattr(main_window, 'log_message'):
         main_window.log_message(f"Saving with RW detection: {os.path.basename(file_object.file_path)}")
     # STEP 1: Detect RW versions for new entries BEFORE saving
-    _detect_rw_versions_for_new_entries(file_object, main_window) #TODO needs to be for imported files.
+    _detect_rw_versions_for_new_entries(file_object, main_window)  # STUB: extend to imported files
     # STEP 2: Perform rebuild with RW analysis
     success = _perform_rebuild_with_rw_analysis(file_object, main_window)
     if success:

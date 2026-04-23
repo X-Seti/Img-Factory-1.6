@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Mdl_Editor/model_workshop.py - Version: 89
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 90
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -74,12 +74,27 @@ except ImportError:
     APPSETTINGS_AVAILABLE = False
     print("Warning: AppSettings not available")
 
-# Model Workshop — missing/stub methods to implement next:
-#   _apply_prelighting()    — bake ambient+directional light into DFF vertex colours
-#   export_model()          — write DFF to file (currently view-only)
-#   import_elements()       — import OBJ/FBX/3DS geometry into DFF
-#   apply_changes()         — commit pending edits to DFF/COL data
-#   _save_col_file()        — COL save (currently shows "future version" message)
+##Methods list - (key methods only; see MODEL_METHODS.md for full index)
+# _apply_prelighting        STUB: bake ambient+directional into DFF vertex colours
+# _auto_load_txd_from_imgs  search open IMGs for IDE-linked TXD
+# _compute_face_shade       Lambertian shading per face (ambient + diffuse)
+# _create_col_from_dff      generate COL1/2/3 binary from DFF geometry
+# _create_primitive_dialog  add Box/Sphere/Cylinder/Plane to DFF
+# _display_dff_model        populate model list + 3D viewport from parsed DFF
+# _enable_dff_toolbar       show/hide DFF-only toolbar buttons
+# _load_txd_file            load TXD → populate texture panel + viewport cache
+# _load_viewport_light_settings  restore saved light from model_workshop.json
+# _lookup_ide_for_dff       find IDE entry for current DFF via xref or IDEDatabase
+# _open_dff_material_list   unified Material Editor (3ds Max style) #vers 5
+# _open_light_setup_dialog  hemisphere position picker + brightness sliders #vers 2
+# _open_linked_txd          open IDE-linked TXD in TXD Workshop
+# _populate_tex_thumbnails  build 64×64 thumbnail grid in texture panel
+# _show_dff_geometry        push _DFFGeometryAdapter into COL3DViewport
+# _show_tex_hover           hover texture preview popup (replaces click popup)
+# _toggle_viewport_shading  toggle Lambertian shading on/off
+# apply_changes             STUB: commit pending edits to DFF/COL data
+# export_model              STUB: write DFF to file
+# import_elements           STUB: import OBJ/FBX geometry into DFF
 
 
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
@@ -2059,8 +2074,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         n_cached = sum(1 for _,_,m,_ in all_mats
                        if (getattr(m,'texture_name','') or '').strip().lower() in tex_cache)
-        bc = '#16a34a' if n_cached==len(all_mats) and all_mats else \
-             '#ca8a04' if n_cached > 0 else '#dc2626'
+        bc = 'palette(link)' if n_cached==len(all_mats) and all_mats else \
+             'palette(mid)' if n_cached > 0 else 'palette(placeholderText)'
 
         badge = QLabel(f"{n_cached}/{len(all_mats)} cached")
         badge.setStyleSheet(f"color:{bc}; font-weight:bold; font-size:10px;")
@@ -4063,7 +4078,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         button_layout.addWidget(button_mode_combo)
 
         button_hint = QLabel("Changes how toolbar buttons are displayed")
-        button_hint.setStyleSheet("color: #888; font-style: italic;")
+        button_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         button_layout.addWidget(button_hint)
 
         button_group.setLayout(button_layout)
@@ -4120,7 +4135,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         cache_layout.addWidget(enable_cache)
 
         cache_hint = QLabel("Caching improves performance but uses more memory")
-        cache_hint.setStyleSheet("color: #888; font-style: italic;")
+        cache_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         cache_layout.addWidget(cache_hint)
 
         cache_group.setLayout(cache_layout)
@@ -4192,7 +4207,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # Hint
         cb_hint = QLabel("Smaller = tighter pattern, larger = bigger squares")
-        cb_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
+        cb_hint.setStyleSheet("color: palette(placeholderText); font-style: italic; font-size: 10px;")
         bg_layout.addWidget(cb_hint)
 
         bg_group.setLayout(bg_layout)
@@ -4230,7 +4245,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # Hint
         opacity_hint = QLabel("0")
-        opacity_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
+        opacity_hint.setStyleSheet("color: palette(placeholderText); font-style: italic; font-size: 10px;")
         overlay_layout.addWidget(opacity_hint)
 
         overlay_group.setLayout(overlay_layout)
@@ -7634,7 +7649,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout.setContentsMargins(8, 4, 8, 4)
 
         label_widget = QLabel(label)
-        label_widget.setStyleSheet("color: #888; font-size: 12px;")
+        label_widget.setStyleSheet("color: palette(placeholderText); font-size: 12px;")
         layout.addWidget(label_widget)
 
         value_widget = QLabel(value)
@@ -7959,7 +7974,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         format_combo.setCurrentText(getattr(self, 'default_export_format', 'COL'))
         format_layout.addWidget(format_combo)
         format_hint = QLabel("COL recommended for GTAIII/VC, COL2 for SA")
-        format_hint.setStyleSheet("color: #888; font-style: italic;")
+        format_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         format_layout.addWidget(format_hint)
 
         format_group.setLayout(format_layout)
@@ -8063,7 +8078,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         import_format_layout.addWidget(import_format_combo)
 
         format_note = QLabel("COL2/COL3: compression\n, COL type 1 always Uncompressed")
-        format_note.setStyleSheet("color: #888; font-style: italic;")
+        format_note.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         import_format_layout.addWidget(format_note)
 
         import_format_group.setLayout(import_format_layout)
@@ -8132,7 +8147,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         force_save_layout = QHBoxLayout()
         force_save_layout.addWidget(hotkey_edit_force_save)
         force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
+        force_save_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         force_save_layout.addWidget(force_save_hint)
         file_form.addRow("Force Save:", force_save_layout)
 
@@ -13091,7 +13106,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         force_save_layout = QHBoxLayout()
         force_save_layout.addWidget(self.hotkey_edit_force_save)
         force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
+        force_save_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         force_save_layout.addWidget(force_save_hint)
         file_form.addRow("Force Save:", force_save_layout)
 
@@ -13178,7 +13193,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         general_layout = QVBoxLayout(general_tab)
 
         placeholder_label = QLabel("Additional settings will appear here in future versions.")
-        placeholder_label.setStyleSheet("color: #888; font-style: italic; padding: 20px;")
+        placeholder_label.setStyleSheet("color: palette(placeholderText); font-style: italic; padding: 20px;")
         placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         general_layout.addWidget(placeholder_label)
         general_layout.addStretch()

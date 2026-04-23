@@ -632,7 +632,7 @@ class IMGFactoryMainWindow(QMainWindow):
                 self.tearoff_manager._save_panel_settings()
             
             # Save window geometry
-            # TODO: Implement settings system
+            # STUB: settings system not yet implemented
             
             self.log_message("Main window closed")
             event.accept()

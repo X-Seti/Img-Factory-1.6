@@ -349,7 +349,7 @@ class IMGCreationThread(QThread):
             # Add basic structure if requested
             if create_structure:
                 self.progress_updated.emit(80, "Creating structure")
-                # TODO: Add structure creation logic here
+                # STUB: IMG structure creation logic not yet implemented
             
             self.progress_updated.emit(100, "Complete")
             

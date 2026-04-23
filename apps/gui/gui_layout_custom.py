@@ -902,7 +902,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
     # = TAB NAVIGATION BUTTONS
 
-        #TODO buttons and connect signals needs to be fixed.
+        # STUB: buttons and signal connections need review
         #'create_new_img': lambda: create_new_img(self.main_window),
         #'open_img_file': lambda: open_file_dialog(self.main_window),
         #'reload_table': lambda: reload_current_file(self.main_window),
@@ -2296,7 +2296,7 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 <tr><td>GTA VCS</td><td>.xtx</td><td><code>78 65 74 00</code> ("xet\0")</td><td>PSP GIM/XTX</td><td>Identical structure to LCS .chk. Same magic, same sizes. <b>Decoder not yet implemented.</b></td></tr>
 </table>
 
-<h3>TODO — Formats Not Yet Supported</h3>
+<h3>Formats Planned</h3>
 <table>
 <tr><th>Format</th><th>Games</th><th>What's Needed</th></tr>
 <tr><td>TOC/TMB/DAT</td><td>SA Android, SA iOS</td><td>Reverse-engineer 0x83Fxxxxx chunk headers. Likely hashed filenames + compressed TXD data.</td></tr>
@@ -2304,7 +2304,7 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 <tr><td>iOS PVRTC</td><td>LCS iOS</td><td>PVRTC decode already in TXD Workshop — port to Radar Workshop RadarTxdReader.</td></tr>
 <tr><td>VC Android texdb</td><td>VC Android</td><td>Separate texdb reader system. Not radar-specific.</td></tr>
 </table>
-<h3>TODO — Fun / Future</h3>
+<h3>Future Features</h3>
 <table>
 <tr><th>Feature</th><th>Notes</th></tr>
 <tr><td>🧩 Sliding Puzzle mini-game</td><td>Radar tiles make a perfect sliding puzzle. Add "Boredom!" entry to Radar Workshop menu — shuffles tiles into a sliding puzzle, solve to reassemble the map. Track moves/time.</td></tr>

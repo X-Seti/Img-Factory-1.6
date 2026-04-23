@@ -205,11 +205,11 @@ def get_default_version_for_game(game: str) -> int: #vers 2
         'gtavc': 0x33002, #RWVersion.RW_VERSION_3_3_0_2.value,
         'gtasol': 0x34001, #RWVersion.RW_VERSION_3_4_0_1.value,
         'gtasa': 0x36003, #RWVersion.RW_VERSION_3_6_0_3.value,
-        'bully': 0x36003, #TODO
-        'lcs': 0x35000, #TODO
-        'vcs': 0x35002, #TODO
-        'manhunt': 0x34003, #TODO
-        'manhunt2': 0x36003, #TODO
+        'bully': 0x36003, #STUB: version needs verification
+        'lcs': 0x35000, #STUB: version needs verification
+        'vcs': 0x35002, #STUB: version needs verification
+        'manhunt': 0x34003, #STUB: version needs verification
+        'manhunt2': 0x36003, #STUB: version needs verification
     }
     return game_versions.get(game.lower(), 0x36003) #RWVersion.RW_VERSION_3_6_0_3.value
 

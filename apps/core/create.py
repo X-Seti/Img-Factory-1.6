@@ -34,7 +34,7 @@ from apps.core.img_formats import GameSpecificIMGDialog, IMGCreator
 ##Classes -
 # NewIMGDialog
 
-#TODO - Create new tab for new created img.
+# STUB: create new tab after IMG creation
 
 class NewIMGDialog(QDialog): #vers 11
     """Simple New IMG dialog - filename + version only."""
