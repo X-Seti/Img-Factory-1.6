@@ -536,8 +536,9 @@ class IMGFactory(QMainWindow):
         # Create main UI (includes tab system setup + _standalone_menu_bar)
         self._create_ui()
 
-        # Point menu_bar_system at the inline system menu bar (created by gui_layout)
-        # In custom mode there's no system menu bar so this is skipped.
+        # Point menu_bar_system at the inline system menu bar (created by gui_layout).
+        # gui_layout only creates _system_menu_bar in system UI mode; in custom mode
+        # the titlebar row contains the menu button instead.
         try:
             smb = getattr(self, '_standalone_menu_bar', None)
             if smb is None and hasattr(self, 'gui_layout'):
@@ -546,6 +547,7 @@ class IMGFactory(QMainWindow):
                     self._standalone_menu_bar = smb
 
             if smb is not None and hasattr(self, 'menu_bar_system'):
+                # Inline bar found — point menus there, keep native bar hidden
                 self.menuBar().setVisible(False)
                 self.menuBar().setMaximumHeight(0)
                 self.menuBar().setMinimumHeight(0)
@@ -555,6 +557,18 @@ class IMGFactory(QMainWindow):
                 self.menu_bar_system._create_menus()
                 self.menu_bar_system._create_tools_menu()
                 self.menu_bar_system.set_callbacks(callbacks)
+            else:
+                # No inline bar (custom UI mode or gui_layout unavailable).
+                # Re-point menu_bar_system back to native bar and make it visible
+                # so menus are not lost — custom titlebar will show Menu button instead.
+                nb = self.menuBar()
+                self.menu_bar_system.menu_bar = nb
+                nb.clear()
+                self.menu_bar_system._create_menus()
+                self.menu_bar_system._create_tools_menu()
+                self.menu_bar_system.set_callbacks(callbacks)
+                nb.setVisible(False)   # custom titlebar Menu button is the entry point
+                nb.setMaximumHeight(0)
         except Exception as _me:
             import traceback; traceback.print_exc()
             print(f"Menu bar setup error: {_me}")
