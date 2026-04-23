@@ -3846,6 +3846,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         main_layout.addWidget(self._menu_bar_container)
 
+        # DEBUG — print heights of all children after layout
+        from PyQt6.QtCore import QTimer
+        def _dbg():
+            print("=== DP5 docked layout debug ===")
+            for i in range(main_layout.count()):
+                item = main_layout.itemAt(i)
+                w = item.widget()
+                if w:
+                    print(f"  [{i}] {w.__class__.__name__} '{w.objectName()}' "
+                          f"visible={w.isVisible()} "
+                          f"h={w.height()} minH={w.minimumHeight()} "
+                          f"maxH={w.maximumHeight()} fixedH={w.sizeHint().height()}")
+        QTimer.singleShot(500, _dbg)
+
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.splitterMoved.connect(self._on_splitter_moved)
 
