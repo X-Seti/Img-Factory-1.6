@@ -588,7 +588,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     def get_menu_title(self) -> str: #vers 1
         """Return menu label for imgfactory menu bar."""
-        return "TXD Workshop"
+        return "TXD"
 
     def _build_menus_into_qmenu(self, parent_menu): #vers 1
         """Populate parent_menu with TXD Workshop actions for imgfactory injection."""

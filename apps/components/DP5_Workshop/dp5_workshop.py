@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 11 (Build 332)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 13 (Build 333)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3837,42 +3837,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._menu_bar_container.setFixedHeight(0)
             # Don't add _menu_bar_container to layout — keeps zero height.
 
-            # ── Docked menu button row ────────────────────────────────────
-            from PyQt6.QtWidgets import QHBoxLayout as _DBL
-            _drow = QWidget(self)
-            _drow.setFixedHeight(24)
-            _dhl = _DBL(_drow)
-            _dhl.setContentsMargins(2, 1, 2, 1)
-            _dhl.setSpacing(4)
-
-            dp5_menu_btn = QPushButton("DP5 Menu ▾")
-            dp5_menu_btn.setFixedHeight(22)
-            dp5_menu_btn.setToolTip("DP5 Paint — File, Edit, Canvas, Tools, Platform")
-            dp5_menu_btn.setFlat(False)
-
-            def _show_dp5_menu():
-                """Pop up a QMenu built from the internal QMenuBar menus."""
-                from PyQt6.QtWidgets import QMenu
-                popup = QMenu(dp5_menu_btn)
-                for action in self._menu_bar.actions():
-                    submenu = action.menu()
-                    if submenu:
-                        # Clone the top-level menu into the popup
-                        top = popup.addMenu(action.text())
-                        for sub_action in submenu.actions():
-                            top.addAction(sub_action)
-                    else:
-                        popup.addAction(action)
-                popup.exec(dp5_menu_btn.mapToGlobal(
-                    dp5_menu_btn.rect().bottomLeft()))
-
-            dp5_menu_btn.clicked.connect(_show_dp5_menu)
-            _dhl.addWidget(dp5_menu_btn)
-            _dhl.addStretch()
-            self._docked_menu_row = _drow
-            main_layout.addWidget(_drow)
-
-            # Also register into imgfactory titlebar [DP5] button if available
+            # Titlebar [DP5] button is the menu entry point when docked
             self._register_titlebar_tool_btn()
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -4554,15 +4519,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     # ── Right panel: gadget bar + palettes ────────────────────────────────────
 
     def get_menu_title(self) -> str: #vers 1
-        """Return menu label for imgfactory menu bar."""
-        return "DP5 Paint"
+        """Short label for imgfactory titlebar button."""
+        return "DP5"
 
     def _get_tool_menu_style(self) -> str: #vers 1
         """Read menu_style from dp5_settings."""
         return self.dp5_settings.get('menu_style', 'dropdown')
 
-    def _build_menus_into_qmenu(self, parent_menu): #vers 3
-        """Alias — delegates to _build_canvas_menus which accepts QMenuBar or QMenu."""
+    def _build_menus_into_qmenu(self, parent_menu): #vers 4
+        """Build all DP5 menus into parent_menu (QMenu or QMenuBar)."""
         self._build_canvas_menus(parent_menu)
 
     def _apply_menu_bar_style(self): #vers 3
@@ -11367,43 +11332,6 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     def paintEvent(self, event): #vers 2
         super().paintEvent(event)
         # Corner handles drawn by _corner_overlay overlay widget
-
-    def _register_titlebar_tool_btn(self): #vers 1
-        """Register [DP5] button in imgfactory custom titlebar when docked."""
-        mw = getattr(self, 'main_window', None)
-        if not mw:
-            return
-        gl = getattr(mw, 'gui_layout', None)
-        if not gl or not hasattr(gl, 'register_tool_menu_btn'):
-            return
-
-        def _popup():
-            from PyQt6.QtWidgets import QMenu
-            popup = QMenu()
-            for action in self._menu_bar.actions():
-                submenu = action.menu()
-                if submenu:
-                    top = popup.addMenu(action.text())
-                    for a in submenu.actions():
-                        top.addAction(a)
-                else:
-                    popup.addAction(action)
-            btn = getattr(gl, 'tool_menu_btn', None)
-            if btn:
-                popup.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-            else:
-                popup.exec()
-
-        gl.register_tool_menu_btn("DP5", _popup)
-
-    def _unregister_titlebar_tool_btn(self): #vers 1
-        """Remove [DP5] button from imgfactory titlebar."""
-        mw = getattr(self, 'main_window', None)
-        if not mw:
-            return
-        gl = getattr(mw, 'gui_layout', None)
-        if gl and hasattr(gl, 'unregister_tool_menu_btn'):
-            gl.unregister_tool_menu_btn()
 
     def _setup_corner_overlay(self): #vers 3
         """Create or re-raise the corner resize overlay.

@@ -1648,7 +1648,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     def get_menu_title(self) -> str: #vers 1
         """Return menu label for imgfactory menu bar."""
-        return "Model Workshop"
+        return "DFF"
 
     def _build_menus_into_qmenu(self, parent_menu): #vers 1
         """Populate parent_menu with Model Workshop actions."""

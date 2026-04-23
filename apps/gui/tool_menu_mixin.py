@@ -1,22 +1,16 @@
-#this belongs in apps/gui/tool_menu_mixin.py - Version: 1
+#this belongs in apps/gui/tool_menu_mixin.py - Version: 2
 # X-Seti - Apr11 2026 - IMG Factory 1.6 - Shared tool menu mixin
 """
-ToolMenuMixin — shared menu orientation logic for all dockable workshops.
+ToolMenuMixin — shared menu orientation + titlebar button for dockable workshops.
 
-Any tool that docks into imgfactory can inherit this mixin to get:
+Any tool that docks into imgfactory inherits:
   - Topbar mode:   internal QMenuBar shown inside the tool widget
   - Dropdown mode: menus injected into imgfactory's _system_menu_bar
+  - Titlebar btn:  [COL]/[DFF]/[TXD]/[DP5] button in imgfactory titlebar
 
-Usage in a workshop class:
-    class TXDWorkshop(ToolMenuMixin, QWidget):
-        def get_menu_title(self): return "TXD Workshop"
-        def _build_menus_into_qmenu(self, parent_menu): ...
-        def _init_tool_menu(self, parent_widget, layout):
-            # Call after layout is set up, passing the widget and its layout
-            super()._init_tool_menu(parent_widget, layout)
-
-The tool's per-tool settings JSON should include 'menu_style': 'topbar'|'dropdown'.
-The tool must expose a `tool_settings` attribute (or override `_get_tool_menu_style()`).
+Each tool must implement:
+    get_menu_title()            -> short label e.g. 'COL', 'DFF', 'TXD', 'DP5'
+    _build_menus_into_qmenu()   -> populate a QMenu with all actions
 """
 
 from PyQt6.QtWidgets import QMenuBar, QGroupBox, QVBoxLayout, QRadioButton
@@ -29,15 +23,52 @@ class ToolMenuMixin:
     # ── Subclass must override these ──────────────────────────────────────
 
     def get_menu_title(self) -> str: #vers 1
-        """Return the label used in imgfactory's menu bar, e.g. 'TXD Workshop'."""
+        """Short label shown in imgfactory titlebar button, e.g. 'COL'."""
         return "Tool"
 
     def _build_menus_into_qmenu(self, parent_menu): #vers 1
         """Populate parent_menu (QMenu) with all tool actions.
-        Called by imgfactory when injecting into dropdown.
+        Called by imgfactory when injecting into dropdown or titlebar popup.
         Must be overridden by each tool.
         """
         pass
+
+    # ── Titlebar button registration ──────────────────────────────────────
+
+    def _register_titlebar_tool_btn(self): #vers 1
+        """Register this tool's short label + popup into the imgfactory
+        titlebar [Tool] button (between Menu and Settings).
+        Called automatically by _update_tool_menu_for_tab when docked.
+        """
+        mw = getattr(self, 'main_window', None)
+        if not mw:
+            return
+        gl = getattr(mw, 'gui_layout', None)
+        if not gl or not hasattr(gl, 'register_tool_menu_btn'):
+            return
+
+        label = self.get_menu_title()
+
+        def _popup():
+            from PyQt6.QtWidgets import QMenu
+            popup = QMenu()
+            self._build_menus_into_qmenu(popup)
+            btn = getattr(gl, 'tool_menu_btn', None)
+            if btn:
+                popup.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+            else:
+                popup.exec()
+
+        gl.register_tool_menu_btn(label, _popup)
+
+    def _unregister_titlebar_tool_btn(self): #vers 1
+        """Remove this tool's titlebar button entry."""
+        mw = getattr(self, 'main_window', None)
+        if not mw:
+            return
+        gl = getattr(mw, 'gui_layout', None)
+        if gl and hasattr(gl, 'unregister_tool_menu_btn'):
+            gl.unregister_tool_menu_btn()
 
     # ── Internal helpers ──────────────────────────────────────────────────
 
@@ -49,10 +80,7 @@ class ToolMenuMixin:
         return 'dropdown'
 
     def _init_tool_menu(self, parent_widget, layout): #vers 1
-        """Create and insert the internal tool menubar into the tool's layout.
-        Call this from the tool's UI setup, before adding the main content widget.
-        layout must be a QVBoxLayout.
-        """
+        """Create and insert the internal tool menubar into the tool's layout."""
         mb = QMenuBar(parent_widget)
         self._tool_menu_bar = mb
         self._build_menus_into_qmenu_for_bar(mb)
@@ -70,12 +98,7 @@ class ToolMenuMixin:
         layout.insertWidget(0, mb)
 
     def _build_menus_into_qmenu_for_bar(self, menubar): #vers 1
-        """Build menus directly into a QMenuBar (for internal topbar).
-        By default calls _build_menus_into_qmenu for each top-level group.
-        Tools that need QMenuBar-specific population can override this.
-        """
-        # Create a single top-level menu in the bar that delegates to the tool
-        # Override this in tools that have multiple top-level menus
+        """Build menus into a QMenuBar (internal topbar mode)."""
         from PyQt6.QtWidgets import QMenu
         proxy = QMenu(self.get_menu_title())
         self._build_menus_into_qmenu(proxy)
@@ -83,15 +106,11 @@ class ToolMenuMixin:
             menubar.addAction(action)
 
     def set_menu_orientation(self, style: str): #vers 1
-        """Switch between 'topbar' (internal bar) and 'dropdown' (imgfactory bar).
-        Saves to tool settings and applies live.
-        """
-        # Save
+        """Switch between 'topbar' and 'dropdown' mode."""
         ts = getattr(self, 'tool_settings', None)
         if ts and hasattr(ts, 'set'):
             ts.set('menu_style', style)
 
-        # Apply to internal bar
         if hasattr(self, '_tool_menu_bar'):
             mb = self._tool_menu_bar
             if style == 'topbar':
@@ -104,7 +123,6 @@ class ToolMenuMixin:
                 mb.setMinimumHeight(0)
                 mb.setMaximumHeight(0)
 
-        # Notify imgfactory to re-inject menus
         mw = getattr(self, 'main_window', None)
         if mw and hasattr(mw, 'menu_bar_system'):
             if style == 'dropdown':
@@ -113,9 +131,7 @@ class ToolMenuMixin:
                 mw.menu_bar_system._remove_tool_menu()
 
     def _create_menu_orientation_group(self) -> QGroupBox: #vers 1
-        """Create a 'Menu Orientation' settings group widget for embedding
-        in the tool's own Settings dialog.
-        """
+        """Create a 'Menu Orientation' settings group widget."""
         style = self._get_tool_menu_style()
         group = QGroupBox(f"{self.get_menu_title()} — Menu Orientation")
         layout = QVBoxLayout(group)
