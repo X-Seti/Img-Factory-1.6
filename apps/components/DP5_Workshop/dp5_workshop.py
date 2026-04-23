@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# apps/components/DP5_Workshop/dp5_workshop.py - Version: 7 (Build 328)
+# apps/components/DP5_Workshop/dp5_workshop.py - Version: 8 (Build 329)
 # X-Seti - April 2026 - Deluxe Paint 5 Clone - Img Factory 1.6 bitmap editor.
 #
 # Merged from:
@@ -3800,9 +3800,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         if self.standalone_mode:
             toolbar.setVisible(True)
         else:
-            # Collapse full toolbar when docked — setVisible alone leaves space
+            # Hard-collapse toolbar when docked — setMaximumHeight(0) alone is
+            # not enough if _create_toolbar set a conflicting fixed/min height.
             toolbar.setVisible(False)
+            toolbar.setMinimumHeight(0)
             toolbar.setMaximumHeight(0)
+            toolbar.setFixedHeight(0)
         main_layout.addWidget(toolbar)
 
         # Docked compact bar removed — internal menubar now shown as topbar when docked

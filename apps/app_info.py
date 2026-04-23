@@ -7,5 +7,5 @@ App-wide constants - import from here to avoid circular imports.
 
 App_name  = "Img Factory 1.6"
 App_build = "Apr 23 2026 - "
-App_build_num = "Build 329"          # increment manually with each release
+App_build_num = "Build 330"          # increment manually with each release
 App_auth  = "X-Seti"
