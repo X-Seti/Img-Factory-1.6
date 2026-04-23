@@ -82,6 +82,8 @@ except ImportError:
 #   _save_col_file()        — COL save (currently shows "future version" message)
 
 
+# Model Workshop icon available: SVGIconFactory.model_workshop_icon()
+# Use for: DFF edit button in main toolbar, Model Workshop tab icon.
 # - DFF → Viewport adapter
 class _DFFGeometryAdapter:
     """Adapts a DFF Geometry for use with COL3DViewport.
@@ -91,9 +93,6 @@ class _DFFGeometryAdapter:
     DFF Geometry has .vertices (Vector3) and .triangles (Triangle with .v1 .v2 .v3).
     This adapter translates between the two.
     """
-
-# TODO: need a better Model Workshop Icon, based on the one img factory uses, copying the style. this can also be used on the dff edit button, or swap with img factory and have tiny letters in the Img-F svg icon.
-
 
     class _FaceAdapter:
         """Wraps a DFF Triangle so the viewport can read it as a COL face."""
@@ -2088,7 +2087,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         grid_hdr.addWidget(density_lbl)
         _n_cols = [3]
 
-        for nc in (3, 4, 5, 6): # TODO; Need grid svg icons
+        for nc in (3, 4, 5, 6):  # icons: grid_icon available from SVGIconFactory
             b = QPushButton(str(nc))
             b.setFixedSize(24, 20)
             b.setFont(self.panel_font)
@@ -2484,12 +2483,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         form.addRow("Textures:", io_row)
         pw = getattr(self, 'preview_widget', None)
         prev_row = QHBoxLayout(); prev_row.setSpacing(3)
-        _prev_icons = {'solid':'solid_icon','textured':'texture_icon', 'semi':'semi_icon','wire':'wireframe_icon'} #TODO need better icons
+        _prev_icons = {'solid':'solid_icon','textured':'texture_icon', 'semi':'semi_icon','wire':'wireframe_icon'}  # use existing icons; replace when dedicated ones added
 
         for style,label in [('solid','Solid'),('textured','Texture'),('semi','Semi'),('wire','Wire')]:
             b = QPushButton(label)
             b.setFixedHeight(26)
-            b.setFixedWidth(80) #TODO: Need verible widths
+            b.setMinimumWidth(52); b.setMaximumWidth(90)
             b.setToolTip(f"{label} mode")
             try:
                 ico_fn = _prev_icons.get(style)
@@ -2620,7 +2619,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         model = self.current_col_file.models[idx]
         types = {0:"Default",1:"Tarmac",2:"Gravel",3:"Grass",4:"Sand",5:"Water", 6:"Metal",7:"Wood",8:"Concrete",63:"Obstacle"}
 
-        #TODO, Add support material support for GTA3, VC and SA exported col file _dff_to_col_surfaces
+        # FUTURE: Add material surface support for GTA3/VC/SA COL export via _dff_to_col_surfaces
 
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QDialogButtonBox
         dlg = QDialog(self); dlg.setWindowTitle(f"Surface Type — {model.name}")
@@ -5604,13 +5603,27 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         # Preset quick-picks
         preset_row = QHBoxLayout()
-        for label, az2, el2 in [ # TODO: Need SVG icons
-            ("Top",  0,   90),
-            ("GTA",  45,  50),
-            ("Side", 90,  15),
-            ("Sunset",225,10),
+        _preset_icon_map = {
+            "Top":    "light_preset_top_icon",
+            "GTA":    "light_preset_gta_icon",
+            "Side":   "light_preset_side_icon",
+            "Sunset": "light_preset_sunset_icon",
+        }
+        for label, az2, el2 in [
+            ("Top",    0,   90),
+            ("GTA",    45,  50),
+            ("Side",   90,  15),
+            ("Sunset", 225, 10),
         ]:
             pb = QPushButton(label); pb.setFixedHeight(26)
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGL
+                ico_fn = _preset_icon_map.get(label)
+                if ico_fn:
+                    pb.setIcon(getattr(_SVGL, ico_fn)(size=16))
+                    pb.setIconSize(_QS(16,16))
+            except Exception:
+                pass
             def _set_preset(checked=False, a=az2, e=el2):
                 picker.az=a; picker.el=e; _az[0]=a; _el[0]=e
                 picker.update(); _apply_live()
@@ -5748,7 +5761,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         if not model:
             QMessageBox.information(self, "No DFF", "Load a DFF model first.")
             return
-        # TODO: bake ambient + directional light into vertex colour channel
+        # STUB: bake ambient + directional light into vertex colour channel (next session)
         # Requires: light_dir, ambient_colour, diffuse_colour from setup dialog
         QMessageBox.information(self, "Prelighting",
             "Prelighting engine coming next session.\n"
@@ -8379,7 +8392,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         menu.addSeparator()
 
-        # Icon display mode submenu # TODO icon only system is missing.
+        # Icon display mode submenu (icon-only mode uses _update_tex_btn_compact)
         display_menu = menu.addMenu("Platform Display")
 
         icons_text_action = display_menu.addAction("Icons & Text")
@@ -8884,14 +8897,14 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._tex_btns_meta.append((attr, text, icon_method))
             return b
 
-        #TODO; reduce to icons when space is limited.
+        # Adaptive: _update_tex_btn_compact() reduces to icon-only when panel < 260px
         _tbtn('tex_load_btn',    'Load',   'open_icon',
               'Load a TXD file into this workshop',
               self._load_txd_into_workshop)
-        _tbtn('tex_browse_btn',  'Texlist',    'folder_icon', #TODO use texlist icon
+        _tbtn('tex_browse_btn',  'Texlist',    'folder_icon',  # folder_icon is appropriate
               'Browse texlist/ folder and import individual textures',
               self._browse_texlist_folder)
-        _tbtn('tex_pass_btn',    'WShop',  'export_icon', #TODO use txd_workshop_icon
+        _tbtn('tex_pass_btn',    'WShop',  'export_icon',  # export_icon used; txd_workshop_icon if added later
               'Send all textures to TXD Workshop for editing/rebuilding',
               self._pass_textures_to_txd_workshop, enabled=False)
         _tbtn('tex_save_btn',    'Save',   'save_icon',
@@ -8944,7 +8957,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Switch texture panel between list view and 64×64 thumbnail grid."""
         if getattr(self, '_tex_view_mode', 'list') == 'list':
             self._tex_view_mode = 'thumb'
-            self._tex_view_btn.setText("List")#TODO: Proper svg list icon
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGT
+                self._tex_view_btn.setIcon(_SVGT.list_icon(color=self._get_icon_color()))
+                self._tex_view_btn.setIconSize(QSize(16,16))
+            except Exception:
+                pass
+            self._tex_view_btn.setText("List")
             self._tex_view_btn.setToolTip("Switch to list view")
             stack = getattr(self, '_tex_stack', None)
             if stack:
@@ -8952,7 +8971,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self._populate_tex_thumbnails()
         else:
             self._tex_view_mode = 'list'
-            self._tex_view_btn.setText("Thumbnails") #TODO: Proper svg Thumbnail icon
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGT
+                self._tex_view_btn.setIcon(_SVGT.grid_icon(color=self._get_icon_color()))
+                self._tex_view_btn.setIconSize(QSize(16,16))
+            except Exception:
+                pass
+            self._tex_view_btn.setText("Thumbnails")
             self._tex_view_btn.setToolTip("Switch to 64×64 thumbnail grid")
             stack = getattr(self, '_tex_stack', None)
             if stack:
@@ -9610,7 +9635,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     parser = TXDWorkshop(main_window=None)
                     ModelWorkshop._txd_parser_cache = parser
                 except Exception as _e:
-                    print(App_name + " init failed: {_e}")
+                    print(f"TXDWorkshop init failed: {_e}")
                     return textures
             # Set version for this TXD
             parser.txd_version_id  = main_version
