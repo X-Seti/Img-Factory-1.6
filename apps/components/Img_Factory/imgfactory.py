@@ -6793,15 +6793,27 @@ class IMGFactory(QMainWindow):
 
     # SETTINGS PERSISTENCE - KEEP 100% OF FUNCTIONALITY
 
-    def _restore_settings(self): #vers 1
+    def _restore_settings(self): #vers 2
         """Restore application settings"""
         try:
             settings = QSettings("XSeti", "IMGFactory")
 
-            # Restore window geometry
+            # Restore window geometry, clamped to available screen area.
+            # Stale saves (e.g. from a different screen or old menubar height)
+            # can push the window off-screen or make it taller than the desktop.
             geometry = settings.value("geometry")
             if geometry:
                 self.restoreGeometry(geometry)
+                from PyQt6.QtWidgets import QApplication
+                screen = QApplication.primaryScreen()
+                if screen:
+                    avail = screen.availableGeometry()
+                    geo = self.geometry()
+                    new_w = min(geo.width(),  avail.width())
+                    new_h = min(geo.height(), avail.height())
+                    new_x = max(avail.x(), min(geo.x(), avail.right()  - new_w))
+                    new_y = max(avail.y(), min(geo.y(), avail.bottom() - new_h))
+                    self.setGeometry(new_x, new_y, new_w, new_h)
 
             # Restore splitter state
             splitter_state = settings.value("splitter_state")
