@@ -1253,21 +1253,70 @@ class PanelControlRow(QWidget): #vers 1
             lay.addWidget(extra)
         self.setFixedHeight(28)
 
-class ThemeColorEditor(QWidget): #vers 4
-    """Widget for editing individual theme colors with lock protection - FIXED Pick button"""
+
+class _DraggableSwatch(QLabel): #vers 1
+    """Colour swatch QLabel that initiates a drag when pressed and moved.
+    Carries the hex colour string as mime text so any ThemeColorEditor can receive it."""
+
+    def __init__(self, editor_parent):
+        super().__init__(editor_parent)
+        self._editor = editor_parent
+        self._drag_start = None
+
+    def mousePressEvent(self, event): #vers 1
+        from PyQt6.QtCore import Qt
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event): #vers 1
+        from PyQt6.QtCore import Qt, QMimeData, QPoint
+        from PyQt6.QtGui import QDrag, QPixmap, QPainter, QColor
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            return
+        if self._drag_start is None:
+            return
+        # Only start drag after a minimum move distance
+        if (event.pos() - self._drag_start).manhattanLength() < 8:
+            return
+
+        hex_color = self._editor.current_value
+
+        # Build a small coloured pixmap as the drag cursor
+        px = QPixmap(32, 32)
+        px.fill(QColor(hex_color))
+        p = QPainter(px)
+        p.setPen(QColor('#555555'))
+        p.drawRect(0, 0, 31, 31)
+        p.end()
+
+        mime = QMimeData()
+        mime.setText(hex_color)
+
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.setPixmap(px)
+        drag.setHotSpot(QPoint(16, 16))
+        drag.exec(Qt.DropAction.CopyAction)
+        self._drag_start = None
+
+class ThemeColorEditor(QWidget): #vers 5
+    """Widget for editing individual theme colors.
+    Swatch supports drag-and-drop: drag from swatch to copy colour to another row."""
     colorChanged = pyqtSignal(str, str)  # color_key, hex_color
     lockChanged = pyqtSignal(str, bool)  # color_key, is_locked
 
-    def __init__(self, color_key, color_name, current_value, parent=None): #vers 3
+    def __init__(self, color_key, color_name, current_value, parent=None): #vers 4
         super().__init__(parent)
         self.color_key = color_key
         self.color_name = color_name
         self.current_value = current_value
         self.is_locked = False
+        self.setAcceptDrops(True)
         self._setup_ui()
 
-    def _setup_ui(self): #vers 4
-        """Setup the editor UI with lock checkbox - FIXED: Wider Pick button"""
+    def _setup_ui(self): #vers 5
+        """Setup the editor UI — swatch supports drag to copy colour."""
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 2, 5, 2)
 
@@ -1285,9 +1334,10 @@ class ThemeColorEditor(QWidget): #vers 4
         name_label.setSizePolicy(_SP.Policy.Expanding, _SP.Policy.Preferred)
         layout.addWidget(name_label)
 
-        # Color preview swatch
-        self.color_preview = QLabel()
+        # Color preview swatch — drag source
+        self.color_preview = _DraggableSwatch(self)
         self.color_preview.setFixedSize(28, 28)
+        self.color_preview.setToolTip("Drag to another colour row to copy this colour")
         self.update_preview(self.current_value)
         layout.addWidget(self.color_preview)
 
@@ -1306,6 +1356,32 @@ class ThemeColorEditor(QWidget): #vers 4
         dialog_btn.clicked.connect(self.open_color_dialog)
         layout.addWidget(dialog_btn)
         # NO addStretch() — name_label expansion handles alignment
+
+    def dragEnterEvent(self, event): #vers 1
+        """Accept colour drags from other swatches."""
+        if event.mimeData().hasText() and event.mimeData().text().startswith('#'):
+            if not self.is_locked:
+                event.acceptProposedAction()
+                # Highlight to show we're a valid drop target
+                self.setStyleSheet("QWidget { border: 2px solid palette(highlight); }")
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event): #vers 1
+        """Remove drop target highlight."""
+        self.setStyleSheet("")
+
+    def dropEvent(self, event): #vers 1
+        """Receive a dragged colour and apply it."""
+        self.setStyleSheet("")
+        if self.is_locked:
+            event.ignore()
+            return
+        hex_color = event.mimeData().text()
+        if hex_color.startswith('#') and len(hex_color) == 7:
+            self.set_color(hex_color)
+            self.colorChanged.emit(self.color_key, hex_color)
+            event.acceptProposedAction()
 
     def _on_lock_changed(self, state): #vers 1
         """Handle lock state change"""
