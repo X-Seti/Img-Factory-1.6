@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 4
+# apps/components/Img_Factory/welcome_screen.py — Version 5
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -19,6 +19,7 @@ Stays on taskbar as [Intro] after dismiss. [x] disables on next launch."""
 # WelcomeScreen.should_show_on_startup
 
 import os
+import sys
 import json as _json
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -61,7 +62,15 @@ class WelcomeCard(QFrame):
         lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(12)
         ico = QLabel(icon_text)
-        ico.setFont(QFont("Segoe UI Emoji", 24))
+        # Cross-platform emoji font — Segoe UI Emoji on Windows,
+        # Noto Color Emoji on Linux, Apple Color Emoji on macOS
+        _emoji_font = {
+            'win32':  'Segoe UI Emoji',
+            'darwin': 'Apple Color Emoji',
+        }.get(sys.platform, 'Noto Color Emoji')
+        _ef = QFont(_emoji_font, 20)
+        _ef.setStyleStrategy(QFont.StyleStrategy.PreferDefault)
+        ico.setFont(_ef)
         ico.setFixedWidth(40)
         ico.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(ico)
@@ -69,7 +78,7 @@ class WelcomeCard(QFrame):
         t = QLabel(title); t.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         d = QLabel(desc); d.setFont(QFont("Arial", 9))
         d.setWordWrap(True)
-        d.setStyleSheet("color: palette(placeholderText);")
+        d.setStyleSheet("color: palette(mid);")
         txt.addWidget(t); txt.addWidget(d)
         lay.addLayout(txt, 1)
         arr = QLabel("›"); arr.setFont(QFont("Arial", 16))
@@ -111,7 +120,7 @@ class WelcomeScreen(QWidget):
         # screen from stretching the host window taller than the screen.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-    def _build_ui(self): #vers 3
+    def _build_ui(self): #vers 4
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -119,17 +128,35 @@ class WelcomeScreen(QWidget):
         # Hero banner
         hero = QFrame()
         hero.setFixedHeight(80)
+        # Hero banner colours — detect light/dark theme via the app_settings
+        # if available, otherwise fall back to palette luminance check.
+        _hero_bg1, _hero_bg2, _hero_title, _hero_sub = '#1a1a2e', '#16213e', '#ffffff', '#aaaacc'
+        try:
+            _mw = self.main_window
+            if _mw and hasattr(_mw, 'app_settings'):
+                _tc = _mw.app_settings.get_theme_colors() or {}
+                _bg = _tc.get('bg_primary', '#1a1a2e')
+                _is_dark = QColor(_bg).lightness() < 128
+            else:
+                _is_dark = QColor('palette(window)').lightness() < 128
+            if not _is_dark:
+                # Light theme — use explicit dark banner so title is readable
+                _hero_bg1, _hero_bg2 = '#1a1a2e', '#2d2d5e'
+                _hero_title, _hero_sub = '#ffffff', '#aaaacc'
+        except Exception:
+            pass
+
         hero.setStyleSheet(
-            "QFrame { background: qlineargradient("
-            "x1:0,y1:0,x2:1,y2:0,"
-            "stop:0 palette(dark), stop:1 palette(shadow)); }")
+            f"QFrame {{ background: qlineargradient("
+            f"x1:0,y1:0,x2:1,y2:0,"
+            f"stop:0 {_hero_bg1}, stop:1 {_hero_bg2}); }}")
         hl = QHBoxLayout(hero); hl.setContentsMargins(24, 0, 24, 0)
         title_lbl = QLabel("IMG Factory 1.6")
         title_lbl.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: palette(brightText); background: transparent;")
+        title_lbl.setStyleSheet(f"color: {_hero_title}; background: transparent;")
         sub_lbl = QLabel("GTA modding toolkit — IMG · COL · TXD · DFF · DAT · IPL · IDE")
         sub_lbl.setFont(QFont("Arial", 9))
-        sub_lbl.setStyleSheet("color: palette(placeholderText); background: transparent;")
+        sub_lbl.setStyleSheet(f"color: {_hero_sub}; background: transparent;")
         vtxt = QVBoxLayout(); vtxt.setSpacing(2)
         vtxt.addWidget(title_lbl); vtxt.addWidget(sub_lbl)
         hl.addLayout(vtxt, 1)
