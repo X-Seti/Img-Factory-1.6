@@ -1731,6 +1731,7 @@ class AppSettings:
             'icon_size': 16,
             'button_format': 'both',  # 'both', 'icon_only', 'text_only', 'separate'
             # Panel / hero colours
+            'hero_bg':                   '',         # direct override; empty = auto from gradient
             'hero_gradient_dark_start':  '#1a1a2e',
             'hero_gradient_dark_end':    '#2d2d5e',
             'hero_gradient_light_start': '#1a1a2e',
@@ -3816,7 +3817,9 @@ class SettingsDialog(QDialog): #vers 15
             self._create_dialog_titlebar()
             layout.addWidget(self.dialog_titlebar)
         except Exception as _e:
+            import traceback
             print(f"Settings titlebar error: {_e}")
+            traceback.print_exc()
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -3903,39 +3906,41 @@ class SettingsDialog(QDialog): #vers 15
         _qsz = QSize(_ico_sz, _ico_sz)
 
         # Get icon colour from theme
+        _tc = self.app_settings.get_theme_colors() or {}
+        _ic = _tc.get('text_primary', '#cccccc')
+
+        # Try importing SVGIconFactory — may not be available in standalone use
+        _menu_icon = None
+        _settings_icon = None
         try:
             from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGI
-            _tc = self.app_settings.get_theme_colors() or {}
-            _ic = _tc.get('text_primary', '#cccccc')
-        except Exception:
-            _SVGI  = None
-            _ic    = '#cccccc'
+            _menu_icon     = lambda sz, c: _SVGI.menu_m_icon(sz, c)
+            _settings_icon = lambda sz, c: _SVGI.settings_icon(sz, c)
+        except ImportError:
+            try:
+                _menu_icon     = lambda sz, c: self.icons.settings_icon()
+                _settings_icon = lambda sz, c: self.icons.settings_icon()
+            except Exception:
+                pass
 
         def _btn(text, icon_fn, tip, slot):
             b = QPushButton(text)
             b.setFixedHeight(_btn_sz)
             b.setFont(self.button_font)
             b.setToolTip(tip)
-            try:
-                b.setIcon(icon_fn(_ico_sz, _ic))
-                b.setIconSize(_qsz)
-            except Exception:
-                pass
+            if icon_fn:
+                try:
+                    b.setIcon(icon_fn(_ico_sz, _ic))
+                    b.setIconSize(_qsz)
+                except Exception:
+                    pass
             b.clicked.connect(slot)
             return b
 
-        #   Left: Menu + Settings — match (M)Menu / (*)Settings pattern
-        if _SVGI:
-            menu_btn = _btn("Menu", _SVGI.menu_m_icon,
-                            "Settings menu", self._show_dialog_menu)
-            settings_btn = _btn("Settings", _SVGI.settings_icon,
-                                "Dialog appearance — font, titlebar height, style",
-                                self._show_dialog_self_settings)
-        else:
-            menu_btn     = QPushButton("Menu")
-            settings_btn = QPushButton("Settings")
-            menu_btn.clicked.connect(self._show_dialog_menu)
-            settings_btn.clicked.connect(self._show_dialog_self_settings)
+        menu_btn     = _btn("Menu",     _menu_icon,     "Settings menu",
+                            self._show_dialog_menu)
+        settings_btn = _btn("Settings", _settings_icon, "Dialog appearance",
+                            self._show_dialog_self_settings)
 
         tl.addWidget(menu_btn)
         self._dialog_menu_btn = menu_btn
@@ -3949,7 +3954,12 @@ class SettingsDialog(QDialog): #vers 15
                     getattr(self.parent(), 'App_name', None) or
                     App_name ) if self.parent() else App_name
 
-        self._dialog_title_lbl = QLabel(f"{app_name} - Build {App_build}")
+        try:
+            from apps.app_info import get_full_build as _gfb
+            _build_str = _gfb()
+        except ImportError:
+            _build_str = f"v{App_build}"
+        self._dialog_title_lbl = QLabel(f"{app_name}  —  {_build_str}")
         self._dialog_title_lbl.setStyleSheet("font-weight: bold; font-size: 10pt;")
         self._dialog_title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tl.addWidget(self._dialog_title_lbl)
@@ -4670,6 +4680,7 @@ class SettingsDialog(QDialog): #vers 15
             # ── Panel & Hero colours ──────────────────────────────────────
             "panel_fill_a":              "Two-Tone - Colour A",
             "panel_fill_b":              "Two-Tone - Colour B",
+            "hero_bg":                   "Hero Banner - Background",
             "hero_gradient_dark_start":  "Hero Dark - Start",
             "hero_gradient_dark_end":    "Hero Dark - End",
             "hero_gradient_light_start": "Hero Light - Start",
@@ -4796,7 +4807,8 @@ class SettingsDialog(QDialog): #vers 15
         PANEL_SECTIONS = {
             "panel_fill_a": ("header", "Two-Tone Fill"),
             "panel_fill_b": ("control_after", "fill_dir"),
-            "hero_gradient_dark_start": ("header", "Hero Banner Gradient"),
+            "hero_bg":                  ("header", "Hero Banner"),
+            "hero_gradient_dark_start": ("header_skip", "Hero Banner Gradient"),
             "hero_gradient_dark_end":   ("control_after", "hero_dark_show"),
             "hero_gradient_light_end":  ("control_after", "hero_light_show"),
             "panel_grad_stop1":         ("header", "Gradient"),

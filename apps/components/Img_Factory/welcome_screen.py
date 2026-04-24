@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 11
+# apps/components/Img_Factory/welcome_screen.py — Version 12
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -152,15 +152,17 @@ class WelcomeScreen(QWidget):
                 _bg_lum = _QC(tc.get('bg_primary', '#1a1a2e')).lightness()
                 _is_dark = _bg_lum < 128
 
-                # Hero colour: read from THEME colours first (tc), then fallback chain
-                if _is_dark:
+                # hero_bg is a direct override key — user can set it in Colors tab
+                # Falls back to gradient start, then accent, then bg_secondary
+                _direct = tc.get('hero_bg') or cs.get('hero_bg') or ''
+                if _direct:
+                    _hero_bg = _direct
+                elif _is_dark:
                     _hero_bg = (tc.get('hero_gradient_dark_start')
-                                or cs.get('hero_gradient_dark_start')
                                 or tc.get('accent_primary')
                                 or tc.get('bg_secondary', '#1a1a2e'))
                 else:
                     _hero_bg = (tc.get('hero_gradient_light_start')
-                                or cs.get('hero_gradient_light_start')
                                 or tc.get('accent_primary')
                                 or tc.get('bg_secondary', '#1a1a2e'))
 

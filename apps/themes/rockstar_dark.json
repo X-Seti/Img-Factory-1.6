@@ -106,7 +106,8 @@
     "panel_pattern_light": "#000000",
     "panel_pattern_dark": "#000000",
     "copper_light": "#b87333",
-    "copper_dark": "#7a4a1a"
+    "copper_dark": "#7a4a1a",
+    "hero_bg": ""
   },
   "menus": {
     "menu_structure": [
