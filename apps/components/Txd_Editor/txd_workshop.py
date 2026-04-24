@@ -4189,12 +4189,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         menu.exec(self.mapToGlobal(pos))
 
 
-    def _get_icon_color(self): #vers 2
-        """Get icon colour from current theme — returns text_primary."""
-        if APPSETTINGS_AVAILABLE and self.app_settings:
-            colors = self.app_settings.get_theme_colors()
-            return colors.get('text_primary', '#000000')
-        return '#000000'
+    def _get_icon_color(self): #vers 3
+        """Get icon colour from current theme — returns text_primary.
+        Falls back to main_window app_settings if own settings not loaded."""
+        as_ = (self.app_settings
+               or getattr(getattr(self, 'main_window', None), 'app_settings', None))
+        if as_:
+            try:
+                colors = as_.get_theme_colors() or {}
+                return colors.get('text_primary', '#cccccc')
+            except Exception:
+                pass
+        return '#cccccc'
 
     # STUB: dock_btn/tearoff_btn icons do not yet update on theme change
     # Remaining: dock_btn, tearoff_btn, colour swatch buttons, some info-panel

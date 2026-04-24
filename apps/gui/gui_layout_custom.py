@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 11
+#belongs in gui/gui_layout_custom.py - Version 12
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -226,6 +226,14 @@ def _show_intro_panel(mw): #vers 2
             mw.tool_taskbar._set_exclusive_active('intro')
         if hasattr(mw, 'log_message'):
             mw.log_message("Welcome / Intro")
+
+        # Resize overlay when main_tab_widget resizes
+        tab_w = getattr(mw, 'main_tab_widget', None)
+        if tab_w:
+            def _on_resize(event, tw=tab_w, w=ws):
+                w.setGeometry(0, 0, tw.width(), min(tw.height(), 640))
+                w.raise_()
+            tab_w.resizeEvent = _on_resize
     except Exception as e:
         import traceback; traceback.print_exc()
 
@@ -636,9 +644,17 @@ class ToolTaskbar(QWidget):  # vers 2
         self._tools[key]["btn"].setStyleSheet(self._make_btn_style(active))
 
     def _set_exclusive_active(self, key: str) -> None:
-        """Mark key as active, clear underline on all others."""
+        """Mark key as active, clear underline on all others.
+        Also hides the intro panel if a different tool is being activated."""
         for k in self._tools:
             self.set_active(k, k == key)
+        # Hide intro panel when switching to any other tool
+        if key != 'intro':
+            mw = getattr(self, 'main_window', None)
+            if mw:
+                ws = getattr(mw, '_intro_panel', None)
+                if ws and ws.isVisible():
+                    ws.hide()
 
     def is_registered(self, key: str) -> bool:
         return key in self._tools
