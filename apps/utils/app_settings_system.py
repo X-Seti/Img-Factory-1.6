@@ -2046,6 +2046,75 @@ class AppSettings:
 
         QLabel {{
             color: {text_primary};
+            background-color: transparent;
+        }}
+
+        QLineEdit {{
+            color: {text_primary};
+            background-color: {bg_secondary};
+            border: 1px solid {border};
+            border-radius: 3px;
+            padding: 2px 4px;
+            selection-background-color: {selection_background};
+            selection-color: {selection_text};
+        }}
+
+        QTextEdit, QPlainTextEdit {{
+            color: {text_primary};
+            background-color: {bg_secondary};
+            border: 1px solid {border};
+            selection-background-color: {selection_background};
+            selection-color: {selection_text};
+        }}
+
+        QListWidget, QTreeWidget {{
+            color: {text_primary};
+            background-color: {bg_secondary};
+            alternate-background-color: {table_row_odd};
+            border: 1px solid {border};
+            outline: none;
+        }}
+
+        QListWidget::item, QTreeWidget::item {{
+            color: {text_primary};
+        }}
+
+        QListWidget::item:selected, QTreeWidget::item:selected {{
+            color: {selection_text};
+            background-color: {selection_background};
+        }}
+
+        QListWidget::item:hover, QTreeWidget::item:hover {{
+            background-color: {bg_tertiary};
+        }}
+
+        QTabWidget::pane {{
+            border: 1px solid {border};
+            background-color: {bg_primary};
+        }}
+
+        QTabBar::tab {{
+            color: {text_primary};
+            background-color: {bg_secondary};
+            border: 1px solid {border};
+            padding: 4px 8px;
+        }}
+
+        QTabBar::tab:selected {{
+            color: {text_primary};
+            background-color: {bg_primary};
+            border-bottom: 2px solid {accent_primary};
+        }}
+
+        QTabBar::tab:hover {{
+            background-color: {bg_tertiary};
+        }}
+
+        QHeaderView::section {{
+            color: {text_primary};
+            background-color: {bg_secondary};
+            border: 1px solid {border};
+            padding: 4px;
         }}
 
         QToolBar {{

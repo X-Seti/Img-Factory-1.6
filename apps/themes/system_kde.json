@@ -44,7 +44,11 @@
     "copper_dark": "#7a4a1a",
     "hero_bg": "",
     "dialog_bg": "",
-    "dialog_text": ""
+    "dialog_text": "",
+    "button_text_color": "#2D2D2D",
+    "button_text_hover": "#2D2D2D",
+    "button_text_pressed": "#2D2D2D",
+    "toolbar_bg": "#F5F5F5"
   },
   "mui_settings": {
     "system_detected": true,
