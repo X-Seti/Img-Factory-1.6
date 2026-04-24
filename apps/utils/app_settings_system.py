@@ -3460,60 +3460,135 @@ class SettingsDialog(QDialog): #vers 15
 
         layout.addWidget(content_widget)
 
-    def _create_dialog_titlebar(self): #vers 6
-        """Create custom title bar for settings dialog - TXD Workshop style"""
+    def _create_dialog_titlebar(self): #vers 7
+        """Create custom title bar — COL workshop pattern:
+        [Menu▾] [Settings] | stretch | Title | stretch | [i] [—] [□] [✕]
+        Drag anywhere on the stretch/title area moves the window.
+        """
+        from PyQt6.QtCore import QSize
+
         self.dialog_titlebar = QWidget()
         self.dialog_titlebar.setObjectName("customTitleBar")
         self.dialog_titlebar.setFixedHeight(40)
 
-        titlebar_layout = QHBoxLayout(self.dialog_titlebar)
-        titlebar_layout.setContentsMargins(4, 4, 4, 4)
-        titlebar_layout.setSpacing(4)
+        tl = QHBoxLayout(self.dialog_titlebar)
+        tl.setContentsMargins(4, 2, 4, 2)
+        tl.setSpacing(4)
 
-        # Settings icon button on the left (decorative)
-        settings_icon_btn = QPushButton()
-        settings_icon_btn.setIcon(self.icons.settings_icon())
-        settings_icon_btn.setFixedSize(32, 32)
-        settings_icon_btn.setEnabled(False)  # Just decorative
-        titlebar_layout.addWidget(settings_icon_btn)
+        ico = self.icons
+        btn_sz = QSize(20, 20)
 
-        # Get parent app name and center title
-        titlebar_layout.addStretch()
-        app_name = getattr(self.parent(), 'app_name', 'Application') if self.parent() else 'Application'
-        title_label = QLabel(f"{app_name} - Settings")
-        title_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        titlebar_layout.addWidget(title_label)
-        titlebar_layout.addStretch()
+        def _btn(text, icon_fn, tip, slot, fixed_w=None):
+            b = QPushButton(text)
+            b.setFixedHeight(32)
+            if fixed_w:
+                b.setFixedWidth(fixed_w)
+            try:
+                b.setIcon(icon_fn())
+                b.setIconSize(btn_sz)
+            except Exception:
+                pass
+            b.setToolTip(tip)
+            b.clicked.connect(slot)
+            return b
 
-        # Window control buttons on the right
-        minimize_btn = QPushButton()
-        minimize_btn.setIcon(self.icons.minimize_icon())
-        minimize_btn.setFixedSize(32, 32)
-        minimize_btn.clicked.connect(self.showMinimized)
-        minimize_btn.setToolTip("Minimize")
-        titlebar_layout.addWidget(minimize_btn)
+        # ── Left: Menu + Settings ─────────────────────────────────────────
+        menu_btn = _btn("Menu", ico.settings_icon,
+                        "Settings menu", self._show_dialog_menu)
+        tl.addWidget(menu_btn)
+        self._dialog_menu_btn = menu_btn
 
-        maximize_btn = QPushButton()
-        maximize_btn.setIcon(self.icons.maximize_icon())
-        maximize_btn.setFixedSize(32, 32)
-        maximize_btn.clicked.connect(self._toggle_dialog_maximize)
-        maximize_btn.setToolTip("Maximize")
-        self.dialog_maximize_btn = maximize_btn
-        titlebar_layout.addWidget(maximize_btn)
+        settings_btn = _btn("Settings", ico.settings_icon,
+                             "Open/close settings", lambda: None)
+        settings_btn.setEnabled(False)   # we ARE in settings
+        tl.addWidget(settings_btn)
 
-        close_btn = QPushButton()
-        close_btn.setIcon(self.icons.close_icon())
-        close_btn.setFixedSize(32, 32)
-        close_btn.clicked.connect(self.reject)
-        close_btn.setToolTip("Close")
-        titlebar_layout.addWidget(close_btn)
+        # ── Centre: draggable title ───────────────────────────────────────
+        tl.addStretch(1)
 
-        # Enable dragging
-        self.titlebar_drag_position = None
-        self.dialog_titlebar.mousePressEvent = self._titlebar_mouse_press
-        self.dialog_titlebar.mouseMoveEvent = self._titlebar_mouse_move
-        self.dialog_titlebar.mouseDoubleClickEvent = self._titlebar_double_click
+        app_name = (getattr(self.parent(), 'app_name', None) or
+                    getattr(self.parent(), 'App_name', None) or
+                    'IMG Factory 1.6') if self.parent() else 'IMG Factory 1.6'
+        self._dialog_title_lbl = QLabel(f"{app_name}  —  Settings")
+        self._dialog_title_lbl.setStyleSheet("font-weight: bold; font-size: 10pt;")
+        self._dialog_title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tl.addWidget(self._dialog_title_lbl)
+
+        tl.addStretch(1)
+
+        # ── Right: [i] + window controls ─────────────────────────────────
+        info_btn = _btn("", ico.info_icon, "About / help", self._show_dialog_info, 32)
+        tl.addWidget(info_btn)
+
+        min_btn = _btn("", ico.minimize_icon, "Minimize", self.showMinimized, 32)
+        tl.addWidget(min_btn)
+
+        max_btn = _btn("", ico.maximize_icon, "Maximise", self._toggle_dialog_maximize, 32)
+        self.dialog_maximize_btn = max_btn
+        tl.addWidget(max_btn)
+
+        close_btn = _btn("", ico.close_icon, "Close", self.reject, 32)
+        tl.addWidget(close_btn)
+
+        # ── Drag: install on titlebar using startSystemMove ───────────────
+        self.dialog_titlebar.setMouseTracking(True)
+
+        def _tb_press(event):
+            if event.button() == Qt.MouseButton.LeftButton:
+                # Only drag on stretch/title area — not on buttons
+                from PyQt6.QtWidgets import QPushButton
+                local = event.pos()
+                for child in self.dialog_titlebar.findChildren(QPushButton):
+                    if child.geometry().contains(local):
+                        return
+                try:
+                    self.windowHandle().startSystemMove()
+                except Exception:
+                    self._tb_drag_pos = (event.globalPosition().toPoint()
+                                         - self.frameGeometry().topLeft())
+
+        def _tb_move(event):
+            if (event.buttons() == Qt.MouseButton.LeftButton and
+                    hasattr(self, '_tb_drag_pos')):
+                self.move(event.globalPosition().toPoint() - self._tb_drag_pos)
+
+        def _tb_dbl(event):
+            self._toggle_dialog_maximize()
+
+        self.dialog_titlebar.mousePressEvent  = _tb_press
+        self.dialog_titlebar.mouseMoveEvent   = _tb_move
+        self.dialog_titlebar.mouseDoubleClickEvent = _tb_dbl
+
+    def _show_dialog_menu(self): #vers 1
+        """Pop up a menu from the titlebar Menu button."""
+        from PyQt6.QtWidgets import QMenu
+        m = QMenu(self)
+        m.addAction("Reset to defaults",  self._reset_all_settings)
+        m.addAction("Import theme…",      lambda: None)
+        m.addAction("Export theme…",      lambda: None)
+        m.addSeparator()
+        m.addAction("Close",              self.reject)
+        btn = self._dialog_menu_btn
+        m.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _show_dialog_info(self): #vers 1
+        """Show brief info about the settings dialog."""
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Settings",
+            "IMG Factory 1.6 — App Settings\n\n"
+            "Colors, Fonts, Buttons, Panels, Gadgets, Shadows,\n"
+            "UI Management, Interface, Localisation, Debug.\n\n"
+            "Changes take effect immediately unless noted.")
+
+    def _reset_all_settings(self): #vers 1
+        """Reset all settings to defaults."""
+        from PyQt6.QtWidgets import QMessageBox
+        r = QMessageBox.question(self, "Reset Settings",
+            "Reset ALL settings to defaults?\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if r == QMessageBox.StandardButton.Yes:
+            self.app_settings.current_settings.update(
+                self.app_settings.default_settings.copy())
 
 
     def _random_theme(self):
