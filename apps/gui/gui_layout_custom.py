@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 10
+#belongs in gui/gui_layout_custom.py - Version 11
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -1178,10 +1178,14 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.tool_menu_btn.setVisible(False)
         self._tool_menu_popup = None
 
-    def _show_popup_menu(self): #vers 1
-        """Show main popup menu"""
+    def _show_popup_menu(self): #vers 2
+        """Show main popup menu via unified menu system."""
         try:
-            if hasattr(self, 'menu_btn'):
+            ms = getattr(self.main_window, 'menu_system', None)
+            if ms:
+                btn = getattr(self, 'menu_btn', None)
+                ms.show_popup(at_widget=btn)
+            elif hasattr(self, 'menu_btn'):
                 show_popup_menu_at_button(self.main_window, self.menu_btn)
             else:
                 self.custom_menu_manager.show_popup_menu()

@@ -513,11 +513,17 @@ class IMGFactory(QMainWindow):
         # Apply UI mode settings to the newly created layout
         self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
-        # Menu system — initially uses self.menuBar() (Qt system bar)
-        # After _create_ui(), re-pointed to _standalone_menu_bar if it exists
-        self.menubar = self.menuBar()
-        self.menu_bar_system = IMGFactoryMenuBar(self)
-        # Menu callbacks
+        # ── Unified menu system ───────────────────────────────────────────
+        # Single system for both custom (popup) and system (inline bar) modes.
+        # Replaces dual IMGFactoryMenuBar + CustomMenuManager approach.
+        from apps.gui.unified_menu import UnifiedMenuSystem
+        self.menu_system = UnifiedMenuSystem(main_window=self)
+        self.menu_system.build()
+
+        # Keep menu_bar_system as alias for backward compat with older code
+        self.menu_bar_system = self.menu_system
+
+        # Menu callbacks (will be wired after _create_ui when methods exist)
         callbacks = {
             "about": self.show_about,
             "open_img": self.open_img_file,
@@ -533,46 +539,26 @@ class IMGFactory(QMainWindow):
         self.menu_bar_system.set_callbacks(callbacks)
         integrate_drag_drop_system(self)
 
-        # Create main UI (includes tab system setup + _standalone_menu_bar)
+        # Create main UI
         self._create_ui()
 
-        # Point menu_bar_system at the inline system menu bar (created by gui_layout).
-        # gui_layout only creates _system_menu_bar in system UI mode; in custom mode
-        # the titlebar row contains the menu button instead.
+        # Attach unified menu to current UI mode + wire all callbacks
         try:
-            smb = getattr(self, '_standalone_menu_bar', None)
-            if smb is None and hasattr(self, 'gui_layout'):
+            self.menu_system.wire_standard_callbacks()
+            self.menu_system.attach_to_ui()
+
+            # System UI mode: insert menubar into top bar if available
+            if self.menu_system.menubar:
                 smb = getattr(self.gui_layout, '_system_menu_bar', None)
                 if smb:
-                    self._standalone_menu_bar = smb
-
-            if smb is not None and hasattr(self, 'menu_bar_system'):
-                # Inline bar found — point menus there, keep native bar hidden
-                self.menuBar().setVisible(False)
-                self.menuBar().setMaximumHeight(0)
-                self.menuBar().setMinimumHeight(0)
-                self.menuBar().setFixedHeight(0)
-                self.menu_bar_system.menu_bar = smb
-                smb.clear()
-                self.menu_bar_system._create_menus()
-                self.menu_bar_system._create_tools_menu()
-                self.menu_bar_system.set_callbacks(callbacks)
-            else:
-                # No inline bar — custom UI mode. menu_bar_system.menu_bar stays
-                # pointed at the native bar (already suppressed in __init__).
-                # Repopulate it so actions exist for the Menu button popup,
-                # but keep it permanently hidden — never call setVisible(True) on it.
-                nb = self.menuBar()
-                self.menu_bar_system.menu_bar = nb
-                nb.clear()
-                self.menu_bar_system._create_menus()
-                self.menu_bar_system._create_tools_menu()
-                self.menu_bar_system.set_callbacks(callbacks)
-                nb.setVisible(False)
-                nb.setFixedHeight(0)   # hard-clamp — _inject_tool_menu must not un-hide this
+                    # Replace existing QMenuBar placeholder with unified one
+                    smb.clear()
+                    for action in self.menu_system.menubar.actions():
+                        smb.addAction(action)
+                    self.menu_system.menubar = smb
         except Exception as _me:
             import traceback; traceback.print_exc()
-            print(f"Menu bar setup error: {_me}")
+            print(f"Unified menu attach error: {_me}")
 
         # Stub for selection callbacks before full button system loads
         if not hasattr(self, '_update_button_states'):
@@ -875,25 +861,21 @@ class IMGFactory(QMainWindow):
         if hasattr(self, 'gui_layout') and getattr(self.gui_layout, 'menu_btn', None) is not None:
             self.gui_layout.menu_btn.setVisible(not want_topbar)
 
-    def _update_tool_menu_for_tab(self, tab_widget): #vers 2
-        """Inject or remove tool menu based on which tool is in the active tab.
-        Also manages the titlebar [DP5]/[tool] button in custom UI mode.
-        """
-        if not hasattr(self, 'menu_bar_system'):
-            return
-
-        # Remove previous tool menu + unregister titlebar tool button
-        self.menu_bar_system._remove_tool_menu()
-        if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'unregister_tool_menu_btn'):
-            self.gui_layout.unregister_tool_menu_btn()
+    def _update_tool_menu_for_tab(self, tab_widget): #vers 3
+        """Inject or remove tool menu via unified menu system."""
+        ms = getattr(self, 'menu_system', None)
+        if ms:
+            ms.deactivate_tool()
+        elif hasattr(self, 'menu_bar_system'):
+            self.menu_bar_system._remove_tool_menu()
+            if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'unregister_tool_menu_btn'):
+                self.gui_layout.unregister_tool_menu_btn()
 
         if not tab_widget:
             return
 
-        # Find a ToolMenuMixin widget in the tab
         from apps.gui.tool_menu_mixin import ToolMenuMixin
         tool = None
-
         if isinstance(tab_widget, ToolMenuMixin):
             tool = tab_widget
         else:
@@ -906,14 +888,10 @@ class IMGFactory(QMainWindow):
         if not tool:
             return
 
-        # Register titlebar tool button if tool has one
-        if hasattr(tool, '_register_titlebar_tool_btn'):
+        if ms:
+            ms.activate_tool(tool)
+        elif hasattr(tool, '_register_titlebar_tool_btn'):
             tool._register_titlebar_tool_btn()
-
-        # Also inject into menu_bar_system (system UI mode)
-        style = tool._get_tool_menu_style()
-        if style == 'dropdown':
-            self.menu_bar_system._inject_tool_menu(tool)
 
     def set_img_menu_orientation(self, orientation: str): #vers 2
         """Switch imgfactory menu between 'topbar' and 'dropdown'.
