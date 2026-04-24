@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-# $vers" X-Seti - June26, 2025 - App Factory - Package theme settings — Version: 2
+#This goes in root/ app_settings_system.py - version 63
+# $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
 App Factory - App Settings System - Clean Version
 Settings management without demo code
 """
-
-#This goes in root/ app_settings_system.py - version 62
 
 import json
 import os
@@ -52,8 +51,8 @@ except ImportError:
 # _on_button_color_changed (vers 1)
 # _collect_current_button_colors (vers 1)
 
-App_name = "Global App System Settings"
-App_build = "December 11 - "
+App_name = "App System Settings"
+App_build = "22.63" #32 is from version 32 up top.
 App_auth = "X-Seti"
 
 
@@ -1980,7 +1979,7 @@ class AppSettings:
         }}
         """
 
-        # ── Button style ─────────────────────────────────────────────────
+        #   Button style
         cs = getattr(self, 'current_settings', {})
         btn_style  = cs.get('button_style', 'flat')
         btn_normal = colors.get('button_normal', '#e0e0e0')
@@ -2008,7 +2007,7 @@ class AppSettings:
         }}
         """
 
-        # ── Progress bar ──────────────────────────────────────────────────
+        #   Progress bar
         pb_style = cs.get('progressbar_style', 'system')
         if pb_style != 'system':
             pb_fill  = cs.get('progressbar_fill',   '#4a7a9b')
@@ -3229,7 +3228,8 @@ class PanelPreviewWidget(QWidget): #vers 1
         f = QFont("Arial", 14, QFont.Weight.Bold)
         p.setFont(f)
         from PyQt6.QtCore import Qt
-        p.drawText(r.adjusted(16,0,0,0), Qt.AlignmentFlag.AlignVCenter, "IMG Factory 1.6")
+        AppBuildLabel = (f"{app_name} - Build {App_build}")
+        p.drawText(r.adjusted(16,0,0,0), Qt.AlignmentFlag.AlignVCenter, AppBuildLabel)
         p.setPen(QColor("#aaaacc"))
         f2 = QFont("Arial", 8)
         p.setFont(f2)
@@ -3723,7 +3723,7 @@ class SettingsDialog(QDialog): #vers 15
             b.clicked.connect(slot)
             return b
 
-        # ── Left: Menu + Settings ─────────────────────────────────────────
+        #   Left: Menu + Settings
         menu_btn = _btn("Menu", ico.settings_icon,
                         "Settings menu", self._show_dialog_menu)
         tl.addWidget(menu_btn)
@@ -3734,20 +3734,21 @@ class SettingsDialog(QDialog): #vers 15
                              self._show_dialog_self_settings)
         tl.addWidget(settings_btn)
 
-        # ── Centre: draggable title ───────────────────────────────────────
+        #   Centre: draggable title
         tl.addStretch(1)
 
         app_name = (getattr(self.parent(), 'app_name', None) or
                     getattr(self.parent(), 'App_name', None) or
-                    'IMG Factory 1.6') if self.parent() else 'IMG Factory 1.6'
-        self._dialog_title_lbl = QLabel(f"{app_name}  —  Settings")
+                    App_name ) if self.parent() else App_name
+
+        self._dialog_title_lbl = QLabel(f"{app_name} - Build {App_build}")
         self._dialog_title_lbl.setStyleSheet("font-weight: bold; font-size: 10pt;")
         self._dialog_title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tl.addWidget(self._dialog_title_lbl)
 
         tl.addStretch(1)
 
-        # ── Right: [i] + window controls ─────────────────────────────────
+        #   Right: [i] + window controls
         info_btn = _btn("", ico.info_icon, "About / help", self._show_dialog_info, 32)
         tl.addWidget(info_btn)
 
@@ -3761,7 +3762,7 @@ class SettingsDialog(QDialog): #vers 15
         close_btn = _btn("", ico.close_icon, "Close", self.reject, 32)
         tl.addWidget(close_btn)
 
-        # ── Drag: install on titlebar using startSystemMove ───────────────
+        #   Drag: install on titlebar using startSystemMove
         self.dialog_titlebar.setMouseTracking(True)
 
         def _tb_press(event):
@@ -3854,7 +3855,7 @@ class SettingsDialog(QDialog): #vers 15
         """Show brief info about the settings dialog."""
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.information(self, "Settings",
-            "IMG Factory 1.6 — App Settings\n\n"
+            "App System Settings\n\n"
             "Colors, Fonts, Buttons, Panels, Gadgets, Shadows,\n"
             "UI Management, Interface, Localisation, Debug.\n\n"
             "Changes take effect immediately unless noted.")
@@ -4823,7 +4824,7 @@ class SettingsDialog(QDialog): #vers 15
         scroll_layout.addWidget(button_group)
 
         # ========== SLIDER STYLING ==========
-        slider_group = QGroupBox("🎚️ Slider Styling")
+        slider_group = QGroupBox("Slider Styling")
         slider_layout = QVBoxLayout(slider_group)
 
         # Slider Height
@@ -4870,7 +4871,7 @@ class SettingsDialog(QDialog): #vers 15
         scroll_layout.addWidget(slider_group)
 
         # ========== CHECKBOX STYLING ==========
-        checkbox_group = QGroupBox("☑️ Checkbox Styling")
+        checkbox_group = QGroupBox("Checkbox Styling")
         checkbox_layout = QVBoxLayout(checkbox_group)
 
         # Checkbox Size
@@ -4905,7 +4906,7 @@ class SettingsDialog(QDialog): #vers 15
         scroll_layout.addWidget(checkbox_group)
 
         # ========== SCROLLBAR STYLING ==========
-        scrollbar_group = QGroupBox("📜 Scrollbar Styling")
+        scrollbar_group = QGroupBox("Scrollbar Styling")
         scrollbar_layout = QVBoxLayout(scrollbar_group)
 
         # Scrollbar Width
@@ -4947,7 +4948,7 @@ class SettingsDialog(QDialog): #vers 15
         scroll_layout.addWidget(scrollbar_group)
 
         # ========== SPLITTER STYLING ==========
-        splitter_group = QGroupBox("⚡ Splitter Styling")
+        splitter_group = QGroupBox("Splitter Styling")
         splitter_layout = QVBoxLayout(splitter_group)
 
         # Splitter Width
@@ -5441,6 +5442,7 @@ class SettingsDialog(QDialog): #vers 15
         # Implementation depends on how you want to apply these styles
         pass
 
+
     def _create_buttons_tab_v2(self): #vers 2
         """Buttons tab — style selector with live preview + per-panel tint colours."""
         from PyQt6.QtWidgets import (QScrollArea, QGridLayout, QFrame, QSizePolicy)
@@ -5451,7 +5453,7 @@ class SettingsDialog(QDialog): #vers 15
         root = QVBoxLayout(tab)
         root.setSpacing(6)
 
-        # ── Style selector ────────────────────────────────────────────────
+        #   Style selector
         style_group = QGroupBox("Button Style")
         sg_lay = QVBoxLayout(style_group)
 
@@ -5490,7 +5492,7 @@ class SettingsDialog(QDialog): #vers 15
         sg_lay.addLayout(grid)
         root.addWidget(style_group)
 
-        # ── Live preview ─────────────────────────────────────────────────
+        #   Live preview
         preview_group = QGroupBox("Preview")
         pg_lay = QHBoxLayout(preview_group)
         pg_lay.setSpacing(8)
@@ -5513,7 +5515,7 @@ class SettingsDialog(QDialog): #vers 15
         root.addWidget(preview_group)
         self._update_btn_style_preview()
 
-        # ── Tint on/off ───────────────────────────────────────────────────
+        #   Tint on/off
         tint_group = QGroupBox("Workflow Colour Tints")
         tg_lay = QVBoxLayout(tint_group)
         self._tint_enabled_cb = QCheckBox("Enable workflow colour tints on buttons")
@@ -5524,7 +5526,7 @@ class SettingsDialog(QDialog): #vers 15
         tg_lay.addWidget(self._tint_enabled_cb)
         root.addWidget(tint_group)
 
-        # ── Per-panel tint colours ────────────────────────────────────────
+        #   Per-panel tint colours
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -5579,7 +5581,7 @@ class SettingsDialog(QDialog): #vers 15
         scroll.setWidget(sw)
         root.addWidget(scroll, 1)
 
-        # ── Actions ───────────────────────────────────────────────────────
+        #   Actions
         act = QHBoxLayout()
         rst = QPushButton("Reset to Theme Defaults")
         rst.clicked.connect(self._reset_button_colors_to_defaults)
@@ -5589,10 +5591,12 @@ class SettingsDialog(QDialog): #vers 15
 
         return tab
 
+
     def _on_btn_style_changed(self, style_key): #vers 1
         """Store selected button style and refresh preview."""
         self.app_settings.current_settings["button_style"] = style_key
         self._update_btn_style_preview()
+
 
     def _update_btn_style_preview(self): #vers 1
         """Apply current button_style to the preview buttons."""
@@ -5601,6 +5605,7 @@ class SettingsDialog(QDialog): #vers 15
         style_key = self.app_settings.current_settings.get("button_style", "flat")
         for btn, base_color in self._preview_btns:
             btn.setStyleSheet(self._build_btn_stylesheet(style_key, base_color))
+
 
     def _build_btn_stylesheet(self, style: str, base: str) -> str: #vers 1
         """Generate a QPushButton stylesheet for the given style + base colour."""
@@ -5674,6 +5679,7 @@ class SettingsDialog(QDialog): #vers 15
                     f"border-radius:2px; }}")
 
         return f"QPushButton {{ background: {mid}; }}"
+
 
     def _create_buttons_tab(self): #vers 1
         """Create buttons customization tab with light/dark sub-tabs"""
@@ -6830,7 +6836,7 @@ Ready for operations..."""
             h.addWidget(right, 45)
             return w
 
-        # ── Fill ──────────────────────────────────────────────────────────
+        #   Fill
         fill_ctrl = QWidget()
         fl = QVBoxLayout(fill_ctrl)
         fl.setSpacing(8)
@@ -6938,7 +6944,7 @@ Ready for operations..."""
 
         sub.addTab(_two_col(fill_ctrl, fill_prev_container), "Fill")
 
-        # ── Gradient ──────────────────────────────────────────────────────
+        #   Gradient
         grad_ctrl = QWidget()
         gl_root = QVBoxLayout(grad_ctrl)
         gl_root.setSpacing(8)
@@ -6984,7 +6990,7 @@ Ready for operations..."""
 
         sub.addTab(_two_col(grad_ctrl, self._grad_preview), "Gradient")
 
-        # ── Pattern ───────────────────────────────────────────────────────
+        #   Pattern
         pat_ctrl = QWidget()
         pl = QVBoxLayout(pat_ctrl)
         pl.setSpacing(8)
@@ -7071,7 +7077,7 @@ Ready for operations..."""
 
         sub.addTab(_two_col(pat_ctrl, pat_prev_container), "Pattern")
 
-        # ── Image ─────────────────────────────────────────────────────────
+        #   Image
         img_ctrl = QWidget()
         il = QVBoxLayout(img_ctrl)
         il.setSpacing(8)
@@ -7133,7 +7139,7 @@ Ready for operations..."""
 
         sub.addTab(_two_col(img_ctrl, self._img_preview), "Image")
 
-        # ── Transparency ──────────────────────────────────────────────────
+        #   Transparency
         trans_ctrl = QWidget()
         tl = QVBoxLayout(trans_ctrl)
         tl.setSpacing(6)
@@ -7172,7 +7178,7 @@ Ready for operations..."""
         sub.addTab(_two_col(trans_ctrl, self._trans_preview,
                             "Panel over checkerboard"), "Transparency")
 
-        # ── Gadgets ───────────────────────────────────────────────────────
+        #   Gadgets
         gadgets_inner = self._create_advanced_gadgets_tab()
         sub.addTab(gadgets_inner, "Gadgets")
 
@@ -7216,11 +7222,11 @@ Ready for operations..."""
 
         sub = QTabWidget()
 
-        # ── Existing UI Management content in a scroll ────────────────────
+        #   Existing UI Management content in a scroll
         orig = self._create_ui_management_tab()
         sub.addTab(orig, "Components")
 
-        # ── Progress Bar styles ───────────────────────────────────────────
+        #   Progress Bar styles
         pb_tab = QWidget()
         pl = QVBoxLayout(pb_tab)
 
@@ -7300,7 +7306,7 @@ Ready for operations..."""
         root = QVBoxLayout(tab)
         root.setSpacing(8)
 
-        # ── Auto-detect ───────────────────────────────────────────────────
+        #   Auto-detect
         detect_group = QGroupBox("System Locale Detection")
         dgl = QVBoxLayout(detect_group)
 
@@ -7316,7 +7322,7 @@ Ready for operations..."""
         dgl.addWidget(QLabel(f"Detected system locale:  <b>{sys_locale}</b>"))
         root.addWidget(detect_group)
 
-        # ── Language ──────────────────────────────────────────────────────
+        #   Language
         lang_group = QGroupBox("Language")
         lgl = QGridLayout(lang_group)
 
@@ -7353,7 +7359,7 @@ Ready for operations..."""
         lgl.addWidget(note, 1, 0, 1, 2)
         root.addWidget(lang_group)
 
-        # ── Date & Number formats ─────────────────────────────────────────
+        #   Date & Number formats
         fmt_group = QGroupBox("Date & Number Formats")
         fgl = QGridLayout(fmt_group)
 
@@ -7382,7 +7388,7 @@ Ready for operations..."""
         fgl.addWidget(self._num_fmt_combo, 1, 1)
         root.addWidget(fmt_group)
 
-        # ── Per-app overrides ─────────────────────────────────────────────
+        #   Per-app overrides
         override_group = QGroupBox("Per-Workshop Language Override")
         ogl = QVBoxLayout(override_group)
         ogl.addWidget(QLabel(
