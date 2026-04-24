@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 7
+# apps/components/Img_Factory/welcome_screen.py — Version 8
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -255,7 +255,6 @@ class WelcomeScreen(QWidget):
             "QLabel { background: palette(alternateBase); border: 1px solid palette(mid); "
             "border-radius: 4px; padding: 8px 12px; }")
         lay.addWidget(tip)
-        lay.addStretch()
         return w
 
     def _build_functions_tab(self): #vers 1
