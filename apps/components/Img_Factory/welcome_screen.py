@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 16
+# apps/components/Img_Factory/welcome_screen.py — Version 17
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -163,6 +163,7 @@ class WelcomeScreen(QWidget):
     open_col_workshop   = pyqtSignal()
     open_txd_workshop   = pyqtSignal()
     open_model_workshop = pyqtSignal()
+    open_dp5_workshop   = pyqtSignal()
     open_dir_tree       = pyqtSignal()
 
     def __init__(self, main_window=None, parent=None):
@@ -171,7 +172,7 @@ class WelcomeScreen(QWidget):
         self._build_ui()
         # Do not expand vertically beyond preferred size — prevents the welcome
         # screen from stretching the host window taller than the screen.
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def _build_ui(self): #vers 7
         root = QVBoxLayout(self)
@@ -380,6 +381,7 @@ class WelcomeScreen(QWidget):
 
         lay.addWidget(self._section("Asset Editors"))
         g2 = QGridLayout(); g2.setSpacing(12)
+        g2.setColumnStretch(0, 1); g2.setColumnStretch(1, 1); g2.setColumnStretch(2, 1)
         eds = [
             (_SVG.paint_icon(36, _ic), "TXD Workshop",
              "Open any .txd inside an IMG or standalone. Preview, replace, export "
@@ -393,10 +395,14 @@ class WelcomeScreen(QWidget):
              "View DFF geometry and frame hierarchy. Load the linked TXD automatically "
              "via the DAT Browser IDE entry. Textured 3D preview.",
              self.open_model_workshop),
+            (_SVG.paint_icon(36, _ic), "DP5 Paint",
+             "Deluxe Paint-style bitmap editor. Draw, spray, clone and edit textures "
+             "directly — works on any IMG entry or standalone image.",
+             self.open_dp5_workshop),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
-            g2.addWidget(c, 0, i)
+            g2.addWidget(c, i // 3, i % 3)
         lay.addLayout(g2)
 
         tip = QLabel(

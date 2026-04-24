@@ -168,15 +168,28 @@ def _show_dat_browser(mw): #vers 2
             mw.log_message(f"DAT Browser show error: {e}")
 
 
-def _show_intro_panel(mw): #vers 2
-    """Show welcome/intro screen as a floating panel over the main tab area.
-    Unlike Dir Tree / DAT Browser, the intro is shown as an overlay widget
-    placed directly on the main content area, not in the left_stack.
-    This avoids it taking over the full width of the window.
+class _IntroResizeFilter(QObject):
+    """Event filter that keeps the intro overlay sized to its parent tab widget."""
+    def __init__(self, overlay, parent=None):
+        super().__init__(parent)
+        self._overlay = overlay
+
+    def eventFilter(self, obj, event):
+        from PyQt6.QtCore import QEvent
+        if event.type() == QEvent.Type.Resize and self._overlay.isVisible():
+            self._overlay.setGeometry(0, 0, obj.width(), obj.height())
+            self._overlay.raise_()
+        return False
+
+
+def _show_intro_panel(mw): #vers 3
+    """Show welcome/intro screen as a full overlay over the main tab area.
+    Resizes with the window via an event filter. Toggles on second click.
     """
     try:
-        # Toggle: if already visible, hide it
         ws = getattr(mw, '_intro_panel', None)
+
+        # Toggle off if already visible
         if ws and ws.isVisible():
             ws.hide()
             if hasattr(mw, 'tool_taskbar'):
@@ -186,39 +199,46 @@ def _show_intro_panel(mw): #vers 2
         # Build first time
         if ws is None:
             from apps.components.Img_Factory.welcome_screen import WelcomeScreen
-            ws = WelcomeScreen(main_window=mw)
+            tab_w = getattr(mw, 'main_tab_widget', None) or mw
+            ws = WelcomeScreen(main_window=mw, parent=tab_w)
+            ws.setWindowFlags(
+                __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.WindowType.Widget)
+
+            # Wire signals
             ws.open_img_requested.connect(mw.open_img_file)
             ws.open_dat_browser.connect(lambda: _show_dat_browser(mw))
             ws.open_dir_tree.connect(lambda: _show_dir_tree(mw))
-            # Workshop signals connected lazily so method_mappings is ready
+            ws._dismiss = lambda: _show_intro_panel(mw)
+
             def _connect_workshops():
                 try:
-                    mm = getattr(getattr(mw,'gui_layout',None),'method_mappings',{})
+                    mm = getattr(getattr(mw, 'gui_layout', None), 'method_mappings', {})
                     ws.open_col_workshop.connect(
                         lambda: mm.get('edit_col_file', lambda: None)())
                     ws.open_txd_workshop.connect(
                         lambda: mm.get('edit_txd_file', lambda: None)())
                     ws.open_model_workshop.connect(
                         lambda: mm.get('edit_dff_file', lambda: None)())
+                    ws.open_dp5_workshop.connect(
+                        lambda: mw.open_dp5_workshop_docked()
+                        if hasattr(mw, 'open_dp5_workshop_docked') else None)
                 except Exception:
                     pass
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(500, _connect_workshops)
-            ws._dismiss = lambda: _show_intro_panel(mw)
-            # Parent to main_tab_widget so it overlays it properly
-            tab_w = getattr(mw, 'main_tab_widget', None) or mw
-            ws.setParent(tab_w)
-            ws.setWindowFlags(
-                __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.WindowType.Widget)
+
+            # Install resize event filter on tab_w so overlay tracks it
+            _filt = _IntroResizeFilter(ws, tab_w)
+            tab_w.installEventFilter(_filt)
+            ws._resize_filter = _filt   # keep reference alive
+
             mw._intro_panel = ws
 
         ws = mw._intro_panel
+        tab_w = getattr(mw, 'main_tab_widget', None) or mw
 
-        # Size and position over main tab area
-        tab_w = getattr(mw, 'main_tab_widget', None)
-        if tab_w:
-            ws.setGeometry(0, 0, tab_w.width(), min(tab_w.height(), 640))
-        ws.setMaximumHeight(640)
+        # Fill the entire tab area
+        ws.setGeometry(0, 0, tab_w.width(), tab_w.height())
         ws.raise_()
         ws.show()
 
@@ -227,14 +247,7 @@ def _show_intro_panel(mw): #vers 2
         if hasattr(mw, 'log_message'):
             mw.log_message("Welcome / Intro")
 
-        # Resize overlay when main_tab_widget resizes
-        tab_w = getattr(mw, 'main_tab_widget', None)
-        if tab_w:
-            def _on_resize(event, tw=tab_w, w=ws):
-                w.setGeometry(0, 0, tw.width(), min(tw.height(), 640))
-                w.raise_()
-            tab_w.resizeEvent = _on_resize
-    except Exception as e:
+    except Exception:
         import traceback; traceback.print_exc()
 
 
