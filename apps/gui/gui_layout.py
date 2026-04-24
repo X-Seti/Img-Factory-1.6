@@ -1315,7 +1315,7 @@ class IMGFactoryGUILayout:
             print(f"Error updating button theme: {e}")
 
 
-    def create_pastel_button(self, label, action_type, icon, bg_color, method_name, use_pastel=True, high_contrast=False): #vers 3
+    def create_pastel_button(self, label, action_type, icon, bg_color, method_name, use_pastel=True, high_contrast=False): #vers 4
         """Create a button with pastel coloring that adapts to light/dark themes"""
         # Get localized label
         localized_label = tr_button(label)
@@ -1392,11 +1392,56 @@ class IMGFactoryGUILayout:
             btn.setProperty("stored_bg", button_bg)
         # No icon shown at full width - text only
 
-        # Apply theme-aware styling
+        # Build background QSS — apply button_style effect over the pastel/theme base colour.
+        # Pastel tints are always preserved as the colour base for the effect.
+        # When use_pastel=False the user has chosen "theme buttons" — clear per-button
+        # stylesheet so the global QApplication stylesheet takes over entirely.
+        _btn_style = 'flat'
+        if hasattr(self.main_window, 'app_settings'):
+            _btn_style = self.main_window.app_settings.current_settings.get('button_style', 'flat')
+
+        if not use_pastel and _btn_style != 'flat':
+            # Theme buttons mode — let global stylesheet handle everything
+            btn.setStyleSheet("")
+            btn.setProperty("action-type", action_type)
+            btn.setProperty("full_label", localized_label)
+            return btn
+
+        from PyQt6.QtGui import QColor as _QC
+        _c = _QC(button_bg)
+        _light = _c.lighter(135).name()
+        _dark  = _c.darker(120).name()
+        _vdark = _c.darker(150).name()
+
+        _bg_qss = {
+            'flat':        f'background-color: {button_bg};',
+            'gradient_h':  f'background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 {_light},stop:1 {_dark});',
+            'gradient_v':  f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:1 {_dark});',
+            'gradient_45': f'background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {_light},stop:0.5 {button_bg},stop:1 {_dark});',
+            'banded':      f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:0.25 white,stop:0.30 {_light},stop:0.31 {button_bg},stop:1 {_dark});',
+            'zen':         f'background-color: {button_bg};',
+            'indented':    f'background-color: {_dark};',
+            'bump':        f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:1 {_dark});',
+            'amiga_wb':    f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 white,stop:0.15 {_light},stop:0.85 {_dark},stop:1 {_vdark});',
+            'half_shine':  f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 white,stop:0.48 {_light},stop:0.49 {button_bg},stop:1 {button_bg});',
+            'shadow_dark': f'background-color: {button_bg};',
+        }.get(_btn_style, f'background-color: {button_bg};')
+
+        # Border adjustments per style
+        _border_qss = f'border: 1px solid {border_color};'
+        if _btn_style == 'bump':
+            _border_qss = f'border-top: 2px solid {_light}; border-left: 2px solid {_light}; border-bottom: 2px solid {_dark}; border-right: 2px solid {_dark};'
+        elif _btn_style == 'indented':
+            _border_qss = f'border-top: 2px solid {_vdark}; border-left: 2px solid {_vdark}; border-bottom: 1px solid {_light}; border-right: 1px solid {_light};'
+        elif _btn_style == 'shadow_dark':
+            _border_qss = f'border-top: 2px solid {_light}; border-left: 2px solid {_light}; border-bottom: 2px solid {_vdark}; border-right: 2px solid {_vdark};'
+        elif _btn_style == 'zen':
+            _border_qss = f'border: 1px solid {border_color}; border-radius: 6px;'
+
         btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {button_bg};
-                border: 1px solid {border_color};
+                {_bg_qss}
+                {_border_qss}
                 border-radius: 3px;
                 padding: 3px 8px;
                 font-size: 8pt;
