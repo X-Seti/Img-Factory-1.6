@@ -3059,14 +3059,27 @@ class PanelPreviewWidget(QWidget): #vers 1
         """Call after any control changes to force a repaint."""
         self.update()
 
-    def paintEvent(self, event): #vers 1
+    def _get_colours(self): #vers 1
+        """Build a colour dict from the live editors + current_settings.
+        Editors are the source of truth while the dialog is open."""
+        # Start with current_settings as base (has panel_fill_dir, pattern_scale etc.)
+        cs = dict(self._dlg.app_settings.current_settings)
+        # Override with live editor values — these reflect what the user has picked
+        editors = getattr(self._dlg, 'color_editors', {})
+        for key, editor in editors.items():
+            val = editor.color_input.text() if hasattr(editor, 'color_input') else None
+            if val and val.startswith('#') and len(val) == 7:
+                cs[key] = val
+        return cs
+
+    def paintEvent(self, event): #vers 2
         from PyQt6.QtGui import (QPainter, QColor, QLinearGradient,
                                   QPen, QBrush, QImage, QPixmap)
         from PyQt6.QtCore import QRectF, Qt, QPointF
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = self.rect()
-        cs = self._dlg.app_settings.current_settings
+        cs = self._get_colours()
 
         try:
             if self._mode == "fill":
@@ -3370,9 +3383,48 @@ class SettingsDialog(QDialog): #vers 15
 
         print(f"Has _update_titlebar_icons: {hasattr(self, '_update_titlebar_icons')}")
 
-        self.setWindowTitle("App Factory Settings")
+        self.setWindowTitle("Global App System Settings")
         self.setMinimumSize(800, 600)
         self.setModal(True)
+
+        # App icon — gear+palette SVG rendered at 64px
+        try:
+            _icon_svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Outer gear ring -->
+  <circle cx="32" cy="32" r="28" fill="#2a4a6a" stroke="#4a8abd" stroke-width="2"/>
+  <!-- Gear teeth -->
+  <g fill="#4a8abd">
+    <rect x="29" y="2"  width="6" height="8" rx="1"/>
+    <rect x="29" y="54" width="6" height="8" rx="1"/>
+    <rect x="2"  y="29" width="8" height="6" rx="1"/>
+    <rect x="54" y="29" width="8" height="6" rx="1"/>
+    <rect x="10" y="8"  width="6" height="8" rx="1" transform="rotate(45 13 12)"/>
+    <rect x="48" y="8"  width="6" height="8" rx="1" transform="rotate(-45 51 12)"/>
+    <rect x="10" y="48" width="6" height="8" rx="1" transform="rotate(-45 13 52)"/>
+    <rect x="48" y="48" width="6" height="8" rx="1" transform="rotate(45 51 52)"/>
+  </g>
+  <!-- Inner circle -->
+  <circle cx="32" cy="32" r="16" fill="#1a2a3a"/>
+  <!-- Palette dots -->
+  <circle cx="26" cy="28" r="4" fill="#e05050"/>
+  <circle cx="32" cy="24" r="4" fill="#50c050"/>
+  <circle cx="38" cy="28" r="4" fill="#5080e0"/>
+  <circle cx="38" cy="36" r="4" fill="#e0c050"/>
+  <circle cx="32" cy="40" r="4" fill="#c050c0"/>
+  <circle cx="26" cy="36" r="4" fill="#50c0c0"/>
+</svg>"""
+            from PyQt6.QtSvg import QSvgRenderer
+            from PyQt6.QtGui import QIcon, QPixmap, QPainter
+            from PyQt6.QtCore import QByteArray, QSize
+            renderer = QSvgRenderer(QByteArray(_icon_svg.encode()))
+            px = QPixmap(64, 64)
+            px.fill(__import__('PyQt6.QtCore', fromlist=['Qt']).Qt.GlobalColor.transparent)
+            painter = QPainter(px)
+            renderer.render(painter)
+            painter.end()
+            self.setWindowIcon(QIcon(px))
+        except Exception as _ie:
+            pass  # Icon is cosmetic — never crash on it
 
         self.app_settings = app_settings
         self.original_settings = app_settings.current_settings.copy()
