@@ -3966,18 +3966,36 @@ class SettingsDialog(QDialog): #vers 15
 
         tl.addStretch(1)
 
-        #   Right: [i] + window controls
-        info_btn = _btn("", ico.info_icon, "About / help", self._show_dialog_info, 32)
+        #   Right: [i] + window controls — use IconProvider for these
+        _ico = self.icons
+
+        def _wbtn(icon_fn, tip, slot):
+            b = QPushButton()
+            b.setFixedSize(_btn_sz, _btn_sz)
+            b.setToolTip(tip)
+            try:
+                b.setIcon(icon_fn())
+                b.setIconSize(_qsz)
+            except Exception:
+                pass
+            b.clicked.connect(slot)
+            return b
+
+        info_btn  = _wbtn(_ico.info_icon,     "About / Help",  self._show_dialog_info)
+        self._dialog_info_btn = info_btn
         tl.addWidget(info_btn)
 
-        min_btn = _btn("", ico.minimize_icon, "Minimize", self.showMinimized, 32)
+        min_btn   = _wbtn(_ico.minimize_icon, "Minimize",       self.showMinimized)
+        self._dialog_min_btn = min_btn
         tl.addWidget(min_btn)
 
-        max_btn = _btn("", ico.maximize_icon, "Maximise", self._toggle_dialog_maximize, 32)
+        max_btn   = _wbtn(_ico.maximize_icon, "Maximise",       self._toggle_dialog_maximize)
+        self._dialog_max_btn = max_btn
         self.dialog_maximize_btn = max_btn
         tl.addWidget(max_btn)
 
-        close_btn = _btn("", ico.close_icon, "Close", self.reject, 32)
+        close_btn = _wbtn(_ico.close_icon,    "Close",          self.reject)
+        self._dialog_close_btn = close_btn
         tl.addWidget(close_btn)
 
         #   Drag: install on titlebar using startSystemMove
