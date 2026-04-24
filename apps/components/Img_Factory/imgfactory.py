@@ -437,7 +437,7 @@ class IMGFactory(QMainWindow):
 
         # Window setup
         branch = get_current_git_branch()
-        self.setWindowTitle(f"{App_name}  —  {get_full_build()}  ({App_auth})")
+        self.setWindowTitle(f"{App_name} - {get_full_build()} ({App_auth})")
         self.setGeometry(100, 100, 1200, 800)
 
         # Set default fonts
@@ -4269,7 +4269,7 @@ class IMGFactory(QMainWindow):
         self.current_txd = None
 
         # Update window title
-        self.setWindowTitle(f"{App_name}  —  {get_full_build()}  ({App_auth})")
+        self.setWindowTitle(f"{App_name} - {get_full_build()} ({App_auth})")
 
         # Clear table if it exists
         if hasattr(self, 'gui_layout') and hasattr(self.gui_layout, 'table'):
