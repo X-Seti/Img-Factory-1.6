@@ -4459,7 +4459,21 @@ class SettingsDialog(QDialog): #vers 15
             "scrollbar_handle": "Scrollbar - Handle",
             "scrollbar_handle_hover": "Scrollbar - Handle Hover",
             "scrollbar_handle_pressed": "Scrollbar - Handle Pressed",
-            "scrollbar_border": "Scrollbar - Border"
+            "scrollbar_border": "Scrollbar - Border",
+            # ── Panel & Hero colours ──────────────────────────────────────
+            "panel_fill_a":              "Two-Tone - Colour A",
+            "panel_fill_b":              "Two-Tone - Colour B",
+            "hero_gradient_dark_start":  "Hero Dark - Start",
+            "hero_gradient_dark_end":    "Hero Dark - End",
+            "hero_gradient_light_start": "Hero Light - Start",
+            "hero_gradient_light_end":   "Hero Light - End",
+            "panel_grad_stop1":          "Gradient - Stop 1",
+            "panel_grad_stop2":          "Gradient - Stop 2",
+            "panel_grad_stop3":          "Gradient - Stop 3",
+            "panel_pattern_light":       "Pattern - Foreground",
+            "panel_pattern_dark":        "Pattern - Background",
+            "copper_light":              "Copper - Light",
+            "copper_dark":               "Copper - Dark",
         }
 
         selection_group = QGroupBox("Apply Picked Color")
@@ -4564,6 +4578,184 @@ class SettingsDialog(QDialog): #vers 15
         # No addStretch() here — scroll_widget Expanding policy handles it
         scroll_area.setWidget(scroll_widget)
         right_layout.addWidget(scroll_area, 1)  # stretch=1 so it fills available space
+
+        # ── Panel Effects section ─────────────────────────────────────────
+        # Controls moved from Panels tab into here so colours + effects are in one place
+        effects_group = QGroupBox("Panel & Hero Effects")
+        eg_lay = QVBoxLayout(effects_group)
+        eg_lay.setSpacing(4)
+
+        def _row(label_text, key, default):
+            """One colour row: label | swatch | hex | pick button"""
+            row = QHBoxLayout()
+            row.setSpacing(4)
+            lbl = QLabel(label_text)
+            lbl.setFixedWidth(180)
+            row.addWidget(lbl)
+            swatch = QPushButton()
+            swatch.setFixedSize(22, 22)
+            val = self.app_settings.current_settings.get(key, default)
+            swatch.setStyleSheet(f"background:{val}; border:1px solid palette(mid);")
+            swatch.setToolTip(val)
+            def _pick(_, k=key, s=swatch):
+                from PyQt6.QtWidgets import QColorDialog
+                from PyQt6.QtGui import QColor
+                c = QColorDialog.getColor(QColor(self.app_settings.current_settings.get(k, '#ffffff')), None, f"Pick — {k}")
+                if c.isValid():
+                    h = c.name()
+                    self.app_settings.current_settings[k] = h
+                    s.setStyleSheet(f"background:{h}; border:1px solid palette(mid);")
+                    s.setToolTip(h)
+                    hex_ed.setText(h)
+                    self._refresh_panel_previews()
+            swatch.clicked.connect(_pick)
+            row.addWidget(swatch)
+            hex_ed = QLineEdit(val)
+            hex_ed.setFixedWidth(72)
+            def _hex_changed(t, k=key, s=swatch):
+                if len(t) == 7 and t.startswith('#'):
+                    self.app_settings.current_settings[k] = t
+                    s.setStyleSheet(f"background:{t}; border:1px solid palette(mid);")
+                    self._refresh_panel_previews()
+            hex_ed.textChanged.connect(_hex_changed)
+            row.addWidget(hex_ed)
+            pick_btn = QPushButton("Pick")
+            pick_btn.setFixedWidth(36)
+            pick_btn.clicked.connect(_pick)
+            row.addWidget(pick_btn)
+            row.addStretch()
+            return row
+
+        def _show_thumb_btn(label, mode):
+            """Show thumbnail preview button"""
+            btn = QPushButton(label)
+            btn.setFixedHeight(22)
+            btn.clicked.connect(lambda _, m=mode: self._show_effect_preview_popup(m))
+            return btn
+
+        # ── Two-tone fill ─────────────────────────────────────────────────
+        eg_lay.addWidget(QLabel("── Two-Tone Fill ──────────────"))
+        eg_lay.addLayout(_row("Colour A",  "panel_fill_a", "#1a1a2e"))
+        eg_lay.addLayout(_row("Colour B",  "panel_fill_b", "#16213e"))
+
+        fill_dir_row = QHBoxLayout()
+        fill_dir_row.addWidget(QLabel("Apply to panels:"))
+        self._panel_fill_dir = QComboBox()
+        self._panel_fill_dir.addItems([
+            "Solid (A only)", "H — Left→Right", "V — Top→Bottom",
+            "BL→TR", "BR→TL", "TL→BR", "TR→BL"])
+        self._panel_fill_dir.setCurrentIndex(
+            self.app_settings.current_settings.get("panel_fill_dir", 0))
+        self._panel_fill_dir.currentIndexChanged.connect(
+            lambda i: [self.app_settings.current_settings.__setitem__("panel_fill_dir", i),
+                       self._refresh_panel_previews()])
+        fill_dir_row.addWidget(self._panel_fill_dir)
+        fill_dir_row.addWidget(_show_thumb_btn("Show", "fill"))
+        fill_dir_row.addStretch()
+        eg_lay.addLayout(fill_dir_row)
+
+        # ── Hero gradient ─────────────────────────────────────────────────
+        eg_lay.addWidget(QLabel("── Hero Banner ────────────────"))
+        eg_lay.addLayout(_row("Dark Start",  "hero_gradient_dark_start",  "#1a1a2e"))
+        eg_lay.addLayout(_row("Dark End",    "hero_gradient_dark_end",    "#2d2d5e"))
+        hero_d_row = QHBoxLayout()
+        hero_d_row.addWidget(QLabel("Dark hero effect:"))
+        hero_d_row.addWidget(_show_thumb_btn("Show", "hero"))
+        hero_d_row.addStretch()
+        eg_lay.addLayout(hero_d_row)
+
+        eg_lay.addLayout(_row("Light Start", "hero_gradient_light_start", "#1a1a2e"))
+        eg_lay.addLayout(_row("Light End",   "hero_gradient_light_end",   "#2d2d5e"))
+        hero_l_row = QHBoxLayout()
+        hero_l_row.addWidget(QLabel("Light hero effect:"))
+        hero_l_row.addWidget(_show_thumb_btn("Show", "hero"))
+        hero_l_row.addStretch()
+        eg_lay.addLayout(hero_l_row)
+
+        # ── Gradient ──────────────────────────────────────────────────────
+        eg_lay.addWidget(QLabel("── Gradient ────────────────────"))
+        eg_lay.addLayout(_row("Stop 1 (0%)",   "panel_grad_stop1", "#1a1a2e"))
+        eg_lay.addLayout(_row("Stop 2 (50%)",  "panel_grad_stop2", "#2d1b4e"))
+        eg_lay.addLayout(_row("Stop 3 (100%)", "panel_grad_stop3", "#16213e"))
+
+        grad_row = QHBoxLayout()
+        grad_row.addWidget(QLabel("Direction:"))
+        self._grad_dir_combo = QComboBox()
+        self._grad_dir_combo.addItems([
+            "H — Left→Right", "V — Top→Bottom", "45° TL→BR",
+            "45° TR→BL", "45° BL→TR", "45° BR→TL"])
+        self._grad_dir_combo.setCurrentIndex(
+            self.app_settings.current_settings.get("panel_grad_dir", 1))
+        self._grad_dir_combo.currentIndexChanged.connect(
+            lambda i: [self.app_settings.current_settings.__setitem__("panel_grad_dir", i),
+                       self._refresh_panel_previews()])
+        grad_row.addWidget(self._grad_dir_combo)
+        grad_row.addWidget(_show_thumb_btn("Show", "gradient"))
+        grad_row.addStretch()
+        eg_lay.addLayout(grad_row)
+
+        # ── Pattern ───────────────────────────────────────────────────────
+        eg_lay.addWidget(QLabel("── Pattern ─────────────────────"))
+        pat_style_row = QHBoxLayout()
+        pat_style_row.addWidget(QLabel("Style:"))
+        self._pat_style_combo = QComboBox()
+        self._pat_style_combo.addItems([
+            "None", "Dots", "Lines H", "Lines V", "Lines Diagonal",
+            "Check", "Waves", "Tartan", "Picnic", "Odd/Even rows"])
+        self._pat_style_combo.setCurrentIndex(
+            self.app_settings.current_settings.get("panel_pattern_style", 0))
+        self._pat_style_combo.currentIndexChanged.connect(
+            lambda i: [self.app_settings.current_settings.__setitem__("panel_pattern_style", i),
+                       self._refresh_panel_previews()])
+        pat_style_row.addWidget(self._pat_style_combo)
+        pat_style_row.addWidget(QLabel("Scale:"))
+        self._pat_scale = QSlider(Qt.Orientation.Horizontal)
+        self._pat_scale.setRange(2, 32)
+        self._pat_scale.setFixedWidth(80)
+        self._pat_scale.setValue(
+            self.app_settings.current_settings.get("panel_pattern_scale", 8))
+        self._pat_scale.valueChanged.connect(
+            lambda v: [self.app_settings.current_settings.__setitem__("panel_pattern_scale", v),
+                       self._refresh_panel_previews()])
+        pat_style_row.addWidget(self._pat_scale)
+        pat_style_row.addStretch()
+        eg_lay.addLayout(pat_style_row)
+
+        eg_lay.addLayout(_row("Foreground", "panel_pattern_light", "#2a2a4a"))
+        eg_lay.addLayout(_row("Background", "panel_pattern_dark",  "#141428"))
+
+        pat_show_row = QHBoxLayout()
+        pat_show_row.addWidget(_show_thumb_btn("Show Pattern", "pattern"))
+        pat_show_row.addStretch()
+        eg_lay.addLayout(pat_show_row)
+
+        # ── Copper ────────────────────────────────────────────────────────
+        eg_lay.addWidget(QLabel("── Copper Effect ───────────────"))
+        eg_lay.addLayout(_row("Light Copper", "copper_light", "#b87333"))
+        eg_lay.addLayout(_row("Dark Copper",  "copper_dark",  "#7a4a1a"))
+        cop_show_row = QHBoxLayout()
+        cop_show_row.addWidget(_show_thumb_btn("Show Copper", "copper"))
+        cop_show_row.addStretch()
+        eg_lay.addLayout(cop_show_row)
+
+        # ── Active effect ─────────────────────────────────────────────────
+        eg_lay.addWidget(QLabel("── Active Panel Effect ─────────"))
+        eff_row = QHBoxLayout()
+        eff_row.addWidget(QLabel("Apply:"))
+        self._panel_effect_combo = QComboBox()
+        self._panel_effect_combo.addItems([
+            "None", "Fill", "Gradient", "Pattern"])
+        eff_map = {"none": 0, "fill": 1, "gradient": 2, "pattern": 3}
+        self._panel_effect_combo.setCurrentIndex(
+            eff_map.get(self.app_settings.current_settings.get("panel_effect_type", "none"), 0))
+        self._panel_effect_combo.currentIndexChanged.connect(
+            lambda i: self.app_settings.current_settings.__setitem__(
+                "panel_effect_type", ["none","fill","gradient","pattern"][i]))
+        eff_row.addWidget(self._panel_effect_combo)
+        eff_row.addStretch()
+        eg_lay.addLayout(eff_row)
+
+        right_layout.addWidget(effects_group)
 
         # GLOBAL THEME SLIDERS - MOVED TO RIGHT PANEL BOTTOM (above Theme Actions)
         global_sliders_group = QGroupBox("Global Theme Sliders")
@@ -6799,286 +6991,25 @@ Ready for operations..."""
 
         return widget
 
-    def _create_panels_tab(self): #vers 2
-        """Panels tab — two-column layout: controls left, live preview right.
-        Sub-tabs: Fill | Gradient | Pattern | Image | Transparency | Gadgets
+    def _create_panels_tab(self): #vers 3
+        """Panels tab — Image, Transparency, Gadgets only.
+        Fill / Gradient / Pattern colours moved to Colors tab.
         """
-        from PyQt6.QtWidgets import QSplitter, QScrollArea
+        from PyQt6.QtWidgets import QScrollArea
 
         tab = QWidget()
         root = QVBoxLayout(tab)
         root.setContentsMargins(4, 4, 4, 4)
 
+        note = QLabel("Colour effects (Fill, Gradient, Pattern, Copper, Hero) "
+                      "are configured in the Colors tab.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid); font-size: 8pt; padding: 4px;")
+        root.addWidget(note)
+
         sub = QTabWidget()
 
-        def _two_col(controls_widget, preview_widget, preview_label="Live Preview"):
-            """Return a QWidget split: controls left (55%), preview right (45%)."""
-            w = QWidget()
-            h = QHBoxLayout(w)
-            h.setContentsMargins(0, 0, 0, 0)
-            h.setSpacing(6)
-
-            # Left — scrollable controls
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            scroll.setWidget(controls_widget)
-            h.addWidget(scroll, 55)
-
-            # Right — preview in a labelled frame
-            right = QWidget()
-            rl = QVBoxLayout(right)
-            rl.setContentsMargins(0, 0, 0, 0)
-            lbl = QLabel(preview_label)
-            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet("font-weight: bold; padding: 2px;")
-            rl.addWidget(lbl)
-            rl.addWidget(preview_widget, 1)
-            h.addWidget(right, 45)
-            return w
-
-        #   Fill
-        fill_ctrl = QWidget()
-        fl = QVBoxLayout(fill_ctrl)
-        fl.setSpacing(8)
-
-        # Effect type selector — which effect is active
-        effect_group = QGroupBox("Active Panel Effect")
-        egl = QHBoxLayout(effect_group)
-        egl.addWidget(QLabel("Apply to panels:"))
-        self._panel_effect_combo = QComboBox()
-        self._panel_effect_combo.addItems([
-            "None  (theme colours only)",
-            "Fill  (solid / two-tone)",
-            "Gradient  (multi-stop)",
-            "Pattern  (dots / lines / check…)",
-        ])
-        effect_map = {"none": 0, "fill": 1, "gradient": 2, "pattern": 3}
-        self._panel_effect_combo.setCurrentIndex(
-            effect_map.get(self.app_settings.current_settings.get("panel_effect_type","none"), 0))
-
-        def _on_effect_changed(i):
-            keys = ["none", "fill", "gradient", "pattern"]
-            self.app_settings.current_settings["panel_effect_type"] = keys[i]
-            for pw_attr in ("_fill_preview","_hero_preview","_grad_preview",
-                            "_pat_preview","_copper_preview"):
-                pw = getattr(self, pw_attr, None)
-                if pw: pw.refresh()
-
-        self._panel_effect_combo.currentIndexChanged.connect(_on_effect_changed)
-        egl.addWidget(self._panel_effect_combo)
-        fl.addWidget(effect_group)
-
-        solid_group = QGroupBox("Solid / Two-tone Fill")
-        sgl = QGridLayout(solid_group)
-        sgl.setColumnStretch(1, 1)
-
-        sgl.addWidget(QLabel("Colour A:"), 0, 0)
-        self._panel_fill_a_btn = QPushButton()
-        self._panel_fill_a_btn.setFixedHeight(24)
-        col_a = self.app_settings.current_settings.get("panel_fill_a", "#1a1a2e")
-        self._panel_fill_a_btn.setStyleSheet(f"background:{col_a};")
-        self._panel_fill_a_btn.clicked.connect(
-            lambda: self._pick_panel_colour("panel_fill_a", self._panel_fill_a_btn))
-        sgl.addWidget(self._panel_fill_a_btn, 0, 1)
-
-        sgl.addWidget(QLabel("Colour B:"), 1, 0)
-        self._panel_fill_b_btn = QPushButton()
-        self._panel_fill_b_btn.setFixedHeight(24)
-        col_b = self.app_settings.current_settings.get("panel_fill_b", "#16213e")
-        self._panel_fill_b_btn.setStyleSheet(f"background:{col_b};")
-        self._panel_fill_b_btn.clicked.connect(
-            lambda: self._pick_panel_colour("panel_fill_b", self._panel_fill_b_btn))
-        sgl.addWidget(self._panel_fill_b_btn, 1, 1)
-
-        sgl.addWidget(QLabel("Direction:"), 2, 0)
-        self._panel_fill_dir = QComboBox()
-        self._panel_fill_dir.addItems([
-            "Solid (A only)",
-            "H — Left → Right",
-            "V — Top → Bottom",
-            "BL → TR",
-            "BR → TL",
-            "TL → BR",
-            "TR → BL",
-        ])
-        self._panel_fill_dir.setCurrentIndex(
-            self.app_settings.current_settings.get("panel_fill_dir", 0))
-        sgl.addWidget(self._panel_fill_dir, 2, 1)
-        fl.addWidget(solid_group)
-
-        hero_group = QGroupBox("Hero Banner Gradient")
-        hgl = QGridLayout(hero_group)
-        hgl.setColumnStretch(1, 1)
-        for row, (label, key, default) in enumerate([
-            ("Dark — Start:",  "hero_gradient_dark_start",  "#1a1a2e"),
-            ("Dark — End:",    "hero_gradient_dark_end",    "#2d2d5e"),
-            ("Light — Start:", "hero_gradient_light_start", "#1a1a2e"),
-            ("Light — End:",   "hero_gradient_light_end",   "#2d2d5e"),
-        ]):
-            hgl.addWidget(QLabel(label), row, 0)
-            btn = QPushButton()
-            btn.setFixedHeight(22)
-            val = self.app_settings.current_settings.get(key, default)
-            btn.setStyleSheet(f"background:{val};")
-            btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
-            setattr(self, f"_hero_btn_{key}", btn)
-            hgl.addWidget(btn, row, 1)
-        fl.addWidget(hero_group)
-        fl.addStretch()
-
-        # Preview widget — stacked: fill top, hero bottom
-        fill_prev_container = QWidget()
-        fpc = QVBoxLayout(fill_prev_container)
-        fpc.setSpacing(4)
-        fpc.setContentsMargins(0, 0, 0, 0)
-        self._fill_preview = PanelPreviewWidget(self, "fill")
-        self._hero_preview = PanelPreviewWidget(self, "hero")
-        fpc.addWidget(QLabel("Fill:"))
-        fpc.addWidget(self._fill_preview, 1)
-        fpc.addWidget(QLabel("Hero banner:"))
-        fpc.addWidget(self._hero_preview, 1)
-
-        self._panel_fill_dir.currentIndexChanged.connect(
-            lambda i: [self.app_settings.current_settings.__setitem__("panel_fill_dir", i),
-                       self._fill_preview.refresh(), self._hero_preview.refresh()])
-
-        sub.addTab(_two_col(fill_ctrl, fill_prev_container), "Fill")
-
-        #   Gradient
-        grad_ctrl = QWidget()
-        gl_root = QVBoxLayout(grad_ctrl)
-        gl_root.setSpacing(8)
-
-        gdir_group = QGroupBox("Direction")
-        gdir_lay = QVBoxLayout(gdir_group)
-        self._grad_dir_combo = QComboBox()
-        self._grad_dir_combo.addItems([
-            "H — Left → Right",
-            "V — Top → Bottom",
-            "45° — TL → BR",
-            "45° — TR → BL",
-            "45° — BL → TR",
-            "45° — BR → TL",
-        ])
-        self._grad_dir_combo.setCurrentIndex(
-            self.app_settings.current_settings.get("panel_grad_dir", 1))
-        gdir_lay.addWidget(self._grad_dir_combo)
-        gl_root.addWidget(gdir_group)
-
-        gstop_group = QGroupBox("Colour Stops")
-        gstop_lay = QGridLayout(gstop_group)
-        gstop_lay.setColumnStretch(1, 1)
-        for row, (label, key, default) in enumerate([
-            ("Stop 1 (0%):",   "panel_grad_stop1", "#1a1a2e"),
-            ("Stop 2 (50%):",  "panel_grad_stop2", "#2d1b4e"),
-            ("Stop 3 (100%):", "panel_grad_stop3", "#16213e"),
-        ]):
-            gstop_lay.addWidget(QLabel(label), row, 0)
-            btn = QPushButton()
-            btn.setFixedHeight(22)
-            val = self.app_settings.current_settings.get(key, default)
-            btn.setStyleSheet(f"background:{val};")
-            btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
-            gstop_lay.addWidget(btn, row, 1)
-        gl_root.addWidget(gstop_group)
-        gl_root.addStretch()
-
-        self._grad_preview = PanelPreviewWidget(self, "gradient")
-        self._grad_dir_combo.currentIndexChanged.connect(
-            lambda i: [self.app_settings.current_settings.__setitem__("panel_grad_dir", i),
-                       self._grad_preview.refresh()])
-
-        sub.addTab(_two_col(grad_ctrl, self._grad_preview), "Gradient")
-
-        #   Pattern
-        pat_ctrl = QWidget()
-        pl = QVBoxLayout(pat_ctrl)
-        pl.setSpacing(8)
-
-        pat_style_group = QGroupBox("Pattern Style")
-        psl = QGridLayout(pat_style_group)
-        psl.setColumnStretch(1, 1)
-
-        self._pat_style_combo = QComboBox()
-        self._pat_style_combo.addItems([
-            "None", "Dots",
-            "Lines — Horizontal", "Lines — Vertical", "Lines — Diagonal",
-            "Check", "Waves", "Tartan", "Picnic", "Odd/Even rows",
-        ])
-        self._pat_style_combo.setCurrentIndex(
-            self.app_settings.current_settings.get("panel_pattern_style", 0))
-        psl.addWidget(QLabel("Style:"), 0, 0)
-        psl.addWidget(self._pat_style_combo, 0, 1)
-
-        psl.addWidget(QLabel("Scale:"), 1, 0)
-        self._pat_scale = QSlider(Qt.Orientation.Horizontal)
-        self._pat_scale.setRange(2, 32)
-        self._pat_scale.setValue(
-            self.app_settings.current_settings.get("panel_pattern_scale", 8))
-        self._pat_scale_lbl = QLabel(f"{self._pat_scale.value()}px")
-        self._pat_scale.valueChanged.connect(
-            lambda v: self._pat_scale_lbl.setText(f"{v}px"))
-        psl.addWidget(self._pat_scale, 1, 1)
-        psl.addWidget(self._pat_scale_lbl, 1, 2)
-
-        psl.addWidget(QLabel("Light colour:"), 2, 0)
-        self._pat_light_btn = QPushButton()
-        self._pat_light_btn.setFixedHeight(22)
-        val = self.app_settings.current_settings.get("panel_pattern_light", "#2a2a4a")
-        self._pat_light_btn.setStyleSheet(f"background:{val};")
-        self._pat_light_btn.clicked.connect(
-            lambda: self._pick_panel_colour("panel_pattern_light", self._pat_light_btn))
-        psl.addWidget(self._pat_light_btn, 2, 1)
-
-        psl.addWidget(QLabel("Dark colour:"), 3, 0)
-        self._pat_dark_btn = QPushButton()
-        self._pat_dark_btn.setFixedHeight(22)
-        val = self.app_settings.current_settings.get("panel_pattern_dark", "#141428")
-        self._pat_dark_btn.setStyleSheet(f"background:{val};")
-        self._pat_dark_btn.clicked.connect(
-            lambda: self._pick_panel_colour("panel_pattern_dark", self._pat_dark_btn))
-        psl.addWidget(self._pat_dark_btn, 3, 1)
-        pl.addWidget(pat_style_group)
-
-        cop_group = QGroupBox("Copper Effect")
-        cpl = QGridLayout(cop_group)
-        cpl.setColumnStretch(1, 1)
-        for row, (label, key, default) in enumerate([
-            ("Light copper:", "copper_light", "#b87333"),
-            ("Dark copper:",  "copper_dark",  "#7a4a1a"),
-        ]):
-            cpl.addWidget(QLabel(label), row, 0)
-            btn = QPushButton()
-            btn.setFixedHeight(22)
-            val = self.app_settings.current_settings.get(key, default)
-            btn.setStyleSheet(f"background:{val};")
-            btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
-            cpl.addWidget(btn, row, 1)
-        pl.addWidget(cop_group)
-        pl.addStretch()
-
-        pat_prev_container = QWidget()
-        ppc = QVBoxLayout(pat_prev_container)
-        ppc.setSpacing(4)
-        ppc.setContentsMargins(0,0,0,0)
-        self._pat_preview    = PanelPreviewWidget(self, "pattern")
-        self._copper_preview = PanelPreviewWidget(self, "copper")
-        ppc.addWidget(QLabel("Pattern:"))
-        ppc.addWidget(self._pat_preview, 1)
-        ppc.addWidget(QLabel("Copper:"))
-        ppc.addWidget(self._copper_preview, 1)
-
-        self._pat_style_combo.currentIndexChanged.connect(
-            lambda i: [self.app_settings.current_settings.__setitem__("panel_pattern_style", i),
-                       self._pat_preview.refresh()])
-        self._pat_scale.valueChanged.connect(
-            lambda v: [self.app_settings.current_settings.__setitem__("panel_pattern_scale", v),
-                       self._pat_preview.refresh()])
-
-        sub.addTab(_two_col(pat_ctrl, pat_prev_container), "Pattern")
-
-        #   Image
+        # ── Image ─────────────────────────────────────────────────────────
         img_ctrl = QWidget()
         il = QVBoxLayout(img_ctrl)
         il.setSpacing(8)
@@ -7125,7 +7056,6 @@ Ready for operations..."""
         blend_lay.addWidget(self._panel_img_opacity_lbl)
         igl.addLayout(blend_lay)
         il.addWidget(img_group)
-        il.addStretch()
 
         self._img_preview = PanelPreviewWidget(self, "image")
         self._panel_img_path.textChanged.connect(
@@ -7137,13 +7067,25 @@ Ready for operations..."""
         self._panel_img_opacity.valueChanged.connect(
             lambda v: [self.app_settings.current_settings.__setitem__("panel_bg_image_opacity", v),
                        self._img_preview.refresh()])
+        il.addStretch()
 
-        sub.addTab(_two_col(img_ctrl, self._img_preview), "Image")
+        img_w = QWidget()
+        img_hl = QHBoxLayout(img_w)
+        img_hl.setContentsMargins(0,0,0,0)
+        img_scroll = QScrollArea(); img_scroll.setWidgetResizable(True)
+        img_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        img_scroll.setWidget(img_ctrl)
+        img_hl.addWidget(img_scroll, 55)
+        img_right = QWidget(); img_rl = QVBoxLayout(img_right)
+        img_rl.setContentsMargins(0,0,0,0)
+        img_rl.addWidget(QLabel("Live Preview"))
+        img_rl.addWidget(self._img_preview, 1)
+        img_hl.addWidget(img_right, 45)
+        sub.addTab(img_w, "Image")
 
-        #   Transparency
+        # ── Transparency ──────────────────────────────────────────────────
         trans_ctrl = QWidget()
-        tl = QVBoxLayout(trans_ctrl)
-        tl.setSpacing(6)
+        tl = QVBoxLayout(trans_ctrl); tl.setSpacing(6)
 
         for label, key, default in [
             ("Titlebar",  "titlebar_opacity", 100),
@@ -7163,28 +7105,60 @@ Ready for operations..."""
             sl.valueChanged.connect(lambda v, l=lbl, k=key: [
                 l.setText(f"{v}%"),
                 self.app_settings.current_settings.__setitem__(k, v)])
-            grp_l.addWidget(sl)
-            grp_l.addWidget(lbl)
+            grp_l.addWidget(sl); grp_l.addWidget(lbl)
             tl.addWidget(grp)
             setattr(self, f"_{key}_slider", sl)
-
         tl.addStretch()
 
         self._trans_preview = PanelPreviewWidget(self, "transparency")
-        for key in ("titlebar_opacity", "panel_opacity", "button_opacity", "widget_opacity"):
+        for key in ("titlebar_opacity","panel_opacity","button_opacity","widget_opacity"):
             sl = getattr(self, f"_{key}_slider", None)
             if sl:
                 sl.valueChanged.connect(lambda _: self._trans_preview.refresh())
 
-        sub.addTab(_two_col(trans_ctrl, self._trans_preview,
-                            "Panel over checkerboard"), "Transparency")
+        trans_w = QWidget(); trans_hl = QHBoxLayout(trans_w)
+        trans_hl.setContentsMargins(0,0,0,0)
+        trans_scroll = QScrollArea(); trans_scroll.setWidgetResizable(True)
+        trans_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        trans_scroll.setWidget(trans_ctrl)
+        trans_hl.addWidget(trans_scroll, 55)
+        trans_right = QWidget(); trans_rl = QVBoxLayout(trans_right)
+        trans_rl.setContentsMargins(0,0,0,0)
+        trans_rl.addWidget(QLabel("Panel over checkerboard"))
+        trans_rl.addWidget(self._trans_preview, 1)
+        trans_hl.addWidget(trans_right, 45)
+        sub.addTab(trans_w, "Transparency")
 
-        #   Gadgets
+        # ── Gadgets ───────────────────────────────────────────────────────
         gadgets_inner = self._create_advanced_gadgets_tab()
         sub.addTab(gadgets_inner, "Gadgets")
 
         root.addWidget(sub)
         return tab
+
+    def _refresh_panel_previews(self): #vers 1
+        """Refresh all PanelPreviewWidget instances in the dialog."""
+        for attr in ("_fill_preview", "_hero_preview", "_grad_preview",
+                     "_pat_preview", "_copper_preview", "_img_preview",
+                     "_trans_preview"):
+            pw = getattr(self, attr, None)
+            if pw:
+                pw.refresh()
+
+    def _show_effect_preview_popup(self, mode: str): #vers 1
+        """Show a larger popup preview of the given panel effect mode."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel as _QL
+        d = QDialog(self)
+        d.setWindowTitle(f"Preview — {mode.title()}")
+        d.resize(400, 200)
+        lay = QVBoxLayout(d)
+        pw = PanelPreviewWidget(self, mode)
+        pw.setMinimumHeight(160)
+        lay.addWidget(pw)
+        note = _QL("Close window to dismiss")
+        note.setStyleSheet("color: palette(placeholderText); font-size: 8pt;")
+        lay.addWidget(note)
+        d.exec()
 
     def _pick_panel_colour(self, key: str, btn: "QPushButton"): #vers 2
         """Open colour dialog, store result, refresh all panel previews."""
