@@ -4802,6 +4802,12 @@ class SettingsDialog(QDialog): #vers 15
 
         current_style = self.app_settings.current_settings.get("button_style", "flat")
 
+        # Dummy combo for backward compat with _create_button_panel_editor
+        if not hasattr(self, "button_theme_type_combo"):
+            self.button_theme_type_combo = QComboBox()
+            self.button_theme_type_combo.addItems(["Light Theme Buttons", "Dark Theme Buttons"])
+            self.button_theme_type_combo.setVisible(False)
+
         self._btn_style_radios = {}
         grid = QGridLayout()
         grid.setSpacing(4)
@@ -5118,7 +5124,7 @@ class SettingsDialog(QDialog): #vers 15
 
             # Get default color
             default_colors = self._get_default_button_colors()
-            is_light = self.button_theme_type_combo.currentText() == "Light Theme Buttons"
+            is_light = not self._is_dark_theme()
             color_key = f"button_{panel_id}_{button_action}_{'light' if is_light else 'dark'}"
             default_color = self.app_settings.current_settings.get(color_key, default_colors.get(button_action, "#E3F2FD"))
 
@@ -5163,9 +5169,9 @@ class SettingsDialog(QDialog): #vers 15
 
         return widget
 
-    def _get_default_button_colors(self): #vers 1
-        """Get default button colors based on theme type (light/dark)"""
-        is_light = self.button_theme_type_combo.currentText() == "Light Theme Buttons"
+    def _get_default_button_colors(self): #vers 2
+        """Get default button colors based on current theme (light/dark)"""
+        is_light = not self._is_dark_theme()
 
         if is_light:
             # Light theme - Pastel colors
@@ -5255,22 +5261,9 @@ class SettingsDialog(QDialog): #vers 15
         if color.isValid():
             color_input.setText(color.name())
 
-    def _on_button_theme_type_changed(self, theme_type): #vers 1
-        """Handle switching between light/dark button color sets"""
-        # Reload button colors for the selected theme type
-        if hasattr(self, 'button_color_editors'):
-            default_colors = self._get_default_button_colors()
-            is_light = theme_type == "Light Theme Buttons"
-
-            for panel_id, editors in self.button_color_editors.items():
-                for button_action, editor_dict in editors.items():
-                    color_key = f"button_{panel_id}_{button_action}_{'light' if is_light else 'dark'}"
-                    color = self.app_settings.current_settings.get(
-                        color_key,
-                        default_colors.get(button_action, "#E3F2FD")
-                    )
-                    editor_dict['input'].setText(color)
-
+    def _on_button_theme_type_changed(self, theme_type): #vers 2
+        """No-op — theme type now derived from _is_dark_theme()."""
+        pass
 
     def _toggle_instant_apply(self, enabled: bool):
         """Enhanced instant apply toggle"""
