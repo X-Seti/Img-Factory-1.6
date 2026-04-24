@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 8
+#belongs in gui/gui_layout_custom.py - Version 9
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -166,6 +166,66 @@ def _show_dat_browser(mw): #vers 2
     except Exception as e:
         if hasattr(mw, 'log_message'):
             mw.log_message(f"DAT Browser show error: {e}")
+
+
+def _show_intro_panel(mw): #vers 1
+    """Show welcome/intro screen in left_stack (page 2) — same toggle as Dir Tree / DAT."""
+    try:
+        left_stack, splitter = _get_left_stack(mw)
+        if left_stack is None or splitter is None:
+            return
+
+        # Build welcome screen first time
+        if not getattr(mw, '_intro_panel', None):
+            from apps.components.Img_Factory.welcome_screen import WelcomeScreen
+            ws = WelcomeScreen(main_window=mw)
+            ws.open_img_requested.connect(mw.open_img_file)
+            ws.open_dat_browser.connect(lambda: _show_dat_browser(mw))
+            ws.open_dir_tree.connect(lambda: _show_dir_tree(mw))
+            try:
+                ws.open_col_workshop.connect(
+                    lambda: mw.gui_layout.method_mappings.get('edit_col_file', lambda: None)())
+                ws.open_txd_workshop.connect(
+                    lambda: mw.gui_layout.method_mappings.get('edit_txd_file', lambda: None)())
+                ws.open_model_workshop.connect(
+                    lambda: mw.gui_layout.method_mappings.get('edit_dff_file', lambda: None)())
+            except Exception:
+                pass
+            ws._dismiss = lambda: _show_intro_panel(mw)   # Close = toggle off
+            mw._intro_panel = ws
+
+        ws = mw._intro_panel
+
+        # Ensure left_stack has a page 2 slot
+        INTRO_PAGE = 2
+        while left_stack.count() <= INTRO_PAGE:
+            from PyQt6.QtWidgets import QWidget as _QW
+            left_stack.addWidget(_QW())
+
+        if left_stack.widget(INTRO_PAGE) is not ws:
+            old = left_stack.widget(INTRO_PAGE)
+            left_stack.removeWidget(old)
+            left_stack.insertWidget(INTRO_PAGE, ws)
+
+        # Toggle: if already showing intro — collapse panel
+        currently_intro = (left_stack.currentIndex() == INTRO_PAGE
+                           and left_stack.isVisible()
+                           and splitter.sizes()[0] > 20)
+        if currently_intro:
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([0, total])
+            left_stack.hide()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.set_active('intro', False)
+        else:
+            left_stack.setCurrentIndex(INTRO_PAGE)
+            _ensure_left_panel_visible(mw, splitter, left_stack)
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar._set_exclusive_active('intro')
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Welcome / Intro")
+    except Exception as e:
+        import traceback; traceback.print_exc()
 
 
 class ToolTaskbar(QWidget):  # vers 2

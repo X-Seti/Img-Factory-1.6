@@ -3307,71 +3307,8 @@ class IMGFactory(QMainWindow):
         tab_layout.setContentsMargins(0, 0, 0, 0)
         tab_layout.setSpacing(0)
 
-        # ── Welcome screen (shown when no file loaded) ────────────────────
-        try:
-            from apps.components.Img_Factory.welcome_screen import WelcomeScreen
-            ws = WelcomeScreen(main_window=self)
-            ws.open_img_requested.connect(self.open_img_file)
-            ws.open_dat_browser.connect(
-                lambda: self.gui_layout._open_dat_browser()
-                if hasattr(self, 'gui_layout') and
-                hasattr(self.gui_layout, '_open_dat_browser') else None)
-            ws.open_col_workshop.connect(
-                lambda: self.gui_layout.method_mappings.get(
-                    'edit_col_file', lambda: None)()
-                if hasattr(self, 'gui_layout') else None)
-            ws.open_txd_workshop.connect(
-                lambda: self.gui_layout.method_mappings.get(
-                    'edit_txd_file', lambda: None)()
-                if hasattr(self, 'gui_layout') else None)
-            ws.open_model_workshop.connect(
-                lambda: self.gui_layout.method_mappings.get(
-                    'edit_dff_file', lambda: None)()
-                if hasattr(self, 'gui_layout') else None)
-            ws.open_dir_tree.connect(
-                lambda: self.gui_layout.method_mappings.get(
-                    'switch_to_dir', lambda: None)()
-                if hasattr(self, 'gui_layout') else None)
-            tab_widget._welcome_screen = ws
-            # Cap height so the welcome screen never forces the window taller
-            # than the screen. 600px fits comfortably on a 1080p display;
-            # the QScrollArea inside handles overflow gracefully.
-            ws.setMaximumHeight(600)
-            tab_layout.addWidget(ws)
-
-            # Honour show_on_startup preference
-            try:
-                from apps.components.Img_Factory.welcome_screen import WelcomeScreen as _WS
-                if not _WS.should_show_on_startup():
-                    ws.setVisible(False)
-            except Exception:
-                pass
-
-            # Register [Intro] taskbar button to re-open welcome screen
-            from PyQt6.QtCore import QTimer as _QTi
-            def _register_intro():
-                try:
-                    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-                    _icon_fn = SVGIconFactory.info_icon
-                except Exception:
-                    _icon_fn = None
-                def _show_intro():
-                    ws.setVisible(True)
-                    # Switch back to first tab
-                    tw = getattr(self, 'main_tab_widget', None)
-                    if tw:
-                        for i in range(tw.count()):
-                            w = tw.widget(i)
-                            if w and hasattr(w, '_welcome_screen'):
-                                tw.setCurrentIndex(i); break
-                if hasattr(self, 'register_tool') and _icon_fn:
-                    self.register_tool('intro', 'Intro', _icon_fn,
-                                       _show_intro, 'Show welcome / intro screen')
-            _QTi.singleShot(800, _register_intro)
-
-        except Exception as e:
-            self.log_message(f"Welcome screen error: {e}")
-            import traceback; traceback.print_exc()
+        # Welcome screen now lives in the left panel (same as Dir Tree / DAT Browser)
+        # Registered as [Intro] taskbar button — see _register_intro_tool() called after show()
 
         # Search button is in the welcome screen bottom bar next to [Close]
 
@@ -6069,6 +6006,28 @@ class IMGFactory(QMainWindow):
             self.log_message(f"IPL Workshop error: {e}")
             traceback.print_exc()
 
+    def _register_intro_tool(self): #vers 1
+        """Register [Intro] taskbar button to open welcome screen in left panel."""
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            from apps.gui.gui_layout_custom import _show_intro_panel
+            _icon_fn = SVGIconFactory.info_icon
+            def _show():
+                _show_intro_panel(self)
+            if hasattr(self, 'register_tool') and _icon_fn:
+                self.register_tool('intro', 'Intro', _icon_fn,
+                                   _show, 'Show welcome / intro screen')
+            # Auto-show on startup if preference set
+            try:
+                from apps.components.Img_Factory.welcome_screen import WelcomeScreen
+                if WelcomeScreen.should_show_on_startup():
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(400, _show)
+            except Exception:
+                pass
+        except Exception as e:
+            self.log_message(f"Intro tool registration error: {e}")
+
     def toggle_dir_tree(self): #vers 3
         """Delegate to _show_dir_tree which uses left_stack."""
         try:
@@ -6994,13 +6953,14 @@ class IMGFactory(QMainWindow):
         self._corner_overlay = CornerOverlay(self)
         self._corner_overlay.raise_()
 
-    def showEvent(self, event): #vers 2
+    def showEvent(self, event): #vers 3
         super().showEvent(event)
         from PyQt6.QtCore import Qt, QTimer
-        # Corner overlay only makes sense in frameless mode — system titlebar
-        # mode lets the OS/KDE handle window resizing natively.
+        # Corner overlay only makes sense in frameless mode
         if self.windowFlags() & Qt.WindowType.FramelessWindowHint:
             QTimer.singleShot(100, self.setup_corner_overlay)
+        # Register [Intro] taskbar button → left panel welcome screen
+        QTimer.singleShot(900, self._register_intro_tool)
 
     def refresh_corner_overlay(self): #vers 1
         if hasattr(self, '_corner_overlay'):
