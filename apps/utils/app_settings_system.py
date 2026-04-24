@@ -1623,6 +1623,7 @@ class AppSettings:
             'progressbar_text':          '#ffffff',
             'progressbar_stripe':        '#5a9abf',
             'progressbar_height':        18,
+            'panel_effect_type':          'none',  # none|fill|gradient|pattern
             'locale_auto_detect':        True,
             'language':                  'en_GB',
             'date_format_idx':           0,
@@ -1976,6 +1977,67 @@ class AppSettings:
         }}
         QSplitter::handle:vertical:hover {{
             background-color: {accent_primary};
+        }}
+        """
+
+        # ── Button style ─────────────────────────────────────────────────
+        cs = getattr(self, 'current_settings', {})
+        btn_style  = cs.get('button_style', 'flat')
+        btn_normal = colors.get('button_normal', '#e0e0e0')
+        btn_hover  = colors.get('button_hover',  '#d0d0d0')
+        btn_press  = colors.get('button_pressed','#b0b0b0')
+        from PyQt6.QtGui import QColor as _QC
+        _c = _QC(btn_normal)
+        _light = _c.lighter(140).name()
+        _dark  = _c.darker(130).name()
+
+        _btn_bg = {
+            'gradient_h':  f'background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 {_light},stop:1 {_dark});',
+            'gradient_v':  f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:1 {_dark});',
+            'gradient_45': f'background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {_light},stop:0.5 {btn_normal},stop:1 {_dark});',
+            'banded':      f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:0.25 white,stop:0.30 {_light},stop:0.31 {btn_normal},stop:1 {_dark});',
+            'bump':        f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {_light},stop:1 {_dark});',
+            'amiga_wb':    f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 white,stop:0.15 {_light},stop:0.85 {_dark},stop:1 black);',
+            'half_shine':  f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 white,stop:0.48 {_light},stop:0.49 {btn_normal},stop:1 {btn_normal});',
+        }.get(btn_style, f'background-color: {btn_normal};')
+
+        if btn_style not in ('flat', 'zen', 'indented', 'shadow_dark'):
+            stylesheet += f"""
+        QPushButton:!flat {{
+            {_btn_bg}
+        }}
+        """
+
+        # ── Progress bar ──────────────────────────────────────────────────
+        pb_style = cs.get('progressbar_style', 'system')
+        if pb_style != 'system':
+            pb_fill  = cs.get('progressbar_fill',   '#4a7a9b')
+            pb_bg    = cs.get('progressbar_bg',      bg_primary)
+            pb_text  = cs.get('progressbar_text',    text_primary)
+            pb_h     = cs.get('progressbar_height',  18)
+            _pf      = _QC(pb_fill)
+            pb_light = _pf.lighter(140).name()
+            pb_dark  = _pf.darker(130).name()
+            _pb_chunk = {
+                'flat':       f'background-color: {pb_fill};',
+                'gradient_h': f'background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 {pb_light},stop:1 {pb_dark});',
+                'gradient_v': f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {pb_light},stop:1 {pb_dark});',
+                'banded':     f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {pb_light},stop:0.3 white,stop:0.31 {pb_fill},stop:1 {pb_dark});',
+                'glow':       f'background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {pb_dark},stop:0.5 {pb_light},stop:1 {pb_dark});',
+            }.get(pb_style, f'background-color: {pb_fill};')
+            stylesheet += f"""
+        QProgressBar {{
+            background-color: {pb_bg};
+            border: 1px solid {border};
+            border-radius: 3px;
+            color: {pb_text};
+            text-align: center;
+            min-height: {pb_h}px;
+            max-height: {pb_h}px;
+        }}
+        QProgressBar::chunk {{
+            {_pb_chunk}
+            border-radius: 2px;
         }}
         """
 
@@ -2703,6 +2765,169 @@ class AppSettings:
             fallback_theme = list(self.themes.keys())[0] if self.themes else "App_Factory"
             return self.themes.get(fallback_theme, {"colors": {}})
 
+
+
+class AppPanelEffect: #vers 1
+    """Mixin installed on QWidget panels to draw fill/gradient/pattern
+    effects from app_settings. Install with AppPanelEffect.install(widget, settings)."""
+
+    @staticmethod
+    def install(widget, app_settings, effect_type="auto"): #vers 1
+        """Install panel effect paintEvent on widget.
+        effect_type: 'fill'|'gradient'|'pattern'|'auto' (reads panel_effect key)
+        """
+        widget._app_settings_ref = app_settings
+        widget._panel_effect_type = effect_type
+
+        original_paint = widget.__class__.paintEvent if hasattr(widget.__class__, 'paintEvent') else None
+
+        def _panel_paint(self_w, event):
+            if original_paint:
+                original_paint(self_w, event)
+            AppPanelEffect._draw_effect(self_w, event)
+
+        # Only patch if not already patched
+        if not getattr(widget, '_panel_effect_installed', False):
+            import types
+            widget.paintEvent = types.MethodType(_panel_paint, widget)
+            widget._panel_effect_installed = True
+
+    @staticmethod
+    def _draw_effect(widget, event): #vers 1
+        """Draw the panel effect on top of the widget background."""
+        from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPen
+        from PyQt6.QtCore import QPointF, Qt
+
+        cs = getattr(widget, '_app_settings_ref', None)
+        if not cs:
+            return
+        if not isinstance(cs, dict):
+            cs = getattr(cs, 'current_settings', {})
+
+        effect = cs.get('panel_effect_type', 'none')
+        if effect == 'none' or not effect:
+            return
+
+        p = QPainter(widget)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        r = widget.rect()
+
+        try:
+            if effect == 'fill':
+                AppPanelEffect._paint_fill(p, r, cs)
+            elif effect == 'gradient':
+                AppPanelEffect._paint_gradient(p, r, cs)
+            elif effect == 'pattern':
+                AppPanelEffect._paint_pattern(p, r, cs)
+        except Exception:
+            pass
+        finally:
+            p.end()
+
+    @staticmethod
+    def _paint_fill(p, r, cs): #vers 1
+        from PyQt6.QtGui import QColor, QLinearGradient
+        from PyQt6.QtCore import QPointF
+        ca = QColor(cs.get('panel_fill_a', '#1a1a2e'))
+        cb = QColor(cs.get('panel_fill_b', '#16213e'))
+        d  = cs.get('panel_fill_dir', 0)
+        if d == 0:
+            p.fillRect(r, ca)
+            return
+        dirs = {
+            1: (QPointF(r.left(), r.top()),    QPointF(r.right(), r.top())),
+            2: (QPointF(r.left(), r.top()),    QPointF(r.left(),  r.bottom())),
+            3: (QPointF(r.left(), r.bottom()), QPointF(r.right(), r.top())),
+            4: (QPointF(r.right(),r.bottom()), QPointF(r.left(),  r.top())),
+            5: (QPointF(r.left(), r.top()),    QPointF(r.right(), r.bottom())),
+            6: (QPointF(r.right(),r.top()),    QPointF(r.left(),  r.bottom())),
+        }
+        s, e = dirs.get(d, dirs[1])
+        g = QLinearGradient(s, e)
+        g.setColorAt(0, ca); g.setColorAt(1, cb)
+        p.fillRect(r, g)
+
+    @staticmethod
+    def _paint_gradient(p, r, cs): #vers 1
+        from PyQt6.QtGui import QColor, QLinearGradient
+        from PyQt6.QtCore import QPointF
+        s1 = QColor(cs.get('panel_grad_stop1', '#1a1a2e'))
+        s2 = QColor(cs.get('panel_grad_stop2', '#2d1b4e'))
+        s3 = QColor(cs.get('panel_grad_stop3', '#16213e'))
+        d  = cs.get('panel_grad_dir', 1)
+        pts = {
+            0: (QPointF(r.left(), r.top()),    QPointF(r.right(), r.top())),
+            1: (QPointF(r.left(), r.top()),    QPointF(r.left(),  r.bottom())),
+            2: (QPointF(r.left(), r.top()),    QPointF(r.right(), r.bottom())),
+            3: (QPointF(r.right(),r.top()),    QPointF(r.left(),  r.bottom())),
+            4: (QPointF(r.left(), r.bottom()), QPointF(r.right(), r.top())),
+            5: (QPointF(r.right(),r.bottom()), QPointF(r.left(),  r.top())),
+        }
+        s, e = pts.get(d, pts[1])
+        g = QLinearGradient(s, e)
+        g.setColorAt(0, s1); g.setColorAt(0.5, s2); g.setColorAt(1, s3)
+        p.fillRect(r, g)
+
+    @staticmethod
+    def _paint_pattern(p, r, cs): #vers 1
+        from PyQt6.QtGui import QColor, QPen, QBrush
+        from PyQt6.QtCore import Qt
+        style = cs.get('panel_pattern_style', 0)
+        scale = max(2, cs.get('panel_pattern_scale', 8))
+        cl    = QColor(cs.get('panel_pattern_light', '#2a2a4a'))
+        cd    = QColor(cs.get('panel_pattern_dark',  '#141428'))
+        p.fillRect(r, cd)
+        if style == 1:  # Dots
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(cl)
+            for x in range(r.left(), r.right(), scale):
+                for y in range(r.top(), r.bottom(), scale):
+                    p.drawEllipse(x, y, max(2,scale//4), max(2,scale//4))
+        elif style == 2:  # Lines H
+            p.setPen(QPen(cl, 1))
+            for y in range(r.top(), r.bottom(), scale):
+                p.drawLine(r.left(), y, r.right(), y)
+        elif style == 3:  # Lines V
+            p.setPen(QPen(cl, 1))
+            for x in range(r.left(), r.right(), scale):
+                p.drawLine(x, r.top(), x, r.bottom())
+        elif style == 4:  # Diagonal
+            p.setPen(QPen(cl, 1))
+            for i in range(-r.height(), r.width()+r.height(), scale):
+                p.drawLine(r.left()+i, r.top(), r.left()+i+r.height(), r.bottom())
+        elif style == 5:  # Check
+            p.setPen(Qt.PenStyle.NoPen)
+            for row in range(r.height()//scale+1):
+                for col in range(r.width()//scale+1):
+                    p.setBrush(cl if (row+col)%2==0 else cd)
+                    p.drawRect(r.left()+col*scale, r.top()+row*scale, scale, scale)
+        elif style == 9:  # Odd/Even rows
+            p.setPen(Qt.PenStyle.NoPen)
+            for row in range(r.height()//scale+1):
+                p.setBrush(cl if row%2==0 else cd)
+                p.drawRect(r.left(), r.top()+row*scale, r.width(), scale)
+
+
+def apply_panel_effects(window, app_settings): #vers 1
+    """Walk a window's panels and apply the current panel effect to each.
+    Call this after _apply_theme() in any window that uses app_settings.
+    Panels targeted: QGroupBox, QFrame with StyledPanel, central widget.
+    """
+    from PyQt6.QtWidgets import QGroupBox, QFrame
+    cs = app_settings.current_settings
+    effect = cs.get('panel_effect_type', 'none')
+
+    if effect == 'none':
+        return
+
+    # Target panels — QGroupBox and StyledPanel QFrames
+    for widget in window.findChildren(QGroupBox):
+        AppPanelEffect.install(widget, cs)
+        widget.update()
+
+    for widget in window.findChildren(QFrame):
+        if widget.frameStyle() & QFrame.Shape.StyledPanel.value:
+            AppPanelEffect.install(widget, cs)
+            widget.update()
 
 
 class PanelPreviewWidget(QWidget): #vers 1
@@ -3505,8 +3730,8 @@ class SettingsDialog(QDialog): #vers 15
         self._dialog_menu_btn = menu_btn
 
         settings_btn = _btn("Settings", ico.settings_icon,
-                             "Open/close settings", lambda: None)
-        settings_btn.setEnabled(False)   # we ARE in settings
+                             "Dialog appearance — font, titlebar height, style",
+                             self._show_dialog_self_settings)
         tl.addWidget(settings_btn)
 
         # ── Centre: draggable title ───────────────────────────────────────
@@ -3564,6 +3789,54 @@ class SettingsDialog(QDialog): #vers 15
         self.dialog_titlebar.mousePressEvent  = _tb_press
         self.dialog_titlebar.mouseMoveEvent   = _tb_move
         self.dialog_titlebar.mouseDoubleClickEvent = _tb_dbl
+
+    def _show_dialog_self_settings(self): #vers 1
+        """Mini dialog for the settings dialog's own appearance — font, titlebar height."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                      QLabel, QSpinBox, QFontComboBox,
+                                      QDialogButtonBox, QGroupBox)
+        d = QDialog(self)
+        d.setWindowTitle("Dialog Appearance")
+        d.setMinimumWidth(340)
+        lay = QVBoxLayout(d)
+
+        font_group = QGroupBox("Dialog Font")
+        fgl = QHBoxLayout(font_group)
+        fgl.addWidget(QLabel("Family:"))
+        fc = QFontComboBox()
+        fc.setCurrentFont(__import__('PyQt6.QtGui', fromlist=['QFont']).QFont(
+            self.app_settings.current_settings.get('font_family', 'Arial')))
+        fgl.addWidget(fc)
+        fgl.addWidget(QLabel("Size:"))
+        fs = QSpinBox(); fs.setRange(7, 16)
+        fs.setValue(self.app_settings.current_settings.get('font_size', 9))
+        fgl.addWidget(fs)
+        lay.addWidget(font_group)
+
+        tb_group = QGroupBox("Titlebar")
+        tgl = QHBoxLayout(tb_group)
+        tgl.addWidget(QLabel("Height:"))
+        tbs = QSpinBox(); tbs.setRange(28, 60)
+        tbs.setValue(self.app_settings.current_settings.get(
+            'settings_dialog_titlebar_height', 40))
+        tbs.setSuffix(" px")
+        tgl.addWidget(tbs)
+        lay.addWidget(tb_group)
+
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                              QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        lay.addWidget(bb)
+
+        if d.exec():
+            self.app_settings.current_settings['font_family'] = fc.currentFont().family()
+            self.app_settings.current_settings['font_size']   = fs.value()
+            self.app_settings.current_settings['settings_dialog_titlebar_height'] = tbs.value()
+            # Apply titlebar height immediately
+            if hasattr(self, 'dialog_titlebar'):
+                self.dialog_titlebar.setFixedHeight(tbs.value())
+            self.setStyleSheet(self.app_settings.get_stylesheet())
 
     def _show_dialog_menu(self): #vers 1
         """Pop up a menu from the titlebar Menu button."""
@@ -6562,6 +6835,33 @@ Ready for operations..."""
         fl = QVBoxLayout(fill_ctrl)
         fl.setSpacing(8)
 
+        # Effect type selector — which effect is active
+        effect_group = QGroupBox("Active Panel Effect")
+        egl = QHBoxLayout(effect_group)
+        egl.addWidget(QLabel("Apply to panels:"))
+        self._panel_effect_combo = QComboBox()
+        self._panel_effect_combo.addItems([
+            "None  (theme colours only)",
+            "Fill  (solid / two-tone)",
+            "Gradient  (multi-stop)",
+            "Pattern  (dots / lines / check…)",
+        ])
+        effect_map = {"none": 0, "fill": 1, "gradient": 2, "pattern": 3}
+        self._panel_effect_combo.setCurrentIndex(
+            effect_map.get(self.app_settings.current_settings.get("panel_effect_type","none"), 0))
+
+        def _on_effect_changed(i):
+            keys = ["none", "fill", "gradient", "pattern"]
+            self.app_settings.current_settings["panel_effect_type"] = keys[i]
+            for pw_attr in ("_fill_preview","_hero_preview","_grad_preview",
+                            "_pat_preview","_copper_preview"):
+                pw = getattr(self, pw_attr, None)
+                if pw: pw.refresh()
+
+        self._panel_effect_combo.currentIndexChanged.connect(_on_effect_changed)
+        egl.addWidget(self._panel_effect_combo)
+        fl.addWidget(effect_group)
+
         solid_group = QGroupBox("Solid / Two-tone Fill")
         sgl = QGridLayout(solid_group)
         sgl.setColumnStretch(1, 1)
@@ -8661,6 +8961,15 @@ Ready for operations..."""
             )
 
         self.settingsChanged.emit()
+
+        # Apply panel effects and button/progressbar styles to main window
+        try:
+            mw = self.main_window
+            if mw:
+                apply_panel_effects(mw, self.app_settings)
+                mw.setStyleSheet(self.app_settings.get_stylesheet())
+        except Exception as _pe:
+            print(f"Panel effects error: {_pe}")
 
         QMessageBox.information(
             self,
