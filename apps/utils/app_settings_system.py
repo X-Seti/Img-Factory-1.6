@@ -3872,11 +3872,16 @@ class SettingsDialog(QDialog): #vers 15
         tl.setSpacing(4)
 
         ico = self.icons
-        btn_sz = QSize(20, 20)
+        _cs       = self.app_settings.current_settings
+        _btn_h    = _cs.get("titlebar_button_height", 32)
+        _btn_sz   = _cs.get("titlebar_button_size",   32)
+        _ico_sz   = _cs.get("titlebar_icon_size",      20)
+        self.dialog_titlebar.setFixedHeight(max(_btn_h, _btn_sz + 4))
+        btn_sz = QSize(_ico_sz, _ico_sz)
 
         def _btn(text, icon_fn, tip, slot, fixed_w=None):
             b = QPushButton(text)
-            b.setFixedHeight(32)
+            b.setFixedHeight(_btn_sz)
             if fixed_w:
                 b.setFixedWidth(fixed_w)
             try:
@@ -3897,6 +3902,7 @@ class SettingsDialog(QDialog): #vers 15
         settings_btn = _btn("Settings", ico.settings_icon,
                              "Dialog appearance — font, titlebar height, style",
                              self._show_dialog_self_settings)
+        self._dialog_settings_btn = settings_btn
         tl.addWidget(settings_btn)
 
         #   Centre: draggable title
@@ -5725,6 +5731,40 @@ class SettingsDialog(QDialog): #vers 15
         root = QVBoxLayout(tab)
         root.setSpacing(6)
 
+        # ── Size controls ─────────────────────────────────────────────────
+        size_group = QGroupBox("Button & Titlebar Sizes")
+        szl = QGridLayout(size_group)
+        szl.setColumnStretch(1, 1)
+
+        def _spinbox(key, lo, hi, suffix="px"):
+            sp = QSpinBox()
+            sp.setRange(lo, hi)
+            sp.setSuffix(suffix)
+            sp.setValue(self.app_settings.current_settings.get(key, (hi+lo)//2))
+            def _on(v, k=key):
+                self.app_settings.current_settings[k] = v
+                self._apply_button_sizes()
+            sp.valueChanged.connect(_on)
+            return sp
+
+        szl.addWidget(QLabel("Titlebar height:"),    0, 0)
+        self._tb_height_spin = _spinbox("titlebar_button_height", 24, 56)
+        szl.addWidget(self._tb_height_spin,          0, 1)
+
+        szl.addWidget(QLabel("Titlebar button size:"), 1, 0)
+        self._tb_btn_size_spin = _spinbox("titlebar_button_size", 18, 48)
+        szl.addWidget(self._tb_btn_size_spin,         1, 1)
+
+        szl.addWidget(QLabel("Titlebar icon size:"),  2, 0)
+        self._tb_icon_spin = _spinbox("titlebar_icon_size", 12, 36)
+        szl.addWidget(self._tb_icon_spin,             2, 1)
+
+        szl.addWidget(QLabel("Panel button height:"), 3, 0)
+        self._btn_height_spin = _spinbox("button_size", 18, 48)
+        szl.addWidget(self._btn_height_spin,          3, 1)
+
+        root.addWidget(size_group)
+
         #   Style selector
         style_group = QGroupBox("Button Style")
         sg_lay = QVBoxLayout(style_group)
@@ -5869,6 +5909,26 @@ class SettingsDialog(QDialog): #vers 15
         self.app_settings.current_settings["button_style"] = style_key
         self._update_btn_style_preview()
 
+
+    def _apply_button_sizes(self): #vers 1
+        """Apply titlebar + button size settings to the dialog titlebar immediately."""
+        cs = self.app_settings.current_settings
+        tb_h   = cs.get("titlebar_button_height", 32)
+        btn_sz = cs.get("titlebar_button_size",   32)
+        ico_sz = cs.get("titlebar_icon_size",      20)
+
+        # Resize dialog titlebar
+        if hasattr(self, "dialog_titlebar"):
+            self.dialog_titlebar.setFixedHeight(max(tb_h, btn_sz + 4))
+
+        # Resize all titlebar buttons
+        from PyQt6.QtCore import QSize
+        for attr in ("_dialog_menu_btn", "_dialog_settings_btn", "_dialog_info_btn",
+                     "_dialog_min_btn", "_dialog_max_btn", "_dialog_close_btn"):
+            btn = getattr(self, attr, None)
+            if btn:
+                btn.setFixedSize(btn_sz, btn_sz)
+                btn.setIconSize(QSize(ico_sz, ico_sz))
 
     def _update_btn_style_preview(self): #vers 1
         """Apply current button_style to the preview buttons."""
