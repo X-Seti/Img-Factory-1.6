@@ -6355,6 +6355,12 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 ss = app_settings.get_stylesheet()
                 if ss:
                     QApplication.instance().setStyleSheet(ss)
+                    # Apply panel effects (fill/gradient/pattern) if configured
+            try:
+                from apps.utils.app_settings_system import apply_panel_effects
+                apply_panel_effects(self, app_settings)
+            except Exception:
+                pass
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
         except Exception as e:

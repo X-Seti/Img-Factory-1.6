@@ -4489,7 +4489,7 @@ class SettingsDialog(QDialog): #vers 15
         theme_selector_layout = QHBoxLayout()
         theme_selector_layout.addWidget(QLabel(""))
 
-        self.instant_apply_check = QCheckBox("✓ Apply Theme")
+        self.instant_apply_check = QCheckBox("Apply Theme")
         self.instant_apply_check.setChecked(True)
         self.instant_apply_check.setStyleSheet("""
             QCheckBox {
@@ -4999,7 +4999,7 @@ class SettingsDialog(QDialog): #vers 15
         scroll_layout.addWidget(splitter_group)
 
         # ========== ADVANCED STYLING ==========
-        advanced_group = QGroupBox("⚙️ Advanced Styling")
+        advanced_group = QGroupBox("Advanced Styling")
         advanced_layout = QVBoxLayout(advanced_group)
 
         # Panel Opacity
