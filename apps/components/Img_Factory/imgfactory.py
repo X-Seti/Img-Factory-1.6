@@ -6017,12 +6017,12 @@ class IMGFactory(QMainWindow):
             if hasattr(self, 'register_tool') and _icon_fn:
                 self.register_tool('intro', 'Intro', _icon_fn,
                                    _show, 'Show welcome / intro screen')
-            # Auto-show on startup if preference set
+            # Auto-show on startup if preference set — wait for UI to fully settle
             try:
                 from apps.components.Img_Factory.welcome_screen import WelcomeScreen
                 if WelcomeScreen.should_show_on_startup():
                     from PyQt6.QtCore import QTimer
-                    QTimer.singleShot(400, _show)
+                    QTimer.singleShot(1500, _show)
             except Exception:
                 pass
         except Exception as e:
