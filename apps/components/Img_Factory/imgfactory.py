@@ -3373,8 +3373,9 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Welcome screen error: {e}")
             import traceback; traceback.print_exc()
 
-        # ── Tab header bar: tab name + search button ──────────────────────
-        from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton
+        # ── Search button only — no "No File" label/box ────────────────────
+        # Search sits at top-right of the tab content; label removed (empty, confusing)
+        from PyQt6.QtWidgets import QFrame, QHBoxLayout, QToolButton
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
         hdr = QFrame()
         hdr.setFixedHeight(26)
@@ -3382,13 +3383,9 @@ class IMGFactory(QMainWindow):
         hdr_layout = QHBoxLayout(hdr)
         hdr_layout.setContentsMargins(6, 2, 4, 2)
         hdr_layout.setSpacing(4)
-        tab_name_lbl = QLabel("No File")
-        tab_name_lbl.setObjectName("tab_name_lbl")
-        tab_name_lbl.setStyleSheet("font-size: 11px; font-weight: bold;")
-        hdr_layout.addWidget(tab_name_lbl, 1)
+        hdr_layout.addStretch(1)   # push search to right
         search_tab_btn = QToolButton()
         search_tab_btn.setFixedSize(22, 22)
-        # Always use SVG icon — defer colour lookup until gui_layout ready
         try:
             search_tab_btn.setIcon(SVGIconFactory.search_icon(16, '#aaaaaa'))
             search_tab_btn.setIconSize(QSize(16, 16))
@@ -3408,7 +3405,6 @@ class IMGFactory(QMainWindow):
         search_tab_btn.clicked.connect(self._show_search_dialog)
         hdr_layout.addWidget(search_tab_btn)
         tab_widget.search_btn = search_tab_btn
-        tab_widget.tab_name_lbl = tab_name_lbl
         tab_layout.addWidget(hdr)
 
         table = DragSelectTableWidget()

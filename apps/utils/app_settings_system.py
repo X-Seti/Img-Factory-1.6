@@ -1661,7 +1661,7 @@ class AppSettings:
         bg_primary = colors.get('bg_primary', '#ffffff')
         bg_secondary = colors.get('bg_secondary', '#f5f5f5')
         bg_tertiary = colors.get('bg_tertiary', '#e9ecef')
-        panel_bg = colors.get('panel_bg', '#f0f0f0')
+        panel_bg = colors.get('panel_bg', colors.get('bg_secondary', '#f0f0f0'))
         text_primary = colors.get('text_primary', '#000000')
         text_secondary = colors.get('text_secondary', '#666666')
         text_accent = colors.get('text_accent', '#0066cc')
@@ -1741,6 +1741,7 @@ class AppSettings:
 
         QGroupBox {{
             background-color: {panel_bg};
+            color: {text_primary};
             border: 2px solid {border};
             border-radius: 5px;
             margin-top: 10px;

@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 6
+# apps/components/Img_Factory/welcome_screen.py — Version 7
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QColor
+from PyQt6.QtGui import QFont
 
 
 def _get_pref_path() -> str:
@@ -57,23 +57,31 @@ class WelcomeCard(QFrame):
         self._build(icon_text, title, desc)
         self._set_normal()
 
-    def _build(self, icon_text, title, desc): #vers 1
+    def _build(self, icon_text, title, desc): #vers 2
         lay = QHBoxLayout(self)
         lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(12)
-        ico = QLabel(icon_text)
-        # Cross-platform emoji font — Segoe UI Emoji on Windows,
-        # Noto Color Emoji on Linux, Apple Color Emoji on macOS
-        _emoji_font = {
-            'win32':  'Segoe UI Emoji',
-            'darwin': 'Apple Color Emoji',
-        }.get(sys.platform, 'Noto Color Emoji')
-        _ef = QFont(_emoji_font, 20)
-        _ef.setStyleStrategy(QFont.StyleStrategy.PreferDefault)
-        ico.setFont(_ef)
-        ico.setFixedWidth(40)
-        ico.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(ico)
+        # SVG icon label — icon_text is now an SVG QIcon or a fallback letter
+        ico_lbl = QLabel()
+        ico_lbl.setFixedWidth(40)
+        ico_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if isinstance(icon_text, str) and len(icon_text) <= 3:
+            # Short string fallback (e.g. "IMG") — render as bold text
+            ico_lbl.setText(icon_text)
+            ico_lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        else:
+            # QIcon passed — render as pixmap
+            try:
+                from PyQt6.QtGui import QIcon as _QI
+                if isinstance(icon_text, _QI):
+                    px = icon_text.pixmap(36, 36)
+                    ico_lbl.setPixmap(px)
+                else:
+                    ico_lbl.setText(str(icon_text)[:3])
+                    ico_lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+            except Exception:
+                ico_lbl.setText("?")
+        lay.addWidget(ico_lbl)
         txt = QVBoxLayout(); txt.setSpacing(2)
         t = QLabel(title); t.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         d = QLabel(desc); d.setFont(QFont("Arial", 9))
@@ -120,7 +128,7 @@ class WelcomeScreen(QWidget):
         # screen from stretching the host window taller than the screen.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-    def _build_ui(self): #vers 4
+    def _build_ui(self): #vers 5
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -130,38 +138,19 @@ class WelcomeScreen(QWidget):
         hero.setFixedHeight(80)
         # Hero banner colours — detect light/dark theme via the app_settings
         # if available, otherwise fall back to palette luminance check.
-        # Hero gradient — read from app_settings if available (set in Panels tab)
-        _hero_bg1, _hero_bg2, _hero_title, _hero_sub = '#1a1a2e', '#2d2d5e', '#ffffff', '#aaaacc'
-        try:
-            _mw = self.main_window
-            _cs = {}
-            if _mw and hasattr(_mw, 'app_settings'):
-                _cs = _mw.app_settings.current_settings
-                _tc = _mw.app_settings.get_theme_colors() or {}
-                _bg = _tc.get('bg_primary', '#1a1a2e')
-                _is_dark = QColor(_bg).lightness() < 128
-            else:
-                _is_dark = True
-            if _is_dark:
-                _hero_bg1 = _cs.get('hero_gradient_dark_start',  '#1a1a2e')
-                _hero_bg2 = _cs.get('hero_gradient_dark_end',    '#2d2d5e')
-            else:
-                _hero_bg1 = _cs.get('hero_gradient_light_start', '#1a1a2e')
-                _hero_bg2 = _cs.get('hero_gradient_light_end',   '#2d2d5e')
-        except Exception:
-            pass
+        # Hero uses palette(dark) — fully theme-aware, no hardcoded colours
 
+        # Hero uses theme panel colour — no hardcoded gradient
+        # (gradient colours are user-configurable via Settings > Panels > Fill)
         hero.setStyleSheet(
-            f"QFrame {{ background: qlineargradient("
-            f"x1:0,y1:0,x2:1,y2:0,"
-            f"stop:0 {_hero_bg1}, stop:1 {_hero_bg2}); }}")
+            "QFrame { background: palette(dark); border-bottom: 1px solid palette(mid); }")
         hl = QHBoxLayout(hero); hl.setContentsMargins(24, 0, 24, 0)
         title_lbl = QLabel("IMG Factory 1.6")
         title_lbl.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        title_lbl.setStyleSheet(f"color: {_hero_title}; background: transparent;")
+        title_lbl.setStyleSheet("color: palette(brightText); background: transparent;")
         sub_lbl = QLabel("GTA modding toolkit — IMG · COL · TXD · DFF · DAT · IPL · IDE")
         sub_lbl.setFont(QFont("Arial", 9))
-        sub_lbl.setStyleSheet(f"color: {_hero_sub}; background: transparent;")
+        sub_lbl.setStyleSheet("color: palette(mid); background: transparent;")
         vtxt = QVBoxLayout(); vtxt.setSpacing(2)
         vtxt.addWidget(title_lbl); vtxt.addWidget(sub_lbl)
         hl.addLayout(vtxt, 1)
@@ -215,16 +204,18 @@ class WelcomeScreen(QWidget):
 
         lay.addWidget(self._section("Open & Browse"))
         g1 = QGridLayout(); g1.setSpacing(8)
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+        _ic = '#4a7a9b'
         qs = [
-            ("📂", "Open IMG File",
+            (_SVG.open_icon(36, _ic), "Open IMG File",
              "File → Open IMG, or drag a .img/.cd file onto the window. "
              "Entries appear in the table — double-click to view.",
              self.open_img_requested),
-            ("🌍", "DAT Browser",
+            (_SVG.database_icon(36, _ic), "DAT Browser",
              "Load a GTA gta.dat / gta3.dat / gta_vc.dat to index every IMG, "
              "IDE and IPL in the game. Explore 13 000+ objects by name or type.",
              self.open_dat_browser),
-            ("📁", "File Browser",
+            (_SVG.folder_icon(36, _ic), "File Browser",
              "Navigate your disk, preview textures, and drag files into an open IMG "
              "or export entries to a folder.",
              self.open_dir_tree),
@@ -237,15 +228,15 @@ class WelcomeScreen(QWidget):
         lay.addWidget(self._section("Asset Editors"))
         g2 = QGridLayout(); g2.setSpacing(8)
         eds = [
-            ("🖼", "TXD Workshop",
+            (_SVG.paint_icon(36, _ic), "TXD Workshop",
              "Open any .txd inside an IMG or standalone. Preview, replace, export "
              "and convert textures for PC, PS2, Xbox and mobile.",
              self.open_txd_workshop),
-            ("🧱", "COL Workshop",
+            (_SVG.manage_icon(36, _ic), "COL Workshop",
              "Inspect and edit collision data — spheres, boxes and mesh faces. "
              "Paint surface materials, export as OBJ or COL.",
              self.open_col_workshop),
-            ("🗿", "Model Workshop",
+            (_SVG.view_icon(36, _ic), "Model Workshop",
              "View DFF geometry and frame hierarchy. Load the linked TXD automatically "
              "via the DAT Browser IDE entry. Textured 3D preview.",
              self.open_model_workshop),
