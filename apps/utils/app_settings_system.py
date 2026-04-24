@@ -2704,6 +2704,322 @@ class AppSettings:
             return self.themes.get(fallback_theme, {"colors": {}})
 
 
+
+class PanelPreviewWidget(QWidget): #vers 1
+    """Live preview widget for panel effects — fill, gradient, pattern, image, transparency."""
+
+    def __init__(self, settings_dialog, mode="fill", parent=None):
+        super().__init__(parent)
+        self._dlg  = settings_dialog
+        self._mode = mode   # fill | gradient | pattern | copper | image | transparency | button
+        self.setMinimumHeight(100)
+        self.setMaximumHeight(130)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setAutoFillBackground(False)
+
+    def refresh(self):
+        """Call after any control changes to force a repaint."""
+        self.update()
+
+    def paintEvent(self, event): #vers 1
+        from PyQt6.QtGui import (QPainter, QColor, QLinearGradient,
+                                  QPen, QBrush, QImage, QPixmap)
+        from PyQt6.QtCore import QRectF, Qt, QPointF
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        cs = self._dlg.app_settings.current_settings
+
+        try:
+            if self._mode == "fill":
+                self._draw_fill(p, r, cs)
+            elif self._mode == "gradient":
+                self._draw_gradient(p, r, cs)
+            elif self._mode == "pattern":
+                self._draw_pattern(p, r, cs)
+            elif self._mode == "copper":
+                self._draw_copper(p, r, cs)
+            elif self._mode == "image":
+                self._draw_image(p, r, cs)
+            elif self._mode == "transparency":
+                self._draw_transparency(p, r, cs)
+            elif self._mode == "hero":
+                self._draw_hero(p, r, cs)
+        except Exception:
+            pass
+
+        # Border
+        from PyQt6.QtGui import QPen, QColor
+        p.setPen(QPen(QColor("#555555"), 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRect(r.adjusted(0, 0, -1, -1))
+        p.end()
+
+    def _c(self, key, default="#1a1a2e"):
+        return self._dlg.app_settings.current_settings.get(key, default)
+
+    def _draw_fill(self, p, r, cs):
+        from PyQt6.QtGui import QColor, QLinearGradient, QBrush
+        from PyQt6.QtCore import QPointF
+        ca = QColor(cs.get("panel_fill_a", "#1a1a2e"))
+        cb = QColor(cs.get("panel_fill_b", "#16213e"))
+        d  = cs.get("panel_fill_dir", 0)
+        if d == 0:
+            p.fillRect(r, ca)
+        else:
+            dirs = {
+                1: (QPointF(r.left(),  r.top()),    QPointF(r.right(), r.top())),
+                2: (QPointF(r.left(),  r.top()),    QPointF(r.left(),  r.bottom())),
+                3: (QPointF(r.left(),  r.bottom()), QPointF(r.right(), r.top())),
+                4: (QPointF(r.right(), r.bottom()), QPointF(r.left(),  r.top())),
+                5: (QPointF(r.left(),  r.top()),    QPointF(r.right(), r.bottom())),
+                6: (QPointF(r.right(), r.top()),    QPointF(r.left(),  r.bottom())),
+            }
+            s, e = dirs.get(d, (QPointF(r.left(), r.top()), QPointF(r.right(), r.top())))
+            g = QLinearGradient(s, e)
+            g.setColorAt(0, ca); g.setColorAt(1, cb)
+            p.fillRect(r, g)
+        # Sample label
+        self._label(p, r, "Fill Preview")
+
+    def _draw_gradient(self, p, r, cs):
+        from PyQt6.QtGui import QColor, QLinearGradient
+        from PyQt6.QtCore import QPointF
+        s1 = QColor(cs.get("panel_grad_stop1", "#1a1a2e"))
+        s2 = QColor(cs.get("panel_grad_stop2", "#2d1b4e"))
+        s3 = QColor(cs.get("panel_grad_stop3", "#16213e"))
+        d  = cs.get("panel_grad_dir", 1)
+        pts = {
+            0: (QPointF(r.left(),  r.top()),    QPointF(r.right(), r.top())),
+            1: (QPointF(r.left(),  r.top()),    QPointF(r.left(),  r.bottom())),
+            2: (QPointF(r.left(),  r.top()),    QPointF(r.right(), r.bottom())),
+            3: (QPointF(r.right(), r.top()),    QPointF(r.left(),  r.bottom())),
+            4: (QPointF(r.left(),  r.bottom()), QPointF(r.right(), r.top())),
+            5: (QPointF(r.right(), r.bottom()), QPointF(r.left(),  r.top())),
+        }
+        s, e = pts.get(d, pts[1])
+        g = QLinearGradient(s, e)
+        g.setColorAt(0, s1); g.setColorAt(0.5, s2); g.setColorAt(1, s3)
+        p.fillRect(r, g)
+        self._label(p, r, "Gradient Preview")
+
+    def _draw_pattern(self, p, r, cs):
+        from PyQt6.QtGui import QColor, QBrush, QPen
+        from PyQt6.QtCore import Qt
+        style = cs.get("panel_pattern_style", 0)
+        scale = cs.get("panel_pattern_scale", 8)
+        cl    = QColor(cs.get("panel_pattern_light", "#2a2a4a"))
+        cd    = QColor(cs.get("panel_pattern_dark",  "#141428"))
+
+        p.fillRect(r, cd)
+
+        if style == 0:   # None
+            pass
+        elif style == 1: # Dots
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(cl)
+            x = r.left()
+            while x < r.right():
+                y = r.top()
+                while y < r.bottom():
+                    p.drawEllipse(x, y, max(2, scale//4), max(2, scale//4))
+                    y += scale
+                x += scale
+        elif style == 2: # Lines H
+            p.setPen(QPen(cl, 1))
+            y = r.top()
+            while y < r.bottom():
+                p.drawLine(r.left(), y, r.right(), y)
+                y += scale
+        elif style == 3: # Lines V
+            p.setPen(QPen(cl, 1))
+            x = r.left()
+            while x < r.right():
+                p.drawLine(x, r.top(), x, r.bottom())
+                x += scale
+        elif style == 4: # Diagonal
+            p.setPen(QPen(cl, 1))
+            step = scale
+            for i in range(-r.height(), r.width() + r.height(), step):
+                p.drawLine(r.left() + i, r.top(),
+                           r.left() + i + r.height(), r.bottom())
+        elif style == 5: # Check
+            p.setPen(Qt.PenStyle.NoPen)
+            for row in range(r.height() // scale + 1):
+                for col in range(r.width() // scale + 1):
+                    if (row + col) % 2 == 0:
+                        p.setBrush(cl)
+                    else:
+                        p.setBrush(cd)
+                    p.drawRect(r.left() + col*scale, r.top() + row*scale, scale, scale)
+        elif style == 6: # Waves
+            from PyQt6.QtGui import QPainterPath
+            import math
+            p.setPen(QPen(cl, 1))
+            y = r.top() + scale//2
+            while y < r.bottom():
+                path = QPainterPath()
+                path.moveTo(r.left(), y)
+                x = r.left()
+                while x < r.right():
+                    path.quadTo(x + scale//2, y - scale//2,
+                                x + scale, y)
+                    x += scale
+                p.drawPath(path)
+                y += scale
+        elif style == 7: # Tartan
+            p.setPen(QPen(cl, 2))
+            x = r.left()
+            while x < r.right():
+                p.drawLine(x, r.top(), x, r.bottom())
+                x += scale
+            y = r.top()
+            while y < r.bottom():
+                p.drawLine(r.left(), y, r.right(), y)
+                y += scale
+            # Second set offset
+            p.setPen(QPen(cl.lighter(130), 1))
+            x = r.left() + scale//2
+            while x < r.right():
+                p.drawLine(x, r.top(), x, r.bottom())
+                x += scale
+        elif style == 8: # Picnic
+            # Red/white check
+            p.setPen(Qt.PenStyle.NoPen)
+            from PyQt6.QtGui import QColor
+            rc = QColor("#cc4444")
+            for row in range(r.height() // scale + 1):
+                for col in range(r.width() // scale + 1):
+                    c = rc if (row + col) % 2 == 0 else QColor("#ffffff")
+                    p.setBrush(c)
+                    p.drawRect(r.left() + col*scale, r.top() + row*scale, scale, scale)
+        elif style == 9: # Odd/Even rows
+            p.setPen(Qt.PenStyle.NoPen)
+            for row in range(r.height() // scale + 1):
+                p.setBrush(cl if row % 2 == 0 else cd)
+                p.drawRect(r.left(), r.top() + row*scale, r.width(), scale)
+
+        self._label(p, r, "Pattern Preview")
+
+    def _draw_copper(self, p, r, cs):
+        from PyQt6.QtGui import QColor, QLinearGradient
+        from PyQt6.QtCore import QPointF
+        cl = QColor(cs.get("copper_light", "#b87333"))
+        cd = QColor(cs.get("copper_dark",  "#7a4a1a"))
+        # Multi-stop copper shimmer
+        g = QLinearGradient(QPointF(r.left(), r.top()), QPointF(r.left(), r.bottom()))
+        g.setColorAt(0.0,  cd)
+        g.setColorAt(0.2,  cl)
+        g.setColorAt(0.4,  cl.lighter(140))
+        g.setColorAt(0.5,  cl)
+        g.setColorAt(0.7,  cd)
+        g.setColorAt(0.85, cl.lighter(120))
+        g.setColorAt(1.0,  cd)
+        p.fillRect(r, g)
+        self._label(p, r, "Copper Effect Preview")
+
+    def _draw_image(self, p, r, cs):
+        from PyQt6.QtGui import QColor, QPixmap
+        from PyQt6.QtCore import Qt
+        path = cs.get("panel_bg_image", "")
+        opacity = cs.get("panel_bg_image_opacity", 100) / 100.0
+        if path:
+            try:
+                px = QPixmap(path)
+                if not px.isNull():
+                    mode = cs.get("panel_bg_image_mode", 0)
+                    p.setOpacity(opacity)
+                    if mode == 0:   # Tiled
+                        p.drawTiledPixmap(r, px)
+                    elif mode == 1: # Stretched
+                        p.drawPixmap(r, px)
+                    elif mode == 2: # Centred
+                        x = r.left() + (r.width() - px.width()) // 2
+                        y = r.top() + (r.height() - px.height()) // 2
+                        p.drawPixmap(x, y, px)
+                    elif mode == 3: # Scaled fit
+                        scaled = px.scaled(r.size(),
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
+                        x = r.left() + (r.width() - scaled.width()) // 2
+                        y = r.top() + (r.height() - scaled.height()) // 2
+                        p.drawPixmap(x, y, scaled)
+                    elif mode == 4: # Scaled fill
+                        scaled = px.scaled(r.size(),
+                            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                            Qt.TransformationMode.SmoothTransformation)
+                        p.drawPixmap(r.left(), r.top(), scaled)
+                    p.setOpacity(1.0)
+                    self._label(p, r, "Image Preview")
+                    return
+            except Exception:
+                pass
+        # No image — show placeholder
+        from PyQt6.QtGui import QColor
+        p.fillRect(r, QColor("#2a2a2a"))
+        p.setPen(QColor("#888888"))
+        p.drawText(r, 0x84, "No image selected")  # AlignCenter|AlignVCenter
+
+    def _draw_transparency(self, p, r, cs):
+        from PyQt6.QtGui import QColor, QLinearGradient
+        from PyQt6.QtCore import QPointF
+        # Checkerboard to show transparency
+        sq = 12
+        from PyQt6.QtGui import QBrush
+        p.setPen(0)
+        for row in range(r.height() // sq + 1):
+            for col in range(r.width() // sq + 1):
+                c = QColor("#aaaaaa") if (row+col)%2==0 else QColor("#888888")
+                p.setBrush(c)
+                p.drawRect(r.left()+col*sq, r.top()+row*sq, sq, sq)
+        # Overlay a panel-coloured rect at current opacity
+        opacity = cs.get("panel_opacity", 100) / 100.0
+        p.setOpacity(opacity)
+        p.fillRect(r, QColor(cs.get("bg_primary", "#1a1a2e")))
+        p.setOpacity(1.0)
+        self._label(p, r, f"Panel opacity: {int(opacity*100)}%")
+
+    def _draw_hero(self, p, r, cs):
+        from PyQt6.QtGui import QColor, QLinearGradient
+        from PyQt6.QtCore import QPointF
+        # Detect light/dark
+        try:
+            bg = (self._dlg.app_settings.get_theme_colors() or {}).get("bg_primary","#1a1a2e")
+            is_dark = QColor(bg).lightness() < 128
+        except Exception:
+            is_dark = True
+        if is_dark:
+            c1 = QColor(cs.get("hero_gradient_dark_start", "#1a1a2e"))
+            c2 = QColor(cs.get("hero_gradient_dark_end",   "#2d2d5e"))
+        else:
+            c1 = QColor(cs.get("hero_gradient_light_start", "#1a1a2e"))
+            c2 = QColor(cs.get("hero_gradient_light_end",   "#2d2d5e"))
+        g = QLinearGradient(QPointF(r.left(), r.top()), QPointF(r.right(), r.top()))
+        g.setColorAt(0, c1); g.setColorAt(1, c2)
+        p.fillRect(r, g)
+        # Title mockup
+        from PyQt6.QtGui import QFont
+        p.setPen(QColor("#ffffff"))
+        f = QFont("Arial", 14, QFont.Weight.Bold)
+        p.setFont(f)
+        from PyQt6.QtCore import Qt
+        p.drawText(r.adjusted(16,0,0,0), Qt.AlignmentFlag.AlignVCenter, "IMG Factory 1.6")
+        p.setPen(QColor("#aaaacc"))
+        f2 = QFont("Arial", 8)
+        p.setFont(f2)
+        p.drawText(r.adjusted(16, 28, 0, 0), Qt.AlignmentFlag.AlignTop, "GTA modding toolkit — IMG · COL · TXD · DFF")
+
+    def _label(self, p, r, text):
+        from PyQt6.QtGui import QColor, QFont
+        from PyQt6.QtCore import Qt, QRect
+        p.setOpacity(0.7)
+        p.fillRect(QRect(r.left(), r.bottom()-18, r.width(), 18), QColor(0,0,0))
+        p.setOpacity(1.0)
+        p.setPen(QColor("#ffffff"))
+        p.setFont(QFont("Arial", 7))
+        p.drawText(r.adjusted(4, 0, -4, -2), Qt.AlignmentFlag.AlignBottom, text)
+
 class SettingsDialog(QDialog): #vers 15
     """Settings dialog for theme and preference management"""
 
@@ -6195,6 +6511,21 @@ Ready for operations..."""
             hgl.addWidget(btn, row, 1)
 
         fl.addWidget(hero_group)
+
+        # Live previews
+        prev_group = QGroupBox("Preview")
+        prev_lay = QHBoxLayout(prev_group)
+        self._fill_preview = PanelPreviewWidget(self, "fill")
+        self._hero_preview = PanelPreviewWidget(self, "hero")
+        prev_lay.addWidget(self._fill_preview)
+        prev_lay.addWidget(self._hero_preview)
+        fl.addWidget(prev_group)
+
+        # Connect controls to refresh previews
+        self._panel_fill_a_btn._prev_keys = ["fill", "hero"]
+        self._panel_fill_b_btn._prev_keys = ["fill"]
+        self._panel_fill_dir.currentIndexChanged.connect(
+            lambda: [self._fill_preview.refresh(), self._hero_preview.refresh()])
         fl.addStretch()
         sub.addTab(fill_tab, "Fill")
 
@@ -6234,6 +6565,16 @@ Ready for operations..."""
             gstop_lay.addWidget(btn, row, 1)
 
         gl_root.addWidget(gstop_group)
+
+        grad_prev_grp = QGroupBox("Preview")
+        gpl = QHBoxLayout(grad_prev_grp)
+        self._grad_preview = PanelPreviewWidget(self, "gradient")
+        gpl.addWidget(self._grad_preview)
+        gl_root.addWidget(grad_prev_grp)
+
+        self._grad_dir_combo.currentIndexChanged.connect(
+            lambda i: [self.app_settings.current_settings.__setitem__("panel_grad_dir", i),
+                       self._grad_preview.refresh()])
         gl_root.addStretch()
         sub.addTab(grad_tab, "Gradient")
 
@@ -6305,6 +6646,23 @@ Ready for operations..."""
             btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
             cpl.addWidget(btn, row, 1)
         pl.addWidget(cop_group)
+
+        pat_prev_grp = QGroupBox("Preview")
+        ppl = QHBoxLayout(pat_prev_grp)
+        self._pat_preview = PanelPreviewWidget(self, "pattern")
+        self._copper_preview = PanelPreviewWidget(self, "copper")
+        self._pat_preview.setToolTip("Pattern preview")
+        self._copper_preview.setToolTip("Copper effect preview")
+        ppl.addWidget(self._pat_preview)
+        ppl.addWidget(self._copper_preview)
+        pl.addWidget(pat_prev_grp)
+
+        self._pat_style_combo.currentIndexChanged.connect(
+            lambda i: [self.app_settings.current_settings.__setitem__("panel_pattern_style", i),
+                       self._pat_preview.refresh()])
+        self._pat_scale.valueChanged.connect(
+            lambda v: [self.app_settings.current_settings.__setitem__("panel_pattern_scale", v),
+                       self._pat_preview.refresh()])
         pl.addStretch()
         sub.addTab(pat_tab, "Pattern")
 
@@ -6355,6 +6713,22 @@ Ready for operations..."""
         igl.addLayout(blend_lay)
 
         il.addWidget(img_group)
+
+        img_prev_grp = QGroupBox("Preview")
+        ipl = QHBoxLayout(img_prev_grp)
+        self._img_preview = PanelPreviewWidget(self, "image")
+        ipl.addWidget(self._img_preview)
+        il.addWidget(img_prev_grp)
+
+        self._panel_img_path.textChanged.connect(
+            lambda t: [self.app_settings.current_settings.__setitem__("panel_bg_image", t),
+                       self._img_preview.refresh()])
+        self._panel_img_mode.currentIndexChanged.connect(
+            lambda i: [self.app_settings.current_settings.__setitem__("panel_bg_image_mode", i),
+                       self._img_preview.refresh()])
+        self._panel_img_opacity.valueChanged.connect(
+            lambda v: [self.app_settings.current_settings.__setitem__("panel_bg_image_opacity", v),
+                       self._img_preview.refresh()])
         il.addStretch()
         sub.addTab(img_tab, "Image")
 
@@ -6383,6 +6757,19 @@ Ready for operations..."""
             tl.addWidget(grp)
             setattr(self, f"_{key.replace('.','_')}_slider", sl)
 
+        trans_prev_grp = QGroupBox("Preview — Panel opacity over checkerboard")
+        tpl = QHBoxLayout(trans_prev_grp)
+        self._trans_preview = PanelPreviewWidget(self, "transparency")
+        tpl.addWidget(self._trans_preview)
+        tl.addWidget(trans_prev_grp)
+
+        # Wire all opacity sliders to refresh
+        for attr in ("_titlebar_opacity_slider", "_panel_opacity_slider",
+                     "_button_opacity_slider", "_widget_opacity_slider"):
+            sl = getattr(self, attr, None)
+            if sl:
+                sl.valueChanged.connect(lambda _: self._trans_preview.refresh())
+
         tl.addStretch()
         sub.addTab(trans_tab, "Transparency")
 
@@ -6393,8 +6780,8 @@ Ready for operations..."""
         root.addWidget(sub)
         return tab
 
-    def _pick_panel_colour(self, key: str, btn: "QPushButton"): #vers 1
-        """Open colour dialog and store result in current_settings + update button."""
+    def _pick_panel_colour(self, key: str, btn: "QPushButton"): #vers 2
+        """Open colour dialog, store result, refresh all panel previews."""
         from PyQt6.QtWidgets import QColorDialog
         from PyQt6.QtGui import QColor
         current = self.app_settings.current_settings.get(key, "#1a1a2e")
@@ -6403,6 +6790,13 @@ Ready for operations..."""
             hex_val = colour.name()
             self.app_settings.current_settings[key] = hex_val
             btn.setStyleSheet(f"background:{hex_val};")
+            # Refresh all panel previews
+            for attr in ("_fill_preview", "_hero_preview", "_grad_preview",
+                         "_pat_preview", "_copper_preview", "_img_preview",
+                         "_trans_preview"):
+                pw = getattr(self, attr, None)
+                if pw:
+                    pw.refresh()
 
     def _browse_panel_bg_image(self): #vers 1
         """Browse for panel background image."""

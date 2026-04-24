@@ -12,10 +12,10 @@ Build numbering:  Build <release>.<imgfactory_file_version>
 
 App_name  = "Img Factory 1.6"
 App_build = "Apr 23 2026 - "
-App_build_num = "Build 339"          # increment manually with each release
+App_build_num = "Build 340"          # increment manually with each release
 App_imgfactory_version = 78          # mirrors Version: N in imgfactory.py — increment on every change
 App_auth  = "X-Seti"
 
 def get_full_build() -> str:
-    """Return combined build string e.g. 'Build 339.77'"""
+    """Return combined build string e.g. 'Build 340.77'"""
     return f"{App_build_num}.{App_imgfactory_version}"
