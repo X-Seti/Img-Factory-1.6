@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
+# $vers" X-Seti - June26, 2025 - App Factory - Package theme settings — Version: 2
 
 """
 App Factory - App Settings System - Clean Version
@@ -52,7 +52,7 @@ except ImportError:
 # _on_button_color_changed (vers 1)
 # _collect_current_button_colors (vers 1)
 
-App_name = "GUI - App System Settings"
+App_name = "Global App System Settings"
 App_build = "December 11 - "
 App_auth = "X-Seti"
 
