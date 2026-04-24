@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 15
+# apps/components/Img_Factory/welcome_screen.py — Version 16
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -47,71 +47,106 @@ class WelcomeCard(QFrame):
     """Clickable action card — icon + title + description."""
     clicked = pyqtSignal()
 
-    # Class-level colour cache — set once by WelcomeScreen before cards are built
-    _theme_card_bg:    str = "palette(base)"
-    _theme_border:     str = "palette(mid)"
-    _theme_border_hover: str = "palette(dark)"
-    _theme_accent:     str = "palette(link)"
+    # Class-level colour cache — populated by WelcomeScreen._resolve_card_colors()
+    _card_bg:       str = "palette(base)"
+    _card_bg_hover: str = "palette(alternateBase)"
+    _border:        str = "palette(mid)"
+    _border_hover:  str = "palette(highlight)"
+    _accent:        str = "palette(highlight)"
+    _text_primary:  str = "palette(windowText)"
+    _text_secondary:str = "palette(mid)"
+    _icon_color:    str = "#6a9fc0"
 
     def __init__(self, icon_text: str, title: str, desc: str,
-                 accent: str = "palette(link)", parent=None):
+                 accent: str = "", parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(100)
+        self.setFixedHeight(90)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._title_lbl = None
+        self._desc_lbl  = None
+        self._arr_lbl   = None
         self._build(icon_text, title, desc)
         self._set_normal()
 
-    def _build(self, icon_text, title, desc): #vers 3
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(12, 8, 12, 8)
-        lay.setSpacing(12)
-        # SVG icon label — icon_text is now an SVG QIcon or a fallback letter
-        ico_lbl = QLabel()
-        ico_lbl.setFixedWidth(40)
-        ico_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    def _build(self, icon_text, title, desc): #vers 4
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Accent left strip
+        self._strip = QFrame()
+        self._strip.setFixedWidth(4)
+        self._strip.setStyleSheet(
+            f"QFrame {{ background: {WelcomeCard._accent}; border-radius: 3px 0 0 3px; }}")
+        outer.addWidget(self._strip)
+
+        # Content area
+        inner = QHBoxLayout()
+        inner.setContentsMargins(12, 8, 12, 8)
+        inner.setSpacing(12)
+
+        # Icon
+        self._ico_lbl = QLabel()
+        self._ico_lbl.setFixedSize(36, 36)
+        self._ico_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._ico_lbl.setStyleSheet("background: transparent;")
         if isinstance(icon_text, str) and len(icon_text) <= 3:
-            # Short string fallback (e.g. "IMG") — render as bold text
-            ico_lbl.setText(icon_text)
-            ico_lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+            self._ico_lbl.setText(icon_text)
+            self._ico_lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         else:
-            # QIcon passed — render as pixmap
             try:
                 from PyQt6.QtGui import QIcon as _QI
                 if isinstance(icon_text, _QI):
-                    px = icon_text.pixmap(36, 36)
-                    ico_lbl.setPixmap(px)
+                    self._ico_lbl.setPixmap(icon_text.pixmap(32, 32))
                 else:
-                    ico_lbl.setText(str(icon_text)[:3])
-                    ico_lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+                    self._ico_lbl.setText(str(icon_text)[:3])
+                    self._ico_lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
             except Exception:
-                ico_lbl.setText("?")
-        lay.addWidget(ico_lbl)
-        txt = QVBoxLayout(); txt.setSpacing(2)
-        t = QLabel(title); t.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        d = QLabel(desc); d.setFont(QFont("Arial", 9))
-        d.setWordWrap(True)
-        d.setStyleSheet("color: palette(mid);")
-        txt.addWidget(t); txt.addWidget(d)
-        lay.addLayout(txt, 1)
-        arr = QLabel("›"); arr.setFont(QFont("Arial", 16))
-        arr.setStyleSheet("color: palette(link);")
-        lay.addWidget(arr)
+                self._ico_lbl.setText("?")
+        inner.addWidget(self._ico_lbl)
 
-    def _set_normal(self): #vers 2
-        bg  = WelcomeCard._theme_card_bg
-        bdr = WelcomeCard._theme_border
-        self.setStyleSheet(
-            f"WelcomeCard {{ border: 1px solid {bdr}; border-radius: 5px; "
-            f"background: {bg}; }}")
+        # Text block
+        txt = QVBoxLayout()
+        txt.setSpacing(3)
+        self._title_lbl = QLabel(title)
+        self._title_lbl.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self._title_lbl.setStyleSheet(
+            f"color: {WelcomeCard._text_primary}; background: transparent;")
+        self._desc_lbl = QLabel(desc)
+        self._desc_lbl.setFont(QFont("Arial", 8))
+        self._desc_lbl.setWordWrap(True)
+        self._desc_lbl.setStyleSheet(
+            f"color: {WelcomeCard._text_secondary}; background: transparent;")
+        txt.addWidget(self._title_lbl)
+        txt.addWidget(self._desc_lbl)
+        inner.addLayout(txt, 1)
 
-    def _set_hover(self): #vers 2
-        bg  = WelcomeCard._theme_card_bg
-        bdr = WelcomeCard._theme_border_hover
+        # Arrow
+        self._arr_lbl = QLabel("›")
+        self._arr_lbl.setFont(QFont("Arial", 18))
+        self._arr_lbl.setStyleSheet(
+            f"color: {WelcomeCard._accent}; background: transparent;")
+        inner.addWidget(self._arr_lbl)
+
+        outer.addLayout(inner, 1)
+
+    def _set_normal(self): #vers 3
         self.setStyleSheet(
-            f"WelcomeCard {{ border: 2px solid {bdr}; border-radius: 5px; "
-            f"background: {bg}; }}")
+            f"WelcomeCard {{ background: {WelcomeCard._card_bg}; "
+            f"border: 1px solid {WelcomeCard._border}; border-radius: 4px; }}")
+        self._strip.setStyleSheet(
+            f"QFrame {{ background: {WelcomeCard._border}; "
+            f"border-radius: 3px 0 0 3px; }}")
+
+    def _set_hover(self): #vers 3
+        self.setStyleSheet(
+            f"WelcomeCard {{ background: {WelcomeCard._card_bg_hover}; "
+            f"border: 1px solid {WelcomeCard._border_hover}; border-radius: 4px; }}")
+        self._strip.setStyleSheet(
+            f"QFrame {{ background: {WelcomeCard._accent}; "
+            f"border-radius: 3px 0 0 3px; }}")
 
     def enterEvent(self, e): self._set_hover(); super().enterEvent(e)
     def leaveEvent(self, e): self._set_normal(); super().leaveEvent(e)
@@ -260,61 +295,70 @@ class WelcomeScreen(QWidget):
 
     #  Tab builders
 
-    def _build_quickstart_tab(self): #vers 2
-        w = QWidget()
-        lay = QVBoxLayout(w); lay.setContentsMargins(20, 16, 20, 16); lay.setSpacing(14)
-
-        # Resolve panel_bg / panel_primary from theme for card colours
-        _panel_bg   = ''
-        _panel_card = ''
-        _border_col = ''
-        _border_hov = ''
+    def _resolve_card_colors(self, container_widget=None): #vers 1
+        """Pull theme colours into WelcomeCard class vars and optionally style the container."""
         try:
             mw = self.main_window
-            if mw and hasattr(mw, 'app_settings'):
-                tc  = mw.app_settings.get_theme_colors() or {}
-                from PyQt6.QtGui import QColor as _QC
+            if not (mw and hasattr(mw, 'app_settings')):
+                return
+            tc = mw.app_settings.get_theme_colors() or {}
+            from PyQt6.QtGui import QColor as _QC
 
-                _panel_bg   = tc.get('panel_bg', '')
-                _panel_card = tc.get('panel_primary', '')
+            bg_primary  = tc.get('bg_primary',  '#272727')
+            panel_bg    = tc.get('panel_bg',    '#333333')
+            accent      = tc.get('accent_primary', '#1976d2')
+            text_pri    = tc.get('text_primary',  '#ffffff')
+            text_sec    = tc.get('text_secondary', '#aaaaaa') or tc.get('text_accent', '#aaaaaa')
 
-                # Derive border from panel_bg — darker for normal, accent or darker still for hover
-                if _panel_bg:
-                    _lum = _QC(_panel_bg).lightness()
-                    _is_dark = _lum < 128
-                    _bg_qc = _QC(_panel_bg)
-                    if _is_dark:
-                        _border_col = _bg_qc.lighter(145).name()
-                        _border_hov = tc.get('accent_primary') or _bg_qc.lighter(200).name()
-                    else:
-                        _border_col = _bg_qc.darker(130).name()
-                        _border_hov = tc.get('accent_primary') or _bg_qc.darker(175).name()
+            lum = _QC(panel_bg).lightness()
+            is_dark = lum < 128
 
-                if not _panel_card and _panel_bg:
-                    # Fallback: lighten/darken panel_bg slightly
-                    _bg_qc = _QC(_panel_bg)
-                    _lum = _bg_qc.lightness()
-                    _panel_card = (_bg_qc.lighter(115).name() if _lum < 128
-                                   else _bg_qc.darker(110).name())
+            # Card surface: panel_bg from theme (the defined card colour)
+            card_bg = panel_bg
+
+            # Hover: slightly lighter/darker than card_bg
+            qc = _QC(card_bg)
+            card_bg_hover = (qc.lighter(120).name() if is_dark else qc.darker(108).name())
+
+            # Border: subtle — halfway between card and bg
+            qb = _QC(bg_primary)
+            border = _QC(
+                (qb.red()   + qc.red())   // 2,
+                (qb.green() + qc.green()) // 2,
+                (qb.blue()  + qc.blue())  // 2
+            ).name()
+            border_hover = accent
+
+            # Icon colour: accent lightened a little for dark, slightly darkened for light
+            icon_col = (_QC(accent).lighter(120).name() if is_dark
+                        else _QC(accent).darker(110).name())
+
+            WelcomeCard._card_bg        = card_bg
+            WelcomeCard._card_bg_hover  = card_bg_hover
+            WelcomeCard._border         = border
+            WelcomeCard._border_hover   = border_hover
+            WelcomeCard._accent         = accent
+            WelcomeCard._text_primary   = text_pri
+            WelcomeCard._text_secondary = text_sec
+            WelcomeCard._icon_color     = icon_col
+
+            # Outer tab background = bg_primary (darker than cards — makes cards pop)
+            if container_widget:
+                container_widget.setStyleSheet(
+                    f"QWidget {{ background: {bg_primary}; }}")
         except Exception:
             pass
 
-        # Push colours into WelcomeCard class so all cards pick them up
-        if _panel_card:
-            WelcomeCard._theme_card_bg      = _panel_card
-        if _border_col:
-            WelcomeCard._theme_border       = _border_col
-        if _border_hov:
-            WelcomeCard._theme_border_hover = _border_hov
+    def _build_quickstart_tab(self): #vers 3
+        w = QWidget()
+        lay = QVBoxLayout(w); lay.setContentsMargins(20, 16, 20, 16); lay.setSpacing(14)
 
-        # Apply panel_bg to the tab widget background
-        if _panel_bg:
-            w.setStyleSheet(f"QWidget {{ background: {_panel_bg}; }}")
+        self._resolve_card_colors(w)
 
         lay.addWidget(self._section("Open & Browse"))
-        g1 = QGridLayout(); g1.setSpacing(16)
+        g1 = QGridLayout(); g1.setSpacing(12)
         from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
-        _ic = '#4a7a9b'
+        _ic = WelcomeCard._icon_color
         qs = [
             (_SVG.open_icon(36, _ic), "Open IMG File",
              "File → Open IMG, or drag a .img/.cd file onto the window. "
@@ -330,12 +374,12 @@ class WelcomeScreen(QWidget):
              self.open_dir_tree),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(qs):
-            c = WelcomeCard(ico, ttl, dsc, ["#a8e6cf","#dcedc1","#a8d8ea"][i]); c.clicked.connect(sig.emit)
+            c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
             g1.addWidget(c, 0, i)
         lay.addLayout(g1)
 
         lay.addWidget(self._section("Asset Editors"))
-        g2 = QGridLayout(); g2.setSpacing(16)
+        g2 = QGridLayout(); g2.setSpacing(12)
         eds = [
             (_SVG.paint_icon(36, _ic), "TXD Workshop",
              "Open any .txd inside an IMG or standalone. Preview, replace, export "
@@ -351,7 +395,7 @@ class WelcomeScreen(QWidget):
              self.open_model_workshop),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
-            c = WelcomeCard(ico, ttl, dsc, ["#f6c0c0","#b8e6c3","#d4a5a5"][i]); c.clicked.connect(sig.emit)
+            c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
             g2.addWidget(c, 0, i)
         lay.addLayout(g2)
 
@@ -360,9 +404,12 @@ class WelcomeScreen(QWidget):
             "Edit, Extract, Replace, Rename, Validate, Open in Workshop.")
         tip.setWordWrap(True)
         tip.setFont(QFont("Arial", 9))
+        _tip_bg  = WelcomeCard._card_bg_hover
+        _tip_bdr = WelcomeCard._border
+        _tip_txt = WelcomeCard._text_secondary
         tip.setStyleSheet(
-            "QLabel { background: palette(alternateBase); border: 1px solid palette(mid); "
-            "border-radius: 4px; padding: 8px 12px; }")
+            f"QLabel {{ background: {_tip_bg}; border: 1px solid {_tip_bdr}; "
+            f"color: {_tip_txt}; border-radius: 4px; padding: 8px 12px; }}")
         lay.addWidget(tip)
         return w
 
