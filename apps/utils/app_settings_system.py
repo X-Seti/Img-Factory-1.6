@@ -996,7 +996,9 @@ class XPColorPicker(QWidget): #vers 2
             'action_convert': {'name': 'Convert Action', 'h': 280, 's': 45, 'b': 95},
             'panel_entries': {'name': 'Entries Panel BG', 'h': 120, 's': 20, 'b': 97},
             'panel_filter': {'name': 'Filter Panel BG', 'h': 50, 's': 20, 'b': 98},
-            'toolbar_bg': {'name': 'Toolbar Background', 'h': 0, 's': 0, 'b': 98}
+            'toolbar_bg': {'name': 'Toolbar Background', 'h': 0, 's': 0, 'b': 98},
+            'dialog_bg':  {'name': 'Dialog Background',  'h': 0, 's': 0, 'b': 99},
+            'dialog_text':{'name': 'Dialog Text',        'h': 0, 's': 0, 'b': 20},
         }
 
         self._load_theme_colors()
@@ -1826,6 +1828,10 @@ class AppSettings:
         panel_entries = colors.get('panel_entries', bg_tertiary)
         panel_filter = colors.get('panel_filter', bg_tertiary)
 
+        # Dialog colours fall back to bg_primary/text_primary if not set
+        dialog_bg   = colors.get('dialog_bg')   or bg_primary
+        dialog_text = colors.get('dialog_text') or text_primary
+
         stylesheet = f"""
         QMainWindow {{
             background-color: {bg_primary};
@@ -1833,8 +1839,8 @@ class AppSettings:
         }}
 
         QDialog {{
-            background-color: {bg_primary};
-            color: {text_primary};
+            background-color: {dialog_bg};
+            color: {dialog_text};
         }}
 
         QWidget {{
@@ -3809,6 +3815,13 @@ class SettingsDialog(QDialog): #vers 15
 
         self._original_theme = self.app_settings.current_settings.get("theme", "App_Factory")
 
+        # Apply theme stylesheet immediately — FramelessWindowHint dialogs
+        # don't inherit from QApplication so we must set it explicitly.
+        try:
+            self.setStyleSheet(self.app_settings.get_stylesheet())
+        except Exception:
+            pass
+
         # Settings dialog always has its own titlebar — [Menu] [Settings] | title | [i] [—] [□] [✕]
         # This makes it draggable on both X11 and Wayland, and consistent regardless of ui_mode.
         try:
@@ -4695,6 +4708,8 @@ class SettingsDialog(QDialog): #vers 15
             "scrollbar_handle_hover": "Scrollbar - Handle Hover",
             "scrollbar_handle_pressed": "Scrollbar - Handle Pressed",
             "scrollbar_border": "Scrollbar - Border",
+            "dialog_bg":         "Dialog - Background",
+            "dialog_text":       "Dialog - Text",
             # ── Panel & Hero colours ──────────────────────────────────────
             "panel_fill_a":              "Two-Tone - Colour A",
             "panel_fill_b":              "Two-Tone - Colour B",
@@ -8829,6 +8844,12 @@ Ready for operations..."""
             return
 
         self._load_theme_colors(theme_key)
+
+        # Re-apply stylesheet so dialog colours update immediately
+        try:
+            self.setStyleSheet(self.app_settings.get_stylesheet())
+        except Exception:
+            pass
 
         if hasattr(self, 'instant_apply_check') and self.instant_apply_check.isChecked():
             # Persist the choice

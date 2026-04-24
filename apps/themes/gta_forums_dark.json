@@ -107,7 +107,9 @@
     "panel_pattern_dark": "#0b1017",
     "copper_light": "#b87333",
     "copper_dark": "#7a4a1a",
-    "hero_bg": ""
+    "hero_bg": "",
+    "dialog_bg": "",
+    "dialog_text": ""
   },
   "created": "2025-08-12 00:04",
   "menus": {

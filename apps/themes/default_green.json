@@ -62,7 +62,9 @@
     "panel_pattern_dark": "#b3beb3",
     "copper_light": "#b87333",
     "copper_dark": "#7a4a1a",
-    "hero_bg": ""
+    "hero_bg": "",
+    "dialog_bg": "",
+    "dialog_text": ""
   },
   "styles": {
     "button_shape": "Rounded",

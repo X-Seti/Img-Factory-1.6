@@ -42,7 +42,9 @@
     "panel_pattern_dark": "#bcbcbc",
     "copper_light": "#b87333",
     "copper_dark": "#7a4a1a",
-    "hero_bg": ""
+    "hero_bg": "",
+    "dialog_bg": "",
+    "dialog_text": ""
   },
   "mui_settings": {
     "system_detected": true,
