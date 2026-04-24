@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 7
+# apps/components/Img_Factory/welcome_screen.py — Version 8
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -128,7 +128,7 @@ class WelcomeScreen(QWidget):
         # screen from stretching the host window taller than the screen.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-    def _build_ui(self): #vers 5
+    def _build_ui(self): #vers 6
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -154,6 +154,47 @@ class WelcomeScreen(QWidget):
         vtxt = QVBoxLayout(); vtxt.setSpacing(2)
         vtxt.addWidget(title_lbl); vtxt.addWidget(sub_lbl)
         hl.addLayout(vtxt, 1)
+
+        # Right side of hero: show-on-startup checkbox + search + close
+        from PyQt6.QtWidgets import QToolButton, QCheckBox as _CB
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGh
+
+        self._show_cb = _CB("Show on startup")
+        self._show_cb.setFont(QFont("Arial", 8))
+        self._show_cb.setStyleSheet("color: palette(brightText); background: transparent;")
+        _show = True
+        try: _show = _json.load(open(_PREF_PATH)).get('show_on_startup', True)
+        except Exception: pass
+        self._show_cb.setChecked(_show)
+        self._show_cb.toggled.connect(self._save_startup_pref)
+        hl.addWidget(self._show_cb)
+
+        _icon_col = '#cccccc'
+        search_btn = QToolButton()
+        search_btn.setFixedSize(28, 28)
+        search_btn.setToolTip("Search functions")
+        try:
+            search_btn.setIcon(_SVGh.search_icon(20, _icon_col))
+            from PyQt6.QtCore import QSize as _QS
+            search_btn.setIconSize(_QS(20, 20))
+        except Exception:
+            search_btn.setText("Q")
+        search_btn.setStyleSheet("background: transparent; border: none;")
+        search_btn.clicked.connect(self._focus_search)
+        hl.addWidget(search_btn)
+
+        close_btn = QToolButton()
+        close_btn.setFixedSize(28, 28)
+        close_btn.setToolTip("Dismiss — reopen via [Intro]")
+        try:
+            close_btn.setIcon(_SVGh.close_icon(20, _icon_col))
+            close_btn.setIconSize(_QS(20, 20))
+        except Exception:
+            close_btn.setText("X")
+        close_btn.setStyleSheet("background: transparent; border: none;")
+        close_btn.clicked.connect(self._dismiss)
+        hl.addWidget(close_btn)
+
         root.addWidget(hero)
 
         # Tab bar: Quick Start | Functions | Workflows | Shortcuts
@@ -166,35 +207,7 @@ class WelcomeScreen(QWidget):
         tabs.addTab(self._build_workflows_tab(),  "Workflows")
         tabs.addTab(self._build_shortcuts_tab(),  "Shortcuts")
 
-        # Bottom bar — show on startup checkbox + dismiss
-        bot = QFrame()
-        bot.setFixedHeight(40)
-        bot.setStyleSheet(
-            "QFrame { border-top: 1px solid palette(mid); background: palette(window); }")
-        bl = QHBoxLayout(bot); bl.setContentsMargins(16, 6, 16, 6); bl.setSpacing(12)
-
-        self._show_cb = QCheckBox("Show on startup")
-        self._show_cb.setFont(QFont("Arial", 9))
-        _show = True
-        try: _show = _json.load(open(_PREF_PATH)).get('show_on_startup', True)
-        except Exception: pass
-        self._show_cb.setChecked(_show)
-        self._show_cb.toggled.connect(self._save_startup_pref)
-        bl.addWidget(self._show_cb)
-        bl.addStretch()
-
-        hint = QLabel("Close to dismiss — reopen via  [Intro]  in the taskbar")
-        hint.setFont(QFont("Arial", 8))
-        hint.setStyleSheet("color: palette(placeholderText);")
-        bl.addWidget(hint)
-
-        dismiss = QPushButton("✕  Close")
-        dismiss.setFixedHeight(26)
-        dismiss.setFont(QFont("Arial", 9))
-        dismiss.setToolTip("Dismiss screen — reopen via [Intro] in taskbar")
-        dismiss.clicked.connect(self._dismiss)
-        bl.addWidget(dismiss)
-        root.addWidget(bot)
+        # Bottom bar removed — controls moved into hero banner (see below)
 
     # ── Tab builders ────────────────────────────────────────────────────
 
@@ -505,6 +518,16 @@ class WelcomeScreen(QWidget):
             except Exception: pass
             data['show_on_startup'] = show
             _json.dump(data, open(_PREF_PATH, 'w'), indent=2)
+        except Exception:
+            pass
+
+    def _focus_search(self): #vers 1
+        """Switch to All Functions tab and focus the search field if available."""
+        try:
+            # Find the tab widget and switch to All Functions
+            for child in self.findChildren(__import__('PyQt6.QtWidgets', fromlist=['QTabWidget']).QTabWidget):
+                child.setCurrentIndex(1)  # All Functions tab
+                break
         except Exception:
             pass
 
