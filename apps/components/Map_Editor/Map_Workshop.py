@@ -3810,7 +3810,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    # ── Auto-generated stubs for unimplemented methods ──
+    #    Auto-generated stubs for unimplemented methods   
     def _change_bit_depth(self, *a, **kw): pass
     def _close_txd_tab(self, *a, **kw): pass
     def _compress_texture(self, *a, **kw): pass

@@ -571,7 +571,7 @@ class COLParser: #vers 1
             # Parse bounds (bounding sphere + bounding box = 40 bytes)
             bounds, offset = self.parse_bounds(data, offset, version)
 
-            # ── COL1: interleaved counts+data ────────────────────────
+            #    COL1: interleaved counts+data                         
             if version == COLVersion.COL_1:
                 # DragonFF __read_legacy_col order:
                 #   spheres → skip4(unknown) → boxes → vertices → faces
@@ -595,7 +595,7 @@ class COLParser: #vers 1
                 num_faces = struct.unpack_from('<I', data, offset)[0]; offset += 4
                 faces, offset = self.parse_faces(data, offset, num_faces, version)
 
-            # ── COL2/3/4: offset-table layout — matched to DragonFF __read_new_col ──
+            #    COL2/3/4: offset-table layout — matched to DragonFF __read_new_col   
             # DragonFF format "<HHHBxIIIIIII" = 36 bytes:
             #   sphere_count(H) box_count(H) face_count(H) line_count(B) pad(x)
             #   flags(I) spheres_off(I) boxes_off(I) lines_off(I)
@@ -639,28 +639,28 @@ class COLParser: #vers 1
                 def data_at(off):
                     return block_base + off + 4
 
-                # ── Spheres ───────────────────────────────────────────────
+                #    Spheres                                                
                 if num_spheres > 0 and spheres_off > 0:
                     spheres, _ = self.parse_spheres(
                         data, data_at(spheres_off), num_spheres)
                 else:
                     spheres = []
 
-                # ── Boxes ─────────────────────────────────────────────────
+                #    Boxes                                                  
                 if num_boxes > 0 and boxes_off > 0:
                     boxes, _ = self.parse_boxes(
                         data, data_at(boxes_off), num_boxes)
                 else:
                     boxes = []
 
-                # ── Faces (read before vertices — need indices for vert count) ──
+                #    Faces (read before vertices — need indices for vert count)   
                 if num_faces > 0 and faces_off > 0:
                     faces, _ = self.parse_faces(
                         data, data_at(faces_off), num_faces, version)
                 else:
                     faces = []
 
-                # ── Vertices — count derived from face indices (DragonFF method) ──
+                #    Vertices — count derived from face indices (DragonFF method)   
                 vertices = []
                 if verts_off > 0 and faces:
                     num_vertices = max(
@@ -886,7 +886,7 @@ class COLWriter: #vers 1
         name  = getattr(model, 'name', '') or ''
         mid   = getattr(model, 'model_id', 0)
 
-        # ── choose fourcc ──────────────────────────────────────────────
+        #    choose fourcc                                               
         fourcc_map = {
             COLVersion.COL_1: b'COLL',
             COLVersion.COL_2: b'COL2',
@@ -895,7 +895,7 @@ class COLWriter: #vers 1
         }
         fourcc = fourcc_map.get(ver, b'COL2')
 
-        # ── build payload ──────────────────────────────────────────────
+        #    build payload                                               
         payload = bytearray()
 
         # Name (22 bytes, null-padded) + model_id (2 bytes)
@@ -912,7 +912,7 @@ class COLWriter: #vers 1
         else:
             payload += cls._write_col23_body(model, ver)
 
-        # ── build header: fourcc(4) + size(4) + payload ────────────────
+        #    build header: fourcc(4) + size(4) + payload                 
         size = len(payload)
         header = fourcc + struct.pack('<I', size)
         return header + bytes(payload)

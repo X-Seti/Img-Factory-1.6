@@ -39,7 +39,7 @@ import struct
 from typing import List, Optional, Dict
 
 
-# ── RW chunk reader ────────────────────────────────────────────────────────────
+#    RW chunk reader                                                             
 
 def _read_chunk(data: bytes, pos: int):
     """Read a 12-byte RW chunk header → (type, size, lib, payload_start)."""
@@ -47,7 +47,7 @@ def _read_chunk(data: bytes, pos: int):
     return ct, sz, lib, pos + 12
 
 
-# ── DragonFF unswizzle algorithms (verbatim) ──────────────────────────────────
+#    DragonFF unswizzle algorithms (verbatim)                                   
 
 def _unswizzle8(data: bytes, width: int, height: int) -> bytes:
     """GS VRAM unswizzle for PSMT8 (8bpp palette-indexed)."""
@@ -100,7 +100,7 @@ def _read_palette(data: bytes, pos: int, size: int) -> bytes:
     return bytes(out)
 
 
-# ── Main parsers ───────────────────────────────────────────────────────────────
+#    Main parsers                                                                
 
 def detect_ps2_txd(data: bytes) -> bool:
     """Return True if data starts with a TextureDict containing PS2\\0 textures."""
@@ -155,14 +155,14 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
         }
         pos = p3    # walk inside NativeTex
 
-        # ── Struct(8): platform_id + filter + uv ──────────────────────────
+        #    Struct(8): platform_id + filter + uv                           
         if pos < nt_end - 12:
             ct4, sz4, _, p4 = _read_chunk(data, pos)
             if ct4 == 0x01 and sz4 == 8:
                 tex['platform_id'] = struct.unpack('<I', data[p4:p4+4])[0]
             pos = p4 + sz4
 
-        # ── String chunks: name, mask ─────────────────────────────────────
+        #    String chunks: name, mask                                      
         for key in ('name', 'mask'):
             if pos >= nt_end - 12: break
             ct4, sz4, _, p4 = _read_chunk(data, pos)
@@ -170,12 +170,12 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
                 tex[key] = data[p4:p4+sz4].split(b'\x00')[0].decode('ascii', 'replace')
             pos = p4 + sz4
 
-        # ── Native chunk (outer wrapper) — step INTO ──────────────────────
+        #    Native chunk (outer wrapper) — step INTO                       
         if pos < nt_end - 12:
             ct4, sz4, _, p4 = _read_chunk(data, pos)
             pos = p4   # do NOT skip payload — it contains Raster + Texture chunks
 
-        # ── Raster chunk: w/h/depth/flags + GS registers + sizes ─────────
+        #    Raster chunk: w/h/depth/flags + GS registers + sizes          
         if pos < nt_end - 12:
             ct4, sz4, _, p4 = _read_chunk(data, pos)
             FMT = '<4I4Q4I'
@@ -198,12 +198,12 @@ def parse_ps2_txd(data: bytes) -> List[Dict]:
                 tex['tbp0']                = int(tex0) & 0x3FFF
             pos = p4 + sz4
 
-        # ── Texture chunk (inner) — step INTO pixel/palette data ──────────
+        #    Texture chunk (inner) — step INTO pixel/palette data           
         if pos < nt_end - 12:
             ct4, sz4, _, p4 = _read_chunk(data, pos)
             pos = p4
 
-        # ── Pixel + palette data ──────────────────────────────────────────
+        #    Pixel + palette data                                           
         raster_type  = (tex['raster_format_flags'] >> 8) & 0xF   # 5 = RASTER_8888
         palette_type = (tex['raster_format_flags'] >> 13) & 0x3  # 1=PAL8 2=PAL4
         w, h, depth  = tex['width'], tex['height'], tex['depth']

@@ -174,7 +174,7 @@ def _rebuild_v1_pair(img_file, entries, progress_callback, main_window) -> bool:
 
         SECTOR = 2048
         try:
-            # ── Phase 1: write .img data, collecting per-entry sector offsets ──
+            #    Phase 1: write .img data, collecting per-entry sector offsets   
             progress_callback(10, "Writing entry data to .img")
             current_sector = 0
             entry_sectors = []  # (offset_sector, size_sector) per entry
@@ -196,7 +196,7 @@ def _rebuild_v1_pair(img_file, entries, progress_callback, main_window) -> bool:
                     if i % 50 == 0:
                         progress_callback(10 + 60 * i // len(entries), f"Writing {i+1}/{len(entries)}")
 
-            # ── Phase 2: write .dir ──────────────────────────────────────────
+            #    Phase 2: write .dir                                           
             progress_callback(75, "Writing directory (.dir)")
             with open(temp_dir, 'wb') as fdir:
                 for entry, (off_sec, sz_sec) in zip(entries, entry_sectors):
@@ -204,7 +204,7 @@ def _rebuild_v1_pair(img_file, entries, progress_callback, main_window) -> bool:
                     fdir.write(struct.pack('<II', off_sec, sz_sec))
                     fdir.write(name_b)
 
-            # ── Phase 3: atomic replace both files ──────────────────────────
+            #    Phase 3: atomic replace both files                           
             progress_callback(90, "Replacing files")
             ok_img = atomic_file_replace(temp_img, img_path, main_window)
             ok_dir = atomic_file_replace(temp_dir, dir_path, main_window)

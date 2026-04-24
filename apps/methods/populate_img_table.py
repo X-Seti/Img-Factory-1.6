@@ -11,9 +11,9 @@ from PyQt6.QtGui import QMouseEvent
 from apps.debug.debug_functions import img_debugger
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # DragSelectTableWidget
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class DragSelectTableWidget(QTableWidget): #vers 1
     """QTableWidget subclass that supports click-and-drag row selection.

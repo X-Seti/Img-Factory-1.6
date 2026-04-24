@@ -24,7 +24,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QSortFilterProxyModel
 
-# ── GUIWorkshop base ──────────────────────────────────────────────────────────
+#    GUIWorkshop base                                                           
 def _find_gui_workshop():
     _dep = Path(__file__).parent.parent / "Tmp_Template" / "gui_workshop.py"
     if _dep.exists():
@@ -116,7 +116,7 @@ class IPLFile:
         self.path       = ""
         self._dirty     = False
 
-    # ── Detection ─────────────────────────────────────────────────────────────
+    #    Detection                                                              
     def _detect_game(self, raw_inst_lines: List[str]) -> str:
         """Detect GTA version from field count of inst lines."""
         for line in raw_inst_lines[:20]:
@@ -127,7 +127,7 @@ class IPLFile:
                 return "gta3"
         return "gta3"
 
-    # ── Load ──────────────────────────────────────────────────────────────────
+    #    Load                                                                   
     def load(self, path: str) -> bool:
         self.path = path
         self.sections = []
@@ -208,7 +208,7 @@ class IPLFile:
             pass
         return None
 
-    # ── Save ──────────────────────────────────────────────────────────────────
+    #    Save                                                                   
     def save(self, path: str = ""):
         out_path = path or self.path
         lines = list(self.header_lines)
@@ -227,7 +227,7 @@ class IPLFile:
         if path:
             self.path = path
 
-    # ── Convenience ───────────────────────────────────────────────────────────
+    #    Convenience                                                            
     @property
     def instances(self) -> List[IPLEntry]:
         for sec in self.sections:
@@ -293,7 +293,7 @@ class IPLWorkshop(GUIWorkshop):
         except Exception:
             pass
 
-    # ── Menu ──────────────────────────────────────────────────────────────────
+    #    Menu                                                                   
     def _build_menus_into_qmenu(self, pm):
         fm = pm.addMenu("File")
         fm.addAction("Open IPL…  Ctrl+O",     self._open_file)
@@ -330,7 +330,7 @@ class IPLWorkshop(GUIWorkshop):
         vm.addSeparator()
         vm.addAction("About IPL Workshop",     self._show_about)
 
-    # ── Left panel — section list ─────────────────────────────────────────────
+    #    Left panel — section list                                              
     def _create_left_panel(self):
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -383,7 +383,7 @@ class IPLWorkshop(GUIWorkshop):
         ll.addWidget(self._dirty_lbl)
         return panel
 
-    # ── Centre panel — instance table + search ────────────────────────────────
+    #    Centre panel — instance table + search                                 
     def _create_centre_panel(self): #vers 2
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -395,7 +395,7 @@ class IPLWorkshop(GUIWorkshop):
         self._centre_tabs = QTabWidget()
         self._centre_tabs.setTabPosition(QTabWidget.TabPosition.North)
 
-        # ── Tab 1: Table editor ───────────────────────────────────────────
+        #    Tab 1: Table editor                                            
         table_widget = QFrame()
         tl = QVBoxLayout(table_widget)
         tl.setContentsMargins(0, 2, 0, 0)
@@ -446,7 +446,7 @@ class IPLWorkshop(GUIWorkshop):
 
         self._centre_tabs.addTab(table_widget, "📋  Table")
 
-        # ── Tab 2: World Map ──────────────────────────────────────────────
+        #    Tab 2: World Map                                               
         self._map_panel = IPLMapPanel(self)
         self._centre_tabs.addTab(self._map_panel, "🗺  World Map")
 
@@ -477,7 +477,7 @@ class IPLWorkshop(GUIWorkshop):
         # Fallback: all inst entries
         return list(self._ipl.instances)
 
-    # ── Right sidebar ─────────────────────────────────────────────────────────
+    #    Right sidebar                                                          
     def _populate_sidebar(self):
         sl  = self._sidebar_layout
         ic  = self._get_icon_color()
@@ -517,7 +517,7 @@ class IPLWorkshop(GUIWorkshop):
 # SECTION 3 — IPL logic
 # =============================================================================
 
-    # ── File ops ──────────────────────────────────────────────────────────────
+    #    File ops                                                               
     def _open_file(self, path=None):
         if not path:
             path, _ = QFileDialog.getOpenFileName(
@@ -596,7 +596,7 @@ class IPLWorkshop(GUIWorkshop):
         self.WS._data["recent_files"] = []; self.WS.save()
         self._set_status("Recent cleared")
 
-    # ── Section management ────────────────────────────────────────────────────
+    #    Section management                                                     
     def _populate_section_list(self):
         self._section_list.clear()
         if not self._ipl: return
@@ -640,7 +640,7 @@ class IPLWorkshop(GUIWorkshop):
             self._text_view.blockSignals(False)
             self._set_status(f"Section '{sec_name}' — {len(sec.lines)} lines (raw text)")
 
-    # ── Table population ──────────────────────────────────────────────────────
+    #    Table population                                                       
     def _populate_table(self, entries: List[IPLEntry]):
         self._table.blockSignals(True)
         self._table.setSortingEnabled(False)
@@ -681,7 +681,7 @@ class IPLWorkshop(GUIWorkshop):
             self._int_filter.addItem(f"Interior {i}", i)
         self._int_filter.blockSignals(False)
 
-    # ── Search / filter ───────────────────────────────────────────────────────
+    #    Search / filter                                                        
     def _on_search_changed(self, text: str):
         self._apply_filter(text, self._int_filter.currentData())
 
@@ -705,7 +705,7 @@ class IPLWorkshop(GUIWorkshop):
         for row in range(self._table.rowCount()):
             self._table.setRowHidden(row, False)
 
-    # ── Editing ───────────────────────────────────────────────────────────────
+    #    Editing                                                                
     def _on_cell_edited(self, item: QTableWidgetItem):
         if not self._ipl: return
         sec = self._current_inst_section()
@@ -747,7 +747,7 @@ class IPLWorkshop(GUIWorkshop):
         if not self._ipl: return None
         return self._ipl.inst_section
 
-    # ── Load all from DAT ────────────────────────────────────────────────────
+    #    Load all from DAT                                                     
     def _load_all_from_dat(self):
         """Collect all IPL paths from a .dat file and load them as merged IPLFile."""
         dat_path = self._pick_dat_path()
@@ -930,7 +930,7 @@ class IPLWorkshop(GUIWorkshop):
         return [lst.item(i).data(Qt.ItemDataRole.UserRole)
                 for i in range(lst.count()) if lst.item(i).isSelected()]
 
-    # ── Entry operations ──────────────────────────────────────────────────────
+    #    Entry operations                                                       
     def _push_undo(self):
         sec = self._current_inst_section()
         if sec:
@@ -1020,7 +1020,7 @@ class IPLWorkshop(GUIWorkshop):
                 item.setText(f"{sec.name}  ({n})")
                 break
 
-    # ── Search / stats ────────────────────────────────────────────────────────
+    #    Search / stats                                                         
     def _show_find(self):
         text, ok = self._input_dialog("Find Model", "Model name contains:")
         if ok and text:
@@ -1070,7 +1070,7 @@ class IPLWorkshop(GUIWorkshop):
         n    = len(self._ipl.instances)
         self._info_lbl.setText(f"{name}\n{n} instances\ngame={self._ipl.game}")
 
-    # ── Context menu ──────────────────────────────────────────────────────────
+    #    Context menu                                                           
     def _show_context_menu(self, pos):
         menu = QMenu(self)
         menu.addAction("Add Entry",           self._add_entry)
@@ -1080,7 +1080,7 @@ class IPLWorkshop(GUIWorkshop):
         menu.addAction("Export CSV…",         self._export_csv)
         menu.exec(self._table.viewport().mapToGlobal(pos))
 
-    # ── GUIWorkshop stubs ─────────────────────────────────────────────────────
+    #    GUIWorkshop stubs                                                      
     def _on_list_selection_changed(self, row: int): pass
     def _on_add_item(self): self._add_entry()
     def _on_remove_item(self): self._delete_selected()
@@ -1197,7 +1197,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-# ── IPL World Map ─────────────────────────────────────────────────────────────
+#    IPL World Map                                                              
 
 class IPLMapView(QFrame):  # vers 1
     """Interactive 2D top-down world map showing IPL instances as cubes.
@@ -1242,7 +1242,7 @@ class IPLMapView(QFrame):  # vers 1
 
         self._dirty = True
 
-    # ── Data loading ──────────────────────────────────────────────────────
+    #    Data loading                                                       
     def load_entries(self, entries: list, ipl_filter: set = None):
         """Load IPL entries. ipl_filter: set of source_ipl basenames to show."""
         self._entries = entries or []
@@ -1313,7 +1313,7 @@ class IPLMapView(QFrame):  # vers 1
         self._active_ipls = active_ipls
         self.update()
 
-    # ── Coordinate transform ──────────────────────────────────────────────
+    #    Coordinate transform                                               
     def _world_to_screen(self, wx, wy):
         """Convert GTA world XY → screen pixel."""
         W, H = self.width(), self.height()
@@ -1356,7 +1356,7 @@ class IPLMapView(QFrame):  # vers 1
                     if (e.source_line or '') in self._active_ipls]
         return self._entries
 
-    # ── Paint ─────────────────────────────────────────────────────────────
+    #    Paint                                                              
     def paintEvent(self, event):
         from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
         from PyQt6.QtCore import QRectF
@@ -1491,7 +1491,7 @@ class IPLMapView(QFrame):  # vers 1
             p.drawLine(0, int(sy), W, int(sy))
             y += interval
 
-    # ── Mouse interaction ─────────────────────────────────────────────────
+    #    Mouse interaction                                                  
     def wheelEvent(self, event):
         factor = 1.15 if event.angleDelta().y() > 0 else 1/1.15
         self._zoom = max(0.05, min(200.0, self._zoom * factor))
@@ -1582,7 +1582,7 @@ class IPLMapView(QFrame):  # vers 1
         elif event.key() == Qt.Key.Key_F:
             self._fit_all(); self.update()
 
-    # ── Selection helpers ─────────────────────────────────────────────────
+    #    Selection helpers                                                  
     def select_by_ipl(self, ipl_name: str, add=False):
         if not add:
             self._selected.clear()
@@ -1596,7 +1596,7 @@ class IPLMapView(QFrame):  # vers 1
     def selected_entries(self):
         return [self._entries[i] for i in sorted(self._selected)]
 
-    # ── Bulk operations ───────────────────────────────────────────────────
+    #    Bulk operations                                                    
     def translate_selected(self, dx: float, dy: float, dz: float):
         """Move selected entries by (dx, dy, dz)."""
         if not self._selected:
@@ -1650,7 +1650,7 @@ class IPLMapPanel(QFrame):  # vers 1
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(2)
 
-        # ── Toolbar ───────────────────────────────────────────────────────
+        #    Toolbar                                                        
         bar = QHBoxLayout(); bar.setContentsMargins(4, 2, 4, 2); bar.setSpacing(6)
 
         fit_btn = QPushButton("Fit [F]")
@@ -1718,12 +1718,12 @@ class IPLMapPanel(QFrame):  # vers 1
         bar.addWidget(self._sel_lbl)
         root.addLayout(bar)
 
-        # ── Map view ──────────────────────────────────────────────────────
+        #    Map view                                                       
         self._map = IPLMapView()
         self._map.selection_changed.connect(self._on_selection_changed)
         root.addWidget(self._map, stretch=1)
 
-        # ── Translate / Rotate controls ───────────────────────────────────
+        #    Translate / Rotate controls                                    
         ctrl = QHBoxLayout(); ctrl.setContentsMargins(4, 2, 4, 4); ctrl.setSpacing(8)
 
         # Translate group

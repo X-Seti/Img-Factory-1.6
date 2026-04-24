@@ -101,7 +101,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             color: {fg};
         }}
 
-        /* ── List / Tree / Table ────────────────────────────────────── */
+        /*    List / Tree / Table                                        */
         QTreeWidget, QTreeView,
         QListWidget, QListView,
         QTableWidget, QTableView {{
@@ -131,7 +131,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             color: {fg};
         }}
 
-        /* ── Header ─────────────────────────────────────────────────── */
+        /*    Header                                                     */
         QHeaderView::section {{
             background-color: {bg2};
             color: {fg};
@@ -143,7 +143,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             background-color: {btn_h};
         }}
 
-        /* ── Buttons ─────────────────────────────────────────────────── */
+        /*    Buttons                                                     */
         QPushButton {{
             background-color: {btn_n};
             color: {fg};
@@ -166,7 +166,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             border: 2px solid {acc};
         }}
 
-        /* ── Inputs ──────────────────────────────────────────────────── */
+        /*    Inputs                                                      */
         QLineEdit, QTextEdit, QPlainTextEdit {{
             background-color: {filt_bg};
             color: {fg};
@@ -180,7 +180,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             border-color: {acc};
         }}
 
-        /* ── ComboBox ────────────────────────────────────────────────── */
+        /*    ComboBox                                                    */
         QComboBox {{
             background-color: {filt_bg};
             color: {fg};
@@ -203,7 +203,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             selection-color: {sel_fg};
         }}
 
-        /* ── SpinBox ─────────────────────────────────────────────────── */
+        /*    SpinBox                                                     */
         QSpinBox, QDoubleSpinBox {{
             background-color: {filt_bg};
             color: {fg};
@@ -213,7 +213,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
         }}
         QSpinBox:focus, QDoubleSpinBox:focus {{ border-color: {acc}; }}
 
-        /* ── ProgressBar ─────────────────────────────────────────────── */
+        /*    ProgressBar                                                 */
         QProgressBar {{
             background-color: {bg2};
             border: 1px solid {brd};
@@ -225,13 +225,13 @@ def build_dialog_stylesheet(colors: dict) -> str:
             border-radius: 2px;
         }}
 
-        /* ── Labels ──────────────────────────────────────────────────── */
+        /*    Labels                                                      */
         QLabel {{
             color: {fg};
             background: transparent;
         }}
 
-        /* ── GroupBox ────────────────────────────────────────────────── */
+        /*    GroupBox                                                    */
         QGroupBox {{
             color: {fg};
             border: 1px solid {brd};
@@ -247,7 +247,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             padding: 0 3px;
         }}
 
-        /* ── CheckBox / RadioButton ───────────────────────────────────── */
+        /*    CheckBox / RadioButton                                       */
         QCheckBox, QRadioButton {{
             color: {fg};
             spacing: 6px;
@@ -266,7 +266,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             border-color: {acc};
         }}
 
-        /* ── Tabs ────────────────────────────────────────────────────── */
+        /*    Tabs                                                        */
         QTabWidget::pane {{
             border: 1px solid {brd};
             background-color: {bg};
@@ -287,7 +287,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             color: {fg};
         }}
 
-        /* ── Splitter ────────────────────────────────────────────────── */
+        /*    Splitter                                                    */
         QSplitter::handle {{
             background-color: {brd};
         }}
@@ -295,7 +295,7 @@ def build_dialog_stylesheet(colors: dict) -> str:
             background-color: {acc};
         }}
 
-        /* ── Scrollbars ──────────────────────────────────────────────── */
+        /*    Scrollbars                                                  */
         QScrollBar:vertical {{
             background: {bg2};
             width: 10px;

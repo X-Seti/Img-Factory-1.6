@@ -27,31 +27,31 @@ Total model bytes = data_size + 8
 
 ```
 Offset  Size  Type      Field
-──────────────────────────────────────────────────
+                                                  
 0       4     char[4]   magic = "COLL"
 4       4     uint32    data_size  (bytes after this field)
-── model_data starts here ──
+   model_data starts here   
 8       22    char[22]  model_name (null-padded ASCII)
 30      2     uint16    model_id
-── bounding_sphere ──
+   bounding_sphere   
 32      12    float[3]  bs_center  (x, y, z)
 44      4     float     bs_radius
-── bounding_box ──
+   bounding_box   
 48      12    float[3]  bb_min     (x, y, z)
 60      12    float[3]  bb_max     (x, y, z)
-── spheres ──
+   spheres   
 72      4     uint32    num_spheres
 76      20*N  COLSphere spheres[N]
-── boxes ──
+   boxes   
 ?       4     uint32    num_boxes
 ?       28*M  COLBox    boxes[M]
-── face_groups ──
+   face_groups   
 ?       4     uint32    num_face_groups
 ?       28*G  COLFaceGroup face_groups[G]
-── vertices ──
+   vertices   
 ?       4     uint32    num_vertices
 ?       12*V  float[3]  vertices[V]   ← FLOAT not int16!
-── faces ──
+   faces   
 ?       4     uint32    num_faces
 ?       16*F  COLFace   faces[F]      ← 16 bytes not 8!
 ```

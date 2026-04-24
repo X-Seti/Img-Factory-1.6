@@ -35,12 +35,12 @@ from PyQt6.QtGui import QFont, QColor
 # ScanThread
 # ScanResultsDialog
 
-# ── Extensions we care about ──────────────────────────────────────────────────
+#    Extensions we care about                                                   
 
 SCAN_CACHE_PATH = os.path.expanduser("~/.config/imgfactory/scan_cache.json")
 MAX_CACHED_SCANS = 20   # keep last N scan folders
 
-# ── Cache helpers ─────────────────────────────────────────────────────────────
+#    Cache helpers                                                              
 
 def _save_scan_cache(folder: str, results: list, scan_date: str = "") -> None:
     """Persist scan results for a folder to the cache file."""
@@ -105,7 +105,7 @@ EXT_LABELS = {
     '.agr':  'AGR',
 }
 
-# ── Quick version detection (no Qt, no full parse) ────────────────────────────
+#    Quick version detection (no Qt, no full parse)                             
 
 def _quick_detect(file_path: str) -> Tuple[str, str]:
     """Return (version_label, platform_label) without importing IMGFile.
@@ -225,7 +225,7 @@ def _format_size(size_bytes: int) -> str:
     return f'{size_bytes / 1024**3:.2f} GB'
 
 
-# ── Background scan thread ────────────────────────────────────────────────────
+#    Background scan thread                                                     
 
 class ScanThread(QThread):  # vers 1
     """Recursively scans a directory for IMG-compatible files."""
@@ -281,7 +281,7 @@ class ScanThread(QThread):  # vers 1
         self.finished.emit(found)
 
 
-# ── Results dialog ─────────────────────────────────────────────────────────────
+#    Results dialog                                                              
 
 
 from apps.core.theme_utils import get_theme_colors as _get_theme_colors, build_dialog_stylesheet as _build_dialog_stylesheet
@@ -305,7 +305,7 @@ class ScanResultsDialog(QDialog):  # vers 1
         else:
             self._start_scan()
 
-    # ── UI ──────────────────────────────────────────────────────────────────
+    #    UI                                                                   
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -400,7 +400,7 @@ class ScanResultsDialog(QDialog):  # vers 1
 
         self._tree.itemSelectionChanged.connect(self._update_count)
 
-    # ── Scan ────────────────────────────────────────────────────────────────
+    #    Scan                                                                 
 
     def _load_cached(self, results: list):
         """Restore previously saved scan results instantly."""
@@ -446,7 +446,7 @@ class ScanResultsDialog(QDialog):  # vers 1
         if self._results:
             _save_scan_cache(self.root_path, self._get_results_for_cache())
 
-    # ── Tree population ──────────────────────────────────────────────────────
+    #    Tree population                                                       
 
     # Colour map for version → background tint
     _VER_COLORS = {
@@ -489,7 +489,7 @@ class ScanResultsDialog(QDialog):  # vers 1
         self._tree.addTopLevelItem(item)
         return item
 
-    # ── Filter ───────────────────────────────────────────────────────────────
+    #    Filter                                                                
 
     def _apply_filter(self):
         text  = self._filter.text().lower()
@@ -516,7 +516,7 @@ class ScanResultsDialog(QDialog):  # vers 1
             else f'{len(self._results)} files'
         )
 
-    # ── Selection helpers ────────────────────────────────────────────────────
+    #    Selection helpers                                                     
 
     def _select_by_platform(self):
         plat = self._plat_combo.currentText()
@@ -535,7 +535,7 @@ class ScanResultsDialog(QDialog):  # vers 1
         self._count_label.setText(f'{n} selected' if n else '')
         self._open_btn.setEnabled(n > 0)
 
-    # ── Open ─────────────────────────────────────────────────────────────────
+    #    Open                                                                  
 
     def _open_selected(self):
         items = self._tree.selectedItems()
@@ -602,7 +602,7 @@ class ScanResultsDialog(QDialog):  # vers 1
         super().closeEvent(event)
 
 
-# ── Recent Scans dialog ──────────────────────────────────────────────────────
+#    Recent Scans dialog                                                       
 
 class RecentScansDialog(QDialog):  # vers 2
     """Combined Recent Scans + live scan results in one dialog.
@@ -629,14 +629,14 @@ class RecentScansDialog(QDialog):  # vers 2
                 self._history_tree.setCurrentItem(first)
                 self._show_entry(first.data(0, Qt.ItemDataRole.UserRole))
 
-    # ── UI ───────────────────────────────────────────────────────────────────
+    #    UI                                                                    
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(6, 6, 6, 6)
         outer.setSpacing(4)
 
-        # ── Toolbar ──────────────────────────────────────────────────────────
+        #    Toolbar                                                           
         tb = QHBoxLayout()
 
         self._new_btn    = QPushButton("+ New Scan…")
@@ -676,7 +676,7 @@ class RecentScansDialog(QDialog):  # vers 2
 
         outer.addLayout(tb)
 
-        # ── Status / progress ─────────────────────────────────────────────────
+        #    Status / progress                                                  
         self._status = QLabel("Select a previous scan or start a new one.")
         self._status.setStyleSheet("color: palette(mid); font-size: 11px;")
         outer.addWidget(self._status)
@@ -687,7 +687,7 @@ class RecentScansDialog(QDialog):  # vers 2
         self._progress.setVisible(False)
         outer.addWidget(self._progress)
 
-        # ── Splitter: history list | results ─────────────────────────────────
+        #    Splitter: history list | results                                  
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
 
@@ -741,7 +741,7 @@ class RecentScansDialog(QDialog):  # vers 2
 
         outer.addWidget(splitter, 1)
 
-        # ── Bottom buttons ────────────────────────────────────────────────────
+        #    Bottom buttons                                                     
         bot = QHBoxLayout()
 
         self._sel_all  = QPushButton("Select All")
@@ -773,7 +773,7 @@ class RecentScansDialog(QDialog):  # vers 2
         from PyQt6.QtGui import QKeySequence, QShortcut
         QShortcut(QKeySequence("Ctrl+N"), self).activated.connect(self._new_scan)
 
-    # ── History list ──────────────────────────────────────────────────────────
+    #    History list                                                           
 
     def _populate_history(self):
         self._history_tree.clear()
@@ -817,7 +817,7 @@ class RecentScansDialog(QDialog):  # vers 2
         self._apply_filter()
         self._update_open_btn()
 
-    # ── Results table ─────────────────────────────────────────────────────────
+    #    Results table                                                          
 
     # Colour map matching ScanResultsDialog
     _VER_COLORS = {
@@ -865,7 +865,7 @@ class RecentScansDialog(QDialog):  # vers 2
         self._open_btn.setEnabled(n > 0)
         self._count_lbl.setText(f"{n} selected" if n else "")
 
-    # ── Scan (live) ───────────────────────────────────────────────────────────
+    #    Scan (live)                                                            
 
     def _run_scan(self, folder: str):
         """Start a live scan, streaming results into the right panel."""
@@ -918,7 +918,7 @@ class RecentScansDialog(QDialog):  # vers 2
             self._scan_thread.stop()
         self._stop_btn.setEnabled(False)
 
-    # ── History actions ───────────────────────────────────────────────────────
+    #    History actions                                                        
 
     def _new_scan(self):
         """Pick a new folder and scan it live inside this dialog."""
@@ -962,7 +962,7 @@ class RecentScansDialog(QDialog):  # vers 2
         sel = self._history_tree.selectedItems()
         return sel[0].data(0, Qt.ItemDataRole.UserRole) if sel else None
 
-    # ── Open files ────────────────────────────────────────────────────────────
+    #    Open files                                                             
 
     def _open_selected(self):
         items = [i for i in self._results_tree.selectedItems()
@@ -1000,7 +1000,7 @@ class RecentScansDialog(QDialog):  # vers 2
         super().closeEvent(event)
 
 
-# ── Public entry points ───────────────────────────────────────────────────────
+#    Public entry points                                                        
 
 def scan_img_folder(main_window):  # vers 3
     """Always show the combined Recent Scans / New Scan dialog.

@@ -34,7 +34,7 @@ html, body {
   overflow: hidden;
 }
 
-/* ── TOOLBAR ────────────────────────────────────────────────── */
+/*    TOOLBAR                                                    */
 #toolbar {
   display: flex;
   align-items: center;
@@ -68,7 +68,7 @@ html, body {
 }
 .toolbar-title { letter-spacing: 0.5px; }
 
-/* ── MAIN LAYOUT ─────────────────────────────────────────────── */
+/*    MAIN LAYOUT                                                 */
 #app {
   display: flex;
   flex-direction: column;
@@ -81,7 +81,7 @@ html, body {
   gap: 0;
 }
 
-/* ── PANELS ──────────────────────────────────────────────────── */
+/*    PANELS                                                      */
 aside {
   background: var(--panel-bg);
   border-right: 1px solid var(--border);
@@ -113,7 +113,7 @@ aside {
   flex-shrink: 0;
 }
 
-/* ── SESSION LIST ────────────────────────────────────────────── */
+/*    SESSION LIST                                                */
 #session-search {
   margin: 6px 8px;
   padding: 5px 8px;
@@ -152,7 +152,7 @@ aside {
 #session-list li.pinned::before { content: "⭐ "; font-size: 11px; }
 .session-count { font-size: 10px; color: var(--text-secondary); margin-left: 4px; }
 
-/* ── CHAT PANEL ──────────────────────────────────────────────── */
+/*    CHAT PANEL                                                  */
 #chat-panel {
   flex: 1;
   display: flex;
@@ -236,7 +236,7 @@ aside {
 }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-/* ── ATTACHMENTS BAR ─────────────────────────────────────────── */
+/*    ATTACHMENTS BAR                                             */
 #attachments-bar {
   display: flex;
   flex-wrap: wrap;
@@ -263,7 +263,7 @@ aside {
 }
 .att-chip button:hover { color: var(--error); }
 
-/* ── INPUT ROW ───────────────────────────────────────────────── */
+/*    INPUT ROW                                                   */
 #input-row {
   display: flex;
   gap: 6px;
@@ -295,7 +295,7 @@ aside {
   gap: 4px;
 }
 
-/* ── SETTINGS PANEL ──────────────────────────────────────────── */
+/*    SETTINGS PANEL                                              */
 .settings-section {
   padding: 10px 12px 6px;
   border-bottom: 1px solid var(--border);
@@ -323,7 +323,7 @@ aside {
   color: var(--text-secondary);
 }
 
-/* ── BUTTONS ─────────────────────────────────────────────────── */
+/*    BUTTONS                                                     */
 .tb-btn {
   display: flex;
   align-items: center;
@@ -392,7 +392,7 @@ aside {
 }
 .sm-btn:hover { background: var(--button-hover); }
 
-/* ── INPUTS / SELECTS ────────────────────────────────────────── */
+/*    INPUTS / SELECTS                                            */
 input[type=text], input[type=password], input[type=number],
 input[type=search], select, textarea {
   background: var(--bg-tertiary);
@@ -409,7 +409,7 @@ input:focus, select:focus, textarea:focus {
 }
 select option { background: var(--bg-secondary); }
 
-/* ── STATUS DOT ──────────────────────────────────────────────── */
+/*    STATUS DOT                                                  */
 .status-dot {
   width: 10px; height: 10px;
   border-radius: 50%;
@@ -420,7 +420,7 @@ select option { background: var(--bg-secondary); }
 .status-dot.online  { background: var(--success); }
 .status-dot.offline { background: var(--error); }
 
-/* ── MODAL ───────────────────────────────────────────────────── */
+/*    MODAL                                                       */
 .modal {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);
@@ -519,7 +519,7 @@ select option { background: var(--bg-secondary); }
   overflow: hidden;
 }
 
-/* ── SSH FILE BROWSER ────────────────────────────────────────── */
+/*    SSH FILE BROWSER                                            */
 .path-bar {
   padding: 6px 12px;
   background: var(--bg-tertiary);
@@ -553,16 +553,16 @@ select option { background: var(--bg-secondary); }
 }
 .ssh-size { font-size: 11px; color: var(--text-secondary); margin-left: auto; }
 
-/* ── SCROLLBARS ──────────────────────────────────────────────── */
+/*    SCROLLBARS                                                  */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--button-hover); }
 
-/* ── UTILITY ─────────────────────────────────────────────────── */
+/*    UTILITY                                                     */
 .hidden { display: none !important; }
 
-/* ── MOBILE ──────────────────────────────────────────────────── */
+/*    MOBILE                                                      */
 @media (max-width: 768px) {
   #sessions-panel { width: 0; overflow: hidden; position: absolute; z-index: 100;
     height: calc(100vh - var(--toolbar-height)); top: var(--toolbar-height); left: 0;
@@ -582,7 +582,7 @@ select option { background: var(--bg-secondary); }
   #btn-sessions-toggle, #btn-settings-toggle { display: none; }
 }
 
-/* ── CODE BLOCKS (from formatContent) ───────────────────────── */
+/*    CODE BLOCKS (from formatContent)                           */
 .code-block {
   position: relative;
   margin: 8px 0;
@@ -660,7 +660,7 @@ select option { background: var(--bg-secondary); }
   font-size: 0.9em;
 }
 
-/* ── CHAT DISPLAY SETTINGS ───────────────────────────────────── */
+/*    CHAT DISPLAY SETTINGS                                       */
 .chat-size-row {
   display: flex;
   align-items: center;
@@ -672,6 +672,6 @@ select option { background: var(--bg-secondary); }
 .chat-size-row span { font-size: 12px; min-width: 30px; }
 #chat-font-select { font-size: 12px; }
 
-/* ── CONTEXT MENU ────────────────────────────────────────────── */
+/*    CONTEXT MENU                                                */
 .ctx-menu { user-select: none; }
 

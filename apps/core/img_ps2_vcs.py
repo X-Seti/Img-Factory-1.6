@@ -653,7 +653,7 @@ def detect_lcs_android(path: str) -> bool:  # vers 1
     return False
 
 
-# ── iOS LVZ parser ────────────────────────────────────────────────────────────
+#    iOS LVZ parser                                                             
 
 def detect_ios_lvz(path: str) -> bool:  #vers 1
     """Return True if file is an iOS LCS/VCS LVZ (zlib-compressed, DLRW outer magic)."""

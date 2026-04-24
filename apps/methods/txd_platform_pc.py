@@ -256,7 +256,7 @@ def parse_pc_nativetex(txd_data: bytes, chunk_offset: int,
         platform_id = struct.unpack_from('<I', txd_data, pos)[0]
         tex['platform_id'] = platform_id
 
-        # ── Xbox: delegate to dedicated parser ────────────────────────────
+        #    Xbox: delegate to dedicated parser                             
         if platform_id == 5:
             try:
                 from apps.methods.txd_platform_xbox import parse_xbox_nativetex
@@ -266,7 +266,7 @@ def parse_pc_nativetex(txd_data: bytes, chunk_offset: int,
             except Exception as _xe:
                 print(f"[Xbox TXD] Parse error texture {index}: {_xe}")
             return None  # failed — don't fall through to PC parser
-        # ── End Xbox ──────────────────────────────────────────────────────
+        #    End Xbox                                                       
 
         filter_mode = txd_data[pos + 4]
         u_addr      = txd_data[pos + 5]

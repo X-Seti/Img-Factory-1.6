@@ -1325,24 +1325,24 @@ class AIWorkshop(QWidget):
         label_fs  = max(7, font_size - 2)
         content_fs = font_size
 
-        # ── Gap between bubbles ──────────────────────────────────────────
+        #    Gap between bubbles                                           
         gap = (
             f'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
             f'<tr><td height="10" bgcolor="{bg_base}"></td></tr>'
             f'</table>'
         )
 
-        # ── Bubble structure ─────────────────────────────────────────────
+        #    Bubble structure                                              
         # Outer table: rounded border look via solid border + background
         # Header row: label text sits ON the top border (like QGroupBox title)
         # We achieve this with a 1px top-border on the header cell itself,
         # and a left accent stripe via a narrow coloured cell.
         #
         # Layout:
-        #  ┌─ accent │ [  label · ts  ] ──────────────────────────────────┐
+        #  ┌  accent │ [  label · ts  ]                                   ┐
         #  │  stripe  │                                                    │
         #  │          │  message content text here                         │
-        #  └──────────┴────────────────────────────────────────────────────┘
+        #  └          ┴                                                    ┘
 
         bubble = (
             f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'

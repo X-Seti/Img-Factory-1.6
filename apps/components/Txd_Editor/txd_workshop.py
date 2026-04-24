@@ -584,7 +584,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             print(App_name + " initialized")
 
 
-    # ── ToolMenuMixin implementation ─────────────────────────────────────
+    #    ToolMenuMixin implementation                                      
 
     def get_menu_title(self) -> str: #vers 1
         """Return menu label for imgfactory menu bar."""
@@ -2548,7 +2548,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._textures_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         layout.addWidget(self._textures_header)
 
-        # ── Mini toolbar: 4 icon buttons — only shown when docked ─────────
+        #    Mini toolbar: 4 icon buttons — only shown when docked          
         # (toolbar has these too; in docked mode the toolbar is hidden)
         icon_color = self._get_icon_color()
         self._middle_btn_row = QFrame()
@@ -2597,7 +2597,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Only show mini toolbar when docked (standalone toolbar already has these)
         self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
 
-        # ── Texture table ─────────────────────────────────────────────────
+        #    Texture table                                                  
         self.texture_table = QTableWidget()
         self.texture_table.setColumnCount(2)
         self.texture_table.setHorizontalHeaderLabels(["Preview", "Details"])
@@ -2629,7 +2629,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(3)
 
-        # ── Toolbar row (full width above preview) ────────────────────────
+        #    Toolbar row (full width above preview)                         
         # Icon panel spans the full panel width — fills with as many columns
         # as fit, wrapping to more rows only when narrow.
         transform_icon_panel = self._create_transform_icon_panel()
@@ -2653,7 +2653,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         transform_text_panel.setVisible(False)
         main_layout.addWidget(transform_text_panel, stretch=0)
 
-        # ── Preview row (preview + controls side by side) ─────────────────
+        #    Preview row (preview + controls side by side)                  
         preview_row = QHBoxLayout()
         preview_row.setSpacing(3)
         self.preview_widget = ZoomablePreview(self)
@@ -2976,7 +2976,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             _all_btns.append(b)
             return b
 
-        # ── View controls: zoom, pan, pick, resize ───────────────────────
+        #    View controls: zoom, pan, pick, resize                        
         _btn('zoom_in_icon',        'Zoom In',            self.preview_widget.zoom_in)
         _btn('zoom_out_icon',       'Zoom Out',           self.preview_widget.zoom_out)
         _btn('reset_icon',          'Reset View',         self.preview_widget.reset_view)
@@ -2988,13 +2988,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         _btn('color_picker_icon',   'Pick Background',    self._pick_background_color)
         _btn('resize_icon',         'Resize Texture',     self._resize_texture, attr='resize_texture_btn')
 
-        # ── Image tool buttons ────────────────────────────────────────────
+        #    Image tool buttons                                             
         _tool_btn('knob_icon',           'Colour Adjustments…', self._open_colour_adjust)
         _tool_btn('seamless_icon',       'Seamless Tool…',      self._open_seamless_tool)
         _tool_btn('snow_icon',           'Snow Effect…',        self._open_snow_tool)
         _tool_btn('alpha_coverage_icon', 'Alpha Coverage…',     self._open_alpha_coverage)
 
-        # ── Background swatches at the end (checkerboard, black, grey, white)
+        #    Background swatches at the end (checkerboard, black, grey, white)
         _btn('checkerboard_icon', 'Checkerboard',
              lambda: self.preview_widget.set_checkerboard_background())
         for color, tip, qcol in [
@@ -8040,7 +8040,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Export failed: {str(e)}")
 
 
-    # ── IFF ILBM writer (24-bit true colour) ────────────────────────────
+    #    IFF ILBM writer (24-bit true colour)                             
     @staticmethod
     def _rgba_to_iff_ilbm(rgba: bytes, w: int, h: int) -> bytes: #vers 1
         """Write RGBA pixel data as 24-bit IFF ILBM (Amiga true colour).
@@ -10351,7 +10351,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             # Read 88-byte header
             platform_id, filter_mode, uv_addressing = struct.unpack('<I2B', txd_data[pos:pos+6])[:3]
 
-            # ── Xbox (platform_id == 5): delegate to Xbox parser ──────────────
+            #    Xbox (platform_id == 5): delegate to Xbox parser               
             if platform_id == 5:
                 try:
                     from apps.methods.txd_platform_xbox import parse_xbox_nativetex
@@ -10369,7 +10369,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 except Exception as _xe:
                     print(f"[Xbox TXD] Texture {index}: {_xe}")
                 return tex  # return empty rather than crash
-            # ── End Xbox ─────────────────────────────────────────────────────
+            #    End Xbox                                                      
 
             pos += 8  # Skip padding
 
@@ -12358,7 +12358,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         return bytes(alpha_display)
 
 
-    # ── TXD method aliases and stubs (Build 131) ─────────────────────
+    #    TXD method aliases and stubs (Build 131)                      
     def _export_all_textures(self, *a, **kw): return self.export_all_textures(*a, **kw)
     def _export_selected_texture(self, *a, **kw): return self.export_selected_texture(*a, **kw)
     def _open_txd_file(self, *a, **kw): pass  # STUB: delegate to _open_file
@@ -12884,7 +12884,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                     self._open_xtx_file(file_path)
                     return
 
-                # ── Undocumented: XTD texture dicts (.wtd/.ytd) ──────────────
+                #    Undocumented: XTD texture dicts (.wtd/.ytd)               
                 if _ext in ('.wtd', '.ytd'):
                     self._open_xtd_file(file_path)
                     return
@@ -12923,7 +12923,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
 
 
-    # ── Texture Tools ─────────────────────────────────────────────────────────
+    #    Texture Tools                                                          
 
     def _get_current_rgba(self):
         """Return (rgba, w, h, name) for the selected texture, or (None,0,0,'')."""

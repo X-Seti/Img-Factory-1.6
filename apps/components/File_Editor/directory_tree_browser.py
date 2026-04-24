@@ -1185,7 +1185,7 @@ class DirectoryTreeBrowser(QWidget):
             open_action.triggered.connect(lambda: self.file_opened.emit(file_path))
             menu.addAction(open_action)
 
-            # ── Text-editable types get an "Edit" action ──────────────
+            #    Text-editable types get an "Edit" action               
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
                               '.ini', '.zon', '.cut', '.fxt')
             file_ext = os.path.splitext(file_path)[1].lower()

@@ -1,5 +1,5 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 12
-# X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
+# apps/components/Img_Factory/welcome_screen.py — Version 14
+# X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
 Stays on taskbar as [Intro] after dismiss. [x] disables on next launch."""
@@ -50,7 +50,10 @@ class WelcomeCard(QFrame):
     def __init__(self, icon_text: str, title: str, desc: str,
                  accent: str = "palette(link)", parent=None):
         super().__init__(parent)
-        self._accent = accent
+        from PyQt6.QtGui import QColor
+        _c = QColor(accent)
+        self._hover_color = _c.name()
+        self._normal_color = _c.darker(130).name()
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(100)
@@ -179,8 +182,8 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-        hero.setStyleSheet(
-            f"QFrame {{ background: {_hero_bg}; border-bottom: 2px solid {_hero_sub}; }}")
+        #hero.setStyleSheet(
+         #   f"QFrame {{ background: {_hero_bg}; border-bottom: 2px solid {_hero_sub}; }}")
         hl = QHBoxLayout(hero); hl.setContentsMargins(24, 0, 24, 0)
         AppBuildLabel = (f"{App_name} - Build {App_build}")
         title_lbl = QLabel(" " + AppBuildLabel)
@@ -249,14 +252,14 @@ class WelcomeScreen(QWidget):
         bl.addWidget(dismiss)
         root.addWidget(bot)
 
-    # ── Tab builders ────────────────────────────────────────────────────
+    #  Tab builders
 
     def _build_quickstart_tab(self): #vers 1
         w = QWidget()
         lay = QVBoxLayout(w); lay.setContentsMargins(20, 16, 20, 16); lay.setSpacing(14)
 
         lay.addWidget(self._section("Open & Browse"))
-        g1 = QGridLayout(); g1.setSpacing(8)
+        g1 = QGridLayout(); g1.setSpacing(16)
         from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
         _ic = '#4a7a9b'
         qs = [
@@ -274,12 +277,12 @@ class WelcomeScreen(QWidget):
              self.open_dir_tree),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(qs):
-            c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
+            c = WelcomeCard(ico, ttl, dsc, ["#a8e6cf","#dcedc1","#a8d8ea"][i]); c.clicked.connect(sig.emit)
             g1.addWidget(c, 0, i)
         lay.addLayout(g1)
 
         lay.addWidget(self._section("Asset Editors"))
-        g2 = QGridLayout(); g2.setSpacing(8)
+        g2 = QGridLayout(); g2.setSpacing(16)
         eds = [
             (_SVG.paint_icon(36, _ic), "TXD Workshop",
              "Open any .txd inside an IMG or standalone. Preview, replace, export "
@@ -295,7 +298,7 @@ class WelcomeScreen(QWidget):
              self.open_model_workshop),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
-            c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
+            c = WelcomeCard(ico, ttl, dsc, ["#f6c0c0","#b8e6c3","#d4a5a5"][i]); c.clicked.connect(sig.emit)
             g2.addWidget(c, 0, i)
         lay.addLayout(g2)
 
@@ -314,7 +317,7 @@ class WelcomeScreen(QWidget):
         w = QWidget()
         lay = QVBoxLayout(w); lay.setContentsMargins(16, 12, 16, 12); lay.setSpacing(12)
 
-        # ── IMG Factory core ──────────────────────────────────────────────
+        #  IMG Factory core
         lay.addWidget(self._section("IMG Factory — Core"))
         lay.addWidget(self._doc_table([
             ("Open IMG",           "File → Open IMG  or  Ctrl+O",
@@ -341,7 +344,7 @@ class WelcomeScreen(QWidget):
              "Filter entries by name, extension or size."),
         ]))
 
-        # ── DAT Browser ───────────────────────────────────────────────────
+        #  DAT Browser  
         lay.addWidget(self._section("DAT Browser"))
         lay.addWidget(self._doc_table([
             ("Load game",          "DAT button → select .dat file",
@@ -359,7 +362,7 @@ class WelcomeScreen(QWidget):
              "Extracts and opens the linked TXD in TXD Workshop."),
         ]))
 
-        # ── TXD Workshop ──────────────────────────────────────────────────
+        #  TXD Workshop
         lay.addWidget(self._section("TXD Workshop"))
         lay.addWidget(self._doc_table([
             ("Open TXD",           "Load button  or  Ctrl+O",
@@ -378,7 +381,7 @@ class WelcomeScreen(QWidget):
              "PC (DXT/RGBA), PS2 (PSMT8/PSMT4), Xbox, Android, iOS, PSP, GameCube."),
         ]))
 
-        # ── COL Workshop ──────────────────────────────────────────────────
+        #  COL Workshop
         lay.addWidget(self._section("COL Workshop"))
         lay.addWidget(self._doc_table([
             ("Open COL",           "Open button  or  from IMG",
@@ -397,7 +400,7 @@ class WelcomeScreen(QWidget):
              "Load OBJ/FBX geometry as collision mesh faces.  STUB — next release."),
         ]))
 
-        # ── Model Workshop ────────────────────────────────────────────────
+        #  Model Workshop
         lay.addWidget(self._section("Model Workshop"))
         lay.addWidget(self._doc_table([
             ("Open DFF",           "Open button  or  double-click in DAT Browser",
@@ -508,7 +511,7 @@ class WelcomeScreen(QWidget):
         lay.addStretch()
         return w
 
-    # ── Helpers ─────────────────────────────────────────────────────────
+    #  Helpers  
 
     def _section(self, text: str) -> QLabel: #vers 1
         lbl = QLabel(text)

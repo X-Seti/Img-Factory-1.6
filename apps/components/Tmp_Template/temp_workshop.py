@@ -36,7 +36,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 from PyQt6.QtCore import Qt
 
-# ── Import the base class ─────────────────────────────────────────────────────
+#    Import the base class                                                      
 try:
     from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
 except ImportError:
@@ -63,7 +63,7 @@ class TempWorkshop(GUIWorkshop):
     App_description = "Template — copy and rename for a new workshop tool."
     config_key      = "temp_workshop"   # → ~/.config/imgfactory/temp_workshop.json
 
-    # ── Menu entries — override to add your File / Edit / View items ──────────
+    #    Menu entries — override to add your File / Edit / View items           
     def _build_menus_into_qmenu(self, pm):
         """Called by [Menu] button dropdown and top menubar.
         Add your own actions here — call super() to keep defaults, or replace."""

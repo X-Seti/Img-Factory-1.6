@@ -159,7 +159,7 @@ def _make_tool_icon(shape: str, size: int = 42,
     Normal:  dark tile (#1e1e24) + white/light icon
     Active:  light tile (#d8d8e0) + dark icon (inverted, DP5 style)
     """
-    # ── SVG icon map: shape → SVGIconFactory method name ─────────────────────
+    #    SVG icon map: shape → SVGIconFactory method name                      
     # Add entries here as you create new dp_*_icon() methods in
     # imgfactory_svg_icons.py — they'll be picked up automatically.
     _SVG_MAP = {
@@ -841,7 +841,7 @@ class DP5SettingsDialog(QDialog):
         gl.addWidget(grid_w)
         gl.addStretch()
 
-        # - Menu tab ─
+        # - Menu tab  
         menu_tab = QWidget()
         ml = QFormLayout(menu_tab)
         ml.setSpacing(8)
@@ -989,7 +989,7 @@ class DP5Canvas(QWidget):
         return QSize(max(200, int(self.tex_w * z)),
                      max(200, int(self.tex_h * z)))
 
-    # ── Coordinate helpers ────────────────────────────────────────────────────
+    #    Coordinate helpers                                                     
 
     def _widget_to_tex(self, p: QPoint) -> Tuple[int, int]: #vers 1
         z = max(0.01, self.zoom)
@@ -1005,7 +1005,7 @@ class DP5Canvas(QWidget):
         z = max(0.01, self.zoom)
         return QPoint(int(tx * z), int(ty * z))
 
-    # ── Pixel access ──────────────────────────────────────────────────────────
+    #    Pixel access                                                           
 
     def get_pixel(self, x: int, y: int) -> QColor: #vers 1
         if 0 <= x < self.tex_w and 0 <= y < self.tex_h:
@@ -1052,7 +1052,7 @@ class DP5Canvas(QWidget):
                         my = self.tex_h - 1 - (cy+dy)
                         self.set_pixel(mx, my, px_c)
 
-    # ── Drawing ops ───────────────────────────────────────────────────────────
+    #    Drawing ops                                                            
 
     def flood_fill(self, sx: int, sy: int, fill_col: QColor): #vers 3
         """Scanline flood fill — O(n) time, O(sqrt n) stack depth."""
@@ -1207,7 +1207,7 @@ class DP5Canvas(QWidget):
             x1,y1 = pts[(i+1) % len(pts)]
             self.draw_line(x0, y0, x1, y1, c)
 
-    # ── Selection clipboard ops ───────────────────────────────────────────────
+    #    Selection clipboard ops                                                
 
     def copy_selection(self):
         """Copy the selected rectangle to the internal buffer."""
@@ -1264,7 +1264,7 @@ class DP5Canvas(QWidget):
         self._selection_rect = QRect(x0 - dx, y0 - dy, w, h)
         self.update()
 
-    # ── Selection move helpers ────────────────────────────────────────────────
+    #    Selection move helpers                                                 
 
     def _point_in_sel_rect(self, tx: int, ty: int) -> bool:
         """True if tex-coord (tx,ty) is inside the committed selection rect."""
@@ -1363,7 +1363,7 @@ class DP5Canvas(QWidget):
             if ddx*ddx + ddy*ddy <= r*r:
                 self.set_pixel(cx + ddx, cy + ddy, self.color)
 
-    # ── Paint ─────────────────────────────────────────────────────────────────
+    #    Paint                                                                  
 
     def _do_blur_brush(self, cx: int, cy: int): #vers 1
         """Gaussian-soften the pixels within brush_size radius of (cx, cy)."""
@@ -1652,7 +1652,7 @@ class DP5Canvas(QWidget):
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(int(scx*z), int(scy*z), sw2, sh2)
 
-    # ── Mouse events ──────────────────────────────────────────────────────────
+    #    Mouse events                                                           
 
     def mousePressEvent(self, e: QMouseEvent):
         btn = e.button()
@@ -1739,7 +1739,7 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_MOVE:
             if self._sel_buffer and self._sel_buf_w > 0:
-                # ── Floating object mode ──
+                #    Floating object mode   
                 # If not already floating, make it float at current pos or centre
                 if not self._sel_floating:
                     if not self._sel_float_pos:
@@ -1754,7 +1754,7 @@ class DP5Canvas(QWidget):
                 self._sel_drag_start = (tx, ty)
                 self._drawing = True
             else:
-                # ── Pan mode (no object to move) ──
+                #    Pan mode (no object to move)   
                 self._pan_start = e.position().toPoint()
 
         elif self.tool == TOOL_TEXT:
@@ -1798,14 +1798,14 @@ class DP5Canvas(QWidget):
 
             if self.tool == TOOL_SELECT and self._sel_active and \
                self._point_in_sel_rect(tx, ty):
-                # ── Click INSIDE committed selection → lift and start move ──
+                #    Click INSIDE committed selection → lift and start move   
                 if not self._sel_floating:
                     self._push_undo_canvas()
                     self._lift_selection()
                 self._sel_drag_start = (tx, ty)
                 self._drawing = True
             else:
-                # ── Click OUTSIDE → stamp any float, start new selection ──
+                #    Click OUTSIDE → stamp any float, start new selection   
                 if self._sel_floating:
                     self._stamp_selection(keep_floating=False)
                 self._preview_start = (tx, ty)
@@ -1941,7 +1941,7 @@ class DP5Canvas(QWidget):
                 self._pan_start = e.position().toPoint()
 
         elif self.tool == TOOL_SELECT and self._sel_floating and self._sel_drag_start:
-            # ── Dragging a floating selection ──
+            #    Dragging a floating selection   
             dx = tx - self._sel_drag_start[0]
             dy = ty - self._sel_drag_start[1]
             r  = self._selection_rect
@@ -2071,12 +2071,12 @@ class DP5Canvas(QWidget):
 
         elif self.tool == TOOL_SELECT:
             if self._sel_floating and self._sel_drag_start:
-                # ── End of floating drag — stamp non-destructively and stay floating ──
+                #    End of floating drag — stamp non-destructively and stay floating   
                 # (User can drag again; clicking outside will stamp permanently)
                 self._sel_drag_start = None
                 # keep _sel_floating = True so they can reposition
             elif ps:
-                # ── New marquee drawn ──
+                #    New marquee drawn   
                 x0,y0 = min(ps[0],tx), min(ps[1],ty)
                 x1,y1 = max(ps[0],tx), max(ps[1],ty)
                 if x1 > x0 and y1 > y0:
@@ -2240,7 +2240,7 @@ class PaletteGrid(QWidget):
                 self.update()
                 return
 
-    # ── Paint ─────────────────────────────────────────────────────────────────
+    #    Paint                                                                  
 
     def paintEvent(self, event):
         p    = QPainter(self)
@@ -2257,7 +2257,7 @@ class PaletteGrid(QWidget):
                 p.setPen(QPen(QColor(255, 255, 255), 1))
                 p.drawRect(x + 1, y + 1, cs - 4, cs - 4)
 
-    # ── Mouse ─────────────────────────────────────────────────────────────────
+    #    Mouse                                                                  
 
     def mousePressEvent(self, e: QMouseEvent):
         cs   = self._cell
@@ -2270,7 +2270,7 @@ class PaletteGrid(QWidget):
             self.color_picked.emit(self._colors[idx])
             self.update()
 
-    # ── Compat alias (legacy callers used set_palette) ────────────────────────
+    #    Compat alias (legacy callers used set_palette)                         
 
     def set_palette(self, palette_data):
         self.set_palette_raw(palette_data)
@@ -2422,7 +2422,7 @@ class FGBGSwatch(QWidget):
     def heightForWidth(self, w: int) -> int:
         return max(30, int(w * 0.75))
 
-    # ── Properties ────────────────────────────────────────────────────────────
+    #    Properties                                                             
 
     @property
     def fg(self) -> QColor: return QColor(self._fg)
@@ -2440,7 +2440,7 @@ class FGBGSwatch(QWidget):
         self.fg_changed.emit(self._fg)
         self.bg_changed.emit(self._bg)
 
-    # ── Paint ─────────────────────────────────────────────────────────────────
+    #    Paint                                                                  
 
     def paintEvent(self, _):
         p  = QPainter(self)
@@ -2469,7 +2469,7 @@ class FGBGSwatch(QWidget):
         pad, gap = 4, 8
         return QRect(gap, gap, w - gap - pad, h - gap - pad)
 
-    # ── Mouse ─────────────────────────────────────────────────────────────────
+    #    Mouse                                                                  
 
     def mousePressEvent(self, e: QMouseEvent):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -3351,16 +3351,16 @@ class ColorPalPresetsMixin:
 
         # Registry: name -> (hex_list, cols)
         self.retro_palettes = {
-            # ── Amiga ────────────────────────────────────────────────────
+            #    Amiga                                                     
             "Amiga OCS":          (amiga_ocs,           8),  # 32col 12-bit 4096
             "Amiga ECS":          (amiga_ecs,           8),  # 64col EHB mode
             "Amiga AGA":          (amiga_aga,          16),  # 256col 24-bit
             "Amiga AGA WB":       (amiga_aga_wb,       16),  # AGA Workbench
-            # ── Commodore ────────────────────────────────────────────────
+            #    Commodore                                                 
             "C64":                (commodore_64,         8),  # 16col VIC-II
             "VIC-20":             (vic20,                8),  # 16col VIC-I
             "Plus/4":             (plus4,                8),  # 16col TED
-            # ── Sinclair / ZX ────────────────────────────────────────────
+            #    Sinclair / ZX                                             
             "ZX Spectrum":        (zx_spectrum,          8),  # 16col ULA
             "ZX Spectrum 128K":   (zx_spectrum,          8),  # same display
             "ZX80":               (zx80,                 2),  # B&W
@@ -3372,7 +3372,7 @@ class ColorPalPresetsMixin:
             "Pentagon":           (pentagon,             8),  # 16col — same as Spectrum
             "Jupiter Ace":        (jupiter_ace,          2),  # B&W char mode
             "Sinclair QL":        (sinclair_ql,          8),  # 8col
-            # ── Atari ────────────────────────────────────────────────────
+            #    Atari                                                     
             "Atari 2600 NTSC":    (atari_2600,           8),  # 128col TIA
             "Atari 2600 PAL":     (atari_2600_pal,        8),  # 128col PAL
             "Atari 800 GTIA":     (atari_800,            16),  # 256col GTIA
@@ -3383,43 +3383,43 @@ class ColorPalPresetsMixin:
             "Atari STe":          (atari_ste,            16),  # 4096col (12-bit)
             "Atari Falcon":       (atari_falcon,          8),  # 64 of 65536 (16-bit)
             "Atari Jaguar":       (atari_jaguar,          8),  # 24-bit sample
-            # ── Amstrad ──────────────────────────────────────────────────
+            #    Amstrad                                                   
             "Amstrad CPC":        (amstrad_cpc,           9),  # 27col hardware
             "Amstrad CPC+":       (amstrad_cpc_plus,     16),  # 4096col 12-bit
             "Amstrad PCW":        (amstrad_pcw,           2),  # 2col green phosphor
             "Amstrad NC100/200":  (amstrad_nc,            4),  # 4 shades grey
-            # ── Acorn ────────────────────────────────────────────────────
+            #    Acorn                                                     
             "BBC Micro":          (bbc_micro,            8),  # 8col 6845 ULA
             "Acorn Electron":     (acorn_electron,       8),  # 8col
             "Acorn Archimedes":   (acorn_archimedes,     8),  # 64 of 16.7M VIDC
-            # ── Tandy / Dragon ───────────────────────────────────────────
+            #    Tandy / Dragon                                            
             "CoCo 1/2":           (m6847,                8),  # 8col 6847
             "CoCo 3":             (coco3,                8),  # 64col GIME
             "Dragon 32/64":       (dragon,               8),  # 8col 6847
-            # ── MSX ──────────────────────────────────────────────────────
+            #    MSX                                                       
             "MSX1":               (msx1,                 8),  # 16col TMS9918
             "MSX2":               (msx2_full,            16),  # 512col full V9938
-            # ── NES / Nintendo ───────────────────────────────────────────
+            #    NES / Nintendo                                            
             "NES":                (nes,                  8),  # 64col PPU
             "SNES":               (snes,               128),  # 32768col full (15-bit)
-            # ── Game Boy ─────────────────────────────────────────────────
+            #    Game Boy                                                  
             "Game Boy":           (game_boy,             4),  # 4 shades green
             "Game Boy Pocket":    (game_boy_pocket,      4),  # 4 shades grey
             "Game Boy Color":     (game_boy_color,     128),  # 32768col full (15-bit)
             "Game Boy Advance":   (game_boy_advance,   128),  # 32768col full (15-bit)
-            # ── Sega ─────────────────────────────────────────────────────
+            #    Sega                                                      
             "Sega SG-1000":       (sega_sg1000,          8),  # 16col TMS9918
             "Sega Master System": (sega_ms,              8),  # 64col 6-bit
             "Sega Mega Drive":    (sega_md,              16),  # 512col full (9-bit)
             "Sega Game Gear":     (sega_gg,              16),  # 4096col full (12-bit)
-            # ── PC Engine / TurboGrafx ───────────────────────────────────
+            #    PC Engine / TurboGrafx                                    
             "PC Engine":          (pc_engine_full,       16),  # 512col full (9-bit)
-            # ── SAM Coupé ────────────────────────────────────────────────
+            #    SAM Coupé                                                 
             "SAM Coupé":          (sam_coupe,           16),  # 128col
-            # ── Apple ────────────────────────────────────────────────────
+            #    Apple                                                     
             "Apple II Lo-Res":    (apple2_lores,         8),  # 16col
             "Apple II Hi-Res":    (apple2_hires,         6),  # 6 artefact col
-            # ── RM Nimbus ─────────────────────────────────────────────────
+            #    RM Nimbus                                                  
             "RM Nimbus":          (rm_nimbus,             8),  # 16col EGA-like
         }
         self.current_retro_palette = "Amiga OCS"
@@ -3678,7 +3678,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     workshop_closed = pyqtSignal()
     window_closed   = pyqtSignal()
 
-    # ── Init ──────────────────────────────────────────────────────────────────
+    #    Init                                                                   
 
     def __init__(self, parent=None, main_window=None): #vers 1
         super().__init__(parent)
@@ -3788,7 +3788,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.setup_ui()
         self._apply_theme()
 
-    # ── UI construction ───────────────────────────────────────────────────────
+    #    UI construction                                                        
 
     def setup_ui(self): #vers 1
         main_layout = QVBoxLayout(self)
@@ -4001,7 +4001,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         except Exception:
             self.tb_clr_btn = _tb("Clear", "Clear canvas", self._clear_canvas)
 
-        # ── Brush Manager button ───────────────────────────────────────────
+        #    Brush Manager button                                            
         self.brush_mgr_btn = QPushButton("Brushes")
         self.brush_mgr_btn.setFont(self.button_font)
         self.brush_mgr_btn.setToolTip("Open brush manager panel")
@@ -4041,7 +4041,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return self.toolbar
 
-    # ── Docked compact action bar ────────────────────────────────────────────
+    #    Docked compact action bar                                             
 
     def _create_docked_bar(self): #vers 1
         """Compact New/Load/Save/Undo/Clear bar shown only when docked.
@@ -4092,7 +4092,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return bar
 
-        # ── Left panel: bitmap list ───────────────────────────────────────────────
+        #    Left panel: bitmap list                                                
 
     def _create_left_panel(self): #vers 1
         panel = QFrame()
@@ -4164,7 +4164,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 self._bitmap_lw.setCurrentRow(
                     min(row, len(self._bitmap_list)-1))
 
-    # ── Centre panel: canvas ──────────────────────────────────────────────────
+    #    Centre panel: canvas                                                   
 
     def _create_centre_panel(self): #vers 2
         panel = QWidget()
@@ -4261,7 +4261,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         am.addAction("Export PNG sequence…",  self._anim_export_png_seq)
         fm.addSeparator()
 
-        # ── Platform ──────────────────────────────────────────────────────
+        #    Platform                                                       
         pm_menu = fm.addMenu("Platform")
         pm_im = pm_menu.addMenu("Import")
         pm_im.addAction("ZX Spectrum SCR…",  self._import_scr)
@@ -4291,7 +4291,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         pm_xe.addAction("Plus/4 PRG…",       self._export_plus4prg)
         pm_xe.addAction("VIC-20 PRG…",       self._export_vicprg)
 
-        # ── Texture ───────────────────────────────────────────────────────
+        #    Texture                                                        
         tx_menu = fm.addMenu("Texture")
         tx_menu.addAction("Export PNG (current depth)…", self._export_texture_png)
         tx_menu.addAction("Export BMP…",                 self._export_texture_bmp)
@@ -4301,7 +4301,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         tx_menu.addSeparator()
         tx_menu.addAction("Snap to user palette",        self._snap_canvas_to_user_palette)
 
-        # ── Icons ─────────────────────────────────────────────────────────
+        #    Icons                                                          
         ic_menu = fm.addMenu("Icons")
         ic_menu.addAction("Export Windows ICO…",   self._export_ico)
         ic_menu.addAction("Export Linux SVG…",      self._export_svg_icon)
@@ -4528,7 +4528,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         plm.addSeparator()
         plm.addAction("Enforce colour constraints (toggle)", self._toggle_colour_constraints)
 
-    # ── Right panel: gadget bar + palettes ────────────────────────────────────
+    #    Right panel: gadget bar + palettes                                     
 
     def get_menu_title(self) -> str: #vers 1
         """Short label for imgfactory titlebar button."""
@@ -4654,7 +4654,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         icon_color = self._get_icon_color()
 
-        # ── Column count: fill available width ───────────────────────────
+        #    Column count: fill available width                            
         icon_sz   = self.dp5_settings.get('tool_icon_size')   # 16–64 px
         btn_sz    = icon_sz + 6   # button size = icon + padding
         gap       = 2             # grid spacing
@@ -4691,7 +4691,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(3)
 
-        # ── Flat ordered tool list (no row/col — computed below) ───────────
+        #    Flat ordered tool list (no row/col — computed below)            
         # Order: pencil, eraser, fill, spray, picker, curve,
         #        line, rect, circle, polygon, triangle, star,
         #        select, lasso, move, zoom, text
@@ -4725,7 +4725,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         hidden_tools = self.dp5_settings.get('hidden_tools') or []
         TOOL_ORDER = [(t, s, tip) for t, s, tip in TOOL_ORDER if t not in hidden_tools]
 
-        # ── Build gadget grid ──────────────────────────────────────────────
+        #    Build gadget grid                                               
         gadget_grid = QGridLayout()
         gadget_grid.setSpacing(gap)
         gadget_grid.setContentsMargins(0, 0, 0, 0)
@@ -4777,7 +4777,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addSpacing(4)
 
-        # ── Brush size slider + value label ───────────────────────────────
+        #    Brush size slider + value label                                
         size_hdr = QHBoxLayout()
         size_lbl = QLabel("Size")
         size_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
@@ -4796,7 +4796,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         size_hdr.addWidget(self._size_val_lbl)
         layout.addLayout(size_hdr)
 
-        # ── Snap to grid toggle ───────────────────────────────────────────
+        #    Snap to grid toggle                                            
         snap_row = QHBoxLayout()
         self._snap_chk = QCheckBox("Snap to grid")
         self._snap_chk.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
@@ -4817,7 +4817,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addSpacing(4)
 
-        # ── FG / BG swatch  +  brush thumbnail ───────────────────────────
+        #    FG / BG swatch  +  brush thumbnail                            
         fgbg_row_lbl = QHBoxLayout()
         fgbg_lbl = QLabel("FG / BG")
         fgbg_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
@@ -4868,7 +4868,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addLayout(fgbg_row)
 
-        # ── Opacity ───────────────────────────────────────────────────────
+        #    Opacity                                                        
         op_row = QHBoxLayout()
         op_lbl = QLabel("Opacity")
         op_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
@@ -4886,7 +4886,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         op_row.addWidget(self._opacity_val_lbl)
         layout.addLayout(op_row)
 
-        # ── Colour history ────────────────────────────────────────────────
+        #    Colour history                                                 
         hist_lbl = QLabel("Recent")
         hist_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         layout.addWidget(hist_lbl)
@@ -4905,7 +4905,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         layout.addSpacing(4)
 
-        # ── IMAGE palette ─────────────────────────────────────────────────
+        #    IMAGE palette                                                  
         img_pal_lbl = QLabel("Image Palette:")
         img_pal_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         layout.addWidget(img_pal_lbl)
@@ -4952,7 +4952,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._img_pal_scroll.setMaximumHeight(_sh // 3)
         layout.addWidget(self._img_pal_scroll, stretch=1)
 
-        # ── USER palette (retro presets) ──────────────────────────────────
+        #    USER palette (retro presets)                                   
         user_pal_hdr = QHBoxLayout()
         user_pal_lbl = QLabel("User Palette:")
         user_pal_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
@@ -4984,7 +4984,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._user_pal_scroll = user_pal_scroll
         layout.addWidget(user_pal_scroll, stretch=1)
 
-        # ── Image operation quick buttons ────────────────────────────────
+        #    Image operation quick buttons                                 
         imgop_lbl = QLabel("Image Ops:")
         imgop_lbl.setFont(QFont("Arial", self.fonthsize, QFont.Weight.Bold))
         layout.addWidget(imgop_lbl)
@@ -5017,7 +5017,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         return panel
 
-    # ── Tool / colour helpers ─────────────────────────────────────────────────
+    #    Tool / colour helpers                                                  
 
     def _toggle_shape_fill(self, primary_tool_id: str): #vers 2
         """Right-click handler — flip fill mode and update button icon + canvas tool."""
@@ -5709,7 +5709,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._select_tool(TOOL_ZOOM)
 
 
-    # ── Colour Clash Visualiser ───────────────────────────────────────────────
+    #    Colour Clash Visualiser                                                
 
     def _toggle_clash_visualiser(self, on: bool): #vers 1
         """Toggle ZX Spectrum colour clash overlay — red = more than 2 colours in 8×8 cell."""
@@ -5722,7 +5722,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._set_status("Clash visualiser OFF")
 
 
-    # ── Character / Font Editor ───────────────────────────────────────────────
+    #    Character / Font Editor                                                
 
     def _open_char_editor(self): #vers 1
         """Open the character/font editor — edit 8×8 or 8×16 pixel character sets."""
@@ -5730,7 +5730,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         dlg.show()
 
 
-    # ── Sprite Editor ─────────────────────────────────────────────────────────
+    #    Sprite Editor                                                          
 
     def _open_sprite_editor(self): #vers 1
         """Open sprite editor — view/edit sprites with platform constraints."""
@@ -6005,7 +6005,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._set_status(f"Polygon: {n} sides")
 
 
-    # ── Canvas signal callbacks ───────────────────────────────────────────────
+    #    Canvas signal callbacks                                                
 
     def _on_canvas_changed(self, x: int, y: int): #vers 1
         if self.dp5_canvas:
@@ -6236,7 +6236,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         return img.convert('RGB').quantize(palette=pal_img, dither=0).convert('RGB').convert('RGBA')
 
 
-    # ── Render As ────────────────────────────────────────────────────────────
+    #    Render As                                                             
 
     def _render_as_ascii(self): #vers 1
         """Convert canvas to ASCII art — map brightness to characters, render back to canvas."""
@@ -7031,7 +7031,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             z = self._canvas_zoom
             self._zoom_lbl.setText(f"{int(z)}×" if z >= 1 else f"{z:.2f}×")
 
-    # ── Canvas operations ─────────────────────────────────────────────────────
+    #    Canvas operations                                                      
 
 
     def _push_undo(self):
@@ -7356,7 +7356,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         root = QVBoxLayout(dlg)
         tabs = QTabWidget()
 
-        # ── Helper: build a preset combo + w/h/depth form ─────────────────
+        #    Helper: build a preset combo + w/h/depth form                  
         def make_preset_tab(presets, default_w, default_h, default_d):
             w = QWidget(); fl = QFormLayout(w); fl.setSpacing(6)
             pc = QComboBox()
@@ -7384,10 +7384,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             pc.currentIndexChanged.connect(on_preset)
             return w, ws, hs, dc, fc, pc
 
-        # ── Platform tab ───────────────────────────────────────────────────
+        #    Platform tab                                                    
         PLATFORM_PRESETS = [
             ("Custom",                    0,   0,  3),
-            ("── Amiga ──",                    0,   0,  0),
+            ("   Amiga   ",                    0,   0,  0),
             ("OCS PAL LowRes    320×256",   320, 256,  3),
             ("OCS NTSC LowRes   320×200",   320, 200,  3),
             ("OCS PAL HiRes     640×256",   640, 256,  3),
@@ -7401,10 +7401,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("RTG 1024×768",               1024, 768,  3),
             ("RTG 720×576 PAL broadcast",   720, 576,  3),
             ("RTG 720×480 NTSC broadcast",  720, 480,  3),
-            ("── Commodore 64 ──",            0,   0,  0),
+            ("   Commodore 64   ",            0,   0,  0),
             ("C64 Hires      320×200",      320, 200,  3),
             ("C64 Multicolor 160×200",      160, 200,  3),
-            ("── ZX Spectrum ──",          0,   0,  0),
+            ("   ZX Spectrum   ",          0,   0,  0),
             ("Spectrum 48K   256×192",   256, 192,  3),
             ("Spectrum 128K  256×192",   256, 192,  3),
             ("ZX80           256×192",   256, 192,  3),
@@ -7416,17 +7416,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("Timex HiRes    512×192",   512, 192,  3),
             ("Pentagon       256×192",   256, 192,  3),
             ("Jupiter Ace    256×192",   256, 192,  3),
-            ("── MSX ──",                  0,   0,  0),
+            ("   MSX   ",                  0,   0,  0),
             ("MSX1           256×192",   256, 192,  3),
             ("MSX2           256×212",   256, 212,  3),
-            ("── Amstrad CPC ──",           0,   0,  0),
+            ("   Amstrad CPC   ",           0,   0,  0),
             ("CPC Mode 0     160×200",   160, 200,  3),
             ("CPC Mode 1     320×200",   320, 200,  3),
             ("CPC Mode 2     640×200",   640, 200,  3),
             ("CPC+/GX4000    320×200",   320, 200,  3),
             ("PCW            720×256",   720, 256,  3),
             ("NC100/200      480×128",   480, 128,  3),
-            ("── Atari ──",                0,   0,  0),
+            ("   Atari   ",                0,   0,  0),
             ("Atari 2600 NTSC 160×192",  160, 192,  3),
             ("Atari 800/XL   320×192",   320, 192,  3),
             ("Atari 5200     320×192",   320, 192,  3),
@@ -7438,29 +7438,29 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             ("Atari Falcon LowRes 320×200", 320, 200, 3),
             ("Atari Falcon HiRes  640×480", 640, 480, 3),
             ("Atari Jaguar   320×240",   320, 240,  3),
-            ("── Plus/4 ──",               0,   0,  0),
+            ("   Plus/4   ",               0,   0,  0),
             ("Plus/4 Hires   320×200",   320, 200,  3),
             ("Plus/4 Multi   160×200",   160, 200,  3),
-            ("── VIC-20 ──",               0,   0,  0),
+            ("   VIC-20   ",               0,   0,  0),
             ("VIC-20         176×184",   176, 184,  3),
-            ("── Sinclair QL ──",           0,   0,  0),
+            ("   Sinclair QL   ",           0,   0,  0),
             ("QL Low         256×256",   256, 256,  3),
-            ("── Nintendo ──",              0,   0,  0),
+            ("   Nintendo   ",              0,   0,  0),
             ("NES            256×240",   256, 240,  3),
             ("SNES           256×224",   256, 224,  3),
             ("SNES HiRes     512×224",   512, 224,  3),
             ("Game Boy        160×144",  160, 144,  3),
             ("Game Boy Color  160×144",  160, 144,  3),
             ("Game Boy Adv    240×160",  240, 160,  3),
-            ("── Sega ──",                  0,   0,  0),
+            ("   Sega   ",                  0,   0,  0),
             ("SG-1000        256×192",   256, 192,  3),
             ("Master System  256×192",   256, 192,  3),
             ("Mega Drive     320×224",   320, 224,  3),
             ("Game Gear      160×144",   160, 144,  3),
-            ("── NEC ──",                   0,   0,  0),
+            ("   NEC   ",                   0,   0,  0),
             ("PC Engine      256×240",   256, 240,  3),
             ("PC Engine CD   256×240",   256, 240,  3),
-            ("── RM Nimbus ──",             0,   0,  0),
+            ("   RM Nimbus   ",             0,   0,  0),
             ("Nimbus LowRes  320×250",   320, 250,  3),
             ("Nimbus HiRes   640×250",   640, 250,  3),
         ]
@@ -7468,21 +7468,21 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             PLATFORM_PRESETS, 320, 200, 3)
         tabs.addTab(plat_tab, "Platform")
 
-        # ── Texture tab ────────────────────────────────────────────────────
+        #    Texture tab                                                     
         TEX_PRESETS = [
             ("Custom",               0,    0,   0),
-            ("── 8-bit ──",          0,    0,   0),
+            ("   8-bit   ",          0,    0,   0),
             ("8b   16×16",          16,   16,   3),
             ("8b   32×32",          32,   32,   3),
             ("8b   64×64",          64,   64,   3),
             ("8b  128×128",        128,  128,   3),
-            ("── 16-bit ──",         0,    0,   0),
+            ("   16-bit   ",         0,    0,   0),
             ("16b  32×32",          32,   32,   2),
             ("16b  64×64",          64,   64,   2),
             ("16b 128×128",        128,  128,   2),
             ("16b 256×256",        256,  256,   2),
             ("16b 512×512",        512,  512,   2),
-            ("── 24/32-bit ──",      0,    0,   0),
+            ("   24/32-bit   ",      0,    0,   0),
             ("32b  64×64",          64,   64,   0),
             ("32b 128×128",        128,  128,   0),
             ("32b 256×256",        256,  256,   0),
@@ -7497,21 +7497,21 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # - Icon tab
         ICON_PRESETS = [
             ("Custom",               0,   0,  0),
-            ("── Windows ICO ──",    0,   0,  0),
+            ("   Windows ICO   ",    0,   0,  0),
             ("ICO  16×16",          16,  16,  0),
             ("ICO  32×32",          32,  32,  0),
             ("ICO  48×48",          48,  48,  0),
             ("ICO  64×64",          64,  64,  0),
             ("ICO 128×128",        128, 128,  0),
             ("ICO 256×256",        256, 256,  0),
-            ("── Linux / Web ──",    0,   0,  0),
+            ("   Linux / Web   ",    0,   0,  0),
             ("SVG  32×32",          32,  32,  0),
             ("SVG  64×64",          64,  64,  0),
             ("SVG 128×128",        128, 128,  0),
-            ("── Amiga ──",          0,   0,  0),
+            ("   Amiga   ",          0,   0,  0),
             ("Amiga  32×32",        32,  32,  3),
             ("Amiga  64×64",        64,  64,  3),
-            ("── Sprites ──",        0,   0,  0),
+            ("   Sprites   ",        0,   0,  0),
             ("Sprite 16×16",        16,  16,  3),
             ("Sprite 16×32",        16,  32,  3),
             ("Sprite 32×32",        32,  32,  3),
@@ -7687,7 +7687,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Resize Error", str(e))
 
 
-    # ── File I/O ──────────────────────────────────────────────────────────────
+    #    File I/O                                                               
 
     def _import_bitmap(self): #vers 1
         path, _ = QFileDialog.getOpenFileName(
@@ -7986,7 +7986,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Open Error", str(e))
 
 
-    # ── Zoom Lens ────────────────────────────────────────────────────────────────
+    #    Zoom Lens                                                                 
 
     def _open_zoom_lens(self): #vers 2
         """Embedded overlay zoom lens — top-left corner of the canvas scroll area.
@@ -8156,7 +8156,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         overlay.raise_()
         self._zoom_lens = overlay
 
-    # ── Image tools (seamless, colour correction, snow, sharpen, blur) ─────────
+    #    Image tools (seamless, colour correction, snow, sharpen, blur)          
 
     def _open_dp5_seamless(self): #vers 1
         """Apply seamless tiling to the current canvas."""
@@ -8291,7 +8291,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         except Exception as e:
             self._set_status(f"Edge detect error: {e}")
 
-    # ── Settings / theme ──────────────────────────────────────────────────────
+    #    Settings / theme                                                       
 
     def _show_workshop_settings(self): #vers 1
         """Open DP5-specific settings dialog (NOT the global theme dialog)."""
@@ -8712,7 +8712,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Art Studio Export Error", str(e))
 
 
-    # ── Platform format imports ───────────────────────────────────────────────
+    #    Platform format imports                                                
 
     def _import_scr(self): #vers 1
         """Import ZX Spectrum SCR (6144 bitmap + 768 attr bytes → 256×192 RGBA)."""
@@ -8937,7 +8937,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._set_status(f"Loaded: {name}  {w}×{h}")
 
 
-    # ── Executable exports ────────────────────────────────────────────────────
+    #    Executable exports                                                     
 
     def _export_tap(self): #vers 1
         """Export ZX Spectrum TAP — screen$ block (6912 bytes) wrapped in TAP format."""
@@ -9166,7 +9166,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "VIC-20 PRG Error", str(e))
 
 
-    # ── ZX Spectrum Next formats ──────────────────────────────────────────────
+    #    ZX Spectrum Next formats                                               
 
     def _rgb_to_9bit(self, r: int, g: int, b: int): #vers 1
         """Convert 8-bit RGB to ZX Next 9-bit palette bytes (RRRGGGBB + B LSB)."""
@@ -9375,7 +9375,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "NEX Export Error", str(e))
 
 
-    # ── Icon export / import ──────────────────────────────────────────────────
+    #    Icon export / import                                                   
 
     def _get_canvas_pil(self): #vers 1
         """Return current canvas as PIL RGBA Image."""
@@ -9432,7 +9432,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "BMP Export Error", str(e))
 
 
-    # ── Extended format imports / exports ─────────────────────────────────────
+    #    Extended format imports / exports                                      
 
     def _import_iff(self): #vers 2
         """Import Amiga IFF ILBM — supports 8-bit indexed, 24-bit true colour,
@@ -9768,18 +9768,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             return None, 0, 0, f"Invalid dimensions {w}\xd7{h}"
         drawer_ptr = struct.unpack_from('>I', data, 66)[0]
 
-        # ── NewIcon ───────────────────────────────────────────────────
+        #    NewIcon                                                    
         if b'IM1=' in data:
             try:
                 rgba = self._decode_newicon_im1(data, w, h)
                 if rgba: return rgba, w, h, 'NewIcon-IM1'
             except Exception:
                 pass
-        # ── OS3.5 ICONFACE ────────────────────────────────────────────
+        #    OS3.5 ICONFACE                                             
         if b':ICONFACE' in data:
             return None, 0, 0, "OS3.5-ICONFACE (proprietary format)"
 
-        # ── Real WB3.9 256-colour palette (from actual WB3_9.pal prefs) ──
+        #    Real WB3.9 256-colour palette (from actual WB3_9.pal prefs)   
         WB39 = [
             (144,148,149),(43,0,0),(255,255,255),(0,98,255),(120,120,120),(175,175,175),(170,144,124),(255,169,151),  # 0
             (149,149,149),(238,85,0),(153,255,17),(238,187,0),(85,85,255),(153,34,255),(0,255,136),(204,204,204),  # 8
@@ -9814,7 +9814,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (170,85,170),(238,119,238),(223,0,0),(206,0,0),(190,0,0),(174,0,0),(158,0,0),(142,0,0),  # 240
             (125,0,0),(109,0,0),(62,162,190),(144,148,149),(123,123,123),(175,175,175),(170,144,124),(255,169,151),  # 248
         ]
-        # ── Real WB3.9 XL 256-colour palette (from amigaos3_9xl.pal) ──
+        #    Real WB3.9 XL 256-colour palette (from amigaos3_9xl.pal)   
         WB39_XL = [
             (144,148,149),(43,0,0),(255,255,255),(0,98,255),(123,121,123),(175,175,175),(170,144,124),(255,169,151),  # 0
             (149,149,149),(238,85,0),(153,255,17),(238,187,0),(85,85,255),(153,34,255),(0,255,136),(204,204,204),  # 8
@@ -9849,12 +9849,12 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             (170,85,170),(238,119,238),(223,0,0),(206,0,0),(190,0,0),(174,0,0),(158,0,0),(142,0,0),  # 240
             (125,0,0),(109,0,0),(62,162,190),(144,148,149),(123,123,123),(175,175,175),(170,144,124),(255,169,151),  # 248
         ]
-        # ── OCS/ECS WB3 4-colour ─────────────────────────────────────
+        #    OCS/ECS WB3 4-colour                                      
         OCS = [(0,0,0),(255,255,255),(0,0,0),(102,136,187)]
-        # ── MagicWB 8-colour ──────────────────────────────────────────
+        #    MagicWB 8-colour                                           
         MAGIC = [(0,0,0),(0,0,0),(255,255,255),(59,103,162),
                  (123,123,123),(149,149,149),(170,144,124),(255,169,0)]
-        # ── AGA WB 16-colour ──────────────────────────────────────────
+        #    AGA WB 16-colour                                           
         AGA16 = [(144,148,149),(43,0,0),(255,255,255),(0,98,255),
                  (120,120,120),(175,175,175),(170,144,124),(255,169,151),
                  (149,149,149),(238,85,0),(153,255,17),(238,187,0),
@@ -9874,7 +9874,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         else:  # 'wb39' or 'aga_wb' — default to real WB3.9 palette
             palette = WB39
 
-        # ── Classic bitplane decode ───────────────────────────────────
+        #    Classic bitplane decode                                    
         base = 78 + (56 if drawer_ptr else 0)
         if base + 20 > len(data):
             return None, 0, 0, "File truncated at Image struct"
@@ -9929,7 +9929,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             rgba[i*4:i*4+4] = c
         return bytes(rgba)
 
-    # ── Batch Converters ──────────────────────────────────────────────────────
+    #    Batch Converters                                                       
 
 
     def _batch_convert_icons(self):  # vers 4 (alpha + recursive + preview)
@@ -10631,7 +10631,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "SVG Import Error", str(e))
 
 
-    # ── Animation ─────────────────────────────────────────────────────────────
+    #    Animation                                                              
 
     def _create_anim_strip(self): #vers 1
         """Create the animation timeline strip widget."""
@@ -10985,7 +10985,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         return '#ffffff'
 
 
-    # ── Window management ─────────────────────────────────────────────────────
+    #    Window management                                                      
 
     def _set_status(self, msg: str): #vers 1
         if hasattr(self, '_status_bar'):
@@ -11132,7 +11132,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         event.accept()
 
 
-    # ── Corner resize + dragging (COL Workshop pattern) ───────────────────────
+    #    Corner resize + dragging (COL Workshop pattern)                        
 
     def _update_transform_text_panel_visibility(self): #vers 2
         """Toggle between text+icon panel (wide) and icon-only strip (narrow).
@@ -11442,7 +11442,7 @@ class _CharFontEditor(QDialog):
     def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
 
-        # ── Left: character list ─────────────────────────────────────
+        #    Left: character list                                      
         left = QVBoxLayout()
         hl = QHBoxLayout()
         hl.addWidget(QLabel("Char set:"))
@@ -11473,7 +11473,7 @@ class _CharFontEditor(QDialog):
         left.addLayout(shift_row)
         lay.addLayout(left)
 
-        # ── Centre: bit grid ─────────────────────────────────────────
+        #    Centre: bit grid                                          
         centre = QVBoxLayout()
         self._grid_widget = _CharGrid(self)
         self._grid_widget.bit_toggled.connect(self._on_bit_toggle)
@@ -11483,7 +11483,7 @@ class _CharFontEditor(QDialog):
         centre.addWidget(self._hex_label)
         lay.addLayout(centre)
 
-        # ── Right: actions ───────────────────────────────────────────
+        #    Right: actions                                            
         right = QVBoxLayout()
         right.addWidget(QLabel("File:"))
 

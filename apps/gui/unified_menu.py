@@ -72,7 +72,7 @@ class UnifiedMenuSystem: #vers 1
         self._tool_label = None     # label of active tool
         self._callbacks  = {}       # action key → callable
 
-    # ── Public API ────────────────────────────────────────────────────────
+    #    Public API                                                         
 
     def set_callbacks(self, callbacks: dict): #vers 1
         """Register action callbacks. Keys match _add() key strings."""
@@ -158,7 +158,7 @@ class UnifiedMenuSystem: #vers 1
         if gl and hasattr(gl, 'unregister_tool_menu_btn'):
             gl.unregister_tool_menu_btn()
 
-    # ── Menu builders ─────────────────────────────────────────────────────
+    #    Menu builders                                                      
 
     def _build_file_menu(self): #vers 1
         m = QMenu("File")
@@ -254,7 +254,7 @@ class UnifiedMenuSystem: #vers 1
         self._add(m, "about",         "About IMG Factory…",None,      "info_icon")
         self._menus['settings'] = m
 
-    # ── Rendering ─────────────────────────────────────────────────────────
+    #    Rendering                                                          
 
     def _attach_system_bar(self): #vers 1
         """Create / populate a QMenuBar for system UI mode."""
@@ -298,7 +298,7 @@ class UnifiedMenuSystem: #vers 1
             popup.addMenu(self._tool_menu)
         return popup
 
-    # ── Helpers ───────────────────────────────────────────────────────────
+    #    Helpers                                                            
 
     def _add(self, menu: QMenu, key: str, label: str,
              shortcut=None, icon_method=None): #vers 1

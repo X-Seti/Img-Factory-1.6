@@ -17,7 +17,7 @@ from typing import List
 from apps.methods.col_workshop_classes import COLModel, COLVersion
 
 
-# ── surface packing ──────────────────────────────────────────────────────────
+#    surface packing                                                           
 
 def _surface_bytes(obj) -> bytes:
     """Extract (material, flag, brightness, light) from a COLSphere/COLBox/COLFace."""
@@ -39,7 +39,7 @@ def _vec3(obj) -> tuple:
     return float(obj[0]), float(obj[1]), float(obj[2])
 
 
-# ── COL1 writer ───────────────────────────────────────────────────────────────
+#    COL1 writer                                                                
 
 def _write_col1(model: COLModel) -> bytes:
     """Serialise bounds + legacy (COL1) data section."""
@@ -94,7 +94,7 @@ def _write_col1(model: COLModel) -> bytes:
     return bytes(buf)
 
 
-# ── COL2/3/4 writer ───────────────────────────────────────────────────────────
+#    COL2/3/4 writer                                                            
 
 def _compress_vertex(v) -> bytes:
     """Convert float vertex to COL2/3 int16 fixed-point (* 128, clamped to ±255.99)."""
@@ -204,7 +204,7 @@ def _write_col_new(model: COLModel) -> bytes:
     return bounds_bytes + hdr + bytes(data_buf)
 
 
-# ── Top-level serialiser ──────────────────────────────────────────────────────
+#    Top-level serialiser                                                       
 
 def model_to_bytes(model: COLModel) -> bytes: #vers 1
     """Serialise one COLModel to binary COL bytes (header + payload)."""

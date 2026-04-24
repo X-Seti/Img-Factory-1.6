@@ -22,7 +22,7 @@ if str(root_dir) not in sys.path:
 
 VERSION = "1.0"
 
-# ── Requirements ─────────────────────────────────────────────────────────────
+#    Requirements                                                              
 # NOTE: uvicorn must be installed as uvicorn[standard] to get WebSocket support
 # (websockets library). Without it you get:
 #   WARNING: No supported WebSocket library detected.
@@ -103,7 +103,7 @@ def check_and_install() -> bool:
     return True
 
 
-# ── Config ────────────────────────────────────────────────────────────────────
+#    Config                                                                     
 
 CONFIG_PATH = os.path.expanduser("~/.config/imgfactory/ai_workshop_web.json")
 
@@ -151,7 +151,7 @@ def save_config(cfg: dict):
         json.dump(cfg, f, indent=2)
 
 
-# ── Startup banner ────────────────────────────────────────────────────────────
+#    Startup banner                                                             
 
 def print_banner(url: str, cfg: dict):
     host       = cfg.get("host", "127.0.0.1")
@@ -175,11 +175,11 @@ def print_banner(url: str, cfg: dict):
     print()
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+#    Main                                                                       
 
 def main():
     print(f"\nAI Workshop {VERSION} — Web Launcher")
-    print("─" * 40)
+    print(" " * 40)
 
     if not check_and_install():
         sys.exit(1)

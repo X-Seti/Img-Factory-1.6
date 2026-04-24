@@ -7,7 +7,7 @@
 window.copyCode        = null;
 window.removeAttachment = null;
 
-// ── State ─────────────────────────────────────────────────────
+//    State                                                      
 const state = {
   sessions:        [],
   currentSession:  null,
@@ -20,11 +20,11 @@ const state = {
   wsReconnectTimer: null,
 };
 
-// ── DOM helpers ───────────────────────────────────────────────
+//    DOM helpers                                                
 const $  = id  => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
-// ── Init ──────────────────────────────────────────────────────
+//    Init                                                       
 document.addEventListener('DOMContentLoaded', async () => {
   await loadTheme();
   await loadConfig();
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.removeAttachment = removeAttachment;
 });
 
-// ── Theme ─────────────────────────────────────────────────────
+//    Theme                                                      
 async function loadTheme() {
   try {
     const r = await fetch('/api/theme');
@@ -134,7 +134,7 @@ function isLight(hex) {
   return (r*299 + g*587 + b*114) / 1000 > 128;
 }
 
-// ── Config ────────────────────────────────────────────────────
+//    Config                                                     
 async function loadConfig() {
   try {
     const r = await fetch('/api/config');
@@ -183,7 +183,7 @@ async function saveConfig() {
   checkOllamaStatus();
 }
 
-// ── Models ────────────────────────────────────────────────────
+//    Models                                                     
 async function loadModels() {
   try {
     const r = await fetch('/api/models');
@@ -197,7 +197,7 @@ async function loadModels() {
   }
 }
 
-// ── Ollama status ─────────────────────────────────────────────
+//    Ollama status                                              
 async function checkOllamaStatus() {
   try {
     const r = await fetch('/api/ollama/status');
@@ -218,7 +218,7 @@ async function checkOllamaStatus() {
   }
 }
 
-// ── WebSocket ─────────────────────────────────────────────────
+//    WebSocket                                                  
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${proto}//${location.host}/ws/chat`;
@@ -270,7 +270,7 @@ function connectWS() {
   };
 }
 
-// ── Sessions ──────────────────────────────────────────────────
+//    Sessions                                                   
 async function loadSessions() {
   try {
     const r = await fetch('/api/sessions');
@@ -347,7 +347,7 @@ function refreshSessionList() {
   renderSessionList($('session-search')?.value || '');
 }
 
-// ── Session context menu ──────────────────────────────────────
+//    Session context menu                                       
 function showSessionMenu(e, sessionId) {
   document.querySelector('.ctx-menu')?.remove();
 
@@ -363,10 +363,10 @@ function showSessionMenu(e, sessionId) {
   const items = [
     { label: 'Rename',          action: () => renameSession(sessionId) },
     { label: session.pinned ? 'Unpin ⭐' : 'Pin ⭐', action: () => togglePin(sessionId) },
-    { label: '─', separator: true },
+    { label: ' ', separator: true },
     { label: 'Export as .md',   action: () => exportSession(sessionId, 'md') },
     { label: 'Export as .txt',  action: () => exportSession(sessionId, 'txt') },
-    { label: '─', separator: true },
+    { label: ' ', separator: true },
     { label: 'Delete',          action: () => deleteSession(sessionId), danger: true },
   ];
 
@@ -450,7 +450,7 @@ function exportSession(id, fmt) {
   window.open(`/api/sessions/${id}/export?fmt=${fmt}`, '_blank');
 }
 
-// ── Chat rendering ────────────────────────────────────────────
+//    Chat rendering                                             
 function renderChat() {
   const container = $('chat-messages');
   if (!container) return;
@@ -585,7 +585,7 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ── Send message ──────────────────────────────────────────────
+//    Send message                                               
 async function sendMessage() {
   const input = $('chat-input');
   const text  = input.value.trim();
@@ -708,7 +708,7 @@ function stopGeneration() {
   setTimeout(connectWS, 200);
 }
 
-// ── File attachments ──────────────────────────────────────────
+//    File attachments                                           
 async function attachLocalFiles(files) {
   for (const file of files) {
     const formData = new FormData();
@@ -758,7 +758,7 @@ function renderAttachments() {
   }).join('');
 }
 
-// ── SSH file browser ──────────────────────────────────────────
+//    SSH file browser                                           
 async function openSSHBrowser() {
   // Check SSH connected first
   try {
@@ -849,7 +849,7 @@ async function attachSSHFile(entry) {
   }
 }
 
-// ── Modal helpers ─────────────────────────────────────────────
+//    Modal helpers                                              
 function openModal(id) {
   const el = $(id);
   if (el) el.classList.remove('hidden');
@@ -860,7 +860,7 @@ function closeModal(id) {
   if (el) el.classList.add('hidden');
 }
 
-// ── Tab switching (settings modal) ────────────────────────────
+//    Tab switching (settings modal)                             
 function switchTab(tabId) {
   $$('.tab-content').forEach(t => t.classList.add('hidden'));
   $$('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -868,7 +868,7 @@ function switchTab(tabId) {
   document.querySelector(`[data-tab="${tabId}"]`)?.classList.add('active');
 }
 
-// ── SSH connect test ──────────────────────────────────────────
+//    SSH connect test                                           
 async function testSSHConnection() {
   // Save SSH settings first
   const cfg = {
@@ -904,7 +904,7 @@ async function testSSHConnection() {
   }
 }
 
-// ── Temperature slider live label ─────────────────────────────
+//    Temperature slider live label                              
 function bindTempSlider() {
   const slider = $('temp-slider');
   const label  = $('temp-val');
@@ -914,7 +914,7 @@ function bindTempSlider() {
   });
 }
 
-// ── Auto-resize textarea ──────────────────────────────────────
+//    Auto-resize textarea                                       
 function bindInputResize() {
   const input = $('chat-input');
   if (!input) return;
@@ -924,7 +924,7 @@ function bindInputResize() {
   });
 }
 
-// ── Mobile panel toggles ──────────────────────────────────────
+//    Mobile panel toggles                                       
 function bindMobileToggles() {
   $('btn-sessions-toggle')?.addEventListener('click', () => {
     $('sessions-panel').classList.toggle('open');
@@ -936,7 +936,7 @@ function bindMobileToggles() {
   });
 }
 
-// ── Bind all events ───────────────────────────────────────────
+//    Bind all events                                            
 function bindEvents() {
   // Send
   $('btn-send')?.addEventListener('click', sendMessage);

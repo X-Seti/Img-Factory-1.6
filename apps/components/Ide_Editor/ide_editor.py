@@ -616,7 +616,7 @@ class IDEEditor(QDialog): #vers 1
         sort_menu.addAction(sort_img_col_action)
     
 
-    # ── SOL ID range reference ──────────────────────────────────────────
+    #    SOL ID range reference                                           
     # Format: (start, end, label, ide_file, img_file)
     # None end = open-ended / special section
     # IDs below this are reserved for base GTA3/VC assets.
@@ -624,7 +624,7 @@ class IDEEditor(QDialog): #vers 1
     SOL_WORLD_OBJECT_MIN_ID = 1987
 
     SOL_ID_RANGES = [
-        # ── GTA3.IDE reserved blocks (DO NOT use for world objects) ───
+        #    GTA3.IDE reserved blocks (DO NOT use for world objects)    
         (0,    129,   "Peds",               "gta3.ide",     "gta3.img"),
         (130,  239,   "Vehicles",           "gta3.ide",     "gta3.img"),
         (240,  245,   "Car components",     "gta3.ide",     "gta3.img"),
@@ -632,7 +632,7 @@ class IDEEditor(QDialog): #vers 1
         (250,  257,   "Wheels",             "gta3.ide",     "gta3.img"),
         (258,  294,   "Weapons",            "gta3.ide",     "gta3.img"),
         (295,  299,   "Air train",          "gta3.ide",     "gta3.img"),
-        # ── World / city ranges ────────────────────────────────────────
+        #    World / city ranges                                         
         (300,  615,   "Special map objects","special.ide",  "special.img"),
         (616,  1987,  "Generics",           "generics.ide", "Generics.img"),
         (1987, 4766,  "VC City",            "game_vc.ide",  "game_vc.img"),
@@ -663,7 +663,7 @@ class IDEEditor(QDialog): #vers 1
 
         splitter = QSplitter(_Qt.Orientation.Horizontal)
 
-        # ── Left: ID range reference table ───────────────────────────
+        #    Left: ID range reference table                            
         left = QWidget()
         ll   = QVBoxLayout(left); ll.setContentsMargins(0,0,0,0)
 
@@ -717,7 +717,7 @@ class IDEEditor(QDialog): #vers 1
 
         splitter.addWidget(left)
 
-        # ── Right: Analysis results ───────────────────────────────────
+        #    Right: Analysis results                                    
         right = QWidget()
         rl    = QVBoxLayout(right); rl.setContentsMargins(0,0,0,0)
         rl.setSpacing(4)
@@ -786,8 +786,8 @@ class IDEEditor(QDialog): #vers 1
 
         all_ids = sorted(id_to_entry.keys())
 
-        # ── Range assignment report ───────────────────────────────────
-        lines.append("── Range assignment ─────────────────────────────")
+        #    Range assignment report                                    
+        lines.append("   Range assignment                              ")
         range_buckets = {label: [] for _,_,label,*_ in self.SOL_ID_RANGES}
         unassigned = []
         over_limit = []
@@ -818,11 +818,11 @@ class IDEEditor(QDialog): #vers 1
 
         lines.append("")
 
-        # ── Problems ──────────────────────────────────────────────────
+        #    Problems                                                   
         dup_ids   = [i for i,c in id_counts.items()   if c > 1]
         dup_names = [n for n,c in name_counts.items() if c > 1]
 
-        lines.append("── Problems ─────────────────────────────────────")
+        lines.append("   Problems                                      ")
 
         # Objects placed below the world object floor (1987)
         WORLD_MIN = self.SOL_WORLD_OBJECT_MIN_ID
@@ -897,16 +897,16 @@ class IDEEditor(QDialog): #vers 1
 
         lines.append("")
 
-        # ── Free slot summary ─────────────────────────────────────────
+        #    Free slot summary                                          
         used_set  = set(all_ids)
         free_total= sum(1 for i in range(1,32768) if i not in used_set)
-        lines.append("── Free slots ───────────────────────────────────")
+        lines.append("   Free slots                                    ")
         lines.append(f"  Total used: {len(all_ids):,}  /  32767")
         lines.append(f"  Total free: {free_total:,}")
         lines.append("")
 
         # Show largest free blocks per range
-        lines.append("── Largest free block per range ─────────────────")
+        lines.append("   Largest free block per range                  ")
         for (start,end,label,*_) in self.SOL_ID_RANGES:
             free_in = [i for i in range(start,end+1) if i not in used_set]
             if not free_in:
@@ -926,7 +926,7 @@ class IDEEditor(QDialog): #vers 1
                     f"{best_start}-{best_start+best_len-1}  "
                     f"({best_len} free)")
 
-        # ── Cross-reference against AssetDB if available ────────────────
+        #    Cross-reference against AssetDB if available                 
         try:
             from PyQt6.QtWidgets import QApplication as _QApp
             mw = None
@@ -935,7 +935,7 @@ class IDEEditor(QDialog): #vers 1
                     mw = w; break
             db = getattr(mw, 'asset_db', None) if mw else None
             if db and db.stats().get('img_entries', 0) > 0:
-                lines.append("── Asset DB cross-reference ─────────────────────")
+                lines.append("   Asset DB cross-reference                      ")
                 # IMG stems (DFF files in IMGs)
                 rows = db._con.execute(
                     "SELECT lower(replace(entry_name,'.dff','')) AS stem "

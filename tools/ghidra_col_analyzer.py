@@ -38,7 +38,7 @@ def run():
     funcs   = program.getFunctionManager()
     mem     = program.getMemory()
 
-    # ── 1. Find COL magic bytes ──────────────────────────────────
+    #    1. Find COL magic bytes                                   
     log("\n[1] Searching for COL magic bytes...")
     magics = {
         b"COLL": "COL1_magic",
@@ -74,7 +74,7 @@ def run():
             except Exception:
                 break
 
-    # ── 2. Find functions referencing magic addresses ────────────
+    #    2. Find functions referencing magic addresses             
     log("\n[2] Functions referencing COL magic strings...")
     col_functions = {}
     for addr, label in all_magic_hits:
@@ -90,7 +90,7 @@ def run():
         except Exception as e:
             log("  ref error for {}: {}".format(addr, e))
 
-    # ── 3. Find fread/file I/O functions ─────────────────────────
+    #    3. Find fread/file I/O functions                          
     log("\n[3] File I/O functions...")
     io_fns = {}
     for io_name in ["fread","fwrite","ReadFile","WriteFile",
@@ -116,7 +116,7 @@ def run():
         if k not in col_functions:
             col_functions[k] = v
 
-    # ── 4. Dump raw bytes around known magic ─────────────────────
+    #    4. Dump raw bytes around known magic                      
     log("\n[4] Raw bytes at known COL data address 005087ec...")
     try:
         base = toAddr(0x005087ec)
@@ -151,7 +151,7 @@ def run():
     except Exception as e:
         log("  bytes error: {}".format(e))
 
-    # ── 5. Decompile all found functions ─────────────────────────
+    #    5. Decompile all found functions                          
     log("\n[5] Decompiling {} found functions...".format(len(col_functions)))
     if col_functions:
         try:
@@ -184,7 +184,7 @@ def run():
         log("  In Ghidra Search > Memory, search for: 43 4F 4C 4C")
         log("  Then right-click result > References > Find References")
 
-    # ── 6. Manual search hints ───────────────────────────────────
+    #    6. Manual search hints                                    
     log("\n[6] Manual analysis hints:")
     log("  The bytes at 005087ec show:")
     log("  43 4F 4C 4C = 'COLL' magic")
@@ -194,7 +194,7 @@ def run():
     log("  Try: Search > Memory for 43 4F 4C 4C to find all COL data")
     log("  Then use References panel to find read/write functions")
 
-    # ── Write report ─────────────────────────────────────────────
+    #    Write report                                              
     report_path = os.path.expanduser("~/ghidra_col_report.txt")
     try:
         with open(report_path, 'w') as f:

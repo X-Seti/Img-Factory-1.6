@@ -24,7 +24,7 @@ import sqlite3
 import time
 from typing import Optional, List, Dict, Tuple
 
-# ── User data directory ─────────────────────────────────────────────────────
+#    User data directory                                                      
 
 def _user_data_dir() -> str:
     """Return platform-appropriate user data directory for IMG Factory."""
@@ -39,7 +39,7 @@ def _user_data_dir() -> str:
         return os.path.join(base, 'imgfactory')
 
 
-# ── Schema ───────────────────────────────────────────────────────────────────
+#    Schema                                                                    
 
 _SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -111,7 +111,7 @@ CREATE INDEX IF NOT EXISTS idx_ide_txd   ON ide_entries(txd_name);
 """
 
 
-# ── AssetDB ──────────────────────────────────────────────────────────────────
+#    AssetDB                                                                   
 
 class AssetDB: #vers 1
     """
@@ -144,7 +144,7 @@ class AssetDB: #vers 1
         self.db_path = db_path
         self._open()
 
-    # ── Connection ───────────────────────────────────────────────────────────
+    #    Connection                                                            
 
     def _open(self):
         self._con = sqlite3.connect(self.db_path, check_same_thread=False)
@@ -163,7 +163,7 @@ class AssetDB: #vers 1
             self._con.close()
             self._con = None
 
-    # ── File tracking ─────────────────────────────────────────────────────────
+    #    File tracking                                                          
 
     def _get_source_id(self, path: str, file_type: str) -> Tuple[int, bool]:
         """Return (source_id, needs_reindex).  Creates row if absent."""
@@ -199,7 +199,7 @@ class AssetDB: #vers 1
             self._con.execute(
                 f"DELETE FROM {tbl} WHERE source_id=?", (source_id,))
 
-    # ── IMG indexing ──────────────────────────────────────────────────────────
+    #    IMG indexing                                                           
 
     def index_img(self, img_path: str,
                   index_col_names: bool = True,
@@ -351,7 +351,7 @@ class AssetDB: #vers 1
         except Exception:
             pass
 
-    # ── IDE indexing ──────────────────────────────────────────────────────────
+    #    IDE indexing                                                           
 
     def index_col(self, col_path: str) -> int:
         """Index a standalone .col file — extracts all model names.
@@ -402,7 +402,7 @@ class AssetDB: #vers 1
         except Exception:
             return 0
 
-    # ── Bulk update ───────────────────────────────────────────────────────────
+    #    Bulk update                                                            
 
     def update_changed(self, progress_cb=None) -> Dict[str, int]:
         """Re-index any source files whose mtime/size has changed.
@@ -450,7 +450,7 @@ class AssetDB: #vers 1
                     results[fpath] = n
         return results
 
-    # ── Lookups ───────────────────────────────────────────────────────────────
+    #    Lookups                                                                
 
     def find_img_entry(self, entry_name: str) -> Optional[sqlite3.Row]:
         """Find an IMG entry by name (case-insensitive).
@@ -539,7 +539,7 @@ class AssetDB: #vers 1
                     )(self.find_ide_entry(stem)),
         }
 
-    # ── Stats ─────────────────────────────────────────────────────────────────
+    #    Stats                                                                  
 
     def stats(self) -> Dict[str, int]:
         def _n(tbl):
@@ -562,7 +562,7 @@ class AssetDB: #vers 1
                 f"{s['ide_entries']:,} IDE objects  "
                 f"({s['source_files']} files)")
 
-    # ── Profile management ────────────────────────────────────────────────────
+    #    Profile management                                                     
 
     @staticmethod
     def list_profiles() -> List[str]:

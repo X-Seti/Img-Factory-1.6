@@ -188,7 +188,7 @@ launch_application() {
 show_help() {
     echo ""
     echo -e "${PURPLE}Troubleshooting Help:${NC}"
-    echo "─────────────────────────────────────────"
+    echo "                                         "
     echo "If IMG Factory won't start:"
     echo "1. Ensure Python 3.8+ is installed"
     echo "2. Install PyQt6: pip3 install PyQt6"

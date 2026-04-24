@@ -55,7 +55,7 @@ class DATPanel(QWidget): #vers 1
         self.setup_connections()
         self.apply_styling()
 
-    # ── UI construction ──────────────────────────────────────────────────────
+    #    UI construction                                                       
 
     def setup_ui(self): #vers 1
         """Main layout — toolbar on top, splitter below. No margins so it fills parent."""
@@ -191,7 +191,7 @@ class DATPanel(QWidget): #vers 1
         t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         return t
 
-    # ── Connections ──────────────────────────────────────────────────────────
+    #    Connections                                                           
 
     def setup_connections(self): #vers 1
         self._browse_btn.clicked.connect(self._browse_game_root)
@@ -204,7 +204,7 @@ class DATPanel(QWidget): #vers 1
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(300, self._sync_split_icon)
 
-    # ── Styling ──────────────────────────────────────────────────────────────
+    #    Styling                                                               
 
     def apply_styling(self): #vers 1
         """Apply theme-aware styling — called once and survives re-parenting."""
@@ -232,7 +232,7 @@ class DATPanel(QWidget): #vers 1
         except Exception:
             pass
 
-    # ── Split button ─────────────────────────────────────────────────────────
+    #    Split button                                                          
 
     def _sync_split_icon(self): #vers 1
         """Set icon matching current merge_view_state in gui_layout."""
@@ -271,7 +271,7 @@ class DATPanel(QWidget): #vers 1
             if hasattr(self._main_window, 'log_message'):
                 self._main_window.log_message(f"Split toggle: {e}")
 
-    # ── Game root browsing / loading ─────────────────────────────────────────
+    #    Game root browsing / loading                                          
 
     def _on_game_combo_changed(self, idx): #vers 1
         try:
@@ -375,7 +375,7 @@ class DATPanel(QWidget): #vers 1
         else:
             self._status_lbl.setText("Load failed.")
 
-    # ── Population ───────────────────────────────────────────────────────────
+    #    Population                                                            
 
     def _populate_all(self): #vers 1
         if not self._loader:

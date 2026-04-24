@@ -47,7 +47,7 @@ class COLFile: #vers 2
         self.file_path  = file_path
         self.raw_data: Optional[bytes] = None
 
-    # ── Public load API ───────────────────────────────────────────────────
+    #    Public load API                                                    
 
     def load(self, file_path: str = None) -> bool: #vers 2
         """Load COL file from disk. Uses self.file_path if no arg given."""
@@ -111,7 +111,7 @@ class COLFile: #vers 2
         self.load_error = ""
         return self._load_bytes(data)
 
-    # ── Single internal parse path ────────────────────────────────────────
+    #    Single internal parse path                                         
 
     def _load_bytes(self, data: bytes) -> bool: #vers 1
         """Parse bytes — single code path for all load methods."""
@@ -195,7 +195,7 @@ class COLFile: #vers 2
 
         return models
 
-    # ── Query helpers ─────────────────────────────────────────────────────
+    #    Query helpers                                                      
 
     def get_model_count(self) -> int: #vers 1
         return len(self.models)

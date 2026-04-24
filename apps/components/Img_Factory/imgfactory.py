@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 78
+#this belongs in components/Img_Factory/imgfactory.py - Version: 79
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
@@ -513,7 +513,7 @@ class IMGFactory(QMainWindow):
         # Apply UI mode settings to the newly created layout
         self.apply_ui_mode(ui_mode, show_toolbar, show_status_bar, show_menu_bar)
 
-        # ── Unified menu system ───────────────────────────────────────────
+        #  Unified menu system  
         # Single system for both custom (popup) and system (inline bar) modes.
         # Replaces dual IMGFactoryMenuBar + CustomMenuManager approach.
         from apps.gui.unified_menu import UnifiedMenuSystem
@@ -3000,7 +3000,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Workshop settings dialog error: {str(e)}")
 
 
-    # ── Rebuild methods ────────────────────────────────────────────────
+    #  Rebuild methods
     def rebuild_img(self): #vers 1
         try:
             from apps.core.rebuild import rebuild_current_img_native
@@ -3384,7 +3384,7 @@ class IMGFactory(QMainWindow):
             if tab_table and hasattr(self, 'gui_layout'):
                 self.gui_layout.table = tab_table
 
-            # ── Tool menu injection ───────────────────────────────────────
+            #  Tool menu injection  
             # Remove any previously injected tool menu, then inject the
             # active tab's tool menu if it implements ToolMenuMixin.
             self._update_tool_menu_for_tab(current_tab)
@@ -3823,7 +3823,7 @@ class IMGFactory(QMainWindow):
             from apps.methods.img_core_classes import IMGFile
             from apps.methods.gta_dat_parser import detect_game, GTAGame
 
-            # ── 1. Pick the IMG file ─────────────────────────────────────────
+            #  1. Pick the IMG file  
             img_path, _ = QFileDialog.getOpenFileName(
                 self, "Hybrid Load — Select IMG File", "",
                 "IMG Archives (*.img);;All Files (*)"
@@ -3835,11 +3835,11 @@ class IMGFactory(QMainWindow):
             img_dir  = os.path.dirname(img_path)
             img_stem = img_name.lower().rsplit(".", 1)[0]   # e.g. "game_sa"
 
-            # ── 2. Open the IMG ──────────────────────────────────────────────
+            #  2. Open the IMG
             img = IMGFile(img_path)
             img.open()
 
-            # ── 3. Resolve game root and game type ───────────────────────────
+            #  3. Resolve game root and game type  
             game_root = getattr(self, "game_root", None)
             if not game_root:
                 dat_browser = getattr(self, "dat_browser", None)
@@ -3852,7 +3852,7 @@ class IMGFactory(QMainWindow):
             game     = detect_game(game_root) if game_root else None
             is_sa_sol = game in (GTAGame.SA, GTAGame.SOL)
 
-            # ── helper: index sub-models from a COL archive binary ───────────
+            #  helper: index sub-models from a COL archive binary  
             def _index_col_binary(data: bytes, source_label: str, dest: dict):
                 offset = 0
                 while offset + 32 < len(data):
@@ -3871,7 +3871,7 @@ class IMGFactory(QMainWindow):
                     else:
                         offset += 1
 
-            # ── 4a. Sibling .col file (same dir, same stem or any .col) ──────
+            #  4a. Sibling .col file (same dir, same stem or any .col)
             # e.g. game_sa.col sitting next to game_sa.img
             col_sibling = {}   # stem -> source label
             sibling_col = os.path.join(img_dir, img_stem + ".col")
@@ -3898,14 +3898,14 @@ class IMGFactory(QMainWindow):
                 except Exception as e:
                     self.log_message(f"Hybrid: could not read sibling COL: {e}")
 
-            # ── 4b. COL entries inside the IMG itself ────────────────────────
+            #  4b. COL entries inside the IMG itself
             col_in_img = {}   # stem -> entry
             for entry in img.entries:
                 name = getattr(entry, "name", "") or ""
                 if name.lower().endswith(".col"):
                     col_in_img[name.lower().rsplit(".", 1)[0]] = entry
 
-            # ── 4c. models/coll/ external archives (SA/SOL only) ─────────────
+            #  4c. models/coll/ external archives (SA/SOL only)  
             col_external = {}  # stem -> source filename
             if is_sa_sol:
                 coll_dir = os.path.join(game_root, "models", "coll")
@@ -3920,7 +3920,7 @@ class IMGFactory(QMainWindow):
                         except Exception as e:
                             self.log_message(f"Hybrid: could not scan {fname}: {e}")
 
-            # ── 5. Pair DFF entries ──────────────────────────────────────────
+            #  5. Pair DFF entries
             dff_entries = [e for e in img.entries
                            if getattr(e, "name", "").lower().endswith(".dff")]
             paired = []   # (dff_entry, col_source_str or None)
@@ -3950,7 +3950,7 @@ class IMGFactory(QMainWindow):
                 parts.append(f"{len(col_external)} external COL sub-models")
             self.log_message("  |  ".join(parts))
 
-            # ── 6. Store pairing data then load IMG (async thread) ───────────
+            #  6. Store pairing data then load IMG (async thread)  
             # _on_img_loaded will consume _pending_hybrid_pairs once the
             # table is actually populated.
             self._pending_hybrid_pairs = paired
@@ -4127,7 +4127,7 @@ class IMGFactory(QMainWindow):
             file_name = os.path.basename(file_path)
             self.log_message(f"Loading COL: {file_name}")
 
-            # ── Parse the COL file first (no UI side effects) ────────
+            #  Parse the COL file first (no UI side effects)
             col_file = COLFile()
             if not col_file.load_from_file(file_path):
                 err = getattr(col_file, 'load_error', 'parse failed')
@@ -4137,13 +4137,13 @@ class IMGFactory(QMainWindow):
             model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
             self.log_message(f"COL parsed: {model_count} models")
 
-            # ── Create exactly ONE tab ───────────────────────────────
+            #  Create exactly ONE tab  
             tab_index = self.create_tab(file_path, 'COL', col_file)
             if tab_index is None:
                 self.log_message("Failed to create COL tab")
                 return
 
-            # ── Store on tab widget ──────────────────────────────────
+            #  Store on tab widget
             tab_widget = self.main_tab_widget.widget(tab_index)
             if tab_widget:
                 tab_widget.file_object = col_file
@@ -4151,10 +4151,10 @@ class IMGFactory(QMainWindow):
                 tab_widget.file_path   = file_path
                 tab_widget.tab_ready   = True
 
-            # ── Store reference for other code that checks current_col ─
+            #  Store reference for other code that checks current_col  
             self.current_col = col_file
 
-            # ── Switch to the new tab ────────────────────────────────
+            #  Switch to the new tab
             self.main_tab_widget.setCurrentIndex(tab_index)
             self.log_message(f"✅ COL loaded: {file_name} ({model_count} models)")
 
@@ -5680,7 +5680,7 @@ class IMGFactory(QMainWindow):
                     col_data = getattr(entry, 'data', None)
                 break
 
-        # ── Try COL Workshop ─────────────────────────────────────────────
+        #  Try COL Workshop  
         try:
             from apps.components.Col_Editor.col_workshop import open_col_workshop
             workshop = open_col_workshop(self, self.current_img.file_path)
@@ -5701,7 +5701,7 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             self.log_message(f"COL Workshop error: {e}")
 
-        # ── Fallback: inline COL info dialog ────────────────────────────
+        #  Fallback: inline COL info dialog
         if not col_data:
             self.log_message(f"Could not read COL data for {col_name}")
             return
@@ -5831,7 +5831,7 @@ class IMGFactory(QMainWindow):
             self.log_message(f"Error opening COL Workshop: {str(e)}")
 
 
-    # ── Tool taskbar helpers ─────────────────────────────────────────────────
+    #  Tool taskbar helpers  
 
     def register_tool(self, key: str, label: str, icon_fn,
                       target=None, tooltip: str = "") -> None: #vers 2

@@ -694,7 +694,7 @@ class IDEDatabase: #vers 1
     def lookup_id(self, model_id: int) -> Optional['IDEObject']:
         return self.id_map.get(model_id)
 
-    # ── Analysis tools ────────────────────────────────────────────────────
+    #    Analysis tools                                                     
 
     def find_duplicate_ids(self) -> List[int]:
         """Return list of IDs that appear more than once across all loaded IDE files."""
@@ -788,12 +788,12 @@ class GTAWorldLoader: #vers 3
         self.progress_cb = progress_cb
         self._reset()
 
-        # ── Inject exe-loaded archives (not in any .dat) ──────────────────
+        #    Inject exe-loaded archives (not in any .dat)                   
         # gta3.img is always loaded by the game exe — enforce it here so
         # the DAT Browser, Dump TXDs, and xref can see it for all games.
         self._inject_enforced_imgs(game_root)
 
-        # ── Locate phase-1 (default/special) dat ─────────────────────────
+        #    Locate phase-1 (default/special) dat                          
         default_path = find_default_dat(game_root, self.game)
         if default_path:
             self._progress(0, 1, f"Phase 1: {os.path.basename(default_path)}")
@@ -803,7 +803,7 @@ class GTAWorldLoader: #vers 3
             self.stats.warnings.append(
                 f"Phase-1 dat not found for game '{self.game}' in {game_root}")
 
-        # ── Locate phase-2 main dat ───────────────────────────────────────
+        #    Locate phase-2 main dat                                        
         main_path = find_dat_file(game_root, self.game)
         if not main_path:
             self.stats.errors.append(
@@ -1142,7 +1142,7 @@ class GTAWorldXRef: #vers 1
         stem = filename.rsplit(".", 1)[0].lower()
         ext  = filename.rsplit(".", 1)[1].lower()
 
-        # ── Section label map ────────────────────────────────────────────────
+        #    Section label map                                                 
         _section_label = {
             "objs":  "Static Object",
             "tobj":  "Timed Object",
@@ -1164,7 +1164,7 @@ class GTAWorldXRef: #vers 1
 
             parts = [f"{label} in {ide}"]
 
-            # ── TXD reference ────────────────────────────────────────────────
+            #    TXD reference                                                 
             txd = obj.txd_name.lower() if obj.txd_name else ""
             if section == "txdp":
                 # txdp: model_name = child txd, txd_name = parent txd
@@ -1177,7 +1177,7 @@ class GTAWorldXRef: #vers 1
             elif section not in ("2dfx", "txdp"):
                 parts.append("no txd")
 
-            # ── Section-specific extras ──────────────────────────────────────
+            #    Section-specific extras                                       
             extra = obj.extra or {}
 
             if section == "tobj":
@@ -1218,12 +1218,12 @@ class GTAWorldXRef: #vers 1
                 if anim:
                     parts.append(f"anim - {anim}")
 
-            # ── Draw distance (objs / tobj / weap / hier / anim) ────────────
+            #    Draw distance (objs / tobj / weap / hier / anim)             
             dd = extra.get("draw_dist")
             if dd is not None and section not in ("cars", "peds", "ped", "txdp", "2dfx"):
                 parts.append(f"draw dist - {dd:.0f}")
 
-            # ── COL check for DFF files ──────────────────────────────────────
+            #    COL check for DFF files                                       
             if ext == "dff":
                 if stem in self.col_stems:
                     parts.append(f"has col - {stem}.col")
@@ -1232,7 +1232,7 @@ class GTAWorldXRef: #vers 1
 
             return ",  ".join(parts)
 
-        # ── No IDE entry found — check orphan status ─────────────────────────
+        #    No IDE entry found — check orphan status                          
         if ext == "txd":
             if stem in self.txd_stems:
                 users = [o.model_name for o in self.model_map.values()

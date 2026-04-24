@@ -10,7 +10,7 @@ echo ""
 echo "=== IMG Factory 1.6 — Setup ==="
 echo ""
 
-# ── WSL detection ──────────────────────────────────────────────────────────────
+#    WSL detection                                                               
 IS_WSL=0
 if grep -qi microsoft /proc/version 2>/dev/null; then
     IS_WSL=1
@@ -19,7 +19,7 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
     echo ""
 fi
 
-# ── Distro detection ───────────────────────────────────────────────────────────
+#    Distro detection                                                            
 if [ -f /etc/os-release ]; then
     . /etc/os-release
 else
@@ -30,7 +30,7 @@ fi
 DISTRO=$ID
 echo "[+] Distro: $DISTRO"
 
-# ── System packages ────────────────────────────────────────────────────────────
+#    System packages                                                             
 install_debian() {
     sudo apt update
     sudo apt install -y \
@@ -75,7 +75,7 @@ case "$DISTRO" in
         exit 1 ;;
 esac
 
-# ── Python virtual environment ─────────────────────────────────────────────────
+#    Python virtual environment                                                  
 echo ""
 echo "[+] Creating Python virtual environment (.venv)..."
 python3 -m venv .venv
@@ -90,7 +90,7 @@ if [ -f requirements.txt ]; then
     pip install -r requirements.txt
 fi
 
-# ── WSL display setup ──────────────────────────────────────────────────────────
+#    WSL display setup                                                           
 if [ "$IS_WSL" = "1" ]; then
     echo ""
     echo "[i] Configuring WSL display..."
@@ -104,7 +104,7 @@ if [ "$IS_WSL" = "1" ]; then
     echo "    then set DISPLAY=:0.0 in your terminal before running."
 fi
 
-# ── Done ───────────────────────────────────────────────────────────────────────
+#    Done                                                                        
 echo ""
 echo "=== Setup complete ==="
 echo ""

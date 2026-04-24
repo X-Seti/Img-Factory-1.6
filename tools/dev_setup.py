@@ -36,12 +36,12 @@ import argparse
 import json
 from pathlib import Path
 
-# ── Root of the repo (one level up from tools/) ───────────────────────────────
+#    Root of the repo (one level up from tools/)                                
 REPO_ROOT   = Path(__file__).parent.parent.resolve()
 THEMES_SRC  = REPO_ROOT / 'apps' / 'themes'
 VENV_DIR    = REPO_ROOT / '.venv'
 
-# ── Platform detection ─────────────────────────────────────────────────────────
+#    Platform detection                                                          
 def detect_environment() -> dict: #vers 1
     """Return a dict describing the current OS/environment."""
     import platform
@@ -96,7 +96,7 @@ def install_system_packages(env: dict): #vers 1
 
     print("\n[+] Installing system packages...")
 
-    # ── macOS ──────────────────────────────────────────────────────────────────
+    #    macOS                                                                   
     if env['is_macos']:
         if not shutil.which('brew'):
             print("    Homebrew not found — installing...")
@@ -109,7 +109,7 @@ def install_system_packages(env: dict): #vers 1
         print(f"    Qt6 prefix: {qt_prefix}")
         return
 
-    # ── Termux (Android) ──────────────────────────────────────────────────────
+    #    Termux (Android)                                                       
     if env['is_termux']:
         _run(['pkg', 'update', '-y'])
         _run(['pkg', 'install', '-y',
@@ -118,7 +118,7 @@ def install_system_packages(env: dict): #vers 1
               'libxcb'])
         return
 
-    # ── Linux ─────────────────────────────────────────────────────────────────
+    #    Linux                                                                  
     def is_debian_based():
         return distro in ('ubuntu','debian','linuxmint','pop','raspbian') \
             or 'debian' in like or 'ubuntu' in like
@@ -358,7 +358,7 @@ def check_environment(env: dict) -> bool: #vers 1
     return ok
 
 
-# ── Entry point ────────────────────────────────────────────────────────────────
+#    Entry point                                                                 
 def main(): #vers 1
     parser = argparse.ArgumentParser(
         description='IMG Factory 1.6 — development environment setup')

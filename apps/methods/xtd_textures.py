@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 from pathlib import Path
 
-# ── D3D / DXGI format identifiers ─────────────────────────────────────────────
+#    D3D / DXGI format identifiers                                              
 _D3D_FMT = {
     0x31545844: "DXT1",
     0x33545844: "DXT3",
@@ -39,7 +39,7 @@ _DXGI_FMT = {
     0x3D: "R8",     # 61
 }
 
-# ── RSC header ─────────────────────────────────────────────────────────────────
+#    RSC header                                                                  
 _RSC7_MAGIC = 0x52534337   # 'RSC7'
 _RSC8_MAGIC = 0x52534338   # 'RSC8'
 
@@ -64,7 +64,7 @@ class XTDDict:
     error:    str = ""
 
 
-# ── Public entry point ─────────────────────────────────────────────────────────
+#    Public entry point                                                          
 
 def open_xtd_dict(path: str) -> XTDDict:
     """Parse a .wtd or .ytd file.  Returns XTDDict; check .error if non-empty."""
@@ -85,7 +85,7 @@ def open_xtd_dict(path: str) -> XTDDict:
                         error=f"Unknown magic 0x{magic:08X} — may be OODLE-compressed (unsupported)")
 
 
-# ── RSC7 (GTA IV .wtd) ────────────────────────────────────────────────────────
+#    RSC7 (GTA IV .wtd)                                                         
 
 def _parse_rsc7(path: str, data: bytes) -> XTDDict:
     """GTA IV PC .wtd — RSC7 version 13."""
@@ -212,7 +212,7 @@ def _iv_scan_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
         i += 4
 
 
-# ── RSC8 (GTA V / RDR2 .ytd) ──────────────────────────────────────────────────
+#    RSC8 (GTA V / RDR2 .ytd)                                                   
 
 def _parse_rsc8(path: str, data: bytes) -> XTDDict:
     """GTA V / RDR2 .ytd — RSC8."""
@@ -356,7 +356,7 @@ def _v_scan_textures(vdata: bytes, pdata: bytes, rd: XTDDict):
         i += 8
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+#    Helpers                                                                     
 
 def _read_iv_string(vdata: bytes, ptr: int, BASE: int) -> str:
     off = (ptr & 0x0FFFFFFF) - (BASE & 0x0FFFFFFF)
@@ -467,7 +467,7 @@ def _decode_pixels(pdata: bytes, off: int, w: int, h: int, fmt: str) -> Tuple[by
         return b'', b''
 
 
-# ── DXT1 decoder ───────────────────────────────────────────────────────────────
+#    DXT1 decoder                                                                
 
 def _565_to_rgb(c: int):
     r = ((c >> 11) & 0x1F) * 255 // 31
@@ -670,7 +670,7 @@ def _bc7_decode_fallback(data: bytes, w: int, h: int) -> bytes:
     return bytes(out)
 
 
-# ── Detection helper ───────────────────────────────────────────────────────────
+#    Detection helper                                                            
 
 def is_xtd_file(path: str) -> bool:
     """Quick check — is this file a WTD or YTD?"""

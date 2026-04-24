@@ -30,7 +30,7 @@ SNAP_THRESHOLD = 60
 EDGE_THICKNESS = 20
 
 
-# ── Edge overlay ─────────────────────────────────────────────────────────────
+#    Edge overlay                                                              
 class _EdgeOverlay(QWidget):
     def __init__(self, parent_panel: QWidget):
         super().__init__(parent_panel)
@@ -75,7 +75,7 @@ class _EdgeOverlay(QWidget):
         p.drawText(band, Qt.AlignmentFlag.AlignCenter, labels[self._zone])
 
 
-# ── Grip button — lives inline with the icons ─────────────────────────────────
+#    Grip button — lives inline with the icons                                  
 class _GripHandle(QPushButton):
     """
     A ⠿ dotted grip button the same size as the tool buttons.
@@ -180,7 +180,7 @@ class _GripHandle(QPushButton):
             self._dragged  = False
 
 
-# ── Float window — thin border, no title bar ──────────────────────────────────
+#    Float window — thin border, no title bar                                   
 class _FloatWindow(QWidget):
     redock = pyqtSignal(str)   # zone or '' to stay floating
 
@@ -286,7 +286,7 @@ class _FloatWindow(QWidget):
         super().closeEvent(e)
 
 
-# ── DockableToolbar ───────────────────────────────────────────────────────────
+#    DockableToolbar                                                            
 class DockableToolbar(QWidget):
     """
     A toolbar where the grip handle (⠿) is the FIRST button,
@@ -364,7 +364,7 @@ class DockableToolbar(QWidget):
             self.setMaximumWidth(16777215)
             self.setMaximumHeight(16777215)
 
-    # ── Float ─────────────────────────────────────────────────────────────────
+    #    Float                                                                  
     def _on_drag_started(self, global_press: QPoint):
         if self._floating and isinstance(self._float_win, _FloatWindow):
             self._float_win._start_drag(global_press)
@@ -476,7 +476,7 @@ class DockableToolbar(QWidget):
                         return
         plo.insertWidget(0, self, stretch=0)
 
-    # ── Settings save/load ────────────────────────────────────────────────────
+    #    Settings save/load                                                     
     def _settings_path(self) -> Path:
         cfg = Path.home() / '.config' / 'imgfactory'
         cfg.mkdir(parents=True, exist_ok=True)
@@ -529,7 +529,7 @@ class DockableToolbar(QWidget):
         except Exception:
             return False
 
-    # ── Context menu ─────────────────────────────────────────────────────────
+    #    Context menu                                                          
     def _show_menu(self, global_pos: QPoint):
         menu = QMenu(self)
 

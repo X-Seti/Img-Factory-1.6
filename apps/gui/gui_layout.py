@@ -1633,7 +1633,7 @@ class IMGFactoryGUILayout:
 
         """Create the main UI with 3-panel layout similar to COL Workshop"""
 
-        # ── System UI top bar ────────────────────────────────────────────────
+        #    System UI top bar                                                 
         # Layout: [Settings] [RW Ref] | inline QMenuBar | <Taskbar> | [Undo] [Info] [Theme] [AI]
         # Only added in system UI mode — custom UI has its own titlebar.
         _ui_mode = getattr(getattr(self.main_window, 'img_settings', None),
@@ -4072,7 +4072,7 @@ class IMGFactoryGUILayout:
             menu = QMenu(self.directory_files_list)
             file_ext = os.path.splitext(file_path)[1].lower()
 
-            # ── COL Workshop ─────────────────────────────────────────────
+            #    COL Workshop                                              
             if file_ext == '.col':
                 open_action = menu.addAction("Open in COL Workshop")
                 try:
@@ -4083,13 +4083,13 @@ class IMGFactoryGUILayout:
                 open_action.triggered.connect(lambda: self._open_file_in_col_workshop(file_path))
                 menu.addSeparator()
 
-            # ── IDE Editor ───────────────────────────────────────────────
+            #    IDE Editor                                                
             if file_ext == '.ide':
                 ide_action = menu.addAction("Open in IDE Editor")
                 ide_action.triggered.connect(lambda: self._open_file_in_ide_editor(file_path))
                 menu.addSeparator()
 
-            # ── Generic text editor for editable types ───────────────────
+            #    Generic text editor for editable types                    
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
                               '.ini', '.zon', '.cut', '.fxt')
             if file_ext in _TEXT_EDITABLE:

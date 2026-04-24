@@ -269,7 +269,7 @@ class ToolTaskbar(QWidget):  # vers 2
         # Start hidden — shown as soon as the first tool registers
         self.setVisible(False)
 
-    # ── helpers ───────────────────────────────────────────────────────────────
+    #  helpers  
 
     def _make_btn_style(self, active: bool) -> str:
         """Build button stylesheet purely from stored theme attrs.
@@ -506,21 +506,21 @@ class ToolTaskbar(QWidget):  # vers 2
             a.triggered.connect(lambda _=False: fn())
             menu.addAction(a)
 
-        # ── DAT: Close, Show ──────────────────────────────────────────────────
+        #  DAT: Close, Show
         if key == "dat":
             _act(f"Show  {lbl}", lambda k=key: self._open_tool(k))
             menu.addMenu(self._show_submenu(key, menu))
             menu.addSeparator()
             _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        # ── Dir tree: Close, Show ─────────────────────────────────────────────
+        #  Dir tree: Close, Show  
         elif key == "dirtree":
             _act(f"Show  {lbl}", lambda k=key: self._open_tool(k))
             menu.addMenu(self._show_submenu(key, menu))
             menu.addSeparator()
             _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        # ── TXD: Open, Save, Close, Show ─────────────────────────────────────
+        #  TXD: Open, Save, Close, Show  
         elif key == "txd":
             _act("Open TXD Workshop", lambda: getattr(mw,'open_txd_workshop_docked',lambda:None)())
             _act("Save", lambda: self._tool_action(key, 'save'))
@@ -528,7 +528,7 @@ class ToolTaskbar(QWidget):  # vers 2
             menu.addSeparator()
             _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        # ── COL: Open in COL Workshop (from selection), Save, Show, Close ──────
+        #  COL: Open in COL Workshop (from selection), Save, Show, Close
         elif key == "col":
             _act("Open in COL Workshop", lambda: self._col_open_from_selection())
             _act("Save", lambda: self._tool_action(key, 'save'))
@@ -536,7 +536,7 @@ class ToolTaskbar(QWidget):  # vers 2
             menu.addSeparator()
             _act(f"Close  {lbl}", lambda k=key: self._close_tool(k))
 
-        # ── Default: generic Open, Show, Close ───────────────────────────────
+        #  Default: generic Open, Show, Close  
         else:
             _act(f"Open  {lbl}", lambda k=key: self._open_tool(k))
             menu.addMenu(self._show_submenu(key, menu))
@@ -584,7 +584,7 @@ class ToolTaskbar(QWidget):  # vers 2
                     except RuntimeError:
                         continue
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    #  Public API
 
     def register(self, key: str, label: str, icon,
                  target, tooltip: str = "") -> None:
@@ -1048,7 +1048,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
         # ==================== ACTION BUTTONS ====================
 
-        # ── Tool Taskbar — embedded inline between title and undo ──────────────
+        #  Tool Taskbar — embedded inline between title and undo
         # Populated by register_tool() whenever a workshop opens.
         # Hidden until first tool registers; sits flush in the titlebar row.
         # ToolTaskbar is defined earlier in this file — instantiate directly.
@@ -1638,7 +1638,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
             from apps.methods.rw_versions import get_rw_version_name, is_valid_rw_version
 
-            # ── collect stats ────────────────────────────────────────
+            #  collect stats
             def _collect(entries):
                 """Return (rows, version_summary) from current entry list."""
                 rows = []
@@ -1662,7 +1662,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
                     version_counts[label] = version_counts.get(label, 0) + 1
                 return rows, version_counts
 
-            # ── build dialog ─────────────────────────────────────────
+            #  build dialog  
             dlg = QDialog(mw)
             dlg.setWindowTitle("RW Version Scan")
             dlg.setMinimumSize(700, 480)
@@ -2123,11 +2123,11 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 <p>A .txd file is a RenderWare archive containing one or more native textures.</p>
 <pre>
 RwTexDictionary (0x0016) chunk header [12 bytes]
-  ├── Struct (0x0001) — texture count [2 bytes] + device id [2 bytes]
-  └── RwTexNative (0x0015) × N
-        ├── Struct (0x0001) — platform id, filter, wrapping, name, mask
-        ├── [Platform-specific texture data]
-        └── RwExtension (0x001B)
+  ├ Struct (0x0001) — texture count [2 bytes] + device id [2 bytes]
+  └ RwTexNative (0x0015) × N
+        ├ Struct (0x0001) — platform id, filter, wrapping, name, mask
+        ├ [Platform-specific texture data]
+        └ RwExtension (0x001B)
 </pre>
 
 <h3>Platform IDs</h3>
@@ -2376,7 +2376,7 @@ RwTexDictionary (0x0016) chunk header [12 bytes]
 </table>
 """
 
-        # ── Radar Formats tab ─────────────────────────────────────────────────
+        #  Radar Formats tab  
         radar_html = css + f"""
 <body>
 <h2>Radar Map Format Reference</h2>
@@ -3286,6 +3286,6 @@ __all__ = [
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#  
 # Tool Taskbar
-# ─────────────────────────────────────────────────────────────────────────────
+#  

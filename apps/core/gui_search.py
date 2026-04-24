@@ -446,7 +446,7 @@ class ASearchDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(6)
 
-        # ── Search row with Find button ────────────────────────────────────
+        #    Search row with Find button                                     
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Search:"))
         self.search_input = QLineEdit()
@@ -461,7 +461,7 @@ class ASearchDialog(QDialog):
         row1.addWidget(self.find_btn)
         layout.addLayout(row1)
 
-        # ── Extension/type filter ──────────────────────────────────────────
+        #    Extension/type filter                                           
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Type:"))
         self.ext_combo = QComboBox()
@@ -469,7 +469,7 @@ class ASearchDialog(QDialog):
         row2.addWidget(self.ext_combo, 1)
         layout.addLayout(row2)
 
-        # ── Options ────────────────────────────────────────────────────────
+        #    Options                                                         
         opt_row = QHBoxLayout()
         self.case_chk  = QCheckBox("Case sensitive")
         self.regex_chk = QCheckBox("Regex")
@@ -478,12 +478,12 @@ class ASearchDialog(QDialog):
         opt_row.addStretch()
         layout.addLayout(opt_row)
 
-        # ── Results summary ────────────────────────────────────────────────
+        #    Results summary                                                 
         self.result_lbl = QLabel("Enter search text or select type and click Find")
         self.result_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
         layout.addWidget(self.result_lbl)
 
-        # ── Nav + action buttons ───────────────────────────────────────────
+        #    Nav + action buttons                                            
         btn_row = QHBoxLayout()
         self.prev_btn  = QPushButton("◀ Prev")
         self.next_btn  = QPushButton("Next ▶")
@@ -501,7 +501,7 @@ class ASearchDialog(QDialog):
 
         self.search_input.setFocus()
 
-    # ── Filter logic ───────────────────────────────────────────────────────
+    #    Filter logic                                                        
 
     def _on_text_changed(self, text):
         self._apply_filter()

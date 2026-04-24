@@ -5986,7 +5986,7 @@ class SettingsDialog(QDialog): #vers 15
         root = QVBoxLayout(tab)
         root.setSpacing(6)
 
-        # ── Size controls ─────────────────────────────────────────────────
+        #    Size controls                                                  
         size_group = QGroupBox("Button & Titlebar Sizes")
         szl = QGridLayout(size_group)
         szl.setColumnStretch(1, 1)
@@ -7410,7 +7410,7 @@ Ready for operations..."""
 
         sub = QTabWidget()
 
-        # ── Image ─────────────────────────────────────────────────────────
+        #    Image                                                          
         img_ctrl = QWidget()
         il = QVBoxLayout(img_ctrl)
         il.setSpacing(8)
@@ -7484,7 +7484,7 @@ Ready for operations..."""
         img_hl.addWidget(img_right, 45)
         sub.addTab(img_w, "Image")
 
-        # ── Transparency ──────────────────────────────────────────────────
+        #    Transparency                                                   
         trans_ctrl = QWidget()
         tl = QVBoxLayout(trans_ctrl); tl.setSpacing(6)
 
@@ -7530,7 +7530,7 @@ Ready for operations..."""
         trans_hl.addWidget(trans_right, 45)
         sub.addTab(trans_w, "Transparency")
 
-        # ── Gadgets ───────────────────────────────────────────────────────
+        #    Gadgets                                                        
         gadgets_inner = self._create_advanced_gadgets_tab()
         sub.addTab(gadgets_inner, "Gadgets")
 

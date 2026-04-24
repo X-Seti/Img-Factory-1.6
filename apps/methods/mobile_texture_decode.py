@@ -22,7 +22,7 @@ from typing import Tuple, Optional
 # to_pil_image
 
 
-# ── ETC1 decoder ──────────────────────────────────────────────────────────────
+#    ETC1 decoder                                                               
 
 # ETC1 modifier tables (per spec)
 _ETC1_MODIFIER = [
@@ -150,7 +150,7 @@ def decode_etc1(data: bytes, width: int, height: int) -> bytes:
     return bytes(rgba)
 
 
-# ── Simple format decoders ─────────────────────────────────────────────────────
+#    Simple format decoders                                                      
 
 def decode_rgb565(data: bytes, width: int, height: int) -> bytes:
     """RGB565 → RGBA8888."""
@@ -199,7 +199,7 @@ def decode_rgba8888(data: bytes, width: int, height: int) -> bytes:
     return (data + b'\x00' * size)[:size]
 
 
-# ── Dispatch ───────────────────────────────────────────────────────────────────
+#    Dispatch                                                                    
 
 def decode_mobile_texture(tex) -> Optional[bytes]:
     """

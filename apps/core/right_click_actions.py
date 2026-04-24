@@ -109,7 +109,7 @@ def show_context_menu(main_window, position): #vers 6
 
         has_selection = bool(table.selectedItems())
 
-        # ── 1. FILE-TYPE SUBMENUS ─────────────────────────────────────
+        #    1. FILE-TYPE SUBMENUS                                      
         if entry_type == 'DFF':
             from apps.methods.imgfactory_svg_icons import get_txd_workshop_icon
             dff_menu = menu.addMenu("DFF Model")
@@ -164,7 +164,7 @@ def show_context_menu(main_window, position): #vers 6
             ide_menu.addAction(a)
             menu.addSeparator()
 
-        # ── 2. EXTRACT / EXPORT ───────────────────────────────────────
+        #    2. EXTRACT / EXPORT                                        
         if has_selection and hasattr(main_window, 'extract_selected_files'):
             a = QAction(icons.open_icon(color=icon_color), "Extract Selected", menu_parent)
             a.triggered.connect(main_window.extract_selected_files)
@@ -182,7 +182,7 @@ def show_context_menu(main_window, position): #vers 6
 
         menu.addSeparator()
 
-        # ── 3. ENTRY OPERATIONS ───────────────────────────────────────
+        #    3. ENTRY OPERATIONS                                        
         if has_selection and hasattr(main_window, 'rename_entry'):
             a = QAction(icons.edit_icon(color=icon_color), "Rename", menu_parent)
             a.setShortcut("F2")
@@ -218,7 +218,7 @@ def show_context_menu(main_window, position): #vers 6
 
         menu.addSeparator()
 
-        # ── 4. CLIPBOARD ─────────────────────────────────────────────
+        #    4. CLIPBOARD                                              
         copy_menu = menu.addMenu("Copy")
         copy_menu.setIcon(icons.copy_icon(color=icon_color))
         a = QAction(f"Cell ({column_name})", menu_parent)
@@ -240,7 +240,7 @@ def show_context_menu(main_window, position): #vers 6
 
         menu.addSeparator()
 
-        # ── 5. TOOLS ─────────────────────────────────────────────────
+        #    5. TOOLS                                                  
         if has_selection and hasattr(main_window, 'analyze_selected_file'):
             a = QAction(icons.rw_scan_icon(color=icon_color), "Analyze File", menu_parent)
             a.triggered.connect(main_window.analyze_selected_file)

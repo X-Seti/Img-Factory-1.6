@@ -2941,7 +2941,7 @@ class SVGIconFactory: #vers 7
 
 #Shortform
 
-    # ── Texture tool icons ────────────────────────────────────────────────────
+    #    Texture tool icons                                                     
 
     @staticmethod
     def knob_icon(size: int = 20, color: str = None) -> 'QIcon':
@@ -3972,7 +3972,7 @@ def get_layout_w2top_icon(size: int = 24, color: str = None) -> QIcon: #vers 1
     return QIcon(pixmap)
 
 
-# ── NEW BUTTON ICONS ──────────────────────────────────────────────────────────
+#    NEW BUTTON ICONS                                                           
 
 def get_merge_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 2
     """Two files merging - handdrawn outline"""
@@ -4368,9 +4368,9 @@ def get_ide_editor_icon(size: int = 24, color: str = None, bg_color: str = None)
     </svg>''', size, color, bg_color)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 #  DP5 Workshop icons — paint editor suite
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 def get_dp5_workshop_icon(size: int = 24, color: str = None, bg_color: str = None) -> QIcon: #vers 4
     """DP5 Workshop — colourful paint palette icon, visible on any background."""

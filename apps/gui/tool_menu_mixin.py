@@ -20,7 +20,7 @@ from PyQt6.QtCore import Qt
 class ToolMenuMixin:
     """Mixin providing topbar/dropdown menu orientation for dockable tools."""
 
-    # ── Subclass must override these ──────────────────────────────────────
+    #    Subclass must override these                                       
 
     def get_menu_title(self) -> str: #vers 1
         """Short label shown in imgfactory titlebar button, e.g. 'COL'."""
@@ -33,7 +33,7 @@ class ToolMenuMixin:
         """
         pass
 
-    # ── Titlebar button registration ──────────────────────────────────────
+    #    Titlebar button registration                                       
 
     def _register_titlebar_tool_btn(self): #vers 1
         """Register this tool's short label + popup into the imgfactory
@@ -70,7 +70,7 @@ class ToolMenuMixin:
         if gl and hasattr(gl, 'unregister_tool_menu_btn'):
             gl.unregister_tool_menu_btn()
 
-    # ── Internal helpers ──────────────────────────────────────────────────
+    #    Internal helpers                                                   
 
     def _get_tool_menu_style(self) -> str: #vers 1
         """Read menu_style from tool's settings. Override if settings key differs."""

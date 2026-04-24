@@ -4,20 +4,20 @@
 
 ```
 themes/
-├── img_factory.json          # Professional IMG Factory theme
-├── img_factory_dark.json     # Dark mode version
-├── lcars.json                # Star Trek LCARS theme
-├── amiga_workbench.json      # Classic Amiga 3.1
-├── amiga_mui.json            # Amiga MUI theme
-├── deep_purple.json          # Purple space theme
-├── tea_and_toast.json        # Cozy morning theme
-├── matrix.json               # Matrix green theme
-├── knight_rider.json         # KITT dashboard theme
-├── classic_dark.json         # Professional dark
-├── light_professional.json   # Clean light theme
-└── exported_themes/          # User-exported themes
-    ├── custom_theme1.json
-    └── my_theme.json
+├   img_factory.json          # Professional IMG Factory theme
+├   img_factory_dark.json     # Dark mode version
+├   lcars.json                # Star Trek LCARS theme
+├   amiga_workbench.json      # Classic Amiga 3.1
+├   amiga_mui.json            # Amiga MUI theme
+├   deep_purple.json          # Purple space theme
+├   tea_and_toast.json        # Cozy morning theme
+├   matrix.json               # Matrix green theme
+├   knight_rider.json         # KITT dashboard theme
+├   classic_dark.json         # Professional dark
+├   light_professional.json   # Clean light theme
+└   exported_themes/          # User-exported themes
+    ├   custom_theme1.json
+    └   my_theme.json
 ```
 
 ## Theme File Format:

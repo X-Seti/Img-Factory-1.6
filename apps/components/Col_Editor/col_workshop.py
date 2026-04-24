@@ -104,7 +104,7 @@ class COL3DViewport(QWidget): #vers 2
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
 
-    # ── public API ────────────────────────────────────────────────────────
+    #    public API                                                         
     def set_current_file(self, col_file): pass
     def set_view_options(self, **kw):     pass
 
@@ -174,7 +174,7 @@ class COL3DViewport(QWidget): #vers 2
         self._gizmo_mode = mode; self._gizmo_drag = None; self.update()
 
 
-    # ── projection (self-contained, no workshop needed) ──────────────────
+    #    projection (self-contained, no workshop needed)                   
     def _proj(self, x, y, z):
         """Project 3D world point → 2D screen pixel using current view state."""
         import math
@@ -227,7 +227,7 @@ class COL3DViewport(QWidget): #vers 2
         return px*scale + ox, py*scale + oy
 
 
-    # ── gizmo hit test ───────────────────────────────────────────────────
+    #    gizmo hit test                                                    
     def _gizmo_centre(self):
         """Screen coords of gizmo origin (model centroid)."""
         model = self._model
@@ -307,7 +307,7 @@ class COL3DViewport(QWidget): #vers 2
         return None, None
 
 
-    # ── mouse ────────────────────────────────────────────────────────────
+    #    mouse                                                             
     def mousePressEvent(self, event):
         mx, my = event.position().x(), event.position().y()
         W, H = self.width(), self.height()
@@ -468,7 +468,7 @@ class COL3DViewport(QWidget): #vers 2
     def mouseMoveEvent(self, event):
         import math
 
-        # ── Gizmo drag ───────────────────────────────────────────────────
+        #    Gizmo drag                                                    
         if self._gizmo_drag and (event.buttons() & Qt.MouseButton.LeftButton):
             d  = event.position() - self._gizmo_start
             self._gizmo_start = event.position()
@@ -557,8 +557,8 @@ class COL3DViewport(QWidget): #vers 2
             self.update()
             return
 
-        # ── Pan (left drag on background) ────────────────────────────────
-        # ── Drag-select (LMB held after face click — paint-brush selection) ──
+        #    Pan (left drag on background)                                 
+        #    Drag-select (LMB held after face click — paint-brush selection)   
         if self._drag_selecting and (event.buttons() & Qt.MouseButton.LeftButton):
             mx2, my2 = event.position().x(), event.position().y()
             fi, face = self._pick_face(mx2, my2)
@@ -582,14 +582,14 @@ class COL3DViewport(QWidget): #vers 2
             self._pan_x += d.x(); self._pan_y += d.y()
             self._left_drag = event.position(); self.update()
 
-        # ── Free rotate (right drag) ──────────────────────────────────────
+        #    Free rotate (right drag)                                       
         if self._right_drag and (event.buttons() & Qt.MouseButton.RightButton):
             d = event.position() - self._right_drag
             self._yaw   = (self._yaw + d.x() * 0.4) % 360
             self._pitch = max(-89.0, min(89.0, self._pitch + d.y() * 0.4))
             self._right_drag = event.position(); self.update()
 
-        # ── Free rotate (middle drag) ─────────────────────────────────────
+        #    Free rotate (middle drag)                                      
         if self._mid_drag and (event.buttons() & Qt.MouseButton.MiddleButton):
             d = event.position() - self._mid_drag
             self._yaw   = (self._yaw + d.x() * 0.4) % 360
@@ -673,7 +673,7 @@ class COL3DViewport(QWidget): #vers 2
         self._yaw, self._pitch = float(yaw), float(pitch); self.update()
 
 
-    # ── paint ─────────────────────────────────────────────────────────────
+    #    paint                                                              
     def paintEvent(self, event):
         """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
         from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush,
@@ -713,7 +713,7 @@ class COL3DViewport(QWidget): #vers 2
         spheres = getattr(model, 'spheres', [])
         bounds  = getattr(model, 'bounds',  None)
 
-        # ── Extent from ALL geometry (verts + boxes + spheres) ───────────
+        #    Extent from ALL geometry (verts + boxes + spheres)            
         all_pts = [(v.x, v.y, v.z) for v in verts]
         for box in boxes:
             mn = getattr(box,'min_point', getattr(box,'min', None))
@@ -734,7 +734,7 @@ class COL3DViewport(QWidget): #vers 2
         else:
             extent = 5.0
 
-        # ── Reference grid (XY plane, Z=0) ───────────────────────────────
+        #    Reference grid (XY plane, Z=0)                                
         raw_step = extent / 4.0
         mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
         step = round(raw_step / mag) * mag; step = max(step, 0.01)
@@ -751,7 +751,7 @@ class COL3DViewport(QWidget): #vers 2
             p.drawLine(int(x0), int(y0), int(x1), int(y1))
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        # ── Material colours — from col_materials group palette ───────────
+        #    Material colours — from col_materials group palette            
         try:
             from apps.methods.col_materials import get_material_qcolor, COLGame
             _game = COLGame.VC if getattr(getattr(model,'version',None),'value',3)==1 else COLGame.SA
@@ -762,7 +762,7 @@ class COL3DViewport(QWidget): #vers 2
             def mat_col(mat_id):
                 return QColor(120,120,120)
 
-        # ── Mesh faces ────────────────────────────────────────────────────
+        #    Mesh faces                                                     
         rs = self._render_style  # 'wireframe' | 'semi' | 'solid'
         if self._show_mesh and verts and faces:
             for face_idx, face in enumerate(faces):
@@ -793,7 +793,7 @@ class COL3DViewport(QWidget): #vers 2
                     p.setPen(QPen(QColor(100,180,100),1))
                 p.drawPolygon(QPolygonF(pts))
 
-        # ── Boxes — draw all 12 edges of AABB ─────────────────────────────
+        #    Boxes — draw all 12 edges of AABB                              
         if self._show_boxes:
             p.setPen(QPen(QColor(220,180,50),1.5))
             p.setBrush(QBrush(QColor(220,180,50,30)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
@@ -812,7 +812,7 @@ class COL3DViewport(QWidget): #vers 2
                     ax,ay=sc[a2]; bx,by=sc[b2]
                     p.drawLine(int(ax),int(ay),int(bx),int(by))
 
-        # ── Spheres — draw 3 projected rings (equator + 2 meridians) ──────
+        #    Spheres — draw 3 projected rings (equator + 2 meridians)       
         if self._show_spheres:
             p.setPen(QPen(QColor(80,200,220),1.5))
             p.setBrush(QBrush(QColor(80,200,220,25)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
@@ -836,7 +836,7 @@ class COL3DViewport(QWidget): #vers 2
                     for i in range(len(pts)-1):
                         p.drawLine(pts[i],pts[i+1])
 
-        # ── Bounding box (model.bounds) ───────────────────────────────────
+        #    Bounding box (model.bounds)                                    
         if bounds:
             mn_obj=getattr(bounds,'min',None); mx_obj=getattr(bounds,'max',None)
             if mn_obj and mx_obj:
@@ -864,7 +864,7 @@ class COL3DViewport(QWidget): #vers 2
                 p.setPen(QPen(QColor(180,100,220,120),1,Qt.PenStyle.DotLine))
                 for i in range(len(pts)-1): p.drawLine(pts[i],pts[i+1])
 
-        # ── Gizmo at model centroid ───────────────────────────────────────
+        #    Gizmo at model centroid                                        
         if all_pts:
             cx3=sum(pt[0] for pt in all_pts)/len(all_pts)
             cy3=sum(pt[1] for pt in all_pts)/len(all_pts)
@@ -915,10 +915,10 @@ class COL3DViewport(QWidget): #vers 2
         p.setBrush(QBrush(QColor(230,230,230))); p.setPen(QPen(QColor(160,160,160),1))
         p.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
-        # ── Top-right overlay — normal mode: Move/Rotate + Render chips ──
+        #    Top-right overlay — normal mode: Move/Rotate + Render chips   
         #                         paint mode:  material + tool chips
         if self._paint_mode:
-            # ── Tunable layout constants ────────────────────────────────
+            #    Tunable layout constants                                 
             _CHIP_H   = 26   # height of each chip row  (px)
             _BTN_W    = 32   # width  of each tool button
             _BTN_GAP  = 3    # gap between buttons
@@ -927,7 +927,7 @@ class COL3DViewport(QWidget): #vers 2
             _MARGIN   = 8    # right margin from viewport edge
             _ROW1_Y   = 4    # y of material chip
             _ROW2_Y   = _ROW1_Y + _CHIP_H + 2   # y of tool buttons row
-            # ────────────────────────────────────────────────────────────
+            #                                                             
 
             from PyQt6.QtCore import QRect
             mat_id = self._paint_material
@@ -1052,7 +1052,7 @@ class COL3DViewport(QWidget): #vers 2
             p.setPen(mode_col); p.setFont(QFont('Arial',7))
             p.drawText(W-66,41,f"[V] {mode_lbl}")
 
-        # ── HUD ───────────────────────────────────────────────────────────
+        #    HUD                                                            
         p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,200))
         p.drawText(6,14,getattr(model,'name','') or '')
         y2=H-54
@@ -1133,7 +1133,7 @@ class COL3DViewport(QWidget): #vers 2
             mat_name = f"Material {mat_id}"
             hex_col  = "808080"
 
-        # ── Build menu ───────────────────────────────────────────────────
+        #    Build menu                                                    
         menu = QMenu(self)
 
         # Header — material info with colour swatch
@@ -1174,7 +1174,7 @@ class COL3DViewport(QWidget): #vers 2
         # Open full paint editor
         act_paint = menu.addAction("Paint — open material editor…")
 
-        # ── Execute ──────────────────────────────────────────────────────
+        #    Execute                                                       
         chosen = menu.exec(global_pos)
         if chosen is None:
             return
@@ -1470,7 +1470,7 @@ class _ColListDelegate(QStyledItemDelegate): #vers 1
 class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
     """COL Workshop - Main window"""
 
-    # ── ToolMenuMixin implementation ─────────────────────────────────────
+    #    ToolMenuMixin implementation                                      
 
     def get_menu_title(self) -> str: #vers 1
         """Short label for imgfactory titlebar button."""
@@ -1696,7 +1696,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         _safe('rotate_ccw_btn', pw.rotate_ccw)
 
 
-    # ── Stub implementations (log until fully implemented) ──────────────────
+    #    Stub implementations (log until fully implemented)                   
 
     def _create_new_model(self): #vers 1
         from PyQt6.QtWidgets import QInputDialog
@@ -2524,7 +2524,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         dlg.exec()
 
 
-    # ── Method aliases — drop Qt signal args (*_, **__) before forwarding ──
+    #    Method aliases — drop Qt signal args (*_, **__) before forwarding   
     # These are called from Qt signals that pass e.g. bool(checked) as arg.
     # Target methods take only self, so we must not forward the signal args.
     def _compress_surface(self, *_, **__): return self._compress_col()
@@ -4731,7 +4731,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(4)
 
-        # ── Header row: title + [T] view-toggle ──────────────────────────
+        #    Header row: title + [T] view-toggle                           
         hdr_row = QHBoxLayout()
         self._col_models_header = QLabel("COL Models")
         self._col_models_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
@@ -4749,7 +4749,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         hdr_row.addWidget(self.col_view_toggle_btn)
         layout.addLayout(hdr_row)
 
-        # ── Mini toolbar: Open / Save / Extract / Undo ───────────────────
+        #    Mini toolbar: Open / Save / Extract / Undo                    
         icon_color = self._get_icon_color()
         self._middle_btn_row = QFrame()
         btn_layout = QHBoxLayout(self._middle_btn_row)
@@ -4795,7 +4795,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.addWidget(self._middle_btn_row)
         self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
 
-        # ── Model table (detail view) ────────────────────────────────────
+        #    Model table (detail view)                                     
         self.collision_list = QTableWidget()
 
         class _GuiLayout:
@@ -4821,7 +4821,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.collision_list.setVisible(False)  # hidden at startup — compact view is default
         layout.addWidget(self.collision_list)
 
-        # ── Compact list (thumbnail + name/version/counts, single row) ───
+        #    Compact list (thumbnail + name/version/counts, single row)    
         self.col_compact_list = QTableWidget()
         self.col_compact_list.setColumnCount(2)
         self.col_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
@@ -4858,12 +4858,12 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(3)
 
-        # ── Top toolbar row: icons fill full width above viewport ─────────
+        #    Top toolbar row: icons fill full width above viewport          
         # _create_transform_icon_panel returns the DockableToolbar directly
         left_toolbar = self._create_transform_icon_panel()
         main_layout.addWidget(left_toolbar, stretch=0)
 
-        # ── Preview row: viewport + right dockable toolbar ────────────────
+        #    Preview row: viewport + right dockable toolbar                 
         preview_row = QHBoxLayout()
         preview_row.setSpacing(3)
 
@@ -4922,7 +4922,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         info_layout.addLayout(name_layout)
 
         # === LINES 2 & 3: Build BOTH rows, show/hide based on panel width ===
-        # ── Text+label row (wide) ────────────────────────────────────────
+        #    Text+label row (wide)                                         
         self._bottom_text_row = QWidget()
         tr_lay = QVBoxLayout(self._bottom_text_row)
         tr_lay.setContentsMargins(0, 0, 0, 0)
@@ -4979,7 +4979,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         tr_lay.addLayout(shd_lay)
         info_layout.addWidget(self._bottom_text_row)
 
-        # ── Icon-only row (narrow) ─────────────────────────────────────────
+        #    Icon-only row (narrow)                                          
         self._bottom_icon_row = QWidget()
         ir_lay = QHBoxLayout(self._bottom_icon_row)
         ir_lay.setContentsMargins(0, 0, 0, 0)
@@ -5012,7 +5012,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         info_layout.addWidget(self._bottom_icon_row)
         self._bottom_icon_row.setVisible(False)
 
-        # ── Paint mode row (hidden until paint mode active) ───────────────
+        #    Paint mode row (hidden until paint mode active)                
         main_layout.addWidget(info_group, stretch=0)
         return panel
 
@@ -6571,7 +6571,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             print(f"Undo error: {e}")
 
-    # ── Selection helpers ─────────────────────────────────────────────────
+    #    Selection helpers                                                  
 
     def _select_all_models(self): #vers 1
         """Select all entries in the active list (Ctrl+A)."""
@@ -6597,7 +6597,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                     lw.model().index(lw.rowCount()-1, lw.columnCount()-1))
         sel_model.select(full, QItemSelectionModel.SelectionFlag.Toggle)
 
-    # ── Sort ──────────────────────────────────────────────────────────────
+    #    Sort                                                               
 
     def _sort_models(self, key: str = 'name'): #vers 1
         """Sort collision models in place by key: 'name','version','faces','boxes','spheres','vertices'."""
@@ -6642,7 +6642,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._populate_compact_col_list()
         self._set_status(f"Sorted by {key} (descending).")
 
-    # ── Pin / lock entries from editing ───────────────────────────────────
+    #    Pin / lock entries from editing                                    
 
     def _toggle_pin_selected(self): #vers 1
         """Toggle pin (edit-lock) on selected models. Pinned models can't be deleted/renamed."""
@@ -6679,7 +6679,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Return True if model at row is pinned."""
         return row in getattr(self, '_pinned_models', set())
 
-    # ── IDE-linked operations ─────────────────────────────────────────────
+    #    IDE-linked operations                                              
 
     def _import_via_ide(self): #vers 1
         """Import COL entries referenced by the currently loaded IDE file."""
@@ -7448,7 +7448,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         from PyQt6.QtCore import QPointF
         import math
 
-        # ── Use viewport's projection if available ────────────────────────
+        #    Use viewport's projection if available                         
         if viewport is not None:
             vp = viewport
         else:
@@ -7472,7 +7472,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             def to_screen(x,y,z):
                 px,py=proj3(x,y,z); return px*scale+ox, py*scale+oy
 
-        # ── Model geometry extent for grid sizing ─────────────────────────
+        #    Model geometry extent for grid sizing                          
         verts = getattr(model, 'vertices', [])
         if verts:
             xs=[v.x for v in verts]; ys=[v.y for v in verts]; zs=[v.z for v in verts]
@@ -7480,7 +7480,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             extent = 5.0
 
-        # ── Reference grid (XY plane Z=0) ────────────────────────────────
+        #    Reference grid (XY plane Z=0)                                 
         raw_step = extent / 4.0
         mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
         step = round(raw_step / mag) * mag; step = max(step, 0.01)
@@ -7498,7 +7498,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             painter.drawLine(int(x0),int(y0),int(x1),int(y1))
         painter.setRenderHint(painter.renderHints().__class__.Antialiasing, True)
 
-        # ── Model geometry (uses viewport's to_screen — zoom/pan consistent) ──
+        #    Model geometry (uses viewport's to_screen — zoom/pan consistent)   
         from PyQt6.QtGui import QPolygonF as _PF
         from PyQt6.QtCore import QPointF as _P, QRectF as _R
 
@@ -7547,7 +7547,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 sx,sy=to_screen(cx,cy,cz)
                 painter.drawEllipse(_R(sx-r,sy-r,r*2 or 2,r*2 or 2))
 
-        # ── Gizmo at model centroid ───────────────────────────────────────
+        #    Gizmo at model centroid                                        
         if verts:
             cx3=sum(v.x for v in verts)/len(verts)
             cy3=sum(v.y for v in verts)/len(verts)
@@ -7607,7 +7607,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         painter.setBrush(QBrush(QColor(230,230,230))); painter.setPen(QPen(QColor(160,160,160),1))
         painter.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
-        # ── Toggle button (top-right) ─────────────────────────────────────
+        #    Toggle button (top-right)                                      
         bx,by,bw,bh = W-70,4,66,22
         painter.setBrush(QBrush(QColor(40,44,62)))
         painter.setPen(QPen(QColor(80,90,130),1))
@@ -7616,7 +7616,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         lbl = '↕ Move [G]' if gizmo_mode=='translate' else '↻ Rotate [R]'
         painter.drawText(bx+4,by+15,lbl)
 
-        # ── HUD ───────────────────────────────────────────────────────────
+        #    HUD                                                            
         painter.setFont(QFont('Arial',8)); painter.setPen(QColor(200,200,200))
         painter.drawText(6,14,getattr(model,'name',''))
         y2=H-54
@@ -7954,7 +7954,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         menu = QMenu(self)
 
-        # ── Thumbnail view submenu (always shown) ─────────────────────────
+        #    Thumbnail view submenu (always shown)                          
         view_menu = menu.addMenu("Thumbnail View")
         axes = [
             ("Top  (XY — Z up)",    0,   0),
@@ -7976,7 +7976,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if model is not None:
             menu.addSeparator()
 
-            # ── Info ──────────────────────────────────────────────────────
+            #    Info                                                       
             details_action = menu.addAction("Show Details")
             details_action.triggered.connect(lambda: self._show_model_details(model, row))
 
@@ -7985,13 +7985,13 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             menu.addSeparator()
 
-            # ── Rename ────────────────────────────────────────────────────
+            #    Rename                                                     
             rename_action = menu.addAction("Rename Model...")
             rename_action.triggered.connect(lambda: self._rename_col_model(model, row))
 
             menu.addSeparator()
 
-            # ── Export / Replace ──────────────────────────────────────────
+            #    Export / Replace                                           
             export_action = menu.addAction("Export Model as COL...")
             export_action.triggered.connect(lambda: self._export_col_model(model, row))
 
@@ -8000,7 +8000,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             menu.addSeparator()
 
-            # ── Pin (protect from editing) ─────────────────────────────
+            #    Pin (protect from editing)                              
             is_pinned = self._is_model_pinned(row)
             pin_action = menu.addAction(
                 "📌 Unpin (allow editing)" if is_pinned else "📌 Pin (protect from editing)")
@@ -8008,14 +8008,14 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         menu.addSeparator()
 
-        # ── Select / Sort ──────────────────────────────────────────────
+        #    Select / Sort                                               
         menu.addAction("Select All  [Ctrl+A]",  self._select_all_models)
         menu.addAction("Invert Selection  [Ctrl+I]", self._invert_selection)
         menu.addAction("Sort…",                 self._show_sort_menu)
 
         menu.addSeparator()
 
-        # ── IDE-linked operations ──────────────────────────────────────
+        #    IDE-linked operations                                       
         ide_menu = menu.addMenu("IDE Operations")
         ide_menu.addAction("Import matched by IDE…",    self._import_via_ide)
         ide_menu.addAction("Export matched by IDE…",    self._export_via_ide)

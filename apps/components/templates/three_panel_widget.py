@@ -5,10 +5,10 @@
 ThreePanelWidget — reusable base class for IMG Factory tools.
 
 Layout (horizontal QSplitter):
-  ┌────────────┬──────────────────┬─────────────────┐
+  ┌            ┬                  ┬                 ┐
   │ Left Panel │  Centre Panel    │  Right Panel    │
   │ (list/nav) │  (main content)  │  (properties)   │
-  └────────────┴──────────────────┴─────────────────┘
+  └            ┴                  ┴                 ┘
 
 In "embedded" mode (main_window provided): all three panels visible.
 In "standalone" mode (no main_window): left panel hidden by default.
@@ -76,7 +76,7 @@ class ThreePanelWidget(QWidget):
         self._build_ui()
         self.panel_ready.emit()
 
-    # ── core layout ──────────────────────────────────────────────────────────
+    #    core layout                                                           
 
     def _build_ui(self): #vers 1
         """Assemble toolbar + splitter + statusbar."""
@@ -137,7 +137,7 @@ class ThreePanelWidget(QWidget):
                 status.setVisible(False)
             root.addWidget(status)
 
-    # ── subclass API ──────────────────────────────────────────────────────────
+    #    subclass API                                                           
 
     def _create_toolbar(self) -> 'QWidget | None': #vers 1
         """Override to return a toolbar widget."""
@@ -166,7 +166,7 @@ class ThreePanelWidget(QWidget):
         """Override to return a status bar widget."""
         return None
 
-    # ── helpers ───────────────────────────────────────────────────────────────
+    #    helpers                                                                
 
     @property
     def splitter(self) -> QSplitter:

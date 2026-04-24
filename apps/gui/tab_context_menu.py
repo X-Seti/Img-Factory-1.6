@@ -83,7 +83,7 @@ def show_tab_context_menu(main_window, position): #vers 1
         rename_action.triggered.connect(lambda: rename_tab(main_window, tab_index))
         menu.addAction(rename_action)
         
-        # ── Type-specific actions ────────────────────────────────
+        #    Type-specific actions                                 
         tab_widget = main_window.main_tab_widget.widget(tab_index)
         file_type  = getattr(tab_widget, 'file_type', None)
         file_path  = getattr(tab_widget, 'file_path', None)

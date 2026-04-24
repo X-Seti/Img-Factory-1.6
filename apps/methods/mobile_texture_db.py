@@ -34,7 +34,7 @@ from typing import List, Dict, Optional, Tuple
 # MobileTextureDB
 
 
-# ── Encoding type constants ────────────────────────────────────────────────────
+#    Encoding type constants                                                     
 # Values confirmed from community research of GTA SA/VC mobile dat files.
 # GTAMods wiki does not list the encoding_type values explicitly.
 
@@ -82,7 +82,7 @@ ENCODING_IS_PVRTC = {
     ENCODING_PVRTC_2RGB, ENCODING_PVRTC_2RGBA,
 }
 
-# ── Platform detection ─────────────────────────────────────────────────────────
+#    Platform detection                                                          
 # File extension of the texture data files determines platform:
 PLATFORM_IOS     = 'pvr'   # iOS   → PVRTC compression
 PLATFORM_ANDROID = 'etc'   # Android → ETC1 compression
@@ -98,7 +98,7 @@ def get_encoding_bpp(encoding_type: int) -> int:
     return ENCODING_BPP.get(encoding_type, 0)
 
 
-# ── Hash algorithm (from GTAMods wiki) ────────────────────────────────────────
+#    Hash algorithm (from GTAMods wiki)                                         
 
 def hash_texture_name(name: str) -> int:
     """
@@ -117,7 +117,7 @@ def hash_texture_name(name: str) -> int:
     return h & 0xFFFF
 
 
-# ── RLE decompression (from GTAMods wiki) ─────────────────────────────────────
+#    RLE decompression (from GTAMods wiki)                                      
 
 def decode_rle(data: bytes, segment_size: int, indicator: int) -> bytes:
     """
@@ -167,7 +167,7 @@ def decode_rle(data: bytes, segment_size: int, indicator: int) -> bytes:
     return bytes(out)
 
 
-# ── Data structures ────────────────────────────────────────────────────────────
+#    Data structures                                                             
 
 class MobileTexture:
     """Single texture entry from a mobile texture database."""
@@ -248,7 +248,7 @@ class MobileTextureDB:
         return None
 
 
-# ── Parsers ────────────────────────────────────────────────────────────────────
+#    Parsers                                                                     
 
 def parse_txt_file(txt_path: str) -> Tuple[Dict, List[Dict]]:
     """
@@ -501,7 +501,7 @@ def parse_dat_file(dat_path: str, txt_entries: List[Dict],
     return textures
 
 
-# ── Top-level loader ───────────────────────────────────────────────────────────
+#    Top-level loader                                                            
 
 def detect_mobile_db(path: str) -> Optional[Tuple[str, str, str]]:
     """
@@ -636,7 +636,7 @@ def load_mobile_texture_db(path: str,
     return db
 
 
-# ── Summary helpers ────────────────────────────────────────────────────────────
+#    Summary helpers                                                             
 
 def describe_mobile_db(db: MobileTextureDB) -> str:
     """Return a one-line summary string for the database."""

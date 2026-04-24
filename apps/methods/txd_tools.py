@@ -25,7 +25,7 @@ from PyQt6.QtGui import QPixmap, QImage, QColor
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 
 
-# ── PIL import ────────────────────────────────────────────────────────────────
+#    PIL import                                                                 
 try:
     from PIL import Image, ImageEnhance, ImageFilter, ImageOps
     _PIL = True
@@ -92,7 +92,7 @@ class ColourAdjustDialog(QDialog):
         main = QHBoxLayout(self)
         main.setSpacing(8)
 
-        # ── Left: sliders ──────────────────────────────────────────────────
+        #    Left: sliders                                                   
         ctrl = QWidget(); cl = QVBoxLayout(ctrl); cl.setSpacing(4)
         cl.setContentsMargins(4, 4, 4, 4)
 
@@ -171,7 +171,7 @@ class ColourAdjustDialog(QDialog):
         ctrl.setFixedWidth(280)
         main.addWidget(ctrl)
 
-        # ── Right: before/after preview ──────────────────────────────────
+        #    Right: before/after preview                                   
         prev = QWidget(); pl = QVBoxLayout(prev); pl.setSpacing(4)
         pl.setContentsMargins(0, 0, 0, 0)
 
@@ -334,7 +334,7 @@ class SeamlessDialog(QDialog):
     def _setup_ui(self):
         main = QHBoxLayout(self)
 
-        # ── Controls ───────────────────────────────────────────────────────
+        #    Controls                                                        
         ctrl = QWidget(); cl = QVBoxLayout(ctrl)
         ctrl.setFixedWidth(260)
 
@@ -385,7 +385,7 @@ class SeamlessDialog(QDialog):
 
         main.addWidget(ctrl)
 
-        # ── Preview panels ─────────────────────────────────────────────────
+        #    Preview panels                                                  
         prev = QWidget(); pl = QVBoxLayout(prev)
         hdr = QHBoxLayout()
         hdr.addWidget(QLabel("Original (tiled)"), 1, Qt.AlignmentFlag.AlignCenter)

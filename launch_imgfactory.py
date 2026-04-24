@@ -20,7 +20,7 @@ import sys
 import os
 from pathlib import Path
 
-# ── WSL / display setup ────────────────────────────────────────────────────────
+#    WSL / display setup                                                         
 def _configure_display():
     """Set Qt platform and DISPLAY for WSL2 and Wayland environments."""
     # Detect WSL
@@ -47,12 +47,12 @@ def _configure_display():
 
 _configure_display()
 
-# ── Path setup ─────────────────────────────────────────────────────────────────
+#    Path setup                                                                  
 root_dir = Path(__file__).parent.resolve()
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-# ── Launch ─────────────────────────────────────────────────────────────────────
+#    Launch                                                                      
 if __name__ == '__main__':
     try:
         from apps.components.Img_Factory import imgfactory

@@ -38,9 +38,9 @@ except ImportError:
 # _LoadThread
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Background load thread
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class _LoadThread(QThread): #vers 1
     progress = pyqtSignal(int, int, str)   # current, total, message
@@ -59,9 +59,9 @@ class _LoadThread(QThread): #vers 1
         self.finished.emit(ok, self.loader.get_summary())
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Main browser widget
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 class TXDDumpDialog(QDialog): #vers 1
     """Dialog for selectively dumping TXD files from game IMG archives.\n
@@ -87,7 +87,7 @@ class TXDDumpDialog(QDialog): #vers 1
         self.setMinimumHeight(420)
         self._build_ui()
 
-    # ── Category row specs ────────────────────────────────────────────────────
+    #    Category row specs                                                     
     _CAT_SPECS = [
         ('all',      'Dump All',           'Every .txd in every IMG — no filtering'),
         ('world',    'World Textures',      'All TXDs except radar / vehicle / ped'),
@@ -106,7 +106,7 @@ class TXDDumpDialog(QDialog): #vers 1
         lay = QVBoxLayout(self)
         lay.setSpacing(6)
 
-        # ── Game info ─────────────────────────────────────────────────────
+        #    Game info                                                      
         game_names = {GTAGame.GTA3:"GTA III (LC)", GTAGame.VC:"Vice City (VC)",
                       GTAGame.SA:"San Andreas (SA)", GTAGame.SOL:"GTA SOL (multi-city)"}
         info = QLabel(f"Game: <b>{game_names.get(game,str(game))}</b>"
@@ -114,11 +114,11 @@ class TXDDumpDialog(QDialog): #vers 1
         info.setTextFormat(Qt.TextFormat.RichText)
         lay.addWidget(info)
 
-        # ── Load saved paths ──────────────────────────────────────────────
+        #    Load saved paths                                               
         saved = self._load_saved_paths()
         _saved_flat = saved.get('_struct_flat', False)
 
-        # ── Per-category rows ─────────────────────────────────────────────
+        #    Per-category rows                                              
         self._cat_rows = {}   # key → {'txd_rb','tex_rb','folder_edit','enabled'}
 
         cat_box = QGroupBox("What to dump")
@@ -207,7 +207,7 @@ class TXDDumpDialog(QDialog): #vers 1
 
         lay.addWidget(cat_box)
 
-        # ── Export formats ────────────────────────────────────────────────
+        #    Export formats                                                 
         fmt_grp = QGroupBox("Export format(s)  — used when Textures is selected")
         fmt_lay = QHBoxLayout(fmt_grp)
         self._fmt_checks = {}
@@ -218,11 +218,11 @@ class TXDDumpDialog(QDialog): #vers 1
             self._fmt_checks[fmt] = cb
         lay.addWidget(fmt_grp)
 
-        # ── Options ───────────────────────────────────────────────────────
+        #    Options                                                        
         opt_grp = QGroupBox("Options")
         opt_lay = QVBoxLayout(opt_grp)
 
-        # ── Texture output structure ──────────────────────────────────────
+        #    Texture output structure                                       
         struct_row = QHBoxLayout()
         struct_row.addWidget(QLabel("Texture folder structure:"))
         from PyQt6.QtWidgets import QButtonGroup as _BG
@@ -254,7 +254,7 @@ class TXDDumpDialog(QDialog): #vers 1
         if _saved_flat:
             self._struct_flat.setChecked(True)
 
-        # ── Default output folder ─────────────────────────────────────────
+        #    Default output folder                                          
         folder_row = QHBoxLayout()
         folder_row.addWidget(QLabel("Default output folder:"))
         self._folder_edit = QLineEdit()
@@ -266,14 +266,14 @@ class TXDDumpDialog(QDialog): #vers 1
         folder_row.addWidget(browse_default)
         lay.addLayout(folder_row)
 
-        # ── Preview ───────────────────────────────────────────────────────
+        #    Preview                                                        
         self._preview_lbl = QLabel("")
         self._preview_lbl.setWordWrap(True)
         self._preview_lbl.setStyleSheet("font-style:italic; color:palette(mid);")
         lay.addWidget(self._preview_lbl)
         self._update_preview()
 
-        # ── Button row ────────────────────────────────────────────────────
+        #    Button row                                                     
         lay.addStretch()
         btn_row = QHBoxLayout()
 
@@ -384,11 +384,11 @@ class TXDDumpDialog(QDialog): #vers 1
                          for obj in objects.values()
                          if obj.txd_name and obj.txd_name.lower() not in ('null', '')}
 
-        # ── Radar stems ────────────────────────────────────────────────────
+        #    Radar stems                                                     
         # radar.*.txd pattern — any txd name starting with "radar"
         radar_stems = {s for s in all_txd_stems if s.startswith('radar')}
 
-        # ── Vehicle stems (cars/weap) ─────────────────────────────────────
+        #    Vehicle stems (cars/weap)                                      
         vehicle_stems = set()
         ped_stems     = set()
 
@@ -426,7 +426,7 @@ class TXDDumpDialog(QDialog): #vers 1
         # Combined for world exclusion
         vehicle_ped_ide_stems = vehicle_stems | ped_stems
 
-        # ── Generic stems (SA/SOL) ─────────────────────────────────────────
+        #    Generic stems (SA/SOL)                                          
         generic_sources = {'generic.ide', 'generics.ide'}
         generic_stems = set()
         for obj in objects.values():
@@ -434,7 +434,7 @@ class TXDDumpDialog(QDialog): #vers 1
             if src_base in generic_sources:
                 generic_stems.add(obj.txd_name.lower())
 
-        # ── Build TXD file name set based on mode ─────────────────────────
+        #    Build TXD file name set based on mode                          
         if mode == 'all':
             # Every TXD stem referenced by any IDE object → add .txd
             return {s + '.txd' for s in all_txd_stems}
@@ -609,7 +609,7 @@ class TXDDumpDialog(QDialog): #vers 1
                         except Exception as e:
                             all_errors.append(f"{entry.name}: {e}"); continue
 
-                        # ── Write raw TXD ────────────────────────────────
+                        #    Write raw TXD                                 
                         raw_out = os.path.join(cat_dir, entry.name)
                         if skip_existing and os.path.exists(raw_out):
                             total_skip += 1
@@ -624,7 +624,7 @@ class TXDDumpDialog(QDialog): #vers 1
 
                         remaining.discard(ename)
 
-                        # ── Decode to image formats ───────────────────────
+                        #    Decode to image formats                        
                         if mode_str != 'textures' or not sel_fmts:
                             continue
                         txd_stem   = os.path.splitext(entry.name)[0]
@@ -709,7 +709,7 @@ class DATBrowserWidget(QWidget): #vers 2
         self._asset_db   = None   # AssetDB for current profile
         self._setup_ui()
 
-    # ── UI construction ────────────────────────────────────────────────────
+    #    UI construction                                                     
 
     def _setup_ui(self): #vers 2
         # Ensure opaque background using panel_bg from theme
@@ -854,7 +854,7 @@ class DATBrowserWidget(QWidget): #vers 2
         ll.setContentsMargins(0, 0, 0, 0)
         ll.setSpacing(2)
 
-        # ── Load Order toolbar ────────────────────────────────────────────
+        #    Load Order toolbar                                             
         tree_hdr = QHBoxLayout()
         tree_hdr.setContentsMargins(2, 2, 2, 0)
         tree_hdr.setSpacing(4)
@@ -966,7 +966,7 @@ class DATBrowserWidget(QWidget): #vers 2
         t.viewport().setAutoFillBackground(True)
         return t
 
-    # ── Responsive toolbar ─────────────────────────────────────────────────
+    #    Responsive toolbar                                                  
     _COMPACT_THRESHOLD = 520   # px width below which text→icon for all buttons
 
     # Button spec: (attr_name, text_label, icon_method, tooltip)
@@ -1115,7 +1115,7 @@ class DATBrowserWidget(QWidget): #vers 2
         lay = QVBoxLayout(dlg)
         lay.setSpacing(10)
 
-        # ── Button display ───────────────────────────────────────────────
+        #    Button display                                                
         disp_box = QGroupBox("Toolbar button display")
         disp_lay = QVBoxLayout(disp_box)
         disp_grp = QButtonGroup(dlg)
@@ -1131,7 +1131,7 @@ class DATBrowserWidget(QWidget): #vers 2
                 rb.setChecked(True)
         lay.addWidget(disp_box)
 
-        # ── Compact threshold ────────────────────────────────────────────
+        #    Compact threshold                                             
         thresh_box = QGroupBox("Compact mode width threshold")
         thresh_lay = QHBoxLayout(thresh_box)
         thresh_lay.addWidget(QLabel("Collapse to icon-only below:"))
@@ -1142,7 +1142,7 @@ class DATBrowserWidget(QWidget): #vers 2
         thresh_lay.addWidget(thresh_spin)
         lay.addWidget(thresh_box)
 
-        # ── Load-order tree options ──────────────────────────────────────
+        #    Load-order tree options                                       
         tree_box = QGroupBox("Load-order tree")
         tree_lay = QVBoxLayout(tree_box)
         cb_group = QCheckBox("Group entries by city (SOL)")
@@ -1156,7 +1156,7 @@ class DATBrowserWidget(QWidget): #vers 2
         tree_lay.addWidget(cb_col_img)
         lay.addWidget(tree_box)
 
-        # ── Auto-load ────────────────────────────────────────────────────
+        #    Auto-load                                                     
         auto_box = QGroupBox("Auto-load")
         auto_lay = QVBoxLayout(auto_box)
         cb_auto_load = QCheckBox("Auto-load game assets when game root is set")
@@ -1167,7 +1167,7 @@ class DATBrowserWidget(QWidget): #vers 2
         auto_lay.addWidget(cb_auto_imgs)
         lay.addWidget(auto_box)
 
-        # ── Texture Sources ───────────────────────────────────────────────
+        #    Texture Sources                                                
         tex_box = QGroupBox("Texture Sources  (shared with Model Workshop)")
         tex_lay = QVBoxLayout(tex_box)
         tex_lay.addWidget(QLabel(
@@ -1198,7 +1198,7 @@ class DATBrowserWidget(QWidget): #vers 2
         tex_lay.addLayout(tl_row)
         lay.addWidget(tex_box)
 
-        # ── Buttons ──────────────────────────────────────────────────────
+        #    Buttons                                                       
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
             QDialogButtonBox.StandardButton.Cancel)
@@ -1284,7 +1284,7 @@ class DATBrowserWidget(QWidget): #vers 2
         except Exception:
             pass
 
-        # ── Browse / load ──────────────────────────────────────────────────────
+        #    Browse / load                                                       
 
     def _on_game_combo_changed(self, idx: int): #vers 1
         """React immediately when the game combo selection changes.\n
@@ -1502,7 +1502,7 @@ class DATBrowserWidget(QWidget): #vers 2
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(800, self._load_all_game_imgs)
 
-    # ── Populate ───────────────────────────────────────────────────────────
+    #    Populate                                                            
 
     def _clear_ui(self): #vers 1
         self._obj_table.setRowCount(0)
@@ -1517,7 +1517,7 @@ class DATBrowserWidget(QWidget): #vers 2
         self._populate_instances()
         self._populate_zones()
 
-    # ── SOL group mapping ───────────────────────────────────────────────
+    #    SOL group mapping                                                
     _SOL_GROUPS = {
         'special':    'Special',
         'generics':   'Generics',
@@ -1863,21 +1863,21 @@ class DATBrowserWidget(QWidget): #vers 2
         self._tabs.setTabText(2, f"Zones ({table.rowCount():,})")
 
     def _build_log_text(self) -> str: #vers 1
-        lines = [self.loader.get_summary(), "", "── Load order ──"]
+        lines = [self.loader.get_summary(), "", "   Load order   "]
         for phase, entry_type, path, success in self.loader.load_log:
             mark = "✓" if success else "✗ MISSING"
             lines.append(f"  [{entry_type}] {mark}  {path}")
         if self.loader.stats.warnings:
-            lines += ["", f"── Warnings ({len(self.loader.stats.warnings)}) ──"]
+            lines += ["", f"   Warnings ({len(self.loader.stats.warnings)})   "]
             lines += [f"  {w}" for w in self.loader.stats.warnings[:100]]
             if len(self.loader.stats.warnings) > 100:
                 lines.append(f"  … {len(self.loader.stats.warnings)-100} more")
         if self.loader.stats.errors:
-            lines += ["", f"── Errors ({len(self.loader.stats.errors)}) ──"]
+            lines += ["", f"   Errors ({len(self.loader.stats.errors)})   "]
             lines += [f"  {e}" for e in self.loader.stats.errors]
         return "\n".join(lines)
 
-    # ── Filter ─────────────────────────────────────────────────────────────
+    #    Filter                                                              
 
     def _apply_filter(self): #vers 1
         if not self.loader.objects:
@@ -1887,7 +1887,7 @@ class DATBrowserWidget(QWidget): #vers 2
             self._type_filter.currentText())
         self._populate_instances(self._search_edit.text())
 
-    # ── Tree click — filter to selected file ───────────────────────────────
+    #    Tree click — filter to selected file                                
 
     def _on_tree_click(self, item, col): #vers 3
         bname      = item.text(0).split('[')[0].strip()
@@ -2245,7 +2245,7 @@ class DATBrowserWidget(QWidget): #vers 2
         table.setSortingEnabled(True)
         self._tabs.setTabText(1, f"Instances ({table.rowCount():,})  [{ipl_basename}]")
 
-    # ── Context menu ───────────────────────────────────────────────────────
+    #    Context menu                                                        
 
     def _table_context_menu(self, table, pos): #vers 2
         index = table.indexAt(pos)
@@ -2305,7 +2305,7 @@ class DATBrowserWidget(QWidget): #vers 2
         elif dump_all_act and chosen == dump_all_act:
             self._dump_all_game_txds()
 
-    # ── Tree right-click — open source file in editor ─────────────────────
+    #    Tree right-click — open source file in editor                      
 
     def _apply_theme_stylesheet(self): #vers 4
         """Apply theme colors. Uses QApplication global stylesheet for most
@@ -2573,7 +2573,7 @@ class DATBrowserWidget(QWidget): #vers 2
 
         menu = QMenu(self)
 
-        # ── IMG / CDIMAGE specific options ───────────────────────────────
+        #    IMG / CDIMAGE specific options                                
         if entry_type in ("IMG", "CDIMAGE"):
             mw = self.main_window
             if abs_path and os.path.isfile(abs_path):
@@ -2659,7 +2659,7 @@ class DATBrowserWidget(QWidget): #vers 2
             if self.main_window and hasattr(self.main_window, "log_message"):
                 self.main_window.log_message(f"IDE Editor error: {e}")
 
-    # ── Public API ─────────────────────────────────────────────────────────
+    #    Public API                                                          
 
     def load_from_game_root(self, game_root: str,
                              game: Optional[str] = None): #vers 2
@@ -2673,12 +2673,12 @@ class DATBrowserWidget(QWidget): #vers 2
         self._start_load()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 # Integration hook
-# ─────────────────────────────────────────────────────────────────────────────
+#                                                                              
 
 
-    # ── Asset Database panel ────────────────────────────────────────────────
+    #    Asset Database panel                                                 
 
     _BUILTIN_PROFILES = ['GTASOL', 'GTA3', 'VC', 'SA']
 
@@ -2698,7 +2698,7 @@ class DATBrowserWidget(QWidget): #vers 2
         pl.setContentsMargins(4, 4, 4, 4)
         pl.setSpacing(3)
 
-        # ── Helper: icon button ────────────────────────────────────────
+        #    Helper: icon button                                         
         def _ibtn(label, tip, slot, icon_fn_name,
                   enabled=True, min_w=80, h=26):
             b = QPushButton(label)
@@ -2712,7 +2712,7 @@ class DATBrowserWidget(QWidget): #vers 2
             b._icon_fn    = icon_fn_name
             return b
 
-        # ── Row 1: profile selector + New / Del ───────────────────────
+        #    Row 1: profile selector + New / Del                        
         row1 = QHBoxLayout(); row1.setSpacing(4)
 
         self._db_profile_lbl = QLabel("Profile:")
@@ -2762,13 +2762,13 @@ class DATBrowserWidget(QWidget): #vers 2
         from PyQt6.QtCore import QTimer as _QT3
         _QT3.singleShot(0, self._db_load_panel_icons)
 
-        # ── Row 2: stats label ─────────────────────────────────────────
+        #    Row 2: stats label                                          
         self._db_stats_lbl = QLabel("No database loaded.")
         self._db_stats_lbl.setStyleSheet(
             "font-size: 10px; color: palette(mid); font-style: italic;")
         pl.addWidget(self._db_stats_lbl)
 
-        # ── Row 3: progress bar (hidden when idle) ─────────────────────
+        #    Row 3: progress bar (hidden when idle)                      
         self._db_progress = QProgressBar()
         self._db_progress.setFixedHeight(12)
         self._db_progress.setTextVisible(True)

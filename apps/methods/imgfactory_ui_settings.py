@@ -172,7 +172,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
             h.addStretch()
             return h
 
-        # ── Button Layout ──────────────────────────────────────────────────
+        #    Button Layout                                                   
         btn_grp = QGroupBox("Button Layout")
         btn_lay = QVBoxLayout(btn_grp); btn_lay.setSpacing(4)
         lh, self.h_spacing_spin = spin('h_spacing_spin', 'H spacing:', 0, 50,
@@ -182,7 +182,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         btn_lay.addLayout(row(lh, self.h_spacing_spin, lv, self.v_spacing_spin))
         layout.addWidget(btn_grp)
 
-        # ── Font Settings ──────────────────────────────────────────────────
+        #    Font Settings                                                   
         fnt_grp = QGroupBox("Font Settings")
         fnt_lay = QVBoxLayout(fnt_grp); fnt_lay.setSpacing(4)
 
@@ -219,7 +219,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.use_custom_font_cb.toggled.connect(toggle_font_controls)
         layout.addWidget(fnt_grp)
 
-        # ── Tab Settings ───────────────────────────────────────────────────
+        #    Tab Settings                                                    
         tab_grp = QGroupBox("Tab Settings")
         tab_lay = QVBoxLayout(tab_grp); tab_lay.setSpacing(4)
 
@@ -249,7 +249,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
                               ltp, self.tab_position_combo))
         layout.addWidget(tab_grp)
 
-        # ── Workshop Panel Collapse ─────────────────────────────────────────
+        #    Workshop Panel Collapse                                          
         col_grp = QGroupBox("Workshop Panel Collapse")
         col_lay = QVBoxLayout(col_grp); col_lay.setSpacing(4)
         desc = QLabel("Side panels switch from text+icon to icon-only\n"
@@ -482,7 +482,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         self.show_menu_bar_check.setChecked(self.img_settings.get("show_menu_bar", True))
         appearance_layout.addWidget(self.show_menu_bar_check)
 
-        # ── IMG Factory menu orientation ─────────────────────────────────
+        #    IMG Factory menu orientation                                  
         from PyQt6.QtWidgets import QGroupBox as _GB, QVBoxLayout as _VL, QRadioButton as _RB
 
         img_orient_group = _GB("IMG Factory — Menu Orientation")
@@ -649,7 +649,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         app_s = getattr(self.main_window, 'app_settings', None)
         cs = app_s.current_settings if app_s else {}
 
-        # ── Button Size & Spacing ──────────────────────────────────────────
+        #    Button Size & Spacing                                           
         size_grp = QGroupBox("Button Size && Spacing")
         size_lay = QVBoxLayout(size_grp); size_lay.setSpacing(6)
 
@@ -671,7 +671,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
             'rp_h_spacing', 0, 30, cs.get('button_spacing_horizontal', 6)))
         layout.addWidget(size_grp)
 
-        # ── Button Display Mode ────────────────────────────────────────────
+        #    Button Display Mode                                             
         mode_grp = QGroupBox("Button Display Mode")
         mode_lay = QVBoxLayout(mode_grp); mode_lay.setSpacing(4)
         cur_mode = cs.get('button_display_mode', 'text_only')
