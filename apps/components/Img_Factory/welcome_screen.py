@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 9
+# apps/components/Img_Factory/welcome_screen.py — Version 10
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -128,29 +128,45 @@ class WelcomeScreen(QWidget):
         # screen from stretching the host window taller than the screen.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-    def _build_ui(self): #vers 5
+    def _build_ui(self): #vers 6
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Hero banner
+        # Hero banner — reads accent/bg colours from app_settings theme so it
+        # works on both light and dark themes without going invisible.
         hero = QFrame()
         hero.setFixedHeight(80)
-        # Hero banner colours — detect light/dark theme via the app_settings
-        # if available, otherwise fall back to palette luminance check.
-        # Hero uses palette(dark) — fully theme-aware, no hardcoded colours
 
-        # Hero uses theme panel colour — no hardcoded gradient
-        # (gradient colours are user-configurable via Settings > Panels > Fill)
+        _hero_bg   = '#1a1a2e'   # safe dark fallback
+        _hero_txt  = '#ffffff'
+        _hero_sub  = '#aaaacc'
+        try:
+            mw = self.main_window
+            if mw and hasattr(mw, 'app_settings'):
+                tc = mw.app_settings.get_theme_colors() or {}
+                cs = mw.app_settings.current_settings
+                # Use hero gradient start if configured, else accent, else bg_secondary
+                _hero_bg  = (cs.get('hero_gradient_dark_start')
+                             or tc.get('accent_primary')
+                             or tc.get('bg_secondary', '#1a1a2e'))
+                # Make sure text always contrasts — always white on dark bg
+                from PyQt6.QtGui import QColor as _QC
+                _lum = _QC(_hero_bg).lightness()
+                _hero_txt = '#ffffff' if _lum < 160 else '#111111'
+                _hero_sub = '#ccccee' if _lum < 160 else '#444444'
+        except Exception:
+            pass
+
         hero.setStyleSheet(
-            "QFrame { background: palette(dark); border-bottom: 1px solid palette(mid); }")
+            f"QFrame {{ background: {_hero_bg}; border-bottom: 2px solid {_hero_sub}; }}")
         hl = QHBoxLayout(hero); hl.setContentsMargins(24, 0, 24, 0)
         title_lbl = QLabel("IMG Factory 1.6")
         title_lbl.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: palette(brightText); background: transparent;")
+        title_lbl.setStyleSheet(f"color: {_hero_txt}; background: transparent;")
         sub_lbl = QLabel("GTA modding toolkit — IMG · COL · TXD · DFF · DAT · IPL · IDE")
         sub_lbl.setFont(QFont("Arial", 9))
-        sub_lbl.setStyleSheet("color: palette(mid); background: transparent;")
+        sub_lbl.setStyleSheet(f"color: {_hero_sub}; background: transparent;")
         vtxt = QVBoxLayout(); vtxt.setSpacing(2)
         vtxt.addWidget(title_lbl); vtxt.addWidget(sub_lbl)
         hl.addLayout(vtxt, 1)
