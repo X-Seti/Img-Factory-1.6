@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 8
+# apps/components/Img_Factory/welcome_screen.py — Version 9
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -188,7 +188,22 @@ class WelcomeScreen(QWidget):
         hint.setStyleSheet("color: palette(placeholderText);")
         bl.addWidget(hint)
 
-        dismiss = QPushButton("✕  Close")
+        # Search button next to Close
+        from PyQt6.QtWidgets import QToolButton
+        search_btn = QToolButton()
+        search_btn.setFixedSize(26, 26)
+        search_btn.setToolTip("Search entries (Ctrl+F)")
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGB
+            search_btn.setIcon(_SVGB.search_icon(16, '#888888'))
+            from PyQt6.QtCore import QSize as _QSB
+            search_btn.setIconSize(_QSB(16, 16))
+        except Exception:
+            search_btn.setText("Q")
+        search_btn.clicked.connect(self._search_clicked)
+        bl.addWidget(search_btn)
+
+        dismiss = QPushButton("Close")
         dismiss.setFixedHeight(26)
         dismiss.setFont(QFont("Arial", 9))
         dismiss.setToolTip("Dismiss screen — reopen via [Intro] in taskbar")
@@ -504,6 +519,15 @@ class WelcomeScreen(QWidget):
             except Exception: pass
             data['show_on_startup'] = show
             _json.dump(data, open(_PREF_PATH, 'w'), indent=2)
+        except Exception:
+            pass
+
+    def _search_clicked(self): #vers 1
+        """Forward search click to imgfactory main window."""
+        try:
+            mw = self.main_window
+            if mw and hasattr(mw, '_show_search_dialog'):
+                mw._show_search_dialog()
         except Exception:
             pass
 
