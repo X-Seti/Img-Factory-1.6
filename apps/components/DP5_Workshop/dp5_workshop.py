@@ -3881,11 +3881,23 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
 
     def _create_toolbar(self): #vers 2
+        # Read sizes from app_settings so they match Global App System Settings
+        try:
+            from apps.utils.app_settings_system import get_titlebar_sizes as _gts
+            _as = getattr(self, 'app_settings', None) or getattr(
+                  getattr(self, 'main_window', None), 'app_settings', None)
+            _sz = _gts(_as)
+            _TB_H    = _sz['tb_height']
+            _BTN_SZ  = _sz['btn_size']
+            _ICO_SZ  = _sz['icon_size']
+            _BTN_H   = _sz['btn_height']
+        except Exception:
+            _TB_H, _BTN_SZ, _ICO_SZ, _BTN_H = 32, 32, 20, 24
         # titlebar and toolbar are the SAME widget — avoids a floating 45px ghost
         # that was rendering at (0,0) and creating blank space above the canvas.
         self.toolbar = QFrame()
         self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
+        self.toolbar.setMaximumHeight(_TB_H + 10)
         self.toolbar.setObjectName("titlebar")
         self.toolbar.installEventFilter(self)
         self.toolbar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
@@ -3929,7 +3941,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
         self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
+        self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip(App_name + " Settings")
         self.settings_btn.setVisible(self.standalone_mode)

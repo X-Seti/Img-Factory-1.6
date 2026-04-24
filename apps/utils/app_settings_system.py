@@ -51,7 +51,28 @@ except ImportError:
 # _on_button_color_changed (vers 1)
 # _collect_current_button_colors (vers 1)
 
-App_name = "App System Settings"
+App_name = "Global App System Settings"
+
+
+def get_titlebar_sizes(app_settings=None) -> dict: #vers 1
+    """Return current titlebar/button size settings.
+    All apps call this when building their toolbar so sizes stay in sync.
+
+    Usage:
+        from apps.utils.app_settings_system import get_titlebar_sizes
+        sz = get_titlebar_sizes(self.app_settings)
+        btn.setFixedSize(sz['btn_size'], sz['btn_size'])
+        btn.setIconSize(QSize(sz['icon_size'], sz['icon_size']))
+    """
+    cs = {}
+    if app_settings is not None:
+        cs = getattr(app_settings, 'current_settings', {})
+    return {
+        'tb_height':  cs.get('titlebar_button_height', 32),
+        'btn_size':   cs.get('titlebar_button_size',   32),
+        'icon_size':  cs.get('titlebar_icon_size',     20),
+        'btn_height': cs.get('button_size',            24),
+    }
 App_build = "22.63" #32 is from version 32 up top.
 App_auth = "X-Seti"
 
@@ -1704,6 +1725,9 @@ class AppSettings:
             'use_pastel_buttons': True,
             'high_contrast_buttons': False,
             'button_size': 24,
+            'titlebar_button_height': 32,
+            'titlebar_button_size':   32,
+            'titlebar_icon_size':     20,
             'icon_size': 16,
             'button_format': 'both',  # 'both', 'icon_only', 'text_only', 'separate'
             # Panel / hero colours
@@ -5910,8 +5934,9 @@ class SettingsDialog(QDialog): #vers 15
         self._update_btn_style_preview()
 
 
-    def _apply_button_sizes(self): #vers 1
-        """Apply titlebar + button size settings to the dialog titlebar immediately."""
+    def _apply_button_sizes(self): #vers 2
+        """Apply titlebar + button size settings immediately and auto-save to JSON
+        so other apps (COL, TXD, Model etc.) pick up the change next launch."""
         cs = self.app_settings.current_settings
         tb_h   = cs.get("titlebar_button_height", 32)
         btn_sz = cs.get("titlebar_button_size",   32)
@@ -5929,6 +5954,12 @@ class SettingsDialog(QDialog): #vers 15
             if btn:
                 btn.setFixedSize(btn_sz, btn_sz)
                 btn.setIconSize(QSize(ico_sz, ico_sz))
+
+        # Auto-save so all other apps see the new sizes on next launch
+        try:
+            self.app_settings.save_settings()
+        except Exception:
+            pass
 
     def _update_btn_style_preview(self): #vers 1
         """Apply current button_style to the preview buttons."""
@@ -8998,6 +9029,28 @@ Ready for operations..."""
             settings["show_menu_icons"] = self.menu_icons_check.isChecked()
         if hasattr(self, 'use_svg_icons_check'):
             settings["use_svg_icons"] = self.use_svg_icons_check.isChecked()
+
+        # Button & titlebar sizes
+        for attr, key in (
+            ("_tb_height_spin",   "titlebar_button_height"),
+            ("_tb_btn_size_spin", "titlebar_button_size"),
+            ("_tb_icon_spin",     "titlebar_icon_size"),
+            ("_btn_height_spin",  "button_size"),
+        ):
+            spin = getattr(self, attr, None)
+            if spin:
+                settings[key] = spin.value()
+
+        # Panel effect + button style
+        if hasattr(self, "_panel_effect_combo") and self._panel_effect_combo:
+            settings["panel_effect_type"] =                 ["none","fill","gradient","pattern"][self._panel_effect_combo.currentIndex()]
+        if hasattr(self, "_btn_style_radios"):
+            for key, rb in self._btn_style_radios.items():
+                if rb.isChecked():
+                    settings["button_style"] = key
+                    break
+        if hasattr(self, "_tint_enabled_cb") and self._tint_enabled_cb:
+            settings["use_pastel_buttons"] = self._tint_enabled_cb.isChecked()
 
         # Debug settings
         if hasattr(self, 'pin_warn_popup_check'):

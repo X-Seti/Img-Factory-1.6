@@ -5118,6 +5118,18 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     def _create_toolbar(self): #vers 13
         """Create toolbar - Hide drag button when docked, ensure buttons visible"""
+        # Read sizes from app_settings so they match Global App System Settings
+        try:
+            from apps.utils.app_settings_system import get_titlebar_sizes as _gts
+            _as = getattr(self, 'app_settings', None) or getattr(
+                  getattr(self, 'main_window', None), 'app_settings', None)
+            _sz = _gts(_as)
+            _TB_H    = _sz['tb_height']
+            _BTN_SZ  = _sz['btn_size']
+            _ICO_SZ  = _sz['icon_size']
+            _BTN_H   = _sz['btn_height']
+        except Exception:
+            _TB_H, _BTN_SZ, _ICO_SZ, _BTN_H = 32, 32, 20, 24
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)
         self.titlebar.setFixedHeight(45)
@@ -5137,7 +5149,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         self.toolbar = QFrame()
         self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.toolbar.setMaximumHeight(50)
+        self.toolbar.setMaximumHeight(_TB_H + 10)
 
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -5148,7 +5160,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(self.icon_factory.settings_icon(color=icon_color))
         self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
+        self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
         self.settings_btn.clicked.connect(self._show_workshop_settings)
         self.settings_btn.setToolTip("Workshop Settings")
         layout.addWidget(self.settings_btn)
@@ -5169,7 +5181,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self.open_img_btn = QPushButton("OpenIMG")
             self.open_img_btn.setFont(self.button_font)
             self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=icon_color))
-            self.open_img_btn.setIconSize(QSize(20, 20))
+            self.open_img_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
             self.open_img_btn.clicked.connect(self.open_img_archive)
             self.open_img_btn.setToolTip("Open an IMG archive and browse its DFF/COL entries")
             layout.addWidget(self.open_img_btn)
@@ -5178,7 +5190,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self.from_img_btn = QPushButton("From IMG")
             self.from_img_btn.setFont(self.button_font)
             self.from_img_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-            self.from_img_btn.setIconSize(QSize(20, 20))
+            self.from_img_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
             self.from_img_btn.clicked.connect(self._pick_col_from_current_img)
             self.from_img_btn.setToolTip("Pick a DFF/COL entry from the currently loaded IMG")
             layout.addWidget(self.from_img_btn)

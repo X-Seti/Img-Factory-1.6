@@ -815,6 +815,18 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
 
     def _create_toolbar(self): #vers 7
         """Create toolbar - ALL BUTTONS CONNECTED"""
+        # Read sizes from app_settings so they match Global App System Settings
+        try:
+            from apps.utils.app_settings_system import get_titlebar_sizes as _gts
+            _as = getattr(self, 'app_settings', None) or getattr(
+                  getattr(self, 'main_window', None), 'app_settings', None)
+            _sz = _gts(_as)
+            _TB_H    = _sz['tb_height']
+            _BTN_SZ  = _sz['btn_size']
+            _ICO_SZ  = _sz['icon_size']
+            _BTN_H   = _sz['btn_height']
+        except Exception:
+            _TB_H, _BTN_SZ, _ICO_SZ, _BTN_H = 32, 32, 20, 24
         from apps.methods.imgfactory_svg_icons import SVGIconFactory
         from PyQt6.QtGui import QFont
 
@@ -854,7 +866,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.menu_btn.setFont(self.button_font)
         self.menu_btn.setIcon(self.icon_factory.menu_m_icon(20, icon_color))
         self.menu_btn.setText("Menu")
-        self.menu_btn.setIconSize(QSize(20, 20))
+        self.menu_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
         self.menu_btn.clicked.connect(self._show_popup_menu)
         self.menu_btn.setToolTip("Main Menu")
         layout.addWidget(self.menu_btn)
@@ -875,7 +887,7 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         self.settings_btn.setFont(self.button_font)
         self.settings_btn.setIcon(self.icon_factory.settings_icon(20, icon_color))
         self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
+        self.settings_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
 
         try:
             self.settings_btn.clicked.disconnect()
