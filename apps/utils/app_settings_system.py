@@ -3408,11 +3408,12 @@ class SettingsDialog(QDialog): #vers 15
     themeChanged = pyqtSignal(str)  # theme_name
     settingsChanged = pyqtSignal()
 
-    def __init__(self, app_settings, parent=None): #vers 5
+    def __init__(self, app_settings, parent=None, main_window=None): #vers 6
         """Initialize settings dialog"""
         super().__init__(parent)
 
-        print(f"Has _update_titlebar_icons: {hasattr(self, '_update_titlebar_icons')}")
+        # Store main_window ref — may differ from parent (e.g. docked workshop)
+        self.main_window = main_window or parent
 
         self.setWindowTitle("Global App System Settings")
         self.setMinimumSize(800, 600)
@@ -3818,9 +3819,15 @@ class SettingsDialog(QDialog): #vers 15
         # Apply theme stylesheet immediately — FramelessWindowHint dialogs
         # don't inherit from QApplication so we must set it explicitly.
         try:
-            self.setStyleSheet(self.app_settings.get_stylesheet())
-        except Exception:
-            pass
+            _ss = self.app_settings.get_stylesheet()
+            self.setStyleSheet(_ss)
+            # Debug: confirm colour being applied
+            _tc = self.app_settings.get_theme_colors() or {}
+            print(f"[SettingsDialog] theme={self.app_settings.current_settings.get('theme')} "
+                  f"bg={_tc.get('bg_primary','?')} text={_tc.get('text_primary','?')} "
+                  f"dialog_bg={_tc.get('dialog_bg','?')} dialog_text={_tc.get('dialog_text','?')}")
+        except Exception as _sse:
+            print(f"[SettingsDialog] stylesheet error: {_sse}")
 
         # Settings dialog always has its own titlebar — [Menu] [Settings] | title | [i] [—] [□] [✕]
         # This makes it draggable on both X11 and Wayland, and consistent regardless of ui_mode.
@@ -7519,7 +7526,14 @@ Ready for operations..."""
         dgl.addWidget(self._locale_auto_cb)
 
         try:
-            sys_locale = _locale.getdefaultlocale()[0] or "Unknown"
+            import sys as _sys
+            if _sys.version_info >= (3, 15):
+                sys_locale = _locale.getlocale()[0] or "Unknown"
+            else:
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", DeprecationWarning)
+                    sys_locale = _locale.getdefaultlocale()[0] or "Unknown"
         except Exception:
             sys_locale = "Unknown"
         dgl.addWidget(QLabel(f"Detected system locale:  <b>{sys_locale}</b>"))
@@ -9197,14 +9211,22 @@ Ready for operations..."""
                 "Window gadget changes will take effect after restarting the application."
             )
 
+        # Re-apply stylesheet to dialog so colour changes show immediately
+        try:
+            self.setStyleSheet(self.app_settings.get_stylesheet())
+        except Exception:
+            pass
+
         self.settingsChanged.emit()
 
         # Apply panel effects and button/progressbar styles to main window
         try:
-            mw = self.main_window
-            if mw:
+            mw = getattr(self, 'main_window', None) or self.parent()
+            if mw and hasattr(mw, 'setStyleSheet'):
                 apply_panel_effects(mw, self.app_settings)
                 mw.setStyleSheet(self.app_settings.get_stylesheet())
+            # Always re-apply to the dialog itself
+            self.setStyleSheet(self.app_settings.get_stylesheet())
         except Exception as _pe:
             print(f"Panel effects error: {_pe}")
 
