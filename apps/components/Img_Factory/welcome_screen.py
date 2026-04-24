@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
+from apps.app_info import App_name, App_build, App_auth, App_build_num, get_full_build
 
 
 def _get_pref_path() -> str:
@@ -181,7 +182,8 @@ class WelcomeScreen(QWidget):
         hero.setStyleSheet(
             f"QFrame {{ background: {_hero_bg}; border-bottom: 2px solid {_hero_sub}; }}")
         hl = QHBoxLayout(hero); hl.setContentsMargins(24, 0, 24, 0)
-        title_lbl = QLabel("IMG Factory 1.6")
+        AppBuildLabel = (f"{App_name} - Build {App_build}")
+        title_lbl = QLabel(" " + AppBuildLabel)
         title_lbl.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_lbl.setStyleSheet(f"color: {_hero_txt}; background: transparent;")
         sub_lbl = QLabel("GTA modding toolkit — IMG · COL · TXD · DFF · DAT · IPL · IDE")

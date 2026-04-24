@@ -1,7 +1,7 @@
 {
   "name": "GTA San Andreas",
-  "description": "Grove Street vibes and Los Santos sunshine \ud83c\udf34\ud83d\ude97",
-  "category": "\ud83c\udfae GTA Games",
+  "description": "Grove Street vibes and Los Santos sunshine",
+  "category": "Game",
   "author": "X-Seti",
   "version": "1.0",
   "colors": {
@@ -109,7 +109,15 @@
     "copper_dark": "#7a4a1a",
     "hero_bg": "",
     "dialog_bg": "",
-    "dialog_text": ""
+    "dialog_text": "",
+    "window_bg": "#2b2b2b",
+    "window_text": "#ffffff",
+    "base": "#2b2b2b",
+    "alternate_base": "#3c3c3c",
+    "tooltip_bg": "#3c3c3c",
+    "tooltip_text": "#ffffff",
+    "placeholder_text": "#aaaaaa",
+    "disabled_text": "#777777"
   },
   "menus": {
     "menu_structure": [

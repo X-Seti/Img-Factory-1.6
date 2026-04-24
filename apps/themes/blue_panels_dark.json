@@ -1,5 +1,5 @@
 {
-  "name": "GTA Forums",
+  "name": "Light Blue theme",
   "description": "Classic forum blue and white theme",
   "category": "Community",
   "author": "X-Seti",
@@ -109,7 +109,15 @@
     "copper_dark": "#7a4a1a",
     "hero_bg": "",
     "dialog_bg": "",
-    "dialog_text": ""
+    "dialog_text": "",
+    "window_bg": "#2b2b2b",
+    "window_text": "#ffffff",
+    "base": "#2b2b2b",
+    "alternate_base": "#3c3c3c",
+    "tooltip_bg": "#3c3c3c",
+    "tooltip_text": "#ffffff",
+    "placeholder_text": "#aaaaaa",
+    "disabled_text": "#777777"
   },
   "menus": {
     "menu_structure": [

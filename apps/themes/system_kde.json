@@ -48,7 +48,15 @@
     "button_text_color": "#2D2D2D",
     "button_text_hover": "#2D2D2D",
     "button_text_pressed": "#2D2D2D",
-    "toolbar_bg": "#F5F5F5"
+    "toolbar_bg": "#F5F5F5",
+    "window_bg": "#2b2b2b",
+    "window_text": "#ffffff",
+    "base": "#2b2b2b",
+    "alternate_base": "#3c3c3c",
+    "tooltip_bg": "#3c3c3c",
+    "tooltip_text": "#ffffff",
+    "placeholder_text": "#aaaaaa",
+    "disabled_text": "#777777"
   },
   "mui_settings": {
     "system_detected": true,

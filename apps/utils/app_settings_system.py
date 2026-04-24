@@ -998,7 +998,29 @@ class XPColorPicker(QWidget): #vers 2
             'panel_filter': {'name': 'Filter Panel BG', 'h': 50, 's': 20, 'b': 98},
             'toolbar_bg': {'name': 'Toolbar Background', 'h': 0, 's': 0, 'b': 98},
             'dialog_bg':  {'name': 'Dialog Background',  'h': 0, 's': 0, 'b': 99},
-            'dialog_text':{'name': 'Dialog Text',        'h': 0, 's': 0, 'b': 20},
+            'dialog_text':{'name': 'Dialog Text', 'h': 0, 's': 0, 'b': 20},
+            'hero_bg': {'name': 'Hero_Background', 'h': 0, 's': 0, 'b': 20},
+            'hero_gradient_dark_start': {'name': 'Hero_Gradient_Dark_Start','h': 0, 's': 0, 'b': 20},
+            'hero_gradient_dark_end': {'name': 'Hero_Gradient_Dark_End','h': 0, 's': 0, 'b': 20},
+            'hero_gradient_light_start': {'name': 'Hero_Gradient_Light_End','h': 0, 's': 0, 'b': 20},
+            'hero_gradient_light_end': {'name': 'Hero_Gradient_Light_End','h': 0, 's': 0, 'b': 20},
+            'window_bg': {'name': 'Window_Background','h': 0, 's': 0, 'b': 20},
+            'window_text': {'name': 'Window_Text','h': 0, 's': 0, 'b': 20},
+            'base': {'name': 'Base','h': 0, 's': 0, 'b': 20},
+            'alternate_base': {'name': 'Alternate_Base','h': 0, 's': 0, 'b': 20},
+            'tooltip_bg': {'name': 'Tooltip_Background','h': 0, 's': 0, 'b': 20},
+            'tooltip_text': {'name': 'Tooltip_Text','h': 0, 's': 0, 'b': 20},
+            'placeholder_text': {'name': 'Placeholder_Text','h': 0, 's': 0, 'b': 20},
+            'disabled_text': {'name': 'Disabled_Text','h': 0, 's': 0, 'b': 20},
+            'panel_fill_a': {'name': 'Panal_Fill_A','h': 0, 's': 0, 'b': 20},
+            'panel_fill_b': {'name': 'Panal_Fill_B','h': 0, 's': 0, 'b': 20},
+            'panel_grad_stop1': {'name': 'Panel_Grad_Stop1','h': 0, 's': 0, 'b': 20},
+            'panel_grad_stop2': {'name': 'Panel_Grad_Stop2','h': 0, 's': 0, 'b': 20},
+            'panel_grad_stop3': {'name': 'Panel_Grad_Stop3','h': 0, 's': 0, 'b': 20},
+            'panel_pattern_light': {'name': 'Panel_Pattern_Light','h': 0, 's': 0, 'b': 20},
+            'panel_pattern_dark': {'name': 'Panel_Pattern_Dark','h': 0, 's': 0, 'b': 20},
+            'copper_light': {'name': 'Copper_Light','h': 0, 's': 0, 'b': 20},
+            'copper_dark': {'name': 'Copper_Dark','h': 0, 's': 0, 'b': 20},
         }
 
         self._load_theme_colors()
@@ -1738,6 +1760,14 @@ class AppSettings:
             'hero_gradient_dark_end':    '#2d2d5e',
             'hero_gradient_light_start': '#1a1a2e',
             'hero_gradient_light_end':   '#2d2d5e',
+            'window_bg':                 '#2b2b2b',
+            'window_text':               '#ffffff',
+            'base':                      '#2b2b2b',
+            'alternate_base':            '#3c3c3c',
+            'tooltip_bg':                '#3c3c3c',
+            'tooltip_text':              '#ffffff',
+            'placeholder_text':          '#aaaaaa',
+            'disabled_text':             '#777777',
             'panel_fill_a':              '#1a1a2e',
             'panel_fill_b':              '#16213e',
             'panel_fill_dir':            0,
@@ -1819,6 +1849,16 @@ class AppSettings:
         selection_bg = colors.get('selection_background', '#0078d4')
         selection_text = colors.get('selection_text', '#ffffff')
         grid = colors.get('grid', '#e0e0e0')
+
+        # System ui - overrides
+        window_bg = colors.get('Window_Background', '#2b2b2b')
+        window_text = colors.get('window_text', '#ffffff')
+        base = colors.get('base', '#2b2b2b')
+        alternate_base = colors.get('alternate_base', '#3c3c3c')
+        tooltip_bg = colors.get('tooltip_ba', '#3c3c3c')
+        tooltip_text = colors.get('tooltip_text', '#ffffff')
+        placeholder_text = colors.get('placeholder_text', '#aaaaaa')
+        disabled_text = colors.get('disabled_text', '#777777')
 
         # Additional colors
         success = colors.get('success', '#4caf50')
@@ -2055,7 +2095,7 @@ class AppSettings:
             border: 1px solid {border};
             border-radius: 3px;
             padding: 2px 4px;
-            selection-background-color: {selection_background};
+            selection-background-color: {selection_bg};
             selection-color: {selection_text};
         }}
 
@@ -2063,7 +2103,7 @@ class AppSettings:
             color: {text_primary};
             background-color: {bg_secondary};
             border: 1px solid {border};
-            selection-background-color: {selection_background};
+            selection-background-color: {selection_bg};
             selection-color: {selection_text};
         }}
 
@@ -2081,7 +2121,7 @@ class AppSettings:
 
         QListWidget::item:selected, QTreeWidget::item:selected {{
             color: {selection_text};
-            background-color: {selection_background};
+            background-color: {selection_bg};
         }}
 
         QListWidget::item:hover, QTreeWidget::item:hover {{
@@ -4833,7 +4873,7 @@ class SettingsDialog(QDialog): #vers 15
             "scrollbar_border": "Scrollbar - Border",
             "dialog_bg":         "Dialog - Background",
             "dialog_text":       "Dialog - Text",
-            # ── Panel & Hero colours ──────────────────────────────────────
+            # - Panel & Hero colours
             "panel_fill_a":              "Two-Tone - Colour A",
             "panel_fill_b":              "Two-Tone - Colour B",
             "hero_bg":                   "Hero Banner - Background",
@@ -4848,6 +4888,15 @@ class SettingsDialog(QDialog): #vers 15
             "panel_pattern_dark":        "Pattern - Background",
             "copper_light":              "Copper - Light",
             "copper_dark":               "Copper - Dark",
+            # - System UI
+            "window_bg":                 "Window - Background",
+            "window_text":               "Window - Text",
+            "base":                      "Base",
+            "alternate_base":            "Alternate - Base",
+            "tooltip_bg":                "Toolbar - Background",
+            "tooltip_text":              "Toolbar - Text",
+            "placeholder_text":          "Placeholder - Text",
+            "disabled_text":             "Disabled - Text"
         }
 
         selection_group = QGroupBox("Apply Picked Color")
