@@ -1907,8 +1907,9 @@ class IMGFactoryGUILayout:
 
         # Splitter: left = stacked panel (dir tree / dat browser), right = main tab widget
         self.content_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.content_splitter.setAutoFillBackground(True)
-
+        self.content_splitter.setAutoFillBackground(False)
+        self.content_splitter.setHandleWidth(5)
+        self.content_splitter.setOpaqueResize(True)
         # Left stacked panel — page 0: dir tree, page 1: DAT browser
         from PyQt6.QtWidgets import QStackedWidget
         self.left_stack = QStackedWidget()
@@ -1932,6 +1933,7 @@ class IMGFactoryGUILayout:
         self.content_splitter.addWidget(self.table)
         self.content_splitter.setStretchFactor(0, 0)
         self.content_splitter.setStretchFactor(1, 1)
+        self._apply_content_splitter_theme()
         file_layout.addWidget(self.content_splitter)
 
         self._apply_file_list_window_theme_styling()
@@ -2910,6 +2912,29 @@ class IMGFactoryGUILayout:
             """)
 
 
+    def _apply_content_splitter_theme(self): #vers 1
+        """Apply theme styling to the content splitter (left panel / main tab area divider)."""
+        if not hasattr(self, 'content_splitter') or not self.content_splitter:
+            return
+        theme_colors = self._get_theme_colors("default")
+        bg  = theme_colors.get('bg_primary',   '#1e1e1e')
+        mid = theme_colors.get('splitter_color_background', theme_colors.get('bg_secondary', '#2a2a2a'))
+        hov = theme_colors.get('splitter_color_shine',      theme_colors.get('accent_primary', '#1976d2'))
+        self.content_splitter.setStyleSheet(f"""
+            QSplitter::handle:horizontal {{
+                background-color: {mid};
+                border: none;
+                width: 5px;
+                margin: 0px;
+            }}
+            QSplitter::handle:horizontal:hover {{
+                background-color: {hov};
+            }}
+            QSplitter::handle:horizontal:pressed {{
+                background-color: {hov};
+            }}
+        """)
+
     def _apply_log_theme_styling(self): #vers 7
         """Apply theme styling to the log widget"""
         theme_colors = self._get_theme_colors("default")
@@ -3034,6 +3059,7 @@ class IMGFactoryGUILayout:
         self._apply_log_theme_styling()
         self._apply_vertical_splitter_theme()
         self._apply_main_splitter_theme()
+        self._apply_content_splitter_theme()
         self._apply_status_window_theme_styling()
         self._apply_file_list_window_theme_styling()
 
