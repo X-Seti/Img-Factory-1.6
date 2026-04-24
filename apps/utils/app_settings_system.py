@@ -3895,37 +3895,50 @@ class SettingsDialog(QDialog): #vers 15
         tl.setContentsMargins(4, 2, 4, 2)
         tl.setSpacing(4)
 
-        ico = self.icons
-        _cs       = self.app_settings.current_settings
-        _btn_h    = _cs.get("titlebar_button_height", 32)
-        _btn_sz   = _cs.get("titlebar_button_size",   32)
-        _ico_sz   = _cs.get("titlebar_icon_size",      20)
+        _cs      = self.app_settings.current_settings
+        _btn_h   = _cs.get("titlebar_button_height", 32)
+        _btn_sz  = _cs.get("titlebar_button_size",   32)
+        _ico_sz  = _cs.get("titlebar_icon_size",      20)
         self.dialog_titlebar.setFixedHeight(max(_btn_h, _btn_sz + 4))
-        btn_sz = QSize(_ico_sz, _ico_sz)
+        _qsz = QSize(_ico_sz, _ico_sz)
 
-        def _btn(text, icon_fn, tip, slot, fixed_w=None):
+        # Get icon colour from theme
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVGI
+            _tc = self.app_settings.get_theme_colors() or {}
+            _ic = _tc.get('text_primary', '#cccccc')
+        except Exception:
+            _SVGI  = None
+            _ic    = '#cccccc'
+
+        def _btn(text, icon_fn, tip, slot):
             b = QPushButton(text)
             b.setFixedHeight(_btn_sz)
-            if fixed_w:
-                b.setFixedWidth(fixed_w)
+            b.setFont(self.button_font)
+            b.setToolTip(tip)
             try:
-                b.setIcon(icon_fn())
-                b.setIconSize(btn_sz)
+                b.setIcon(icon_fn(_ico_sz, _ic))
+                b.setIconSize(_qsz)
             except Exception:
                 pass
-            b.setToolTip(tip)
             b.clicked.connect(slot)
             return b
 
-        #   Left: Menu + Settings
-        menu_btn = _btn("Menu", ico.settings_icon,
-                        "Settings menu", self._show_dialog_menu)
+        #   Left: Menu + Settings — match (M)Menu / (*)Settings pattern
+        if _SVGI:
+            menu_btn = _btn("Menu", _SVGI.menu_m_icon,
+                            "Settings menu", self._show_dialog_menu)
+            settings_btn = _btn("Settings", _SVGI.settings_icon,
+                                "Dialog appearance — font, titlebar height, style",
+                                self._show_dialog_self_settings)
+        else:
+            menu_btn     = QPushButton("Menu")
+            settings_btn = QPushButton("Settings")
+            menu_btn.clicked.connect(self._show_dialog_menu)
+            settings_btn.clicked.connect(self._show_dialog_self_settings)
+
         tl.addWidget(menu_btn)
         self._dialog_menu_btn = menu_btn
-
-        settings_btn = _btn("Settings", ico.settings_icon,
-                             "Dialog appearance — font, titlebar height, style",
-                             self._show_dialog_self_settings)
         self._dialog_settings_btn = settings_btn
         tl.addWidget(settings_btn)
 

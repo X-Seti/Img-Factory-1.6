@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 10
+# apps/components/Img_Factory/welcome_screen.py — Version 11
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -128,7 +128,7 @@ class WelcomeScreen(QWidget):
         # screen from stretching the host window taller than the screen.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-    def _build_ui(self): #vers 6
+    def _build_ui(self): #vers 7
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -138,23 +138,41 @@ class WelcomeScreen(QWidget):
         hero = QFrame()
         hero.setFixedHeight(80)
 
-        _hero_bg   = '#1a1a2e'   # safe dark fallback
-        _hero_txt  = '#ffffff'
-        _hero_sub  = '#aaaacc'
+        _hero_bg  = '#1a1a2e'   # safe dark fallback
+        _hero_txt = '#ffffff'
+        _hero_sub = '#aaaacc'
         try:
             mw = self.main_window
             if mw and hasattr(mw, 'app_settings'):
                 tc = mw.app_settings.get_theme_colors() or {}
                 cs = mw.app_settings.current_settings
-                # Use hero gradient start if configured, else accent, else bg_secondary
-                _hero_bg  = (cs.get('hero_gradient_dark_start')
-                             or tc.get('accent_primary')
-                             or tc.get('bg_secondary', '#1a1a2e'))
-                # Make sure text always contrasts — always white on dark bg
                 from PyQt6.QtGui import QColor as _QC
-                _lum = _QC(_hero_bg).lightness()
-                _hero_txt = '#ffffff' if _lum < 160 else '#111111'
-                _hero_sub = '#ccccee' if _lum < 160 else '#444444'
+
+                # Detect light/dark from bg_primary
+                _bg_lum = _QC(tc.get('bg_primary', '#1a1a2e')).lightness()
+                _is_dark = _bg_lum < 128
+
+                # Hero colour: read from THEME colours first (tc), then fallback chain
+                if _is_dark:
+                    _hero_bg = (tc.get('hero_gradient_dark_start')
+                                or cs.get('hero_gradient_dark_start')
+                                or tc.get('accent_primary')
+                                or tc.get('bg_secondary', '#1a1a2e'))
+                else:
+                    _hero_bg = (tc.get('hero_gradient_light_start')
+                                or cs.get('hero_gradient_light_start')
+                                or tc.get('accent_primary')
+                                or tc.get('bg_secondary', '#1a1a2e'))
+
+                # If hero colour is same as bg (e.g. both white), use accent instead
+                _hero_lum = _QC(_hero_bg).lightness()
+                _bg_col   = tc.get('bg_primary', '#ffffff')
+                if abs(_hero_lum - _QC(_bg_col).lightness()) < 20:
+                    _hero_bg = (tc.get('accent_primary') or '#1a1a2e')
+                    _hero_lum = _QC(_hero_bg).lightness()
+
+                _hero_txt = '#ffffff' if _hero_lum < 160 else '#111111'
+                _hero_sub = '#ccccee' if _hero_lum < 128 else ('#888888' if _hero_lum < 200 else '#555555')
         except Exception:
             pass
 
