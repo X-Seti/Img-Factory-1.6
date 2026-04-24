@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 14
+# apps/components/Img_Factory/welcome_screen.py — Version 15
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -47,13 +47,15 @@ class WelcomeCard(QFrame):
     """Clickable action card — icon + title + description."""
     clicked = pyqtSignal()
 
+    # Class-level colour cache — set once by WelcomeScreen before cards are built
+    _theme_card_bg:    str = "palette(base)"
+    _theme_border:     str = "palette(mid)"
+    _theme_border_hover: str = "palette(dark)"
+    _theme_accent:     str = "palette(link)"
+
     def __init__(self, icon_text: str, title: str, desc: str,
                  accent: str = "palette(link)", parent=None):
         super().__init__(parent)
-        from PyQt6.QtGui import QColor
-        _c = QColor(accent)
-        self._hover_color = _c.name()
-        self._normal_color = _c.darker(130).name()
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(100)
@@ -61,7 +63,7 @@ class WelcomeCard(QFrame):
         self._build(icon_text, title, desc)
         self._set_normal()
 
-    def _build(self, icon_text, title, desc): #vers 2
+    def _build(self, icon_text, title, desc): #vers 3
         lay = QHBoxLayout(self)
         lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(12)
@@ -97,15 +99,19 @@ class WelcomeCard(QFrame):
         arr.setStyleSheet("color: palette(link);")
         lay.addWidget(arr)
 
-    def _set_normal(self): #vers 1
+    def _set_normal(self): #vers 2
+        bg  = WelcomeCard._theme_card_bg
+        bdr = WelcomeCard._theme_border
         self.setStyleSheet(
-            "WelcomeCard { border: 1px solid palette(mid); border-radius: 5px; "
-            "background: palette(base); }")
+            f"WelcomeCard {{ border: 1px solid {bdr}; border-radius: 5px; "
+            f"background: {bg}; }}")
 
-    def _set_hover(self): #vers 1
+    def _set_hover(self): #vers 2
+        bg  = WelcomeCard._theme_card_bg
+        bdr = WelcomeCard._theme_border_hover
         self.setStyleSheet(
-            "WelcomeCard { border: 2px solid palette(link); border-radius: 5px; "
-            "background: palette(alternateBase); }")
+            f"WelcomeCard {{ border: 2px solid {bdr}; border-radius: 5px; "
+            f"background: {bg}; }}")
 
     def enterEvent(self, e): self._set_hover(); super().enterEvent(e)
     def leaveEvent(self, e): self._set_normal(); super().leaveEvent(e)
@@ -254,9 +260,56 @@ class WelcomeScreen(QWidget):
 
     #  Tab builders
 
-    def _build_quickstart_tab(self): #vers 1
+    def _build_quickstart_tab(self): #vers 2
         w = QWidget()
         lay = QVBoxLayout(w); lay.setContentsMargins(20, 16, 20, 16); lay.setSpacing(14)
+
+        # Resolve panel_bg / panel_primary from theme for card colours
+        _panel_bg   = ''
+        _panel_card = ''
+        _border_col = ''
+        _border_hov = ''
+        try:
+            mw = self.main_window
+            if mw and hasattr(mw, 'app_settings'):
+                tc  = mw.app_settings.get_theme_colors() or {}
+                from PyQt6.QtGui import QColor as _QC
+
+                _panel_bg   = tc.get('panel_bg', '')
+                _panel_card = tc.get('panel_primary', '')
+
+                # Derive border from panel_bg — darker for normal, accent or darker still for hover
+                if _panel_bg:
+                    _lum = _QC(_panel_bg).lightness()
+                    _is_dark = _lum < 128
+                    _bg_qc = _QC(_panel_bg)
+                    if _is_dark:
+                        _border_col = _bg_qc.lighter(145).name()
+                        _border_hov = tc.get('accent_primary') or _bg_qc.lighter(200).name()
+                    else:
+                        _border_col = _bg_qc.darker(130).name()
+                        _border_hov = tc.get('accent_primary') or _bg_qc.darker(175).name()
+
+                if not _panel_card and _panel_bg:
+                    # Fallback: lighten/darken panel_bg slightly
+                    _bg_qc = _QC(_panel_bg)
+                    _lum = _bg_qc.lightness()
+                    _panel_card = (_bg_qc.lighter(115).name() if _lum < 128
+                                   else _bg_qc.darker(110).name())
+        except Exception:
+            pass
+
+        # Push colours into WelcomeCard class so all cards pick them up
+        if _panel_card:
+            WelcomeCard._theme_card_bg      = _panel_card
+        if _border_col:
+            WelcomeCard._theme_border       = _border_col
+        if _border_hov:
+            WelcomeCard._theme_border_hover = _border_hov
+
+        # Apply panel_bg to the tab widget background
+        if _panel_bg:
+            w.setStyleSheet(f"QWidget {{ background: {_panel_bg}; }}")
 
         lay.addWidget(self._section("Open & Browse"))
         g1 = QGridLayout(); g1.setSpacing(16)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/ app_settings_system.py - version 63
+#This goes in root/ app_settings_system.py - version 64
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -969,6 +969,7 @@ class XPColorPicker(QWidget): #vers 2
             'bg_secondary': {'name': 'Panel Background', 'h': 210, 's': 15, 'b': 98},
             'bg_tertiary': {'name': 'Alternate Background', 'h': 210, 's': 15, 'b': 92},
             'panel_bg': {'name': 'GroupBox Background', 'h': 210, 's': 8, 'b': 95},
+            'panel_primary': {'name': 'Card / Panel Surface', 'h': 210, 's': 8, 'b': 90},
             'accent_primary': {'name': 'Primary Accent', 'h': 210, 's': 85, 'b': 53},
             'accent_secondary': {'name': 'Secondary Accent', 'h': 210, 's': 85, 'b': 47},
             'text_primary': {'name': 'Primary Text', 'h': 0, 's': 0, 'b': 13},
@@ -1831,6 +1832,7 @@ class AppSettings:
         bg_secondary = colors.get('bg_secondary', '#f5f5f5')
         bg_tertiary = colors.get('bg_tertiary', '#e9ecef')
         panel_bg = colors.get('panel_bg', colors.get('bg_secondary', '#f0f0f0'))
+        panel_primary = colors.get('panel_primary', panel_bg)  # card surface, falls back to panel_bg
         text_primary = colors.get('text_primary', '#000000')
         text_secondary = colors.get('text_secondary', '#666666')
         text_accent = colors.get('text_accent', '#0066cc')

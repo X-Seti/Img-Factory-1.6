@@ -72,7 +72,8 @@
     "tooltip_bg": "#3c3c3c",
     "tooltip_text": "#ffffff",
     "placeholder_text": "#aaaaaa",
-    "disabled_text": "#777777"
+    "disabled_text": "#777777",
+    "panel_primary": "#e5e7e8"
   },
   "hero_gradient_dark_start": "#1a1a2e",
   "hero_gradient_dark_end": "#2d2d5e",

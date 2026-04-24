@@ -117,7 +117,8 @@
     "tooltip_bg": "#0c374d",
     "tooltip_text": "#ffffff",
     "placeholder_text": "#aaaaaa",
-    "disabled_text": "#777777"
+    "disabled_text": "#777777",
+    "panel_primary": "#313340"
   },
   "created": "2025-08-12 00:04",
   "menus": {
