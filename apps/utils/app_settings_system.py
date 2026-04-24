@@ -1828,9 +1828,11 @@ class AppSettings:
         panel_entries = colors.get('panel_entries', bg_tertiary)
         panel_filter = colors.get('panel_filter', bg_tertiary)
 
-        # Dialog colours fall back to bg_primary/text_primary if not set
-        dialog_bg   = colors.get('dialog_bg')   or bg_primary
-        dialog_text = colors.get('dialog_text') or text_primary
+        # Dialog colours fall back to bg_primary/text_primary if not explicitly set
+        _d_bg   = colors.get('dialog_bg',   '')
+        _d_text = colors.get('dialog_text', '')
+        dialog_bg   = _d_bg   if _d_bg   else bg_primary
+        dialog_text = _d_text if _d_text else text_primary
 
         stylesheet = f"""
         QMainWindow {{
@@ -3822,10 +3824,12 @@ class SettingsDialog(QDialog): #vers 15
             _ss = self.app_settings.get_stylesheet()
             self.setStyleSheet(_ss)
             # Debug: confirm colour being applied
-            _tc = self.app_settings.get_theme_colors() or {}
-            print(f"[SettingsDialog] theme={self.app_settings.current_settings.get('theme')} "
+            _theme = self.app_settings.current_settings.get('theme','?')
+            _tc = self.app_settings.get_theme_colors(_theme) or {}
+            print(f"[SettingsDialog] theme={_theme} "
                   f"bg={_tc.get('bg_primary','?')} text={_tc.get('text_primary','?')} "
-                  f"dialog_bg={_tc.get('dialog_bg','?')} dialog_text={_tc.get('dialog_text','?')}")
+                  f"dialog_bg={_tc.get('dialog_bg','MISSING')} "
+                  f"dialog_text={_tc.get('dialog_text','MISSING')}")
         except Exception as _sse:
             print(f"[SettingsDialog] stylesheet error: {_sse}")
 
@@ -4845,6 +4849,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Keys that get a section header or control row inserted before/after them
         PANEL_SECTIONS = {
+            "dialog_bg":    ("header", "Dialog Colours"),
             "panel_fill_a": ("header", "Two-Tone Fill"),
             "panel_fill_b": ("control_after", "fill_dir"),
             "hero_bg":                  ("header", "Hero Banner"),
