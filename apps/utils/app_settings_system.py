@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/ app_settings_system.py - version 64
+#This goes in root/ app_settings_system.py - version 65
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -68,8 +68,8 @@ def get_titlebar_sizes(app_settings=None) -> dict: #vers 1
     if app_settings is not None:
         cs = getattr(app_settings, 'current_settings', {})
     return {
-        'tb_height':  cs.get('titlebar_button_height', 32),
-        'btn_size':   cs.get('titlebar_button_size',   32),
+        'tb_height':  cs.get('titlebar_button_height', 25),
+        'btn_size':   cs.get('titlebar_button_size',   25),
         'icon_size':  cs.get('titlebar_icon_size',     20),
         'btn_height': cs.get('button_size',            24),
     }
@@ -1750,8 +1750,8 @@ class AppSettings:
             'use_pastel_buttons': True,
             'high_contrast_buttons': False,
             'button_size': 24,
-            'titlebar_button_height': 32,
-            'titlebar_button_size':   32,
+            'titlebar_button_height': 25,
+            'titlebar_button_size':   25,
             'titlebar_icon_size':     20,
             'icon_size': 16,
             'button_format': 'both',  # 'both', 'icon_only', 'text_only', 'separate'
@@ -4036,8 +4036,8 @@ class SettingsDialog(QDialog): #vers 15
         tl.setSpacing(4)
 
         _cs      = self.app_settings.current_settings
-        _btn_h   = _cs.get("titlebar_button_height", 32)
-        _btn_sz  = _cs.get("titlebar_button_size",   32)
+        _btn_h   = _cs.get("titlebar_button_height", 25)
+        _btn_sz  = _cs.get("titlebar_button_size",   25)
         _ico_sz  = _cs.get("titlebar_icon_size",      20)
         self.dialog_titlebar.setFixedHeight(max(_btn_h, _btn_sz + 4))
         _qsz = QSize(_ico_sz, _ico_sz)
@@ -6171,8 +6171,8 @@ class SettingsDialog(QDialog): #vers 15
         """Apply titlebar + button size settings immediately and auto-save to JSON
         so other apps (COL, TXD, Model etc.) pick up the change next launch."""
         cs = self.app_settings.current_settings
-        tb_h   = cs.get("titlebar_button_height", 32)
-        btn_sz = cs.get("titlebar_button_size",   32)
+        tb_h   = cs.get("titlebar_button_height", 25)
+        btn_sz = cs.get("titlebar_button_size",   25)
         ico_sz = cs.get("titlebar_icon_size",      20)
 
         # Resize dialog titlebar
