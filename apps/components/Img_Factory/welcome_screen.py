@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 5
+# apps/components/Img_Factory/welcome_screen.py — Version 6
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
@@ -130,19 +130,24 @@ class WelcomeScreen(QWidget):
         hero.setFixedHeight(80)
         # Hero banner colours — detect light/dark theme via the app_settings
         # if available, otherwise fall back to palette luminance check.
-        _hero_bg1, _hero_bg2, _hero_title, _hero_sub = '#1a1a2e', '#16213e', '#ffffff', '#aaaacc'
+        # Hero gradient — read from app_settings if available (set in Panels tab)
+        _hero_bg1, _hero_bg2, _hero_title, _hero_sub = '#1a1a2e', '#2d2d5e', '#ffffff', '#aaaacc'
         try:
             _mw = self.main_window
+            _cs = {}
             if _mw and hasattr(_mw, 'app_settings'):
+                _cs = _mw.app_settings.current_settings
                 _tc = _mw.app_settings.get_theme_colors() or {}
                 _bg = _tc.get('bg_primary', '#1a1a2e')
                 _is_dark = QColor(_bg).lightness() < 128
             else:
-                _is_dark = QColor('palette(window)').lightness() < 128
-            if not _is_dark:
-                # Light theme — use explicit dark banner so title is readable
-                _hero_bg1, _hero_bg2 = '#1a1a2e', '#2d2d5e'
-                _hero_title, _hero_sub = '#ffffff', '#aaaacc'
+                _is_dark = True
+            if _is_dark:
+                _hero_bg1 = _cs.get('hero_gradient_dark_start',  '#1a1a2e')
+                _hero_bg2 = _cs.get('hero_gradient_dark_end',    '#2d2d5e')
+            else:
+                _hero_bg1 = _cs.get('hero_gradient_light_start', '#1a1a2e')
+                _hero_bg2 = _cs.get('hero_gradient_light_end',   '#2d2d5e')
         except Exception:
             pass
 

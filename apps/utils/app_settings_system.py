@@ -1594,7 +1594,39 @@ class AppSettings:
             'high_contrast_buttons': False,
             'button_size': 24,
             'icon_size': 16,
-            'button_format': 'both'  # 'both', 'icon_only', 'text_only', 'separate'
+            'button_format': 'both',  # 'both', 'icon_only', 'text_only', 'separate'
+            # Panel / hero colours
+            'hero_gradient_dark_start':  '#1a1a2e',
+            'hero_gradient_dark_end':    '#2d2d5e',
+            'hero_gradient_light_start': '#1a1a2e',
+            'hero_gradient_light_end':   '#2d2d5e',
+            'panel_fill_a':              '#1a1a2e',
+            'panel_fill_b':              '#16213e',
+            'panel_fill_dir':            0,
+            'panel_grad_dir':            1,
+            'panel_grad_stop1':          '#1a1a2e',
+            'panel_grad_stop2':          '#2d1b4e',
+            'panel_grad_stop3':          '#16213e',
+            'panel_pattern_style':       0,
+            'panel_pattern_scale':       8,
+            'panel_pattern_light':       '#2a2a4a',
+            'panel_pattern_dark':        '#141428',
+            'copper_light':              '#b87333',
+            'copper_dark':               '#7a4a1a',
+            'panel_bg_image':            '',
+            'panel_bg_image_mode':       0,
+            'panel_bg_image_opacity':    100,
+            'button_style':              'flat',
+            'progressbar_style':         'system',
+            'progressbar_fill':          '#4a7a9b',
+            'progressbar_bg':            '#1a1a2e',
+            'progressbar_text':          '#ffffff',
+            'progressbar_stripe':        '#5a9abf',
+            'progressbar_height':        18,
+            'locale_auto_detect':        True,
+            'language':                  'en_GB',
+            'date_format_idx':           0,
+            'number_format_idx':         0,
         }
 
         print(f"Looking for themes in: {self.themes_dir}")
@@ -3039,64 +3071,56 @@ class SettingsDialog(QDialog): #vers 15
         return True  # On empty stretch area, draggable
 
 
-    def _create_ui(self): #vers 7
-        """Create the settings dialog UI"""
+    def _create_ui(self): #vers 8
+        """Create the settings dialog UI — restructured tabs"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Store original theme for reset
         self._original_theme = self.app_settings.current_settings.get("theme", "App_Factory")
 
-        # Add custom titlebar if using custom gadgets
         if self.app_settings.current_settings.get("use_custom_gadgets", False):
             self._create_dialog_titlebar()
             layout.addWidget(self.dialog_titlebar)
 
-        # Content area
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
 
-        # Create tab widget
         self.tabs = QTabWidget()
 
-        # Add tabs
         self.color_picker_tab = self._create_color_picker_tab()
         self.tabs.addTab(self.color_picker_tab, "Colors")
 
         self.fonts_tab = self._create_fonts_tab()
         self.tabs.addTab(self.fonts_tab, "Fonts")
 
-        self.buttons_tab = self._create_buttons_tab()
+        self.buttons_tab = self._create_buttons_tab_v2()
         self.tabs.addTab(self.buttons_tab, "Buttons")
+
+        self.panels_tab = self._create_panels_tab()
+        self.tabs.addTab(self.panels_tab, "Panels")
 
         self.gadgets_tab = self._create_gadgets_tab()
         self.tabs.addTab(self.gadgets_tab, "Gadgets")
 
-        self.debug_tab = self._create_debug_tab()
-        self.tabs.addTab(self.debug_tab, "Debug")
+        self.shadows_tab = self._create_shadows_tab()
+        self.tabs.addTab(self.shadows_tab, "Shadows")
+
+        self.ui_management_tab = self._create_ui_management_tab_v2()
+        self.tabs.addTab(self.ui_management_tab, "UI Management")
 
         self.interface_tab = self._create_interface_tab()
         self.tabs.addTab(self.interface_tab, "Interface")
 
-        self.background_tab = self._create_background_tab()
-        self.tabs.addTab(self.background_tab, "Background")
+        self.localisation_tab = self._create_localisation_tab()
+        self.tabs.addTab(self.localisation_tab, "Localisation")
 
-        self.advanced_gadgets_tab = self._create_advanced_gadgets_tab()
-        self.tabs.addTab(self.advanced_gadgets_tab, "Advanced Gadgets")
-
-        self.transparency_tab = self._create_transparency_tab()
-        self.tabs.addTab(self.transparency_tab, "Transparency")
-
-        self.shadows_tab = self._create_shadows_tab()
-        self.tabs.addTab(self.shadows_tab, "Shadows")
-
-        self.ui_management_tab = self._create_ui_management_tab()
-        self.tabs.addTab(self.ui_management_tab, "UI Management")
+        self.debug_tab = self._create_debug_tab()
+        self.tabs.addTab(self.debug_tab, "Debug")
 
         content_layout.addWidget(self.tabs)
 
-        # Buttons
+        button_layout = QHBoxLayout()
         button_layout = QHBoxLayout()
 
         reset_btn = QPushButton("Reset to Defaults")
@@ -4748,6 +4772,234 @@ class SettingsDialog(QDialog): #vers 15
         # Implementation depends on how you want to apply these styles
         pass
 
+    def _create_buttons_tab_v2(self): #vers 2
+        """Buttons tab — style selector with live preview + per-panel tint colours."""
+        from PyQt6.QtWidgets import (QScrollArea, QGridLayout, QFrame, QSizePolicy)
+        from PyQt6.QtGui import QColor, QPainter, QLinearGradient, QPen
+        from PyQt6.QtCore import QRect
+
+        tab = QWidget()
+        root = QVBoxLayout(tab)
+        root.setSpacing(6)
+
+        # ── Style selector ────────────────────────────────────────────────
+        style_group = QGroupBox("Button Style")
+        sg_lay = QVBoxLayout(style_group)
+
+        STYLES = [
+            ("flat",        "Flat",          "No effect — theme colour only"),
+            ("gradient_h",  "Gradient H",    "Left → Right gradient"),
+            ("gradient_v",  "Gradient V",    "Top → Bottom gradient"),
+            ("gradient_45", "Gradient 45°",  "Diagonal shine (TL → BR)"),
+            ("banded",      "Banded",        "Windows ME style — horizontal highlight band"),
+            ("zen",         "Zen",           "Subtle inner glow, soft rounded edges"),
+            ("indented",    "Indented",      "Sunken / pressed appearance"),
+            ("bump",        "Bump",          "Raised 3-D bevel"),
+            ("amiga_wb",    "Amiga WB",      "Classic Workbench full shine top→bottom"),
+            ("half_shine",  "Half-shine",    "Shine top half, flat bottom"),
+            ("shadow_dark", "Shadow-dark",   "Dark shadow BR, light highlight TL"),
+        ]
+
+        current_style = self.app_settings.current_settings.get("button_style", "flat")
+
+        self._btn_style_radios = {}
+        grid = QGridLayout()
+        grid.setSpacing(4)
+        for i, (key, label, tip) in enumerate(STYLES):
+            rb = QRadioButton(label)
+            rb.setToolTip(tip)
+            rb.setChecked(key == current_style)
+            rb.toggled.connect(lambda checked, k=key: self._on_btn_style_changed(k) if checked else None)
+            self._btn_style_radios[key] = rb
+            grid.addWidget(rb, i // 3, i % 3)
+        sg_lay.addLayout(grid)
+        root.addWidget(style_group)
+
+        # ── Live preview ─────────────────────────────────────────────────
+        preview_group = QGroupBox("Preview")
+        pg_lay = QHBoxLayout(preview_group)
+        pg_lay.setSpacing(8)
+
+        self._preview_btns = []
+        for label, colour in [
+            ("Normal",   "#4a7a9b"),
+            ("Hover",    "#5a9abf"),
+            ("Pressed",  "#3a6a8b"),
+            ("Disabled", "#888888"),
+            ("Save",     "#4a2d4a"),
+            ("Danger",   "#7a2d2d"),
+        ]:
+            b = QPushButton(label)
+            b.setFixedHeight(28)
+            b.setEnabled(label != "Disabled")
+            self._preview_btns.append((b, colour))
+            pg_lay.addWidget(b)
+
+        root.addWidget(preview_group)
+        self._update_btn_style_preview()
+
+        # ── Tint on/off ───────────────────────────────────────────────────
+        tint_group = QGroupBox("Workflow Colour Tints")
+        tg_lay = QVBoxLayout(tint_group)
+        self._tint_enabled_cb = QCheckBox("Enable workflow colour tints on buttons")
+        self._tint_enabled_cb.setChecked(
+            self.app_settings.current_settings.get("use_pastel_buttons", True))
+        self._tint_enabled_cb.setToolTip(
+            "Colours aid workflow — e.g. pink=save, blue=open. Can be disabled here.")
+        tg_lay.addWidget(self._tint_enabled_cb)
+        root.addWidget(tint_group)
+
+        # ── Per-panel tint colours ────────────────────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        sw = QWidget(); sl = QVBoxLayout(sw); sl.setSpacing(8)
+
+        self.button_panels_tabs = QTabWidget()
+
+        img_files_tab = self._create_button_panel_editor("img_files", [
+            ("Create",       "create_action"),
+            ("Open",         "open_action"),
+            ("Hybrid Load",  "open_action"),
+            ("Scan Folder",  "open_action"),
+            ("Reload",       "reload_action"),
+            ("Encrypt",      "build_action"),
+            ("Close",        "close_action"),
+            ("Rebuild",      "build_action"),
+            ("Save Entry",   "save_action"),
+            ("Merge",        "merge_action"),
+            ("Convert",      "convert_action"),
+        ])
+        self.button_panels_tabs.addTab(img_files_tab, "IMG Files")
+
+        file_entries_tab = self._create_button_panel_editor("file_entries", [
+            ("Import",       "import_action"),
+            ("Export",       "export_action"),
+            ("Remove",       "remove_action"),
+            ("Refresh",      "reload_action"),
+            ("Dump",         "merge_action"),
+            ("Extract",      "export_action"),
+            ("Rename",       "edit_action"),
+            ("Select",       "select_action"),
+        ])
+        self.button_panels_tabs.addTab(file_entries_tab, "File Entries")
+
+        editing_tab = self._create_button_panel_editor("editing_options", [
+            ("Col Edit",     "editor_col"),
+            ("Txd Edit",     "editor_txd"),
+            ("Dff Edit",     "editor_dff"),
+            ("Ipf Edit",     "editor_data"),
+            ("IDE Edit",     "editor_data"),
+            ("IPL Edit",     "editor_map"),
+            ("Dat Edit",     "editor_data"),
+            ("Radar Map",    "editor_map"),
+            ("Paths Map",    "editor_map"),
+            ("Waterpro",     "editor_data"),
+            ("Weather",      "editor_data"),
+            ("Handling",     "editor_vehicle"),
+        ])
+        self.button_panels_tabs.addTab(editing_tab, "Editing Options")
+
+        sl.addWidget(self.button_panels_tabs)
+        scroll.setWidget(sw)
+        root.addWidget(scroll, 1)
+
+        # ── Actions ───────────────────────────────────────────────────────
+        act = QHBoxLayout()
+        rst = QPushButton("Reset to Theme Defaults")
+        rst.clicked.connect(self._reset_button_colors_to_defaults)
+        act.addWidget(rst)
+        act.addStretch()
+        root.addLayout(act)
+
+        return tab
+
+    def _on_btn_style_changed(self, style_key): #vers 1
+        """Store selected button style and refresh preview."""
+        self.app_settings.current_settings["button_style"] = style_key
+        self._update_btn_style_preview()
+
+    def _update_btn_style_preview(self): #vers 1
+        """Apply current button_style to the preview buttons."""
+        if not hasattr(self, "_preview_btns"):
+            return
+        style_key = self.app_settings.current_settings.get("button_style", "flat")
+        for btn, base_color in self._preview_btns:
+            btn.setStyleSheet(self._build_btn_stylesheet(style_key, base_color))
+
+    def _build_btn_stylesheet(self, style: str, base: str) -> str: #vers 1
+        """Generate a QPushButton stylesheet for the given style + base colour."""
+        from PyQt6.QtGui import QColor
+        c = QColor(base)
+        light = c.lighter(140).name()
+        dark  = c.darker(130).name()
+        mid   = c.name()
+        shine = QColor(255, 255, 255, 80)
+
+        if style == "flat":
+            return f"QPushButton {{ background: {mid}; border: 1px solid {dark}; border-radius: 3px; }}"
+
+        elif style == "gradient_h":
+            return (f"QPushButton {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+                    f"stop:0 {light}, stop:1 {dark}); border: 1px solid {dark}; border-radius:3px; }}")
+
+        elif style == "gradient_v":
+            return (f"QPushButton {{ background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                    f"stop:0 {light}, stop:1 {dark}); border: 1px solid {dark}; border-radius:3px; }}")
+
+        elif style == "gradient_45":
+            return (f"QPushButton {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+                    f"stop:0 {light}, stop:0.5 {mid}, stop:1 {dark}); "
+                    f"border: 1px solid {dark}; border-radius:3px; }}")
+
+        elif style == "banded":
+            # Win ME style — highlight band at ~30%
+            return (f"QPushButton {{ background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                    f"stop:0 {light}, stop:0.25 white, stop:0.30 {light},"
+                    f"stop:0.31 {mid}, stop:1 {dark}); "
+                    f"border: 1px solid {dark}; border-radius:2px; }}")
+
+        elif style == "zen":
+            return (f"QPushButton {{ background: {mid}; border: 1px solid {dark}; "
+                    f"border-radius: 6px; "
+                    f"padding: 2px; }}"
+                    f"QPushButton:hover {{ background: {light}; }}")
+
+        elif style == "indented":
+            return (f"QPushButton {{ background: {dark}; "
+                    f"border-top: 2px solid {QColor(base).darker(160).name()}; "
+                    f"border-left: 2px solid {QColor(base).darker(160).name()}; "
+                    f"border-bottom: 1px solid {light}; "
+                    f"border-right: 1px solid {light}; border-radius:2px; }}")
+
+        elif style == "bump":
+            return (f"QPushButton {{ background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                    f"stop:0 {light}, stop:1 {dark}); "
+                    f"border-top: 2px solid {light}; "
+                    f"border-left: 2px solid {light}; "
+                    f"border-bottom: 2px solid {dark}; "
+                    f"border-right: 2px solid {dark}; border-radius:2px; }}")
+
+        elif style == "amiga_wb":
+            return (f"QPushButton {{ background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                    f"stop:0 white, stop:0.15 {light}, stop:0.85 {dark}, stop:1 black); "
+                    f"color: white; border: 1px solid black; border-radius:1px; }}")
+
+        elif style == "half_shine":
+            return (f"QPushButton {{ background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                    f"stop:0 white, stop:0.48 {light}, stop:0.49 {mid}, stop:1 {mid}); "
+                    f"border: 1px solid {dark}; border-radius:3px; }}")
+
+        elif style == "shadow_dark":
+            return (f"QPushButton {{ background: {mid}; "
+                    f"border-top: 2px solid {light}; "
+                    f"border-left: 2px solid {light}; "
+                    f"border-bottom: 2px solid {QColor(base).darker(180).name()}; "
+                    f"border-right: 2px solid {QColor(base).darker(180).name()}; "
+                    f"border-radius:2px; }}")
+
+        return f"QPushButton {{ background: {mid}; }}"
+
     def _create_buttons_tab(self): #vers 1
         """Create buttons customization tab with light/dark sub-tabs"""
         tab = QWidget()
@@ -5864,6 +6116,497 @@ Ready for operations..."""
         layout.addStretch()
 
         return widget
+
+    def _create_panels_tab(self): #vers 1
+        """Panels tab — merges Background, Transparency, Advanced Gadgets.
+        Sub-tabs: Fill | Gradient | Pattern | Image | Transparency | Gadgets
+        """
+        from PyQt6.QtWidgets import QScrollArea, QFrame
+
+        tab = QWidget()
+        root = QVBoxLayout(tab)
+        root.setContentsMargins(4, 4, 4, 4)
+
+        sub = QTabWidget()
+
+        # ── Fill ──────────────────────────────────────────────────────────
+        fill_tab = QWidget()
+        fl = QVBoxLayout(fill_tab)
+
+        solid_group = QGroupBox("Solid / Two-tone Fill")
+        sgl = QGridLayout(solid_group)
+
+        sgl.addWidget(QLabel("Colour A:"), 0, 0)
+        self._panel_fill_a_btn = QPushButton()
+        self._panel_fill_a_btn.setFixedHeight(24)
+        col_a = self.app_settings.current_settings.get("panel_fill_a", "#1a1a2e")
+        self._panel_fill_a_btn.setStyleSheet(f"background:{col_a};")
+        self._panel_fill_a_btn.clicked.connect(lambda: self._pick_panel_colour("panel_fill_a", self._panel_fill_a_btn))
+        sgl.addWidget(self._panel_fill_a_btn, 0, 1)
+
+        sgl.addWidget(QLabel("Colour B:"), 1, 0)
+        self._panel_fill_b_btn = QPushButton()
+        self._panel_fill_b_btn.setFixedHeight(24)
+        col_b = self.app_settings.current_settings.get("panel_fill_b", "#16213e")
+        self._panel_fill_b_btn.setStyleSheet(f"background:{col_b};")
+        self._panel_fill_b_btn.clicked.connect(lambda: self._pick_panel_colour("panel_fill_b", self._panel_fill_b_btn))
+        sgl.addWidget(self._panel_fill_b_btn, 1, 1)
+
+        sgl.addWidget(QLabel("Direction:"), 2, 0)
+        self._panel_fill_dir = QComboBox()
+        self._panel_fill_dir.addItems([
+            "Solid (A only)",
+            "H — Left → Right",
+            "V — Top → Bottom",
+            "BL → TR",
+            "BR → TL",
+            "TL → BR",
+            "TR → BL",
+        ])
+        self._panel_fill_dir.setCurrentIndex(
+            self.app_settings.current_settings.get("panel_fill_dir", 0))
+        sgl.addWidget(self._panel_fill_dir, 2, 1)
+
+        fl.addWidget(solid_group)
+
+        # Hero gradient group
+        hero_group = QGroupBox("Hero Banner Gradient")
+        hgl = QGridLayout(hero_group)
+
+        for row, (label, key, default) in enumerate([
+            ("Dark theme — start:", "hero_gradient_dark_start",  "#1a1a2e"),
+            ("Dark theme — end:",   "hero_gradient_dark_end",    "#2d2d5e"),
+            ("Light theme — start:","hero_gradient_light_start", "#1a1a2e"),
+            ("Light theme — end:",  "hero_gradient_light_end",   "#2d2d5e"),
+        ]):
+            hgl.addWidget(QLabel(label), row, 0)
+            btn = QPushButton()
+            btn.setFixedHeight(22)
+            val = self.app_settings.current_settings.get(key, default)
+            btn.setStyleSheet(f"background:{val};")
+            btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
+            setattr(self, f"_hero_btn_{key}", btn)
+            hgl.addWidget(btn, row, 1)
+
+        fl.addWidget(hero_group)
+        fl.addStretch()
+        sub.addTab(fill_tab, "Fill")
+
+        # ── Gradient ─────────────────────────────────────────────────────
+        grad_tab = QWidget()
+        gl_root = QVBoxLayout(grad_tab)
+
+        gdir_group = QGroupBox("Gradient Direction")
+        gdir_lay = QVBoxLayout(gdir_group)
+        self._grad_dir_combo = QComboBox()
+        self._grad_dir_combo.addItems([
+            "H — Left → Right",
+            "V — Top → Bottom",
+            "45° — TL → BR",
+            "45° — TR → BL",
+            "45° — BL → TR",
+            "45° — BR → TL",
+        ])
+        self._grad_dir_combo.setCurrentIndex(
+            self.app_settings.current_settings.get("panel_grad_dir", 1))
+        gdir_lay.addWidget(self._grad_dir_combo)
+        gl_root.addWidget(gdir_group)
+
+        gstop_group = QGroupBox("Colour Stops")
+        gstop_lay = QGridLayout(gstop_group)
+        for row, (label, key, default) in enumerate([
+            ("Stop 1 (0%):",   "panel_grad_stop1", "#1a1a2e"),
+            ("Stop 2 (50%):",  "panel_grad_stop2", "#2d1b4e"),
+            ("Stop 3 (100%):", "panel_grad_stop3", "#16213e"),
+        ]):
+            gstop_lay.addWidget(QLabel(label), row, 0)
+            btn = QPushButton()
+            btn.setFixedHeight(22)
+            val = self.app_settings.current_settings.get(key, default)
+            btn.setStyleSheet(f"background:{val};")
+            btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
+            gstop_lay.addWidget(btn, row, 1)
+
+        gl_root.addWidget(gstop_group)
+        gl_root.addStretch()
+        sub.addTab(grad_tab, "Gradient")
+
+        # ── Pattern ───────────────────────────────────────────────────────
+        pat_tab = QWidget()
+        pl = QVBoxLayout(pat_tab)
+
+        pat_style_group = QGroupBox("Pattern Style")
+        psl = QGridLayout(pat_style_group)
+
+        self._pat_style_combo = QComboBox()
+        self._pat_style_combo.addItems([
+            "None",
+            "Dots",
+            "Lines — Horizontal",
+            "Lines — Vertical",
+            "Lines — Diagonal",
+            "Check",
+            "Waves",
+            "Tartan",
+            "Picnic",
+            "Odd/Even rows",
+        ])
+        self._pat_style_combo.setCurrentIndex(
+            self.app_settings.current_settings.get("panel_pattern_style", 0))
+        psl.addWidget(QLabel("Style:"), 0, 0)
+        psl.addWidget(self._pat_style_combo, 0, 1)
+
+        psl.addWidget(QLabel("Scale:"), 1, 0)
+        self._pat_scale = QSlider(Qt.Orientation.Horizontal)
+        self._pat_scale.setRange(2, 32)
+        self._pat_scale.setValue(self.app_settings.current_settings.get("panel_pattern_scale", 8))
+        self._pat_scale_lbl = QLabel(f"{self._pat_scale.value()}px")
+        self._pat_scale.valueChanged.connect(lambda v: self._pat_scale_lbl.setText(f"{v}px"))
+        psl.addWidget(self._pat_scale, 1, 1)
+        psl.addWidget(self._pat_scale_lbl, 1, 2)
+
+        psl.addWidget(QLabel("Light colour:"), 2, 0)
+        self._pat_light_btn = QPushButton()
+        self._pat_light_btn.setFixedHeight(22)
+        val = self.app_settings.current_settings.get("panel_pattern_light", "#2a2a4a")
+        self._pat_light_btn.setStyleSheet(f"background:{val};")
+        self._pat_light_btn.clicked.connect(
+            lambda: self._pick_panel_colour("panel_pattern_light", self._pat_light_btn))
+        psl.addWidget(self._pat_light_btn, 2, 1)
+
+        psl.addWidget(QLabel("Dark colour:"), 3, 0)
+        self._pat_dark_btn = QPushButton()
+        self._pat_dark_btn.setFixedHeight(22)
+        val = self.app_settings.current_settings.get("panel_pattern_dark", "#141428")
+        self._pat_dark_btn.setStyleSheet(f"background:{val};")
+        self._pat_dark_btn.clicked.connect(
+            lambda: self._pick_panel_colour("panel_pattern_dark", self._pat_dark_btn))
+        psl.addWidget(self._pat_dark_btn, 3, 1)
+
+        pl.addWidget(pat_style_group)
+
+        cop_group = QGroupBox("Copper Effect")
+        cpl = QGridLayout(cop_group)
+        for row, (label, key, default) in enumerate([
+            ("Light copper:", "copper_light", "#b87333"),
+            ("Dark copper:",  "copper_dark",  "#7a4a1a"),
+        ]):
+            cpl.addWidget(QLabel(label), row, 0)
+            btn = QPushButton()
+            btn.setFixedHeight(22)
+            val = self.app_settings.current_settings.get(key, default)
+            btn.setStyleSheet(f"background:{val};")
+            btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
+            cpl.addWidget(btn, row, 1)
+        pl.addWidget(cop_group)
+        pl.addStretch()
+        sub.addTab(pat_tab, "Pattern")
+
+        # ── Image ─────────────────────────────────────────────────────────
+        img_tab = QWidget()
+        il = QVBoxLayout(img_tab)
+
+        img_group = QGroupBox("Panel Background Image")
+        igl = QVBoxLayout(img_group)
+
+        path_lay = QHBoxLayout()
+        path_lay.addWidget(QLabel("Image:"))
+        self._panel_img_path = QLineEdit()
+        self._panel_img_path.setPlaceholderText("Path to image file…")
+        self._panel_img_path.setText(
+            self.app_settings.current_settings.get("panel_bg_image", ""))
+        path_lay.addWidget(self._panel_img_path)
+        browse_btn = QPushButton("Browse…")
+        browse_btn.clicked.connect(self._browse_panel_bg_image)
+        path_lay.addWidget(browse_btn)
+        clear_btn = QPushButton("Clear")
+        clear_btn.clicked.connect(lambda: self._panel_img_path.clear())
+        path_lay.addWidget(clear_btn)
+        igl.addLayout(path_lay)
+
+        mode_lay = QHBoxLayout()
+        mode_lay.addWidget(QLabel("Display:"))
+        self._panel_img_mode = QComboBox()
+        self._panel_img_mode.addItems([
+            "Tiled", "Stretched", "Centred", "Scaled fit", "Scaled fill"])
+        self._panel_img_mode.setCurrentIndex(
+            self.app_settings.current_settings.get("panel_bg_image_mode", 0))
+        mode_lay.addWidget(self._panel_img_mode)
+        mode_lay.addStretch()
+        igl.addLayout(mode_lay)
+
+        blend_lay = QHBoxLayout()
+        blend_lay.addWidget(QLabel("Blend opacity:"))
+        self._panel_img_opacity = QSlider(Qt.Orientation.Horizontal)
+        self._panel_img_opacity.setRange(0, 100)
+        self._panel_img_opacity.setValue(
+            self.app_settings.current_settings.get("panel_bg_image_opacity", 100))
+        self._panel_img_opacity_lbl = QLabel(f"{self._panel_img_opacity.value()}%")
+        self._panel_img_opacity.valueChanged.connect(
+            lambda v: self._panel_img_opacity_lbl.setText(f"{v}%"))
+        blend_lay.addWidget(self._panel_img_opacity)
+        blend_lay.addWidget(self._panel_img_opacity_lbl)
+        igl.addLayout(blend_lay)
+
+        il.addWidget(img_group)
+        il.addStretch()
+        sub.addTab(img_tab, "Image")
+
+        # ── Transparency ──────────────────────────────────────────────────
+        trans_tab = QWidget()
+        tl = QVBoxLayout(trans_tab)
+
+        for label, key, default in [
+            ("Titlebar",  "titlebar_opacity", 100),
+            ("Panels",    "panel_opacity",    100),
+            ("Buttons",   "button_opacity",   100),
+            ("Widgets",   "widget_opacity",   100),
+        ]:
+            grp = QGroupBox(f"{label} Opacity")
+            grp_l = QHBoxLayout(grp)
+            sl = QSlider(Qt.Orientation.Horizontal)
+            sl.setRange(0, 100)
+            sl.setValue(self.app_settings.current_settings.get(key, default))
+            sl.setTickPosition(QSlider.TickPosition.TicksBelow)
+            sl.setTickInterval(10)
+            lbl = QLabel(f"{sl.value()}%")
+            lbl.setFixedWidth(40)
+            sl.valueChanged.connect(lambda v, l=lbl: l.setText(f"{v}%"))
+            grp_l.addWidget(sl)
+            grp_l.addWidget(lbl)
+            tl.addWidget(grp)
+            setattr(self, f"_{key.replace('.','_')}_slider", sl)
+
+        tl.addStretch()
+        sub.addTab(trans_tab, "Transparency")
+
+        # ── Gadgets (moved from Advanced Gadgets) ─────────────────────────
+        gadgets_inner = self._create_advanced_gadgets_tab()
+        sub.addTab(gadgets_inner, "Gadgets")
+
+        root.addWidget(sub)
+        return tab
+
+    def _pick_panel_colour(self, key: str, btn: "QPushButton"): #vers 1
+        """Open colour dialog and store result in current_settings + update button."""
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+        current = self.app_settings.current_settings.get(key, "#1a1a2e")
+        colour = QColorDialog.getColor(QColor(current), self, f"Pick colour — {key}")
+        if colour.isValid():
+            hex_val = colour.name()
+            self.app_settings.current_settings[key] = hex_val
+            btn.setStyleSheet(f"background:{hex_val};")
+
+    def _browse_panel_bg_image(self): #vers 1
+        """Browse for panel background image."""
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Background Image", "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.webp *.gif)")
+        if path:
+            self._panel_img_path.setText(path)
+            self.app_settings.current_settings["panel_bg_image"] = path
+
+    def _create_ui_management_tab_v2(self): #vers 2
+        """UI Management tab — existing components + Progress Bar styles."""
+        from PyQt6.QtWidgets import QScrollArea
+
+        tab = QWidget()
+        root = QVBoxLayout(tab)
+
+        sub = QTabWidget()
+
+        # ── Existing UI Management content in a scroll ────────────────────
+        orig = self._create_ui_management_tab()
+        sub.addTab(orig, "Components")
+
+        # ── Progress Bar styles ───────────────────────────────────────────
+        pb_tab = QWidget()
+        pl = QVBoxLayout(pb_tab)
+
+        style_group = QGroupBox("Progress Bar Style")
+        sgl = QVBoxLayout(style_group)
+
+        PB_STYLES = [
+            ("system",      "System default"),
+            ("flat",        "Flat — solid colour fill"),
+            ("gradient_h",  "Gradient — Left → Right"),
+            ("gradient_v",  "Gradient — Top → Bottom"),
+            ("banded",      "Banded — pulsing highlight bands"),
+            ("amiga",       "Amiga — chunky block segments"),
+            ("glow",        "Glow — centre-bright fill"),
+            ("striped",     "Striped — diagonal stripes"),
+        ]
+
+        current_pb = self.app_settings.current_settings.get("progressbar_style", "system")
+        self._pb_style_radios = {}
+        pb_grid = QGridLayout()
+        for i, (key, label) in enumerate(PB_STYLES):
+            rb = QRadioButton(label)
+            rb.setChecked(key == current_pb)
+            rb.toggled.connect(
+                lambda checked, k=key:
+                self.app_settings.current_settings.__setitem__("progressbar_style", k)
+                if checked else None)
+            self._pb_style_radios[key] = rb
+            pb_grid.addWidget(rb, i // 2, i % 2)
+        sgl.addLayout(pb_grid)
+        pl.addWidget(style_group)
+
+        colour_group = QGroupBox("Progress Bar Colours")
+        cgl = QGridLayout(colour_group)
+
+        for row, (label, key, default) in enumerate([
+            ("Fill colour:",       "progressbar_fill",       "#4a7a9b"),
+            ("Background colour:", "progressbar_bg",         "#1a1a2e"),
+            ("Text colour:",       "progressbar_text",       "#ffffff"),
+            ("Stripe colour:",     "progressbar_stripe",     "#5a9abf"),
+        ]):
+            cgl.addWidget(QLabel(label), row, 0)
+            btn = QPushButton()
+            btn.setFixedHeight(22)
+            val = self.app_settings.current_settings.get(key, default)
+            btn.setStyleSheet(f"background:{val};")
+            btn.clicked.connect(lambda _, k=key, b=btn: self._pick_panel_colour(k, b))
+            cgl.addWidget(btn, row, 1)
+
+        pl.addWidget(colour_group)
+
+        height_group = QGroupBox("Height")
+        hgl = QHBoxLayout(height_group)
+        self._pb_height_slider = QSlider(Qt.Orientation.Horizontal)
+        self._pb_height_slider.setRange(8, 32)
+        self._pb_height_slider.setValue(
+            self.app_settings.current_settings.get("progressbar_height", 18))
+        self._pb_height_lbl = QLabel(f"{self._pb_height_slider.value()}px")
+        self._pb_height_slider.valueChanged.connect(
+            lambda v: self._pb_height_lbl.setText(f"{v}px"))
+        hgl.addWidget(self._pb_height_slider)
+        hgl.addWidget(self._pb_height_lbl)
+        pl.addWidget(height_group)
+        pl.addStretch()
+
+        sub.addTab(pb_tab, "Progress Bars")
+
+        root.addWidget(sub)
+        return tab
+
+    def _create_localisation_tab(self): #vers 1
+        """Localisation tab — locale detection, language, date/number formats."""
+        import locale as _locale
+        from PyQt6.QtWidgets import QScrollArea
+
+        tab = QWidget()
+        root = QVBoxLayout(tab)
+        root.setSpacing(8)
+
+        # ── Auto-detect ───────────────────────────────────────────────────
+        detect_group = QGroupBox("System Locale Detection")
+        dgl = QVBoxLayout(detect_group)
+
+        self._locale_auto_cb = QCheckBox("Auto-detect locale from system on startup")
+        self._locale_auto_cb.setChecked(
+            self.app_settings.current_settings.get("locale_auto_detect", True))
+        dgl.addWidget(self._locale_auto_cb)
+
+        try:
+            sys_locale = _locale.getdefaultlocale()[0] or "Unknown"
+        except Exception:
+            sys_locale = "Unknown"
+        dgl.addWidget(QLabel(f"Detected system locale:  <b>{sys_locale}</b>"))
+        root.addWidget(detect_group)
+
+        # ── Language ──────────────────────────────────────────────────────
+        lang_group = QGroupBox("Language")
+        lgl = QGridLayout(lang_group)
+
+        LANGUAGES = [
+            ("en_GB", "English (UK)"),
+            ("en_US", "English (US)"),
+            ("de_DE", "Deutsch"),
+            ("fr_FR", "Français"),
+            ("es_ES", "Español"),
+            ("it_IT", "Italiano"),
+            ("pt_PT", "Português"),
+            ("nl_NL", "Nederlands"),
+            ("pl_PL", "Polski"),
+            ("ru_RU", "Русский"),
+            ("ja_JP", "日本語"),
+            ("zh_CN", "中文 (简体)"),
+        ]
+
+        lgl.addWidget(QLabel("Application language:"), 0, 0)
+        self._lang_combo = QComboBox()
+        for code, name in LANGUAGES:
+            self._lang_combo.addItem(name, code)
+        current_lang = self.app_settings.current_settings.get("language", "en_GB")
+        for i, (code, _) in enumerate(LANGUAGES):
+            if code == current_lang:
+                self._lang_combo.setCurrentIndex(i)
+                break
+        lgl.addWidget(self._lang_combo, 0, 1)
+
+        note = QLabel("Note: Language change takes effect on next launch. "
+                      "Translations are community-contributed — coverage varies.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid); font-size: 8pt;")
+        lgl.addWidget(note, 1, 0, 1, 2)
+        root.addWidget(lang_group)
+
+        # ── Date & Number formats ─────────────────────────────────────────
+        fmt_group = QGroupBox("Date & Number Formats")
+        fgl = QGridLayout(fmt_group)
+
+        fgl.addWidget(QLabel("Date format:"), 0, 0)
+        self._date_fmt_combo = QComboBox()
+        self._date_fmt_combo.addItems([
+            "DD/MM/YYYY  (UK/EU)",
+            "MM/DD/YYYY  (US)",
+            "YYYY-MM-DD  (ISO 8601)",
+            "DD.MM.YYYY  (DE/RU)",
+        ])
+        self._date_fmt_combo.setCurrentIndex(
+            self.app_settings.current_settings.get("date_format_idx", 0))
+        fgl.addWidget(self._date_fmt_combo, 0, 1)
+
+        fgl.addWidget(QLabel("Number format:"), 1, 0)
+        self._num_fmt_combo = QComboBox()
+        self._num_fmt_combo.addItems([
+            "1,234.56  (UK/US — comma thousands, dot decimal)",
+            "1.234,56  (EU — dot thousands, comma decimal)",
+            "1 234,56  (FR/RU — space thousands, comma decimal)",
+            "1234.56   (No separator)",
+        ])
+        self._num_fmt_combo.setCurrentIndex(
+            self.app_settings.current_settings.get("number_format_idx", 0))
+        fgl.addWidget(self._num_fmt_combo, 1, 1)
+        root.addWidget(fmt_group)
+
+        # ── Per-app overrides ─────────────────────────────────────────────
+        override_group = QGroupBox("Per-Workshop Language Override")
+        ogl = QVBoxLayout(override_group)
+        ogl.addWidget(QLabel(
+            "Future: each workshop can use a different language file.\n"
+            "Leave blank to inherit the application language above."))
+
+        WORKSHOPS = ["IMG Factory", "TXD Workshop", "COL Workshop",
+                     "Model Workshop", "DP5 Workshop", "Radar Workshop"]
+        self._workshop_lang_combos = {}
+        for ws in WORKSHOPS:
+            row_lay = QHBoxLayout()
+            row_lay.addWidget(QLabel(f"{ws}:"))
+            cb = QComboBox()
+            cb.addItem("— Inherit —", "")
+            for code, name in LANGUAGES:
+                cb.addItem(name, code)
+            self._workshop_lang_combos[ws] = cb
+            row_lay.addWidget(cb)
+            ogl.addLayout(row_lay)
+        root.addWidget(override_group)
+
+        root.addStretch()
+        return tab
 
     def _create_background_tab(self): #vers 1
         """Create background settings tab - Image backgrounds for panels, buttons, etc."""
