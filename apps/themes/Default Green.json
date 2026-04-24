@@ -48,7 +48,20 @@
     "scrollbar_handle": "#ffffff",
     "scrollbar_handle_hover": "#ffffff",
     "scrollbar_handle_pressed": "#ffffff",
-    "scrollbar_border": "#ffffff"
+    "scrollbar_border": "#ffffff",
+    "panel_fill_a": "#e9f8e9",
+    "panel_fill_b": "#f0f8f0",
+    "hero_gradient_dark_start": "#e9f8e9",
+    "hero_gradient_dark_end": "#ffffff",
+    "hero_gradient_light_start": "#e9f8e9",
+    "hero_gradient_light_end": "#ffffff",
+    "panel_grad_stop1": "#e9f8e9",
+    "panel_grad_stop2": "#3a863d",
+    "panel_grad_stop3": "#f0f8f0",
+    "panel_pattern_light": "#ffffff",
+    "panel_pattern_dark": "#b3beb3",
+    "copper_light": "#b87333",
+    "copper_dark": "#7a4a1a"
   },
   "styles": {
     "button_shape": "Rounded",

@@ -93,7 +93,20 @@
     "action_convert": "#9c27b0",
     "panel_entries": "#2a0c0d",
     "panel_filter": "#301415",
-    "toolbar_bg": "#240001"
+    "toolbar_bg": "#240001",
+    "panel_fill_a": "#2e0001",
+    "panel_fill_b": "#240001",
+    "hero_gradient_dark_start": "#2e0001",
+    "hero_gradient_dark_end": "#490001",
+    "hero_gradient_light_start": "#2e0001",
+    "hero_gradient_light_end": "#5c0002",
+    "panel_grad_stop1": "#2e0001",
+    "panel_grad_stop2": "#932b21",
+    "panel_grad_stop3": "#240001",
+    "panel_pattern_light": "#400001",
+    "panel_pattern_dark": "#230000",
+    "copper_light": "#b87333",
+    "copper_dark": "#7a4a1a"
   },
   "menus": {
     "menu_structure": [

@@ -28,7 +28,20 @@
     "action_export": "#4CAF50",
     "action_remove": "#F44336",
     "action_update": "#FF9800",
-    "action_convert": "#9C27B0"
+    "action_convert": "#9C27B0",
+    "panel_fill_a": "#F5F5F5",
+    "panel_fill_b": "#F5F5F5",
+    "hero_gradient_dark_start": "#F5F5F5",
+    "hero_gradient_dark_end": "#ffffff",
+    "hero_gradient_light_start": "#F5F5F5",
+    "hero_gradient_light_end": "#ffffff",
+    "panel_grad_stop1": "#F5F5F5",
+    "panel_grad_stop2": "#386ea6",
+    "panel_grad_stop3": "#F5F5F5",
+    "panel_pattern_light": "#ffffff",
+    "panel_pattern_dark": "#bcbcbc",
+    "copper_light": "#b87333",
+    "copper_dark": "#7a4a1a"
   },
   "mui_settings": {
     "system_detected": true,

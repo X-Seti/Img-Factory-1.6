@@ -8965,6 +8965,15 @@ Ready for operations..."""
         for color_key, editor in self.color_editors.items():
             theme_data["colors"][color_key] = editor.color_input.text()
 
+        # Save panel effect settings into theme (non-colour controls)
+        cs = self.app_settings.current_settings
+        for key in ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
+                    "panel_pattern_scale", "panel_effect_type",
+                    "panel_bg_image", "panel_bg_image_mode", "panel_bg_image_opacity",
+                    "button_style", "progressbar_style", "progressbar_height"):
+            if key in cs:
+                theme_data[key] = cs[key]
+
         # Collect gadget styles if modified
         if hasattr(self, '_gadget_modified') and self._gadget_modified:
             gadget_styles = self._collect_gadget_styles()
@@ -9027,6 +9036,14 @@ Ready for operations..."""
             # Only update actual color values, preserve everything else in colors section
             if color_key in theme_data["colors"] or color_key in self.theme_colors:
                 theme_data["colors"][color_key] = editor.color_input.text()
+
+        # Save panel effect settings at theme root level
+        cs = self.app_settings.current_settings
+        for key in ("panel_fill_dir", "panel_grad_dir", "panel_pattern_style",
+                    "panel_pattern_scale", "panel_effect_type",
+                    "button_style", "progressbar_style", "progressbar_height"):
+            if key in cs:
+                theme_data[key] = cs[key]
 
         # Update theme metadata
         theme_data.update({

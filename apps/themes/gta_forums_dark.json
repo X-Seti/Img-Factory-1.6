@@ -1,7 +1,7 @@
 {
   "name": "gta_forums_dark",
   "description": "Modified version of gta_forums_dark",
-  "category": "🌙 Dark Themes",
+  "category": "\ud83c\udf19 Dark Themes",
   "author": "X-Seti",
   "version": "1.0",
   "colors": {
@@ -93,7 +93,20 @@
     "pin_highlight": "#49656f",
     "panel_entries": "#1c242c",
     "panel_filter": "#242d33",
-    "toolbar_bg": "#243742"
+    "toolbar_bg": "#243742",
+    "panel_fill_a": "#0f151f",
+    "panel_fill_b": "#131925",
+    "hero_gradient_dark_start": "#0f151f",
+    "hero_gradient_dark_end": "#182131",
+    "hero_gradient_light_start": "#0f151f",
+    "hero_gradient_light_end": "#1e2a3e",
+    "panel_grad_stop1": "#0f151f",
+    "panel_grad_stop2": "#384d55",
+    "panel_grad_stop3": "#131925",
+    "panel_pattern_light": "#151d2b",
+    "panel_pattern_dark": "#0b1017",
+    "copper_light": "#b87333",
+    "copper_dark": "#7a4a1a"
   },
   "created": "2025-08-12 00:04",
   "menus": {

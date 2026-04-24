@@ -93,7 +93,20 @@
     "pin_highlight": "#4f6f7A",
     "panel_entries": "#232e37",
     "panel_filter": "#2a353d",
-    "toolbar_bg": "#293f4d"
+    "toolbar_bg": "#293f4d",
+    "panel_fill_a": "#18242d",
+    "panel_fill_b": "#182030",
+    "hero_gradient_dark_start": "#18242d",
+    "hero_gradient_dark_end": "#263948",
+    "hero_gradient_light_start": "#18242d",
+    "hero_gradient_light_end": "#30485a",
+    "panel_grad_stop1": "#18242d",
+    "panel_grad_stop2": "#3c555d",
+    "panel_grad_stop3": "#182030",
+    "panel_pattern_light": "#21323e",
+    "panel_pattern_dark": "#121b22",
+    "copper_light": "#b87333",
+    "copper_dark": "#7a4a1a"
   },
   "created": "2025-08-12 00:04",
   "menus": {

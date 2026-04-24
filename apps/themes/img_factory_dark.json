@@ -93,7 +93,20 @@
     "col_version": "Version",
     "col_compression": "Compression",
     "col_status": "Status",
-    "alternate_row": "#2b2b2b"
+    "alternate_row": "#2b2b2b",
+    "panel_fill_a": "#272727",
+    "panel_fill_b": "#242424",
+    "hero_gradient_dark_start": "#272727",
+    "hero_gradient_dark_end": "#3e3e3e",
+    "hero_gradient_light_start": "#272727",
+    "hero_gradient_light_end": "#4e4e4e",
+    "panel_grad_stop1": "#272727",
+    "panel_grad_stop2": "#135aa1",
+    "panel_grad_stop3": "#242424",
+    "panel_pattern_light": "#363636",
+    "panel_pattern_dark": "#1e1e1e",
+    "copper_light": "#b87333",
+    "copper_dark": "#7a4a1a"
   },
   "menus": {
     "menu_structure": [

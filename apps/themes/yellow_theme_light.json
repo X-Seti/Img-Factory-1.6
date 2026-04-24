@@ -93,7 +93,20 @@
     "col_offset": "Offset",
     "col_version": "Version",
     "col_compression": "Compression",
-    "col_status": "Status"
+    "col_status": "Status",
+    "panel_fill_a": "#fffef0",
+    "panel_fill_b": "#fefce8",
+    "hero_gradient_dark_start": "#fffef0",
+    "hero_gradient_dark_end": "#ffffff",
+    "hero_gradient_light_start": "#fffef0",
+    "hero_gradient_light_end": "#ffffff",
+    "panel_grad_stop1": "#fffef0",
+    "panel_grad_stop2": "#bc7908",
+    "panel_grad_stop3": "#fefce8",
+    "panel_pattern_light": "#ffffff",
+    "panel_pattern_dark": "#c4c3b8",
+    "copper_light": "#b87333",
+    "copper_dark": "#7a4a1a"
   },
   "menus": {
     "menu_structure": [
