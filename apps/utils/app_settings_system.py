@@ -5124,7 +5124,13 @@ class SettingsDialog(QDialog): #vers 15
 
             # Get default color
             default_colors = self._get_default_button_colors()
-            is_light = not self._is_dark_theme()
+            try:
+                from PyQt6.QtGui import QColor
+                _tc = self.app_settings.get_theme_colors() or {}
+                _bg = _tc.get("bg_primary", "#1a1a2e")
+                is_light = QColor(_bg).lightness() > 128
+            except Exception:
+                is_light = False
             color_key = f"button_{panel_id}_{button_action}_{'light' if is_light else 'dark'}"
             default_color = self.app_settings.current_settings.get(color_key, default_colors.get(button_action, "#E3F2FD"))
 
@@ -5169,9 +5175,16 @@ class SettingsDialog(QDialog): #vers 15
 
         return widget
 
-    def _get_default_button_colors(self): #vers 2
+    def _get_default_button_colors(self): #vers 3
         """Get default button colors based on current theme (light/dark)"""
-        is_light = not self._is_dark_theme()
+        # Detect light/dark from bg_primary colour luminance
+        try:
+            from PyQt6.QtGui import QColor
+            tc = self.app_settings.get_theme_colors() or {}
+            bg = tc.get("bg_primary", "#1a1a2e")
+            is_light = QColor(bg).lightness() > 128
+        except Exception:
+            is_light = False
 
         if is_light:
             # Light theme - Pastel colors
