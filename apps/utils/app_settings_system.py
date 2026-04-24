@@ -3394,9 +3394,15 @@ class SettingsDialog(QDialog): #vers 15
 
         self._original_theme = self.app_settings.current_settings.get("theme", "App_Factory")
 
-        if self.app_settings.current_settings.get("use_custom_gadgets", False):
+        # Settings dialog always has its own titlebar — [Menu] [Settings] | title | [i] [—] [□] [✕]
+        # This makes it draggable on both X11 and Wayland, and consistent regardless of ui_mode.
+        try:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint |
+                                Qt.WindowType.Dialog)
             self._create_dialog_titlebar()
             layout.addWidget(self.dialog_titlebar)
+        except Exception as _e:
+            print(f"Settings titlebar error: {_e}")
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
