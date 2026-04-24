@@ -3464,6 +3464,8 @@ class SettingsDialog(QDialog): #vers 15
         self.original_settings = app_settings.current_settings.copy()
         self._modified_colors = {}
         self.color_editors = {}
+        self._color_history = []   # stack of {color_key: hex} snapshots
+        self._history_limit = 30   # max undo steps
 
         # Initialize icon provider
         self.icons = IconProvider(self)
@@ -4005,6 +4007,11 @@ class SettingsDialog(QDialog): #vers 15
             b.clicked.connect(slot)
             return b
 
+        undo_btn  = _wbtn(_ico.undo_icon,     "Nothing to undo", self._undo_color_change)
+        undo_btn.setEnabled(False)
+        self._dialog_undo_btn = undo_btn
+        tl.addWidget(undo_btn)
+
         info_btn  = _wbtn(_ico.info_icon,     "About / Help",  self._show_dialog_info)
         self._dialog_info_btn = info_btn
         tl.addWidget(info_btn)
@@ -4110,6 +4117,42 @@ class SettingsDialog(QDialog): #vers 15
         m.addAction("Close",              self.reject)
         btn = self._dialog_menu_btn
         m.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _push_undo(self, color_key, old_value): #vers 1
+        """Push a single colour change onto the undo stack."""
+        if not hasattr(self, '_color_history'):
+            self._color_history = []
+        self._color_history.append((color_key, old_value))
+        limit = getattr(self, '_history_limit', 30)
+        if len(self._color_history) > limit:
+            self._color_history.pop(0)
+        # Update undo button tooltip
+        btn = getattr(self, '_dialog_undo_btn', None)
+        if btn:
+            btn.setEnabled(True)
+            btn.setToolTip(f"Undo — revert {color_key} ({len(self._color_history)} steps)")
+
+    def _undo_color_change(self): #vers 1
+        """Undo the last colour change — pops the history stack."""
+        if not hasattr(self, '_color_history') or not self._color_history:
+            return
+        color_key, old_value = self._color_history.pop()
+        # Restore in editor
+        editor = self.color_editors.get(color_key)
+        if editor:
+            editor.set_color(old_value)
+        # Restore in modified_colors
+        self._modified_colors[color_key] = old_value
+        # Update undo button
+        btn = getattr(self, '_dialog_undo_btn', None)
+        if btn:
+            remaining = len(self._color_history)
+            btn.setEnabled(remaining > 0)
+            if remaining > 0:
+                next_key, next_val = self._color_history[-1]
+                btn.setToolTip(f"Undo — revert {next_key} ({remaining} steps)")
+            else:
+                btn.setToolTip("Nothing to undo")
 
     def _show_dialog_info(self): #vers 1
         """Show brief info about the settings dialog."""
@@ -8915,8 +8958,11 @@ Ready for operations..."""
             # Emit signal
             self.themeChanged.emit(theme_key)
 
-    def _load_theme_colors(self, theme_key): #vers 1
-        """Load colors for selected theme into editors"""
+    def _load_theme_colors(self, theme_key): #vers 3
+        """Load colors for selected theme into editors — clears undo history."""
+        if hasattr(self, "_color_history"): self._color_history.clear()
+        _ub = getattr(self, "_dialog_undo_btn", None)
+        if _ub: _ub.setEnabled(False); _ub.setToolTip("Nothing to undo")
         if theme_key in self.app_settings.themes:
             colors = self.app_settings.themes[theme_key].get("colors", {})
 
@@ -8924,10 +8970,20 @@ Ready for operations..."""
                 color_value = colors.get(color_key, "#ffffff")
                 editor.set_color(color_value)
 
-    def _on_theme_color_changed(self, color_key, hex_value): #vers 1
-        """Handle individual color changes"""
+    def _on_theme_color_changed(self, color_key, hex_value): #vers 2
+        """Handle individual color changes — push undo snapshot first."""
         if not hasattr(self, '_modified_colors'):
             self._modified_colors = {}
+
+        # Push current state to undo history before applying change
+        old_val = self._modified_colors.get(color_key)
+        if old_val is None:
+            # First change for this key — get current editor value
+            editor = self.color_editors.get(color_key)
+            old_val = editor.color_input.text() if editor else '#ffffff'
+        if old_val != hex_value:
+            self._push_undo(color_key, old_val)
+
         self._modified_colors[color_key] = hex_value
 
     def _on_color_changed(self, element_key, hex_color): #vers 1
