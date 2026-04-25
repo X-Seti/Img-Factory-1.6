@@ -243,7 +243,8 @@ class WelcomeScreen(QWidget):
         # Tab bar: Quick Start | Functions | Workflows | Shortcuts
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
-        root.addWidget(tabs)   # no stretch — let sizeHint govern height
+        tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        root.addWidget(tabs, 1)  # stretch=1 — fills available height, doesn't expand to content
 
         tabs.addTab(self._build_quickstart_tab(), "Quick Start")
         tabs.addTab(self._build_functions_tab(),  "All Functions")
@@ -351,15 +352,18 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 4
-        # Outer scroll area so content doesn't overflow when panel is short
+    def _build_quickstart_tab(self): #vers 5
+        from PyQt6.QtCore import Qt as _Qt
+        # Scroll area — vertical scrollbar always visible (ready for future cards)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(
-            __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         w = QWidget()
+        w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         lay = QVBoxLayout(w); lay.setContentsMargins(12, 12, 12, 12); lay.setSpacing(10)
 
         self._resolve_card_colors(w)
@@ -429,7 +433,12 @@ class WelcomeScreen(QWidget):
         scroll.setWidget(w)
         return scroll
 
-    def _build_functions_tab(self): #vers 1
+    def _build_functions_tab(self): #vers 2
+        from PyQt6.QtCore import Qt as _Qt
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         w = QWidget()
         lay = QVBoxLayout(w); lay.setContentsMargins(16, 12, 16, 12); lay.setSpacing(12)
 
@@ -541,9 +550,15 @@ class WelcomeScreen(QWidget):
         ]))
 
         lay.addStretch()
-        return w
+        scroll.setWidget(w)
+        return scroll
 
-    def _build_workflows_tab(self): #vers 1
+    def _build_workflows_tab(self): #vers 2
+        from PyQt6.QtCore import Qt as _Qt
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         w = QWidget()
         lay = QVBoxLayout(w); lay.setContentsMargins(20, 16, 20, 16); lay.setSpacing(16)
 
@@ -597,9 +612,15 @@ class WelcomeScreen(QWidget):
             lay.addWidget(frame)
 
         lay.addStretch()
-        return w
+        scroll.setWidget(w)
+        return scroll
 
-    def _build_shortcuts_tab(self): #vers 1
+    def _build_shortcuts_tab(self): #vers 2
+        from PyQt6.QtCore import Qt as _Qt
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         w = QWidget()
         lay = QVBoxLayout(w); lay.setContentsMargins(16, 12, 16, 12); lay.setSpacing(12)
 
@@ -625,7 +646,8 @@ class WelcomeScreen(QWidget):
         ], col_widths=(90, 160, None)))
 
         lay.addStretch()
-        return w
+        scroll.setWidget(w)
+        return scroll
 
     #  Helpers  
 
