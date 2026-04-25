@@ -1491,6 +1491,22 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     #    ToolMenuMixin implementation                                      
 
+    def _get_ui_color(self, key): #vers 1
+        """Return theme-aware QColor. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':   return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text': return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':        return pal.color(pal.ColorRole.Mid)
+        return pal.color(pal.ColorRole.WindowText)
+
     def get_menu_title(self) -> str: #vers 1
         """Short label for imgfactory titlebar button."""
         return "COL"
@@ -1577,17 +1593,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
 
-        #self.background_color = self._get_ui_color('viewport_bg') #crashes app
-
-        #TODO: error
-        """raceback (most recent call last):
-        File "/home/x2/Documents/GitHub/Img-Factory-1.6/./launch_col_workshop.py", line 32, in <module>
-            workshop = col_workshop.COLWorkshop()
-        File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/Col_Editor/col_workshop.py", line 1579, in __init__
-            self.background_color = self._get_ui_color('viewport_bg') #crashes app
-                                    ^^^^^^^^^^^^^^^^^^
-        AttributeError: 'COLWorkshop' object has no attribute '_get_ui_color'. Did you mean: '_get_icon_color'?
-        """
+        self.background_color = self._get_ui_color('viewport_bg')
 
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
@@ -9362,30 +9368,9 @@ class COLEditorDialog(QDialog): #vers 3
             self.load_col_file(file_path)
 
 
-    def save_file(self): #vers 1
-        """Save current file"""
-        if not self.current_file:
-            QMessageBox.warning(self, "Save", "No file loaded to save")
-            return
-
-        if not self.file_path:
-            self.save_file_as()
-            return
-
-        try:
-            self.status_bar.showMessage("Saving COL file...")
-
-            # STUB: COL binary write — currently view-only
-            QMessageBox.information(self, "Save",
-                "COL file saving is not yet implemented.\n"
-                "The editor is currently view-only.")
-
-            self.status_bar.showMessage("Ready")
-
-        except Exception as e:
-            error_msg = f"Error saving COL file: {str(e)}"
-            QMessageBox.critical(self, "Save Error", error_msg)
-            print(error_msg)
+    def save_file(self): #vers 2
+        """Save current file — delegates to _save_file."""
+        self._save_file()
 
 
     def save_file_as(self): #vers 1
@@ -9846,28 +9831,23 @@ def delete_model(col_file: COLFile, model_index: int) -> bool: #vers 1
         return False
 
 
-def export_model(model: COLModel, file_path: str) -> bool: #vers 1
-    """Export single model to file"""
-    try:
-        # STUB: COL model export not yet implemented
-        print(f"Model export to {file_path} - not yet implemented")
-        return False
-
-    except Exception as e:
-        print(f"Error exporting model: {str(e)}")
-        return False
+def export_model(model: COLModel, file_path: str) -> bool: #vers 2
+    """Export single model — use COLWorkshop._export_col_model for UI export."""
+    from apps.methods.col_workshop_writer import save_col_file
+    return save_col_file([model], file_path)
 
 
-def import_elements(model: COLModel, file_path: str) -> bool: #vers 1
-    """Import collision elements from file"""
-    try:
-        # STUB: COL element import not yet implemented
-        print(f"Element import from {file_path} - not yet implemented")
+def import_elements(model: COLModel, file_path: str) -> bool: #vers 2
+    """Import collision elements from COL file into model."""
+    from apps.methods.col_workshop_loader import load_col_file
+    imported = load_col_file(file_path)
+    if not imported:
         return False
-
-    except Exception as e:
-        print(f"Error importing elements: {str(e)}")
-        return False
+    model.spheres   += imported[0].spheres
+    model.boxes     += imported[0].boxes
+    model.mesh_faces+= imported[0].mesh_faces
+    model.mesh_verts+= imported[0].mesh_verts
+    return True
 
 
 def refresh_model_list(list_widget: COLModelListWidget, col_file: COLFile): #vers 1
@@ -9914,13 +9894,13 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
 
 
 
-def apply_changes(editor: COLEditorDialog) -> bool: #vers 1
-    """Apply all pending changes"""
+def apply_changes(editor: COLEditorDialog) -> bool: #vers 2
+    """Apply all pending changes via editor's apply method."""
     try:
-        # STUB: pending change application not yet implemented
-        print("Apply changes - not yet implemented")
-        return True
-
+        if hasattr(editor, '_apply_changes'):
+            editor._apply_changes()
+            return True
+        return False
     except Exception as e:
         print(f"Error applying changes: {str(e)}")
         return False

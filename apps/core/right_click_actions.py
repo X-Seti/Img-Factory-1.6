@@ -924,29 +924,49 @@ def edit_col_collision(main_window, row): #vers 2
     return edit_col_from_img_entry(main_window, row)
 
 
-def edit_dff_model(main_window, row): #vers 1
-    """Edit DFF model"""
-    main_window.log_message(f"Edit DFF model from row {row} - not yet implemented")
+def edit_dff_model(main_window, row): #vers 2
+    """Edit DFF model — opens in Model Workshop."""
+    info = get_selected_entry_info(main_window, row)
+    if not info or not info['is_dff']:
+        main_window.log_message(f"Row {row} is not a DFF file")
+        return
+    main_window.open_model_workshop_docked(dff_name=info['name'])
 
 
-def edit_txd_textures(main_window, row): #vers 1
-    """Edit TXD textures"""
-    main_window.log_message(f"Edit TXD textures from row {row} - not yet implemented")
+def edit_txd_textures(main_window, row): #vers 2
+    """Edit TXD textures — opens in TXD Workshop."""
+    info = get_selected_entry_info(main_window, row)
+    if not info or not info['is_txd']:
+        main_window.log_message(f"Row {row} is not a TXD file")
+        return
+    main_window.open_txd_workshop_docked(txd_name=info['name'])
 
 
-def view_dff_model(main_window, row): #vers 1
-    """View DFF model"""
-    main_window.log_message(f"View DFF model from row {row} - not yet implemented")
+def view_dff_model(main_window, row): #vers 2
+    """View DFF model — opens in Model Workshop."""
+    edit_dff_model(main_window, row)
 
 
-def view_txd_textures(main_window, row): #vers 1
-    """View TXD textures"""
-    main_window.log_message(f"View TXD textures from row {row} - not yet implemented")
+def view_txd_textures(main_window, row): #vers 2
+    """View TXD textures — opens in TXD Workshop."""
+    edit_txd_textures(main_window, row)
 
 
-def replace_selected_entry(main_window, row): #vers 1
-    """Replace selected entry"""
-    main_window.log_message(f"Replace entry from row {row} - not yet implemented")
+def replace_selected_entry(main_window, row): #vers 2
+    """Replace selected entry from file."""
+    try:
+        from PyQt6.QtWidgets import QFileDialog
+        info = get_selected_entry_info(main_window, row)
+        if not info: return
+        path, _ = QFileDialog.getOpenFileName(
+            main_window, f"Replace {info['name']}", "", "All Files (*)")
+        if not path: return
+        if hasattr(main_window, 'replace_entry_from_file'):
+            main_window.replace_entry_from_file(row, path)
+        else:
+            main_window.log_message(f"Replace: {info['name']} <- {path}")
+    except Exception as e:
+        main_window.log_message(f"Replace error: {e}")
 
 
 def show_entry_properties(main_window, row): #vers 1

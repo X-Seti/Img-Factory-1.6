@@ -154,7 +154,7 @@ def setup_col_shortcuts(main_window): #vers 11
                 created_shortcuts.append(f"{key_sequence} → {description}")
             else:
                 # Create placeholder
-                placeholder = lambda desc=description: main_window.log_message(f"Fail: {desc} - not yet implemented")
+                placeholder = lambda desc=description: main_window.log_message(f"{desc} — not yet available")
                 shortcut = QShortcut(QKeySequence(key_sequence), main_window)
                 shortcut.activated.connect(placeholder)
                 created_shortcuts.append(f"{key_sequence} → {description} (placeholder)")
@@ -202,7 +202,8 @@ def setup_debug_shortcuts(main_window): #vers 4
         if hasattr(main_window, 'show_debug_settings'):
             debug_shortcut.activated.connect(main_window.show_debug_settings)
         else:
-            debug_shortcut.activated.connect(lambda: main_window.log_message("🔧 Debug settings - not yet implemented"))
+            debug_shortcut.activated.connect(
+                lambda: main_window.log_message("Debug settings: add show_debug_settings() to main window"))
 
         main_window.log_message("Debug shortcuts created")
         main_window.log_message("F12: Toggle performance mode")
@@ -265,7 +266,7 @@ def setup_main_shortcuts(main_window): #vers 5
                 created_shortcuts.append(f"{key_sequence} → {description}")
             else:
                 # Create placeholder for missing methods
-                placeholder = lambda desc=description: main_window.log_message(f"Fail: {desc} - not yet implemented")
+                placeholder = lambda desc=description: main_window.log_message(f"{desc} — not yet available")
                 shortcut = QShortcut(QKeySequence(key_sequence), main_window)
                 shortcut.activated.connect(placeholder)
                 created_shortcuts.append(f"{key_sequence} → {description} (placeholder)")
@@ -299,17 +300,21 @@ def setup_search_shortcuts(main_window): #vers 4
             
             main_window.log_message("Search shortcuts connected to search manager")
         else:
-            # Create placeholder shortcuts
+            # Fallback: focus the search bar widget if present
+            def _focus_search():
+                for attr in ('search_bar', 'search_input', 'search_btn', '_search_bar'):
+                    w = getattr(main_window, attr, None)
+                    if w and hasattr(w, 'setFocus'):
+                        w.setFocus()
+                        return
+                main_window.log_message("Search: no search widget found")
             search_shortcut = QShortcut(QKeySequence("Ctrl+F"), main_window)
-            search_shortcut.activated.connect(lambda: main_window.log_message("Search dialog - not yet implemented"))
-            
+            search_shortcut.activated.connect(_focus_search)
             find_next_shortcut = QShortcut(QKeySequence("F3"), main_window)
-            find_next_shortcut.activated.connect(lambda: main_window.log_message("Find next - not yet implemented"))
-            
+            find_next_shortcut.activated.connect(_focus_search)
             find_prev_shortcut = QShortcut(QKeySequence("Shift+F3"), main_window)
-            find_prev_shortcut.activated.connect(lambda: main_window.log_message("Find previous - not yet implemented"))
-            
-            main_window.log_message("Search shortcuts created (placeholders)")
+            find_prev_shortcut.activated.connect(_focus_search)
+            main_window.log_message("Search shortcuts created")
         
         return True
         

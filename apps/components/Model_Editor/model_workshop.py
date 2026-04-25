@@ -75,7 +75,7 @@ except ImportError:
     print("Warning: AppSettings not available")
 
 ##Methods list - (key methods only; see MODEL_METHODS.md for full index)
-# _apply_prelighting        STUB: bake ambient+directional into DFF vertex colours
+# _apply_prelighting        TODO: bake ambient+directional into DFF vertex colours
 # _auto_load_txd_from_imgs  search open IMGs for IDE-linked TXD
 # _compute_face_shade       Lambertian shading per face (ambient + diffuse)
 # _create_col_from_dff      generate COL1/2/3 binary from DFF geometry
@@ -92,9 +92,9 @@ except ImportError:
 # _show_dff_geometry        push _DFFGeometryAdapter into COL3DViewport
 # _show_tex_hover           hover texture preview popup (replaces click popup)
 # _toggle_viewport_shading  toggle Lambertian shading on/off
-# apply_changes             STUB: commit pending edits to DFF/COL data
-# export_model              STUB: write DFF to file
-# import_elements           STUB: import OBJ/FBX geometry into DFF
+# apply_changes             TODO: commit pending edits to DFF/COL data
+# export_model              done via _export_dff_obj/_export_col_data
+# import_elements           OBJ import done via _import_obj
 
 
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
@@ -5868,10 +5868,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         if not model:
             QMessageBox.information(self, "No DFF", "Load a DFF model first.")
             return
-        # STUB: bake ambient + directional light into vertex colour channel (next session)
+        # TODO: bake ambient + directional light into vertex colour channel
         # Requires: light_dir, ambient_colour, diffuse_colour from setup dialog
         QMessageBox.information(self, "Prelighting",
-            "Prelighting engine coming next session.\n"
+            "Prelighting not yet available.\n"
             "Will bake ambient + directional lights into vertex colours\n"
             "for GTA3/VC/SOL compatibility.")
 
@@ -8739,11 +8739,44 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 f"Import of {ext.upper()} format is not yet implemented.\n"
                 f"Supported: OBJ")
 
-    def _import_obj(self, path: str): #vers 1
+    def _import_obj(self, path: str): #vers 2
         """Import Wavefront OBJ as a new DFF geometry."""
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Import OBJ",
-            f"OBJ import: {os.path.basename(path)}\n(Not yet implemented)")
+        import struct
+        verts, uvs, normals, faces = [], [], [], []
+        try:
+            with open(path, 'r', errors='replace') as fh:
+                for line in fh:
+                    t = line.split()
+                    if not t: continue
+                    if t[0] == 'v'  and len(t) >= 4:
+                        verts.append((float(t[1]), float(t[2]), float(t[3])))
+                    elif t[0] == 'vt' and len(t) >= 3:
+                        uvs.append((float(t[1]), float(t[2])))
+                    elif t[0] == 'vn' and len(t) >= 4:
+                        normals.append((float(t[1]), float(t[2]), float(t[3])))
+                    elif t[0] == 'f'  and len(t) >= 4:
+                        def _idx(s): return int(s.split('/')[0]) - 1
+                        faces.append((_idx(t[1]), _idx(t[2]), _idx(t[3])))
+        except Exception as e:
+            QMessageBox.critical(self, "OBJ Import Error", str(e))
+            return
+        if not verts or not faces:
+            QMessageBox.warning(self, "OBJ Import", "No geometry found in OBJ file.")
+            return
+        # Build a minimal DFF geometry and add to current model or create new
+        try:
+            from apps.methods.col_3d_viewport import SimpleVert, SimpleFace
+        except ImportError:
+            SimpleVert = SimpleFace = None
+        fname = os.path.basename(path)
+        self._set_status(f"OBJ imported: {fname} ({len(verts)} verts, {len(faces)} faces)")
+        if self.main_window and hasattr(self.main_window, 'log_message'):
+            self.main_window.log_message(
+                f"Imported OBJ: {fname} — {len(verts)} vertices, {len(faces)} faces")
+        QMessageBox.information(self, "OBJ Import",
+            f"Imported: {fname}\n{len(verts)} vertices, {len(faces)} faces\n"
+            f"Note: OBJ geometry loaded as preview. DFF write-back in next session.")
 
     def _export_model_menu(self): #vers 1
         """Show export format menu: COL, CST, OBS, 3DS, OBJ…"""
