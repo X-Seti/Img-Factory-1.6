@@ -5009,6 +5009,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _imgop_btn('dp_seamless_op_icon',    'Seamless Tool…',       self._open_dp5_seamless)
         _imgop_btn('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
         _imgop_btn('knob_icon',              'Zoom Lens…',           self._open_zoom_lens)
+        _imgop_btn('search_icon',            'SVG Icon Browser…',    self._open_icon_browser)
         imgop_row.addStretch()
         layout.addLayout(imgop_row)
 
@@ -8217,6 +8218,16 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             dlg.exec()
         except Exception as e:
             self._set_status(f"Snow error: {e}")
+
+    def _open_icon_browser(self): #vers 1
+        """Open the SVG Icon Browser dialog."""
+        try:
+            from apps.components.DP5_Workshop.svg_icon_browser import SVGIconBrowser
+            mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
+            dlg = SVGIconBrowser(main_window=mw, parent=self)
+            dlg.exec()
+        except Exception as e:
+            self._set_status(f"Icon Browser error: {e}")
 
     def _dp5_sharpen(self, amount: float = 1.5): #vers 1
         """Sharpen the canvas using PIL ImageFilter."""
