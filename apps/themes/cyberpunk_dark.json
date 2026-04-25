@@ -127,7 +127,9 @@
     "handle_color": "#00d4ff",
     "handle_size": "4",
     "gadgetbar_bg": "#0f0f23",
-    "gadgetbar_text": "#00ffff"
+    "gadgetbar_text": "#00ffff",
+    "menu_highlight_bg": "#00d4ff",
+    "menu_highlight_text": "#000000"
   },
   "menus": {
     "menu_structure": [

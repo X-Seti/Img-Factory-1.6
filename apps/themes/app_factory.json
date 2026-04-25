@@ -82,7 +82,9 @@
     "handle_color": "#dee2e6",
     "handle_size": "4",
     "gadgetbar_bg": "#fafafa",
-    "gadgetbar_text": "#212529"
+    "gadgetbar_text": "#212529",
+    "menu_highlight_bg": "#1976d2",
+    "menu_highlight_text": "#ffffff"
   },
   "hero_gradient_dark_start": "#1a1a2e",
   "hero_gradient_dark_end": "#2d2d5e",

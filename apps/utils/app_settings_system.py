@@ -1870,6 +1870,8 @@ class AppSettings:
         button_hover = colors.get('button_hover', '#d0d0d0')
         button_pressed = colors.get('button_pressed', '#b0b0b0')
         selection_bg = colors.get('selection_background', '#0078d4')
+        menu_hl_bg   = colors.get('menu_highlight_bg',   selection_bg)
+        menu_hl_text = colors.get('menu_highlight_text', selection_text)
         selection_text = colors.get('selection_text', '#ffffff')
         grid = colors.get('grid', '#e0e0e0')
 
@@ -2180,6 +2182,24 @@ class AppSettings:
             background-color: {bg_secondary};
             border: 1px solid {border};
             padding: 4px;
+        }}
+
+        QMenu {{
+            background-color: {bg_secondary};
+            color: {text_primary};
+            border: 1px solid {border};
+        }}
+        QMenu::item {{
+            padding: 4px 20px 4px 20px;
+        }}
+        QMenu::item:selected {{
+            background-color: {menu_hl_bg};
+            color: {menu_hl_text};
+        }}
+        QMenu::separator {{
+            height: 1px;
+            background: {border};
+            margin: 2px 4px;
         }}
 
         QToolBar {{
@@ -2916,6 +2936,8 @@ class AppSettings:
                 'button_pressed': '#b1b1b1',
                 'selection_background': '#0188c4',
                 'selection_text': '#ffffff',
+                'menu_highlight_bg': '#0188c4',
+                'menu_highlight_text': '#ffffff',
                 'table_row_even': '#fcfcfc',
                 'table_row_odd': '#f1f1f1',
                 'success': '#4caf50',
@@ -2979,6 +3001,8 @@ class AppSettings:
             'button_pressed': '#b0b0b0',
             'selection_background': '#0078d4',
             'selection_text': '#ffffff',
+            'menu_highlight_bg': '#0078d4',
+            'menu_highlight_text': '#ffffff',
             'table_row_even': '#ffffff',
             'table_row_odd': '#f5f5f5',
             'success': '#4caf50',
@@ -4926,6 +4950,8 @@ class SettingsDialog(QDialog): #vers 15
             "button_pressed": "Button - Pressed",
             "selection_background": "Selection - Background",
             "selection_text": "Selection - Text",
+            "menu_highlight_bg": "Menu - Highlight Background",
+            "menu_highlight_text": "Menu - Highlight Text",
             "table_row_even": "Table Row - Even",
             "table_row_odd": "Table Row - Odd",
             "alternate_row": "Alternate Row",
@@ -4980,8 +5006,8 @@ class SettingsDialog(QDialog): #vers 15
             "window_text":               "Window - Text",
             "base":                      "Base",
             "alternate_base":            "Alternate - Base",
-            "tooltip_bg":                "Toolbar - Background",
-            "tooltip_text":              "Toolbar - Text",
+            "tooltip_bg":                "Tooltip - Background",
+            "tooltip_text":              "Tooltip - Text",
             "placeholder_text":          "Placeholder - Text",
             "disabled_text":             "Disabled - Text"
         }

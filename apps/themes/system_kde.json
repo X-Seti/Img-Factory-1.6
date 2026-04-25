@@ -66,7 +66,9 @@
     "handle_color": "#CCCCCC",
     "handle_size": "4",
     "gadgetbar_bg": "#F5F5F5",
-    "gadgetbar_text": "#2D2D2D"
+    "gadgetbar_text": "#2D2D2D",
+    "menu_highlight_bg": "#4A90D9",
+    "menu_highlight_text": "#ffffff"
   },
   "mui_settings": {
     "system_detected": true,

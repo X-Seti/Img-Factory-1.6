@@ -82,7 +82,9 @@
     "handle_color": "#a5d6a7",
     "handle_size": "4",
     "gadgetbar_bg": "#f1f8f1",
-    "gadgetbar_text": "#1b5e20"
+    "gadgetbar_text": "#1b5e20",
+    "menu_highlight_bg": "#4caf50",
+    "menu_highlight_text": "#ffffff"
   },
   "styles": {
     "button_shape": "Rounded",
