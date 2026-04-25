@@ -198,6 +198,12 @@ def _show_intro_panel(mw): #vers 4
                     ws.open_dp5_workshop.connect(
                         lambda: mw.open_dp5_workshop_docked()
                         if hasattr(mw, 'open_dp5_workshop_docked') else None)
+                    ws.open_water_workshop.connect(
+                        lambda: mw.open_water_workshop()
+                        if hasattr(mw, 'open_water_workshop') else None)
+                    ws.open_radar_workshop.connect(
+                        lambda: mw.open_radar_map()
+                        if hasattr(mw, 'open_radar_map') else None)
                 except Exception:
                     pass
             from PyQt6.QtCore import QTimer

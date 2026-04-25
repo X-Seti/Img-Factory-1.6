@@ -4945,6 +4945,8 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Information group below
         info_group = QGroupBox("")
         info_group.setFont(self.title_font)
+        info_group.setAutoFillBackground(True)
+        info_group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(180)  # extra 40px for paint row
 
@@ -5074,10 +5076,10 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar.setStyleSheet(
             "QWidget#paint_bar { background:palette(base); border-bottom:2px solid palette(highlight); }"
-            "QLabel  { color:#ddd; background:transparent; }"
+            "QLabel  { color:palette(windowText); background:transparent; }"
             "QComboBox { background:palette(base); color:palette(text); border:1px solid palette(mid); }"
             "QPushButton { background:palette(button); color:palette(buttonText); border:1px solid palette(mid); border-radius:3px; }"
-            "QPushButton:hover   { background:#353548; }"
+            "QPushButton:hover   { background:palette(dark); }"
             "QPushButton:checked { background:palette(highlight); color:palette(highlightedText); border:1px solid palette(highlight); }"
         )
         bar.setFixedHeight(34)

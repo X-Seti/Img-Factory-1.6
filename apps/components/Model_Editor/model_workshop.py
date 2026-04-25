@@ -46,15 +46,23 @@ from PyQt6.QtSvg import QSvgRenderer
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
-# COL Workshop parser system
-from col_workshop_classes import (
-    COLModel, COLVersion, COLHeader, COLBounds,
-    COLSphere, COLBox, COLVertex, COLFace
-)
-
-from col_workshop_structures import setup_col_table_structure, populate_col_table
-from col_workshop_parser import COLParser
-from col_workshop_loader import COLFile
+# COL Workshop parser system — try apps.methods first (IMG Factory), fallback to depends/ (standalone)
+try:
+    from apps.methods.col_workshop_classes import (
+        COLModel, COLVersion, COLHeader, COLBounds,
+        COLSphere, COLBox, COLVertex, COLFace
+    )
+    from apps.methods.col_workshop_structures import setup_col_table_structure, populate_col_table
+    from apps.methods.col_workshop_parser import COLParser
+    from apps.methods.col_workshop_loader import COLFile
+except ImportError:
+    from col_workshop_classes import (
+        COLModel, COLVersion, COLHeader, COLBounds,
+        COLSphere, COLBox, COLVertex, COLFace
+    )
+    from col_workshop_structures import setup_col_table_structure, populate_col_table
+    from col_workshop_parser import COLParser
+    from col_workshop_loader import COLFile
 
 
 # Temporary 3D viewport placeholder
@@ -1469,7 +1477,7 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         self._overlay_opacity = 50
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
-        self.background_color = QColor(42, 42, 42)
+        self.background_color = self._get_ui_color('viewport_bg')
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
         self.setMinimumSize(200, 200)
@@ -8817,7 +8825,7 @@ class ZoomablePreview(QLabel): #vers 2
         self.drag_mode = None  # 'pan' or 'rotate'
 
         # Background
-        self.bg_color = QColor(42, 42, 42)
+        self.bg_color = self._get_ui_color('viewport_bg')
 
         self.placeholder_text = "Select a collision model to preview"
 

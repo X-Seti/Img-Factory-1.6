@@ -163,8 +163,10 @@ class WelcomeScreen(QWidget):
     open_col_workshop   = pyqtSignal()
     open_txd_workshop   = pyqtSignal()
     open_model_workshop = pyqtSignal()
-    open_dp5_workshop   = pyqtSignal()
-    open_dir_tree       = pyqtSignal()
+    open_dp5_workshop      = pyqtSignal()
+    open_water_workshop    = pyqtSignal()
+    open_radar_workshop    = pyqtSignal()
+    open_dir_tree          = pyqtSignal()
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
@@ -427,6 +429,14 @@ class WelcomeScreen(QWidget):
              "Deluxe Paint-style bitmap editor. Draw, spray, clone and edit textures "
              "directly — works on any IMG entry or standalone image.",
              self.open_dp5_workshop),
+            (_SVG.view_icon(36, _ic), "Water Workshop",
+             "Edit GTA water planes — adjust water zones, opacity and flow "
+             "for SA, VC and III water.dat files.",
+             self.open_water_workshop),
+            (_SVG.view_icon(36, _ic), "Radar Workshop",
+             "Browse, export and replace GTA radar tile textures. "
+             "Supports SA 12×12 radar grid and VC/III formats.",
+             self.open_radar_workshop),
         ]
         for i, (ico, ttl, dsc, sig) in enumerate(eds):
             c = WelcomeCard(ico, ttl, dsc); c.clicked.connect(sig.emit)
