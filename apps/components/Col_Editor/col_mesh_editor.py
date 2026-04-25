@@ -361,11 +361,11 @@ class COLMeshEditorViewport(QWidget):
             p.drawPolygon(QPolygonF([tip, lpt, rpt]))
             p.setFont(QFont('Arial', 7, QFont.Weight.Bold)); p.setPen(col)
             p.drawText(tx+(7 if tx>=gx else -12), ty+(5 if ty>=gy else -2), lbl)
-        p.setBrush(QBrush(QColor(220,220,220))); p.setPen(QPen(QColor(180,180,180),1))
+        p.setBrush(QBrush(self._get_ui_color('border'))); p.setPen(QPen(self._get_ui_color('border'),1))
         p.drawEllipse(gx-3, gy-3, 6, 6)
 
         # - HUD
-        p.setPen(QColor(180, 180, 180))
+        p.setPen(self._get_ui_color('border'))
         p.setFont(QFont('Arial', 7))
         p.drawText(4, 12, f"F:{len(faces)} V:{len(verts)}")
         p.drawText(4, H-4, f"Y:{self._yaw:.0f}° P:{self._pitch:.0f}°")

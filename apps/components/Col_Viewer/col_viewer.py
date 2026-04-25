@@ -88,6 +88,26 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget): #vers 1
         
         self.setMinimumSize(400, 400)
     
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':
+            return pal.color(pal.ColorRole.Mid)
+        return pal.color(pal.ColorRole.WindowText)
+
     def initializeGL(self): #vers 1
         """Initialize OpenGL settings"""
         if not OPENGL_AVAILABLE:

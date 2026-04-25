@@ -926,7 +926,7 @@ class WaterWorkshop(GUIWorkshop):
         sl.addWidget(QLabel("L=Sea  R=Land", alignment=Qt.AlignmentFlag.AlignCenter))
         wf = QFrame()
         wf.setFixedSize(74, 14)
-        wf.setStyleSheet("background:#1e78dc; border:1px solid palette(mid);")
+        wf.setStyleSheet("background:palette(highlight); border:1px solid palette(mid);")
         df = QFrame()
         df.setFixedSize(74, 14)
         df.setStyleSheet("background:#3d2b0f; border:1px solid palette(mid);")  # land = brown

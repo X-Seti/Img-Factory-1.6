@@ -1455,7 +1455,7 @@ class IPLMapView(QFrame):  # vers 1
                 p.drawRect(_WQRF(sx0, sy0, sx1-sx0, sy1-sy0))
 
         # HUD
-        p.setPen(QColor(180, 180, 180))
+        p.setPen(self._get_ui_color('border'))
         p.setFont(QFont('Arial', 9))
         n_sel   = len(self._selected)
         n_vis   = len(visible)

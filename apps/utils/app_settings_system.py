@@ -2993,6 +2993,7 @@ class AppSettings:
             'error':         QColor(244, 67, 54),
             'success':       QColor(76, 175, 80),
             'warning':       QColor(255, 152, 0),
+            'border':        QColor(200, 200, 200),
         }
         return fallbacks.get(key, QColor(128, 128, 128))
 

@@ -16,6 +16,25 @@ from PyQt6.QtGui import QColor
 
 from apps.core.theme_utils import apply_dialog_theme
 
+def _theme_color(key):
+    """Module-level theme color helper - no hardcoded colors."""
+    from PyQt6.QtGui import QColor
+    from PyQt6.QtWidgets import QApplication
+    try:
+        app = QApplication.instance()
+        if app and hasattr(app, 'app_settings'):
+            return app.app_settings.get_ui_color(key)
+    except Exception:
+        pass
+    from PyQt6.QtWidgets import QWidget
+    pal = QWidget().palette()
+    if key == 'viewport_bg':   return pal.color(pal.ColorRole.Base)
+    if key == 'viewport_text': return pal.color(pal.ColorRole.PlaceholderText)
+    if key == 'border':        return pal.color(pal.ColorRole.Mid)
+    return pal.color(pal.ColorRole.WindowText)
+
+
+
 ##Methods list -
 # find_not_in_ide
 # find_orphan_txd
@@ -212,7 +231,7 @@ def show_find_results_dialog(main_window, title: str,
 
     green = QColor(0,160,0)  # semantic: valid
     red   = QColor(180,0,0)  # semantic: invalid
-    grey  = self._get_ui_color('viewport_text')
+    grey  = _theme_color('viewport_text')
 
     for row, data in enumerate(results):
         for col, val in enumerate(data):

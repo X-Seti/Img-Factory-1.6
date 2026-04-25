@@ -39,6 +39,26 @@ class _EdgeOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.hide()
 
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':
+            return pal.color(pal.ColorRole.Mid)
+        return pal.color(pal.ColorRole.WindowText)
+
     def set_zone(self, zone: str):
         if zone == self._zone:
             return
@@ -209,7 +229,7 @@ class _FloatWindow(QWidget):
         lo.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
         lo.addWidget(content)
 
-        self.setStyleSheet("background:#1e1e24; border:1px solid palette(mid);")
+        self.setStyleSheet("background:palette(window); border:1px solid palette(mid);")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.adjustSize()
         self.move(initial_global - QPoint(self.width() // 2, self.height() // 2))

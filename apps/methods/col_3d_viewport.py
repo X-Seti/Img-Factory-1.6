@@ -108,7 +108,7 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         _win = self.palette().color(self.palette().ColorRole.Window)
         self.bg_color = self._get_ui_color('viewport_bg')
         self.grid_color = QColor(60, 70, 80)
-        self.mesh_color = QColor(200, 200, 200)
+        self.mesh_color = self._get_ui_color('border')
         self.wireframe_color = QColor(100, 150, 200)
         self.sphere_color = QColor(0, 200, 255, 128)
         self.box_color = QColor(255, 100, 100, 64)

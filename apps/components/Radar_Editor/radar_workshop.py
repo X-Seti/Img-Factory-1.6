@@ -595,7 +595,7 @@ class RadarGridWidget(QWidget):
                         for tx in range(0, ts, cb):
                             light = ((tx//cb + ty//cb) % 2 == 0)
                             p.fillRect(x+tx, y+ty, min(cb,ts-tx), min(cb,ts-ty),
-                                       QColor(180,180,180) if light else self._get_ui_color('viewport_text'))
+                                       self._get_ui_color('border') if light else self._get_ui_color('viewport_text'))
                 p.drawImage(x, y, scaled)
             else:
                 p.fillRect(x, y, ts, ts, self._get_ui_color('viewport_bg'))
@@ -1271,7 +1271,7 @@ class _TileZoomView(QWidget):
             for tx in range(0, w, cb_size):
                 light = ((tx // cb_size + ty // cb_size) % 2 == 0)
                 p.fillRect(x+tx, y+ty, min(cb_size, w-tx), min(cb_size, h-ty),
-                           QColor(180,180,180) if light else self._get_ui_color('viewport_text'))
+                           self._get_ui_color('border') if light else self._get_ui_color('viewport_text'))
         p.drawPixmap(x, y, self._pixmap.scaled(
             w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.FastTransformation))

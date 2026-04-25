@@ -43,6 +43,26 @@ class COLPreviewGenerator:
         self.bounds_color = QColor(255, 0, 0)
         self.padding = 8
     
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':
+            return pal.color(pal.ColorRole.Mid)
+        return pal.color(pal.ColorRole.WindowText)
+
     def generate_preview(self, col_model, size=DEFAULT_SIZE, view_angle='top'): #vers 1
         """
         Generate preview pixmap for COL model
@@ -336,7 +356,7 @@ class COLPreviewGenerator:
         pixmap.fill(self.bg_color)
         
         painter = QPainter(pixmap)
-        painter.setPen(QPen(QColor(100, 100, 100)))
+        painter.setPen(QPen(self._get_ui_color('viewport_text')))
         painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "No Data")
         painter.end()
         

@@ -2171,6 +2171,26 @@ class PaletteGrid(QWidget):
         self.setToolTip("Click to select colour — right-click to copy hex")
         self._recalc_height()
 
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':
+            return pal.color(pal.ColorRole.Mid)
+        return pal.color(pal.ColorRole.WindowText)
+
     def _effective_cols(self) -> int:
         """Columns that fit in current width, falling back to hint."""
         w = self.width()
@@ -2456,7 +2476,7 @@ class FGBGSwatch(QWidget):
         # FG rect (inner, offset toward top-left)
         fg_r = QRect(pad, pad, w - gap - pad, h - gap - pad)
         p.fillRect(fg_r, self._fg)
-        p.setPen(QPen(QColor(220, 220, 220), 1))
+        p.setPen(QPen(self._get_ui_color('border'), 1))
         p.drawRect(fg_r)
 
     def _fg_rect(self) -> QRect:
@@ -10359,7 +10379,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         from PyQt6.QtGui import QPixmap, QPainter, QColor
 
         pm = QPixmap(w, h)
-        pm.fill(QColor(200, 200, 200))
+        pm.fill(self._get_ui_color('border'))
         p = QPainter(pm)
 
         alt = self._get_ui_color('viewport_text')

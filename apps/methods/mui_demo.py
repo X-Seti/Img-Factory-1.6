@@ -44,6 +44,26 @@ class MUISlider(QWidget):
         # Calculate initial knob position
         self._update_knob_position()
     
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme-aware QColor. No hardcoded colors - everything via app_settings."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':
+            return pal.color(pal.ColorRole.Mid)
+        return pal.color(pal.ColorRole.WindowText)
+
     def _update_knob_position(self):
         range_val = self.maximum - self.minimum
         if range_val == 0:
@@ -71,13 +91,13 @@ class MUISlider(QWidget):
         else:
             gradient = QLinearGradient(track_rect.left(), track_rect.top(), track_rect.left(), track_rect.bottom())
         
-        gradient.setColorAt(0, QColor(100, 100, 100))
-        gradient.setColorAt(1, QColor(180, 180, 180))
+        gradient.setColorAt(0, self._get_ui_color('viewport_text'))
+        gradient.setColorAt(1, self._get_ui_color('border'))
         
         painter.fillRect(track_rect, gradient)
         
         # Draw border around track
-        painter.setPen(QColor(80, 80, 80))
+        painter.setPen(self._get_ui_color('viewport_text'))
         painter.drawRect(track_rect)
         
         # Draw knob
@@ -97,8 +117,8 @@ class MUISlider(QWidget):
             knob_size // 2,
             knob_rect.center()
         )
-        radial_gradient.setColorAt(0, QColor(220, 220, 220))
-        radial_gradient.setColorAt(1, QColor(150, 150, 150))
+        radial_gradient.setColorAt(0, self._get_ui_color('border'))
+        radial_gradient.setColorAt(1, self._get_ui_color('viewport_text'))
         
         painter.fillRect(knob_rect, radial_gradient)
         
@@ -174,11 +194,11 @@ class MUIKnob(QWidget):
         
         # Draw knob body
         gradient = QRadialGradient(center, radius, center)
-        gradient.setColorAt(0, QColor(200, 200, 200))
-        gradient.setColorAt(1, QColor(100, 100, 100))
+        gradient.setColorAt(0, self._get_ui_color('border'))
+        gradient.setColorAt(1, self._get_ui_color('viewport_text'))
         
         painter.setBrush(gradient)
-        painter.setPen(QPen(QColor(50, 50, 50), 2))
+        painter.setPen(QPen(self._get_ui_color('viewport_bg'), 2))
         painter.drawEllipse(center, radius, radius)
         
         # Draw indicator line
@@ -270,7 +290,7 @@ class MUILevelMeter(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Draw background
-        painter.fillRect(self.rect(), QColor(50, 50, 50))
+        painter.fillRect(self.rect(), self._get_ui_color('viewport_bg'))
         
         # Calculate bar dimensions
         if self.orientation == Qt.Orientation.Vertical:
@@ -306,7 +326,7 @@ class MUILevelMeter(QWidget):
                 painter.fillRect(filled_rect, color)
                 
                 # Draw border
-                painter.setPen(QColor(80, 80, 80))
+                painter.setPen(self._get_ui_color('viewport_text'))
                 painter.drawRect(x, y, bar_width, bar_height)
             else:
                 x = 2 + i * (bar_width + spacing)
@@ -330,7 +350,7 @@ class MUILevelMeter(QWidget):
                 painter.fillRect(filled_rect, color)
                 
                 # Draw border
-                painter.setPen(QColor(80, 80, 80))
+                painter.setPen(self._get_ui_color('viewport_text'))
                 painter.drawRect(x, y, bar_width, bar_height)
 
 
@@ -378,7 +398,7 @@ class MUIPaletteWidget(QWidget):
             if i == self.selected_index:
                 painter.setPen(QPen(QColor(255, 255, 255), 3))
             else:
-                painter.setPen(QPen(QColor(80, 80, 80), 1))
+                painter.setPen(QPen(self._get_ui_color('viewport_text'), 1))
             
             painter.drawRect(rect)
     

@@ -1905,7 +1905,7 @@ class MainGUI(QWidget): #vers 3
         bg_gray_btn.setFixedSize(40, 40)
         bg_gray_btn.setStyleSheet("background-color: palette(base); border: 1px solid palette(mid);")
         bg_gray_btn.setToolTip("Gray Background")
-        #bg_gray_btn.clicked.connect(lambda: self.preview_widget.set_background_color(QColor(42, 42, 42)))
+        #bg_gray_btn.clicked.connect(lambda: self.preview_widget.set_background_color(self._get_ui_color('viewport_bg')))
         controls_layout.addWidget(bg_gray_btn)
 
         bg_white_btn = QPushButton()

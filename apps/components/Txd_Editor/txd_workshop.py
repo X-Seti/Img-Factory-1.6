@@ -6055,7 +6055,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         color_layout = QHBoxLayout()
 
         color_btn = QPushButton("Choose Color")
-        selected_color = QColor(128, 128, 128)  # Default gray
+        selected_color = self._get_ui_color('viewport_text')  # Default gray
 
         def choose_color():
             nonlocal selected_color
@@ -12143,8 +12143,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Draw checkerboard
         size = self._checkerboard_size
-        color1 = QColor(200, 200, 200)
-        color2 = QColor(150, 150, 150)
+        color1 = self._get_ui_color('border')
+        color2 = self._get_ui_color('viewport_text')
 
         for y in range(0, image.height(), size):
             for x in range(0, image.width(), size):
@@ -18724,7 +18724,7 @@ class TexturePreviewWidget(QLabel): #vers 1
         if hasattr(self, 'background_mode') and self.background_mode == 'checkerboard':
             # Draw checkerboard pattern
             checker_size = 16
-            light_gray = QColor(200, 200, 200)
+            light_gray = self._get_ui_color('border')
             dark_gray = self._get_ui_color('viewport_text')
 
             for y in range(0, self.height(), checker_size):
@@ -18742,7 +18742,7 @@ class TexturePreviewWidget(QLabel): #vers 1
               bg = self._get_ui_color('viewport_bg') if win.lightness() > 128 else self._get_ui_color('viewport_bg')
           painter.fillRect(self.rect(), bg)
         else:
-            painter.fillRect(self.rect(), QColor(42, 42, 42))
+            painter.fillRect(self.rect(), self._get_ui_color('viewport_bg'))
 
         if self.pixmap and not self.pixmap.isNull():
             # Calculate position to center the image
@@ -18750,7 +18750,7 @@ class TexturePreviewWidget(QLabel): #vers 1
             y = (self.height() - self.scaled_pixmap.height()) // 2
             painter.drawPixmap(x, y, self.scaled_pixmap)
         elif self.placeholder_text:
-            painter.setPen(QColor(150, 150, 150))
+            painter.setPen(self._get_ui_color('viewport_text'))
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.placeholder_text)
 
 
@@ -18856,8 +18856,8 @@ class ZoomablePreview(QLabel): #vers 2
     def _draw_checkerboard(self, painter): #vers 1
         """Draw checkerboard background pattern"""
         size = self._checkerboard_size
-        color1 = QColor(200, 200, 200)
-        color2 = QColor(150, 150, 150)
+        color1 = self._get_ui_color('border')
+        color2 = self._get_ui_color('viewport_text')
 
         for y in range(0, self.height(), size):
             for x in range(0, self.width(), size):
