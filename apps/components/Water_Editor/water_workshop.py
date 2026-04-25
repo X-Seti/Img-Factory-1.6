@@ -27,10 +27,10 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
-try:
-    from apps.methods.gui_workshop import GUIWorkshop
-except ImportError:
-    from apps.components.Water_Editor.depends.gui_workshop import GUIWorkshop
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+from depends.gui_workshop import GUIWorkshop
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 App_name  = "Water Workshop"
