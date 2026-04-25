@@ -1443,13 +1443,14 @@ class IMGFactory(QMainWindow):
 
             self.log_message("DP5 Workshop opened (docked)")
 
-            # Register in tool taskbar
+            # Register in tool taskbar and mark active
             try:
                 from apps.methods.imgfactory_svg_icons import get_dp5_workshop_icon
                 from apps.gui.gui_layout import _register_tool_taskbar
                 _register_tool_taskbar(self, "dp5", "Paint",
                                        lambda sz, col: get_dp5_workshop_icon(sz, col),
                                        "DP5 Paint Workshop", tab_container)
+                self._sync_taskbar_active("dp5")
             except Exception:
                 pass
 

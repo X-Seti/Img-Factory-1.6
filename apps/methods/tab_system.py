@@ -317,16 +317,35 @@ def clear_tab(main_window, tab_index: int): #vers 1
         return False
 
 
-def close_tab(main_window, tab_index: int): #vers 3
+def close_tab(main_window, tab_index: int): #vers 4
     """Close and remove tab.
     For the DAT Browser tab the widget is kept alive on main_window.dat_browser
     so it can be re-opened via show_dat_browser().
+    WORKSHOP tabs get menu + taskbar cleanup before removal.
     """
     try:
         if tab_index < 0 or tab_index >= main_window.main_tab_widget.count():
             return False
 
         tab_widget = main_window.main_tab_widget.widget(tab_index)
+
+        # WORKSHOP tab — find embedded workshop and clean up menu + taskbar
+        if getattr(tab_widget, 'file_type', None) == 'WORKSHOP':
+            try:
+                from PyQt6.QtWidgets import QWidget as _QW
+                # Find any ToolMenuMixin children and emit their close signal
+                from apps.gui.tool_menu_mixin import ToolMenuMixin
+                for child in tab_widget.findChildren(_QW):
+                    if isinstance(child, ToolMenuMixin):
+                        # Emit window_closed if it has one
+                        if hasattr(child, 'window_closed'):
+                            child.window_closed.emit()
+                        break
+                # Always clear injected menu
+                if hasattr(main_window, '_update_tool_menu_for_tab'):
+                    main_window._update_tool_menu_for_tab(None)
+            except Exception:
+                pass
 
         # Keep the DAT Browser widget alive — don't deleteLater it
         dat_browser = getattr(main_window, "dat_browser", None)

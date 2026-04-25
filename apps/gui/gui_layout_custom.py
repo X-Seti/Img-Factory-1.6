@@ -214,7 +214,7 @@ def _show_intro_panel(mw): #vers 4
         currently_intro = (left_stack.currentIndex() == 2 and left_stack.isVisible()
                            and splitter.sizes()[0] > 20)
         if currently_intro:
-            total = sum(splitter.sizes()) or 10000
+            total = splitter.width() or sum(splitter.sizes()) or 10000
             splitter.setSizes([0, total])
             left_stack.hide()
             if hasattr(mw, 'tool_taskbar'):
@@ -223,10 +223,11 @@ def _show_intro_panel(mw): #vers 4
                 mw.log_message("Intro hidden")
         else:
             left_stack.setCurrentIndex(2)
-            # Intro takes the full content width — push right side to zero
-            total = sum(splitter.sizes()) or 10000
-            splitter.setSizes([total, 0])
+            # Show left_stack first so splitter knows its width
             left_stack.show()
+            # Intro takes the full content width — use splitter's actual pixel width
+            total = splitter.width() or sum(splitter.sizes()) or 10000
+            splitter.setSizes([total, 0])
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar._set_exclusive_active('intro')
             if hasattr(mw, 'log_message'):
