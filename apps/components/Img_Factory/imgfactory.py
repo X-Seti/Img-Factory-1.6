@@ -1427,6 +1427,7 @@ class IMGFactory(QMainWindow):
                     if hasattr(self, 'tool_taskbar'):
                         self.tool_taskbar.unregister('dp5')
                     self._update_tool_menu_for_tab(None)
+                    self._sync_taskbar_active("")
                 except Exception:
                     pass
             workshop.window_closed.connect(_on_dp5_closed)
@@ -3494,6 +3495,14 @@ class IMGFactory(QMainWindow):
                     self._sync_taskbar_active("ai")
                 elif 'dat' in tab_name_lower:
                     self._sync_taskbar_active("dat")
+                elif 'dp5' in tab_name_lower or 'paint' in tab_name_lower:
+                    self._sync_taskbar_active("dp5")
+                elif 'col workshop' in tab_name_lower:
+                    self._sync_taskbar_active("col")
+                elif 'txd workshop' in tab_name_lower:
+                    self._sync_taskbar_active("txd")
+                elif 'model workshop' in tab_name_lower:
+                    self._sync_taskbar_active("model")
                 else:
                     self._sync_taskbar_active("")
                 self.log_message(f"→ {tab_name}")

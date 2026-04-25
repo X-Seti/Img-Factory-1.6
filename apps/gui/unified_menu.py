@@ -70,6 +70,7 @@ class UnifiedMenuSystem: #vers 1
         self._actions    = {}       # QAction objects by key
         self._tool_menu  = None     # currently injected tool QMenu
         self._tool_label = None     # label of active tool
+        self._tool_action_ref = None  # QAction returned by menubar.addMenu()
         self._callbacks  = {}       # action key → callable
 
     #    Public API                                                         
@@ -111,7 +112,7 @@ class UnifiedMenuSystem: #vers 1
             pos = QApplication.primaryScreen().geometry().center()
         popup.exec(pos)
 
-    def activate_tool(self, workshop): #vers 1
+    def activate_tool(self, workshop): #vers 2
         """Insert tool menus when a docked workshop tab becomes active."""
         self.deactivate_tool()
         if not hasattr(workshop, 'get_menu_title'):
@@ -125,9 +126,10 @@ class UnifiedMenuSystem: #vers 1
             workshop._build_menus_into_qmenu(tool_menu)
         self._tool_menu = tool_menu
 
-        # Inject into system bar
+        # Inject into system bar — store the returned QAction so we can remove it
         if self.menubar:
-            self.menubar.addMenu(tool_menu)
+            action = self.menubar.addMenu(tool_menu)
+            self._tool_action_ref = action
 
         # Register titlebar button (custom UI)
         gl = getattr(self.mw, 'gui_layout', None)

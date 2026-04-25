@@ -223,7 +223,10 @@ def _show_intro_panel(mw): #vers 4
                 mw.log_message("Intro hidden")
         else:
             left_stack.setCurrentIndex(2)
-            _ensure_left_panel_visible(mw, splitter, left_stack, wide=True)
+            # Intro takes the full content width — push right side to zero
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([total, 0])
+            left_stack.show()
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar._set_exclusive_active('intro')
             if hasattr(mw, 'log_message'):
