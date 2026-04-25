@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-# apps/components/Water_Editor/water_workshop.py - Version: 3
+# apps/components/Water_Editor/water_workshop.py - Version: 10
 # X-Seti - Apr 2026 - IMG Factory 1.6 - Water Workshop
 # Built on temp_workshop.py / GUIWorkshop base
+
 # Section 1: Parsers (WaterproParser, WaterDatParser, SaWaterParser)
 # Section 2: Canvas widgets (WaterGridWidget, SaWaterCanvas)
 # Section 3: WaterWorkshop(GUIWorkshop) - panel overrides + menus
 # Section 4: Water logic - open/save/draw/undo/levels
+# TODO; Methodlist is missing
+# TODO; open files with the words *waterpro" "Water" water as a safeguard to any other file crashing the app.
+# When updating the themes, and hitting apply the effect changes all theme settings including the SVF icons.
 
 import sys, struct, re, math
 from pathlib import Path
@@ -23,40 +27,21 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
-try:
-    from apps.methods.gui_workshop import GUIWorkshop
-except ImportError:
-    import os
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-    from apps.methods.gui_workshop import GUIWorkshop
-
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
-except ImportError:
-    class SVGIconFactory:
-        @staticmethod
-        def _s(sz=20, c=None): return QIcon()
-        open_icon = save_icon = export_icon = import_icon = undo_icon = \
-        info_icon = properties_icon = settings_icon = zoom_in_icon = \
-        zoom_out_icon = fit_grid_icon = locate_icon = paint_icon = \
-        fill_icon = dropper_icon = line_icon = rect_icon = rect_fill_icon = \
-        scissors_icon = rotate_cw_icon = search_icon = staticmethod(_s)
-
-def _apply_dialog_theme(dlg, mw):
-    try:
-        from apps.core.theme_utils import apply_dialog_theme
-        apply_dialog_theme(dlg, mw)
-    except Exception:
-        pass
+from apps.components.Water_Editor.depends.gui_workshop import GUIWorkshop
+from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
 App_name  = "Water Workshop"
 App_build = "Apr 2026"
-Build     = "Build 3"
+Build     = "Build 10"
 
-
-# =============================================================================
 # SECTION 1 - Parsers
-# =============================================================================
+
+def _apply_dialog_theme(dlg, mw): #vers 1
+        try:
+            from apps.core.theme_utils import apply_dialog_theme
+            apply_dialog_theme(dlg, mw)
+        except Exception:
+            pass
 
 class WaterproParser:
     HEADER_SIZE  = 964
@@ -71,7 +56,7 @@ class WaterproParser:
         self.vis_grid           = bytearray()
         self.path               = None
 
-    def load(self, path: str):
+    def load(self, path: str): #vers 1
         data = Path(path).read_bytes()
         rem  = len(data) - self.HEADER_SIZE
         if rem <= 0 or rem % 5 != 0:
@@ -87,7 +72,7 @@ class WaterproParser:
         self.vis_grid           = bytearray(data[964+gw*gw : 964+gw*gw+(2*gw)*(2*gw)])
         self.path               = path
 
-    def save(self, path: str):
+    def save(self, path: str): #vers 1
         gw  = self.grid_w
         out = bytearray(self.HEADER_SIZE + gw*gw + (2*gw)*(2*gw))
         out[0] = self.water_levels_count & 0xFF
@@ -99,12 +84,12 @@ class WaterproParser:
 
 
 class WaterDatParser:
-    def __init__(self):
+    def __init__(self): #vers 1
         self.rects  = []
         self.header = ""
         self.path   = None
 
-    def load(self, path: str):
+    def load(self, path: str): #vers 1
         self.path  = path
         self.rects = []
         hdr        = []
@@ -126,7 +111,7 @@ class WaterDatParser:
                     pass
         self.header = "\n".join(hdr)
 
-    def save(self, path: str):
+    def save(self, path: str): #vers 1
         lines = [self.header, ""]
         for r in self.rects:
             lines.append(f"{r[0]:.4f},\t{r[1]:.4f},\t{r[2]:.4f},\t{r[3]:.4f},\t{r[4]:.4f},")
@@ -141,7 +126,7 @@ class WaterDatParser:
             for r in self.rects
         ]
 
-    def world_bbox(self):
+    def world_bbox(self): #vers 1
         if not self.rects:
             return -3000, -3000, 3000, 3000
         xs = [r[0] for r in self.rects] + [r[2] for r in self.rects]
@@ -150,11 +135,11 @@ class WaterDatParser:
 
 
 class SaWaterParser:
-    def __init__(self):
+    def __init__(self): #vers 1
         self.quads = []
         self.path  = None
 
-    def load(self, path: str):
+    def load(self, path: str): #vers 1
         self.path  = path
         self.quads = []
         for line in Path(path).read_text(encoding="latin1", errors="replace").splitlines():
@@ -175,7 +160,7 @@ class SaWaterParser:
             except (ValueError, IndexError):
                 pass
 
-    def save(self, path: str):
+    def save(self, path: str): #vers 1
         lines = ["processed"]
         for q in self.quads:
             row = "    ".join(
@@ -195,7 +180,7 @@ class SaWaterParser:
                 if dz and len(c["f"]) > 0:
                     c["f"] = [c["f"][0]+dz] + c["f"][1:]
 
-    def world_bbox(self):
+    def world_bbox(self): #vers 1
         if not self.quads:
             return -3000, -3000, 3000, 3000
         xs = [c["x"] for q in self.quads for c in q["corners"]]
@@ -203,9 +188,8 @@ class SaWaterParser:
         return min(xs), min(ys), max(xs), max(ys)
 
 
-# =============================================================================
+
 # SECTION 2 - Canvas widgets
-# =============================================================================
 
 class WaterGridWidget(QWidget):
 
@@ -244,7 +228,7 @@ class WaterGridWidget(QWidget):
     COL_HOVER = QColor(255, 255, 255,  40)
     COL_PREV  = QColor(80,  180, 255, 160)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self._grid_w        = 0
         self._grid          = bytearray()
@@ -268,7 +252,8 @@ class WaterGridWidget(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-    def setup(self, grid_w: int, grid: bytearray):
+
+    def setup(self, grid_w: int, grid: bytearray): #vers 1
         self._grid_w = grid_w
         self._grid   = grid
         self._sel_cx = self._sel_cy = -1
@@ -277,12 +262,14 @@ class WaterGridWidget(QWidget):
         if hasattr(self, "_img_cache"): del self._img_cache
         self.update()
 
-    def set_grid(self, grid: bytearray):
+
+    def set_grid(self, grid: bytearray): #vers 1
         self._grid = grid
         if hasattr(self, "_img_cache"): del self._img_cache
         self.update()
 
-    def _cell_col(self, val: int) -> QColor:
+
+    def _cell_col(self, val: int) -> QColor: #vers 1
         if val == 128:
             return self.COL_WATER if self._colour_flipped else self.COL_DRY
         elif val == 0:
@@ -294,14 +281,16 @@ class WaterGridWidget(QWidget):
                 return QColor(255-col.red(), 255-col.green(), 255-col.blue(), 255)
             return col
 
-    def _ts(self):
+
+    def _ts(self): #vers 1
         if not self._grid_w:
             return 8
         base = min(self.width() // self._grid_w, self.height() // self._grid_w)
         ts = max(1, int(base * self._zoom))  # allow ts=1 for large grids (SOL 384x384)
         return ts
 
-    def _cell_at(self, pos):
+
+    def _cell_at(self, pos): #vers 1
         """Map screen position to data (col, row).
         Inverse of Y-flip: img_x=col, img_y=gw-1-row
         So: data_col = img_x = screen_x//ts
@@ -317,16 +306,19 @@ class WaterGridWidget(QWidget):
             return cx, cy
         return -1, -1
 
-    def _cell_val(self, cx, cy):
+
+    def _cell_val(self, cx, cy): #vers 1
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
             return self._grid[cy * self._grid_w + cx]
         return 0
 
-    def _set_cell(self, cx, cy, val):
+
+    def _set_cell(self, cx, cy, val): #vers 1
         if 0 <= cx < self._grid_w and 0 <= cy < self._grid_w:
             self._grid[cy * self._grid_w + cx] = val
 
-    def _rebuild_cache(self):
+
+    def _rebuild_cache(self): #vers 1
         """Render grid data to QImage.
 
         Correct transform (matches WaterproGen + PIL test - dominant lower-left):
@@ -345,7 +337,8 @@ class WaterGridWidget(QWidget):
         self._img_cache  = img
         self._cache_flip = self._colour_flipped
 
-    def paintEvent(self, ev):
+
+    def paintEvent(self, ev): #vers 1
         if not self._grid_w:
             return
         ts  = self._ts()
@@ -396,7 +389,8 @@ class WaterGridWidget(QWidget):
                    f"{gw}x{gw}  z={self._zoom:.1f}x  [{tool}]  L=sea(0) R=land(128)")
         p.end()
 
-    def mouseMoveEvent(self, ev):
+
+    def mouseMoveEvent(self, ev): #vers 1
         if self._pan_drag and ev.buttons() & Qt.MouseButton.MiddleButton:
             dx = ev.pos().x() - self._pan_drag.x()
             dy = ev.pos().y() - self._pan_drag.y()
@@ -419,7 +413,8 @@ class WaterGridWidget(QWidget):
             self._preview_cells = self._shape_cells(tool, self._line_start, (cx, cy))
             self.update()
 
-    def mousePressEvent(self, ev):
+
+    def mousePressEvent(self, ev): #vers 1
         is_left  = ev.button() == Qt.MouseButton.LeftButton
         is_right = ev.button() == Qt.MouseButton.RightButton
         is_mid   = ev.button() == Qt.MouseButton.MiddleButton
@@ -467,7 +462,8 @@ class WaterGridWidget(QWidget):
         if is_right and cx >= 0:
             self.cell_right_clicked.emit(cx, cy, ev.globalPosition().toPoint())
 
-    def mouseReleaseEvent(self, ev):
+
+    def mouseReleaseEvent(self, ev): #vers 1
         self._pan_drag = None
         if not self._drawing:
             return
@@ -485,7 +481,8 @@ class WaterGridWidget(QWidget):
             ws._on_grid_changed()
         self.update()
 
-    def wheelEvent(self, ev):
+
+    def wheelEvent(self, ev): #vers 1
         delta = ev.angleDelta().y()
         if not delta:
             return
@@ -498,7 +495,8 @@ class WaterGridWidget(QWidget):
         self._pan_y = int(cy - (cy - self._pan_y) * new / max(1, old))
         self.update()
 
-    def _shape_cells(self, tool, p0, p1):
+
+    def _shape_cells(self, tool, p0, p1): #vers 1
         x0, y0 = min(p0[0], p1[0]), min(p0[1], p1[1])
         x1, y1 = max(p0[0], p1[0]), max(p0[1], p1[1])
         cells  = set()
@@ -526,7 +524,8 @@ class WaterGridWidget(QWidget):
                     cells.add((x, y))
         return cells
 
-    def _flood_fill(self, cx, cy, val):
+
+    def _flood_fill(self, cx, cy, val): #vers 1
         target  = self._cell_val(cx, cy)
         if target == val:
             return
@@ -545,7 +544,8 @@ class WaterGridWidget(QWidget):
             self._grid[y*gw+x] = val
             stack.extend([(x+1,y),(x-1,y),(x,y+1),(x,y-1)])
 
-    def sizeHint(self):
+
+    def sizeHint(self): #vers 1
         from PyQt6.QtCore import QSize
         if self._grid_w:
             ts = max(2, min(self.width() or 800, self.height() or 600) // self._grid_w)
@@ -553,11 +553,13 @@ class WaterGridWidget(QWidget):
             return QSize(sz, sz)
         return QSize(400, 400)
 
-    def minimumSizeHint(self):
+
+    def minimumSizeHint(self): #vers 1
         from PyQt6.QtCore import QSize
         return QSize(200, 200)
 
-    def fit(self):
+
+    def fit(self): #vers 1
         self._zoom  = 1.0
         self._pan_x = self._pan_y = 0
         self.update()
@@ -571,7 +573,8 @@ class SaWaterCanvas(QWidget):
     COL_BORDER = QColor(80,  160, 255, 200)
     COL_BG     = QColor(20,   20,  20)
 
-    def __init__(self, parent=None):
+
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self._quads     = []
         self._sel_idx   = -1
@@ -584,14 +587,16 @@ class SaWaterCanvas(QWidget):
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-    def setup(self, quads, bbox):
+
+    def setup(self, quads, bbox): #vers 1
         self._quads   = quads
         self._bbox    = bbox
         self._sel_idx = -1
         self._fit()
         self.update()
 
-    def _fit(self):
+
+    def _fit(self): #vers 1
         if not self._quads:
             return
         x0, y0, x1, y1 = self._bbox
@@ -602,10 +607,12 @@ class SaWaterCanvas(QWidget):
         self._pan_x = int(self.width()  / 2 - (x0 + ww/2) * self._zoom)
         self._pan_y = int(self.height() / 2 - (y0 + wh/2) * self._zoom)
 
-    def _w2s(self, wx, wy):
+
+    def _w2s(self, wx, wy): #vers 1
         return int(wx * self._zoom + self._pan_x), int(wy * self._zoom + self._pan_y)
 
-    def paintEvent(self, ev):
+
+    def paintEvent(self, ev): #vers 1
         p = QPainter(self)
         p.fillRect(self.rect(), self.COL_BG)
         if not self._quads:
@@ -628,7 +635,8 @@ class SaWaterCanvas(QWidget):
             p.drawPolygon(QPolygon(pts))
         p.end()
 
-    def mousePressEvent(self, ev):
+
+    def mousePressEvent(self, ev): #vers 1
         if ev.button() == Qt.MouseButton.MiddleButton:
             self._pan_drag  = ev.pos()
             self._pan_start = (self._pan_x, self._pan_y)
@@ -648,7 +656,8 @@ class SaWaterCanvas(QWidget):
         self._sel_idx = -1
         self.update()
 
-    def mouseMoveEvent(self, ev):
+
+    def mouseMoveEvent(self, ev): #vers 1
         if self._pan_drag and ev.buttons() & Qt.MouseButton.MiddleButton:
             dx = ev.pos().x() - self._pan_drag.x()
             dy = ev.pos().y() - self._pan_drag.y()
@@ -656,19 +665,23 @@ class SaWaterCanvas(QWidget):
             self._pan_y = self._pan_start[1] + dy
             self.update()
 
-    def mouseReleaseEvent(self, ev):
+
+    def mouseReleaseEvent(self, ev): #vers 1
         self._pan_drag = None
 
-    def wheelEvent(self, ev):
+
+    def wheelEvent(self, ev): #vers 1
         f = 1.12 if ev.angleDelta().y() > 0 else 1/1.12
         self._zoom = max(0.01, min(50.0, self._zoom * f))
         self.update()
 
-    def sizeHint(self):
+
+    def sizeHint(self): #vers 1
         from PyQt6.QtCore import QSize
         return QSize(600, 600)
 
-    def fit(self):
+
+    def fit(self): #vers 1
         self._fit()
         self.update()
 
@@ -687,7 +700,8 @@ class WaterWorkshop(GUIWorkshop):
                        "GTA SA - water.dat / water1.dat (quad format)")
     config_key      = "water_workshop"
 
-    def __init__(self, parent=None, main_window=None):
+
+    def __init__(self, parent=None, main_window=None): #vers 1
         self._waterpro    = None
         self._waterdat    = None
         self._sa_water    = None
@@ -715,7 +729,8 @@ class WaterWorkshop(GUIWorkshop):
                 if btn:
                     btn.setVisible(False)
 
-    def _build_menus_into_qmenu(self, pm):
+
+    def _build_menus_into_qmenu(self, pm): #vers 3
         fm = pm.addMenu("File")
         fm.addAction("Load  Ctrl+O",         self._open_file)
         fm.addAction("Save  Ctrl+S",         self._save_file)
@@ -750,7 +765,8 @@ class WaterWorkshop(GUIWorkshop):
         vm.addSeparator()
         vm.addAction("About Water Workshop", self._show_about)
 
-    def _create_left_panel(self):
+
+    def _create_left_panel(self): #vers 1
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         ll  = QVBoxLayout(panel)
@@ -809,7 +825,8 @@ class WaterWorkshop(GUIWorkshop):
         ll.addWidget(self._dirty_lbl)
         return panel
 
-    def _create_centre_panel(self):
+
+    def _create_centre_panel(self): #vers 3
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         cl = QVBoxLayout(panel)
@@ -864,7 +881,7 @@ class WaterWorkshop(GUIWorkshop):
         cl.addWidget(self._view_tabs)
         return panel
 
-    def _populate_sidebar(self):
+    def _populate_sidebar(self): #vers 1
         sl  = self._sidebar_layout
         ic  = self._get_icon_color()
         BTN = 36
@@ -881,7 +898,7 @@ class WaterWorkshop(GUIWorkshop):
             b.clicked.connect(slot)
             return b
 
-        def _row(*btns):
+        def _row(*btns): #vers 1
             row = QHBoxLayout()
             row.setSpacing(2)
             row.setContentsMargins(0, 0, 0, 0)
@@ -891,14 +908,14 @@ class WaterWorkshop(GUIWorkshop):
                 row.addStretch()
             sl.addLayout(row)
 
-        def _sep():
+        def _sep(): #vers 1
             s = QFrame()
             s.setFrameShape(QFrame.Shape.HLine)
             sl.addSpacing(2)
             sl.addWidget(s)
             sl.addSpacing(2)
 
-        def _tool(icon_fn, tip, name):
+        def _tool(icon_fn, tip, name): #vers 1
             b = _nb(icon_fn, tip,
                     lambda checked=False, t=name: self._set_active_tool(t),
                     checkable=True)
@@ -937,23 +954,21 @@ class WaterWorkshop(GUIWorkshop):
             self._active_tool = "pencil"
 
 
-# =============================================================================
 # SECTION 4 - Water logic
-# =============================================================================
 
-    def _on_grid_changed(self):
+    def _on_grid_changed(self): #vers 1
         self._dirty_lbl.setText("Modified: yes")
         self.save_btn.setEnabled(True)
         for c in (self._phys_canvas, self._vis_canvas):
             if hasattr(c, "_img_cache"): del c._img_cache
 
-    def _on_tab_changed(self, idx: int):
+    def _on_tab_changed(self, idx: int): #vers 1
         self._active_grid = "phys" if idx == 0 else "vis"
 
-    def _active_canvas(self):
+    def _active_canvas(self): #vers 1
         return self._phys_canvas if self._active_grid == "phys" else self._vis_canvas
 
-    def _push_undo_grid(self):
+    def _push_undo_grid(self): #vers 1
         if self._active_grid == "phys" and self._waterpro:
             self._undo_phys.append(bytearray(self._waterpro.phys_grid))
             if len(self._undo_phys) > 20:
@@ -965,7 +980,7 @@ class WaterWorkshop(GUIWorkshop):
                 self._undo_vis.pop(0)
             self._redo_vis.clear()
 
-    def _undo(self):
+    def _undo(self): #vers 1
         if self._active_grid == "phys":
             s, r, attr, canvas = self._undo_phys, self._redo_phys, "phys_grid", self._phys_canvas
         else:
@@ -979,7 +994,8 @@ class WaterWorkshop(GUIWorkshop):
             canvas.set_grid(getattr(self._waterpro, attr))
         self._set_status("Undo")
 
-    def _redo(self):
+
+    def _redo(self): #vers 1
         if self._active_grid == "phys":
             s, u, attr, canvas = self._redo_phys, self._undo_phys, "phys_grid", self._phys_canvas
         else:
@@ -993,34 +1009,40 @@ class WaterWorkshop(GUIWorkshop):
             canvas.set_grid(getattr(self._waterpro, attr))
         self._set_status("Redo")
 
-    def _zoom(self, f):
+
+    def _zoom(self, f): #vers 1
         for c in (self._phys_canvas, self._vis_canvas):
             c._zoom = max(0.1, min(20.0, c._zoom * f))
             c.update()
 
-    def _fit(self):
+
+    def _fit(self): #vers 1
         for c in (self._phys_canvas, self._vis_canvas):
             c.fit()
         self._sa_canvas.fit()
 
-    def _toggle_grid(self):
+
+    def _toggle_grid(self): #vers 1
         for c in (self._phys_canvas, self._vis_canvas):
             c._show_grid = not c._show_grid
             c.update()
 
-    def _flip_colours(self):
+
+    def _flip_colours(self): #vers 1
         for c in (self._phys_canvas, self._vis_canvas):
             c._colour_flipped = not c._colour_flipped
             c.update()
         state = "flipped" if self._phys_canvas._colour_flipped else "normal"
         self._set_status(f"Colour display: {state}  (data unchanged)")
 
-    def _set_active_tool(self, tool: str):
+
+    def _set_active_tool(self, tool: str): #vers 1
         self._active_tool = tool
         for name, btn in self._draw_btns.items():
             btn.setChecked(name == tool)
 
-    def _erase_all_grid(self):
+
+    def _erase_all_grid(self): #vers 1
         canvas = self._active_canvas()
         if not canvas._grid_w:
             return
@@ -1034,7 +1056,8 @@ class WaterWorkshop(GUIWorkshop):
         canvas.update()
         self._on_grid_changed()
 
-    def _invert_grid(self):
+
+    def _invert_grid(self): #vers 1
         canvas = self._active_canvas()
         if not canvas._grid_w:
             return
@@ -1044,7 +1067,8 @@ class WaterWorkshop(GUIWorkshop):
         canvas.update()
         self._on_grid_changed()
 
-    def _is_binary_waterpro(self, data):
+
+    def _is_binary_waterpro(self, data): #vers 1
         if len(data) < 100:
             return False
         rem = len(data) - 964
@@ -1053,13 +1077,15 @@ class WaterWorkshop(GUIWorkshop):
         gw = int(math.isqrt(rem // 5))
         return gw * gw == rem // 5
 
-    def _is_sa_water(self, data):
+
+    def _is_sa_water(self, data): #vers 2
         try:
             return data[:9].decode("latin1") == "processed"
         except Exception:
             return False
 
-    def _open_file(self, path=None):
+
+    def _open_file(self, path=None): #vers 2
         if not path:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open Water File", "",
@@ -1067,7 +1093,8 @@ class WaterWorkshop(GUIWorkshop):
         if path:
             self._load_file(path)
 
-    def _load_file(self, path):
+
+    def _load_file(self, path): #vers 2
         try:
             data = Path(path).read_bytes()
             if self._is_binary_waterpro(data):
@@ -1085,7 +1112,8 @@ class WaterWorkshop(GUIWorkshop):
             QMessageBox.critical(self, "Load Error",
                 f"Failed to load {Path(path).name}:\n{e}\n\n{traceback.format_exc()[-400:]}")
 
-    def _load_waterpro(self, path, data):
+
+    def _load_waterpro(self, path, data): #vers 2
         wp = WaterproParser()
         wp.load(path)
         self._waterpro  = wp
@@ -1107,7 +1135,8 @@ class WaterWorkshop(GUIWorkshop):
             f"  |  {gw*2}x{gw*2} visible ({nv} water cells)"
             f"  |  {wp.water_levels_count} level(s)")
 
-    def _load_waterdat(self, path):
+
+    def _load_waterdat(self, path): #vers 2
         wd = WaterDatParser()
         wd.load(path)
         self._waterdat  = wd
@@ -1122,7 +1151,8 @@ class WaterWorkshop(GUIWorkshop):
         self._set_status(
             f"Loaded {Path(path).name}  |  {len(wd.rects)} rectangle(s)  (text)")
 
-    def _load_sa_water(self, path):
+
+    def _load_sa_water(self, path): #vers 2
         sa = SaWaterParser()
         sa.load(path)
         self._sa_water  = sa
@@ -1140,7 +1170,8 @@ class WaterWorkshop(GUIWorkshop):
         self._set_status(
             f"Loaded {Path(path).name}  |  {len(sa.quads)} SA water quads")
 
-    def _refresh_levels_list(self):
+
+    def _refresh_levels_list(self): #vers 2
         self._levels_list.clear()
         if not self._waterpro:
             return
@@ -1149,7 +1180,8 @@ class WaterWorkshop(GUIWorkshop):
             self._levels_list.addItem(QListWidgetItem(
                 f"Level {i}:  Z = {wp.water_level_data[i]:.4f}"))
 
-    def _save_file(self):
+
+    def _save_file(self): #vers 2
         if not self._file_path:
             self._set_status("No file loaded")
             return
@@ -1185,10 +1217,16 @@ class WaterWorkshop(GUIWorkshop):
                 except Exception as e:
                     QMessageBox.critical(self, "Save Error", str(e))
 
-    def _export_file(self): self._export_bmp()
-    def _import_file(self): self._import_bmp()
 
-    def _export_bmp(self):
+    def _export_file(self): #vers 2
+        self._export_bmp()
+
+
+    def _import_file(self): #vers 2
+        self._import_bmp()
+
+
+    def _export_bmp(self): #vers 2
         if not self._waterpro:
             QMessageBox.information(self, "Export", "Load a binary waterpro.dat first.")
             return
@@ -1213,7 +1251,8 @@ class WaterWorkshop(GUIWorkshop):
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
-    def _import_bmp(self):
+
+    def _import_bmp(self): #vers 2
         if not self._waterpro:
             QMessageBox.information(self, "Import", "Load a binary waterpro.dat first.")
             return
@@ -1250,7 +1289,8 @@ class WaterWorkshop(GUIWorkshop):
         except Exception as e:
             QMessageBox.critical(self, "Import Error", str(e))
 
-    def _edit_level(self, item):
+
+    def _edit_level(self, item): #vers 2
         if not self._waterpro:
             return
         idx = self._levels_list.row(item)
@@ -1277,7 +1317,8 @@ class WaterWorkshop(GUIWorkshop):
             self._refresh_levels_list()
             self._on_grid_changed()
 
-    def _add_level(self):
+
+    def _add_level(self): #vers 1
         if not self._waterpro:
             return
         wp = self._waterpro
@@ -1290,7 +1331,8 @@ class WaterWorkshop(GUIWorkshop):
         self._refresh_levels_list()
         self._on_grid_changed()
 
-    def _del_level(self):
+
+    def _del_level(self): #vers 1
         if not self._waterpro:
             return
         wp  = self._waterpro
@@ -1304,15 +1346,18 @@ class WaterWorkshop(GUIWorkshop):
         self._refresh_levels_list()
         self._on_grid_changed()
 
+
     def get_water_quads(self): #vers 1
         """Return SA water quads list for external overlays (e.g. IPL World Map).
         Each quad: {'corners': [{'x':f,'y':f,'f':[...]}, ...], 'flag': int}"""
         return self._sa_water.quads if self._sa_water else []
 
+
     def get_water_rects(self): #vers 1
         """Return GTA3/VC water.dat rects for external overlays.
         Each rect: (x1, y1, x2, y2, level)"""
         return self._waterdat.rects if self._waterdat else []
+
 
     def translate_water(self, dx: float, dy: float, dz: float = 0.0): #vers 1
         """Translate all loaded water data by (dx, dy, dz) and refresh canvas."""
@@ -1331,7 +1376,8 @@ class WaterWorkshop(GUIWorkshop):
                 self.main_window.log_message(
                     f"Water Workshop: translated by dX={dx:+.1f} dY={dy:+.1f} dZ={dz:+.1f}")
 
-    def _on_quad_selected(self, idx):
+
+    def _on_quad_selected(self, idx): #vers 1
         if not self._sa_water:
             return
         self._levels_list.setCurrentRow(idx)
@@ -1342,7 +1388,8 @@ class WaterWorkshop(GUIWorkshop):
             f"Quad {idx}: ({c['x']:.1f},{c['y']:.1f})"
             f"  flag={q['flag']}  f=[{vals}]")
 
-    def _show_stats(self):
+
+    def _show_stats(self): #vers 1
         if self._sa_water and not self._waterpro:
             q     = self._sa_water.quads
             b     = self._sa_water.world_bbox()
@@ -1374,12 +1421,14 @@ class WaterWorkshop(GUIWorkshop):
             f"Water levels:  {wp.water_levels_count}\n"
             f"  Heights:     {heights}")
 
-    def _clear_recent(self):
+
+    def _clear_recent(self): #vers 2
         self.WS._data["recent_files"] = []
         self.WS.save()
         self._set_status("Recent files cleared")
 
-    def _show_offset_dialog(self):
+
+    def _show_offset_dialog(self): #vers 2
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QSpinBox, QDoubleSpinBox, QDialogButtonBox, QGroupBox, QLabel
         dlg = QDialog(self)
         dlg.setWindowTitle("Grid Offset / Shift")
@@ -1413,11 +1462,9 @@ class WaterWorkshop(GUIWorkshop):
         self._set_status(f"Grid offset: X={self._grid_offset_x} Y={self._grid_offset_y}")
 
 
-# =============================================================================
 # Standalone launcher
-# =============================================================================
 
-if __name__ == "__main__":
+if __name__ == "__main__": #vers 2
     import traceback
     print(f"{App_name} {Build} starting...")
     try:
