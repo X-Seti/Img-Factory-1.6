@@ -29,7 +29,7 @@ from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, g
 from apps.methods.txd_versions import (detect_txd_version, get_version_string, get_platform_name, get_platform_capabilities, TXDPlatform, TXDVersion)
 
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
-from apps.methods.txd_context_menu import setup_txd_context_menu
+from apps.gui.txd_context_menu import setup_txd_context_menu
 
 
 from apps.debug.debug_functions import img_debugger
