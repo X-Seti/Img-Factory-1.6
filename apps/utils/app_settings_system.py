@@ -1869,10 +1869,10 @@ class AppSettings:
         button_normal = colors.get('button_normal', '#e0e0e0')
         button_hover = colors.get('button_hover', '#d0d0d0')
         button_pressed = colors.get('button_pressed', '#b0b0b0')
-        selection_bg = colors.get('selection_background', '#0078d4')
-        menu_hl_bg   = colors.get('menu_highlight_bg',   selection_bg)
-        menu_hl_text = colors.get('menu_highlight_text', selection_text)
+        selection_bg   = colors.get('selection_background', '#0078d4')
         selection_text = colors.get('selection_text', '#ffffff')
+        menu_hl_bg     = colors.get('menu_highlight_bg',   selection_bg)
+        menu_hl_text   = colors.get('menu_highlight_text', selection_text)
         grid = colors.get('grid', '#e0e0e0')
 
         # System ui - overrides
