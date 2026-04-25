@@ -17171,7 +17171,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
             QMessageBox.information(self, "Success", "Changes applied to texture")
 
 
-    def closeEvent(self, event): #vers 1
+    def closeEvent(self, event): #vers 2
         """Handle window close event"""
         # Save toolbar layouts
         try:
@@ -17183,6 +17183,13 @@ class BumpmapManagerWindow(QWidget): #vers 1
             pass
         # Save settings before closing
         self._save_settings()
+        # Remove injected tool menu from imgfactory menubar
+        try:
+            mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
+            if mw and hasattr(mw, '_update_tool_menu_for_tab'):
+                mw._update_tool_menu_for_tab(None)
+        except Exception:
+            pass
 
         if self.modified:
             from PyQt6.QtWidgets import QMessageBox

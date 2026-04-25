@@ -3979,6 +3979,13 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception:
             pass
         self.window_closed.emit()
+        # Remove injected tool menu from imgfactory menubar
+        try:
+            mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
+            if mw and hasattr(mw, '_update_tool_menu_for_tab'):
+                mw._update_tool_menu_for_tab(None)
+        except Exception:
+            pass
         event.accept()
 
 

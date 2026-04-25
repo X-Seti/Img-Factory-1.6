@@ -11123,11 +11123,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             super().keyPressEvent(e)
 
 
-    def closeEvent(self, event): #vers 1
+    def closeEvent(self, event): #vers 2
         # Save splitter positions so they restore on next open
         if hasattr(self, '_splitter') and self._splitter:
             self.dp5_settings.set('splitter_sizes', self._splitter.sizes())
             self.dp5_settings.save()
+        # Remove injected tool menu from imgfactory menubar
+        try:
+            mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
+            if mw and hasattr(mw, '_update_tool_menu_for_tab'):
+                mw._update_tool_menu_for_tab(None)
+        except Exception:
+            pass
         self.window_closed.emit()
         event.accept()
 
@@ -11374,12 +11381,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         overlay.show()
         overlay.raise_()
 
-    def showEvent(self, event): #vers 2
+    def showEvent(self, event): #vers 3
         super().showEvent(event)
         from PyQt6.QtCore import QTimer
         # Two-shot: 100ms for layout settle, 400ms to ensure all children rendered
         QTimer.singleShot(100, self._setup_corner_overlay)
         QTimer.singleShot(400, self._setup_corner_overlay)
+        # Rebuild right panel so tool icons lay out correctly on first show
+        QTimer.singleShot(150, self._rebuild_right_panel)
 
     def resizeEvent(self, event): #vers 1
         super().resizeEvent(event)

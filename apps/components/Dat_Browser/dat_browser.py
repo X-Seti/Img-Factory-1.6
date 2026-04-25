@@ -844,8 +844,24 @@ class DATBrowserWidget(QWidget): #vers 2
 
         # Main splitter: left = load-order tree  |  right = data tabs
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setAutoFillBackground(True)
+        splitter.setAutoFillBackground(False)
+        splitter.setHandleWidth(4)
+        splitter.setOpaqueResize(True)
+        self._dat_splitter = splitter
         root.addWidget(splitter, 1)
+        # Apply theme-aware handle style
+        try:
+            mw = self.main_window
+            if mw and hasattr(mw, 'app_settings'):
+                tc = mw.app_settings.get_theme_colors() or {}
+                mid = tc.get('splitter_color_background', tc.get('bg_secondary', '#2a2a2a'))
+                hov = tc.get('accent_primary', '#1976d2')
+                splitter.setStyleSheet(f"""
+                    QSplitter::handle:horizontal {{ background: {mid}; width: 4px; border: none; }}
+                    QSplitter::handle:horizontal:hover {{ background: {hov}; }}
+                """)
+        except Exception:
+            pass
 
         # Left — file load-order tree
         left = QWidget()
@@ -2362,11 +2378,22 @@ class DATBrowserWidget(QWidget): #vers 2
         """
         self.setStyleSheet(ss)
 
-    def _on_theme_changed(self): #vers 4
-        """Refresh DAT-specific row colors when theme switches.
-        Global stylesheet is handled by QApplication — no need to reapply here."""
+    def _on_theme_changed(self): #vers 5
+        """Refresh DAT-specific row colors when theme switches."""
         self._apply_theme_stylesheet()
         self.setStyleSheet(self.styleSheet())  # force repaint
+        # Re-apply splitter handle style
+        try:
+            if hasattr(self, '_dat_splitter') and self.main_window:
+                tc = self.main_window.app_settings.get_theme_colors() or {}
+                mid = tc.get('splitter_color_background', tc.get('bg_secondary', '#2a2a2a'))
+                hov = tc.get('accent_primary', '#1976d2')
+                self._dat_splitter.setStyleSheet(f"""
+                    QSplitter::handle:horizontal {{ background: {mid}; width: 4px; border: none; }}
+                    QSplitter::handle:horizontal:hover {{ background: {hov}; }}
+                """)
+        except Exception:
+            pass
         self.update()
 
     def _get_txd_names_from_img(self, img_path: str) -> list:
