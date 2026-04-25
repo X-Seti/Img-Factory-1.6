@@ -245,6 +245,24 @@ class COL3DViewport(QWidget): #vers 2
     def set_background_color(self, rgb): #vers 1
         self._bg_color = rgb; self._theme_bg_set = True; self.update()
 
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        # Palette fallback - no hardcoded values
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
+
     def _set_theme_bg(self, palette): #vers 1
         """Set background from palette — light theme=white, dark=near-black."""
         if self._theme_bg_set:
@@ -1738,7 +1756,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
         _win = self.palette().color(self.palette().ColorRole.Window)
-        self.background_color = QColor(245, 245, 245) if _win.lightness() > 128 else QColor(42, 42, 42)
+        self.background_color = self._get_ui_color('viewport_bg')
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
         self.setMinimumSize(200, 200)
@@ -13446,7 +13464,7 @@ class ZoomablePreview(QLabel): #vers 2
 
         # Background — theme-aware default
         win = self.palette().color(self.palette().ColorRole.Window)
-        self.bg_color = QColor(245, 245, 245) if win.lightness() > 128 else QColor(42, 42, 42)
+        self.bg_color = self._get_ui_color('viewport_bg')
 
         self.placeholder_text = "Select a collision model to preview"
 

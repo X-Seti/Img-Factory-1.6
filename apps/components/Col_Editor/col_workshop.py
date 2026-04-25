@@ -149,6 +149,24 @@ class COL3DViewport(QWidget): #vers 2
     def set_background_color(self, rgb):
         self._bg_color = rgb; self._theme_bg_set = True; self.update()
 
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        # Palette fallback - no hardcoded values
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
+
     def _set_theme_bg(self, palette): #vers 2
         """Set background from palette — light theme=white, dark=near-black."""
         if self._theme_bg_set:
@@ -690,7 +708,7 @@ class COL3DViewport(QWidget): #vers 2
         p.fillRect(self.rect(), QColor(r2, g2, b2))
 
         if not self._model:
-            p.setPen(QColor(120, 120, 120))
+            p.setPen(self._get_ui_color('viewport_text'))
             p.setFont(QFont('Arial', 11))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No model selected")
             return
@@ -1558,7 +1576,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._overlay_opacity = 50
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
-        self.background_color = QColor(42, 42, 42)
+        self.background_color = self._get_ui_color('viewport_bg')
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
         self.setMinimumSize(200, 200)
@@ -8931,7 +8949,7 @@ class ZoomablePreview(QLabel): #vers 2
         self.drag_mode = None  # 'pan' or 'rotate'
 
         # Background
-        self.bg_color = QColor(42, 42, 42)
+        self.bg_color = self._get_ui_color('viewport_bg')
 
         self.placeholder_text = "Select a collision model to preview"
 

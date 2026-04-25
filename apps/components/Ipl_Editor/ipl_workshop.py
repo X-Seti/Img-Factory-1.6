@@ -1189,6 +1189,23 @@ if __name__ == "__main__":
 #    IPL World Map                                                              
 
 class IPLMapView(QFrame):  # vers 1
+
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
     """Interactive 2D top-down world map showing IPL instances as cubes.
     Supports pan (middle/left-drag), zoom (wheel), multi-select, and
     bulk translate/rotate operations."""
@@ -1354,7 +1371,7 @@ class IPLMapView(QFrame):  # vers 1
         W, H = self.width(), self.height()
 
         # Background
-        p.fillRect(self.rect(), QColor(20, 22, 30))
+        p.fillRect(self.rect(), self._get_ui_color('viewport_bg'))
 
         # Radar map background image
         if self._show_radar and self._radar_image and not self._radar_image.isNull():

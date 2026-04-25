@@ -118,7 +118,9 @@
     "tooltip_text": "#ffffff",
     "placeholder_text": "#aaaaaa",
     "disabled_text": "#777777",
-    "panel_primary": "#313340"
+    "panel_primary": "#313340",
+    "viewport_bg": "#1e1e2e",
+    "viewport_text": "#888888"
   },
   "created": "2025-08-12 00:04",
   "menus": {

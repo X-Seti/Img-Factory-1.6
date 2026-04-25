@@ -106,7 +106,7 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         
         # Professional theme colors (matching reference editor)
         _win = self.palette().color(self.palette().ColorRole.Window)
-        self.bg_color = QColor(245, 245, 245) if _win.lightness() > 128 else QColor(30, 40, 50)
+        self.bg_color = self._get_ui_color('viewport_bg')
         self.grid_color = QColor(60, 70, 80)
         self.mesh_color = QColor(200, 200, 200)
         self.wireframe_color = QColor(100, 150, 200)
@@ -174,6 +174,24 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
     
     
+
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
+
     def setup_lighting(self): #vers 1
         """Setup professional 3-point lighting system"""
         if not OPENGL_AVAILABLE or not self.lighting_enabled:
@@ -849,6 +867,7 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     
     
     def set_theme_colors(self, bg_color=None, mesh_color=None, 
+
                         sphere_color=None, box_color=None): #vers 1
         """Update theme colors"""
         if bg_color:
