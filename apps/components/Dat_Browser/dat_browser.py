@@ -820,6 +820,8 @@ class DATBrowserWidget(QWidget): #vers 2
         self._db_panel = self._build_db_panel()
         self._db_panel.setVisible(False)
         self._db_panel.setAutoFillBackground(True)
+        self._db_panel.setAttribute(_Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+        self._db_panel.setStyleSheet("background-color: palette(base);")
 
         # Search / filter row
         search_row = QHBoxLayout()

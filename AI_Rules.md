@@ -4,7 +4,8 @@ Important rules to remember: Project name is Img Factory 1.6
 1. To avoid confusion, the file must include #this belongs in [dir]/ [filename] or goes in root /[filename] - Version: [number] of updates to file, Keep the existing file header comments. "X-Seti - $MONTH$DATE 2025 -" rest of the header information.
 
 Example: 
-# X-Seti - August 14 2025 - IMG Factory 1.6 - COL Table Population Methods
+# X-Seti - August 14 2025 - IMG Factory 1.6 - COL Table Population Methods.
+
 """
 COL Table Population Methods - Handles populating the main table widget with COL file data.
 """
@@ -68,7 +69,7 @@ No emojis, only SVG-generated icons.
 
 11. Read the Changelog file. List of TODO and functions fixed.
 
-12. Finally, use the sed command to make changes to files (small fixes only), instead of recreating the file, being mindful of bandwidth and session limits. 
+12. Finally, use the sed command to make small changes to files. instead of recreating the file, being mindful of bandwidth and session limits. 
 
 13. For large fixes, show the full fixed method; just tell me the file to swap the method.
 
@@ -77,6 +78,9 @@ No emojis, only SVG-generated icons.
 15. I have limited bandwidth, so keep replies short and to the point.
 
 16. No guessing, check you have access to GitHub repos or ask for the files first, before anything else is done. And confirm this with me.
+
+17. Bugs shown in the root/bugs folder, these are the issues we always fix first.
+Once done, tested update the changelog.
 
 ## Workflow
 - Clone the repo first, confirm access before any work
