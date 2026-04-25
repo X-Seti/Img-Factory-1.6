@@ -57,5 +57,6 @@ nosetests.xml
 *.log
 *.dir
 *.img
-*.log
 *.spec
+*.docx
+tree.git
