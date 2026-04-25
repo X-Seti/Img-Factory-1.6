@@ -3276,32 +3276,11 @@ class IMGFactory(QMainWindow):
             print(f"DAT Browser integration failed: {e}")
 
 
-    def _create_initial_tab(self): #vers 6
-        """Create initial tab — welcome screen + empty table for IMG drops."""
-        from apps.methods.populate_img_table import DragSelectTableWidget
-        tab_widget = QWidget()
-        tab_widget.setAutoFillBackground(True)
-        tab_layout = QVBoxLayout(tab_widget)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        tab_layout.setSpacing(0)
-
-        # Welcome screen now lives in the left panel (same as Dir Tree / DAT Browser)
-        # Registered as [Intro] taskbar button — see _register_intro_tool() called after show()
-
-        # Search button is in the welcome screen bottom bar next to [Close]
-
-        table = DragSelectTableWidget()
-        table.setAlternatingRowColors(True)
-        table.setSortingEnabled(True)
-        table.horizontalHeader().setStretchLastSection(True)
-        table.horizontalHeader().setSortIndicatorShown(True)
-        tab_layout.addWidget(table)
-        tab_widget.table_ref = table
-        tab_widget.file_type = 'NONE'
-        tab_widget.file_object = None
-        tab_widget.table_ref   = None   # set when file loads into this tab
-
-        self.main_tab_widget.addTab(tab_widget, "Home")
+    def _create_initial_tab(self): #vers 7
+        """No initial Home tab — welcome/intro lives in left_stack page 2.
+        Tab area starts empty; tabs are created when files are opened.
+        """
+        pass
 
 
     def _find_table_in_tab(self, tab_widget): #vers 1
