@@ -25,22 +25,11 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QSortFilterProxyModel
 
 #    GUIWorkshop base                                                           
-def _find_gui_workshop():
-    _dep = Path(__file__).parent.parent / "Tmp_Template" / "gui_workshop.py"
-    if _dep.exists():
-        import importlib.util as _u
-        _s = _u.spec_from_file_location("gui_workshop", _dep)
-        _m = _u.module_from_spec(_s); _s.loader.exec_module(_m)
-        return _m.GUIWorkshop
-    try:
-        from apps.components.Tmp_Template.gui_workshop import GUIWorkshop as _G
-        return _G
-    except ImportError:
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-        from apps.components.Tmp_Template.gui_workshop import GUIWorkshop as _G
-        return _G
-
-GUIWorkshop = _find_gui_workshop()
+try:
+    from apps.methods.gui_workshop import GUIWorkshop
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+    from apps.methods.gui_workshop import GUIWorkshop
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory

@@ -20,8 +20,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QTimer
 from PyQt6.QtGui import (
     QFont, QIcon, QPixmap, QColor, QPainter, QPen, QBrush, QAction, QCursor, QKeySequence, QPainterPath)
 
-from depends.svg_icon_factory import SVGIconFactory
-#from depends.img_debug_functions import img_debugger # TODO - Debugging is status window exists, otherwise the terminal will do.
+from apps.methods.svg_icon_factory import SVGIconFactory
+#from apps.methods.img_debug_functions import img_debugger # TODO - Debugging is status window exists, otherwise the terminal will do.
 
 # OpenGL for 3D viewport
 try:
@@ -68,16 +68,16 @@ if STANDALONE_MODE:
         sys.path.insert(0, current_dir)
 
     try:
-        from depends.col_core_classes import (
+        from apps.methods.col_core_classes import (
             COLFile, COLModel, COLVersion, COLMaterial, COLFaceGroup,
             COLSphere, COLBox, COLVertex, COLFace, Vector3, BoundingBox
         )
-        from depends.col_dialogs import (
+        from apps.methods.col_dialogs import (
             show_col_analysis_dialog, show_col_batch_processor,
             show_col_file_dialog
         )
-        from depends.svg_icon_factory import SVGIconFactory
-        from depends.img_debug_functions import img_debugger
+        from apps.methods.svg_icon_factory import SVGIconFactory
+        from apps.methods.img_debug_functions import img_debugger
     except ImportError as e:
         print(f"Warning: Missing standalone dependencies: {e}")
         # Minimal fallbacks
@@ -546,7 +546,7 @@ class GUIWorkshop(QWidget): #ver 1
 
     def _create_toolbar(self): #vers 1
         #Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible
-        from depends.svg_icon_factory import SVGIconFactory
+        from apps.methods.svg_icon_factory import SVGIconFactory
 
         self.titlebar = QFrame()
         self.titlebar.setFrameStyle(QFrame.Shape.StyledPanel)

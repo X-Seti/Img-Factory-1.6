@@ -38,12 +38,12 @@ from PyQt6.QtCore import Qt
 
 #    Import the base class                                                      
 try:
-    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
+    from apps.methods.gui_workshop import GUIWorkshop
 except ImportError:
     # Allow running from the template directory directly
     import os
     sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
+    from apps.methods.gui_workshop import GUIWorkshop
 
 
 # TempWorkshop — rename this class when you copy the template

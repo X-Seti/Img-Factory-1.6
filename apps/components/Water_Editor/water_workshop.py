@@ -24,11 +24,11 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
 try:
-    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
+    from apps.methods.gui_workshop import GUIWorkshop
 except ImportError:
     import os
     sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-    from apps.components.Tmp_Template.gui_workshop import GUIWorkshop
+    from apps.methods.gui_workshop import GUIWorkshop
 
 try:
     from apps.methods.imgfactory_svg_icons import SVGIconFactory
