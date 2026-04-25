@@ -18806,33 +18806,31 @@ class ZoomablePreview(QLabel): #vers 2
         )
 
 
-    def paintEvent(self, event): #vers 2
+    def paintEvent(self, event): #vers 3
         """Paint the preview with background and image"""
+        from PyQt6.QtGui import QColor
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        # Draw background
+        win = self.palette().color(self.palette().ColorRole.Window)
+        is_light = win.lightness() > 128
+
         if self.background_mode == 'checkerboard':
             self._draw_checkerboard(painter)
         else:
-            # Use palette(base) if no explicit color set (theme-aware)
-          bg = self.bg_color
-          if bg is None:
-              from PyQt6.QtGui import QColor
-              win = self.palette().color(self.palette().ColorRole.Window)
-              bg = QColor(245, 245, 245) if win.lightness() > 128 else QColor(42, 42, 42)
-          painter.fillRect(self.rect(), bg)
+            bg = self.bg_color
+            if bg is None:
+                bg = QColor(255, 255, 255) if is_light else QColor(42, 42, 42)
+            painter.fillRect(self.rect(), bg)
 
-        # Draw image if available
         if self.scaled_pixmap and not self.scaled_pixmap.isNull():
-            # Calculate centered position with pan offset
             x = (self.width() - self.scaled_pixmap.width()) // 2 + self.pan_offset.x()
             y = (self.height() - self.scaled_pixmap.height()) // 2 + self.pan_offset.y()
             painter.drawPixmap(x, y, self.scaled_pixmap)
         elif self.placeholder_text:
-            # Draw placeholder text
-            painter.setPen(QColor(150, 150, 150))
+            pen_color = QColor(80, 80, 80) if is_light else QColor(150, 150, 150)
+            painter.setPen(pen_color)
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.placeholder_text)
 
 
