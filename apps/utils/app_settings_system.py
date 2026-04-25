@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#This goes in root/ app_settings_system.py - version 65
+#This goes in root/apps/utils/app_settings_system.py - version 69
 # $vers" X-Seti - June26, 2025 - App Factory - Package theme settings
 
 """
@@ -73,7 +73,7 @@ def get_titlebar_sizes(app_settings=None) -> dict: #vers 1
         'icon_size':  cs.get('titlebar_icon_size',     20),
         'btn_height': cs.get('button_size',            24),
     }
-App_build = "22.63" #32 is from version 32 up top.
+App_build = "23.69" #32 is from version 32 up top.
 App_auth = "X-Seti"
 
 

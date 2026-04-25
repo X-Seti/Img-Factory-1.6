@@ -811,15 +811,16 @@ class IMGFactoryGUILayout:
             import traceback; traceback.print_exc()
 
 
-    def refresh_icons(self, color: str): #vers 2
+    def refresh_icons(self, color: str): #vers 3
         """Refresh all toolbar SVG icons using the given color (text_primary from theme)"""
         try:
             from apps.methods.imgfactory_svg_icons import (
-                get_twin_panel_icon, get_layout_w1left_icon,
-                get_single_panel_icon, get_view_icon, SVGIconFactory
+                get_tree_icon, get_layout_w1left_icon,
+                get_single_panel_icon, get_view_icon, get_search_icon,
+                SVGIconFactory
             )
             if hasattr(self, 'f_entries_btn'):
-                self.f_entries_btn.setIcon(get_twin_panel_icon(20, color))
+                self.f_entries_btn.setIcon(get_tree_icon(20, color))
             if hasattr(self, 'split_toggle_btn'):
                 self.split_toggle_btn.setIcon(get_layout_w1left_icon(20, color))
             if hasattr(self, 'search_btn'):
