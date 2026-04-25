@@ -3509,11 +3509,79 @@ class IMGFactory(QMainWindow):
                 else:
                     self._sync_taskbar_active("")
                 self.log_message(f"→ {tab_name}")
+                self._sync_img_taskbar_buttons(index)
 
         except Exception as e:
             self.log_message(f"Tab switch error: {str(e)})")
             import traceback
             traceback.print_exc()
+
+
+    def _sync_img_taskbar_buttons(self, active_index: int = -1): #vers 1
+        """Register one taskbar button per open IMG tab; highlight the active one.
+        Keys: 'img_0', 'img_1', ... matching main_tab_widget indices.
+        Home tab (index 0) is skipped — it has no file.
+        """
+        if not hasattr(self, 'tool_taskbar') or not hasattr(self, 'main_tab_widget'):
+            return
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            colors = {}
+            if hasattr(self, 'app_settings'):
+                colors = self.app_settings.get_theme_colors() or {}
+            icon_color = colors.get('text_primary', '#cccccc')
+            icon = SVGIconFactory.open_icon(16, icon_color)
+
+            tw = self.main_tab_widget
+            # Remove stale img_N buttons for tabs that no longer exist
+            registered = list(getattr(self.tool_taskbar, '_tools', {}).keys())
+            existing_img_keys = {k for k in registered if k.startswith('img_')}
+            valid_keys = set()
+
+            for i in range(tw.count()):
+                tab = tw.widget(i)
+                file_type = getattr(tab, 'file_type', None)
+                if file_type not in ('IMG', 'COL', None):
+                    continue
+                # Only tabs that have an actual file loaded
+                file_obj = getattr(tab, 'file_object', None)
+                if file_obj is None and file_type is None:
+                    continue  # Home tab / empty
+                if file_obj is None:
+                    continue
+
+                key = f'img_{i}'
+                valid_keys.add(key)
+                label = tw.tabText(i) or f'IMG{i}'
+                # Truncate long names
+                if len(label) > 12:
+                    label = label[:11] + '…'
+
+                def _make_switcher(idx=i):
+                    def _switch():
+                        self.main_tab_widget.setCurrentIndex(idx)
+                    return _switch
+
+                if self.tool_taskbar.is_registered(key):
+                    self.tool_taskbar.update_target(key, _make_switcher())
+                else:
+                    self.tool_taskbar.register(key, label, icon,
+                                               _make_switcher(), f'Switch to {tw.tabText(i)}')
+
+            # Remove buttons for closed tabs
+            for old_key in existing_img_keys - valid_keys:
+                try:
+                    self.tool_taskbar.unregister(old_key)
+                except Exception:
+                    pass
+
+            # Highlight active img button
+            active_key = f'img_{active_index}'
+            for k in valid_keys:
+                self.tool_taskbar.set_active(k, k == active_key)
+
+        except Exception as e:
+            self.log_message(f"IMG taskbar sync error: {e}")
 
 
     def ensure_current_tab_references_valid(self): #vers 1

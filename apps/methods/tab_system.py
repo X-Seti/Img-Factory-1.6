@@ -208,6 +208,9 @@ def create_tab(main_window, file_path=None, file_type=None, file_object=None): #
         # Switch to new tab
         main_window.main_tab_widget.setCurrentIndex(new_index)
 
+        # Sync IMG taskbar buttons
+        if hasattr(main_window, '_sync_img_taskbar_buttons'):
+            main_window._sync_img_taskbar_buttons(new_index)
         # If dir tree is showing full-width, switch to split so the new tab is visible
         if (getattr(main_window, '_dirtree_state', 0) == 2
                 and hasattr(main_window, 'gui_layout')):
@@ -314,7 +317,7 @@ def clear_tab(main_window, tab_index: int): #vers 1
         return False
 
 
-def close_tab(main_window, tab_index: int): #vers 2
+def close_tab(main_window, tab_index: int): #vers 3
     """Close and remove tab.
     For the DAT Browser tab the widget is kept alive on main_window.dat_browser
     so it can be re-opened via show_dat_browser().
@@ -332,6 +335,11 @@ def close_tab(main_window, tab_index: int): #vers 2
 
         main_window.main_tab_widget.removeTab(tab_index)
         main_window.log_message(f"Tab {tab_index} closed")
+
+        # Sync IMG taskbar buttons after removal
+        if hasattr(main_window, '_sync_img_taskbar_buttons'):
+            main_window._sync_img_taskbar_buttons(
+                main_window.main_tab_widget.currentIndex())
         return True
 
     except Exception as e:

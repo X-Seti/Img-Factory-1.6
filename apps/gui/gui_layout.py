@@ -1910,17 +1910,19 @@ class IMGFactoryGUILayout:
         self.content_splitter.setAutoFillBackground(False)
         self.content_splitter.setHandleWidth(5)
         self.content_splitter.setOpaqueResize(True)
-        # Left stacked panel — page 0: dir tree, page 1: DAT browser
+        # Left stacked panel — page 0: dir tree, page 1: DAT browser, page 2: intro
         from PyQt6.QtWidgets import QStackedWidget
         self.left_stack = QStackedWidget()
         self.left_stack.setAutoFillBackground(True)
         self.left_stack.setMinimumWidth(0)
         # Placeholder pages — real widgets inserted when panels first open
-        self._left_stack_placeholder = QWidget()  # page 0 dir tree slot
-        self._left_stack_dat_placeholder = QWidget()  # page 1 dat browser slot
-        self.left_stack.addWidget(self._left_stack_placeholder)   # page 0
-        self.left_stack.addWidget(self._left_stack_dat_placeholder)  # page 1
-        self.left_stack.hide()  # hidden until Dir or DAT opened
+        self._left_stack_placeholder = QWidget()        # page 0 dir tree slot
+        self._left_stack_dat_placeholder = QWidget()    # page 1 dat browser slot
+        self._left_stack_intro_placeholder = QWidget()  # page 2 intro slot
+        self.left_stack.addWidget(self._left_stack_placeholder)         # page 0
+        self.left_stack.addWidget(self._left_stack_dat_placeholder)     # page 1
+        self.left_stack.addWidget(self._left_stack_intro_placeholder)   # page 2
+        self.left_stack.hide()  # hidden until a panel is opened
         self.content_splitter.addWidget(self.left_stack)
 
         # Create main table placeholder (replaced by main_tab_widget in _create_ui)

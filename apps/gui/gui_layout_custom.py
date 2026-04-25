@@ -168,50 +168,18 @@ def _show_dat_browser(mw): #vers 3
             mw.log_message(f"DAT Browser show error: {e}")
 
 
-class _IntroResizeFilter(QObject):
-    """Event filter that keeps the intro overlay sized to its parent tab widget."""
-    def __init__(self, overlay, parent=None):
-        super().__init__(parent)
-        self._overlay = overlay
-
-    def eventFilter(self, obj, event):
-        from PyQt6.QtCore import QEvent
-        if event.type() == QEvent.Type.Resize and self._overlay.isVisible():
-            self._overlay.setGeometry(0, 0, obj.width(), obj.height())
-            self._overlay.raise_()
-        return False
-
-
-def _show_intro_panel(mw): #vers 3
-    """Show welcome/intro screen as a full overlay over the main tab area.
-    Resizes with the window via an event filter. Toggles on second click.
-    """
+def _show_intro_panel(mw): #vers 4
+    """Show welcome/intro screen in left_stack page 2 — same pattern as Dir Tree / DAT."""
     try:
-        ws = getattr(mw, '_intro_panel', None)
-
-        # Toggle off if already visible
-        if ws and ws.isVisible():
-            ws.hide()
-            if hasattr(mw, 'tool_taskbar'):
-                mw.tool_taskbar.set_active('intro', False)
+        left_stack, splitter = _get_left_stack(mw)
+        if left_stack is None or splitter is None:
             return
 
         # Build first time
+        ws = getattr(mw, '_intro_panel', None)
         if ws is None:
             from apps.components.Img_Factory.welcome_screen import WelcomeScreen
-
-            # Parent to file_window (covers full content area incl. left_stack panels)
-            # Fallback chain: gui_layout.file_window -> main_tab_widget -> mw
-            gl = getattr(mw, 'gui_layout', None)
-            overlay_parent = (getattr(gl, 'file_window', None)
-                              or getattr(mw, 'main_tab_widget', None)
-                              or mw)
-
-            ws = WelcomeScreen(main_window=mw, parent=overlay_parent)
-            ws.setWindowFlags(
-                __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.WindowType.Widget)
-
-            # Wire signals
+            ws = WelcomeScreen(main_window=mw, parent=left_stack)
             ws.open_img_requested.connect(mw.open_img_file)
             ws.open_dat_browser.connect(lambda: _show_dat_browser(mw))
             ws.open_dir_tree.connect(lambda: _show_dir_tree(mw))
@@ -233,27 +201,32 @@ def _show_intro_panel(mw): #vers 3
                     pass
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(500, _connect_workshops)
-
-            # Install resize event filter on overlay_parent so overlay tracks it
-            _filt = _IntroResizeFilter(ws, overlay_parent)
-            overlay_parent.installEventFilter(_filt)
-            ws._resize_filter = _filt   # keep reference alive
-            ws._overlay_parent = overlay_parent
-
             mw._intro_panel = ws
 
-        ws = mw._intro_panel
-        overlay_parent = getattr(ws, '_overlay_parent', None) or getattr(mw, 'main_tab_widget', None) or mw
+        # Place in page 2 of left_stack
+        if left_stack.widget(2) is not ws:
+            old = left_stack.widget(2)
+            left_stack.removeWidget(old)
+            left_stack.insertWidget(2, ws)
 
-        # Fill the entire overlay parent area
-        ws.setGeometry(0, 0, overlay_parent.width(), overlay_parent.height())
-        ws.raise_()
-        ws.show()
-
-        if hasattr(mw, 'tool_taskbar'):
-            mw.tool_taskbar._set_exclusive_active('intro')
-        if hasattr(mw, 'log_message'):
-            mw.log_message("Welcome / Intro")
+        # Toggle: if already on intro page and visible — collapse
+        currently_intro = (left_stack.currentIndex() == 2 and left_stack.isVisible()
+                           and splitter.sizes()[0] > 20)
+        if currently_intro:
+            total = sum(splitter.sizes()) or 10000
+            splitter.setSizes([0, total])
+            left_stack.hide()
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar.set_active('intro', False)
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Intro hidden")
+        else:
+            left_stack.setCurrentIndex(2)
+            _ensure_left_panel_visible(mw, splitter, left_stack)
+            if hasattr(mw, 'tool_taskbar'):
+                mw.tool_taskbar._set_exclusive_active('intro')
+            if hasattr(mw, 'log_message'):
+                mw.log_message("Welcome / Intro")
 
     except Exception:
         import traceback; traceback.print_exc()
