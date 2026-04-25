@@ -3260,6 +3260,8 @@ def apply_panel_effects(window, app_settings): #vers 1
         widget.update()
 
     for widget in window.findChildren(QFrame):
+        if widget.objectName() in ('titlebar', 'gadgetbar'):
+            continue
         if widget.frameStyle() & QFrame.Shape.StyledPanel.value:
             AppPanelEffect.install(widget, cs)
             widget.update()

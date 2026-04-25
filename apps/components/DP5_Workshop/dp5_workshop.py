@@ -3938,7 +3938,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # titlebar and toolbar are the SAME widget — avoids a floating 45px ghost
         # that was rendering at (0,0) and creating blank space above the canvas.
         self.toolbar = QFrame()
-        self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.toolbar.setFrameStyle(QFrame.Shape.NoFrame)
         self.toolbar.setMaximumHeight(_TB_H + 10)
         self.toolbar.setObjectName("titlebar")
         self.toolbar.installEventFilter(self)
