@@ -80,7 +80,9 @@
     "titlebar_text": "#1b5e20",
     "handle_style": "line",
     "handle_color": "#a5d6a7",
-    "handle_size": "4"
+    "handle_size": "4",
+    "gadgetbar_bg": "#f1f8f1",
+    "gadgetbar_text": "#1b5e20"
   },
   "styles": {
     "button_shape": "Rounded",

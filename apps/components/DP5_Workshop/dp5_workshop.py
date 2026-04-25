@@ -3945,17 +3945,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.toolbar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.toolbar.setMouseTracking(True)
         self.titlebar = self.toolbar   # alias — drag detection uses self.titlebar
-        # Apply titlebar_bg from theme
-        try:
-            _as = getattr(self, 'app_settings', None) or \
-                  getattr(getattr(self, 'main_window', None), 'app_settings', None)
-            _tc = _as.get_theme_colors() if _as else {}
-            _tb_bg  = _tc.get('titlebar_bg',   'palette(window)')
-            _tb_txt = _tc.get('titlebar_text',  'palette(windowText)')
-        except Exception:
-            _tb_bg, _tb_txt = 'palette(window)', 'palette(windowText)'
-        self.toolbar.setStyleSheet(
-            f"QFrame {{ background: {_tb_bg}; color: {_tb_txt}; border: none; }}")
+        # gadgetbar_bg is applied via QFrame#titlebar rule in global stylesheet
+        # No per-widget setStyleSheet needed — theme engine handles it
 
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -11009,16 +11000,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pass
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
-            # Re-apply titlebar_bg from new theme
-            if hasattr(self, 'toolbar'):
-                try:
-                    _tc = app_settings.get_theme_colors() if app_settings else {}
-                    _tb_bg  = _tc.get('titlebar_bg',  'palette(window)')
-                    _tb_txt = _tc.get('titlebar_text', 'palette(windowText)')
-                    self.toolbar.setStyleSheet(
-                        f"QFrame {{ background: {_tb_bg}; color: {_tb_txt}; border: none; }}")
-                except Exception:
-                    pass
+            # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
         except Exception as e:
             print(f"Theme application error: {e}")
 

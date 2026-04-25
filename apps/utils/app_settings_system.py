@@ -2185,6 +2185,11 @@ class AppSettings:
             border: 1px solid {border};
             spacing: 3px;
         }}
+        QFrame#titlebar {{
+            background-color: {gadgetbar_bg};
+            color: {gadgetbar_text};
+            border: none;
+        }}
 
         QStatusBar {{
             background-color: {bg_secondary};
@@ -2929,6 +2934,8 @@ class AppSettings:
                 'viewport_text': '#808080',
                 'titlebar_bg': '#f0f0f0',
                 'titlebar_text': '#000000',
+                'gadgetbar_bg': '#f0f0f0',
+                'gadgetbar_text': '#000000',
                 'handle_style': 'line',
                 'handle_color': '#cccccc',
                 'handle_size': '4',
@@ -2990,6 +2997,8 @@ class AppSettings:
             'viewport_text': '#808080',
             'titlebar_bg': '#f0f0f0',
             'titlebar_text': '#000000',
+            'gadgetbar_bg': '#f0f0f0',
+            'gadgetbar_text': '#000000',
             'handle_style': 'line',
             'handle_color': '#cccccc',
             'handle_size': '4',
@@ -3025,6 +3034,8 @@ class AppSettings:
             'border':        QColor(200, 200, 200),
             'titlebar_bg':   QColor(240, 240, 240),
             'titlebar_text': QColor(0, 0, 0),
+            'gadgetbar_bg':  QColor(240, 240, 240),
+            'gadgetbar_text':QColor(0, 0, 0),
         }
         return fallbacks.get(key, QColor(128, 128, 128))
 

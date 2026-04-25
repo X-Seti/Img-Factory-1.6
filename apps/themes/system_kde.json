@@ -64,7 +64,9 @@
     "titlebar_text": "#2D2D2D",
     "handle_style": "line",
     "handle_color": "#CCCCCC",
-    "handle_size": "4"
+    "handle_size": "4",
+    "gadgetbar_bg": "#F5F5F5",
+    "gadgetbar_text": "#2D2D2D"
   },
   "mui_settings": {
     "system_detected": true,

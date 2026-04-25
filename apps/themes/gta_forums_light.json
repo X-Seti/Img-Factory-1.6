@@ -121,11 +121,13 @@
     "panel_primary": "#d4dfe3",
     "viewport_bg": "#f8f8f8",
     "viewport_text": "#666666",
-    "titlebar_bg": "#e0ebef",
+    "titlebar_bg": "#ffffff",
     "titlebar_text": "#1e74bb",
     "handle_style": "line",
     "handle_color": "#c0d0e0",
-    "handle_size": "4"
+    "handle_size": "4",
+    "gadgetbar_bg": "#ffffff",
+    "gadgetbar_text": "#1e74bb"
   },
   "menus": {
     "menu_structure": [
