@@ -1888,6 +1888,8 @@ class AppSettings:
         warning = colors.get('warning', '#ff9800')
         error = colors.get('error', '#f44336')
         toolbar_bg = colors.get('toolbar_bg', bg_secondary)
+        gadgetbar_bg   = colors.get('gadgetbar_bg',   toolbar_bg)
+        gadgetbar_text = colors.get('gadgetbar_text',  text_primary)
         panel_entries = colors.get('panel_entries', bg_tertiary)
         panel_filter = colors.get('panel_filter', bg_tertiary)
 
