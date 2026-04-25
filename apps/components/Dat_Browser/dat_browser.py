@@ -1692,7 +1692,7 @@ class DATBrowserWidget(QWidget): #vers 2
         child.setData(0, Qt.ItemDataRole.UserRole, path)
         if not success:
             for col in range(4):
-                child.setForeground(col, QColor(204, 68, 68))
+                child.setForeground(col, self._get_ui_color('error') if hasattr(self,'_get_ui_color') else QColor(204,68,68))
             if entry_type == "COLFILE":
                 child.setToolTip(0, f"Not found: {path}")
         elif status == "● in DB":

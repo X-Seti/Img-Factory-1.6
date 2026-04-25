@@ -69,8 +69,8 @@ class TearOffPanel(QFrame):
         self.title_bar.setFixedHeight(24)
         self.title_bar.setStyleSheet("""
             QFrame {
-                background-color: #e0e0e0;
-                border: 1px solid #c0c0c0;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
             }
         """)

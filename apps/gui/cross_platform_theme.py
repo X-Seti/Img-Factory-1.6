@@ -43,23 +43,23 @@ class CrossPlatformThemeSystem:
         base_styles = {
             'main_window': """
                 QMainWindow {
-                    background-color: #f5f5f5;
-                    color: #333333;
+                    background-color: palette(window);
+                    color: palette(windowText);
                 }
             """,
             
             'tabwidget': """
                 QTabWidget::pane {
                     background-color: white;
-                    border: 1px solid #cccccc;
+                    border: 1px solid palette(mid);
                     border-top: none;
                 }
                 QTabWidget::tab-bar {
                     alignment: left;
                 }
                 QTabBar::tab {
-                    background-color: #e8e8e8;
-                    border: 1px solid #cccccc;
+                    background-color: palette(button);
+                    border: 1px solid palette(mid);
                     border-bottom: none;
                     padding: 6px 12px;
                     margin-right: 2px;
@@ -69,26 +69,26 @@ class CrossPlatformThemeSystem:
                     border-bottom: 1px solid white;
                 }
                 QTabBar::tab:hover:!selected {
-                    background-color: #f0f0f0;
+                    background-color: palette(window);
                 }
             """,
             
             'tablewidget': """
                 QTableWidget {
                     background-color: white;
-                    color: #333333;
-                    alternate-background-color: #f8f8f8;
-                    border: 1px solid #cccccc;
+                    color: palette(windowText);
+                    alternate-background-color: palette(base);
+                    border: 1px solid palette(mid);
                     border-radius: 3px;
-                    gridline-color: #e0e0e0;
+                    gridline-color: palette(mid);
                     font-size: 9pt;
-                    selection-background-color: #e3f2fd;
-                    selection-color: #1976d2;
+                    selection-background-color: palette(light);
+                    selection-color: palette(highlight);
                 }
                 QTableWidget::item {
                     padding: 5px;
                     border: none;
-                    color: #333333;
+                    color: palette(windowText);
                 }
                 QTableWidget::item:selected {
             QTableWidget::item:hover {
@@ -97,14 +97,14 @@ class CrossPlatformThemeSystem:
             QTableWidget::item:selected:hover {
                 background-color: rgba(90, 150, 250, 0.5);
             }
-                    background-color: #e3f2fd;
-                    color: #1976d2;
+                    background-color: palette(light);
+                    color: palette(highlight);
                 }
                 QHeaderView::section {
-                    background-color: #f0f0f0;
-                    color: #333333;
+                    background-color: palette(window);
+                    color: palette(windowText);
                     padding: 5px;
-                    border: 1px solid #cccccc;
+                    border: 1px solid palette(mid);
                     font-weight: bold;
                     font-size: 9pt;
                 }
@@ -113,7 +113,7 @@ class CrossPlatformThemeSystem:
             'groupbox': """
                 QGroupBox {
                     background-color: white;
-                    border: 2px solid #cccccc;
+                    border: 2px solid palette(mid);
                     border-radius: 5px;
                     margin: 10px 0px;
                     padding-top: 10px;
@@ -130,8 +130,8 @@ class CrossPlatformThemeSystem:
             'textedit': """
                 QTextEdit {
                     background-color: white;
-                    color: #333333;
-                    border: 1px solid #cccccc;
+                    color: palette(windowText);
+                    border: 1px solid palette(mid);
                     border-radius: 3px;
                     padding: 5px;
                     font-family: 'Consolas', 'Monaco', 'Liberation Mono', monospace;
@@ -156,7 +156,7 @@ class CrossPlatformThemeSystem:
                 base_styles['gnome_fixes'] = """
                     QTabWidget::pane {
                         background-color: white !important;
-                        border: 1px solid #cccccc !important;
+                        border: 1px solid palette(mid) !important;
                     }
                 """
             elif 'xfce' in self.desktop_environment:
@@ -170,7 +170,7 @@ class CrossPlatformThemeSystem:
             base_styles['windows_fixes'] = """
                 QTabWidget::pane {
                     background-color: white;
-                    border: 1px solid #adadad;
+                    border: 1px solid palette(mid);
                 }
             """
             
@@ -178,7 +178,7 @@ class CrossPlatformThemeSystem:
             base_styles['macos_fixes'] = """
                 QTabWidget::pane {
                     background-color: white;
-                    border: 1px solid #d0d0d0;
+                    border: 1px solid palette(mid);
                 }
             """
         
@@ -233,12 +233,12 @@ class CrossPlatformThemeSystem:
         tab_widget.setStyleSheet("""
             QTabWidget::pane {
                 background-color: white !important;
-                border: 1px solid #cccccc !important;
+                border: 1px solid palette(mid) !important;
                 border-top: none !important;
             }
             QTabBar::tab {
-                background-color: #e8e8e8 !important;
-                border: 1px solid #cccccc !important;
+                background-color: palette(button) !important;
+                border: 1px solid palette(mid) !important;
                 border-bottom: none !important;
                 padding: 6px 12px !important;
             }
@@ -259,19 +259,19 @@ class CrossPlatformThemeSystem:
         table.setStyleSheet("""
             QTableWidget {
                 background-color: white !important;
-                color: #333333 !important;
-                alternate-background-color: #f8f8f8 !important;
-                border: 1px solid #cccccc !important;
-                gridline-color: #e0e0e0 !important;
+                color: palette(windowText) !important;
+                alternate-background-color: palette(base) !important;
+                border: 1px solid palette(mid) !important;
+                gridline-color: palette(mid) !important;
             }
             QTableWidget::item {
                 background-color: white !important;
-                color: #333333 !important;
+                color: palette(windowText) !important;
                 padding: 5px !important;
             }
             QTableWidget::item:alternate {
-                background-color: #f8f8f8 !important;
-                color: #333333 !important;
+                background-color: palette(base) !important;
+                color: palette(windowText) !important;
             }
             QTableWidget::item:selected {
             QTableWidget::item:hover {
@@ -280,12 +280,12 @@ class CrossPlatformThemeSystem:
             QTableWidget::item:selected:hover {
                 background-color: rgba(90, 150, 250, 0.5);
             }
-                background-color: #e3f2fd !important;
-                color: #1976d2 !important;
+                background-color: palette(light) !important;
+                color: palette(highlight) !important;
             }
             QHeaderView::section {
-                background-color: #f0f0f0 !important;
-                color: #333333 !important;
+                background-color: palette(window) !important;
+                color: palette(windowText) !important;
             }
         """)
 
@@ -311,21 +311,21 @@ def force_readable_text_colors(main_window) -> bool:
         # Very aggressive text color override
         readable_css = """
             QWidget {
-                color: #333333 !important;
+                color: palette(windowText) !important;
             }
             QTableWidget {
-                color: #333333 !important;
+                color: palette(windowText) !important;
                 background-color: white !important;
             }
             QTableWidget::item {
-                color: #333333 !important;
+                color: palette(windowText) !important;
                 background-color: white !important;
             }
             QLabel {
-                color: #333333 !important;
+                color: palette(windowText) !important;
             }
             QTabWidget {
-                color: #333333 !important;
+                color: palette(windowText) !important;
             }
         """
         

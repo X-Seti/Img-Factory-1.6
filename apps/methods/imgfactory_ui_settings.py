@@ -311,7 +311,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
         system_layout.addWidget(system_desc)
 
         system_preview = QLabel("[Settings] [Title] [ ] [_] [X]")
-        system_preview.setStyleSheet("font-family: monospace; color: #aaa; margin-left: 25px; padding: 5px;")
+        system_preview.setStyleSheet("font-family: monospace; color: palette(mid); margin-left: 25px; padding: 5px;")
         system_layout.addWidget(system_preview)
 
         ui_mode_layout.addWidget(system_container)
@@ -352,14 +352,14 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
             icon_layout.addWidget(settings_btn)
 
             settings_text = QLabel("Settings")
-            settings_text.setStyleSheet("color: #aaa; font-size: 10px;")
+            settings_text.setStyleSheet("color: palette(mid); font-size: 10px;")
             icon_layout.addWidget(settings_text)
 
             icon_layout.addSpacing(5)
 
             # Separator
             sep1 = QLabel("|")
-            sep1.setStyleSheet("color: #555;")
+            sep1.setStyleSheet("color: palette(mid);")
             icon_layout.addWidget(sep1)
 
             icon_layout.addSpacing(5)
@@ -373,7 +373,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
             # Separator
             sep2 = QLabel("|")
-            sep2.setStyleSheet("color: #555;")
+            sep2.setStyleSheet("color: palette(mid);")
             icon_layout.addWidget(sep2)
 
             icon_layout.addSpacing(5)
@@ -401,7 +401,7 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
 
             # Separator
             sep3 = QLabel("|")
-            sep3.setStyleSheet("color: #555;")
+            sep3.setStyleSheet("color: palette(mid);")
             icon_layout.addWidget(sep3)
 
             icon_layout.addSpacing(5)
@@ -427,13 +427,13 @@ class IMGFactorySettingsDialog(QDialog): #vers 2
                 controls = ["_", "□", "X"]
                 for ctrl in controls:
                     ctrl_label = QLabel(ctrl)
-                    ctrl_label.setStyleSheet("color: #aaa; font-size: 12px;")
+                    ctrl_label.setStyleSheet("color: palette(mid); font-size: 12px;")
                     icon_layout.addWidget(ctrl_label)
 
         except ImportError:
             # Fallback if icons not available
             fallback_label = QLabel("[Settings] Img Factory [Open][Save][Extract][Undo][i][*] [ ][_][X]")
-            fallback_label.setStyleSheet("font-family: monospace; color: #aaa;")
+            fallback_label.setStyleSheet("font-family: monospace; color: palette(mid);")
             icon_layout.addWidget(fallback_label)
 
         icon_layout.addStretch()

@@ -73,7 +73,7 @@ class CustomMenuManager:
             }}
             QMenu::item:selected {{
                 background-color: {accent_color};
-                color: #ffffff;
+                color: palette(buttonText);
             }}
             QMenu::item:disabled {{
                 color: {disabled_color};

@@ -558,7 +558,7 @@ class MainGUI(QWidget): #vers 3
         apply_btn = QPushButton("Apply Settings")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background: #0078d4;
+                background: palette(highlight);
                 color: white;
                 padding: 10px 24px;
                 font-weight: bold;
@@ -566,7 +566,7 @@ class MainGUI(QWidget): #vers 3
                 font-size: 13px;
             }
             QPushButton:hover {
-                background: #1984d8;
+                background: palette(highlight);
             }
         """)
 
@@ -743,22 +743,22 @@ class MainGUI(QWidget): #vers 3
         # Amiga Workbench styling
         dialog.setStyleSheet("""
             QDialog {
-                background-color: #aaaaaa;
-                border: 2px solid #ffffff;
+                background-color: palette(placeholderText);
+                border: 2px solid palette(buttonText);
             }
             QLabel {
-                color: #000000;
-                background-color: #aaaaaa;
+                color: palette(windowText);
+                background-color: palette(placeholderText);
             }
             QPushButton {
-                background-color: #8899aa;
-                color: #000000;
-                border: 2px outset #ffffff;
+                background-color: palette(midlight);
+                color: palette(windowText);
+                border: 2px outset palette(buttonText);
                 padding: 5px 15px;
                 min-width: 80px;
             }
             QPushButton:pressed {
-                border: 2px inset #555555;
+                border: 2px inset palette(mid);
             }
         """)
 
@@ -876,8 +876,8 @@ class MainGUI(QWidget): #vers 3
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Colors
-        normal_color = QColor(100, 100, 100, 150)
-        hover_color = QColor(150, 150, 255, 200)
+        normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
+        hover_color = self._get_ui_color('accent_primary'); hover_color.setAlpha(200)
 
         w = self.width()
         h = self.height()
@@ -1129,7 +1129,7 @@ class MainGUI(QWidget): #vers 3
         """Set checkerboard background"""
         # Create checkerboard pattern
         self.preview_widget.setStyleSheet("""
-            border: 1px solid #3a3a3a;
+            border: 1px solid palette(mid);
             background-image:
                 linear-gradient(45deg, #333 25%, transparent 25%),
                 linear-gradient(-45deg, #333 25%, transparent 25%),
@@ -1283,12 +1283,12 @@ class MainGUI(QWidget): #vers 3
         self.info_btn.setStyleSheet("""
             QPushButton {
                 font-weight: bold;
-                background-color: #4a4a4a;
-                border: 1px solid #5a5a5a;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
             }
             QPushButton:hover {
-                background-color: #5a5a5a;
+                background-color: palette(mid);
             }
         """)
         self.info_btn.setIconSize(QSize(20, 20))
@@ -1308,12 +1308,12 @@ class MainGUI(QWidget): #vers 3
         self.dock_btn.setStyleSheet("""
             QPushButton {
                 font-weight: bold;
-                background-color: #4a4a4a;
-                border: 1px solid #5a5a5a;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
             }
             QPushButton:hover {
-                background-color: #5a5a5a;
+                background-color: palette(mid);
             }
         """)
         #self.dock_btn.clicked.connect(self.toggle_dock_mode)
@@ -1565,18 +1565,18 @@ class MainGUI(QWidget): #vers 3
             QGroupBox {
                 font-weight: bold;
                 font-size: 14px;
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 1px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #2b2b2b;
+                background-color: palette(base);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top right;
                 right: 20px;
                 padding: 0 5px;
-                color: #e0e0e0;
+                color: palette(mid);
             }
         """)
 
@@ -1630,7 +1630,7 @@ class MainGUI(QWidget): #vers 3
         self.info_name.setPlaceholderText("Click to edit...")
         self.info_name.setFont(self.panel_font)
         self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: px; border: 1px solid #3a3a3a;")
+        self.info_name.setStyleSheet("padding: px; border: 1px solid palette(mid);")
         #self.info_name.returnPressed.connect(self._save_texture_name)
         #self.info_name.editingFinished.connect(self._save_texture_name)
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
@@ -1895,7 +1895,7 @@ class MainGUI(QWidget): #vers 3
         bg_black_btn = QPushButton()
         bg_black_btn.setIconSize(QSize(20, 20))
         bg_black_btn.setFixedSize(40, 40)
-        bg_black_btn.setStyleSheet("background-color: black; border: 1px solid #555;")
+        bg_black_btn.setStyleSheet("background-color: black; border: 1px solid palette(mid);")
         bg_black_btn.setToolTip("Black Background")
         #bg_black_btn.clicked.connect(lambda: self.preview_widget.set_background_color(QColor(0, 0, 0)))
         controls_layout.addWidget(bg_black_btn)
@@ -1903,7 +1903,7 @@ class MainGUI(QWidget): #vers 3
         bg_gray_btn = QPushButton()
         bg_gray_btn.setIconSize(QSize(20, 20))
         bg_gray_btn.setFixedSize(40, 40)
-        bg_gray_btn.setStyleSheet("background-color: #2a2a2a; border: 1px solid #555;")
+        bg_gray_btn.setStyleSheet("background-color: palette(base); border: 1px solid palette(mid);")
         bg_gray_btn.setToolTip("Gray Background")
         #bg_gray_btn.clicked.connect(lambda: self.preview_widget.set_background_color(QColor(42, 42, 42)))
         controls_layout.addWidget(bg_gray_btn)
@@ -1911,7 +1911,7 @@ class MainGUI(QWidget): #vers 3
         bg_white_btn = QPushButton()
         bg_white_btn.setIconSize(QSize(20, 20))
         bg_white_btn.setFixedSize(40, 40)
-        bg_white_btn.setStyleSheet("background-color: white; border: 1px solid #555;")
+        bg_white_btn.setStyleSheet("background-color: white; border: 1px solid palette(mid);")
         bg_white_btn.setToolTip("White Background")
         #bg_white_btn.clicked.connect(lambda: self.preview_widget.set_background_color(QColor(255, 255, 255)))
         controls_layout.addWidget(bg_white_btn)
@@ -1929,8 +1929,8 @@ class MainGUI(QWidget): #vers 3
             preview.setFixedSize(600, 600)
             preview.setStyleSheet("""
                 QLabel {
-                    background: #0a0a0a;
-                    border: 2px solid #3a3a3a;
+                    background: palette(base);
+                    border: 2px solid palette(mid);
                     border-radius: 3px;
                 }
             """)
@@ -1950,8 +1950,8 @@ class MainGUI(QWidget): #vers 3
         preview.setFixedSize(preview_size, preview_size)
         preview.setStyleSheet("""
             QLabel {
-                background: #0a0a0a;
-                border: 2px solid #3a3a3a;
+                background: palette(base);
+                border: 2px solid palette(mid);
                 border-radius: 3px;
             }
         """)
@@ -2215,7 +2215,7 @@ class MainGUI(QWidget): #vers 3
             "Note: PLACEholder."
         )
         compat_label.setWordWrap(True)
-        compat_label.setStyleSheet("padding: 10px; background-color: #3a3a3a; border-radius: 4px;")
+        compat_label.setStyleSheet("padding: 10px; background-color: palette(mid); border-radius: 4px;")
         export_layout.addWidget(compat_label)
 
         export_layout.addStretch()
@@ -2601,12 +2601,12 @@ class MainGUI(QWidget): #vers 3
                 # Fallback dark theme
                 self.setStyleSheet("""
                     QWidget {
-                        background-color: #2b2b2b;
-                        color: #e0e0e0;
+                        background-color: palette(base);
+                        color: palette(mid);
                     }
                     QListWidget, QTableWidget, QTextEdit {
-                        background-color: #1e1e1e;
-                        border: 1px solid #3a3a3a;
+                        background-color: palette(base);
+                        border: 1px solid palette(mid);
                     }
                 """)
         except Exception as e:

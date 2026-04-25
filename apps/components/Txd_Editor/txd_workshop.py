@@ -1142,7 +1142,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         apply_btn = QPushButton("Apply Settings")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background: #0078d4;
+                background: palette(highlight);
                 color: white;
                 padding: 10px 24px;
                 font-weight: bold;
@@ -1150,7 +1150,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 font-size: 13px;
             }
             QPushButton:hover {
-                background: #1984d8;
+                background: palette(highlight);
             }
         """)
 
@@ -1332,22 +1332,22 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Amiga Workbench styling
         dialog.setStyleSheet("""
             QDialog {
-                background-color: #aaaaaa;
-                border: 2px solid #ffffff;
+                background-color: palette(placeholderText);
+                border: 2px solid palette(buttonText);
             }
             QLabel {
-                color: #000000;
-                background-color: #aaaaaa;
+                color: palette(windowText);
+                background-color: palette(placeholderText);
             }
             QPushButton {
-                background-color: #8899aa;
-                color: #000000;
-                border: 2px outset #ffffff;
+                background-color: palette(midlight);
+                color: palette(windowText);
+                border: 2px outset palette(buttonText);
                 padding: 5px 15px;
                 min-width: 80px;
             }
             QPushButton:pressed {
-                border: 2px inset #555555;
+                border: 2px inset palette(mid);
             }
         """)
 
@@ -1975,8 +1975,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Colors
-        normal_color = QColor(100, 100, 100, 150)
-        hover_color = QColor(150, 150, 255, 200)
+        normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
+        hover_color = self._get_ui_color('accent_primary'); hover_color.setAlpha(200)
 
         w = self.width()
         h = self.height()
@@ -2003,7 +2003,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             accent_color = QColor(theme_colors.get('accent_primary', '#1976d2'))
             accent_color.setAlpha(180)
         else:
-            accent_color = QColor(100, 150, 255, 180)
+            accent_color = self._get_ui_color('accent_primary'); accent_color.setAlpha(180)
 
         hover_color = QColor(accent_color)
         hover_color.setAlpha(255)
@@ -2695,7 +2695,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.info_name.setPlaceholderText("Click to edit...")
         self.info_name.setFont(self.panel_font)
         self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: px; border: 1px solid #3a3a3a;")
+        self.info_name.setStyleSheet("padding: px; border: 1px solid palette(mid);")
         self.info_name.returnPressed.connect(self._save_texture_name)
         self.info_name.editingFinished.connect(self._save_texture_name)
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
@@ -2711,7 +2711,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.info_alpha_name.setFont(self.panel_font)
         self.info_alpha_name.setPlaceholderText("Click to edit...")
         self.info_alpha_name.setReadOnly(True)
-        self.info_alpha_name.setStyleSheet("color: red; padding: 5px; border: 1px solid #3a3a3a;")
+        self.info_alpha_name.setStyleSheet("color: palette(windowText); padding: 5px; border: 1px solid palette(mid);")
         self.info_alpha_name.returnPressed.connect(self._save_alpha_name)
         self.info_alpha_name.editingFinished.connect(self._save_alpha_name)
         self.info_alpha_name.mousePressEvent = lambda e: self._enable_name_edit(e, True)
@@ -2999,13 +2999,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
              lambda: self.preview_widget.set_checkerboard_background())
         for color, tip, qcol in [
             ('black',   'Black Background',  QColor(0,   0,   0  )),
-            ('#2a2a2a', 'Gray Background',   QColor(42,  42,  42 )),
-            ('white',   'White Background',  QColor(255, 255, 255)),
+            ('#2a2a2a', 'Gray Background',   self._get_ui_color('viewport_bg')),
+            ('white',   'White Background',  self._get_ui_color('viewport_bg')),
         ]:
             b = QPushButton()
             b.setFixedSize(B, B)
             b.setToolTip(tip)
-            b.setStyleSheet(f"background-color:{color}; border:1px solid #555;")
+            b.setStyleSheet(f"background-color:{color}; border:1px solid palette(mid);")
             b.clicked.connect(lambda c=False, q=qcol: self.preview_widget.set_background_color(q))
             _all_btns.append(b)
 
@@ -3105,7 +3105,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Set checkerboard background"""
         # Create checkerboard pattern
         self.preview_widget.setStyleSheet("""
-            border: 1px solid #3a3a3a;
+            border: 1px solid palette(mid);
             background-image:
                 linear-gradient(45deg, #333 25%, transparent 25%),
                 linear-gradient(-45deg, #333 25%, transparent 25%),
@@ -3122,13 +3122,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         card.setFrameStyle(QFrame.Shape.StyledPanel)
         card.setStyleSheet("""
             QFrame {
-                background: #1e1e1e;
-                border: 1px solid #3a3a3a;
+                background: palette(base);
+                border: 1px solid palette(mid);
                 border-radius: 5px;
             }
             QFrame:hover {
-                border-color: #4a6fa5;
-                background: #252525;
+                border-color: palette(highlight);
+                background: palette(base);
             }
         """)
         card.setMinimumHeight(140)
@@ -3166,8 +3166,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview.setFixedSize(preview_size, preview_size)
         preview.setStyleSheet("""
             QLabel {
-                background: #0a0a0a;
-                border: 2px solid #3a3a3a;
+                background: palette(base);
+                border: 2px solid palette(mid);
                 border-radius: 3px;
             }
         """)
@@ -3206,7 +3206,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         level_badge = QLabel(f"Level {level_num}")
         level_badge.setStyleSheet("""
             QLabel {
-                background: #0d47a1;
+                background: palette(highlight);
                 color: white;
                 padding: 4px 12px;
                 border-radius: 3px;
@@ -3280,7 +3280,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         stat = QFrame()
         stat.setStyleSheet("""
             QFrame {
-                background: #252525;
+                background: palette(base);
                 border-radius: 3px;
                 padding: 6px 10px;
             }
@@ -3350,15 +3350,15 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             edit_btn = QPushButton("Edit")
             edit_btn.setStyleSheet("""
                 QPushButton {
-                    background: #3a3a3a;
-                    border: 1px solid #4a4a4a;
+                    background: palette(mid);
+                    border: 1px solid palette(mid);
                     color: white;
                     padding: 6px 12px;
                     border-radius: 3px;
                     font-size: 11px;
                 }
                 QPushButton:hover {
-                    background: #4a4a4a;
+                    background: palette(mid);
                 }
             """)
             edit_btn.clicked.connect(self._edit_main_texture)
@@ -3684,7 +3684,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             "Note: TXD files use RenderWare format. Exported textures are converted to standard image formats."
         )
         compat_label.setWordWrap(True)
-        compat_label.setStyleSheet("padding: 10px; background-color: #3a3a3a; border-radius: 4px;")
+        compat_label.setStyleSheet("padding: 10px; background-color: palette(mid); border-radius: 4px;")
         export_layout.addWidget(compat_label)
 
         export_layout.addStretch()
@@ -4484,7 +4484,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Preview label showing dimensions at each level
         mipmap_preview = QLabel()
         mipmap_preview.setStyleSheet("font-size: 14px; padding: 10px; "
-                                    "background: #2a2a2a; border-radius: 3px;")
+                                    "background: palette(base); border-radius: 3px;")
         mipmap_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         def update_preview(value):
@@ -4640,7 +4640,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
                 padding: 0px;
             }
             QPushButton:hover {
-                background-color: #555555;
+                background-color: palette(mid);
             }
         """)
         # Make it act like a resize grip
@@ -5247,7 +5247,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             preview_label = QLabel()
             preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             preview_label.setMinimumSize(350, 350)
-            preview_label.setStyleSheet("border: 1px solid #3a3a3a; background: #2a2a2a;")
+            preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")
 
             # Decode and display based on type
             if bumpmap_type == 0:  # Grayscale Height Map
@@ -5525,7 +5525,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         preview_label = QLabel("Bumpmap preview")
         preview_label.setMinimumHeight(200)
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_label.setStyleSheet("border: 1px solid #3a3a3a; background: #2a2a2a;")
+        preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")
 
         if has_bumpmap:
             # STUB: bumpmap preview not yet implemented
@@ -5928,18 +5928,18 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             QGroupBox {
                 font-weight: bold;
                 font-size: 14px;
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 1px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #2b2b2b;
+                background-color: palette(base);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top right;
                 right: 20px;
                 padding: 0 5px;
-                color: #e0e0e0;
+                color: palette(mid);
             }
         """)
 
@@ -6316,7 +6316,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         button_layout.addWidget(cancel_btn)
 
         delete_btn = QPushButton("Delete")
-        delete_btn.setStyleSheet("background-color: #d32f2f; color: white; font-weight: bold;")
+        delete_btn.setStyleSheet("background-color: palette(highlight); color: palette(highlightedText); font-weight: bold;")
         delete_btn.clicked.connect(dialog.accept)
         button_layout.addWidget(delete_btn)
 
@@ -6434,7 +6434,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
     def _mark_as_modified(self): #vers 1
         """Mark the TXD as modified and enable save button"""
         self.save_txd_btn.setEnabled(True)
-        self.save_txd_btn.setStyleSheet("background-color: #ff6b35; font-weight: bold;")
+        self.save_txd_btn.setStyleSheet("background-color: palette(highlight); font-weight: bold;")
         current_title = self.windowTitle()
         if not current_title.endswith("*"):
             self.setWindowTitle(current_title + "*")
@@ -7337,7 +7337,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             button_layout = QHBoxLayout()
 
             cancel_btn = QPushButton("Cancel Loading")
-            cancel_btn.setStyleSheet("background-color: #d32f2f; color: white;")
+            cancel_btn.setStyleSheet("background-color: palette(highlight); color: palette(highlightedText);")
             button_layout.addWidget(cancel_btn)
 
             button_layout.addStretch()
@@ -7598,10 +7598,10 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
                                     skip_all_btn = QPushButton("Strip All Alpha")
                                     skip_all_btn.setToolTip("Remove alpha from all remaining textures")
-                                    skip_all_btn.setStyleSheet("background-color: #ff9800; color: white;")
+                                    skip_all_btn.setStyleSheet("background-color: palette(button); color: palette(buttonText);")
 
                                     cancel_load_btn = QPushButton("Cancel Loading")
-                                    cancel_load_btn.setStyleSheet("background-color: #d32f2f; color: white;")
+                                    cancel_load_btn.setStyleSheet("background-color: palette(highlight); color: palette(highlightedText);")
 
                                     btn_layout.addWidget(ignore_entry_btn)
                                     btn_layout.addWidget(ignore_all_btn)
@@ -7715,7 +7715,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             # Change button to close
             cancel_btn.setText("Close")
-            cancel_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+            cancel_btn.setStyleSheet("background-color: palette(button); color: palette(buttonText);")
             cancel_btn.disconnect()
             cancel_btn.clicked.connect(dialog.accept)
 
@@ -7807,7 +7807,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Preview size label
         preview_label = QLabel(f"Result: {width*2}x{height*2}")
-        preview_label.setStyleSheet("color: #4a9eff; font-weight: bold; padding: 5px;")
+        preview_label.setStyleSheet("color: palette(windowText); font-weight: bold; padding: 5px;")
 
         def update_preview(index):
             factor = [2, 3, 4, 6, 8][index]
@@ -7866,7 +7866,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Warning for large sizes
         warning_label = QLabel("⚠️ Large upscales may take time and increase file size significantly")
-        warning_label.setStyleSheet("color: #ff9800; font-size: 11px; padding: 5px;")
+        warning_label.setStyleSheet("color: palette(windowText); font-size: 11px; padding: 5px;")
         warning_label.setWordWrap(True)
         layout.addWidget(warning_label)
 
@@ -8930,13 +8930,13 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Version info display
         version_info_label = QLabel()
         version_info_label.setWordWrap(True)
-        version_info_label.setStyleSheet("padding: 10px; background-color: #2a2a2a; border-radius: 4px;")
+        version_info_label.setStyleSheet("padding: 10px; background-color: palette(base); border-radius: 4px;")
         layout.addWidget(version_info_label)
 
         # Capability warnings
         warning_label = QLabel()
         warning_label.setWordWrap(True)
-        warning_label.setStyleSheet("color: #ff9800; padding: 5px;")
+        warning_label.setStyleSheet("color: palette(windowText); padding: 5px;")
         layout.addWidget(warning_label)
 
         # Update info when selection changes
@@ -9283,7 +9283,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             button_layout = QHBoxLayout()
 
             cancel_btn = QPushButton("Cancel")
-            cancel_btn.setStyleSheet("background-color: #d32f2f; color: white;")
+            cancel_btn.setStyleSheet("background-color: palette(highlight); color: palette(highlightedText);")
             button_layout.addWidget(cancel_btn)
 
             button_layout.addStretch()
@@ -9547,7 +9547,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             # Change button to close
             cancel_btn.setText("Close")
-            cancel_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+            cancel_btn.setStyleSheet("background-color: palette(button); color: palette(buttonText);")
             cancel_btn.disconnect()
             cancel_btn.clicked.connect(dialog.accept)
 
@@ -15812,12 +15812,12 @@ class BumpmapManagerWindow(QWidget): #vers 1
         # Set dark theme
         self.setStyleSheet("""
             QWidget {
-                background-color: #2b2b2b;
-                color: #e0e0e0;
+                background-color: palette(base);
+                color: palette(mid);
                 font-family: 'Segoe UI', sans-serif;
             }
             QGroupBox {
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 4px;
                 margin-top: 8px;
                 padding-top: 8px;
@@ -15829,24 +15829,24 @@ class BumpmapManagerWindow(QWidget): #vers 1
                 padding: 0 4px;
             }
             QPushButton {
-                background-color: #3a3a3a;
-                border: 1px solid #4a4a4a;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
                 padding: 5px 15px;
                 min-height: 25px;
             }
             QPushButton:hover {
-                background-color: #4a4a4a;
-                border: 1px solid #5a5a5a;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
             }
             QPushButton:pressed {
-                background-color: #2a2a2a;
+                background-color: palette(base);
             }
             QLabel {
                 border: none;
             }
             QFrame {
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
             }
         """)
 
@@ -15864,18 +15864,18 @@ class BumpmapManagerWindow(QWidget): #vers 1
         panel.setStyleSheet("""
             QGroupBox {
                 font-size: 14px;
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 1px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #2b2b2b;
+                background-color: palette(base);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top right;
                 right: 20px;
                 padding: 0 5px;
-                color: #e0e0e0;
+                color: palette(mid);
             }
         """)
 
@@ -15916,7 +15916,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         preview_label = QLabel()
         preview_label.setMinimumHeight(250)
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_label.setStyleSheet("border: 1px solid #3a3a3a; background: #1e1e1e;")
+        preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")
 
         # Load texture preview
         rgba_data = self.texture_data.get('rgba_data')
@@ -15944,18 +15944,18 @@ class BumpmapManagerWindow(QWidget): #vers 1
             QGroupBox {
                 font-weight: bold;
                 font-size: 14px;
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 1px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #2b2b2b;
+                background-color: palette(base);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top right;
                 right: 20px;
                 padding: 0 5px;
-                color: #e0e0e0;
+                color: palette(mid);
             }
         """)
 
@@ -15994,7 +15994,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.bumpmap_preview.setMinimumHeight(250)
         self.bumpmap_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.bumpmap_preview.setFont(self.panel_font)
-        self.bumpmap_preview.setStyleSheet("border: 1px solid #3a3a3a; background: #1e1e1e;")
+        self.bumpmap_preview.setStyleSheet("border: 1px solid palette(mid); background: palette(base);")
 
         # Load bumpmap preview if available
         if has_bumpmap:
@@ -16013,7 +16013,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         title_bar.setFixedHeight(40)
         title_bar.setStyleSheet("""
             QFrame {
-                background-color: #1e1e1e;
+                background-color: palette(base);
                 border-bottom: 1px solid #3a3a3a;
             }
         """)
@@ -16031,7 +16031,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         title_label = QLabel(f"🗺️ {self.texture_data.get('name', 'Unknown')}")
         title_label.setObjectName("title_label")
         title_label.setFont(self.panel_font)
-        title_label.setStyleSheet("color: #e0e0e0; font-weight: bold;")
+        title_label.setStyleSheet("color: palette(mid); font-weight: bold;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label, stretch=1)
 
@@ -16047,13 +16047,13 @@ class BumpmapManagerWindow(QWidget): #vers 1
         add_btn.setFont(self.button_font)
         add_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3a3a3a;
-                color: #e0e0e0;
-                border: 1px solid #4a4a4a;
+                background-color: palette(mid);
+                color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 1px;
             }
             QPushButton:hover {
-                background-color: #4a4a4a;
+                background-color: palette(mid);
             }
         """)
 
@@ -16069,7 +16069,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         delete_btn.setStyleSheet("""
             QPushButton {
                 background-color: #c42b1c;
-                color: #e0e0e0;
+                color: palette(mid);
                 border: 1px solid #d43b2c;
                 border-radius: 1px;
             }
@@ -16083,14 +16083,14 @@ class BumpmapManagerWindow(QWidget): #vers 1
         apply_btn.setToolTip("Apply changes")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background-color: #0078d4;
+                background-color: palette(highlight);
                 color: white;
-                border: 1px solid #106ebe;
+                border: 1px solid palette(highlight);
                 border-radius: 1px;
                 font-size: 14px;
             }
             QPushButton:hover {
-                background-color: #1984d8;
+                background-color: palette(highlight);
             }
         """)
         layout.addWidget(apply_btn)
@@ -16102,9 +16102,9 @@ class BumpmapManagerWindow(QWidget): #vers 1
         close_btn.setToolTip("Close window")
         close_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3a3a3a;
-                color: #e0e0e0;
-                border: 1px solid #4a4a4a;
+                background-color: palette(mid);
+                color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 1px;
                 font-size: 14px;
             }
@@ -16131,7 +16131,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         menu_bar.setStyleSheet("""
             QMenuBar {
                 background-color: transparent;
-                color: #e0e0e0;
+                color: palette(mid);
                 border: none;
             }
             QMenuBar::item {
@@ -16139,18 +16139,18 @@ class BumpmapManagerWindow(QWidget): #vers 1
                 padding: 5px 14px;
             }
             QMenuBar::item:selected {
-                background-color: #3a3a3a;
+                background-color: palette(mid);
             }
             QMenu {
-                background-color: #2b2b2b;
-                color: #e0e0e0;
-                border: 1px solid #3a3a3a;
+                background-color: palette(base);
+                color: palette(mid);
+                border: 1px solid palette(mid);
             }
             QMenu::item {
                 padding: 5px 25px 5px 14px;
             }
             QMenu::item:selected {
-                background-color: #3a3a3a;
+                background-color: palette(mid);
             }
         """)
 
@@ -16191,7 +16191,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
 
         button_bar = QWidget()
         button_bar.setFixedHeight(50)
-        button_bar.setStyleSheet("border-top: 1px solid #3a3a3a;")
+        button_bar.setStyleSheet("border-top: 1px solid palette(mid);")
 
         layout = QHBoxLayout(button_bar)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -16202,13 +16202,13 @@ class BumpmapManagerWindow(QWidget): #vers 1
         apply_btn = QPushButton("Apply Changes")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background-color: #0e639c;
-                border: 1px solid #1177bb;
+                background-color: palette(highlight);
+                border: 1px solid palette(highlight);
                 padding: 8px 20px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #1177bb;
+                background-color: palette(highlight);
             }
         """)
         apply_btn.clicked.connect(self._apply_changes)
@@ -16528,18 +16528,18 @@ class BumpmapManagerWindow(QWidget): #vers 1
             QGroupBox {
                 font-weight: bold;
                 font-size: 14px;
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 1px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #2b2b2b;
+                background-color: palette(base);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top right;
                 right: 20px;
                 padding: 0 5px;
-                color: #e0e0e0;
+                color: palette(mid);
             }
         """)
 
@@ -16564,7 +16564,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.reflection_preview.setMaximumSize(150, 150)
         self.reflection_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.reflection_preview.setStyleSheet(
-            "border: 1px solid #3a3a3a; background: #1e1e1e;"
+            "border: 1px solid palette(mid); background: palette(base);"
         )
         self.reflection_preview.setText("No data")
         self.reflection_preview.setFont(self.panel_font)
@@ -16581,7 +16581,7 @@ class BumpmapManagerWindow(QWidget): #vers 1
         self.fresnel_preview.setMaximumSize(150, 150)
         self.fresnel_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.fresnel_preview.setStyleSheet(
-            "border: 1px solid #3a3a3a; background: #1e1e1e;"
+            "border: 1px solid palette(mid); background: palette(base);"
         )
         self.fresnel_preview.setText("No data")
         self.fresnel_preview.setFont(self.panel_font)
@@ -17264,7 +17264,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setStyleSheet("""
             QScrollArea {
-                background: #2b2b2b;
+                background: palette(base);
                 border: none;
             }
         """)
@@ -17298,7 +17298,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         title_bar.setFrameStyle(QFrame.Shape.StyledPanel)
         title_bar.setStyleSheet("""
             QFrame {
-                background: #1e1e1e;
+                background: palette(base);
                 border-bottom: 1px solid #3a3a3a;
             }
         """)
@@ -17314,7 +17314,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         fmt = self.texture_data.get('format', 'Unknown')
 
         title_label = QLabel(f"Mipmap Manager - {texture_name} ({width}x{height}, {fmt})")
-        title_label.setStyleSheet("font-weight: bold; color: #e0e0e0; font-size: 14px;")
+        title_label.setStyleSheet("font-weight: bold; color: palette(mid); font-size: 14px;")
         layout.addWidget(title_label)
 
         layout.addStretch()
@@ -17330,7 +17330,7 @@ class MipmapManagerWindow(QWidget): #vers 2
                 font-size: 16px;
             }
             QPushButton:hover {
-                color: #e0e0e0;
+                color: palette(mid);
             }
         """)
         drag_btn.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -17345,19 +17345,19 @@ class MipmapManagerWindow(QWidget): #vers 2
         toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
         toolbar.setStyleSheet("""
             QFrame {
-                background: #252525;
+                background: palette(base);
                 border-bottom: 1px solid #3a3a3a;
             }
             QPushButton {
-                background: #3a3a3a;
-                color: #e0e0e0;
-                border: 1px solid #4a4a4a;
+                background: palette(mid);
+                color: palette(mid);
+                border: 1px solid palette(mid);
                 padding: 8px 16px;
                 border-radius: 3px;
                 font-size: 13px;
             }
             QPushButton:hover {
-                background: #4a4a4a;
+                background: palette(mid);
             }
         """)
         toolbar.setFixedHeight(50)
@@ -17393,13 +17393,13 @@ class MipmapManagerWindow(QWidget): #vers 2
         apply_btn = QPushButton("✅ Apply Changes")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background: #0d47a1;
-                border-color: #1976d2;
+                background: palette(highlight);
+                border-color: palette(highlight);
                 font-weight: bold;
                 padding: 8px 20px;
             }
             QPushButton:hover {
-                background: #1976d2;
+                background: palette(highlight);
             }
         """)
         apply_btn.clicked.connect(self._apply_changes)
@@ -17418,13 +17418,13 @@ class MipmapManagerWindow(QWidget): #vers 2
         card.setFrameStyle(QFrame.Shape.StyledPanel)
         card.setStyleSheet("""
             QFrame {
-                background: #1e1e1e;
-                border: 1px solid #3a3a3a;
+                background: palette(base);
+                border: 1px solid palette(mid);
                 border-radius: 5px;
             }
             QFrame:hover {
-                border-color: #4a6fa5;
-                background: #252525;
+                border-color: palette(highlight);
+                background: palette(base);
             }
         """)
         card.setMinimumHeight(140)
@@ -17462,8 +17462,8 @@ class MipmapManagerWindow(QWidget): #vers 2
         preview.setFixedSize(preview_size, preview_size)
         preview.setStyleSheet("""
             QLabel {
-                background: #0a0a0a;
-                border: 2px solid #3a3a3a;
+                background: palette(base);
+                border: 2px solid palette(mid);
                 border-radius: 3px;
             }
         """)
@@ -17502,7 +17502,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         level_badge = QLabel(f"Level {level_num}")
         level_badge.setStyleSheet("""
             QLabel {
-                background: #0d47a1;
+                background: palette(highlight);
                 color: white;
                 padding: 4px 12px;
                 border-radius: 3px;
@@ -17576,7 +17576,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         stat = QFrame()
         stat.setStyleSheet("""
             QFrame {
-                background: #252525;
+                background: palette(base);
                 border-radius: 3px;
                 padding: 6px 10px;
             }
@@ -17646,15 +17646,15 @@ class MipmapManagerWindow(QWidget): #vers 2
             edit_btn = QPushButton("✏️ Edit")
             edit_btn.setStyleSheet("""
                 QPushButton {
-                    background: #3a3a3a;
-                    border: 1px solid #4a4a4a;
+                    background: palette(mid);
+                    border: 1px solid palette(mid);
                     color: white;
                     padding: 6px 12px;
                     border-radius: 3px;
                     font-size: 11px;
                 }
                 QPushButton:hover {
-                    background: #4a4a4a;
+                    background: palette(mid);
                 }
             """)
             edit_btn.clicked.connect(self._edit_main_texture)
@@ -17686,7 +17686,7 @@ class MipmapManagerWindow(QWidget): #vers 2
         bottom_bar.setFrameStyle(QFrame.Shape.StyledPanel)
         bottom_bar.setStyleSheet("""
             QFrame {
-                background: #1e1e1e;
+                background: palette(base);
                 border-top: 1px solid #3a3a3a;
             }
         """)
@@ -18579,7 +18579,7 @@ class TexturePropertiesDialog(QDialog): #vers 1
 
         # Preview label showing dimensions at each level
         self.mipmap_preview = QLabel()
-        self.mipmap_preview.setStyleSheet("font-size: 14px; padding: 10px; background: #2a2a2a; border-radius: 3px;")
+        self.mipmap_preview.setStyleSheet("font-size: 14px; padding: 10px; background: palette(base); border-radius: 3px;")
         self.mipmap_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
@@ -18725,7 +18725,7 @@ class TexturePreviewWidget(QLabel): #vers 1
             # Draw checkerboard pattern
             checker_size = 16
             light_gray = QColor(200, 200, 200)
-            dark_gray = QColor(150, 150, 150)
+            dark_gray = self._get_ui_color('viewport_text')
 
             for y in range(0, self.height(), checker_size):
                 for x in range(0, self.width(), checker_size):
@@ -18739,7 +18739,7 @@ class TexturePreviewWidget(QLabel): #vers 1
           if bg is None:
               from PyQt6.QtGui import QColor
               win = self.palette().color(self.palette().ColorRole.Window)
-              bg = QColor(245, 245, 245) if win.lightness() > 128 else QColor(42, 42, 42)
+              bg = self._get_ui_color('viewport_bg') if win.lightness() > 128 else self._get_ui_color('viewport_bg')
           painter.fillRect(self.rect(), bg)
         else:
             painter.fillRect(self.rect(), QColor(42, 42, 42))
@@ -18774,7 +18774,7 @@ class ZoomablePreview(QLabel): #vers 2
 
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(400, 400)
-        self.setStyleSheet("border: 1px solid #3a3a3a;")
+        self.setStyleSheet("border: 1px solid palette(mid);")
         self.setMouseTracking(True)
 
 
@@ -18840,7 +18840,7 @@ class ZoomablePreview(QLabel): #vers 2
         else:
             bg = self.bg_color
             if bg is None:
-                bg = QColor(255, 255, 255) if is_light else QColor(42, 42, 42)
+                bg = self._get_ui_color('viewport_bg') if is_light else self._get_ui_color('viewport_bg')
             painter.fillRect(self.rect(), bg)
 
         if self.scaled_pixmap and not self.scaled_pixmap.isNull():
@@ -18848,7 +18848,7 @@ class ZoomablePreview(QLabel): #vers 2
             y = (self.height() - self.scaled_pixmap.height()) // 2 + self.pan_offset.y()
             painter.drawPixmap(x, y, self.scaled_pixmap)
         elif self.placeholder_text:
-            pen_color = QColor(80, 80, 80) if is_light else QColor(150, 150, 150)
+            pen_color = self._get_ui_color('text_secondary') if is_light else self._get_ui_color('viewport_text')
             painter.setPen(pen_color)
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.placeholder_text)
 

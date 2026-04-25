@@ -648,7 +648,7 @@ class DolphinFileDialog(QDialog): #vers 1
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumHeight(200)
         self.preview_label.setMaximumHeight(250)
-        self.preview_label.setStyleSheet("border: 1px solid #cccccc; background: #f5f5f5;")
+        self.preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(window);")
         layout.addWidget(self.preview_label)
 
         # File details
@@ -691,7 +691,7 @@ class DolphinFileDialog(QDialog): #vers 1
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumHeight(200)
         self.preview_label.setMaximumHeight(250)
-        self.preview_label.setStyleSheet("border: 1px solid #cccccc; background: #f5f5f5;")
+        self.preview_label.setStyleSheet("border: 1px solid palette(mid); background: palette(window);")
         layout.addWidget(self.preview_label)
 
         # File details
@@ -1476,56 +1476,56 @@ class DolphinFileDialog(QDialog): #vers 1
         """Apply default styling if theme not available"""
         default_style = """
             QDialog {
-                background-color: #ffffff;
-                color: #000000;
+                background-color: palette(buttonText);
+                color: palette(windowText);
             }
             QTreeWidget {
-                background-color: #ffffff;
-                alternate-background-color: #f5f5f5;
-                border: 1px solid #cccccc;
-                color: #000000;
-                selection-background-color: #0078d4;
-                selection-color: #ffffff;
+                background-color: palette(buttonText);
+                alternate-background-color: palette(window);
+                border: 1px solid palette(mid);
+                color: palette(windowText);
+                selection-background-color: palette(highlight);
+                selection-color: palette(buttonText);
             }
             QTreeWidget::item {
                 padding: 4px;
             }
             QTreeWidget::item:hover {
-                background-color: #e8e8e8;
+                background-color: palette(button);
             }
             QTreeWidget::item:selected {
-                background-color: #0078d4;
-                color: #ffffff;
+                background-color: palette(highlight);
+                color: palette(buttonText);
             }
             QHeaderView::section {
-                background-color: #f5f5f5;
-                color: #000000;
-                border: 1px solid #cccccc;
+                background-color: palette(window);
+                color: palette(windowText);
+                border: 1px solid palette(mid);
                 padding: 5px;
                 font-weight: bold;
             }
             QPushButton {
-                background-color: #e0e0e0;
-                color: #000000;
-                border: 1px solid #999999;
+                background-color: palette(mid);
+                color: palette(windowText);
+                border: 1px solid palette(mid);
                 border-radius: 4px;
                 padding: 5px 10px;
             }
             QPushButton:hover {
-                background-color: #d0d0d0;
+                background-color: palette(mid);
             }
             QPushButton:pressed {
-                background-color: #b0b0b0;
+                background-color: palette(mid);
             }
             QLineEdit, QComboBox {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
+                background-color: palette(buttonText);
+                color: palette(windowText);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
                 padding: 4px;
             }
             QLabel {
-                color: #000000;
+                color: palette(windowText);
             }
         """
         self.setStyleSheet(default_style)

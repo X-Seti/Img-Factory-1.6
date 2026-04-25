@@ -66,17 +66,17 @@ def create_tearoff_button(main_window): #vers 1
     button.setFixedSize(20, 20)
     button.setStyleSheet("""
         QPushButton {
-            background-color: #4CAF50;
-            border: 1px solid #45a049;
+            background-color: palette(highlight);
+            border: 1px solid palette(mid);
             border-radius: 12px;
             color: white;
             font-weight: bold;
         }
         QPushButton:hover {
-            background-color: #45a049;
+            background-color: palette(highlight);
         }
         QPushButton:pressed {
-            background-color: #3d8b40;
+            background-color: palette(highlight);
         }
     """)
     

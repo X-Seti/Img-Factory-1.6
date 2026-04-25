@@ -210,7 +210,7 @@ class SCMWorkshop(QWidget):
         self._pdz=self._fspin(-9999,9999,0,"dZ"); dl.addWidget(QLabel("dZ:")); dl.addWidget(self._pdz)
         lay.addWidget(dg)
         pb=QPushButton("⚠  Apply Region Patch"); pb.setFixedHeight(32)
-        pb.setStyleSheet("QPushButton{background:#7f1d1d;color:#fca5a5;font-weight:bold}QPushButton:hover{background:#991b1b}")
+        pb.setStyleSheet("QPushButton{background:palette(highlight);color:palette(highlightedText);font-weight:bold}QPushButton:hover{background:palette(highlight);}")
         pb.clicked.connect(self._apply_patch); lay.addWidget(pb)
         self._patch_log=QTextEdit(); self._patch_log.setReadOnly(True)
         self._patch_log.setFont(QFont("Courier New",9)); self._patch_log.setPlaceholderText("Patch log…")

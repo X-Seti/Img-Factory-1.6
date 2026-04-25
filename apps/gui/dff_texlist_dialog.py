@@ -111,9 +111,9 @@ class DFFTexListDialog(QDialog): #vers 1
         on_disk  = self.report.get('on_disk',  {})
 
         self.table.setRowCount(len(textures))
-        green = QColor(0, 160, 0)
-        red   = QColor(180, 0, 0)
-        grey  = QColor(120, 120, 120)
+        green = self._get_ui_color('success') if hasattr(self,'_get_ui_color') else QColor(0,160,0)
+        red   = self._get_ui_color('error') if hasattr(self,'_get_ui_color') else QColor(180,0,0)
+        grey  = self._get_ui_color('viewport_text')
 
         for row, name in enumerate(textures):
             self.table.setItem(row, 0, QTableWidgetItem(name))
@@ -300,9 +300,9 @@ class MissingTXDDialog(QDialog): #vers 1
         self._fill_table(missing + no_ide)
 
     def _fill_table(self, rows: list): #vers 1
-        green = QColor(0, 160, 0)
-        red   = QColor(180, 0, 0)
-        grey  = QColor(120, 120, 120)
+        green = self._get_ui_color('success') if hasattr(self,'_get_ui_color') else QColor(0,160,0)
+        red   = self._get_ui_color('error') if hasattr(self,'_get_ui_color') else QColor(180,0,0)
+        grey  = self._get_ui_color('viewport_text')
         self.table.setRowCount(len(rows))
         for row, r in enumerate(rows):
             self.table.setItem(row, 0, QTableWidgetItem(r['dff']))

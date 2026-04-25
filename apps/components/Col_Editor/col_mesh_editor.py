@@ -41,7 +41,7 @@ def _build_material_color_cache(game: COLGame = COLGame.SA) -> dict: #vers 1
 # Default caches (SA) — rebuilt when game version changes
 _MAT_COLORS_SA = _build_material_color_cache(COLGame.SA)
 _MAT_COLORS_VC = _build_material_color_cache(COLGame.VC)
-_DEFAULT_MAT_COLOR = QColor(120, 120, 120)
+_DEFAULT_MAT_COLOR = self._get_ui_color('viewport_text')
 
 
 ##class COLMeshEditorViewport -
@@ -84,7 +84,7 @@ class COLMeshEditorViewport(QWidget):
         self._drag         = None
         self._proj_cache   = []    # [(sx,sy)] per vertex, rebuilt each paint
         self._face_centres = []    # [(sx,sy)] per face centre, rebuilt each paint
-        self.setStyleSheet("background-color: #14141e;")
+        self.setStyleSheet("background-color: palette(base);")
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -438,7 +438,7 @@ class COLMeshEditor(QDialog): #vers 1
         # - Status + game selector
         stat_row = QHBoxLayout()
         self._status = QLabel("Ready")
-        self._status.setStyleSheet("color:#aaa;font-size:10px;")
+        self._status.setStyleSheet("color:palette(mid);font-size:10px;")
         stat_row.addWidget(self._status, 1)
         stat_row.addWidget(QLabel("Game:"))
         self._game_combo = QComboBox()

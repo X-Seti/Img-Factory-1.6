@@ -350,30 +350,30 @@ class DirectoryTreeBrowser(QWidget):
         if self.is_dark_theme():
             stylesheet = """
             QTreeWidget {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 1px solid #3a3a3a;
+                background-color: palette(base);
+                color: palette(buttonText);
+                border: 1px solid palette(mid);
             }
             QTreeWidget::item:selected {
-                background-color: #3a7ca8;
+                background-color: palette(highlight);
             }
             QTreeWidget::item:hover {
-                background-color: #2a2a2a;
+                background-color: palette(base);
             }
             """
         else:
             stylesheet = """
             QTreeWidget {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
+                background-color: palette(buttonText);
+                color: palette(windowText);
+                border: 1px solid palette(mid);
             }
             QTreeWidget::item:selected {
-                background-color: #0078d7;
-                color: #ffffff;
+                background-color: palette(highlight);
+                color: palette(buttonText);
             }
             QTreeWidget::item:hover {
-                background-color: #e5f3ff;
+                background-color: palette(light);
             }
             """
         self.tree.setStyleSheet(stylesheet)

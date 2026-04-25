@@ -199,7 +199,7 @@ def create_attachment_chip(attachment: dict, on_remove=None, parent=None):
     chip.setStyleSheet("""
         QFrame {
             background: #2a4a2a;
-            border: 1px solid #3d7a3d;
+            border: 1px solid palette(mid);
             border-radius: 4px;
             padding: 2px 4px;
         }
@@ -212,7 +212,7 @@ def create_attachment_chip(attachment: dict, on_remove=None, parent=None):
     icon  = TYPE_ICONS.get(attachment.get("type", "binary"), "📎")
     name  = attachment.get("name", "file")
     label = QLabel(f"{icon} {name}")
-    label.setStyleSheet("font-size: 10px; color: #c0e0c0; background: transparent; border: none;")
+    label.setStyleSheet("font-size: 10px; color: palette(placeholderText); background: transparent; border: none;")
     layout.addWidget(label)
 
     if on_remove:
@@ -226,7 +226,7 @@ def create_attachment_chip(attachment: dict, on_remove=None, parent=None):
                 font-size: 10px;
                 padding: 0;
             }
-            QPushButton:hover { color: #ff6666; }
+            QPushButton:hover { color: palette(buttonText); }
         """)
         x_btn.clicked.connect(lambda: on_remove(attachment))
         layout.addWidget(x_btn)

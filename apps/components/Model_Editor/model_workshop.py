@@ -863,7 +863,7 @@ class COL3DViewport(QWidget): #vers 2
         p.fillRect(self.rect(), QColor(r2, g2, b2))
 
         if not self._model:
-            p.setPen(QColor(120, 120, 120))
+            p.setPen(self._get_ui_color('viewport_text'))
             p.setFont(QFont('Arial', 11))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No model selected")
             return
@@ -938,17 +938,17 @@ class COL3DViewport(QWidget): #vers 2
                     c = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
                     if c:
                         return QColor(c.r, c.g, c.b, max(80, c.a) if c.a else 200)
-                return QColor(160, 160, 160)
+                return self._get_ui_color('viewport_text')
         else:
             try:
                 from apps.methods.col_materials import get_material_qcolor, COLGame
                 _game = COLGame.VC if getattr(getattr(model,'version',None),'value',3)==1 else COLGame.SA
                 def mat_col(mat_id):
                     c = get_material_qcolor(mat_id, _game)
-                    return c if c else QColor(120,120,120)
+                    return c if c else self._get_ui_color('viewport_text')
             except Exception:
                 def mat_col(mat_id):
-                    return QColor(120,120,120)
+                    return self._get_ui_color('viewport_text')
 
         # - Mesh faces
         rs = self._render_style  # 'wireframe' | 'semi' | 'solid' | 'textured'
@@ -1220,7 +1220,7 @@ class COL3DViewport(QWidget): #vers 2
                 lp,lq=self._proj(p45x,p45y,p45z)
                 p.setFont(QFont('Arial',8,QFont.Weight.Bold)); p.setPen(color)
                 p.drawText(int(gx+lp*arm+(6 if lp>=0 else -12)),int(gy+lq*arm+(5 if lq>=0 else -3)),label)
-        p.setBrush(QBrush(QColor(230,230,230))); p.setPen(QPen(QColor(160,160,160),1))
+        p.setBrush(QBrush(QColor(230,230,230))); p.setPen(QPen(self._get_ui_color('viewport_text'),1))
         p.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
         # - Top-right overlay — normal mode: Move/Rotate + Render chips
@@ -2231,7 +2231,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             tname = (getattr(mat,'texture_name','') or '').strip().lower()
             tex   = (tex_cache.get(tname) or tex_cache.get(tname.split('.')[0]))
             c     = getattr(mat,'colour',None) or getattr(mat,'color',None)
-            base  = QColor(c.r,c.g,c.b) if c else QColor(160,160,160)
+            base  = QColor(c.r,c.g,c.b) if c else self._get_ui_color('viewport_text')
             pad   = 4
 
             if shape == 'flat':
@@ -2469,7 +2469,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         swap_row.addWidget(reload_btn)
 
         form.addRow("Use TXD:", swap_row)
-        chosen_color = [QColor(160,160,160)]
+        chosen_color = [self._get_ui_color('viewport_text')]
         col_swatch = QLabel()
         col_swatch.setFixedSize(32,26)
         col_swatch.setFrameShape(QFrame.Shape.Box)
@@ -2797,7 +2797,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             except: pass
             btn.clicked.connect(self._exit_paint_mode)
             btn.setText("[ ] Exit Paint")
-            btn.setStyleSheet("color:#ff6b35; font-weight:bold;")
+            btn.setStyleSheet("color: palette(windowText); font-weight:bold;")
 
         self._set_status(
             "Paint mode - click faces to paint  |  ◀▶ change material  "
@@ -2829,12 +2829,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         popup = QFrame(vp)
         popup.setFrameStyle(QFrame.Shape.StyledPanel)
         popup.setStyleSheet(
-            "QFrame { background:#1a1a2e; border:1px solid #ff8c00; border-radius:4px; }"
-            "QListWidget { background:#1a1a2e; color:#eee; border:none; }"
+            "QFrame { background:palette(base); border:1px solid #ff8c00; border-radius:4px; }"
+            "QListWidget { background:palette(base); color:palette(windowText); border:none; }"
             "QListWidget::item { padding:2px 4px; }"
-            "QListWidget::item:hover { background:#252540; }"
+            "QListWidget::item:hover { background:palette(base); }"
             "QListWidget::item:selected { background:#ff8c00; color:#000; }"
-            "QLineEdit { background:#252535; color:#eee; border:1px solid #555; "
+            "QLineEdit { background:palette(base); color:palette(windowText); border:1px solid palette(mid); "
             "            border-radius:3px; padding:2px 4px; }"
             "QPushButton { background:transparent; color:#ff6b35; border:none; "
             "              font-weight:bold; font-size:14px; }"
@@ -4333,7 +4333,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         apply_btn = QPushButton("Apply Settings")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background: #0078d4;
+                background: palette(highlight);
                 color: white;
                 padding: 10px 24px;
                 font-weight: bold;
@@ -4341,7 +4341,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 font-size: 13px;
             }
             QPushButton:hover {
-                background: #1984d8;
+                background: palette(highlight);
             }
         """)
 
@@ -4518,22 +4518,22 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Amiga Workbench styling
         dialog.setStyleSheet("""
             QDialog {
-                background-color: #aaaaaa;
-                border: 2px solid #ffffff;
+                background-color: palette(placeholderText);
+                border: 2px solid palette(buttonText);
             }
             QLabel {
-                color: #000000;
-                background-color: #aaaaaa;
+                color: palette(windowText);
+                background-color: palette(placeholderText);
             }
             QPushButton {
-                background-color: #8899aa;
-                color: #000000;
-                border: 2px outset #ffffff;
+                background-color: palette(midlight);
+                color: palette(windowText);
+                border: 2px outset palette(buttonText);
                 padding: 5px 15px;
                 min-width: 80px;
             }
             QPushButton:pressed {
-                border: 2px inset #555555;
+                border: 2px inset palette(mid);
             }
         """)
 
@@ -5687,7 +5687,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 p.drawEllipse(int(lx)-14,int(ly)-14,28,28)
                 # Solid dot
                 p.setBrush(QBrush(QColor(255,220,80)))
-                p.setPen(QPen(QColor(255,255,255), 1.5))
+                p.setPen(QPen(self._get_ui_color('viewport_bg'), 1.5))
                 p.drawEllipse(int(lx)-5,int(ly)-5,10,10)
                 # Elevation label
                 p.setPen(QPen(QColor(200,200,200)))
@@ -7091,7 +7091,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.info_name.setText("Click to edit...")
         self.info_name.setFont(self.panel_font)
         self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: px; border: 1px solid #3a3a3a;")
+        self.info_name.setStyleSheet("padding: px; border: 1px solid palette(mid);")
         #self.info_name.returnPressed.connect(self._save_surface_name)
         #self.info_name.editingFinished.connect(self._save_surface_name)
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
@@ -7292,10 +7292,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         bar.setObjectName("paint_bar")
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar.setStyleSheet(
-            "QWidget#paint_bar { background:#1a1a2e; border-bottom:2px solid #ff8c00; }"
+            "QWidget#paint_bar { background:palette(base); border-bottom:2px solid #ff8c00; }"
             "QLabel  { color:#ddd; background:transparent; }"
-            "QComboBox { background:#252535; color:#eee; border:1px solid #555; }"
-            "QPushButton { background:#252535; color:#eee; border:1px solid #555; border-radius:3px; }"
+            "QComboBox { background:palette(base); color:palette(windowText); border:1px solid palette(mid); }"
+            "QPushButton { background:palette(base); color:palette(windowText); border:1px solid palette(mid); border-radius:3px; }"
             "QPushButton:hover   { background:#353548; }"
             "QPushButton:checked { background:#ff8c00; color:#000; border:1px solid #ff8c00; }"
         )
@@ -7310,7 +7310,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.paint_swatch = QLabel()
         self.paint_swatch.setFixedSize(16, 16)
         self.paint_swatch.setStyleSheet(
-            "background:#808080; border:1px solid #aaa; border-radius:2px;")
+            "background:#808080; border:1px solid palette(mid); border-radius:2px;")
         lay.addWidget(self.paint_swatch)
 
         self.paint_mat_combo = QComboBox()
@@ -7359,7 +7359,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.paint_exit_btn.setFixedSize(28, 28)
         self.paint_exit_btn.setToolTip("Exit paint mode")
         self.paint_exit_btn.setStyleSheet(
-            "color:#ff6b35; font-weight:bold; background:#252535; border:1px solid #555; border-radius:3px;")
+            "color:#ff6b35; font-weight:bold; background:palette(base); border:1px solid palette(mid); border-radius:3px;")
         self.paint_exit_btn.clicked.connect(self._exit_paint_mode)
         lay.addWidget(self.paint_exit_btn)
 
@@ -7566,7 +7566,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Set checkerboard background"""
         # Create checkerboard pattern
         self.preview_widget.setStyleSheet("""
-            border: 1px solid #3a3a3a;
+            border: 1px solid palette(mid);
             background-image:
                 linear-gradient(45deg, #333 25%, transparent 25%),
                 linear-gradient(-45deg, #333 25%, transparent 25%),
@@ -7583,13 +7583,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         card.setFrameStyle(QFrame.Shape.StyledPanel)
         card.setStyleSheet("""
             QFrame {
-                background: #1e1e1e;
-                border: 1px solid #3a3a3a;
+                background: palette(base);
+                border: 1px solid palette(mid);
                 border-radius: 5px;
             }
             QFrame:hover {
-                border-color: #4a6fa5;
-                background: #252525;
+                border-color: palette(highlight);
+                background: palette(base);
             }
         """)
         card.setMinimumHeight(140)
@@ -7632,8 +7632,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         preview.setFixedSize(preview_size, preview_size)
         preview.setStyleSheet("""
             QLabel {
-                background: #0a0a0a;
-                border: 2px solid #3a3a3a;
+                background: palette(base);
+                border: 2px solid palette(mid);
                 border-radius: 3px;
             }
         """)
@@ -7672,7 +7672,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         level_badge = QLabel(f"Level {level_num}")
         level_badge.setStyleSheet("""
             QLabel {
-                background: #0d47a1;
+                background: palette(highlight);
                 color: white;
                 padding: 4px 12px;
                 border-radius: 3px;
@@ -7685,13 +7685,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         width = level_data.get('width', 0)
         height = level_data.get('height', 0)
         dim_label = QLabel(f"{width} x {height}")
-        dim_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #4a9eff;")
+        dim_label.setStyleSheet("font-size: 16px; font-weight: bold; color: palette(windowText);")
         header_layout.addWidget(dim_label)
 
         # Main indicator
         if level_num == 0:
             main_badge = QLabel("Main Surface")
-            main_badge.setStyleSheet("color: #4caf50; font-size: 12px;")
+            main_badge.setStyleSheet("color: palette(windowText); font-size: 12px;")
             header_layout.addWidget(main_badge)
 
         header_layout.addStretch()
@@ -7739,7 +7739,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         stat = QFrame()
         stat.setStyleSheet("""
             QFrame {
-                background: #252525;
+                background: palette(base);
                 border-radius: 3px;
                 padding: 6px 10px;
             }
@@ -7809,15 +7809,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             edit_btn = QPushButton("Edit")
             edit_btn.setStyleSheet("""
                 QPushButton {
-                    background: #3a3a3a;
-                    border: 1px solid #4a4a4a;
+                    background: palette(mid);
+                    border: 1px solid palette(mid);
                     color: white;
                     padding: 6px 12px;
                     border-radius: 3px;
                     font-size: 11px;
                 }
                 QPushButton:hover {
-                    background: #4a4a4a;
+                    background: palette(mid);
                 }
             """)
             edit_btn.clicked.connect(self._edit_main_surface)
@@ -8108,7 +8108,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             "OBJ export includes vertex positions and face indices."
         )
         compat_label.setWordWrap(True)
-        compat_label.setStyleSheet("padding: 10px; background-color: #3a3a3a; border-radius: 4px;")
+        compat_label.setStyleSheet("padding: 10px; background-color: palette(mid); border-radius: 4px;")
         export_layout.addWidget(compat_label)
 
         # - Texture Sources
@@ -9147,7 +9147,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
             # Build 64×64 pixmap
             pix = QPixmap(THUMB_SIZE, THUMB_SIZE)
-            pix.fill(QColor(40, 40, 50))
+            pix.fill(self._get_ui_color('viewport_bg'))
             if rgba and w > 0 and h > 0 and len(rgba) >= w * h * 4:
                 try:
                     qimg = QImage(rgba[:w*h*4], w, h,
@@ -9159,7 +9159,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     # Pad to square
                     if pix.width() != THUMB_SIZE or pix.height() != THUMB_SIZE:
                         padded = QPixmap(THUMB_SIZE, THUMB_SIZE)
-                        padded.fill(QColor(40, 40, 50))
+                        padded.fill(self._get_ui_color('viewport_bg'))
                         from PyQt6.QtGui import QPainter
                         p = QPainter(padded)
                         x = (THUMB_SIZE - pix.width())  // 2
@@ -9245,7 +9245,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         dlg_lay.setContentsMargins(8, 8, 8, 8)
         dlg_lay.setSpacing(6)
         dlg.setStyleSheet(
-            "QDialog { background: #1c1c28; border: 1px solid #444; border-radius: 4px; }"
+            "QDialog { background: palette(base); border: 1px solid palette(mid); border-radius: 4px; }"
             "QLabel  { color: #ccc; }")
 
         # Build display pixmap
@@ -9329,7 +9329,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             _Qt.WindowType.WindowStaysOnTopHint)
         popup.setAttribute(_Qt.WidgetAttribute.WA_DeleteOnClose)
         popup.setStyleSheet(
-            "QWidget { background:#1c1c28; border:1px solid #555; border-radius:3px; }"
+            "QWidget { background:palette(base); border:1px solid palette(mid); border-radius:3px; }"
             "QLabel  { color:#ccc; background:transparent; }")
 
         v = QVBoxLayout(popup)
@@ -12315,7 +12315,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Generate a small QPixmap thumbnail of a COL model."""
         from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen
         pixmap = QPixmap(width, height)
-        pixmap.fill(QColor(30, 30, 40))
+        pixmap.fill(self._get_ui_color('viewport_bg'))
         has_data = (getattr(model, 'spheres', []) or
                     getattr(model, 'boxes', []) or
                     getattr(model, 'vertices', []))
@@ -12342,7 +12342,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
         from PyQt6.QtCore import Qt
         pixmap = QPixmap(width, height)
-        pixmap.fill(QColor(25, 25, 35))
+        pixmap.fill(self._get_ui_color('viewport_bg'))
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -12883,8 +12883,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
             preview.setStyleSheet("""
                 QLabel {
-                    background: #0a0a0a;
-                    border: 2px solid #3a3a3a;
+                    background: palette(base);
+                    border: 2px solid palette(mid);
                     border-radius: 3px;
                     color: palette(placeholderText);
                 }
@@ -13437,7 +13437,7 @@ class ZoomablePreview(QLabel): #vers 2
         self.main_window = parent
         self.setMinimumSize(400, 400)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet("border: 1px solid #3a3a3a;")
+        self.setStyleSheet("border: 1px solid palette(mid);")
         self.setMouseTracking(True)
 
         # Display state
@@ -13980,25 +13980,25 @@ class COLEditorDialog(QDialog): #vers 3
         controls_widget.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
         controls_widget.setStyleSheet("""
             QFrame {
-                background-color: #3a3a3a;
-                border: 1px solid #555555;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
                 padding: 3px;
             }
             QPushButton {
-                background-color: #4a4a4a;
-                border: 1px solid #666666;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 2px;
                 padding: 4px;
                 min-width: 28px;
                 min-height: 28px;
             }
             QPushButton:hover {
-                background-color: #5a5a5a;
-                border: 1px solid #888888;
+                background-color: palette(mid);
+                border: 1px solid palette(placeholderText);
             }
             QPushButton:pressed {
-                background-color: #2a2a2a;
+                background-color: palette(base);
             }
             QPushButton:checked {
                 background-color: #006699;
@@ -14060,7 +14060,7 @@ class COLEditorDialog(QDialog): #vers 3
         separator1 = QFrame()
         separator1.setFrameShape(QFrame.Shape.VLine)
         separator1.setFrameShadow(QFrame.Shadow.Sunken)
-        separator1.setStyleSheet("color: #666666;")
+        separator1.setStyleSheet("color: palette(mid);")
 
         # Camera controls
         btn_reset = QPushButton()

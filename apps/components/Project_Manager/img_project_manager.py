@@ -638,7 +638,7 @@ class ProjectManagerDialog(QDialog):
         # Title
         title = QLabel("🗂️ IMG Project Manager")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #2E7D32; margin: 10px;")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: palette(windowText); margin: 10px;")
         layout.addWidget(title)
         
         # Tab widget

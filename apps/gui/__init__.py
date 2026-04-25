@@ -95,37 +95,37 @@ def apply_gui_theme(main_window, theme_name="default"):
             if "dark" in theme_name.lower():
                 main_window.statusBar().setStyleSheet("""
                     QStatusBar {
-                        background-color: #2d2d30;
-                        border-top: 1px solid #3e3e42;
-                        color: #ffffff;
+                        background-color: palette(window);
+                        border-top: 1px solid palette(mid);
+                        color: palette(buttonText);
                     }
                     QStatusBar::item { border: none; }
-                    QLabel { color: #ffffff; }
+                    QLabel { color: palette(buttonText); }
                     QProgressBar {
-                        border: 1px solid #3e3e42;
-                        background-color: #383838;
-                        color: #ffffff;
+                        border: 1px solid palette(mid);
+                        background-color: palette(alternateBase);
+                        color: palette(buttonText);
                     }
                     QProgressBar::chunk {
-                        background-color: #FFECEE;
+                        background-color: palette(highlight);
                     }
                 """)
             else:
                 main_window.statusBar().setStyleSheet("""
                     QStatusBar {
-                        background-color: #f8f9fa;
-                        border-top: 1px solid #dee2e6;
-                        color: #495057;
+                        background-color: palette(base);
+                        border-top: 1px solid palette(mid);
+                        color: palette(windowText);
                     }
                     QStatusBar::item { border: none; }
-                    QLabel { color: #495057; }
+                    QLabel { color: palette(windowText); }
                     QProgressBar {
-                        border: 1px solid #dee2e6;
-                        background-color: #e9ecef;
-                        color: #495057;
+                        border: 1px solid palette(mid);
+                        background-color: palette(alternateBase);
+                        color: palette(windowText);
                     }
                     QProgressBar::chunk {
-                        background-color: #1976d2;
+                        background-color: palette(highlight);
                     }
                 """)
 

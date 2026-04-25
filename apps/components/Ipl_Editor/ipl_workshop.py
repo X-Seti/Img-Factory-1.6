@@ -364,7 +364,7 @@ class IPLWorkshop(GUIWorkshop):
         self._info_lbl = QLabel("No file loaded")
         self._info_lbl.setFont(self.infobar_font)
         self._info_lbl.setWordWrap(True)
-        self._info_lbl.setStyleSheet("padding:2px; color:#aaa;")
+        self._info_lbl.setStyleSheet("padding:2px; color:palette(mid);")
         ll.addWidget(self._info_lbl)
 
         self._dirty_lbl = QLabel("Modified: no")

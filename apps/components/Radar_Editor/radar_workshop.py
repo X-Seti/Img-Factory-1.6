@@ -595,15 +595,15 @@ class RadarGridWidget(QWidget):
                         for tx in range(0, ts, cb):
                             light = ((tx//cb + ty//cb) % 2 == 0)
                             p.fillRect(x+tx, y+ty, min(cb,ts-tx), min(cb,ts-ty),
-                                       QColor(180,180,180) if light else QColor(110,110,110))
+                                       QColor(180,180,180) if light else self._get_ui_color('viewport_text'))
                 p.drawImage(x, y, scaled)
             else:
-                p.fillRect(x, y, ts, ts, QColor(40,40,40))
+                p.fillRect(x, y, ts, ts, self._get_ui_color('viewport_bg'))
             if idx in self._dirty: p.fillRect(x+ts-6,y,6,6,QColor(255,60,60))
             if idx==self._hover: p.fillRect(x,y,ts,ts,QColor(255,255,255,30))
             if idx==self._sel:
                 p.setPen(QPen(QColor(80,180,255),2)); p.drawRect(x+1,y+1,ts-2,ts-2)
-        p.setPen(QPen(QColor(60,60,60),1))
+        p.setPen(QPen(self._get_ui_color('bg_secondary'),1))
         rows=(self._count+cols-1)//cols
         for c in range(cols+1): p.drawLine(px0+c*ts,py0,px0+c*ts,py0+rows*ts)
         for r in range(rows+1): p.drawLine(px0,py0+r*ts,px0+cols*ts,py0+r*ts)
@@ -1271,7 +1271,7 @@ class _TileZoomView(QWidget):
             for tx in range(0, w, cb_size):
                 light = ((tx // cb_size + ty // cb_size) % 2 == 0)
                 p.fillRect(x+tx, y+ty, min(cb_size, w-tx), min(cb_size, h-ty),
-                           QColor(180,180,180) if light else QColor(120,120,120))
+                           QColor(180,180,180) if light else self._get_ui_color('viewport_text'))
         p.drawPixmap(x, y, self._pixmap.scaled(
             w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.FastTransformation))
@@ -2367,7 +2367,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
 
         self._fg_color = QColor(255, 255, 255)
         _win = self.palette().color(self.palette().ColorRole.Window)
-        self._bg_color = QColor(255, 255, 255) if _win.lightness() > 128 else QColor(0, 0, 0)
+        self._bg_color = self._get_ui_color('viewport_bg') if _win.lightness() > 128 else QColor(0, 0, 0)
 
         self._fg_btn = QPushButton()
         self._fg_btn.setFixedSize(72, 18)
@@ -3988,7 +3988,7 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
             if self.app_settings:
                 self.setStyleSheet(self.app_settings.get_stylesheet())
             else:
-                self.setStyleSheet("QWidget{background:#2b2b2b;color:#e0e0e0;} QPushButton{background:#3c3f41;border:1px solid #555;color:#e0e0e0;padding:2px 4px;} QPushButton:hover{background:#4a4d50;}")
+                self.setStyleSheet("QWidget{background:palette(base);color:palette(mid);} QPushButton{background:palette(button);border:1px solid palette(mid);color:palette(mid);padding:2px 4px;} QPushButton:hover{background:#4a4d50;}")
         except Exception as e:
             print(f"[{App_name}] Theme error: {e}")
 

@@ -60,19 +60,31 @@ def get_import_row_colours(main_window, replaced=False): #vers 1 Fixed
         is_dark = bg.lightness() < 128
         if replaced:
             if is_dark:
-                return QColor(140, 30, 30), QColor(255, 160, 160)   # dark red bg, light red text
+                from PyQt6.QtWidgets import QApplication as _QApp
+                _pal = _QApp.instance().palette() if _QApp.instance() else None
+                return (_pal.color(_pal.ColorRole.Highlight) if _pal else QColor(140, 30, 30)), (_pal.color(_pal.ColorRole.HighlightedText) if _pal else QColor(255, 160, 160))
             else:
-                return QColor(180, 50, 50), QColor(255, 220, 220)   # darker red bg, pale text
+                from PyQt6.QtWidgets import QApplication as _QApp
+                _pal = _QApp.instance().palette() if _QApp.instance() else None
+                return (_pal.color(_pal.ColorRole.Highlight) if _pal else QColor(180, 50, 50)), (_pal.color(_pal.ColorRole.HighlightedText) if _pal else QColor(255, 220, 220))
         else:
             if is_dark:
-                return QColor(30, 60, 120), QColor(160, 200, 255)   # dark blue bg, light blue text
+                from PyQt6.QtWidgets import QApplication as _QApp
+                _pal = _QApp.instance().palette() if _QApp.instance() else None
+                return (_pal.color(_pal.ColorRole.Highlight) if _pal else QColor(30, 60, 120)), (_pal.color(_pal.ColorRole.HighlightedText) if _pal else QColor(160, 200, 255))
             else:
-                return QColor(50, 90, 160), QColor(220, 235, 255)   # dark blue bg, pale text
+                from PyQt6.QtWidgets import QApplication as _QApp
+                _pal = _QApp.instance().palette() if _QApp.instance() else None
+                return (_pal.color(_pal.ColorRole.Highlight) if _pal else QColor(50, 90, 160)), (_pal.color(_pal.ColorRole.HighlightedText) if _pal else QColor(220, 235, 255))
     except Exception:
         from PyQt6.QtGui import QColor
         if replaced:
-            return QColor(140, 30, 30), QColor(255, 160, 160)
-        return QColor(30, 60, 120), QColor(160, 200, 255)
+            from PyQt6.QtWidgets import QApplication as _QApp
+            _pal = _QApp.instance().palette() if _QApp.instance() else None
+            return (_pal.color(_pal.ColorRole.Highlight) if _pal else QColor(140, 30, 30)), (_pal.color(_pal.ColorRole.HighlightedText) if _pal else QColor(255, 160, 160))
+        from PyQt6.QtWidgets import QApplication as _QApp
+        _pal = _QApp.instance().palette() if _QApp.instance() else None
+        return (_pal.color(_pal.ColorRole.Highlight) if _pal else QColor(30, 60, 120)), (_pal.color(_pal.ColorRole.HighlightedText) if _pal else QColor(160, 200, 255))
 
 
 def pin_file_sync_rename(img_path: str, old_name: str, new_name: str): #vers 1 Fixed
@@ -141,7 +153,9 @@ def get_pin_row_colours(main_window): #vers 2 Fixed
         return bg_col, fg_col
     except Exception:
         from PyQt6.QtGui import QColor
-        return QColor(80, 60, 20), QColor(255, 200, 80)
+        from PyQt6.QtWidgets import QApplication as _QApp
+        _pal = _QApp.instance().palette() if _QApp.instance() else None
+        return (_pal.color(_pal.ColorRole.Highlight) if _pal else QColor(80, 60, 20)), (_pal.color(_pal.ColorRole.HighlightedText) if _pal else QColor(255, 200, 80))
 
 
 def check_pinned_lock(main_window, entries, operation: str) -> bool: #vers 3 Fixed

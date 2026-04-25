@@ -223,10 +223,10 @@ class DATPanel(QWidget): #vers 1
                 }}
                 QTabWidget::pane {{
                     background-color: {bg};
-                    border: 1px solid #3a3a3a;
+                    border: 1px solid palette(mid);
                 }}
                 QHeaderView::section {{
-                    background-color: #2a2a3e;
+                    background-color: palette(base);
                 }}
             """)
         except Exception:

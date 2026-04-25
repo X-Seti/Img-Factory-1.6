@@ -23,27 +23,27 @@ def apply_pastel_theme_to_buttons(app, app_settings):
     }}
     
     QPushButton[action-type="import"] {{
-        background-color: #E3F2FD;
+        background-color: palette(light);
         color: {button_text} !important;
     }}
     
     QPushButton[action-type="export"] {{
-        background-color: #E8F5E8;
+        background-color: palette(light);
         color: {button_text} !important;
     }}
     
     QPushButton[action-type="remove"] {{
-        background-color: #FFEBEE;
+        background-color: palette(light);
         color: {button_text} !important;
     }}
     
     QPushButton[action-type="update"] {{
-        background-color: #FFF3E0;
+        background-color: palette(light);
         color: {button_text} !important;
     }}
     
     QPushButton[action-type="convert"] {{
-        background-color: #F3E5F5;
+        background-color: palette(light);
         color: {button_text} !important;
     }}
     """

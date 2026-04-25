@@ -96,7 +96,7 @@ def create_highlighted_item(text: str, highlight_type: str = "imported") -> QTab
     
     if highlight_type == "imported":
         # Light green background for newly imported files
-        item.setBackground(QBrush(QColor(200, 255, 200)))  # Light green
+        item.setBackground(QBrush(QColor(200,255,200)))  # success-tinted row
         item.setForeground(QBrush(QColor(0, 100, 0)))      # Dark green text
         
         # Make text bold
@@ -381,7 +381,7 @@ def create_highlighted_img_table_item(text: str, highlight_type: str = None) -> 
         # Theme-aware green highlighting
         if is_dark_theme():
             item.setBackground(QBrush(QColor(0, 100, 0)))      # Dark green bg
-            item.setForeground(QBrush(QColor(255, 255, 255)))  # White text
+            item.setForeground(QBrush(self._get_ui_color('viewport_bg')))  # White text
         else:
             item.setBackground(QBrush(QColor(220, 255, 220)))  # Light green bg
             item.setForeground(QBrush(QColor(0, 80, 0)))       # Dark green text
@@ -392,7 +392,7 @@ def create_highlighted_img_table_item(text: str, highlight_type: str = None) -> 
         # Theme-aware yellow highlighting
         if is_dark_theme():
             item.setBackground(QBrush(QColor(120, 120, 0)))    # Dark yellow bg
-            item.setForeground(QBrush(QColor(255, 255, 255)))  # White text
+            item.setForeground(QBrush(self._get_ui_color('viewport_bg')))  # White text
         else:
             item.setBackground(QBrush(QColor(255, 255, 180)))  # Light yellow bg
             item.setForeground(QBrush(QColor(120, 100, 0)))    # Dark yellow text

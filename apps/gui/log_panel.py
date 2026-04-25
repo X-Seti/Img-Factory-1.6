@@ -64,9 +64,9 @@ class IMGFactoryLogWidget(QTextEdit):
         # Styling
         self.setStyleSheet("""
             QTextEdit {
-                background-color: #1e1e1e;
-                color: #faaaff;
-                border: 1px solid #444444;
+                background-color: palette(base);
+                color: palette(windowText);
+                border: 1px solid palette(mid);
                 border-radius: 4px;
                 padding: 4px;
             }
@@ -95,9 +95,9 @@ class IMGFactoryLogWidget(QTextEdit):
         
         # Create formatted HTML
         html = f"""
-        <span style="color: #888888;">[{time_str}]</span>
+        <span style="color: palette(placeholderText);">[{time_str}]</span>
         <span style="color: {color}; font-weight: bold;">{log_msg.level.value}:</span>
-        <span style="color: #ffffff;">{log_msg.message}</span>
+        <span style="color: palette(buttonText);">{log_msg.message}</span>
         """
         
         # Append to end and scroll

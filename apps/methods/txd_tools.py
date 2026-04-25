@@ -185,7 +185,7 @@ class ColourAdjustDialog(QDialog):
         self._prev_lbl = QLabel(); self._prev_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         for lbl in (self._orig_lbl, self._prev_lbl):
             lbl.setMinimumSize(200, 200)
-            lbl.setStyleSheet("background:#1a1a1a; border:1px solid #444;")
+            lbl.setStyleSheet("background:palette(base); border:1px solid palette(mid);")
             img_row.addWidget(lbl, 1)
         pl.addLayout(img_row, 1)
         main.addWidget(prev, 1)
@@ -396,7 +396,7 @@ class SeamlessDialog(QDialog):
         self._prev_lbl = QLabel(); self._prev_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         for lbl in (self._orig_lbl, self._prev_lbl):
             lbl.setMinimumSize(220, 220)
-            lbl.setStyleSheet("background:#1a1a1a; border:1px solid #444;")
+            lbl.setStyleSheet("background:palette(base); border:1px solid palette(mid);")
             img_row.addWidget(lbl, 1)
         pl.addLayout(img_row, 1)
         main.addWidget(prev, 1)
@@ -587,7 +587,7 @@ class TiledPreviewWidget(QLabel):
         self._w = self._h = 0
         self._tile_n = 1
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet("background:#1a1a1a;")
+        self.setStyleSheet("background:palette(base);")
         self.setMinimumSize(200, 200)
 
     def set_texture(self, rgba: bytes, w: int, h: int):
@@ -753,7 +753,7 @@ class SnowDialog(QDialog):
         self._prev_lbl = QLabel(); self._prev_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         for lbl in (self._orig_lbl, self._prev_lbl):
             lbl.setMinimumSize(200, 200)
-            lbl.setStyleSheet("background:#1a1a1a; border:1px solid #444;")
+            lbl.setStyleSheet("background:palette(base); border:1px solid palette(mid);")
             img_row.addWidget(lbl, 1)
         pl.addLayout(img_row, 1)
         main.addWidget(prev, 1)

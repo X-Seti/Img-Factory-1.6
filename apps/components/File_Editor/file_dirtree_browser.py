@@ -1169,15 +1169,15 @@ class FileBrowserWidget(QWidget):
                 # Apply theme colors to tree with professional table styling
                 tree_style = f"""
                     QTreeWidget {{
-                        background-color: {theme_colors.get('bg_secondary', '#ffffff')};
-                        color: {theme_colors.get('text_primary', '#333333')};
+                        background-color: {theme_colors.get('bg_secondary', 'palette(buttonText)')};
+                        color: {theme_colors.get('text_primary', 'palette(windowText)')};
                         font-size: {self.browser_settings.get('font_size', 13)}px;
                         font-family: 'Segoe UI', Arial, sans-serif;
-                        border: 1px solid {theme_colors.get('border', '#cccccc')};
+                        border: 1px solid {theme_colors.get('border', 'palette(mid)')};
                         outline: none;
-                        selection-background-color: {theme_colors.get('accent_primary', '#FFECEE')};
-                        alternate-background-color: {theme_colors.get('bg_tertiary', '#f0f0f0')};
-                        gridline-color: {theme_colors.get('border', '#e0e0e0')};
+                        selection-background-color: {theme_colors.get('accent_primary', 'palette(highlight)')};
+                        alternate-background-color: {theme_colors.get('bg_tertiary', 'palette(window)')};
+                        gridline-color: {theme_colors.get('border', 'palette(mid)')};
                         show-decoration-selected: 1;
                     }}
                     QTreeWidget::item {{
@@ -1188,24 +1188,24 @@ class FileBrowserWidget(QWidget):
                         border-right: 1px solid {theme_colors.get('border', '#e0e0e0')};
                     }}
                     QTreeWidget::item:hover {{
-                        background-color: {theme_colors.get('button_hover', '#e8e8e8')};
+                        background-color: {theme_colors.get('button_hover', 'palette(button)')};
                     }}
                     QTreeWidget::item:selected {{
-                        background-color: {theme_colors.get('accent_primary', '#FFECEE')};
-                        color: #ffffff;
+                        background-color: {theme_colors.get('accent_primary', 'palette(highlight)')};
+                        color: palette(buttonText);
                     }}
                     QTreeWidget::item:selected:hover {{
-                        background-color: {theme_colors.get('accent_secondary', '#FFECEE')};
-                        color: #ffffff;
+                        background-color: {theme_colors.get('accent_secondary', 'palette(highlight)')};
+                        color: palette(buttonText);
                     }}
                     QHeaderView {{
-                        background-color: {theme_colors.get('panel_bg', '#f5f5f5')};
+                        background-color: {theme_colors.get('panel_bg', 'palette(window)')};
                     }}
                     QHeaderView::section {{
-                        background-color: {theme_colors.get('panel_bg', '#f5f5f5')};
-                        color: {theme_colors.get('text_primary', '#333333')};
+                        background-color: {theme_colors.get('panel_bg', 'palette(window)')};
+                        color: {theme_colors.get('text_primary', 'palette(windowText)')};
                         padding: 6px 4px;
-                        border: 1px solid {theme_colors.get('border', '#cccccc')};
+                        border: 1px solid {theme_colors.get('border', 'palette(mid)')};
                         border-left: none;
                         border-top: none;
                         font-weight: bold;
@@ -1215,7 +1215,7 @@ class FileBrowserWidget(QWidget):
                         border-left: 1px solid {theme_colors.get('border', '#cccccc')};
                     }}
                     QHeaderView::section:hover {{
-                        background-color: {theme_colors.get('button_hover', '#e8e8e8')};
+                        background-color: {theme_colors.get('button_hover', 'palette(button)')};
                     }}
                 """
                 self.tree.setStyleSheet(tree_style)
@@ -1225,41 +1225,41 @@ class FileBrowserWidget(QWidget):
                     QTreeWidget {{
                         font-size: {self.browser_settings.get('font_size', 13)}px;
                         font-family: 'Segoe UI', Arial, sans-serif;
-                        alternate-background-color: #f8f9fa;
-                        background-color: #ffffff;
-                        gridline-color: #e0e0e0;
-                        border: 1px solid #cccccc;
+                        alternate-background-color: palette(base);
+                        background-color: palette(buttonText);
+                        gridline-color: palette(mid);
+                        border: 1px solid palette(mid);
                         show-decoration-selected: 1;
                     }}
                     QTreeWidget::item {{
                         padding: 3px 4px;
                         min-height: 22px;
-                        border-bottom: 1px solid #e0e0e0;
-                        border-right: 1px solid #e0e0e0;
+                        border-bottom: 1px solid palette(mid);
+                        border-right: 1px solid palette(mid);
                     }}
                     QTreeWidget::item:hover {{
-                        background-color: #e8e8e8;
+                        background-color: palette(button);
                     }}
                     QTreeWidget::item:selected {{
-                        background-color: #FFECEE;
-                        color: #ffffff;
+                        background-color: palette(highlight);
+                        color: palette(buttonText);
                     }}
                     QHeaderView {{
-                        background-color: #f5f5f5;
+                        background-color: palette(window);
                     }}
                     QHeaderView::section {{
-                        background-color: #f5f5f5;
+                        background-color: palette(window);
                         padding: 6px 4px;
-                        border: 1px solid #cccccc;
+                        border: 1px solid palette(mid);
                         border-left: none;
                         border-top: none;
                         font-weight: bold;
                     }}
                     QHeaderView::section:first {{
-                        border-left: 1px solid #cccccc;
+                        border-left: 1px solid palette(mid);
                     }}
                     QHeaderView::section:hover {{
-                        background-color: #e8e8e8;
+                        background-color: palette(button);
                     }}
                 """)
                 

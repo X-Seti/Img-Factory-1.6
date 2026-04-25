@@ -465,7 +465,7 @@ class IMGFactory(QMainWindow):
         self.info_bar = None
         self._checkerboard_size = 16
         self._overlay_opacity = 50
-        self.background_color = QColor(42, 42, 42)
+        self.background_color = self._get_ui_color('viewport_bg')
         self.background_mode = 'solid'
 
         #self._initialize_features()
@@ -6970,9 +6970,9 @@ class IMGFactory(QMainWindow):
                         colors = gl.app_settings.get_theme_colors()
                         accent = QColor(colors.get('accent_primary', '#4682FF'))
                     except Exception:
-                        accent = QColor(70, 130, 255)
+                        accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70, 130, 255)
                 else:
-                    accent = QColor(70, 130, 255)
+                    accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70, 130, 255)
                 accent.setAlpha(200)
                 hover_c = QColor(accent); hover_c.setAlpha(255)
                 w, h = self.width(), self.height()
@@ -7284,7 +7284,7 @@ def main():
                    }
 
                def get_stylesheet(self):
-                   return "QMainWindow { background-color: #f0f0f0; }"
+                   return "QMainWindow { background-color: palette(window); }"
 
                def get_theme(self, theme_name=None):
                    return self.themes.get("img_factory", {"colors": {}})

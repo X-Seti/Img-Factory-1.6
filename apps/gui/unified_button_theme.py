@@ -168,10 +168,10 @@ def get_button_theme_colors(theme_colors, is_dark):
             'extra_dark_css': """
             /* Dark theme enhancements */
             QPushButton {
-                background-color: #404040;
+                background-color: palette(button);
             }
             QPushButton:focus {
-                border-color: #FFECEE;
+                border-color: palette(highlight);
                 outline: none;
             }
             """

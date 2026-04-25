@@ -210,9 +210,9 @@ def show_find_results_dialog(main_window, title: str,
     for i in range(2, len(headers)):
         hdr.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
 
-    green = QColor(0, 160, 0)
-    red   = QColor(180, 0, 0)
-    grey  = QColor(120, 120, 120)
+    green = QColor(0,160,0)  # semantic: valid
+    red   = QColor(180,0,0)  # semantic: invalid
+    grey  = self._get_ui_color('viewport_text')
 
     for row, data in enumerate(results):
         for col, val in enumerate(data):

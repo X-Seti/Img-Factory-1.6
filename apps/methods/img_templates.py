@@ -318,7 +318,7 @@ class TemplateManagerDialog(QDialog):
         font.setBold(True)
         header.setFont(font)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #2E7D32; margin: 10px;")
+        header.setStyleSheet("color: palette(windowText); margin: 10px;")
         layout.addWidget(header)
         
         # Template list

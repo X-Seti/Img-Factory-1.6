@@ -210,12 +210,12 @@ class NewIMGDialog(QDialog):
             
             # No project folder set
             self.project_info_label.setText("⚠️ No project folder set in settings")
-            self.project_info_label.setStyleSheet("color: #ff9800; font-size: 9pt;")
+            self.project_info_label.setStyleSheet("color: palette(windowText); font-size: 9pt;")
             
         except Exception as e:
             print(f"❌ Error loading project folder: {e}")
             self.project_info_label.setText("❌ Error loading project folder")
-            self.project_info_label.setStyleSheet("color: #f44336; font-size: 9pt;")
+            self.project_info_label.setStyleSheet("color: palette(windowText); font-size: 9pt;")
     
     def _browse_output_path(self):
         """Browse for output path"""

@@ -81,9 +81,9 @@ def apply_universal_status_theme(status_bar, app_settings):
             # Fallback to basic styling if no theme colors available
             status_bar.setStyleSheet("""
                 QStatusBar {
-                    background-color: #f0f0f0;
-                    border-top: 1px solid #d0d0d0;
-                    color: #333333;
+                    background-color: palette(window);
+                    border-top: 1px solid palette(mid);
+                    color: palette(windowText);
                 }
                 QStatusBar::item {
                     border: none;
@@ -94,9 +94,9 @@ def apply_universal_status_theme(status_bar, app_settings):
         # Build stylesheet using universal theme colors
         stylesheet = f"""
             QStatusBar {{
-                background-color: {colors.get('bg_secondary', '#f8f9fa')};
+                background-color: {colors.get('bg_secondary', 'palette(base)')};
                 border-top: 1px solid {colors.get('border', '#dee2e6')};
-                color: {colors.get('text_secondary', '#495057')};
+                color: {colors.get('text_secondary', 'palette(windowText)')};
                 font-size: 9pt;
             }}
             
@@ -106,39 +106,39 @@ def apply_universal_status_theme(status_bar, app_settings):
             }}
             
             QLabel {{
-                color: {colors.get('text_secondary', '#495057')};
+                color: {colors.get('text_secondary', 'palette(windowText)')};
                 padding: 2px 4px;
             }}
             
             QProgressBar {{
-                border: 1px solid {colors.get('border', '#dee2e6')};
+                border: 1px solid {colors.get('border', 'palette(mid)')};
                 border-radius: 2px;
-                background-color: {colors.get('bg_tertiary', '#e9ecef')};
+                background-color: {colors.get('bg_tertiary', 'palette(alternateBase)')};
                 text-align: center;
                 min-width: 100px;
                 max-height: 16px;
             }}
             
             QProgressBar::chunk {{
-                background-color: {colors.get('accent_primary', '#1976d2')};
+                background-color: {colors.get('accent_primary', 'palette(highlight)')};
                 border-radius: 1px;
             }}
             
             QPushButton {{
-                background-color: {colors.get('button_normal', '#e0e0e0')};
-                border: 1px solid {colors.get('border', '#cccccc')};
+                background-color: {colors.get('button_normal', 'palette(mid)')};
+                border: 1px solid {colors.get('border', 'palette(mid)')};
                 border-radius: 2px;
                 padding: 2px 6px;
-                color: {colors.get('text_primary', '#000000')};
+                color: {colors.get('text_primary', 'palette(windowText)')};
                 font-size: 8pt;
             }}
             
             QPushButton:hover {{
-                background-color: {colors.get('button_hover', '#d0d0d0')};
+                background-color: {colors.get('button_hover', 'palette(mid)')};
             }}
             
             QPushButton:pressed {{
-                background-color: {colors.get('button_pressed', '#c0c0c0')};
+                background-color: {colors.get('button_pressed', 'palette(mid)')};
             }}
         """
         
@@ -149,9 +149,9 @@ def apply_universal_status_theme(status_bar, app_settings):
         # Apply basic fallback styling
         status_bar.setStyleSheet("""
             QStatusBar {
-                background-color: #f0f0f0;
-                border-top: 1px solid #d0d0d0;
-                color: #333333;
+                background-color: palette(window);
+                border-top: 1px solid palette(mid);
+                color: palette(windowText);
             }
             QStatusBar::item {
                 border: none;

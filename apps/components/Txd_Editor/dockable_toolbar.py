@@ -57,8 +57,10 @@ class _EdgeOverlay(QWidget):
         p = QPainter(self)
         w, h = self.width(), self.height()
         T = EDGE_THICKNESS
-        accent  = QColor(30, 144, 255, 130)
-        outline = QColor(30, 144, 255, 200)
+        accent  = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(30,144,255)
+        accent.setAlpha(130) if not hasattr(self,'_get_ui_color') else None
+        outline = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(30,144,255)
+        if not hasattr(self,'_get_ui_color'): outline.setAlpha(200)
         bands = {
             SNAP_TOP:    QRect(0,     0,     w, T),
             SNAP_BOTTOM: QRect(0,     h-T,   w, T),
@@ -69,7 +71,8 @@ class _EdgeOverlay(QWidget):
         p.fillRect(band, accent)
         p.setPen(QPen(outline, 2))
         p.drawRect(band.adjusted(1, 1, -1, -1))
-        p.setPen(QPen(QColor(255, 255, 255, 200), 1))
+        _tc = self._get_ui_color('text_primary') if hasattr(self,'_get_ui_color') else QColor(255,255,255)
+        p.setPen(QPen(_tc, 1))
         labels = {SNAP_TOP:'▼ Top', SNAP_BOTTOM:'▲ Bottom',
                   SNAP_LEFT:'▶ Left', SNAP_RIGHT:'◀ Right'}
         p.drawText(band, Qt.AlignmentFlag.AlignCenter, labels[self._zone])
@@ -116,7 +119,7 @@ class _GripHandle(QPushButton):
         # Use palette foreground so grip is theme-aware (light/dark)
         c = self.palette().color(self.foregroundRole())
         if not c.isValid():
-            c = QColor(190, 190, 190)
+            c = self._get_ui_color('viewport_text') if hasattr(self,'_get_ui_color') else QColor(190,190,190)
         p.setBrush(QBrush(c))
         w, h = self.width(), self.height()
         cx, cy = w // 2, h // 2
@@ -206,7 +209,7 @@ class _FloatWindow(QWidget):
         lo.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
         lo.addWidget(content)
 
-        self.setStyleSheet("background:#1e1e24; border:1px solid #555;")
+        self.setStyleSheet("background:#1e1e24; border:1px solid palette(mid);")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.adjustSize()
         self.move(initial_global - QPoint(self.width() // 2, self.height() // 2))

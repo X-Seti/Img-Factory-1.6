@@ -62,7 +62,7 @@ def _build_tab_stylesheet(height, min_width, style, theme_colors): #vers 1
         border-bottom: none;
     }}
     QTabBar::tab:hover:!selected {{
-        background: {theme_colors.get('bg_tertiary', '#e0e0e0')};
+        background: {theme_colors.get('bg_tertiary', 'palette(mid)')};
     }}
     """
 

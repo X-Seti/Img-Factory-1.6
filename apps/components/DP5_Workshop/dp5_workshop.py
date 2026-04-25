@@ -830,8 +830,8 @@ class DP5SettingsDialog(QDialog):
             lbl_short = label[:6]
             btn.setText(lbl_short)
             btn.setStyleSheet(
-                "QPushButton { font-size: 8px; color: #aaa; "
-                "background: #2a2a2a; border: 1px solid #555; "
+                "QPushButton { font-size: 8px; color: palette(mid); "
+                "background: palette(base); border: 1px solid palette(mid); "
                 "padding-top: 2px; } "
                 "QPushButton:checked { background: #1a3a1a; border: 1px solid #4a4; }"
             )
@@ -2254,7 +2254,7 @@ class PaletteGrid(QWidget):
             if i == self._selected and cs >= 4:
                 p.setPen(QPen(QColor(0, 0, 0), 1))
                 p.drawRect(x, y, cs - 2, cs - 2)
-                p.setPen(QPen(QColor(255, 255, 255), 1))
+                p.setPen(QPen(self._get_ui_color('viewport_bg'), 1))
                 p.drawRect(x + 1, y + 1, cs - 4, cs - 4)
 
     #    Mouse                                                                  
@@ -2332,7 +2332,7 @@ class _AutoCellPaletteGrid(PaletteGrid):
                 from PyQt6.QtGui import QPen
                 p.setPen(QPen(QColor(0, 0, 0), 1))
                 p.drawRect(x, y, cs - 2, cs - 2)
-                p.setPen(QPen(QColor(255, 255, 255), 1))
+                p.setPen(QPen(self._get_ui_color('viewport_bg'), 1))
                 p.drawRect(x + 1, y + 1, cs - 4, cs - 4)
 
     def mousePressEvent(self, e):
@@ -2450,7 +2450,7 @@ class FGBGSwatch(QWidget):
         # BG rect (outer, slightly offset toward bottom-right)
         bg_r = QRect(gap, gap, w - gap - pad, h - gap - pad)
         p.fillRect(bg_r, self._bg)
-        p.setPen(QPen(QColor(160, 160, 160), 1))
+        p.setPen(QPen(self._get_ui_color('viewport_text'), 1))
         p.drawRect(bg_r)
 
         # FG rect (inner, offset toward top-left)
@@ -2523,7 +2523,7 @@ class _CanvasTextOverlay(QWidget):
         self._edit.setMinimumWidth(120)
         self._edit.returnPressed.connect(self._commit)
         self._edit.setStyleSheet(
-            "QLineEdit { background:#1a1a1a; color:#ffffff; border:1px solid #00aaff;"
+            "QLineEdit { background:palette(base); color:palette(buttonText); border:1px solid #00aaff;"
             " padding:2px 4px; font-size:11px; }")
 
         self._size_spin = QSpinBox()
@@ -2531,13 +2531,13 @@ class _CanvasTextOverlay(QWidget):
         self._size_spin.setValue(12)
         self._size_spin.setFixedWidth(44)
         self._size_spin.setToolTip("Font size (px)")
-        self._size_spin.setStyleSheet("QSpinBox { background:#1a1a1a; color:#fff; border:1px solid #555; }")
+        self._size_spin.setStyleSheet("QSpinBox { background:palette(base); color:#fff; border:1px solid palette(mid); }")
 
         ok_btn = QPushButton("✓")
         ok_btn.setFixedSize(22, 22)
         ok_btn.clicked.connect(self._commit)
-        ok_btn.setStyleSheet("QPushButton { background:#004488; color:#fff; border:none; }"
-                             "QPushButton:hover { background:#0066cc; }")
+        ok_btn.setStyleSheet("QPushButton { background:palette(highlight); color:#fff; border:none; }"
+                             "QPushButton:hover { background:palette(highlight); }")
         esc_btn = QPushButton("✕")
         esc_btn.setFixedSize(22, 22)
         esc_btn.clicked.connect(self.close)
@@ -4205,8 +4205,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         # Permanent right-side info labels
         self._status_size_lbl  = QLabel("320×256")
         self._status_depth_lbl = QLabel("RGBA32")
-        self._status_size_lbl.setStyleSheet("padding: 0 6px; color: #aaa;")
-        self._status_depth_lbl.setStyleSheet("padding: 0 6px; color: #aaa;")
+        self._status_size_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
+        self._status_depth_lbl.setStyleSheet("padding: 0 6px; color: palette(mid);")
         self._status_bar.addPermanentWidget(self._status_depth_lbl)
         self._status_bar.addPermanentWidget(self._status_size_lbl)
         layout.addWidget(self._status_bar)
@@ -4897,7 +4897,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for _ in range(12):
             b = QPushButton()
             b.setFixedSize(12, 12)
-            b.setStyleSheet("background:#222; border:1px solid #555;")
+            b.setStyleSheet("background:#222; border:1px solid palette(mid);")
             b.setEnabled(False)
             hist_row.addWidget(b)
             self._color_hist_btns.append(b)
@@ -5203,13 +5203,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for i, btn in enumerate(self._color_hist_btns):
             if i < len(self._color_history):
                 col = self._color_history[i]
-                btn.setStyleSheet(f"background:{col}; border:1px solid #555;")
+                btn.setStyleSheet(f"background:{col}; border:1px solid palette(mid);")
                 btn.setEnabled(True)
                 btn.setToolTip(col)
                 btn.clicked.disconnect() if btn.receivers(btn.clicked) > 0 else None
                 btn.clicked.connect(lambda _, hc=col: self._fgbg_swatch.set_fg(QColor(hc)))
             else:
-                btn.setStyleSheet("background:#222; border:1px solid #555;")
+                btn.setStyleSheet("background:#222; border:1px solid palette(mid);")
                 btn.setEnabled(False)
 
     def _on_bg_changed(self, c: QColor):
@@ -8100,7 +8100,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 if pm:
                     p.drawPixmap(0, 22, pm)
                 else:
-                    p.fillRect(0, 22, sz, sz, QColor(20, 20, 30))
+                    p.fillRect(0, 22, sz, sz, self._get_ui_color('viewport_bg'))
                 # Border
                 p.setPen(QPen(QColor(80, 80, 120), 1))
                 p.drawRect(0, 0, sz - 1, sz + 22 - 1)
@@ -10006,7 +10006,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         preview_lbl = QLabel("Preview")
         preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         preview_lbl.setFixedSize(128, 128)
-        preview_lbl.setStyleSheet("border:1px solid #444; background:#222;")
+        preview_lbl.setStyleSheet("border:1px solid palette(mid); background:#222;")
         vl.addWidget(preview_lbl)
 
         # Resize
@@ -10362,7 +10362,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         pm.fill(QColor(200, 200, 200))
         p = QPainter(pm)
 
-        alt = QColor(160, 160, 160)
+        alt = self._get_ui_color('viewport_text')
         for y in range(0, h, size):
             for x in range(0, w, size):
                 if (x//size + y//size) % 2:
@@ -10649,7 +10649,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         from PyQt6.QtCore import QTimer
         strip = QWidget()
         strip.setFixedHeight(64)
-        strip.setStyleSheet("background:#1a1a1a;")
+        strip.setStyleSheet("background:palette(base);")
         hl = QHBoxLayout(strip)
         hl.setContentsMargins(4, 2, 4, 2)
         hl.setSpacing(4)
@@ -10660,8 +10660,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             b.setFixedSize(28, 28)
             b.setToolTip(tip)
             b.clicked.connect(slot)
-            b.setStyleSheet("QPushButton{background:#333;color:#eee;border:1px solid #555;border-radius:3px;}"
-                            "QPushButton:hover{background:#555;}")
+            b.setStyleSheet("QPushButton{background:#333;color:palette(windowText);border:1px solid palette(mid);border-radius:3px;}"
+                            "QPushButton:hover{background:palette(mid);}")
             return b
 
         hl.addWidget(tbtn("|◀", "First frame",    self._anim_first))
@@ -10678,19 +10678,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
         # FPS
         fps_lbl = QLabel("FPS:")
-        fps_lbl.setStyleSheet("color:#aaa; font-size:11px;")
+        fps_lbl.setStyleSheet("color:palette(mid); font-size:11px;")
         self._anim_fps_spin = QSpinBox()
         self._anim_fps_spin.setRange(1, 60)
         self._anim_fps_spin.setValue(self.dp5_settings.get('anim_fps'))
         self._anim_fps_spin.setFixedWidth(52)
-        self._anim_fps_spin.setStyleSheet("background:#333;color:#eee;border:1px solid #555;")
+        self._anim_fps_spin.setStyleSheet("background:#333;color:palette(windowText);border:1px solid palette(mid);")
         hl.addWidget(fps_lbl)
         hl.addWidget(self._anim_fps_spin)
         hl.addSpacing(6)
 
         # Frame counter
         self._anim_frame_lbl = QLabel("Frame 1/1")
-        self._anim_frame_lbl.setStyleSheet("color:#aaa; font-size:11px; min-width:70px;")
+        self._anim_frame_lbl.setStyleSheet("color:palette(mid); font-size:11px; min-width:70px;")
         hl.addWidget(self._anim_frame_lbl)
 
         # Frame thumbnail scroll
@@ -11526,7 +11526,7 @@ class _CharFontEditor(QDialog):
         right.addWidget(QLabel("Preview:"))
         self._preview = QLabel()
         self._preview.setFixedSize(64,64)
-        self._preview.setStyleSheet("background:#000; border:1px solid #555;")
+        self._preview.setStyleSheet("background:#000; border:1px solid palette(mid);")
         right.addWidget(self._preview)
         right.addStretch()
         close_btn = QPushButton("Close")
@@ -11721,7 +11721,7 @@ class _CharGrid(QWidget):
                 bit = bool(self._data[row] & (0x80>>col)) if row<len(self._data) else False
                 p.fillRect(x, y, self.CELL-1, self.CELL-1,
                            QColor(0,220,0) if bit else QColor(20,20,20))
-                p.setPen(QPen(QColor(60,60,60)))
+                p.setPen(QPen(self._get_ui_color('bg_secondary')))
                 p.drawRect(x, y, self.CELL-1, self.CELL-1)
 
 

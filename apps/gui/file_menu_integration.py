@@ -552,7 +552,7 @@ def handle_project_settings(main_window): #vers 2
         
         gta_override_label = QLabel("When enabled, allows setting any folder as GTA root without checking for standard game files (gta_sa.exe, gta_vc.exe, etc.)")
         gta_override_label.setWordWrap(True)
-        gta_override_label.setStyleSheet("font-size: 8pt; color: #666666; margin-top: 5px;")
+        gta_override_label.setStyleSheet("font-size: 8pt; color: palette(mid); margin-top: 5px;")
         
         override_layout.addWidget(gta_override_checkbox)
         override_layout.addWidget(gta_override_label)

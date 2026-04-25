@@ -35,7 +35,7 @@ class COLPreviewGenerator:
     
     def __init__(self): #vers 1
         """Initialize preview generator with default settings"""
-        self.bg_color = QColor(30, 30, 30)
+        self.bg_color = self._get_ui_color('viewport_bg') if hasattr(self,'_get_ui_color') else QColor(30,30,30)
         self.mesh_color = QColor(0, 255, 0)
         self.wireframe_color = QColor(100, 255, 100)
         self.sphere_color = QColor(0, 200, 255)

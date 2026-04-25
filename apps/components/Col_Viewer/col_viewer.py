@@ -72,8 +72,8 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget): #vers 1
         self.drag_button = Qt.MouseButton.NoButton
         
         # Theme colors
-        self.bg_color = QColor(42, 42, 42)
-        self.grid_color = QColor(80, 80, 80)
+        self.bg_color = self._get_ui_color('viewport_bg')
+        self.grid_color = self._get_ui_color('text_secondary')
         self.mesh_color = QColor(100, 150, 255)
         self.bounds_color = QColor(255, 255, 0)
         self.sphere_color = QColor(255, 100, 100)

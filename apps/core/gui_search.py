@@ -514,11 +514,11 @@ class ASearchDialog(QDialog):
         table = self._get_table(mw)
         if table is None:
             self.result_lbl.setText("No IMG table visible — open an IMG file first")
-            self.result_lbl.setStyleSheet("color: #cc4444; font-style: italic;")
+            self.result_lbl.setStyleSheet("color: palette(placeholderText); font-style: italic;")
             return
         if table.rowCount() == 0:
             self.result_lbl.setText("Table is empty — no entries loaded")
-            self.result_lbl.setStyleSheet("color: #cc8800; font-style: italic;")
+            self.result_lbl.setStyleSheet("color: palette(placeholderText); font-style: italic;")
             return
 
         text    = self.search_input.text().strip()
@@ -580,10 +580,10 @@ class ASearchDialog(QDialog):
             self.result_lbl.setStyleSheet("font-style: italic; color: palette(mid);")
         elif visible:
             self.result_lbl.setText(f"Showing {visible} of {total} entries")
-            self.result_lbl.setStyleSheet("color: #44aa44; font-weight: bold;")
+            self.result_lbl.setStyleSheet("color: palette(windowText); font-weight: bold;")
         else:
             self.result_lbl.setText(f"No matches in {total} entries")
-            self.result_lbl.setStyleSheet("color: #cc4444; font-weight: bold;")
+            self.result_lbl.setStyleSheet("color: palette(windowText); font-weight: bold;")
 
         has_nav = len(matches) > 1
         self.prev_btn.setEnabled(has_nav)

@@ -881,14 +881,14 @@ class IMGFactoryGUILayoutCustom(IMGFactoryGUILayout):
         ok_btn = QPushButton("OK")
         ok_btn.setStyleSheet("""
             QPushButton {
-                background: #0078d4;
+                background: palette(highlight);
                 color: white;
                 padding: 8px 20px;
                 font-weight: bold;
                 font-size: 11px;
             }
             QPushButton:hover {
-                background: #1984d8;
+                background: palette(highlight);
             }
         """)
         ok_btn.setDefault(True)
@@ -2956,22 +2956,22 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
         # Amiga Workbench styling
         dialog.setStyleSheet("""
             QDialog {
-                background-color: #aaaaaa;
-                border: 2px solid #ffffff;
+                background-color: palette(placeholderText);
+                border: 2px solid palette(buttonText);
             }
             QLabel {
-                color: #000000;
-                background-color: #aaaaaa;
+                color: palette(windowText);
+                background-color: palette(placeholderText);
             }
             QPushButton {
-                background-color: #8899aa;
-                color: #000000;
-                border: 2px outset #ffffff;
+                background-color: palette(midlight);
+                color: palette(windowText);
+                border: 2px outset palette(buttonText);
                 padding: 5px 15px;
                 min-width: 80px;
             }
             QPushButton:pressed {
-                border: 2px inset #555555;
+                border: 2px inset palette(mid);
             }
         """)
 

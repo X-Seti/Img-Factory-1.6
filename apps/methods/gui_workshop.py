@@ -195,7 +195,7 @@ class _CornerOverlay(QWidget):
                 self._app_settings.get_theme_colors()
                     .get("accent_primary", "#4682FF"))
         except Exception:
-            accent = QColor(70, 130, 255)
+            accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(70,130,255)
         accent.setAlpha(200)
         hc = QColor(accent); hc.setAlpha(255)
         w, h = self.width(), self.height()

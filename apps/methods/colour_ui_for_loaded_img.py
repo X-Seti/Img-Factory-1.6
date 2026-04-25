@@ -252,7 +252,7 @@ def show_file_window_color_selector(main_window):
                 btn.setText(f"✓ {theme_name}")
                 btn.setStyleSheet(btn.styleSheet() + f"""
                     QPushButton {{
-                        border: 4px solid #FFD700;
+                        border: 4px solid palette(highlight);
                         font-size: 11px;
                     }}
                 """)
@@ -327,7 +327,7 @@ def show_file_window_color_selector(main_window):
         apply_btn = QPushButton("✅ Apply Theme")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background-color: #22C55E;
+                background-color: palette(highlight);
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -336,7 +336,7 @@ def show_file_window_color_selector(main_window):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #16A34A;
+                background-color: palette(highlight);
             }
         """)
         
@@ -353,7 +353,7 @@ def show_file_window_color_selector(main_window):
         reset_btn = QPushButton("🔄 Reset to Light Pink")
         reset_btn.setStyleSheet("""
             QPushButton {
-                background-color: #F59E0B;
+                background-color: palette(button);
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -362,7 +362,7 @@ def show_file_window_color_selector(main_window):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #D97706;
+                background-color: palette(button);
             }
         """)
         
@@ -378,7 +378,7 @@ def show_file_window_color_selector(main_window):
         cancel_btn = QPushButton(" Cancel")
         cancel_btn.setStyleSheet("""
             QPushButton {
-                background-color: #EF4444;
+                background-color: palette(highlight);
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -387,7 +387,7 @@ def show_file_window_color_selector(main_window):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #DC2626;
+                background-color: palette(highlight);
             }
         """)
         cancel_btn.clicked.connect(dialog.reject)

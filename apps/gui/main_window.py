@@ -379,8 +379,8 @@ class IMGFactoryMainWindow(QMainWindow):
                 self.custom_title_bar.setFixedHeight(35)
                 self.custom_title_bar.setStyleSheet("""
                     QWidget {
-                        background-color: #2d2d30;
-                        border-bottom: 1px solid #3e3e42;
+                        background-color: palette(window);
+                        border-bottom: 1px solid palette(mid);
                     }
                 """)
 
@@ -396,7 +396,7 @@ class IMGFactoryMainWindow(QMainWindow):
                 settings_btn.setFixedHeight(28)
                 settings_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #4a7abc;
+                        background-color: palette(highlight);
                         color: white;
                         border: none;
                         border-radius: 3px;
@@ -404,7 +404,7 @@ class IMGFactoryMainWindow(QMainWindow):
                         font-size: 11px;
                     }
                     QPushButton:hover {
-                        background-color: #5a8acc;
+                        background-color: palette(highlight);
                     }
                 """)
                 settings_btn.clicked.connect(self._show_settings_dialog)
@@ -412,17 +412,17 @@ class IMGFactoryMainWindow(QMainWindow):
 
                 # Separator
                 sep1 = QLabel("|")
-                sep1.setStyleSheet("color: #555;")
+                sep1.setStyleSheet("color: palette(mid);")
                 layout.addWidget(sep1)
 
                 # Title
                 title_label = QLabel("Img Factory 1.6")
-                title_label.setStyleSheet("color: #cccccc; font-weight: bold; font-size: 12px;")
+                title_label.setStyleSheet("color: palette(mid); font-weight: bold; font-size: 12px;")
                 layout.addWidget(title_label)
 
                 # Separator
                 sep2 = QLabel("|")
-                sep2.setStyleSheet("color: #555;")
+                sep2.setStyleSheet("color: palette(mid);")
                 layout.addWidget(sep2)
 
                 # Action buttons
@@ -433,12 +433,12 @@ class IMGFactoryMainWindow(QMainWindow):
                 open_btn.setFixedSize(28, 28)
                 open_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #3e3e42;
+                        background-color: palette(mid);
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #505050;
+                        background-color: palette(midlight);
                     }
                 """)
                 layout.addWidget(open_btn)
@@ -450,12 +450,12 @@ class IMGFactoryMainWindow(QMainWindow):
                 save_btn.setFixedSize(28, 28)
                 save_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #3e3e42;
+                        background-color: palette(mid);
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #505050;
+                        background-color: palette(midlight);
                     }
                 """)
                 layout.addWidget(save_btn)
@@ -467,12 +467,12 @@ class IMGFactoryMainWindow(QMainWindow):
                 extract_btn.setFixedSize(28, 28)
                 extract_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #3e3e42;
+                        background-color: palette(mid);
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #505050;
+                        background-color: palette(midlight);
                     }
                 """)
                 layout.addWidget(extract_btn)
@@ -484,12 +484,12 @@ class IMGFactoryMainWindow(QMainWindow):
                 undo_btn.setFixedSize(28, 28)
                 undo_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #3e3e42;
+                        background-color: palette(mid);
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #505050;
+                        background-color: palette(midlight);
                     }
                 """)
                 layout.addWidget(undo_btn)
@@ -501,12 +501,12 @@ class IMGFactoryMainWindow(QMainWindow):
                 info_btn.setFixedSize(28, 28)
                 info_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #3e3e42;
+                        background-color: palette(mid);
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #505050;
+                        background-color: palette(midlight);
                     }
                 """)
                 layout.addWidget(info_btn)
@@ -519,13 +519,13 @@ class IMGFactoryMainWindow(QMainWindow):
                 minimize_btn.setFixedSize(28, 28)
                 minimize_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #3e3e42;
-                        color: #cccccc;
+                        background-color: palette(mid);
+                        color: palette(mid);
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #505050;
+                        background-color: palette(midlight);
                     }
                 """)
                 minimize_btn.clicked.connect(self.showMinimized)
@@ -535,13 +535,13 @@ class IMGFactoryMainWindow(QMainWindow):
                 maximize_btn.setFixedSize(28, 28)
                 maximize_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #3e3e42;
-                        color: #cccccc;
+                        background-color: palette(mid);
+                        color: palette(mid);
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #505050;
+                        background-color: palette(midlight);
                     }
                 """)
                 maximize_btn.clicked.connect(self._toggle_maximize)
@@ -551,13 +551,13 @@ class IMGFactoryMainWindow(QMainWindow):
                 close_btn.setFixedSize(28, 28)
                 close_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #bc5a5a;
+                        background-color: palette(highlight);
                         color: white;
                         border: none;
                         border-radius: 3px;
                     }
                     QPushButton:hover {
-                        background-color: #dd6a6a;
+                        background-color: palette(highlight);
                     }
                 """)
                 close_btn.clicked.connect(self.close)

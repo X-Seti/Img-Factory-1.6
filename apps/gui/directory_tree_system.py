@@ -174,44 +174,44 @@ class DirectoryTreeWidget(QWidget):
             # Use theme colors for styling
             tree_style = f"""
                 QTreeWidget {{
-                    background-color: {theme_colors.get('bg_secondary', '#ffffff')};
-                    color: {theme_colors.get('text_primary', '#333333')};
+                    background-color: {theme_colors.get('bg_secondary', 'palette(buttonText)')};
+                    color: {theme_colors.get('text_primary', 'palette(windowText)')};
                     font-size: 13px;
                     font-family: 'Segoe UI', Arial, sans-serif;
-                    border: 1px solid {theme_colors.get('border', '#cccccc')};
+                    border: 1px solid {theme_colors.get('border', 'palette(mid)')};
                     outline: none;
-                    selection-background-color: {theme_colors.get('accent_primary', '#FFECEE')};
-                    alternate-background-color: {theme_colors.get('bg_tertiary', '#f0f0f0')};
+                    selection-background-color: {theme_colors.get('accent_primary', 'palette(highlight)')};
+                    alternate-background-color: {theme_colors.get('bg_tertiary', 'palette(window)')};
                 }}
                 QTreeWidget::item {{
                     padding: 4px;
                     border: none;
-                    color: {theme_colors.get('text_primary', '#333333')};
+                    color: {theme_colors.get('text_primary', 'palette(windowText)')};
                     min-height: 20px;
                 }}
                 QTreeWidget::item:hover {{
-                    background-color: {theme_colors.get('button_hover', '#e8e8e8')};
-                    color: {theme_colors.get('text_primary', '#333333')};
+                    background-color: {theme_colors.get('button_hover', 'palette(button)')};
+                    color: {theme_colors.get('text_primary', 'palette(windowText)')};
                 }}
                 QTreeWidget::item:selected {{
-                    background-color: {theme_colors.get('accent_primary', '#FFECEE')};
-                    color: #ffffff;
+                    background-color: {theme_colors.get('accent_primary', 'palette(highlight)')};
+                    color: palette(buttonText);
                 }}
                 QTreeWidget::item:selected:hover {{
-                    background-color: {theme_colors.get('accent_secondary', '#FFECEE')};
-                    color: #ffffff;
+                    background-color: {theme_colors.get('accent_secondary', 'palette(highlight)')};
+                    color: palette(buttonText);
                 }}
                 QTreeWidget::branch {{
                     background-color: transparent;
                 }}
                 QTreeWidget::branch:hover {{
-                    background-color: {theme_colors.get('button_hover', '#e8e8e8')};
+                    background-color: {theme_colors.get('button_hover', 'palette(button)')};
                 }}
                 QHeaderView::section {{
-                    background-color: {theme_colors.get('panel_bg', '#f5f5f5')};
-                    color: {theme_colors.get('text_primary', '#333333')};
+                    background-color: {theme_colors.get('panel_bg', 'palette(window)')};
+                    color: {theme_colors.get('text_primary', 'palette(windowText)')};
                     padding: 6px;
-                    border: 1px solid {theme_colors.get('border', '#cccccc')};
+                    border: 1px solid {theme_colors.get('border', 'palette(mid)')};
                     font-weight: bold;
                 }}
             """
@@ -263,14 +263,14 @@ class DirectoryTreeWidget(QWidget):
             # Simple fallback styling
             fallback_style = """
                 QTreeWidget {
-                    background-color: #fafafa;
-                    color: #333333;
+                    background-color: palette(base);
+                    color: palette(windowText);
                     font-size: 13px;
                     font-family: 'Segoe UI', Arial, sans-serif;
-                    border: 1px solid #cccccc;
+                    border: 1px solid palette(mid);
                     outline: none;
-                    selection-background-color: #FFECEE;
-                    alternate-background-color: #f0f0f0;
+                    selection-background-color: palette(highlight);
+                    alternate-background-color: palette(window);
                 }
                 QTreeWidget::item {
                     padding: 4px;
@@ -278,17 +278,17 @@ class DirectoryTreeWidget(QWidget):
                     min-height: 20px;
                 }
                 QTreeWidget::item:hover {
-                    background-color: #e8e8e8;
+                    background-color: palette(button);
                 }
                 QTreeWidget::item:selected {
-                    background-color: #FFECEE;
-                    color: #ffffff;
+                    background-color: palette(highlight);
+                    color: palette(buttonText);
                 }
                 QHeaderView::section {
-                    background-color: #f5f5f5;
-                    color: #333333;
+                    background-color: palette(window);
+                    color: palette(windowText);
                     padding: 6px;
-                    border: 1px solid #cccccc;
+                    border: 1px solid palette(mid);
                     font-weight: bold;
                 }
             """

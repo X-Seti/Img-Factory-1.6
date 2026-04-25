@@ -322,7 +322,7 @@ class ZoomablePreview(QLabel): #Example
 
         self.setMinimumSize(400, 400)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet("border: 1px solid #3a3a3a;")
+        self.setStyleSheet("border: 1px solid palette(mid);")
         self.setMouseTracking(True)
         self.zoom_level = 1.0
         #self.zoom_in()
@@ -699,12 +699,12 @@ class GUIWorkshop(QWidget): #ver 1
         self.info_btn.setStyleSheet("""
             QPushButton {
                 font-weight: bold;
-                background-color: #4a4a4a;
-                border: 1px solid #5a5a5a;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
             }
             QPushButton:hover {
-                background-color: #5a5a5a;
+                background-color: palette(mid);
             }
         """)
         self.info_btn.setIconSize(QSize(self.buticonsizex, self.buticonsizey))
@@ -740,12 +740,12 @@ class GUIWorkshop(QWidget): #ver 1
         self.dock_btn.setStyleSheet("""
             QPushButton {
                 font-weight: bold;
-                background-color: #4a4a4a;
-                border: 1px solid #5a5a5a;
+                background-color: palette(mid);
+                border: 1px solid palette(mid);
                 border-radius: 3px;
             }
             QPushButton:hover {
-                background-color: #5a5a5a;
+                background-color: palette(mid);
             }
         """)
         self.dock_btn.clicked.connect(self.toggle_dock_mode)
@@ -762,12 +762,12 @@ class GUIWorkshop(QWidget): #ver 1
             self.tearoff_btn.setStyleSheet("""
                 QPushButton {
                     font-weight: bold;
-                    background-color: #4a4a4a;
-                    border: 1px solid #5a5a5a;
+                    background-color: palette(mid);
+                    border: 1px solid palette(mid);
                     border-radius: 3px;
                 }
                 QPushButton:hover {
-                    background-color: #5a5a5a;
+                    background-color: palette(mid);
                 }
             """)
             layout.addWidget(self.tearoff_btn)
@@ -849,18 +849,18 @@ class GUIWorkshop(QWidget): #ver 1
             QGroupBox {
                 font-weight: bold;
                 font-size: 14px;
-                border: 1px solid #3a3a3a;
+                border: 1px solid palette(mid);
                 border-radius: 1px;
                 margin-top: 10px;
                 padding-top: 10px;
-                background-color: #2b2b2b;
+                background-color: palette(base);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top right;
                 right: 20px;
                 padding: 0 5px;
-                color: #e0e0e0;
+                color: palette(mid);
             }
         """)
         layout = QVBoxLayout(panel)
@@ -920,7 +920,7 @@ class GUIWorkshop(QWidget): #ver 1
         self.info_name.setText("Click to edit...")
         self.info_name.setFont(self.panel_font)
         self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: px; border: 1px solid #3a3a3a;")
+        self.info_name.setStyleSheet("padding: px; border: 1px solid palette(mid);")
         #self.info_name.returnPressed.connect(self._save_surface_name)
         #self.info_name.editingFinished.connect(self._save_surface_name)
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
@@ -1652,7 +1652,7 @@ class GUIWorkshop(QWidget): #ver 1
             "Note: PLACEholder." #TODO
         )
         compat_label.setWordWrap(True)
-        compat_label.setStyleSheet("padding: 10px; background-color: #3a3a3a; border-radius: 4px;")
+        compat_label.setStyleSheet("padding: 10px; background-color: palette(mid); border-radius: 4px;")
         export_layout.addWidget(compat_label)
 
         export_layout.addStretch()
@@ -2346,7 +2346,7 @@ class GUIWorkshop(QWidget): #ver 1
         apply_btn = QPushButton("Apply Settings")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background: #0078d4;
+                background: palette(highlight);
                 color: white;
                 padding: 10px 24px;
                 font-weight: bold;
@@ -2354,7 +2354,7 @@ class GUIWorkshop(QWidget): #ver 1
                 font-size: 13px;
             }
             QPushButton:hover {
-                background: #1984d8;
+                background: palette(highlight);
             }
         """)
 
@@ -2393,8 +2393,8 @@ class GUIWorkshop(QWidget): #ver 1
         preview.setFixedSize(preview_size, preview_size)
         preview.setStyleSheet("""
             QLabel {
-                background: #0a0a0a;
-                border: 2px solid #3a3a3a;
+                background: palette(base);
+                border: 2px solid palette(mid);
                 border-radius: 3px;
             }
         """)
@@ -2433,7 +2433,7 @@ class GUIWorkshop(QWidget): #ver 1
         level_badge = QLabel(f"Level {level_num}")
         level_badge.setStyleSheet("""
             QLabel {
-                background: #0d47a1;
+                background: palette(highlight);
                 color: white;
                 padding: 4px 12px;
                 border-radius: 3px;
@@ -2446,13 +2446,13 @@ class GUIWorkshop(QWidget): #ver 1
         width = level_data.get('width', 0)
         height = level_data.get('height', 0)
         dim_label = QLabel(f"{width} x {height}")
-        dim_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #4a9eff;")
+        dim_label.setStyleSheet("font-size: 16px; font-weight: bold; color: palette(windowText);")
         header_layout.addWidget(dim_label)
 
         # Main indicator
         if level_num == 0:
             main_badge = QLabel("Main Surface")
-            main_badge.setStyleSheet("color: #4caf50; font-size: 12px;")
+            main_badge.setStyleSheet("color: palette(windowText); font-size: 12px;")
             header_layout.addWidget(main_badge)
 
         header_layout.addStretch()
@@ -2500,7 +2500,7 @@ class GUIWorkshop(QWidget): #ver 1
         stat = QFrame()
         stat.setStyleSheet("""
             QFrame {
-                background: #252525;
+                background: palette(base);
                 border-radius: 3px;
                 padding: 6px 10px;
             }
@@ -2533,15 +2533,15 @@ class GUIWorkshop(QWidget): #ver 1
         export_btn = QPushButton("Export")
         export_btn.setStyleSheet("""
             QPushButton {
-                background: #2e5d2e;
-                border: 1px solid #3d7d3d;
+                background: palette(base);
+                border: 1px solid palette(mid);
                 color: white;
                 padding: 6px 12px;
                 border-radius: 3px;
                 font-size: 11px;
             }
             QPushButton:hover {
-                background: #3d7d3d;
+                background: palette(midlight);
             }
         """)
         export_btn.clicked.connect(lambda: self._export_level(level_num))
@@ -2551,15 +2551,15 @@ class GUIWorkshop(QWidget): #ver 1
         import_btn = QPushButton("Import")
         import_btn.setStyleSheet("""
             QPushButton {
-                background: #5d3d2e;
-                border: 1px solid #7d4d3d;
+                background: palette(base);
+                border: 1px solid palette(mid);
                 color: white;
                 padding: 6px 12px;
                 border-radius: 3px;
                 font-size: 11px;
             }
             QPushButton:hover {
-                background: #7d4d3d;
+                background: palette(midlight);
             }
         """)
         import_btn.clicked.connect(lambda: self._import_level(level_num))
@@ -2570,15 +2570,15 @@ class GUIWorkshop(QWidget): #ver 1
             edit_btn = QPushButton("Edit")
             edit_btn.setStyleSheet("""
                 QPushButton {
-                    background: #3a3a3a;
-                    border: 1px solid #4a4a4a;
+                    background: palette(mid);
+                    border: 1px solid palette(mid);
                     color: white;
                     padding: 6px 12px;
                     border-radius: 3px;
                     font-size: 11px;
                 }
                 QPushButton:hover {
-                    background: #4a4a4a;
+                    background: palette(mid);
                 }
             """)
             edit_btn.clicked.connect(self._edit_main_surface)
@@ -2587,15 +2587,15 @@ class GUIWorkshop(QWidget): #ver 1
             delete_btn = QPushButton("Delete")
             delete_btn.setStyleSheet("""
                 QPushButton {
-                    background: #5d2e2e;
-                    border: 1px solid #7d3d3d;
+                    background: palette(base);
+                    border: 1px solid palette(mid);
                     color: white;
                     padding: 6px 12px;
                     border-radius: 3px;
                     font-size: 11px;
                 }
                 QPushButton:hover {
-                    background: #7d3d3d;
+                    background: palette(midlight);
                 }
             """)
             delete_btn.clicked.connect(lambda: self._delete_level(level_num))
@@ -2841,12 +2841,12 @@ class GUIWorkshop(QWidget): #ver 1
                 # Fallback dark theme
                 self.setStyleSheet("""
                     QWidget {
-                        background-color: #2b2b2b;
-                        color: #e0e0e0;
+                        background-color: palette(base);
+                        color: palette(mid);
                     }
                     QListWidget, QTableWidget, QTextEdit {
-                        background-color: #1e1e1e;
-                        border: 1px solid #3a3a3a;
+                        background-color: palette(base);
+                        border: 1px solid palette(mid);
                     }
                 """)
         except Exception as e:
@@ -3786,7 +3786,7 @@ class GUIWorkshop(QWidget): #ver 1
         """Set checkerboard background"""
         # Create checkerboard pattern
         self.preview_widget.setStyleSheet("""
-            border: 1px solid #3a3a3a;
+            border: 1px solid palette(mid);
             background-image:
                 linear-gradient(45deg, #333 25%, transparent 25%),
                 linear-gradient(-45deg, #333 25%, transparent 25%),

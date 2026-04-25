@@ -312,7 +312,7 @@ class IDEDialog(QDialog):
             # Update UI with results
             self.analysis_text.setText(self.ide_parser.get_summary())
             self.status_label.setText(self.ide_parser.get_status_text())
-            self.status_label.setStyleSheet("color: #2e7d32; font-weight: bold;")
+            self.status_label.setStyleSheet("color: palette(windowText); font-weight: bold;")
             
             # Update relationships view
             self.update_relationships_view()
@@ -323,7 +323,7 @@ class IDEDialog(QDialog):
         else:
             # Show error
             self.status_label.setText("❌ IDE parsing failed")
-            self.status_label.setStyleSheet("color: #d32f2f; font-weight: bold;")
+            self.status_label.setStyleSheet("color: palette(windowText); font-weight: bold;")
             QMessageBox.critical(self, "Parsing Error", message)
             
     def update_relationships_view(self): #vers 1

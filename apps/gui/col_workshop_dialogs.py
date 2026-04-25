@@ -63,7 +63,7 @@ class COLLoadProgressDialog(QDialog): #vers 1
         self.warnings_text = QTextEdit()
         self.warnings_text.setReadOnly(True)
         self.warnings_text.setMaximumHeight(80)
-        self.warnings_text.setStyleSheet("QTextEdit { color: #ff6b6b; }")
+        self.warnings_text.setStyleSheet("QTextEdit { color: palette(windowText); }")
         layout.addWidget(self.warnings_text)
         
         # Cancel button

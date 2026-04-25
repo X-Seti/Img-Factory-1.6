@@ -101,7 +101,7 @@ class HexEditorDialog(QDialog):
             QTextEdit {
                 font-family: 'Courier New', monospace;
                 font-size: 10pt;
-                background-color: #f0f0f0;
+                background-color: palette(window);
                 border: 1px solid #ccc;
             }
         """)
@@ -115,7 +115,7 @@ class HexEditorDialog(QDialog):
             QTextEdit {
                 font-family: 'Courier New', monospace;
                 font-size: 10pt;
-                background-color: #f8f8f8;
+                background-color: palette(base);
                 border: 1px solid #ccc;
             }
         """)
@@ -127,7 +127,7 @@ class HexEditorDialog(QDialog):
             QTextEdit {
                 font-family: 'Courier New', monospace;
                 font-size: 10pt;
-                background-color: #f0f0f0;
+                background-color: palette(window);
                 border: 1px solid #ccc;
             }
         """)

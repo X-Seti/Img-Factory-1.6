@@ -1169,7 +1169,7 @@ class ObjectEditDialog(QDialog):
         preview_layout = QVBoxLayout(preview_group)
         
         self.preview_label = QLabel()
-        self.preview_label.setStyleSheet("font-family: monospace; background: #f0f0f0; padding: 5px;")
+        self.preview_label.setStyleSheet("font-family: monospace; background: palette(window); padding: 5px;")
         preview_layout.addWidget(self.preview_label)
         
         layout.addWidget(preview_group)

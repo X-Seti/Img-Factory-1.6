@@ -1495,7 +1495,7 @@ class AIWorkshop(QWidget):
             label.setStyleSheet(f"color: {colors.get('success', '#4caf50')};")
         else:
             label.setText("● Stopped")
-            label.setStyleSheet(f"color: {colors.get('text_secondary', '#aaaaaa')};")
+            label.setStyleSheet(f"color: {colors.get('text_secondary', 'palette(placeholderText)')};")
 
     def _start_web_server(self):
         """Start the FastAPI web server in a daemon thread."""
@@ -2019,9 +2019,9 @@ class AIWorkshop(QWidget):
                         f"color: {secondary}; font-style: italic;")
             else:
                 self.setStyleSheet("""
-                    QWidget { background-color: #2b2b2b; color: #e0e0e0; }
-                    QTextEdit, QListWidget { background-color: #1e1e1e; border: 1px solid #3a3a3a; }
-                    QGroupBox { border: 1px solid #3a3a3a; margin-top: 6px; }
+                    QWidget { background-color: palette(base); color: palette(mid); }
+                    QTextEdit, QListWidget { background-color: palette(base); border: 1px solid palette(mid); }
+                    QGroupBox { border: 1px solid palette(mid); margin-top: 6px; }
                 """)
             # Redraw chat bubbles with updated theme colours
             self._redraw_chat()
@@ -2235,7 +2235,7 @@ class AIWorkshop(QWidget):
             colors = self.app_settings.get_theme_colors()
             accent = QColor(colors.get('accent_primary', '#1976d2'))
         else:
-            accent = QColor(100, 150, 255)
+            accent = self._get_ui_color('accent_primary') if hasattr(self,'_get_ui_color') else QColor(100, 150, 255)
         accent.setAlpha(180)
         hover = QColor(accent); hover.setAlpha(255)
         w, h, size = self.width(), self.height(), self.corner_size
