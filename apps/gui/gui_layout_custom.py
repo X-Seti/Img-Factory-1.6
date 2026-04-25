@@ -199,8 +199,15 @@ def _show_intro_panel(mw): #vers 3
         # Build first time
         if ws is None:
             from apps.components.Img_Factory.welcome_screen import WelcomeScreen
-            tab_w = getattr(mw, 'main_tab_widget', None) or mw
-            ws = WelcomeScreen(main_window=mw, parent=tab_w)
+
+            # Parent to file_window (covers full content area incl. left_stack panels)
+            # Fallback chain: gui_layout.file_window -> main_tab_widget -> mw
+            gl = getattr(mw, 'gui_layout', None)
+            overlay_parent = (getattr(gl, 'file_window', None)
+                              or getattr(mw, 'main_tab_widget', None)
+                              or mw)
+
+            ws = WelcomeScreen(main_window=mw, parent=overlay_parent)
             ws.setWindowFlags(
                 __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.WindowType.Widget)
 
@@ -227,18 +234,19 @@ def _show_intro_panel(mw): #vers 3
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(500, _connect_workshops)
 
-            # Install resize event filter on tab_w so overlay tracks it
-            _filt = _IntroResizeFilter(ws, tab_w)
-            tab_w.installEventFilter(_filt)
+            # Install resize event filter on overlay_parent so overlay tracks it
+            _filt = _IntroResizeFilter(ws, overlay_parent)
+            overlay_parent.installEventFilter(_filt)
             ws._resize_filter = _filt   # keep reference alive
+            ws._overlay_parent = overlay_parent
 
             mw._intro_panel = ws
 
         ws = mw._intro_panel
-        tab_w = getattr(mw, 'main_tab_widget', None) or mw
+        overlay_parent = getattr(ws, '_overlay_parent', None) or getattr(mw, 'main_tab_widget', None) or mw
 
-        # Fill the entire tab area
-        ws.setGeometry(0, 0, tab_w.width(), tab_w.height())
+        # Fill the entire overlay parent area
+        ws.setGeometry(0, 0, overlay_parent.width(), overlay_parent.height())
         ws.raise_()
         ws.show()
 
