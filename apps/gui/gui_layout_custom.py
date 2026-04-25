@@ -64,13 +64,14 @@ def _get_left_stack(mw):
     return getattr(gl, 'left_stack', None), getattr(gl, 'content_splitter', None)
 
 
-def _ensure_left_panel_visible(mw, splitter, left_stack):
+def _ensure_left_panel_visible(mw, splitter, left_stack, wide=False):
     """Show left_stack in splitter if currently hidden."""
     sizes = splitter.sizes()
     total = sum(sizes) or 10000
     left_size = sizes[0] if len(sizes) > 1 else 0
     if left_size < total * 0.10:
-        splitter.setSizes([total // 3, total * 2 // 3])
+        want = min(450 if wide else total // 3, total * 2 // 3)
+        splitter.setSizes([want, total - want])
     left_stack.show()
 
 
@@ -222,7 +223,7 @@ def _show_intro_panel(mw): #vers 4
                 mw.log_message("Intro hidden")
         else:
             left_stack.setCurrentIndex(2)
-            _ensure_left_panel_visible(mw, splitter, left_stack)
+            _ensure_left_panel_visible(mw, splitter, left_stack, wide=True)
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar._set_exclusive_active('intro')
             if hasattr(mw, 'log_message'):

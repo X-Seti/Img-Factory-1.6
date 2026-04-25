@@ -62,7 +62,7 @@ class WelcomeCard(QFrame):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(90)
+        self.setFixedHeight(80)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._title_lbl = None
         self._desc_lbl  = None
@@ -182,7 +182,8 @@ class WelcomeScreen(QWidget):
         # Hero banner — reads accent/bg colours from app_settings theme so it
         # works on both light and dark themes without going invisible.
         hero = QFrame()
-        hero.setFixedHeight(80)
+        hero.setMinimumHeight(60)
+        hero.setMaximumHeight(80)
 
         _hero_bg  = '#1a1a2e'   # safe dark fallback
         _hero_txt = '#ffffff'
@@ -350,9 +351,16 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-    def _build_quickstart_tab(self): #vers 3
+    def _build_quickstart_tab(self): #vers 4
+        # Outer scroll area so content doesn't overflow when panel is short
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(
+            __import__('PyQt6.QtCore', fromlist=['Qt']).Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
         w = QWidget()
-        lay = QVBoxLayout(w); lay.setContentsMargins(20, 16, 20, 16); lay.setSpacing(14)
+        lay = QVBoxLayout(w); lay.setContentsMargins(12, 12, 12, 12); lay.setSpacing(10)
 
         self._resolve_card_colors(w)
 
@@ -417,7 +425,9 @@ class WelcomeScreen(QWidget):
             f"QLabel {{ background: {_tip_bg}; border: 1px solid {_tip_bdr}; "
             f"color: {_tip_txt}; border-radius: 4px; padding: 8px 12px; }}")
         lay.addWidget(tip)
-        return w
+        lay.addStretch()
+        scroll.setWidget(w)
+        return scroll
 
     def _build_functions_tab(self): #vers 1
         w = QWidget()
