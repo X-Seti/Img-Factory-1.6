@@ -451,6 +451,15 @@ class ToolTaskbar(QWidget):  # vers 2
                 splitter.setSizes([total, 0])
             if hasattr(mw, '_dirtree_state'):
                 mw._dirtree_state = 0
+        elif key in ("dat", "intro"):
+            # Left-stack panels — just collapse, don't destroy
+            gl = getattr(mw, "gui_layout", None)
+            left_stack = getattr(gl, "left_stack", None)
+            splitter = getattr(gl, "content_splitter", None)
+            if left_stack and splitter:
+                total = sum(splitter.sizes()) or 10000
+                splitter.setSizes([0, total])
+                left_stack.hide()
         elif isinstance(t, QWidget):
             try:
                 _ = t.isVisible()
@@ -459,14 +468,21 @@ class ToolTaskbar(QWidget):  # vers 2
                     for i in range(tw.count()):
                         try:
                             if tw.widget(i) is t or t in tw.widget(i).findChildren(QWidget):
-                                tw.removeTab(i)
+                                # Use close_tab so menu + taskbar sync properly
+                                if hasattr(mw, 'close_tab'):
+                                    mw.close_tab(i)
+                                else:
+                                    tw.removeTab(i)
+                                # Remove injected tool menu
+                                if hasattr(mw, '_update_tool_menu_for_tab'):
+                                    mw._update_tool_menu_for_tab(None)
                                 break
                         except RuntimeError:
                             continue
                     else:
                         t.close()
-                else:
-                    t.close()
+                        if hasattr(mw, '_update_tool_menu_for_tab'):
+                            mw._update_tool_menu_for_tab(None)
             except RuntimeError:
                 pass
         self.unregister(key)

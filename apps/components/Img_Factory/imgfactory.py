@@ -1421,6 +1421,15 @@ class IMGFactory(QMainWindow):
                 idx = self.main_tab_widget.addTab(tab_container, "DP5 Paint")
 
             self.main_tab_widget.setCurrentIndex(idx)
+            # Wire workshop close to unregister taskbar button
+            def _on_dp5_closed(tidx=idx):
+                try:
+                    if hasattr(self, 'tool_taskbar'):
+                        self.tool_taskbar.unregister('dp5')
+                    self._update_tool_menu_for_tab(None)
+                except Exception:
+                    pass
+            workshop.window_closed.connect(_on_dp5_closed)
             workshop.show()
             self._ensure_tab_area_visible()
 
