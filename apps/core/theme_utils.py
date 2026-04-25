@@ -86,6 +86,18 @@ def build_dialog_stylesheet(colors: dict) -> str:
     fg_acc   = colors.get("text_accent",           "#0066cc")
     acc      = colors.get("accent_primary",        "#0078d4")
     brd      = colors.get("border",                "#cccccc")
+    # Handle style — 4 types: line, gradient, dots, invisible
+    _hstyle  = colors.get("handle_style", "line")
+    _hcol    = colors.get("handle_color",  brd)
+    _hsize   = colors.get("handle_size",   "4")
+    if _hstyle == "gradient":
+        handle_css = f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 transparent, stop:0.5 {_hcol}, stop:1 transparent); width: {_hsize}px;"
+    elif _hstyle == "dots":
+        handle_css = f"background: {_hcol}; width: {_hsize}px; border-top: 2px dotted {acc}; border-bottom: 2px dotted {acc};"
+    elif _hstyle == "invisible":
+        handle_css = f"background: transparent; width: {_hsize}px;"
+    else:  # line (default)
+        handle_css = f"background: {_hcol}; width: {_hsize}px;"
     btn_n    = colors.get("button_normal",         "#e0e0e0")
     btn_h    = colors.get("button_hover",          "#d0d0d0")
     btn_p    = colors.get("button_pressed",        "#b1b1b1")
@@ -287,12 +299,12 @@ def build_dialog_stylesheet(colors: dict) -> str:
             color: {fg};
         }}
 
-        /*    Splitter                                                    */
+        /*    Splitter handles — style from theme handle_style key         */
         QSplitter::handle {{
-            background-color: {brd};
+            {handle_css}
         }}
         QSplitter::handle:hover {{
-            background-color: {acc};
+            background-color: {acc}; opacity: 0.8;
         }}
 
         /*    Scrollbars                                                  */

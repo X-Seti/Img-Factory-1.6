@@ -75,7 +75,12 @@
     "disabled_text": "#777777",
     "panel_primary": "#e5e7e8",
     "viewport_bg": "#f8f8f8",
-    "viewport_text": "#666666"
+    "viewport_text": "#666666",
+    "titlebar_bg": "#f1f3f4",
+    "titlebar_text": "#212529",
+    "handle_style": "line",
+    "handle_color": "#dee2e6",
+    "handle_size": "4"
   },
   "hero_gradient_dark_start": "#1a1a2e",
   "hero_gradient_dark_end": "#2d2d5e",

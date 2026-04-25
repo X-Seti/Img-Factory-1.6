@@ -731,12 +731,13 @@ class DATBrowserWidget(QWidget): #vers 2
             return pal.color(pal.ColorRole.Mid)
         return pal.color(pal.ColorRole.WindowText)
 
-    def _setup_ui(self): #vers 2
-        # Ensure opaque background using panel_bg from theme
+    def _setup_ui(self): #vers 3
+        # Ensure opaque background — prevents content bleeding from widgets beneath
         self.setAutoFillBackground(True)
         from PyQt6.QtCore import Qt as _Qt
         self.setAttribute(_Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
-        # Let Qt palette drive the background — theme-aware
+        self.setAttribute(_Qt.WidgetAttribute.WA_StyledBackground, True)
+        # Apply palette background immediately before any child widgets render
         self._apply_theme_stylesheet()
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)

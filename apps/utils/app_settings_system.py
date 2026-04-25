@@ -1840,6 +1840,27 @@ class AppSettings:
         accent_secondary = colors.get('accent_secondary', '#0A7Ad4')
         border = colors.get('border', '#cccccc')
 
+        # Handle style — 4 types: line, gradient, dots, invisible
+        cs = getattr(self, 'current_settings', {})
+        _hstyle = colors.get('handle_style', cs.get('handle_style', 'line'))
+        _hcol   = colors.get('handle_color',  cs.get('handle_color',  border))
+        _hsize  = colors.get('handle_size',   cs.get('handle_size',   '4'))
+        _hide_docked = cs.get('handle_hide_docked', False)
+        if _hide_docked:
+            _hstyle = 'invisible'
+        if _hstyle == 'gradient':
+            handle_h_css = f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 transparent,stop:0.5 {_hcol},stop:1 transparent); width:{_hsize}px;"
+            handle_v_css = f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 transparent,stop:0.5 {_hcol},stop:1 transparent); height:{_hsize}px;"
+        elif _hstyle == 'dots':
+            handle_h_css = f"background:{_hcol}; width:{_hsize}px; border-left:2px dotted {accent_primary}; border-right:2px dotted {accent_primary};"
+            handle_v_css = f"background:{_hcol}; height:{_hsize}px; border-top:2px dotted {accent_primary}; border-bottom:2px dotted {accent_primary};"
+        elif _hstyle == 'invisible':
+            handle_h_css = f"background:transparent; width:{_hsize}px;"
+            handle_v_css = f"background:transparent; height:{_hsize}px;"
+        else:  # line (default)
+            handle_h_css = f"background-color:{_hcol}; width:{_hsize}px;"
+            handle_v_css = f"background-color:{_hcol}; height:{_hsize}px;"
+
         # Table/List alternating rows - use table_row_odd or alternate_row as fallback
         alternate_row = colors.get('table_row_odd', colors.get('alternate_row', '#f5f5f5'))
         table_row_even = colors.get('table_row_even', bg_primary)
@@ -2221,15 +2242,13 @@ class AppSettings:
         }}
 
         QSplitter::handle:horizontal {{
-            background-color: {border};
-            width: 4px;
+            {handle_h_css}
         }}
         QSplitter::handle:horizontal:hover {{
             background-color: {accent_primary};
         }}
         QSplitter::handle:vertical {{
-            background-color: {border};
-            height: 4px;
+            {handle_v_css}
         }}
         QSplitter::handle:vertical:hover {{
             background-color: {accent_primary};
@@ -2908,6 +2927,11 @@ class AppSettings:
                 'toolbar_bg': '#fafafa',
                 'viewport_bg': '#ffffff',
                 'viewport_text': '#808080',
+                'titlebar_bg': '#f0f0f0',
+                'titlebar_text': '#000000',
+                'handle_style': 'line',
+                'handle_color': '#cccccc',
+                'handle_size': '4',
             }
 
             # Merge defaults with theme colors (theme colors take priority)
@@ -2964,6 +2988,11 @@ class AppSettings:
             'toolbar_bg': '#fafafa',
             'viewport_bg': '#ffffff',
             'viewport_text': '#808080',
+            'titlebar_bg': '#f0f0f0',
+            'titlebar_text': '#000000',
+            'handle_style': 'line',
+            'handle_color': '#cccccc',
+            'handle_size': '4',
         }
 
 
@@ -2994,6 +3023,8 @@ class AppSettings:
             'success':       QColor(76, 175, 80),
             'warning':       QColor(255, 152, 0),
             'border':        QColor(200, 200, 200),
+            'titlebar_bg':   QColor(240, 240, 240),
+            'titlebar_text': QColor(0, 0, 0),
         }
         return fallbacks.get(key, QColor(128, 128, 128))
 
@@ -5565,6 +5596,29 @@ class SettingsDialog(QDialog): #vers 15
         grip_layout.addWidget(self.splitter_show_grip)
         grip_layout.addStretch()
         splitter_layout.addLayout(grip_layout)
+
+        # Handle Style — 4 types
+        hs_layout = QHBoxLayout()
+        hs_layout.addWidget(QLabel("Handle Style:"))
+        self.handle_style_combo = QComboBox()
+        self.handle_style_combo.addItems(["line", "gradient", "dots", "invisible"])
+        cs_now = getattr(self, 'current_settings', {})
+        self.handle_style_combo.setCurrentText(cs_now.get('handle_style', 'line'))
+        self.handle_style_combo.currentTextChanged.connect(self._update_gadget_preview)
+        self.handle_style_combo.currentTextChanged.connect(
+            lambda v: self.current_settings.update({'handle_style': v}))
+        hs_layout.addWidget(self.handle_style_combo, 1)
+        splitter_layout.addLayout(hs_layout)
+
+        # Hide handles when docked
+        hd_layout = QHBoxLayout()
+        self.handle_hide_docked = QCheckBox("Hide handles when docked")
+        self.handle_hide_docked.setChecked(cs_now.get('handle_hide_docked', False))
+        self.handle_hide_docked.stateChanged.connect(
+            lambda v: self.current_settings.update({'handle_hide_docked': bool(v)}))
+        hd_layout.addWidget(self.handle_hide_docked)
+        hd_layout.addStretch()
+        splitter_layout.addLayout(hd_layout)
 
         scroll_layout.addWidget(splitter_group)
 

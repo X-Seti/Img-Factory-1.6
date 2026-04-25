@@ -120,7 +120,12 @@
     "disabled_text": "#777777",
     "panel_primary": "#313340",
     "viewport_bg": "#1e1e2e",
-    "viewport_text": "#888888"
+    "viewport_text": "#888888",
+    "titlebar_bg": "#1f212e",
+    "titlebar_text": "#f7f7f7",
+    "handle_style": "line",
+    "handle_color": "#114969",
+    "handle_size": "4"
   },
   "created": "2025-08-12 00:04",
   "menus": {
