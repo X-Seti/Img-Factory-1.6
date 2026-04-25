@@ -2349,7 +2349,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sl.addWidget(sw_lbl)
 
         self._fg_color = QColor(255, 255, 255)
-        self._bg_color = QColor(0, 0, 0)
+        _win = self.palette().color(self.palette().ColorRole.Window)
+        self._bg_color = QColor(255, 255, 255) if _win.lightness() > 128 else QColor(0, 0, 0)
 
         self._fg_btn = QPushButton()
         self._fg_btn.setFixedSize(72, 18)

@@ -225,8 +225,8 @@ class WelcomeScreen(QWidget):
         except Exception:
             pass
 
-        #hero.setStyleSheet(
-         #   f"QFrame {{ background: {_hero_bg}; border-bottom: 2px solid {_hero_sub}; }}")
+        hero.setStyleSheet(
+            f"QFrame {{ background: {_hero_bg}; border-bottom: 2px solid {_hero_sub}; }}")
         hl = QHBoxLayout(hero); hl.setContentsMargins(24, 0, 24, 0)
         AppBuildLabel = (f"{App_name} - Build {App_build}")
         title_lbl = QLabel(" " + AppBuildLabel)
@@ -254,8 +254,10 @@ class WelcomeScreen(QWidget):
         # Bottom bar — show on startup checkbox + dismiss
         bot = QFrame()
         bot.setFixedHeight(40)
+        _bot_bg = 'palette(window)'
+        _bot_txt = 'palette(windowText)'
         bot.setStyleSheet(
-            "QFrame { border-top: 1px solid palette(mid); background: palette(window); }")
+            f"QFrame {{ border-top: 1px solid palette(mid); background: {_bot_bg}; color: {_bot_txt}; }}")
         bl = QHBoxLayout(bot); bl.setContentsMargins(16, 6, 16, 6); bl.setSpacing(12)
 
         self._show_cb = QCheckBox("Show on startup")

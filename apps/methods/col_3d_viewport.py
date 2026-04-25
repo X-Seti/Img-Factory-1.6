@@ -105,7 +105,8 @@ class COL3DViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self.drag_button = Qt.MouseButton.NoButton
         
         # Professional theme colors (matching reference editor)
-        self.bg_color = QColor(30, 40, 50)
+        _win = self.palette().color(self.palette().ColorRole.Window)
+        self.bg_color = QColor(245, 245, 245) if _win.lightness() > 128 else QColor(30, 40, 50)
         self.grid_color = QColor(60, 70, 80)
         self.mesh_color = QColor(200, 200, 200)
         self.wireframe_color = QColor(100, 150, 200)

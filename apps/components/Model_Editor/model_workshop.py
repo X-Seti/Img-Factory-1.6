@@ -1737,7 +1737,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._overlay_opacity = 50
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
-        self.background_color = QColor(42, 42, 42)
+        _win = self.palette().color(self.palette().ColorRole.Window)
+        self.background_color = QColor(245, 245, 245) if _win.lightness() > 128 else QColor(42, 42, 42)
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
         self.setMinimumSize(200, 200)
@@ -13443,8 +13444,9 @@ class ZoomablePreview(QLabel): #vers 2
         self.drag_start = QPoint(0, 0)
         self.drag_mode = None  # 'pan' or 'rotate'
 
-        # Background
-        self.bg_color = QColor(42, 42, 42)
+        # Background — theme-aware default
+        win = self.palette().color(self.palette().ColorRole.Window)
+        self.bg_color = QColor(245, 245, 245) if win.lightness() > 128 else QColor(42, 42, 42)
 
         self.placeholder_text = "Select a collision model to preview"
 
