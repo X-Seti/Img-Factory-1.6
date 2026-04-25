@@ -1,4 +1,21 @@
-#this belongs in root /ChangeLog.md - Version: 39
+#this belongs in root /ChangeLog.md - Version: 40
+
+## April 2026 — Standalone structure fixes, theme-aware colors
+
+**Standalone repo structure fixed:**
+- Col-Workshop: `col_dialogs.py`, `col_display.py`, `col_gui_integration.py` moved to `gui/`
+- Txd-Workshop: `depends/` removed, files moved to `methods/`; `txd_context_menu.py` to `gui/`
+- Model-Workshop: `col_dialogs.py` moved to `gui/`
+- Radar-Workshop: `_get_ui_color` added to all 4 widget classes
+
+**TODOs tracked (from audit):**
+- `gui_template.py`: missing SVG icons for Model/Spheres/Boxes/Mesh/Vertices tabs
+- `gui_template.py`: dock/tearoff buttons need SVG icons
+- `col_workshop.py`: COL save/export/import stubs not implemented
+- `txd_workshop.py`: bumpmap preview, format conversion stubs
+- `right_click_actions.py`: DFF/TXD edit/view actions not implemented
+- `shortcuts.py`: search/find/debug shortcuts not implemented
+- `model_workshop.py`: OBJ import/export not implemented
 
 ## April 2026 — TXD Workshop UI, DP5 Workshop major update, Bug fixes
 
