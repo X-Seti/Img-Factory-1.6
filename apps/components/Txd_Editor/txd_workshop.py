@@ -483,7 +483,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._invert_alpha = False
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
-        self.background_color = QColor(42, 42, 42)
+        self.background_color = self._get_ui_color('viewport_bg')
         self.background_mode = 'solid'
         self.placeholder_text = "No texture"
         self.setMinimumSize(200, 200)
@@ -18792,7 +18792,26 @@ class ZoomablePreview(QLabel): #vers 2
         self.update()  # Trigger repaint
 
 
+
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
+
     def _update_scaled_pixmap(self): #vers 1
+
         """Update the scaled pixmap based on zoom level"""
         if not self.original_pixmap:
             self.scaled_pixmap = None

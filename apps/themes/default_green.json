@@ -73,7 +73,9 @@
     "tooltip_text": "#ffffff",
     "placeholder_text": "#aaaaaa",
     "disabled_text": "#777777",
-    "panel_primary": "#e5ece5"
+    "panel_primary": "#e5ece5",
+    "viewport_bg": "#f8f8f8",
+    "viewport_text": "#666666"
   },
   "styles": {
     "button_shape": "Rounded",

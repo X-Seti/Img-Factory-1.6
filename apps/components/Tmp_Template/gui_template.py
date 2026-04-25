@@ -299,6 +299,23 @@ class PanPreview(QLabel): #Example
     pass
 
 class ZoomablePreview(QLabel): #Example
+
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
     # Zoom in and out for right preview panel
     def __init__(self, parent=None): #ver 1
         super().__init__(parent)
@@ -311,7 +328,7 @@ class ZoomablePreview(QLabel): #Example
         #self.zoom_in()
         #self.zoom_out()
         self.pan_offset = QPoint(0, 0)
-        self.bg_color = QColor(42, 42, 42)
+        self.bg_color = self._get_ui_color('viewport_bg')
         self.placeholder_text = "Select a model to preview"
         self.background_mode = 'solid'
         self._checkerboard_size = 16
@@ -324,7 +341,7 @@ class ZoomablePreview(QLabel): #Example
     def paintEvent(self, event): #ver 1
         painter = QPainter(self)
         painter.fillRect(self.rect(), self.bg_color)
-        painter.setPen(QColor(150, 150, 150))
+        painter.setPen(self._get_ui_color('viewport_text'))
         painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.placeholder_text)
 
 

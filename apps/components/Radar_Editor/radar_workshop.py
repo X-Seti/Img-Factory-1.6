@@ -473,6 +473,23 @@ class ImgReader:
 
 # - Radar grid widget
 class RadarGridWidget(QWidget):
+
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor from app_settings. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        return pal.color(pal.ColorRole.WindowText)
     """Full radar grid — no gaps, 1px grid lines, hover=tile name tooltip."""
     tile_clicked        = pyqtSignal(int)
     grid_right_clicked  = pyqtSignal(int, QPoint)   # idx, global pos
@@ -931,7 +948,7 @@ class RadarPaletteWidget(QWidget):
         total_rows = max(1, (len(self._colors) + total_cols - 1) // total_cols)
         used_h = total_rows * self.CELL
         if used_h < self.height():
-            p.fillRect(0, used_h, self.width(), self.height() - used_h, QColor(50, 50, 50))
+            p.fillRect(0, used_h, self.width(), self.height() - used_h, self._get_ui_color('viewport_bg'))
         p.end()
 
     def mouseMoveEvent(self, ev): #vers 1
@@ -1108,7 +1125,7 @@ class _BoredomPuzzle(QDialog):
             row = pos // self._cols
             x, y = col * cell, row * cell
             if pos == self._blank:
-                p.fillRect(x, y, cell, cell, QColor(40, 40, 40))
+                p.fillRect(x, y, cell, cell, self._get_ui_color('viewport_bg'))
                 continue
             src = self._pixmaps.get(tile_idx)
             if src:
@@ -2349,7 +2366,8 @@ class RadarWorkshop(ToolMenuMixin, QWidget): #vers 1
         sl.addWidget(sw_lbl)
 
         self._fg_color = QColor(255, 255, 255)
-        self._bg_color = QColor(0, 0, 0)
+        _win = self.palette().color(self.palette().ColorRole.Window)
+        self._bg_color = QColor(255, 255, 255) if _win.lightness() > 128 else QColor(0, 0, 0)
 
         self._fg_btn = QPushButton()
         self._fg_btn.setFixedSize(72, 18)

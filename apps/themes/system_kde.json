@@ -57,7 +57,9 @@
     "tooltip_text": "#ffffff",
     "placeholder_text": "#aaaaaa",
     "disabled_text": "#777777",
-    "panel_primary": "#e9e9e9"
+    "panel_primary": "#e9e9e9",
+    "viewport_bg": "#f8f8f8",
+    "viewport_text": "#666666"
   },
   "mui_settings": {
     "system_detected": true,

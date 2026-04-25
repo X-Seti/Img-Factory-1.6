@@ -2905,7 +2905,9 @@ class AppSettings:
                 'action_convert': '#f3e5f5',
                 'panel_entries': '#f0fdf4',
                 'panel_filter': '#fefce8',
-                'toolbar_bg': '#fafafa'
+                'toolbar_bg': '#fafafa',
+                'viewport_bg': '#ffffff',
+                'viewport_text': '#808080',
             }
 
             # Merge defaults with theme colors (theme colors take priority)
@@ -2959,8 +2961,40 @@ class AppSettings:
             'action_convert': '#f3e5f5',
             'panel_entries': '#f0fdf4',
             'panel_filter': '#fefce8',
-            'toolbar_bg': '#fafafa'
+            'toolbar_bg': '#fafafa',
+            'viewport_bg': '#ffffff',
+            'viewport_text': '#808080',
         }
+
+
+    def get_ui_color(self, key: str): #vers 1
+        """Return a QColor for a theme key. Use this instead of hardcoding QColor values.
+        Keys: viewport_bg, viewport_text, bg_primary, bg_secondary, text_primary,
+              text_secondary, accent_primary, border, error, success, warning, etc.
+        Falls back gracefully if app_settings or theme key is missing."""
+        from PyQt6.QtGui import QColor
+        try:
+            colors = self.get_theme_colors()
+            hex_val = colors.get(key)
+            if hex_val:
+                return QColor(hex_val)
+        except Exception:
+            pass
+        # Safe fallbacks for the most critical keys
+        fallbacks = {
+            'viewport_bg':   QColor(255, 255, 255),
+            'viewport_text': QColor(128, 128, 128),
+            'bg_primary':    QColor(255, 255, 255),
+            'bg_secondary':  QColor(240, 240, 240),
+            'text_primary':  QColor(0, 0, 0),
+            'text_secondary':QColor(80, 80, 80),
+            'accent_primary':QColor(0, 120, 212),
+            'border':        QColor(200, 200, 200),
+            'error':         QColor(244, 67, 54),
+            'success':       QColor(76, 175, 80),
+            'warning':       QColor(255, 152, 0),
+        }
+        return fallbacks.get(key, QColor(128, 128, 128))
 
 
     def get_stylesheet(self): #vers 4
