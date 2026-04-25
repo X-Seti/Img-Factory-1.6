@@ -1,6 +1,14 @@
-#this belongs in root /ChangeLog.md - Version: 38
+#this belongs in root /ChangeLog.md - Version: 39
 
 ## April 2026 — TXD Workshop UI, DP5 Workshop major update, Bug fixes
+
+**Theme icon refresh fixed (`gui_layout.py`):**
+- `refresh_icons #vers 3`: added missing `get_search_icon` and `get_tree_icon`
+  imports. Fixed `f_entries_btn` using `get_twin_panel_icon` instead of
+  `get_tree_icon` — icons now update correctly on dark/light theme switch.
+
+**app_settings_system synced from master (`apps/utils/app_settings_system.py`):**
+- Updated from v65 to v69 to match App-Settings-System repo.
 
 ### Build 324–335 — Menu system fixes, DP5 docked access, unified titlebar tool button
 
