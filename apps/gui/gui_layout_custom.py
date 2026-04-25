@@ -123,23 +123,23 @@ def _show_dir_tree(mw): #vers 2
             mw.log_message(f"Dir tree show error: {e}")
 
 
-def _show_dat_browser(mw): #vers 2
-    """Show DAT Panel in left stack — toggle collapse if already active."""
+def _show_dat_browser(mw): #vers 3
+    """Show DAT Browser in left stack — toggle collapse if already active."""
     try:
         left_stack, splitter = _get_left_stack(mw)
         if left_stack is None or splitter is None:
             return
 
-        # Create DAT Panel if needed
+        # dat_browser is created at startup by integrate_dat_browser in imgfactory.py
+        # Never recreate it here — just use the existing widget
         widget = getattr(mw, 'dat_browser', None)
         if widget is None:
-            from apps.components.Dat_Browser.dat_panel_widget import integrate_dat_panel
-            integrate_dat_panel(mw)
-            widget = getattr(mw, 'dat_browser', None)
-        if widget is None:
+            if hasattr(mw, 'log_message'):
+                mw.log_message("DAT Browser not yet initialised")
             return
 
-        # Insert dat browser into page 1 of left_stack
+        # Ensure it's in page 1 of left_stack (startup already does this,
+        # but guard in case of reparenting)
         if left_stack.widget(1) is not widget:
             old = left_stack.widget(1)
             left_stack.removeWidget(old)
