@@ -1853,12 +1853,12 @@ class AppSettings:
         grid = colors.get('grid', '#e0e0e0')
 
         # System ui - overrides
-        window_bg = colors.get('Window_Background', '#2b2b2b')
-        window_text = colors.get('window_text', '#ffffff')
-        base = colors.get('base', '#2b2b2b')
-        alternate_base = colors.get('alternate_base', '#3c3c3c')
-        tooltip_bg = colors.get('tooltip_ba', '#3c3c3c')
-        tooltip_text = colors.get('tooltip_text', '#ffffff')
+        window_bg = colors.get('window_bg', bg_primary)
+        window_text = colors.get('window_text', text_primary)
+        base = colors.get('base', bg_primary)
+        alternate_base = colors.get('alternate_base', bg_secondary)
+        tooltip_bg = colors.get('tooltip_bg', bg_secondary)
+        tooltip_text = colors.get('tooltip_text', text_primary)
         placeholder_text = colors.get('placeholder_text', '#aaaaaa')
         disabled_text = colors.get('disabled_text', '#777777')
 
