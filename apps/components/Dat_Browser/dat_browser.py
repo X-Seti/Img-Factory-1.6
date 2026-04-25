@@ -2843,9 +2843,12 @@ class DATBrowserWidget(QWidget): #vers 2
             btn.setMinimumWidth(28 if compact else 60)
             btn.setFixedWidth(28 if compact else btn.sizeHint().width() + 8)
 
-    def _toggle_db_panel(self): #vers 2
+    def _toggle_db_panel(self): #vers 3
+        if self._db_panel is None: return
         visible = self._db_panel.isVisible()
         self._db_panel.setVisible(not visible)
+        self._db_panel.repaint()
+        self._db_panel.raise_()
         self._db_btn.setChecked(not visible)
         if not visible:
             self._db_refresh_profile_list()

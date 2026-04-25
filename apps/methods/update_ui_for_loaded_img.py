@@ -1,4 +1,4 @@
-#this belongs in methods/update_ui_for_loaded_img.py - Version: 6
+#belongs in methods/update_ui_for_loaded_img.py -Version:7
 from apps.app_info import App_name, App_build
 # X-Seti - August13 2025 - IMG Factory 1.5 - UI Update for Loaded IMG - VISIBILITY FIXED
 
@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import QTableWidgetItem
 # update_ui_for_loaded_img
 # integrate_update_ui_for_loaded_img
 
-def update_ui_for_loaded_img(main_window): #vers 6
+def update_ui_for_loaded_img(main_window): #vers 7
     """Update UI when IMG file is loaded - FIXED VERSION WITH VISIBILITY"""
     try:
         if not hasattr(main_window, 'current_img') or not main_window.current_img:
@@ -64,17 +64,17 @@ def update_ui_for_loaded_img(main_window): #vers 6
         # VISIBILITY FIXES - Force all GUI components to be visible after loading
         if hasattr(main_window, 'gui_layout'):
             # Force main splitter visibility
-            if hasattr(main_window.gui_layout, 'main_splitter'):
+            if hasattr(main_window.gui_layout, 'main_splitter') and main_window.gui_layout.main_splitter is not None:
                 main_window.gui_layout.main_splitter.setVisible(True)
                 main_window.gui_layout.main_splitter.show()
             
             # Force left vertical splitter visibility  
-            if hasattr(main_window.gui_layout, 'left_vertical_splitter'):
+            if hasattr(main_window.gui_layout, 'left_vertical_splitter') and main_window.gui_layout.left_vertical_splitter is not None:
                 main_window.gui_layout.left_vertical_splitter.setVisible(True)
                 main_window.gui_layout.left_vertical_splitter.show()
             
             # Force tab widget visibility (CRITICAL - this was often hidden)
-            if hasattr(main_window.gui_layout, 'tab_widget'):
+            if hasattr(main_window.gui_layout, 'tab_widget') and main_window.gui_layout.tab_widget is not None:
                 tab_widget = main_window.gui_layout.tab_widget
                 tab_widget.setVisible(True)
                 tab_widget.show()
@@ -99,7 +99,7 @@ def update_ui_for_loaded_img(main_window): #vers 6
                     level += 1
             
             # Force log widget visibility
-            if hasattr(main_window.gui_layout, 'log'):
+            if hasattr(main_window.gui_layout, 'log') and main_window.gui_layout.log is not None:
                 main_window.gui_layout.log.setVisible(True)
                 main_window.gui_layout.log.show()
         

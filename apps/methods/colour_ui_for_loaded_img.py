@@ -1,4 +1,4 @@
-#this belongs in methods/colour_ui_for_loaded_img.py - Version: 3
+#belongs in methods/colour_ui_for_loaded_img.py -Version:4
 from apps.app_info import App_name, App_build
 # X-Seti - August05 2025 - IMG Factory 1.5 - UI Update for Loaded IMG
 
@@ -183,13 +183,13 @@ def apply_file_window_theme(main_window, theme_name: str = "Light Pink"):
                 main_window.app_settings.save_settings()
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"🎨 Applied '{theme_name}' theme to file window")
+            main_window.log_message(f" Applied '{theme_name}' theme to file window")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error applying theme '{theme_name}': {str(e)}")
+            main_window.log_message(f" Error applying theme '{theme_name}': {str(e)}")
         return False
 
 
@@ -197,7 +197,7 @@ def show_file_window_color_selector(main_window):
     """Show color theme selector dialog for file window"""
     try:
         dialog = QDialog(main_window)
-        dialog.setWindowTitle("🎨 File Window Color Theme")
+        dialog.setWindowTitle(" File Window Color Theme")
         dialog.setMinimumSize(600, 500)
         dialog.setModal(True)
         
@@ -343,7 +343,7 @@ def show_file_window_color_selector(main_window):
         def apply_and_close():
             apply_file_window_theme(main_window, selected_theme[0])
             if hasattr(main_window, 'log_message'):
-                main_window.log_message(f"🎨 File window theme changed to '{selected_theme[0]}'")
+                main_window.log_message(f" File window theme changed to '{selected_theme[0]}'")
             dialog.accept()
         
         apply_btn.clicked.connect(apply_and_close)
@@ -375,7 +375,7 @@ def show_file_window_color_selector(main_window):
         button_layout.addWidget(reset_btn)
         
         # Cancel button
-        cancel_btn = QPushButton("❌ Cancel")
+        cancel_btn = QPushButton(" Cancel")
         cancel_btn.setStyleSheet("""
             QPushButton {
                 background-color: #EF4444;
@@ -401,7 +401,7 @@ def show_file_window_color_selector(main_window):
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error showing color selector: {str(e)}")
+            main_window.log_message(f" Error showing color selector: {str(e)}")
         return False
 
 
@@ -432,7 +432,7 @@ def update_ui_for_loaded_img(main_window): #vers 7
                 apply_file_window_theme(main_window, saved_theme)
                 
                 if hasattr(main_window, 'log_message'):
-                    main_window.log_message(f"🎨 Color table populated with {len(main_window.current_img.entries)} entries ({saved_theme} theme)")
+                    main_window.log_message(f" Color table populated with {len(main_window.current_img.entries)} entries ({saved_theme} theme)")
                     
             except ImportError:
                 # Fallback to basic table setup
@@ -477,13 +477,13 @@ def update_ui_for_loaded_img(main_window): #vers 7
             main_window.statusBar().showMessage(f"Loaded: {file_name} ({entry_count} entries)")
 
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("🎨 IMG UI updated with enhanced color system")
+            main_window.log_message(" IMG UI updated with enhanced color system")
         
         return True
 
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error updating UI for loaded IMG: {str(e)}")
+            main_window.log_message(f" Error updating UI for loaded IMG: {str(e)}")
         return False
 
 
@@ -592,13 +592,13 @@ def integrate_color_ui_system(main_window): #vers 3
             main_window._current_file_window_theme = 'Light Pink'
         
         if hasattr(main_window, 'log_message'):
-            main_window.log_message("🎨 Enhanced color UI system integrated")
+            main_window.log_message(" Enhanced color UI system integrated")
         
         return True
         
     except Exception as e:
         if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"❌ Error integrating color UI system: {str(e)}")
+            main_window.log_message(f" Error integrating color UI system: {str(e)}")
         return False
 
 
