@@ -3943,10 +3943,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self.toolbar.setObjectName("titlebar")
         self.toolbar.installEventFilter(self)
         self.toolbar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.toolbar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.toolbar.setMouseTracking(True)
         self.titlebar = self.toolbar   # alias — drag detection uses self.titlebar
-        # gadgetbar_bg is applied via QFrame#titlebar rule in global stylesheet
-        # No per-widget setStyleSheet needed — theme engine handles it
+        # gadgetbar_bg applied via QFrame#titlebar rule in global stylesheet
 
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
