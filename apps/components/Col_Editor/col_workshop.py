@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 75
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 76
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -1576,7 +1576,19 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._overlay_opacity = 50
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
-        self.background_color = self._get_ui_color('viewport_bg')
+
+        #self.background_color = self._get_ui_color('viewport_bg') #crashes app
+
+        #TODO: error
+        """raceback (most recent call last):
+        File "/home/x2/Documents/GitHub/Img-Factory-1.6/./launch_col_workshop.py", line 32, in <module>
+            workshop = col_workshop.COLWorkshop()
+        File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/Col_Editor/col_workshop.py", line 1579, in __init__
+            self.background_color = self._get_ui_color('viewport_bg') #crashes app
+                                    ^^^^^^^^^^^^^^^^^^
+        AttributeError: 'COLWorkshop' object has no attribute '_get_ui_color'. Did you mean: '_get_icon_color'?
+        """
+
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
         self.setMinimumSize(200, 200)

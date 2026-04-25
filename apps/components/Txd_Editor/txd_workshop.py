@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in components/Txd_Editor/ txd_workshop.py - Version: 12
+#this belongs in components/Txd_Editor/ txd_workshop.py - Version: 14
 # X-Seti - October10 2025 - Img Factory 1.5 - TXD Workshop Header Update
 
 """
@@ -24,8 +24,6 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint, QRect, QByteArray
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QImage, QPainter, QPen, QBrush, QColor, QCursor
 from PyQt6.QtSvg import QSvgRenderer
 
-# Fallback to standalone depends folder
-from apps.gui.tool_menu_mixin import ToolMenuMixin
 from apps.methods.txd_versions import ( detect_txd_version, get_platform_name, get_game_from_version, get_version_capabilities, get_platform_capabilities, is_mipmap_supported, is_bumpmap_supported, validate_txd_format, TXDPlatform, detect_platform_from_data)
 
 from apps.methods.txd_versions import (detect_txd_version, get_version_string, get_platform_name, get_platform_capabilities, TXDPlatform, TXDVersion)
@@ -35,6 +33,7 @@ from apps.methods.txd_context_menu import setup_txd_context_menu
 
 
 from apps.debug.debug_functions import img_debugger
+from apps.gui.tool_menu_mixin import ToolMenuMixin
 
 try:
     from PIL import Image
@@ -483,7 +482,7 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._invert_alpha = False
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
-        self.background_color = self._get_ui_color('viewport_bg')
+        #self.background_color = self._get_ui_color('viewport_bg')
         self.background_mode = 'solid'
         self.placeholder_text = "No texture"
         self.setMinimumSize(200, 200)
@@ -1975,8 +1974,21 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Colors
+
+        #normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
+        #hover_color = self._get_ui_color('accent_primary'); hover_color.setAlpha(200)
+
+        #TODO: error
+        """
+        Warning: Missing modules in depends/: iff_import.py, indexed_color_import.py, txd_versions.py
+        Copy these from apps.methods. to: /home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/Txd_Editor/depends
+        Traceback (most recent call last):
+        File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/Txd_Editor/txd_workshop.py", line 1977, in paintEvent
         normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
-        hover_color = self._get_ui_color('accent_primary'); hover_color.setAlpha(200)
+                   ^^^^^^^^^^^^^^^^^^
+        AttributeError: 'TXDWorkshop' object has no attribute '_get_ui_color'
+        Aborted                    (core dumped) ./launch_txd_workshop.py
+        """
 
         w = self.width()
         h = self.height()
@@ -2997,17 +3009,30 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
         #    Background swatches at the end (checkerboard, black, grey, white)
         _btn('checkerboard_icon', 'Checkerboard',
              lambda: self.preview_widget.set_checkerboard_background())
-        for color, tip, qcol in [
-            ('black',   'Black Background',  QColor(0,   0,   0  )),
-            ('#2a2a2a', 'Gray Background',   self._get_ui_color('viewport_bg')),
-            ('white',   'White Background',  self._get_ui_color('viewport_bg')),
-        ]:
-            b = QPushButton()
-            b.setFixedSize(B, B)
-            b.setToolTip(tip)
-            b.setStyleSheet(f"background-color:{color}; border:1px solid palette(mid);")
-            b.clicked.connect(lambda c=False, q=qcol: self.preview_widget.set_background_color(q))
-            _all_btns.append(b)
+
+        #for color, tip, qcol in [
+        #    ('black',   'Black Background',  QColor(0,   0,   0  )),
+
+            #('#2a2a2a', 'Gray Background',   self._get_ui_color('viewport_bg')),
+            #('white',   'White Background',  self._get_ui_color('viewport_bg')),
+
+            #TODO error
+        """
+            Traceback (most recent call last):
+            File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/Txd_Editor/txd_workshop.py", line 1977, in paintEvent normal_color = self._get_ui_color('viewport_text'); normal_color.setAlpha(150)
+                   ^^^^^^^^^^^^^^^^^^
+            AttributeError: 'TXDWorkshop' object has no attribute '_get_ui_color'
+            Aborted                    (core dumped) ./launch_txd_workshop.py
+            [x2@events Img-Factory-1.6]$
+        """
+        #]:
+
+        #    b = QPushButton()
+        #    b.setFixedSize(B, B)
+        #    b.setToolTip(tip)
+        #    b.setStyleSheet(f"background-color:{color}; border:1px solid palette(mid);")
+        #    b.clicked.connect(lambda c=False, q=qcol: self.preview_widget.set_background_color(q))
+        #    _all_btns.append(b)
 
         # Store — no separator needed
         self._preview_ctrl_view_btns = _all_btns   # all in one flat list

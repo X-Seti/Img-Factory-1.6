@@ -2470,14 +2470,36 @@ class FGBGSwatch(QWidget):
         # BG rect (outer, slightly offset toward bottom-right)
         bg_r = QRect(gap, gap, w - gap - pad, h - gap - pad)
         p.fillRect(bg_r, self._bg)
-        p.setPen(QPen(self._get_ui_color('viewport_text'), 1))
+        #p.setPen(QPen(self._get_ui_color('viewport_text'), 1))
         p.drawRect(bg_r)
+
+        #TODO: error
+        """
+        Traceback (most recent call last):
+        File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/DP5_Workshop/dp5_workshop.py", line 2473, in paintEvent
+        p.setPen(QPen(self._get_ui_color('viewport_text'), 1))
+                  ^^^^^^^^^^^^^^^^^^
+        AttributeError: 'FGBGSwatch' object has no attribute '_get_ui_color'
+        Aborted                    (core dumped) ./launch_imgfactory.py
+        """
 
         # FG rect (inner, offset toward top-left)
         fg_r = QRect(pad, pad, w - gap - pad, h - gap - pad)
         p.fillRect(fg_r, self._fg)
-        p.setPen(QPen(self._get_ui_color('border'), 1))
+        #p.setPen(QPen(self._get_ui_color('border'), 1))
         p.drawRect(fg_r)
+
+        #TODO: error
+        """
+        Traceback (most recent call last):
+        File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/DP5_Workshop/dp5_workshop.py", line 2489, in paintEvent
+        p.setPen(QPen(self._get_ui_color('border'), 1))
+                  ^^^^^^^^^^^^^^^^^^
+        AttributeError: 'FGBGSwatch' object has no attribute '_get_ui_color'
+        Aborted                    (core dumped) ./launch_imgfactory.py
+        """
+
+        #TODO; When light theee is active, the paint Gadgets still show for dark themes.
 
     def _fg_rect(self) -> QRect:
         w, h = self.width(), self.height()

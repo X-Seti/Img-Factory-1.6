@@ -947,9 +947,12 @@ class RadarPaletteWidget(QWidget):
         total_cols = self._cols()
         total_rows = max(1, (len(self._colors) + total_cols - 1) // total_cols)
         used_h = total_rows * self.CELL
-        if used_h < self.height():
-            p.fillRect(0, used_h, self.width(), self.height() - used_h, self._get_ui_color('viewport_bg'))
-        p.end()
+
+        # this crashes the app.
+        #if used_h < self.height():
+            #p.fillRect(0, used_h, self.width(), self.height() - used_h, self._get_ui_color('viewport_bg'))
+            #p.fillRect(0, used_h, self.width(), self.height() - used_h)
+        #p.end()
 
     def mouseMoveEvent(self, ev): #vers 1
         idx = self._idx_at(ev.pos())
