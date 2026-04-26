@@ -132,7 +132,10 @@ class COL3DViewport(QWidget): #vers 2
         self._show_mesh    = True
         self._backface     = False
         self._render_style = 'semi'
-        self._bg_color     = (25, 25, 35)
+        # Theme-aware background — read from palette
+        _pal = self.palette()
+        _w   = _pal.color(_pal.ColorRole.Base)
+        self._bg_color = (_w.red(), _w.green(), _w.blue())
         # drag state
         self._left_drag    = None
         self._right_drag   = None
@@ -997,21 +1000,28 @@ class COL3DViewport(QWidget): #vers 2
             _ARW = 22   # arrow button width
             rx = W - _MAT_W - _MARGIN
             # ◀ prev button
-            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
+            # Theme-aware paint bar arrows
+            _pal    = self.palette()
+            _btn_bg = _pal.color(_pal.ColorRole.Button)
+            _btn_tx = _pal.color(_pal.ColorRole.ButtonText)
+            _acc    = _pal.color(_pal.ColorRole.Highlight)
+            _chip_c = _pal.color(_pal.ColorRole.Base)
+            _txt_c  = _pal.color(_pal.ColorRole.WindowText)
+            p.setBrush(QBrush(_btn_bg)); p.setPen(QPen(_acc, 1))
             p.drawRoundedRect(rx, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
-            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.setPen(_btn_tx); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
             p.drawText(rx+5, _ROW1_Y+17, "◀")
             # material name chip
-            p.setBrush(QBrush(QColor(20,20,40,220))); p.setPen(QPen(QColor(255,140,0),1))
+            p.setBrush(QBrush(_chip_c)); p.setPen(QPen(_acc, 1))
             p.drawRoundedRect(rx+_ARW+2, _ROW1_Y, _MAT_W-_ARW*2-4, _CHIP_H, 4, 4)
             p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
             p.drawRoundedRect(rx+_ARW+6, _ROW1_Y+4, _CHIP_H-8, _CHIP_H-8, 2, 2)
-            p.setPen(QColor(255,200,80)); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
+            p.setPen(_txt_c); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
             p.drawText(rx+_ARW+_CHIP_H+4, _ROW1_Y+17, f"{mat_id} — {mat_name[:20]}")
             # ▶ next button
-            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
+            p.setBrush(QBrush(_btn_bg)); p.setPen(QPen(_acc, 1))
             p.drawRoundedRect(rx+_MAT_W-_ARW, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
-            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.setPen(_btn_tx); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
             p.drawText(rx+_MAT_W-_ARW+4, _ROW1_Y+17, "▶")
 
             # Row 2: tool buttons using SVG icons via QIcon.paint()
