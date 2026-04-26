@@ -124,6 +124,8 @@ class _GripHandle(QPushButton):
             "QPushButton { background: palette(button); border: 1px solid palette(mid);"
             " border-radius: 3px; }"
             " QPushButton:hover { background: palette(highlight); color: palette(highlightedText); }")
+        self.setAttribute(__import__('PyQt6.QtCore', fromlist=['Qt']).Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -172,6 +174,13 @@ class _GripHandle(QPushButton):
         """Called by DockableToolbar.set_dock_position() to update icon orientation."""
         self._vertical = v
         self.update()   # repaint with correct ||> vs =v icon
+
+    def changeEvent(self, event): #vers 1
+        """Repaint grip when palette changes (theme switch)."""
+        super().changeEvent(event)
+        from PyQt6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self.update()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -292,6 +301,13 @@ class _FloatWindow(QWidget):
         return SNAP_NONE
 
     # Allow dragging the static float window anywhere (not just title bar)
+    def changeEvent(self, event): #vers 1
+        """Repaint grip when palette changes (theme switch)."""
+        super().changeEvent(event)
+        from PyQt6.QtCore import QEvent
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            self.update()
+
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
             self._start_drag(e.globalPosition().toPoint())
