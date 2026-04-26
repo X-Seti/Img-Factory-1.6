@@ -960,21 +960,28 @@ class COL3DViewport(QWidget): #vers 2
             _ARW = 22   # arrow button width
             rx = W - _MAT_W - _MARGIN
             # ◀ prev button
-            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
+            # Theme-aware paint bar arrows
+            _pal    = self.palette()
+            _btn_bg = _pal.color(_pal.ColorRole.Button)
+            _btn_tx = _pal.color(_pal.ColorRole.ButtonText)
+            _acc    = _pal.color(_pal.ColorRole.Highlight)
+            _chip_c = _pal.color(_pal.ColorRole.Base)
+            _txt_c  = _pal.color(_pal.ColorRole.WindowText)
+            p.setBrush(QBrush(_btn_bg)); p.setPen(QPen(_acc, 1))
             p.drawRoundedRect(rx, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
-            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.setPen(_btn_tx); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
             p.drawText(rx+5, _ROW1_Y+17, "◀")
             # material name chip
-            p.setBrush(QBrush(QColor(20,20,40,220))); p.setPen(QPen(QColor(255,140,0),1))
+            p.setBrush(QBrush(_chip_c)); p.setPen(QPen(_acc, 1))
             p.drawRoundedRect(rx+_ARW+2, _ROW1_Y, _MAT_W-_ARW*2-4, _CHIP_H, 4, 4)
             p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
             p.drawRoundedRect(rx+_ARW+6, _ROW1_Y+4, _CHIP_H-8, _CHIP_H-8, 2, 2)
-            p.setPen(QColor(255,200,80)); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
+            p.setPen(_txt_c); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
             p.drawText(rx+_ARW+_CHIP_H+4, _ROW1_Y+17, f"{mat_id} — {mat_name[:20]}")
             # ▶ next button
-            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
+            p.setBrush(QBrush(_btn_bg)); p.setPen(QPen(_acc, 1))
             p.drawRoundedRect(rx+_MAT_W-_ARW, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
-            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.setPen(_btn_tx); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
             p.drawText(rx+_MAT_W-_ARW+4, _ROW1_Y+17, "▶")
 
             # Row 2: tool buttons using SVG icons via QIcon.paint()
@@ -990,8 +997,9 @@ class COL3DViewport(QWidget): #vers 2
             ]
             for t_name, icon_fn, active_col in tool_defs:
                 active = (tool == t_name)
-                bg  = QColor(active_col) if active else QColor(30,30,50,210)
-                bdr = QColor(active_col) if active else QColor(80,90,130)
+                _pal3 = self.palette()
+                bg  = QColor(active_col) if active else _pal3.color(_pal3.ColorRole.Button)
+                bdr = QColor(active_col) if active else _pal3.color(_pal3.ColorRole.Mid)
                 p.setBrush(QBrush(bg)); p.setPen(QPen(bdr, 1))
                 p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
                 # Draw SVG icon centred in button
@@ -1008,16 +1016,20 @@ class COL3DViewport(QWidget): #vers 2
 
             # Tool name label below row 2 (acts as tooltip)
             tool_labels = {'paint':'Paint', 'dropper':'Pick', 'fill':'Fill'}
-            p.setPen(QColor(200,200,160,180)); p.setFont(QFont('Arial',7))
+            _pal4 = self.palette()
+            _lbl  = _pal4.color(_pal4.ColorRole.PlaceholderText)
+            p.setPen(_lbl); p.setFont(QFont('Arial',7))
             p.drawText(W - _MAT_W - _MARGIN, _ROW2_Y + _CHIP_H + 10,
                        f"Tool: {tool_labels.get(tool, tool)}")
 
             # Undo button
-            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(80,90,130),1))
+            _pal5 = self.palette()
+            p.setBrush(QBrush(_pal5.color(_pal5.ColorRole.Button)))
+            p.setPen(QPen(_pal5.color(_pal5.ColorRole.Mid), 1))
             p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
             if icon_fac:
                 try:
-                    icon = icon_fac.undo_paint_icon(color='#b0bec5')
+                    icon = icon_fac.undo_paint_icon(color=_pal5.color(_pal5.ColorRole.ButtonText).name())
                     icon_x = tx + (_BTN_W - _ICON_SZ)//2
                     icon_y = _ROW2_Y + (_CHIP_H - _ICON_SZ)//2
                     icon.paint(p, QRect(icon_x, icon_y, _ICON_SZ, _ICON_SZ))
@@ -1027,7 +1039,8 @@ class COL3DViewport(QWidget): #vers 2
             tx += _BTN_W + _BTN_GAP
 
             # Save button (between undo and exit)
-            p.setBrush(QBrush(QColor(20,50,30,220))); p.setPen(QPen(QColor(80,200,100),1))
+            p.setBrush(QBrush(self.palette().color(self.palette().ColorRole.Button)))
+            p.setPen(QPen(QColor(80,200,100), 1))
             p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
             if icon_fac:
                 try:
@@ -1041,7 +1054,9 @@ class COL3DViewport(QWidget): #vers 2
             tx += _BTN_W + _BTN_GAP
 
             # Exit button (✕)
-            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(200,80,60),1))
+            _pal6 = self.palette()
+            p.setBrush(QBrush(_pal6.color(_pal6.ColorRole.Button)))
+            p.setPen(QPen(QColor(200,80,60), 1))
             p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
             if icon_fac:
                 try:
@@ -1054,7 +1069,9 @@ class COL3DViewport(QWidget): #vers 2
                     p.drawText(tx+7, _ROW2_Y+15, "x")
         else:
             bx,by,bw,bh=W-70,4,66,22
-            p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(QColor(80,90,130),1))
+            _pal7 = self.palette()
+            p.setBrush(QBrush(_pal7.color(_pal7.ColorRole.Button)))
+            p.setPen(QPen(_pal7.color(_pal7.ColorRole.Mid), 1))
             p.drawRoundedRect(bx,by,bw,bh,4,4)
             p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,220))
             lbl='↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
