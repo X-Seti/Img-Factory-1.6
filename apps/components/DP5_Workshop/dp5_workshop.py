@@ -1879,6 +1879,8 @@ class DP5Canvas(QWidget):
         ed = self._editor
         if ed and hasattr(ed, '_update_status'):
             ed._update_status(tx, ty, self.get_pixel(tx, ty))
+        # Store for zoom lens tracking
+        self._zoom_lens_pos = (tx, ty)
 
         # Stamp ghost always tracks mouse when stamp tool active
         if self.tool == TOOL_STAMP:
@@ -8114,15 +8116,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 if not canvas: return
                 try:
                     mag = self._mag[0]
-                    z   = getattr(canvas, 'zoom', 1)
-                    sa2 = getattr(ws, '_canvas_scroll', None)
-                    if sa2:
-                        cx = int((sa2.horizontalScrollBar().value()
-                                  + sa2.viewport().width() // 2) / max(1, z))
-                        cy = int((sa2.verticalScrollBar().value()
-                                  + sa2.viewport().height() // 2) / max(1, z))
+                    # Use mouse position if available, fall back to scroll centre
+                    if hasattr(canvas, '_zoom_lens_pos'):
+                        cx, cy = canvas._zoom_lens_pos
                     else:
-                        cx, cy = canvas.tex_w // 2, canvas.tex_h // 2
+                        z   = getattr(canvas, 'zoom', 1)
+                        sa2 = getattr(ws, '_canvas_scroll', None)
+                        if sa2:
+                            cx = int((sa2.horizontalScrollBar().value()
+                                      + sa2.viewport().width() // 2) / max(1, z))
+                            cy = int((sa2.verticalScrollBar().value()
+                                      + sa2.viewport().height() // 2) / max(1, z))
+                        else:
+                            cx, cy = canvas.tex_w // 2, canvas.tex_h // 2
 
                     tw, th = canvas.tex_w, canvas.tex_h
                     sz  = self._sz[0]

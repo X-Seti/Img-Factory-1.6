@@ -56,11 +56,34 @@ def _pil_to_qpixmap(img: 'Image.Image', max_size: int = 400) -> QPixmap:
     return QPixmap.fromImage(qi)
 
 
-def rgba_to_qpixmap(rgba: bytes, w: int, h: int) -> QPixmap:
+def rgba_to_qpixmap(rgba: bytes, w: int, h: int,
+                    bg_color: str = '#ffffff') -> QPixmap:
+    """Convert RGBA buffer to QPixmap, composited on bg_color background."""
     if not rgba or w <= 0 or h <= 0:
         return QPixmap()
-    qi = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
-    return QPixmap.fromImage(qi)
+    from PyQt6.QtGui import QPainter, QColor
+    qi  = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
+    pm  = QPixmap(w, h)
+    pm.fill(QColor(bg_color))
+    p = QPainter(pm)
+    p.drawImage(0, 0, qi)
+    p.end()
+    return pm
+
+def _preview_bg(dialog) -> str:
+    """Get theme-aware preview background colour."""
+    try:
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app and hasattr(app, 'app_settings'):
+            tc = app.app_settings.get_theme_colors() or {}
+            return tc.get('viewport_bg', tc.get('bg_primary', '#ffffff'))
+    except Exception:
+        pass
+    # Fall back to palette
+    from PyQt6.QtWidgets import QWidget
+    pal = QWidget().palette()
+    return pal.color(pal.ColorRole.Base).name()
 
 
 # =============================================================================
@@ -211,7 +234,7 @@ class ColourAdjustDialog(QDialog):
             return
         rgba = self._process()
         if rgba:
-            pm = rgba_to_qpixmap(rgba, self._w, self._h)
+            pm = rgba_to_qpixmap(rgba, self._w, self._h, _preview_bg(self))
             if not pm.isNull():
                 self._prev_lbl.setPixmap(pm.scaled(
                     360, 360, Qt.AspectRatioMode.KeepAspectRatio,
@@ -758,7 +781,7 @@ class SnowDialog(QDialog):
         pl.addLayout(img_row, 1)
         main.addWidget(prev, 1)
 
-        pm = rgba_to_qpixmap(self._orig_rgba, self._w, self._h)
+        pm = rgba_to_qpixmap(self._orig_rgba, self._w, self._h, _preview_bg(self))
         if not pm.isNull():
             self._orig_lbl.setPixmap(pm.scaled(360,360,
                 Qt.AspectRatioMode.KeepAspectRatio,
@@ -776,7 +799,7 @@ class SnowDialog(QDialog):
             tile=self._tile_sl.value(),
         )
         self._result = result
-        pm = rgba_to_qpixmap(result, self._w, self._h)
+        pm = rgba_to_qpixmap(result, self._w, self._h, _preview_bg(self))
         if not pm.isNull():
             self._prev_lbl.setPixmap(pm.scaled(360,360,
                 Qt.AspectRatioMode.KeepAspectRatio,
