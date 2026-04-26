@@ -86,6 +86,96 @@ def _preview_bg(dialog) -> str:
     return pal.color(pal.ColorRole.Base).name()
 
 
+
+# =============================================================================
+# Standalone processing functions — called by dp5_workshop overlays
+# =============================================================================
+
+def _tile_rgba(rgba: bytes, w: int, h: int, n: int) -> bytes:
+    """Tile an RGBA buffer n×n times, returning new RGBA bytes."""
+    if not _PIL or not rgba:
+        return rgba
+    img = _rgba_to_pil(rgba, w, h)
+    if img is None:
+        return rgba
+    from PIL import Image
+    tiled = Image.new('RGBA', (w * n, h * n))
+    for y in range(n):
+        for x in range(n):
+            tiled.paste(img, (x * w, y * h))
+    return _pil_to_rgba(tiled)
+
+
+def _apply_colour_adjust(rgba: bytes, w: int, h: int,
+                          brightness=0, contrast=0, hue=0, saturation=0,
+                          sharpness=1.0, opacity=1.0) -> bytes:
+    """Apply colour adjustments to an RGBA buffer."""
+    if not _PIL or not rgba:
+        return rgba
+    from PIL import ImageEnhance
+    img = _rgba_to_pil(rgba, w, h)
+    if img is None:
+        return rgba
+    try:
+        import colorsys
+        if brightness != 0:
+            rgb = img.convert('RGB')
+            rgb = ImageEnhance.Brightness(rgb).enhance(1.0 + brightness / 100.0)
+            img.paste(rgb, mask=img.split()[3])
+        if contrast != 0:
+            rgb = img.convert('RGB')
+            rgb = ImageEnhance.Contrast(rgb).enhance(1.0 + contrast / 100.0)
+            img.paste(rgb, mask=img.split()[3])
+        if hue != 0 or saturation != 0:
+            arr = list(img.getdata())
+            out = []
+            for r, g, b, a in arr:
+                h2, s, v = colorsys.rgb_to_hsv(r/255, g/255, b/255)
+                h2 = (h2 + hue/360.0) % 1.0
+                s  = max(0.0, min(1.0, s + saturation/100.0))
+                r2, g2, b2 = colorsys.hsv_to_rgb(h2, s, v)
+                out.append((int(r2*255), int(g2*255), int(b2*255), a))
+            from PIL import Image
+            img = Image.new('RGBA', (w, h))
+            img.putdata(out)
+        if sharpness != 1.0:
+            rgb = img.convert('RGB')
+            rgb = ImageEnhance.Sharpness(rgb).enhance(sharpness)
+            img.paste(rgb, mask=img.split()[3])
+        if opacity != 1.0:
+            r, g, b, a = img.split()
+            a = a.point(lambda x: int(x * opacity))
+            from PIL import Image
+            img = Image.merge('RGBA', (r, g, b, a))
+        return _pil_to_rgba(img)
+    except Exception as e:
+        print(f"[_apply_colour_adjust] {e}")
+        return rgba
+
+
+def _apply_seamless(rgba: bytes, w: int, h: int,
+                     mode: int = 0, blend: float = 0.25) -> bytes:
+    """Apply seamless tiling algorithm to RGBA buffer."""
+    if not _PIL or not rgba:
+        return rgba
+    img = _rgba_to_pil(rgba, w, h)
+    if img is None:
+        return rgba
+    try:
+        if mode == 0:
+            result = _seamless_wrap_blend(img, blend)
+        elif mode == 1:
+            result = _seamless_patch(img, blend)
+        elif mode == 2:
+            result = _seamless_histogram(img, blend)
+        else:
+            result = _seamless_offset_mirror(img)
+        return _pil_to_rgba(result)
+    except Exception as e:
+        print(f"[_apply_seamless] {e}")
+        return rgba
+
+
 # =============================================================================
 # Colour Adjustments Dialog
 # =============================================================================

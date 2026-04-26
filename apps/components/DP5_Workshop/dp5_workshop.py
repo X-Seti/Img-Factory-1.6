@@ -8239,65 +8239,345 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         overlay.raise_()
         self._zoom_lens = overlay
 
+    # ─────────────────────────────────────────────────────────────────────
+    #  Canvas Tool Overlay — shared by Snow, Colour Adjust, Seamless
+    # ─────────────────────────────────────────────────────────────────────
+    class _ToolOverlay(QWidget): #vers 1
+        """
+        Lens-style overlay parented to the canvas viewport.
+        Shows Original | Result side-by-side with scrollbars,
+        height-capped, with action buttons at the bottom.
+        """
+        def __init__(self, parent_vp, workshop, title,
+                     controls_widget, apply_fn, generate_fn=None):
+            super().__init__(parent_vp)
+            self._ws   = workshop
+            self._apply_fn    = apply_fn
+            self._generate_fn = generate_fn
+            self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            self.setAutoFillBackground(True)
+
+            # Size: full width of viewport, capped height
+            vp_w = parent_vp.width()  or 600
+            vp_h = parent_vp.height() or 400
+            panel_h = min(380, max(260, vp_h // 2))
+            self.setFixedWidth(vp_w)
+            self.setFixedHeight(panel_h)
+            # Position at bottom of viewport
+            self.move(0, vp_h - panel_h)
+            self.raise_()
+            self.show()
+
+            root = QVBoxLayout(self)
+            root.setContentsMargins(4, 4, 4, 4)
+            root.setSpacing(3)
+
+            # Title bar
+            title_row = QHBoxLayout()
+            title_lbl = QLabel(f"  {title}")
+            title_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            close_btn = QPushButton("✕")
+            close_btn.setFixedSize(22, 22)
+            close_btn.setFlat(True)
+            close_btn.clicked.connect(self._close)
+            title_row.addWidget(title_lbl, 1)
+            title_row.addWidget(close_btn)
+            root.addLayout(title_row)
+
+            # Preview area — two scroll areas side by side
+            preview_row = QHBoxLayout()
+            preview_row.setSpacing(3)
+            for side in ('orig', 'result'):
+                col = QVBoxLayout()
+                hdr = QLabel("Original" if side == 'orig' else "Result")
+                hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                hdr.setFont(QFont("Arial", 8))
+                col.addWidget(hdr)
+                sa = QScrollArea()
+                sa.setWidgetResizable(True)
+                sa.setHorizontalScrollBarPolicy(
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+                sa.setVerticalScrollBarPolicy(
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+                lbl = QLabel()
+                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                lbl.setMinimumSize(80, 80)
+                sa.setWidget(lbl)
+                col.addWidget(sa, 1)
+                preview_row.addLayout(col, 1)
+                if side == 'orig':
+                    self._orig_lbl = lbl
+                else:
+                    self._result_lbl = lbl
+            root.addLayout(preview_row, 1)
+
+            # Controls + buttons
+            ctrl_row = QHBoxLayout()
+            ctrl_row.setSpacing(6)
+            if controls_widget:
+                ctrl_row.addWidget(controls_widget, 1)
+
+            btn_col = QVBoxLayout()
+            if generate_fn:
+                gen_btn = QPushButton("Generate")
+                gen_btn.clicked.connect(self._generate)
+                btn_col.addWidget(gen_btn)
+            apply_btn = QPushButton("Apply")
+            apply_btn.clicked.connect(self._apply)
+            close_btn2 = QPushButton("Close")
+            close_btn2.clicked.connect(self._close)
+            btn_col.addWidget(apply_btn)
+            btn_col.addWidget(close_btn2)
+            btn_col.addStretch()
+            ctrl_row.addLayout(btn_col)
+            root.addLayout(ctrl_row)
+
+        def set_orig_pixmap(self, pm):
+            if not pm.isNull():
+                sz = self._orig_lbl.size()
+                self._orig_lbl.setPixmap(
+                    pm.scaled(max(80, sz.width()), max(80, sz.height()),
+                              Qt.AspectRatioMode.KeepAspectRatio,
+                              Qt.TransformationMode.SmoothTransformation))
+
+        def set_result_pixmap(self, pm):
+            if not pm.isNull():
+                sz = self._result_lbl.size()
+                self._result_lbl.setPixmap(
+                    pm.scaled(max(80, sz.width()), max(80, sz.height()),
+                              Qt.AspectRatioMode.KeepAspectRatio,
+                              Qt.TransformationMode.SmoothTransformation))
+
+        def _generate(self):
+            if self._generate_fn:
+                self._generate_fn()
+
+        def _apply(self):
+            if self._apply_fn:
+                self._apply_fn()
+            self._close()
+
+        def _close(self):
+            self.hide()
+            self.deleteLater()
+
+        def resizeEvent(self, e):
+            super().resizeEvent(e)
+
+
     #    Image tools (seamless, colour correction, snow, sharpen, blur)          
 
-    def _open_dp5_seamless(self): #vers 1
-        """Apply seamless tiling to the current canvas."""
+    def _open_dp5_seamless(self): #vers 2
+        """Seamless tiling — inline canvas overlay."""
         if not self.dp5_canvas: return
         try:
-            from apps.methods.txd_tools import SeamlessDialog
+            from apps.methods.txd_tools import rgba_to_qpixmap, _apply_seamless, _preview_bg
+            from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout,
+                QLabel, QSlider, QSpinBox, QComboBox, QScrollArea)
             rgba = bytes(self.dp5_canvas.rgba)
             w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
 
-            def _apply(new_rgba):
-                self._push_undo()
-                self.dp5_canvas.rgba = bytearray(new_rgba)
-                self.dp5_canvas.update()
-                self._set_status("Seamless applied")
+            ctrl = QWidget()
+            cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(2)
 
-            dlg = SeamlessDialog(rgba, w, h, "Canvas", self)
-            dlg.applied.connect(_apply)
-            dlg.exec()
+            cl.addWidget(QLabel("Method:"))
+            _mode = QComboBox()
+            _mode.addItems(["Wrap Blend", "Patch / Heal",
+                             "Histogram Blend", "Offset & Mirror"])
+            cl.addWidget(_mode)
+
+            blend_row = QHBoxLayout()
+            blend_row.addWidget(QLabel("Blend %:"))
+            _blend_sl = QSlider(Qt.Orientation.Horizontal)
+            _blend_sl.setRange(5, 50); _blend_sl.setValue(25)
+            _blend_sp = QSpinBox(); _blend_sp.setRange(5, 50); _blend_sp.setValue(25)
+            _blend_sl.valueChanged.connect(_blend_sp.setValue)
+            _blend_sp.valueChanged.connect(_blend_sl.setValue)
+            blend_row.addWidget(_blend_sl, 1); blend_row.addWidget(_blend_sp)
+            cl.addLayout(blend_row)
+
+            cl.addWidget(QLabel("Preview tiling:"))
+            _tile_mode = QComboBox()
+            _tile_mode.addItems(["1×1", "2×2", "3×3"])
+            _tile_mode.setCurrentIndex(2)
+            cl.addWidget(_tile_mode)
+
+            _result = [None]
+            parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
+
+            def _gen():
+                result = _apply_seamless(rgba, w, h,
+                    mode=_mode.currentIndex(),
+                    blend=_blend_sl.value() / 100.0)
+                _result[0] = result
+                n = _tile_mode.currentIndex() + 1
+                from apps.methods.txd_tools import _tile_rgba
+                tiled = _tile_rgba(result, w, h, n)
+                pm = rgba_to_qpixmap(tiled, w*n, h*n, _preview_bg(overlay))
+                overlay.set_result_pixmap(pm)
+
+            def _apply():
+                if _result[0]:
+                    self._push_undo()
+                    self.dp5_canvas.rgba = bytearray(_result[0])
+                    self.dp5_canvas.update()
+                    self._set_status("Seamless applied")
+
+            _tile_mode.currentIndexChanged.connect(lambda _: _gen() if _result[0] else None)
+
+            overlay = self._ToolOverlay(
+                parent_vp, self, "Seamless — Canvas",
+                ctrl, apply_fn=_apply, generate_fn=_gen)
+
+            n = _tile_mode.currentIndex() + 1
+            from apps.methods.txd_tools import _tile_rgba
+            tiled_orig = _tile_rgba(rgba, w, h, n)
+            pm_orig = rgba_to_qpixmap(tiled_orig, w*n, h*n, _preview_bg(overlay))
+            overlay.set_orig_pixmap(pm_orig)
+
         except Exception as e:
             self._set_status(f"Seamless error: {e}")
 
-    def _open_dp5_colour_adjust(self): #vers 1
-        """Colour adjustments: brightness/contrast/hue/sat/sharpness/opacity."""
+    def _open_dp5_colour_adjust(self): #vers 2
+        """Colour adjustments — inline canvas overlay."""
         if not self.dp5_canvas: return
         try:
-            from apps.methods.txd_tools import ColourAdjustDialog
+            from apps.methods.txd_tools import rgba_to_qpixmap, _apply_colour_adjust, _preview_bg
+            from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout,
+                QLabel, QSlider, QSpinBox, QCheckBox, QScrollArea)
             rgba = bytes(self.dp5_canvas.rgba)
             w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
 
-            def _apply(new_rgba):
-                self._push_undo()
-                self.dp5_canvas.rgba = bytearray(new_rgba)
-                self.dp5_canvas.update()
-                self._set_status("Colour adjustments applied")
+            ctrl = QWidget()
+            cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(2)
 
-            dlg = ColourAdjustDialog(rgba, w, h, "Canvas", self)
-            dlg.applied.connect(_apply)
-            dlg.exec()
+            sliders = {}
+            def _sl(label, lo, hi, val):
+                row = QHBoxLayout()
+                row.addWidget(QLabel(f"{label}:"))
+                sl = QSlider(Qt.Orientation.Horizontal)
+                sl.setRange(lo, hi); sl.setValue(val)
+                sp = QSpinBox(); sp.setRange(lo, hi); sp.setValue(val)
+                sl.valueChanged.connect(sp.setValue)
+                sp.valueChanged.connect(sl.setValue)
+                row.addWidget(sl, 1); row.addWidget(sp)
+                cl.addLayout(row)
+                sliders[label] = sl
+                return sl
+
+            _sl("Brightness", -100, 100, 0)
+            _sl("Contrast",   -100, 100, 0)
+            _sl("Hue",        -180, 180, 0)
+            _sl("Saturation", -100, 100, 0)
+            _sl("Sharpness",     0, 200, 100)
+            _sl("Opacity",       0, 100, 100)
+
+            _result = [None]
+            parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
+
+            def _gen():
+                result = _apply_colour_adjust(rgba, w, h,
+                    brightness=sliders["Brightness"].value(),
+                    contrast=sliders["Contrast"].value(),
+                    hue=sliders["Hue"].value(),
+                    saturation=sliders["Saturation"].value(),
+                    sharpness=sliders["Sharpness"].value() / 100.0,
+                    opacity=sliders["Opacity"].value() / 100.0)
+                _result[0] = result
+                pm = rgba_to_qpixmap(result, w, h, _preview_bg(overlay))
+                overlay.set_result_pixmap(pm)
+
+            def _apply():
+                if _result[0]:
+                    self._push_undo()
+                    self.dp5_canvas.rgba = bytearray(_result[0])
+                    self.dp5_canvas.update()
+                    self._set_status("Colour adjustments applied")
+
+            # Wire sliders to live preview
+            for sl in sliders.values():
+                sl.valueChanged.connect(lambda _: _gen())
+
+            overlay = self._ToolOverlay(
+                parent_vp, self, "Colour Adjust — Canvas",
+                ctrl, apply_fn=_apply, generate_fn=_gen)
+
+            pm_orig = rgba_to_qpixmap(rgba, w, h, _preview_bg(overlay))
+            overlay.set_orig_pixmap(pm_orig)
+            _gen()  # initial preview
+
         except Exception as e:
             self._set_status(f"Colour adjust error: {e}")
 
-    def _open_dp5_snow(self): #vers 1
-        """Snow effect generator."""
+    def _open_dp5_snow(self): #vers 2
+        """Snow effect generator — inline canvas overlay."""
         if not self.dp5_canvas: return
         try:
-            from apps.methods.txd_tools import SnowDialog
+            from apps.methods.txd_tools import rgba_to_qpixmap, _apply_snow, _preview_bg
+            from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout,
+                QLabel, QSlider, QSpinBox, QGroupBox, QScrollArea)
             rgba = bytes(self.dp5_canvas.rgba)
             w, h = self.dp5_canvas.tex_w, self.dp5_canvas.tex_h
 
-            def _apply(new_rgba):
-                self._push_undo()
-                self.dp5_canvas.rgba = bytearray(new_rgba)
-                self.dp5_canvas.update()
-                self._set_status("Snow effect applied")
+            # Build compact controls
+            ctrl = QWidget()
+            cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(2)
 
-            dlg = SnowDialog(rgba, w, h, "Canvas", self)
-            dlg.applied.connect(_apply)
-            dlg.exec()
+            def _sl(label, lo, hi, val):
+                row = QHBoxLayout()
+                row.addWidget(QLabel(f"{label}:"))
+                sl = QSlider(Qt.Orientation.Horizontal)
+                sl.setRange(lo, hi); sl.setValue(val)
+                sp = QSpinBox(); sp.setRange(lo, hi); sp.setValue(val)
+                sl.valueChanged.connect(sp.setValue)
+                sp.valueChanged.connect(sl.setValue)
+                row.addWidget(sl, 1); row.addWidget(sp)
+                cl.addLayout(row)
+                return sl
+
+            _threshold = _sl("B/W Threshold", 0, 255, 180)
+            _depth     = _sl("Surface Depth", 0, 100, 30)
+            _coverage  = _sl("Coverage %",    0, 100, 70)
+            _layers    = _sl("Layers",        1, 8,    3)
+            _tile      = _sl("Tile",          1, 8,    2)
+
+            _result = [None]
+            parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
+
+            overlay = self._ToolOverlay(
+                parent_vp, self, "Snow — Canvas", ctrl,
+                apply_fn=None, generate_fn=None)
+
+            def _gen():
+                result = _apply_snow(rgba, w, h,
+                    threshold=_threshold.value(),
+                    depth=_depth.value() / 100.0,
+                    coverage=_coverage.value() / 100.0,
+                    layers=_layers.value(),
+                    tile=_tile.value())
+                _result[0] = result
+                pm = rgba_to_qpixmap(result, w, h, _preview_bg(overlay))
+                overlay.set_result_pixmap(pm)
+
+            def _apply():
+                if _result[0]:
+                    self._push_undo()
+                    self.dp5_canvas.rgba = bytearray(_result[0])
+                    self.dp5_canvas.update()
+                    self._set_status("Snow applied")
+
+            overlay._generate_fn = _gen
+            overlay._apply_fn = _apply
+
+            # Rebuild buttons now we have fns
+            from PyQt6.QtWidgets import QPushButton
+            gen_btn = QPushButton("Generate Snow")
+            gen_btn.clicked.connect(_gen)
+            overlay.layout().itemAt(overlay.layout().count()-1).layout()                 .insertWidget(0, gen_btn)
+
+            pm_orig = rgba_to_qpixmap(rgba, w, h, _preview_bg(overlay))
+            overlay.set_orig_pixmap(pm_orig)
+
         except Exception as e:
             self._set_status(f"Snow error: {e}")
 
