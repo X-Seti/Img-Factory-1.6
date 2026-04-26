@@ -147,6 +147,7 @@ def _apply_settings(self): #vers 3
 
         # Form Group
         form_group = QGroupBox("Theme Information")
+        form_group.setAutoFillBackground(True)
         form_layout = QVBoxLayout(form_group)
 
         grid_layout = QGridLayout()
@@ -209,6 +210,7 @@ def _apply_settings(self): #vers 3
 
         # Color Summary
         color_group = QGroupBox("Color Summary")
+        color_group.setAutoFillBackground(True)
         color_layout = QVBoxLayout(color_group)
 
         self.color_summary = QLabel()
@@ -4285,6 +4287,7 @@ class SettingsDialog(QDialog): #vers 15
         lay = QVBoxLayout(d)
 
         font_group = QGroupBox("Dialog Font")
+        font_group.setAutoFillBackground(True)
         fgl = QHBoxLayout(font_group)
         fgl.addWidget(QLabel("Family:"))
         fc = QFontComboBox()
@@ -4298,6 +4301,7 @@ class SettingsDialog(QDialog): #vers 15
         lay.addWidget(font_group)
 
         tb_group = QGroupBox("Titlebar")
+        tb_group.setAutoFillBackground(True)
         tgl = QHBoxLayout(tb_group)
         tgl.addWidget(QLabel("Height:"))
         tbs = QSpinBox(); tbs.setRange(28, 60)
@@ -4624,6 +4628,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Screen Color Picker Group
         picker_group = QGroupBox("Color Picker")
+        picker_group.setAutoFillBackground(True)
         picker_layout = QVBoxLayout(picker_group)
 
         self.color_picker = ColorPickerWidget()
@@ -4646,6 +4651,7 @@ class SettingsDialog(QDialog): #vers 15
 
     # - PALETTE COLORS GROUP
         palette_group = QGroupBox("Quick Colors")
+        palette_group.setAutoFillBackground(True)
         palette_layout = QVBoxLayout(palette_group)
 
         # Top bar: Grid toggle + Retro menu
@@ -5013,6 +5019,7 @@ class SettingsDialog(QDialog): #vers 15
         }
 
         selection_group = QGroupBox("Apply Picked Color")
+        selection_group.setAutoFillBackground(True)
         selection_layout = QVBoxLayout(selection_group)
 
         self.selected_element_combo = QComboBox()
@@ -5212,6 +5219,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # GLOBAL THEME SLIDERS - MOVED TO RIGHT PANEL BOTTOM (above Theme Actions)
         global_sliders_group = QGroupBox("Global Theme Sliders")
+        global_sliders_group.setAutoFillBackground(True)
         global_sliders_layout = QVBoxLayout(global_sliders_group)
 
         info_label = QLabel("<b>Adjust ALL colors globally:</b>")
@@ -5278,6 +5286,7 @@ class SettingsDialog(QDialog): #vers 15
         # THEME ACTIONS GROUP - AT BOTTOM OF RIGHT PANEL
         theme_layout = QHBoxLayout()  # was QHBoxLayout(self) which corrupted dialog layout
         theme_actions_group = QGroupBox("Theme Actions")
+        theme_actions_group.setAutoFillBackground(True)
 
         # Use horizontal layout instead of vertical
         theme_actions_layout = QHBoxLayout(theme_actions_group)
@@ -5400,6 +5409,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # ========== BUTTON STYLING ==========
         button_group = QGroupBox("Button Styling")
+        button_group.setAutoFillBackground(True)
         button_layout = QVBoxLayout(button_group)
 
         # Button Shape
@@ -5471,6 +5481,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # ========== SLIDER STYLING ==========
         slider_group = QGroupBox("Slider Styling")
+        slider_group.setAutoFillBackground(True)
         slider_layout = QVBoxLayout(slider_group)
 
         # Slider Height
@@ -5518,6 +5529,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # ========== CHECKBOX STYLING ==========
         checkbox_group = QGroupBox("Checkbox Styling")
+        checkbox_group.setAutoFillBackground(True)
         checkbox_layout = QVBoxLayout(checkbox_group)
 
         # Checkbox Size
@@ -5553,6 +5565,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # ========== SCROLLBAR STYLING ==========
         scrollbar_group = QGroupBox("Scrollbar Styling")
+        scrollbar_group.setAutoFillBackground(True)
         scrollbar_layout = QVBoxLayout(scrollbar_group)
 
         # Scrollbar Width
@@ -5595,6 +5608,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # ========== SPLITTER STYLING ==========
         splitter_group = QGroupBox("Splitter Styling")
+        splitter_group.setAutoFillBackground(True)
         splitter_layout = QVBoxLayout(splitter_group)
 
         # Splitter Width
@@ -5669,6 +5683,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # ========== ADVANCED STYLING ==========
         advanced_group = QGroupBox("Advanced Styling")
+        advanced_group.setAutoFillBackground(True)
         advanced_layout = QVBoxLayout(advanced_group)
 
         # Panel Opacity
@@ -6124,6 +6139,7 @@ class SettingsDialog(QDialog): #vers 15
 
         #    Size controls                                                  
         size_group = QGroupBox("Button & Titlebar Sizes")
+        size_group.setAutoFillBackground(True)
         szl = QGridLayout(size_group)
         szl.setColumnStretch(1, 1)
 
@@ -6158,6 +6174,7 @@ class SettingsDialog(QDialog): #vers 15
 
         #   Style selector
         style_group = QGroupBox("Button Style")
+        style_group.setAutoFillBackground(True)
         sg_lay = QVBoxLayout(style_group)
 
         STYLES = [
@@ -6197,6 +6214,7 @@ class SettingsDialog(QDialog): #vers 15
 
         #   Live preview
         preview_group = QGroupBox("Preview")
+        preview_group.setAutoFillBackground(True)
         pg_lay = QHBoxLayout(preview_group)
         pg_lay.setSpacing(8)
 
@@ -6220,6 +6238,7 @@ class SettingsDialog(QDialog): #vers 15
 
         #   Tint on/off
         tint_group = QGroupBox("Workflow Colour Tints")
+        tint_group.setAutoFillBackground(True)
         tg_lay = QVBoxLayout(tint_group)
         self._tint_enabled_cb = QCheckBox("Enable workflow colour tints on buttons")
         self._tint_enabled_cb.setChecked(
@@ -6427,6 +6446,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Light/Dark theme toggle
         theme_type_group = QGroupBox("Button Color Mode")
+        theme_type_group.setAutoFillBackground(True)
         theme_type_layout = QHBoxLayout(theme_type_group)
 
         theme_type_layout.addWidget(QLabel("Editing colors for:"))
@@ -6827,6 +6847,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Theme Selection Group
         theme_group = QGroupBox("Theme Selection")
+        theme_group.setAutoFillBackground(True)
         theme_layout = QVBoxLayout(theme_group)
 
         # Current theme display
@@ -6857,6 +6878,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Real-time Controls Group
         controls_group = QGroupBox("Live Controls")
+        controls_group.setAutoFillBackground(True)
         controls_layout = QVBoxLayout(controls_group)
 
         # Instant apply toggle
@@ -6884,6 +6906,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Quick Themes Group
         quick_group = QGroupBox("🚀 Quick Themes")
+        quick_group.setAutoFillBackground(True)
         quick_layout = QVBoxLayout(quick_group)
 
         # Popular themes
@@ -6909,6 +6932,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Theme Info Group
         info_group = QGroupBox("Theme Info")
+        info_group.setAutoFillBackground(True)
         info_layout = QVBoxLayout(info_group)
 
         self.theme_info_label = QLabel()
@@ -6928,6 +6952,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Preview Header
         preview_header = QGroupBox("Live Preview - App Factory Interface")
+        preview_header.setAutoFillBackground(True)
         header_layout = QHBoxLayout(preview_header)
 
         self.preview_status = QLabel("Ready for preview")
@@ -6944,6 +6969,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Sample App Factory Toolbar
         toolbar_group = QGroupBox("Sample Toolbar")
+        toolbar_group.setAutoFillBackground(True)
         toolbar_layout = QGridLayout(toolbar_group)
 
         self.demo_buttons = []
@@ -6971,6 +6997,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Sample Table
         table_group = QGroupBox("Sample IMG Entries Table")
+        table_group.setAutoFillBackground(True)
         table_layout = QVBoxLayout(table_group)
 
         self.demo_table = QTableWidget(5, 5)
@@ -6985,6 +7012,7 @@ class SettingsDialog(QDialog): #vers 15
 
         # Sample Log Output
         log_group = QGroupBox("Sample Activity Log")
+        log_group.setAutoFillBackground(True)
         log_layout = QVBoxLayout(log_group)
 
         self.demo_log = QTextEdit()
@@ -7006,6 +7034,7 @@ Ready for operations..."""
 
         # Preview Statistics
         stats_group = QGroupBox("Preview Statistics")
+        stats_group.setAutoFillBackground(True)
         stats_layout = QGridLayout(stats_group)
 
         self.stats_labels = {}
@@ -7040,6 +7069,7 @@ Ready for operations..."""
 
         # Debug Mode Group
         debug_group = QGroupBox("Debug Mode")
+        debug_group.setAutoFillBackground(True)
         debug_layout = QVBoxLayout(debug_group)
 
         self.debug_enabled_check = QCheckBox("Enable debug mode")
@@ -7064,6 +7094,7 @@ Ready for operations..."""
 
         # Debug Categories
         categories_group = QGroupBox("Debug Categories")
+        categories_group.setAutoFillBackground(True)
         categories_layout = QGridLayout(categories_group)
 
         self.debug_categories = {}
@@ -7161,7 +7192,7 @@ Ready for operations..."""
         # Instructions
         info_label = QLabel("Configure fonts for different UI elements. Changes are saved to appfactory.settings.json")
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #666; font-style: italic; padding: 8px;")
+        info_label.setStyleSheet("color: palette(mid); font-style: italic; padding: 8px;")
         layout.addWidget(info_label)
 
         # Scroll area for font groups
@@ -7216,14 +7247,15 @@ Ready for operations..."""
 
     def _create_font_control_group(self, font_id, title, description,
                                 default_family, default_size,
-                                min_size, max_size): #vers 1
+                                min_size, max_size): #vers 2
         """Create a font control group for specific font type"""
         group = QGroupBox(title)
+        group.setAutoFillBackground(True)
         layout = QVBoxLayout(group)
 
         # Description
         desc_label = QLabel(description)
-        desc_label.setStyleSheet("color: #888; font-style: italic; font-size: 8pt;")
+        desc_label.setStyleSheet("color: palette(mid); font-style: italic; font-size: 8pt;")
         layout.addWidget(desc_label)
 
         # Font controls row
@@ -7416,6 +7448,7 @@ Ready for operations..."""
 
         # Button Display Mode
         button_display_group = QGroupBox("Button Display Mode")
+        button_display_group.setAutoFillBackground(True)
         button_display_layout = QVBoxLayout(button_display_group)
 
         self.button_display_combo = QComboBox()
@@ -7450,6 +7483,7 @@ Ready for operations..."""
 
         # Window Controls
         window_group = QGroupBox("Window Controls")
+        window_group.setAutoFillBackground(True)
         window_layout = QVBoxLayout(window_group)
 
         self.custom_gadgets_check = QCheckBox("Use custom window gadgets (TXD Workshop style)")
@@ -7473,6 +7507,7 @@ Ready for operations..."""
 
         # Interface Options
         interface_group = QGroupBox("Interface Options")
+        interface_group.setAutoFillBackground(True)
         interface_layout = QVBoxLayout(interface_group)
 
         self.tooltips_check = QCheckBox("Show tooltips")
@@ -7491,6 +7526,7 @@ Ready for operations..."""
 
         # Pin Warnings
         pin_warn_group = QGroupBox("Pinned Entry Warnings")
+        pin_warn_group.setAutoFillBackground(True)
         pin_warn_layout = QVBoxLayout(pin_warn_group)
 
         self.pin_warn_popup_check = QCheckBox("Show popup when a pinned entry is protected")
@@ -7511,6 +7547,7 @@ Ready for operations..."""
 
         # Rename Notifications
         rename_notify_group = QGroupBox("Rename Notifications")
+        rename_notify_group.setAutoFillBackground(True)
         rename_notify_layout = QVBoxLayout(rename_notify_group)
 
         self.rename_notify_popup_check = QCheckBox("Show popup on successful rename")
@@ -7552,6 +7589,7 @@ Ready for operations..."""
         il.setSpacing(8)
 
         img_group = QGroupBox("Panel Background Image")
+        img_group.setAutoFillBackground(True)
         igl = QVBoxLayout(img_group)
 
         path_lay = QHBoxLayout()
@@ -7743,6 +7781,7 @@ Ready for operations..."""
         pl = QVBoxLayout(pb_tab)
 
         style_group = QGroupBox("Progress Bar Style")
+        style_group.setAutoFillBackground(True)
         sgl = QVBoxLayout(style_group)
 
         PB_STYLES = [
@@ -7772,6 +7811,7 @@ Ready for operations..."""
         pl.addWidget(style_group)
 
         colour_group = QGroupBox("Progress Bar Colours")
+        colour_group.setAutoFillBackground(True)
         cgl = QGridLayout(colour_group)
 
         for row, (label, key, default) in enumerate([
@@ -7791,6 +7831,7 @@ Ready for operations..."""
         pl.addWidget(colour_group)
 
         height_group = QGroupBox("Height")
+        height_group.setAutoFillBackground(True)
         hgl = QHBoxLayout(height_group)
         self._pb_height_slider = QSlider(Qt.Orientation.Horizontal)
         self._pb_height_slider.setRange(8, 32)
@@ -7820,6 +7861,7 @@ Ready for operations..."""
 
         #   Auto-detect
         detect_group = QGroupBox("System Locale Detection")
+        detect_group.setAutoFillBackground(True)
         dgl = QVBoxLayout(detect_group)
 
         self._locale_auto_cb = QCheckBox("Auto-detect locale from system on startup")
@@ -7843,6 +7885,7 @@ Ready for operations..."""
 
         #   Language
         lang_group = QGroupBox("Language")
+        lang_group.setAutoFillBackground(True)
         lgl = QGridLayout(lang_group)
 
         LANGUAGES = [
@@ -7880,6 +7923,7 @@ Ready for operations..."""
 
         #   Date & Number formats
         fmt_group = QGroupBox("Date & Number Formats")
+        fmt_group.setAutoFillBackground(True)
         fgl = QGridLayout(fmt_group)
 
         fgl.addWidget(QLabel("Date format:"), 0, 0)
@@ -7909,6 +7953,7 @@ Ready for operations..."""
 
         #   Per-app overrides
         override_group = QGroupBox("Per-Workshop Language Override")
+        override_group.setAutoFillBackground(True)
         ogl = QVBoxLayout(override_group)
         ogl.addWidget(QLabel(
             "Future: each workshop can use a different language file.\n"
@@ -7957,6 +8002,7 @@ Ready for operations..."""
 
         # Panel Background
         panel_group = QGroupBox("Panel Background")
+        panel_group.setAutoFillBackground(True)
         panel_layout = QVBoxLayout(panel_group)
 
         # Panel Background Image
@@ -7989,6 +8035,7 @@ Ready for operations..."""
 
         # Primary Background
         primary_group = QGroupBox("Primary Background")
+        primary_group.setAutoFillBackground(True)
         primary_layout = QVBoxLayout(primary_group)
 
         # Primary Background Image
@@ -8021,6 +8068,7 @@ Ready for operations..."""
 
         # Secondary Background
         secondary_group = QGroupBox("Secondary Background")
+        secondary_group.setAutoFillBackground(True)
         secondary_layout = QVBoxLayout(secondary_group)
 
         # Secondary Background Image
@@ -8053,6 +8101,7 @@ Ready for operations..."""
 
         # Button Background
         button_group = QGroupBox("Button Background")
+        button_group.setAutoFillBackground(True)
         button_layout = QVBoxLayout(button_group)
 
         # Button Background Image
@@ -8114,6 +8163,7 @@ Ready for operations..."""
 
         # Titlebar Transparency
         titlebar_group = QGroupBox("Titlebar Transparency")
+        titlebar_group.setAutoFillBackground(True)
         titlebar_layout = QVBoxLayout(titlebar_group)
 
         # Titlebar Opacity
@@ -8138,6 +8188,7 @@ Ready for operations..."""
 
         # Panel Transparency
         panel_group = QGroupBox("Panel Transparency")
+        panel_group.setAutoFillBackground(True)
         panel_layout = QVBoxLayout(panel_group)
 
         # Panel Opacity
@@ -8162,6 +8213,7 @@ Ready for operations..."""
 
         # Button Transparency
         button_group = QGroupBox("Button Transparency")
+        button_group.setAutoFillBackground(True)
         button_layout = QVBoxLayout(button_group)
 
         # Button Opacity
@@ -8186,6 +8238,7 @@ Ready for operations..."""
 
         # Widget Transparency
         widget_group = QGroupBox("Widget Transparency")
+        widget_group.setAutoFillBackground(True)
         widget_layout = QVBoxLayout(widget_group)
 
         # Widget Opacity
@@ -8239,6 +8292,7 @@ Ready for operations..."""
 
         # Button Shadow Settings
         button_shadow_group = QGroupBox("Button Shadows")
+        button_shadow_group.setAutoFillBackground(True)
         button_shadow_layout = QVBoxLayout(button_shadow_group)
 
         # Shadow Depth
@@ -8299,6 +8353,7 @@ Ready for operations..."""
 
         # Panel Shadow Settings
         panel_shadow_group = QGroupBox("Panel Shadows")
+        panel_shadow_group.setAutoFillBackground(True)
         panel_shadow_layout = QVBoxLayout(panel_shadow_group)
 
         # Shadow Depth
@@ -8359,6 +8414,7 @@ Ready for operations..."""
 
         # General Shadow Settings
         general_shadow_group = QGroupBox("General Shadow Settings")
+        general_shadow_group.setAutoFillBackground(True)
         general_shadow_layout = QVBoxLayout(general_shadow_group)
 
         # Enable Shadows
@@ -8408,6 +8464,7 @@ Ready for operations..."""
 
         # String Gadgets
         string_group = QGroupBox("String Gadgets")
+        string_group.setAutoFillBackground(True)
         string_layout = QVBoxLayout(string_group)
 
         # String Background Color
@@ -8441,6 +8498,7 @@ Ready for operations..."""
 
         # Gauge Gadgets
         gauge_group = QGroupBox("Gauge Gadgets")
+        gauge_group.setAutoFillBackground(True)
         gauge_layout = QVBoxLayout(gauge_group)
 
         # Gauge Background Color
@@ -8474,6 +8532,7 @@ Ready for operations..."""
 
         # Scale Gadgets
         scale_group = QGroupBox("Scale Gadgets")
+        scale_group.setAutoFillBackground(True)
         scale_layout = QVBoxLayout(scale_group)
 
         # Scale Background Color
@@ -8498,6 +8557,7 @@ Ready for operations..."""
 
         # Colorfield Gadgets
         colorfield_group = QGroupBox("Colorfield Gadgets")
+        colorfield_group.setAutoFillBackground(True)
         colorfield_layout = QVBoxLayout(colorfield_group)
 
         # Colorfield Background Color
@@ -8522,6 +8582,7 @@ Ready for operations..."""
 
         # List Gadgets
         list_group = QGroupBox("List Gadgets")
+        list_group.setAutoFillBackground(True)
         list_layout = QVBoxLayout(list_group)
 
         # List Background Color
@@ -8555,6 +8616,7 @@ Ready for operations..."""
 
         # Numeric Gadgets
         numeric_group = QGroupBox("Numeric Gadgets")
+        numeric_group.setAutoFillBackground(True)
         numeric_layout = QVBoxLayout(numeric_group)
 
         # Numeric Background Color
@@ -8579,6 +8641,7 @@ Ready for operations..."""
 
         # Knob Gadgets
         knob_group = QGroupBox("Knob Gadgets")
+        knob_group.setAutoFillBackground(True)
         knob_layout = QVBoxLayout(knob_group)
 
         # Knob Background Color
@@ -8603,6 +8666,7 @@ Ready for operations..."""
 
         # Levelmeter Gadgets
         levelmeter_group = QGroupBox("Levelmeter Gadgets")
+        levelmeter_group.setAutoFillBackground(True)
         levelmeter_layout = QVBoxLayout(levelmeter_group)
 
         # Levelmeter Background Color
@@ -8627,6 +8691,7 @@ Ready for operations..."""
 
         # Radio Gadgets
         radio_group = QGroupBox("Radio Gadgets")
+        radio_group.setAutoFillBackground(True)
         radio_layout = QVBoxLayout(radio_group)
 
         # Radio Background Color
@@ -8651,6 +8716,7 @@ Ready for operations..."""
 
         # Cycle Gadgets
         cycle_group = QGroupBox("Cycle Gadgets")
+        cycle_group.setAutoFillBackground(True)
         cycle_layout = QVBoxLayout(cycle_group)
 
         # Cycle Background Color
@@ -8675,6 +8741,7 @@ Ready for operations..."""
 
         # Palette Gadgets
         palette_group = QGroupBox("Palette Gadgets")
+        palette_group.setAutoFillBackground(True)
         palette_layout = QVBoxLayout(palette_group)
 
         # Palette Background Color
@@ -8699,6 +8766,7 @@ Ready for operations..."""
 
         # Popstring Gadgets
         popstring_group = QGroupBox("Popstring Gadgets")
+        popstring_group.setAutoFillBackground(True)
         popstring_layout = QVBoxLayout(popstring_group)
 
         # Popstring Background Color
@@ -8814,6 +8882,7 @@ Ready for operations..."""
 
         # Group Components
         group_group = QGroupBox("Group Components")
+        group_group.setAutoFillBackground(True)
         group_layout = QVBoxLayout(group_group)
 
         # Group Background Color
@@ -8838,6 +8907,7 @@ Ready for operations..."""
 
         # Scrollbar Components
         scrollbar_group = QGroupBox("Scrollbar Components")
+        scrollbar_group.setAutoFillBackground(True)
         scrollbar_layout = QVBoxLayout(scrollbar_group)
 
         # Scrollbar Background Color
@@ -8880,6 +8950,7 @@ Ready for operations..."""
 
         # Listview Components
         listview_group = QGroupBox("Listview Components")
+        listview_group.setAutoFillBackground(True)
         listview_layout = QVBoxLayout(listview_group)
 
         # Listview Background Color
@@ -8913,6 +8984,7 @@ Ready for operations..."""
 
         # Register Components
         register_group = QGroupBox("Register Components")
+        register_group.setAutoFillBackground(True)
         register_layout = QVBoxLayout(register_group)
 
         # Register Background Color
@@ -8937,6 +9009,7 @@ Ready for operations..."""
 
         # Virtgroup Components
         virtgroup_group = QGroupBox("Virtgroup Components")
+        virtgroup_group.setAutoFillBackground(True)
         virtgroup_layout = QVBoxLayout(virtgroup_group)
 
         # Virtgroup Background Color
@@ -8961,6 +9034,7 @@ Ready for operations..."""
 
         # Scrollgroup Components
         scrollgroup_group = QGroupBox("Scrollgroup Components")
+        scrollgroup_group.setAutoFillBackground(True)
         scrollgroup_layout = QVBoxLayout(scrollgroup_group)
 
         # Scrollgroup Background Color
@@ -8985,6 +9059,7 @@ Ready for operations..."""
 
         # Popobject Components
         popobject_group = QGroupBox("Popobject Components")
+        popobject_group.setAutoFillBackground(True)
         popobject_layout = QVBoxLayout(popobject_group)
 
         # Popobject Background Color
@@ -9481,21 +9556,26 @@ Ready for operations..."""
         if hasattr(self, 'font_controls'):
             self._save_font_settings()
 
-        # ⭐ CRITICAL FIX: Save modified colors to the actual theme JSON file
+        # Save all modified colors, button colors and settings to theme JSON
+        modified = {}
         if hasattr(self, '_modified_colors') and self._modified_colors:
+            modified.update(self._modified_colors)
+        if hasattr(self, '_modified_button_colors') and self._modified_button_colors:
+            modified.update(self._modified_button_colors)
+        if hasattr(self, 'handle_style_combo'):
+            modified['handle_style'] = self.handle_style_combo.currentText()
+        if modified:
             current_theme = self.app_settings.current_settings["theme"]
             if current_theme in self.app_settings.themes:
-                # Update in-memory theme
                 if "colors" not in self.app_settings.themes[current_theme]:
                     self.app_settings.themes[current_theme]["colors"] = {}
-                self.app_settings.themes[current_theme]["colors"].update(self._modified_colors)
+                self.app_settings.themes[current_theme]["colors"].update(modified)
 
-                # THIS IS THE FIX: Actually save theme to disk
                 theme_data = self.app_settings.themes[current_theme]
                 success = self.app_settings.save_theme(current_theme, theme_data)
 
                 if success:
-                    print(f"Saved {len(self._modified_colors)} color changes to theme: {current_theme}")
+                    print(f"Saved {len(modified)} color changes to theme: {current_theme}")
                 else:
                     print(f"Failed to save theme: {current_theme}")
                     QMessageBox.warning(
