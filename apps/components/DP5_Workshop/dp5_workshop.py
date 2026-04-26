@@ -131,33 +131,34 @@ except ImportError:
 
 
 # - Tool icon renderer — Photoshop-style white silhouettes on dark tile
-def _load_tool_icon(shape: str, size: int = 42, active: bool = False) -> QIcon:  #vers 2
+def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
+                    tile_bg: str = '', icon_col: str = '') -> QIcon:  #vers 3
     """
     Load tool icon: checks DP5_Workshop/icons/{shape}.png then .svg,
     falls back to _make_tool_icon SVG/QPainter renderer.
+    tile_bg / icon_col override the default dark theme colours.
     """
     import os
     icons_dir = os.path.join(os.path.dirname(__file__), 'icons')
     for ext in ('png', 'svg'):
-        path = os.path.join(icons_dir, f'{shape}.{ext}')
-        if os.path.isfile(path):
-            pix = QPixmap(path).scaled(
+        fpath = os.path.join(icons_dir, f'{shape}.{ext}')
+        if os.path.isfile(fpath):
+            pix = QPixmap(fpath).scaled(
                 size, size,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation)
             return QIcon(pix)
-    return _make_tool_icon(shape, size, active)
+    return _make_tool_icon(shape, size, active, tile_bg=tile_bg, icon_col=icon_col)
 
 
 def _make_tool_icon(shape: str, size: int = 42,
-                    active: bool = False) -> QIcon: #vers 2
+                    active: bool = False,
+                    tile_bg: str = '', icon_col: str = '') -> QIcon: #vers 3
     """
-    Render a tool icon.  Uses SVGIconFactory.dp_*_icon() when available
-    (icons defined in imgfactory_svg_icons.py), otherwise falls back to the
-    inline QPainter renderer below.
-
-    Normal:  dark tile (#1e1e24) + white/light icon
-    Active:  light tile (#d8d8e0) + dark icon (inverted, DP5 style)
+    Render a tool icon.  Uses SVGIconFactory.dp_*_icon() when available.
+    tile_bg / icon_col override theme defaults — pass from _get_icon_color().
+    Normal:  panel_bg tile + text_primary icon (from theme)
+    Active:  accent tile + inverted icon
     """
     #    SVG icon map: shape → SVGIconFactory method name                      
     # Add entries here as you create new dp_*_icon() methods in
@@ -200,8 +201,11 @@ def _make_tool_icon(shape: str, size: int = 42,
         method_name = _SVG_MAP[shape]
         fn = getattr(SVGIconFactory, method_name, None)
         if fn is not None:
-            tile_bg  = '#1e1e24' if not active else '#d8d8e0'
-            icon_col = '#f0f0f4' if not active else '#101014'
+            # Use passed colours or fall back to safe defaults
+            if not tile_bg:
+                tile_bg  = '#d8d8e0' if active else '#1e1e24'
+            if not icon_col:
+                icon_col = '#101014' if active else '#f0f0f4'
             try:
                 # Get the icon rendered transparent (no bg_color — avoids SVG corruption)
                 ico = fn(size, color=icon_col)
@@ -219,11 +223,13 @@ def _make_tool_icon(shape: str, size: int = 42,
     # - QPainter fallback (shapes, lasso, select, text, etc.)
     import math as _m
 
-    tile_bg = QColor('#1e1e24') if not active else QColor('#d8d8e0')
-    ink     = QColor('#f0f0f4') if not active else QColor('#101014')
+    _tbg = tile_bg if tile_bg else ('#d8d8e0' if active else '#1e1e24')
+    _ink = icon_col if icon_col else ('#101014' if active else '#f0f0f4')
+    tile_bg_c = QColor(_tbg)
+    ink     = QColor(_ink)
 
     px = QPixmap(size, size)
-    px.fill(tile_bg)
+    px.fill(tile_bg_c)
 
     p = QPainter(px)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -4793,6 +4799,18 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 else:
                     super().mousePressEvent(ev)
 
+        # Determine tile/icon colours from theme for initial render
+        _icon_col = self._get_icon_color()
+        _tile_bg  = ''
+        try:
+            if self.app_settings:
+                _tc = self.app_settings.get_theme_colors() or {}
+                _tile_bg = _tc.get('gadgetbar_bg',
+                               _tc.get('toolbar_bg',
+                                   _tc.get('bg_secondary', '')))
+        except Exception:
+            pass
+
         for idx, (tool_id, shape, tip) in enumerate(TOOL_ORDER):
             row = idx // n_cols
             col = idx %  n_cols
@@ -4805,7 +4823,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             btn.setFixedSize(btn_sz, btn_sz)
             btn.setCheckable(True)
             btn.setToolTip(tip)
-            ico = _load_tool_icon(shape, icon_sz, active=False)
+            ico = _load_tool_icon(shape, icon_sz, active=False,
+                                  tile_bg=_tile_bg, icon_col=_icon_col)
             btn.setIcon(ico)
             btn.setIconSize(QSize(icon_sz, icon_sz))
             btn.clicked.connect(lambda _, t=tool_id: self._select_tool(t))
@@ -11007,22 +11026,71 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             print(f"Theme application error: {e}")
 
 
-    def _refresh_icons(self): #vers 1
+    def _refresh_icons(self): #vers 2
+        """Refresh ALL icons with current theme colours."""
         SVGIconFactory.clear_cache()
-        color = self._get_icon_color()
+        icon_col = self._get_icon_color()
+
+        # Get tile_bg from theme (panel_bg or bg_secondary)
+        tile_bg = ''
+        try:
+            if self.app_settings:
+                tc = self.app_settings.get_theme_colors() or {}
+                tile_bg = tc.get('gadgetbar_bg',
+                            tc.get('toolbar_bg',
+                                tc.get('bg_secondary', '')))
+        except Exception:
+            pass
+
+        # Gadget bar buttons (settings, properties, window chrome)
         for attr, method in [
             ('settings_btn',    'settings_icon'),
             ('properties_btn',  'properties_icon'),
         ]:
             if hasattr(self, attr):
                 getattr(self, attr).setIcon(
-                    getattr(SVGIconFactory, method)(20, color))
+                    getattr(SVGIconFactory, method)(20, icon_col))
         for attr, method in [('minimize_btn','minimize_icon'),
                               ('maximize_btn','maximize_icon'),
                               ('close_btn','close_icon')]:
             if hasattr(self, attr):
                 getattr(self, attr).setIcon(
-                    getattr(SVGIconFactory, method)(20, color))
+                    getattr(SVGIconFactory, method)(20, icon_col))
+
+        # Tool grid buttons — redraw with theme colours
+        icon_sz = self.dp5_settings.get('tool_icon_size', 22)
+        for tool_id, btn in getattr(self, '_tool_btns', {}).items():
+            from apps.components.DP5_Workshop.dp5_workshop import _load_tool_icon
+            active = btn.isChecked()
+            ico = _load_tool_icon(tool_id, icon_sz, active=active,
+                                  tile_bg=tile_bg, icon_col=icon_col)
+            btn.setIcon(ico)
+            btn.setIconSize(QSize(icon_sz, icon_sz))
+
+        # Brush manager button if present
+        if hasattr(self, 'brush_mgr_btn'):
+            try:
+                from apps.components.DP5_Workshop.dp5_workshop import get_brushes_icon
+                self.brush_mgr_btn.setIcon(get_brushes_icon(18, icon_col))
+            except Exception:
+                pass
+
+        # Recent colour buttons — update background to theme base
+        try:
+            if self.app_settings:
+                tc = self.app_settings.get_theme_colors() or {}
+                empty_bg = tc.get('bg_secondary', tc.get('panel_primary', ''))
+            else:
+                empty_bg = ''
+        except Exception:
+            empty_bg = ''
+        for i, btn in enumerate(getattr(self, '_color_hist_btns', [])):
+            if i < len(getattr(self, '_color_history', [])):
+                h = self._color_history[i]
+                btn.setStyleSheet(f"background:{h}; border:1px solid palette(mid);")
+            else:
+                bg = empty_bg if empty_bg else 'palette(base)'
+                btn.setStyleSheet(f"background:{bg}; border:1px solid palette(mid);")
 
 
     def _launch_theme_settings(self): #vers 1
