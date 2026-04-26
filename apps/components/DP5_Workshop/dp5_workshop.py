@@ -8174,9 +8174,22 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 f = QFont("Arial", 8); p.setFont(f)
                 info = getattr(self, '_info', 'Zoom Lens')
                 p.drawText(4, 15, f"🔍 {info}")
-                # +/- buttons hint
-                p.setPen(_hint_c)
-                p.drawText(sz - 36, 15, "+  -")
+                # [+] [-] zoom magnification buttons
+                btn_w, btn_h = 18, 14
+                btn_y = 4
+                # [-] button
+                minus_x = sz - btn_w - 2
+                p.setBrush(_hint_c); p.setPen(Qt.PenStyle.NoPen)
+                p.drawRoundedRect(minus_x, btn_y, btn_w, btn_h, 2, 2)
+                p.setPen(_hdr_bg)
+                p.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+                p.drawText(minus_x + 5, btn_y + 11, "-")
+                # [+] button
+                plus_x = minus_x - btn_w - 2
+                p.setBrush(_hint_c); p.setPen(Qt.PenStyle.NoPen)
+                p.drawRoundedRect(plus_x, btn_y, btn_w, btn_h, 2, 2)
+                p.setPen(_hdr_bg)
+                p.drawText(plus_x + 4, btn_y + 11, "+")
                 # Lens image
                 pm = getattr(self, '_pixmap', None)
                 if pm:
@@ -8210,12 +8223,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             def mousePressEvent(self, ev):
                 sz = self._sz[0]
                 x, y = ev.position().x(), ev.position().y()
-                if y < 22:   # header — check +/- or start drag
-                    if x > sz - 36:
-                        if x > sz - 18:
-                            self._change_mag(-1)
-                        else:
-                            self._change_mag(1)
+                if y < 22:   # header — check [+] [-] or start drag
+                    btn_w = 18
+                    minus_x = sz - btn_w - 2
+                    plus_x  = minus_x - btn_w - 2
+                    if x >= minus_x:
+                        self._change_mag(-1)
+                    elif x >= plus_x:
+                        self._change_mag(1)
                     else:
                         self._drag_start = ev.globalPosition().toPoint() - self.pos()
                 ev.accept()
@@ -8276,10 +8291,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             title_row = QHBoxLayout()
             title_lbl = QLabel(f"  {title}")
             title_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            close_btn = QPushButton("✕")
+            close_btn = QPushButton()
             close_btn.setFixedSize(22, 22)
             close_btn.setFlat(True)
+            close_btn.setToolTip("Close")
             close_btn.clicked.connect(self._close)
+            try:
+                _ic = workshop._get_icon_color() if hasattr(workshop, "_get_icon_color") else "#cccccc"
+                close_btn.setIcon(SVGIconFactory.close_icon(16, _ic))
+                close_btn.setIconSize(QSize(16, 16))
+            except Exception:
+                close_btn.setText("✕")
             title_row.addWidget(title_lbl, 1)
             title_row.addWidget(close_btn)
             root.addLayout(title_row)
