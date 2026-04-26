@@ -120,17 +120,10 @@ class _GripHandle(QPushButton):
         self.setCursor(Qt.CursorShape.SizeAllCursor)
         self.setToolTip("Drag → float  ·  Click → collapse  ·  Right-click → dock menu")
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.setStyleSheet("""
-            QPushButton {
-                background: rgba(255,255,255,0.06);
-                border: 1px solid rgba(255,255,255,0.12);
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background: rgba(255,255,255,0.14);
-                border-color: rgba(255,255,255,0.25);
-            }
-        """)
+        self.setStyleSheet(
+            "QPushButton { background: palette(button); border: 1px solid palette(mid);"
+            " border-radius: 3px; }"
+            " QPushButton:hover { background: palette(highlight); color: palette(highlightedText); }")
 
     def paintEvent(self, event):
         super().paintEvent(event)

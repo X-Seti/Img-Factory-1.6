@@ -10261,10 +10261,20 @@ def _clear_debug_log(self):
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.information(self, "Clear Log", "Activity log cleared (if available).")
 
-def apply_theme_to_app(app, app_settings):
-    """Apply theme to entire application"""
+def apply_theme_to_app(app, app_settings): #vers 2
+    """Apply theme to entire application — force repaint all widgets."""
     stylesheet = app_settings.get_stylesheet()
     app.setStyleSheet(stylesheet)
+    # Force Qt to re-evaluate styles on all existing widgets
+    # Without this, widgets with WA_StyledBackground set after init
+    # keep their old palette on theme switch
+    for widget in app.allWidgets():
+        try:
+            app.style().unpolish(widget)
+            app.style().polish(widget)
+            widget.update()
+        except Exception:
+            pass
 
 
 def hsl_to_rgb(h, s, l): #vers 1
