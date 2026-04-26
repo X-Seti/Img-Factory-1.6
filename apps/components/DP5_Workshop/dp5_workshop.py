@@ -11036,21 +11036,23 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Theme Error", str(e))
 
 
-    def _get_icon_color(self) -> str: #vers 2
-        """Return icon colour that contrasts with gadgetbar_bg."""
+    def _get_icon_color(self) -> str: #vers 3
+        """Return icon colour that contrasts with gadgetbar_bg — no hardcoded colours."""
         if self.app_settings:
             colors = self.app_settings.get_theme_colors()
-            # Use gadgetbar_bg to determine if we need light or dark icons
-            bar_bg = colors.get('gadgetbar_bg', colors.get('toolbar_bg', '#333333'))
+            bar_bg = colors.get('gadgetbar_bg', colors.get('toolbar_bg', ''))
             try:
                 r = int(bar_bg[1:3], 16)
                 g = int(bar_bg[3:5], 16)
                 b = int(bar_bg[5:7], 16)
                 lightness = (r * 299 + g * 587 + b * 114) // 1000
-                return '#000000' if lightness > 128 else '#ffffff'
+                if lightness > 128:
+                    return colors.get('text_primary', colors.get('panel_primary', '#333333'))
+                else:
+                    return colors.get('text_background', colors.get('text_primary', '#eeeeee'))
             except Exception:
-                return colors.get('text_primary', '#ffffff')
-        return '#ffffff'
+                return colors.get('text_primary', colors.get('panel_primary', '#eeeeee'))
+        return '#eeeeee'
 
 
     #    Window management                                                      
