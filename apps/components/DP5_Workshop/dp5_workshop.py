@@ -8149,23 +8149,29 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 from PyQt6.QtGui import QPainter, QColor, QPen, QFont
                 p = QPainter(self)
                 sz = self._sz[0]
+                pal = self.palette()
+                _hdr_bg  = pal.color(pal.ColorRole.Shadow)
+                _hdr_txt = pal.color(pal.ColorRole.BrightText)
+                _hint_c  = pal.color(pal.ColorRole.PlaceholderText)
+                _brd_c   = pal.color(pal.ColorRole.Highlight)
+                _vp_bg   = pal.color(pal.ColorRole.Base)
                 # Header bar
-                p.fillRect(0, 0, sz, 22, QColor(30, 30, 40, 220))
-                p.setPen(QColor(180, 180, 200))
+                p.fillRect(0, 0, sz, 22, _hdr_bg)
+                p.setPen(_hdr_txt)
                 f = QFont("Arial", 8); p.setFont(f)
                 info = getattr(self, '_info', 'Zoom Lens')
                 p.drawText(4, 15, f"🔍 {info}")
                 # +/- buttons hint
-                p.setPen(QColor(120, 120, 140))
+                p.setPen(_hint_c)
                 p.drawText(sz - 36, 15, "+  -")
                 # Lens image
                 pm = getattr(self, '_pixmap', None)
                 if pm:
                     p.drawPixmap(0, 22, pm)
                 else:
-                    p.fillRect(0, 22, sz, sz, self._get_ui_color('viewport_bg'))
+                    p.fillRect(0, 22, sz, sz, _vp_bg)
                 # Border
-                p.setPen(QPen(QColor(80, 80, 120), 1))
+                p.setPen(QPen(_brd_c, 1))
                 p.drawRect(0, 0, sz - 1, sz + 22 - 1)
                 # Crosshair
                 mid = sz // 2

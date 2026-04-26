@@ -57,7 +57,9 @@ class SVGIconBrowser(QDialog):
         self.resize(1100, 720)
         self._build_ui()
         self._load_icons()
-        self._apply_theme()
+        # Defer theme so global stylesheet is applied first
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._apply_theme)
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -469,27 +471,29 @@ class SVGIconBrowser(QDialog):
 
     # ── Theme ─────────────────────────────────────────────────────────────────
 
-    def _apply_theme(self): #vers 2
-        """Theme-aware styling — no hardcoded colours."""
-        pal = self.palette()
-        bg  = pal.color(pal.ColorRole.Window).name()
-        fg  = pal.color(pal.ColorRole.WindowText).name()
-        mid = pal.color(pal.ColorRole.Base).name()
-        acc = pal.color(pal.ColorRole.Highlight).name()
+    def _apply_theme(self): #vers 3
+        """Theme-aware styling — reads from app_settings, falls back to palette."""
+        pal  = self.palette()
+        bg   = pal.color(pal.ColorRole.Window).name()
+        fg   = pal.color(pal.ColorRole.WindowText).name()
+        mid  = pal.color(pal.ColorRole.Base).name()
+        acc  = pal.color(pal.ColorRole.Highlight).name()
+        edit_bg = mid
         try:
             if self.app_settings:
-                tc  = self.app_settings.get_theme_colors() or {}
-                bg  = tc.get('bg_primary',    bg)
-                fg  = tc.get('text_primary',   fg)
-                mid = tc.get('bg_secondary',   mid)
-                acc = tc.get('accent_primary', acc)
+                tc      = self.app_settings.get_theme_colors() or {}
+                bg      = tc.get('bg_primary',    bg)
+                fg      = tc.get('text_primary',   fg)
+                mid     = tc.get('bg_secondary',   mid)
+                acc     = tc.get('accent_primary', acc)
+                edit_bg = tc.get('viewport_bg',    tc.get('bg_primary', mid))
         except Exception:
             pass
         self.setStyleSheet(f"""
             QDialog     {{ background:{bg}; color:{fg}; }}
             QListWidget {{ background:{mid}; border:1px solid {acc}; }}
             QListWidget::item:selected {{ background:{acc}; color:{fg}; }}
-            QTextEdit   {{ background:{mid}; color:{fg};
+            QTextEdit   {{ background:{edit_bg}; color:{fg};
                            border:1px solid {acc}; }}
             QLineEdit   {{ background:{mid}; color:{fg};
                            border:1px solid {acc}; padding:3px; }}
