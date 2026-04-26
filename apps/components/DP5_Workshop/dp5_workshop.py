@@ -830,7 +830,14 @@ class DP5SettingsDialog(QDialog):
             btn.setChecked(tool_id not in hidden)
             btn.setFixedSize(btn_sz, btn_sz + 14)
             btn.setToolTip(label)
-            ico = _load_tool_icon(tool_id, icon_sz)
+            # Use parent workshop's icon colour if available
+            _ws  = parent if hasattr(parent, '_get_icon_color') else None
+            _col = _ws._get_icon_color() if _ws else '#eeeeee'
+            _tbg = ''
+            if _ws and _ws.app_settings:
+                _tc = _ws.app_settings.get_theme_colors() or {}
+                _tbg = _tc.get('gadgetbar_bg', _tc.get('toolbar_bg', ''))
+            ico = _load_tool_icon(tool_id, icon_sz, tile_bg=_tbg, icon_col=_col)
             btn.setIcon(ico)
             btn.setIconSize(QSize(icon_sz, icon_sz))
             lbl_short = label[:6]
@@ -11110,22 +11117,27 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Theme Error", str(e))
 
 
-    def _get_icon_color(self) -> str: #vers 3
-        """Return icon colour that contrasts with gadgetbar_bg — no hardcoded colours."""
+    def _get_icon_color(self) -> str: #vers 4
+        """Return icon colour per tool_icon_color setting and theme."""
+        mode = self.dp5_settings.get('tool_icon_color', 'color')
         if self.app_settings:
             colors = self.app_settings.get_theme_colors()
+            if mode == 'white':
+                return colors.get('text_background', colors.get('text_primary', '#eeeeee'))
+            if mode == 'dark':
+                return colors.get('text_primary', colors.get('panel_primary', '#222222'))
+            # 'color' — auto-detect from gadgetbar_bg
             bar_bg = colors.get('gadgetbar_bg', colors.get('toolbar_bg', ''))
             try:
                 r = int(bar_bg[1:3], 16)
                 g = int(bar_bg[3:5], 16)
                 b = int(bar_bg[5:7], 16)
-                lightness = (r * 299 + g * 587 + b * 114) // 1000
-                if lightness > 128:
-                    return colors.get('text_primary', colors.get('panel_primary', '#333333'))
+                if (r*299 + g*587 + b*114) // 1000 > 128:
+                    return colors.get('text_primary', colors.get('panel_primary', '#222222'))
                 else:
                     return colors.get('text_background', colors.get('text_primary', '#eeeeee'))
             except Exception:
-                return colors.get('text_primary', colors.get('panel_primary', '#eeeeee'))
+                return colors.get('text_primary', '#eeeeee')
         return '#eeeeee'
 
 

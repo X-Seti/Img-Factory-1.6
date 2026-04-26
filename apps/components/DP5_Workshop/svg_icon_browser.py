@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/DP5_Workshop/svg_icon_browser.py - Version: 2
-# X-Seti - April25 2026 - IMG Factory 1.6 - SVG Icon Browser for DP5 Workshop
+#this belongs in apps/components/DP5_Workshop/svg_icon_browser.py - Version: 3
+# X-Seti - April26 2026 - IMG Factory 1.6 - SVG Icon Browser
 """
-SVG Icon Browser — browse, preview, edit, save, export SVG icons
-from imgfactory_svg_icons.py.
+SVG Icon Browser — browse, preview, edit, recolour, undo, save SVG icons.
 Open via DP5 → Image Ops → Icon Browser.
 """
 
@@ -19,6 +18,9 @@ Open via DP5 → Image Ops → Icon Browser.
 # SVGIconBrowser._get_full_method_source
 # SVGIconBrowser._on_source_changed
 # SVGIconBrowser._preview_refresh
+# SVGIconBrowser._pick_color
+# SVGIconBrowser._apply_color_to_svg
+# SVGIconBrowser._undo
 # SVGIconBrowser._export_svg
 # SVGIconBrowser._export_as_method
 # SVGIconBrowser._copy_method
@@ -34,14 +36,15 @@ import inspect
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QListWidget,
     QListWidgetItem, QLabel, QTextEdit, QPushButton, QSplitter,
-    QWidget, QFrame, QFileDialog, QMessageBox, QApplication
+    QWidget, QFrame, QFileDialog, QMessageBox, QApplication,
+    QToolButton, QColorDialog
 )
 from PyQt6.QtCore import Qt, QSize, QTimer
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QFont, QIcon, QColor
 
 
 class SVGIconBrowser(QDialog):
-    """Browse, edit, export and save SVG icons from SVGIconFactory."""
+    """Browse, edit, recolour, undo and save SVG icons from SVGIconFactory."""
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
@@ -52,13 +55,13 @@ class SVGIconBrowser(QDialog):
         self._current_name = None
         self._icons_path   = None
         self._dirty        = False
+        self._undo_stack   = []   # list of previous SVG source strings
+        self._orig_source  = ''   # original from file before any edits
         self.setWindowTitle("SVG Icon Browser — IMG Factory")
-        self.setMinimumSize(960, 640)
-        self.resize(1100, 720)
+        self.setMinimumSize(980, 660)
+        self.resize(1120, 740)
         self._build_ui()
         self._load_icons()
-        # Defer theme so global stylesheet is applied first
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._apply_theme)
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -68,6 +71,7 @@ class SVGIconBrowser(QDialog):
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(6)
 
+        # Search bar
         top = QHBoxLayout()
         self._search = QLineEdit()
         self._search.setPlaceholderText("Filter icons by name…")
@@ -82,12 +86,10 @@ class SVGIconBrowser(QDialog):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setHandleWidth(5)
 
-        # Left: icon grid
+        # ── Left: icon list ───────────────────────────────────────────────────
         left = QWidget()
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 0, 0, 0)
-        ll.setSpacing(4)
-        ll.addWidget(QLabel("Icons:"))
         self._list = QListWidget()
         self._list.setViewMode(QListWidget.ViewMode.IconMode)
         self._list.setIconSize(QSize(36, 36))
@@ -99,12 +101,13 @@ class SVGIconBrowser(QDialog):
         ll.addWidget(self._list, 1)
         splitter.addWidget(left)
 
-        # Right: preview + editor
+        # ── Right: preview + editor ───────────────────────────────────────────
         right = QWidget()
         rl = QVBoxLayout(right)
         rl.setContentsMargins(0, 0, 0, 0)
         rl.setSpacing(6)
 
+        # Preview row
         prev_row = QHBoxLayout()
         self._preview_lbl = QLabel()
         self._preview_lbl.setFixedSize(96, 96)
@@ -123,49 +126,66 @@ class SVGIconBrowser(QDialog):
         info.addWidget(self._method_lbl)
         info.addWidget(self._dirty_lbl)
         info.addStretch()
-        self._refresh_prev_btn = QPushButton("Refresh Preview")
-        self._refresh_prev_btn.setFixedWidth(130)
-        self._refresh_prev_btn.setEnabled(False)
-        self._refresh_prev_btn.clicked.connect(self._preview_refresh)
-        info.addWidget(self._refresh_prev_btn)
+
+        # Colour picker + Refresh + Undo row
+        edit_row = QHBoxLayout()
+        self._color_btn = QPushButton("Pick Colour…")
+        self._color_btn.setFixedWidth(110)
+        self._color_btn.setEnabled(False)
+        self._color_btn.clicked.connect(self._pick_color)
+        self._color_swatch = QLabel()
+        self._color_swatch.setFixedSize(24, 24)
+        self._color_swatch.setFrameShape(QFrame.Shape.Box)
+        self._current_color = '#ffffff'
+        self._undo_btn = QToolButton()
+        self._undo_btn.setText("↩ Undo")
+        self._undo_btn.setEnabled(False)
+        self._undo_btn.clicked.connect(self._undo)
+        self._refresh_btn = QPushButton("Refresh Preview")
+        self._refresh_btn.setFixedWidth(130)
+        self._refresh_btn.setEnabled(False)
+        self._refresh_btn.clicked.connect(self._preview_refresh)
+        edit_row.addWidget(self._color_btn)
+        edit_row.addWidget(self._color_swatch)
+        edit_row.addSpacing(8)
+        edit_row.addWidget(self._undo_btn)
+        edit_row.addSpacing(8)
+        edit_row.addWidget(self._refresh_btn)
+        edit_row.addStretch()
+        info.addLayout(edit_row)
         prev_row.addLayout(info, 1)
         rl.addLayout(prev_row)
 
+        # SVG source editor
         rl.addWidget(QLabel(
-            "SVG Source  (edit then click 'Save to File' to update imgfactory_svg_icons.py):"))
+            "SVG Source  (edit then Save to File → imgfactory_svg_icons.py):"))
         self._source_edit = QTextEdit()
         self._source_edit.setFont(QFont("Courier New", 9))
         self._source_edit.setMinimumHeight(200)
         self._source_edit.textChanged.connect(self._on_source_changed)
         rl.addWidget(self._source_edit, 1)
 
+        # Button row
         btn_row = QHBoxLayout()
 
         self._save_btn = QPushButton("Save to File")
-        self._save_btn.setToolTip(
-            "Write edited SVG back into imgfactory_svg_icons.py")
+        self._save_btn.setToolTip("Write edited SVG back into imgfactory_svg_icons.py")
         self._save_btn.clicked.connect(self._save_to_file)
         self._save_btn.setEnabled(False)
 
         self._export_btn = QPushButton("Export .svg")
-        self._export_btn.setToolTip("Save as standalone .svg file")
         self._export_btn.clicked.connect(self._export_svg)
         self._export_btn.setEnabled(False)
 
         self._export_method_btn = QPushButton("Export as Method")
-        self._export_method_btn.setToolTip(
-            "Export complete Python method as .py file")
         self._export_method_btn.clicked.connect(self._export_as_method)
         self._export_method_btn.setEnabled(False)
 
         self._copy_btn = QPushButton("Copy Method")
-        self._copy_btn.setToolTip("Copy full Python method to clipboard")
         self._copy_btn.clicked.connect(self._copy_method)
         self._copy_btn.setEnabled(False)
 
         self._replace_btn = QPushButton("Replace from File…")
-        self._replace_btn.setToolTip(
-            "Load an .svg file and replace current editor content")
         self._replace_btn.clicked.connect(self._replace_icon)
         self._replace_btn.setEnabled(False)
 
@@ -201,8 +221,7 @@ class SVGIconBrowser(QDialog):
             self._icon_names = names
             self._populate_list(names)
         except Exception as e:
-            QMessageBox.warning(self, "Load Error",
-                f"Could not load icons:\n{e}")
+            QMessageBox.warning(self, "Load Error", f"Could not load icons:\n{e}")
 
     def _populate_list(self, names): #vers 1
         self._list.clear()
@@ -227,10 +246,9 @@ class SVGIconBrowser(QDialog):
                 return tc.get('text_primary', '#aaaaaa')
         except Exception:
             pass
-        return self.palette().color(
-            self.palette().ColorRole.WindowText).name()
+        return self.palette().color(self.palette().ColorRole.WindowText).name()
 
-    # ── Filtering & selection ─────────────────────────────────────────────────
+    # ── Filter & selection ────────────────────────────────────────────────────
 
     def _apply_filter(self, text): #vers 1
         text = text.lower().strip()
@@ -249,29 +267,29 @@ class SVGIconBrowser(QDialog):
                 return
         name = items[0].data(Qt.ItemDataRole.UserRole)
         self._current_name = name
-        self._dirty        = False
+        self._dirty = False
+        self._undo_stack.clear()
         self._dirty_lbl.setText("")
         self._name_lbl.setText(
             name.replace('_icon', '').replace('_', ' ').title())
         self._method_lbl.setText(f"SVGIconFactory.{name}(size, color)")
-
         try:
             icon = getattr(self._factory, name)(80, self._icon_color())
             self._preview_lbl.setPixmap(icon.pixmap(80, 80))
         except Exception:
             self._preview_lbl.clear()
-
         src = self._get_svg_source(name)
+        self._orig_source = src
         self._source_edit.blockSignals(True)
         self._source_edit.setPlainText(src)
         self._source_edit.blockSignals(False)
-
+        for btn in [self._save_btn, self._export_btn,
+                    self._export_method_btn, self._copy_btn,
+                    self._replace_btn, self._refresh_btn,
+                    self._color_btn]:
+            btn.setEnabled(True)
         self._save_btn.setEnabled(False)
-        self._export_btn.setEnabled(bool(src))
-        self._export_method_btn.setEnabled(True)
-        self._copy_btn.setEnabled(True)
-        self._replace_btn.setEnabled(True)
-        self._refresh_prev_btn.setEnabled(True)
+        self._undo_btn.setEnabled(False)
 
     # ── Source helpers ────────────────────────────────────────────────────────
 
@@ -298,9 +316,9 @@ class SVGIconBrowser(QDialog):
             self._dirty = True
             self._dirty_lbl.setText("● unsaved changes")
             self._save_btn.setEnabled(True)
+            self._undo_btn.setEnabled(bool(self._undo_stack))
 
     def _preview_refresh(self): #vers 1
-        """Re-render preview from editor content using QSvgRenderer."""
         svg = self._source_edit.toPlainText().strip()
         if not svg:
             return
@@ -320,14 +338,58 @@ class SVGIconBrowser(QDialog):
         except Exception:
             self._preview_lbl.setText("?")
 
-    # ── Actions ───────────────────────────────────────────────────────────────
+    # ── Colour picker ─────────────────────────────────────────────────────────
+
+    def _pick_color(self): #vers 1
+        """Pick a colour and apply it to all stroke/fill attributes in SVG."""
+        initial = QColor(self._current_color) if self._current_color else QColor('white')
+        color = QColorDialog.getColor(initial, self, "Pick Icon Colour")
+        if not color.isValid():
+            return
+        self._current_color = color.name()
+        self._color_swatch.setStyleSheet(
+            f"background:{self._current_color}; border:1px solid palette(mid);")
+        self._apply_color_to_svg(self._current_color)
+
+    def _apply_color_to_svg(self, hex_color): #vers 1
+        """Replace all stroke/fill colour values in SVG with hex_color."""
+        svg = self._source_edit.toPlainText()
+        if not svg:
+            return
+        # Push undo
+        self._undo_stack.append(svg)
+        self._undo_btn.setEnabled(True)
+        # Replace common colour attributes
+        result = re.sub(
+            r'((?:stroke|fill)\s*=\s*["\'])(?!none|transparent)[^"\']+(["\'])',
+            lambda m: m.group(1) + hex_color + m.group(2),
+            svg)
+        # Also replace inline style colour values
+        result = re.sub(
+            r'((?:stroke|fill)\s*:\s*)(?!none|transparent)[^;"\'\s]+',
+            lambda m: m.group(1) + hex_color,
+            result)
+        self._source_edit.setPlainText(result)
+        self._preview_refresh()
+
+    def _undo(self): #vers 1
+        """Revert to previous SVG state."""
+        if self._undo_stack:
+            prev = self._undo_stack.pop()
+            self._source_edit.blockSignals(True)
+            self._source_edit.setPlainText(prev)
+            self._source_edit.blockSignals(False)
+            self._dirty = bool(self._undo_stack) or (prev != self._orig_source)
+            self._dirty_lbl.setText("● unsaved changes" if self._dirty else "")
+            self._undo_btn.setEnabled(bool(self._undo_stack))
+            self._preview_refresh()
+
+    # ── Export / Save ─────────────────────────────────────────────────────────
 
     def _export_svg(self): #vers 1
         if not self._current_name:
             return
         svg = self._source_edit.toPlainText().strip()
-        if not svg:
-            return
         default = self._current_name.replace('_icon', '') + '.svg'
         path, _ = QFileDialog.getSaveFileName(
             self, "Export SVG", default, "SVG Files (*.svg)")
@@ -344,14 +406,13 @@ class SVGIconBrowser(QDialog):
             QMessageBox.warning(self, "Export Error", str(e))
 
     def _export_as_method(self): #vers 1
-        """Export the complete Python method as a .py file."""
+        """Export complete Python method as .py file."""
         if not self._current_name:
             return
-        name    = self._current_name
-        svg     = self._source_edit.toPlainText().strip()
-        default = name + '.py'
+        name = self._current_name
+        svg  = self._source_edit.toPlainText().strip()
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Method", default, "Python Files (*.py)")
+            self, "Export Method", name + '.py', "Python Files (*.py)")
         if not path:
             return
         try:
@@ -362,8 +423,7 @@ class SVGIconBrowser(QDialog):
                 f"#!/usr/bin/env python3\n"
                 f"# Exported from SVG Icon Browser — IMG Factory\n"
                 f"# Icon: {name}\n"
-                f"# Add to apps/methods/imgfactory_svg_icons.py "
-                f"inside class SVGIconFactory\n\n"
+                f"# Add inside class SVGIconFactory in apps/methods/imgfactory_svg_icons.py\n\n"
                 f"from PyQt6.QtCore import QSize, QByteArray\n"
                 f"from PyQt6.QtGui import QIcon, QPixmap, QPainter\n"
                 f"from PyQt6.QtSvg import QSvgRenderer\n\n\n"
@@ -379,8 +439,7 @@ class SVGIconBrowser(QDialog):
             return
         src = self._get_full_method_source(self._current_name)
         if self._dirty:
-            src = self._inject_svg(src,
-                self._source_edit.toPlainText().strip())
+            src = self._inject_svg(src, self._source_edit.toPlainText().strip())
         QApplication.clipboard().setText(src)
         self._copy_btn.setText("Copied!")
         QTimer.singleShot(1500, lambda: self._copy_btn.setText("Copy Method"))
@@ -396,19 +455,14 @@ class SVGIconBrowser(QDialog):
         try:
             with open(self._icons_path, 'r') as f:
                 file_src = f.read()
-
             old_meth = inspect.getsource(
                 getattr(self._factory, self._current_name))
             new_meth = self._inject_svg(old_meth, new_svg)
-
             if old_meth not in file_src:
                 QMessageBox.warning(self, "Save Error",
-                    "Cannot locate method in source file.\n"
-                    "It may be inherited or dynamically generated.")
+                    "Cannot locate method in source file.")
                 return
-
             new_file = file_src.replace(old_meth, new_meth, 1)
-
             import ast
             try:
                 ast.parse(new_file)
@@ -416,22 +470,21 @@ class SVGIconBrowser(QDialog):
                 QMessageBox.critical(self, "Syntax Error",
                     f"Edit would break the file:\n{e}")
                 return
-
             with open(self._icons_path, 'w') as f:
                 f.write(new_file)
-
             self._dirty = False
+            self._orig_source = new_svg
+            self._undo_stack.clear()
             self._dirty_lbl.setText("✓ saved")
             self._save_btn.setEnabled(False)
+            self._undo_btn.setEnabled(False)
             QTimer.singleShot(2000, lambda: self._dirty_lbl.setText(""))
             QMessageBox.information(self, "Saved",
-                f"'{self._current_name}' updated.\n"
-                "Restart to see changes.")
+                f"'{self._current_name}' updated.\nRestart to see icon changes.")
         except Exception as e:
             QMessageBox.warning(self, "Save Error", str(e))
 
     def _replace_icon(self): #vers 1
-        """Load an .svg file and paste its content into the editor."""
         if not self._current_name:
             return
         path, _ = QFileDialog.getOpenFileName(
@@ -446,7 +499,9 @@ class SVGIconBrowser(QDialog):
             return
         svg = re.sub(r'<\?xml[^>]*\?>', '', svg).strip()
         svg = re.sub(r'<!DOCTYPE[^>]*>', '', svg).strip()
+        self._undo_stack.append(self._source_edit.toPlainText())
         self._source_edit.setPlainText(svg)
+        self._undo_btn.setEnabled(True)
 
     def _on_close(self): #vers 1
         if self._dirty:
@@ -459,7 +514,6 @@ class SVGIconBrowser(QDialog):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _inject_svg(self, method_src: str, new_svg: str) -> str: #vers 1
-        """Replace svg_data content inside a method source string."""
         for pat in [r"(svg_data\s*=\s*''')(.*?)(''')",
                     r'(svg_data\s*=\s*""")(.*?)(""")'  ]:
             m = re.search(pat, method_src, re.DOTALL)
@@ -502,6 +556,11 @@ class SVGIconBrowser(QDialog):
                            padding:4px 10px; border-radius:3px; }}
             QPushButton:hover    {{ background:{acc}; }}
             QPushButton:disabled {{ opacity:0.4; }}
+            QToolButton {{ background:{mid}; color:{fg};
+                           border:1px solid {acc}; padding:4px 8px;
+                           border-radius:3px; }}
+            QToolButton:hover    {{ background:{acc}; }}
+            QToolButton:disabled {{ opacity:0.4; }}
             QLabel      {{ color:{fg}; background:transparent; }}
             QSplitter::handle {{ background:{acc}; }}
         """)
