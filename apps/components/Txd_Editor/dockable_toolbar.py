@@ -120,12 +120,7 @@ class _GripHandle(QPushButton):
         self.setCursor(Qt.CursorShape.SizeAllCursor)
         self.setToolTip("Drag → float  ·  Click → collapse  ·  Right-click → dock menu")
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.setStyleSheet(
-            "QPushButton { background: palette(button); border: 1px solid palette(mid);"
-            " border-radius: 3px; }"
-            " QPushButton:hover { background: palette(highlight); color: palette(highlightedText); }")
-        self.setAttribute(__import__('PyQt6.QtCore', fromlist=['Qt']).Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setAutoFillBackground(True)
+        # No explicit stylesheet — inherit from application stylesheet like all other buttons
 
     def paintEvent(self, event):
         super().paintEvent(event)
