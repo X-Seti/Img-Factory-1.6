@@ -46,17 +46,12 @@ from PyQt6.QtSvg import QSvgRenderer
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
-# COL Workshop parser system
-from apps.methods.col_workshop_classes import (
-    COLModel, COLVersion, COLHeader, COLBounds,
-    COLSphere, COLBox, COLVertex, COLFace
-)
-
-from apps.methods.col_workshop_structures import setup_col_table_structure, populate_col_table
-from apps.methods.col_workshop_parser import COLParser
-from apps.methods.col_workshop_loader import COLFile
+from apps.components.Col_Editor.depends.col_workshop_structures import setup_col_table_structure, populate_col_table
+from apps.components.Col_Editor.depends.col_workshop_parser import COLParser
+from apps.components.Col_Editor.depends.col_workshop_loader import COLFile
 from apps.gui.tool_menu_mixin import ToolMenuMixin
-
+# COL Workshop parser system
+from apps.components.Col_Editor.depends.col_workshop_classes import (COLModel, COLVersion, COLHeader, COLBounds,COLSphere, COLBox, COLVertex, COLFace)
 
 # Temporary 3D viewport placeholder
 class COL3DViewport(QWidget): #vers 2
@@ -1739,7 +1734,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         from PyQt6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "New Model", "Model name:")
         if not ok or not name.strip(): return
-        from apps.methods.col_workshop_classes import COLModel, COLHeader, COLVersion, COLBounds
+        from apps.apps.components.Col_Editor.depends.col_workshop_classes import COLModel, COLHeader, COLVersion, COLBounds
         m = COLModel()
         m.name = name.strip(); m.version = COLVersion.COL_1
         if not self.current_col_file: return
@@ -2280,7 +2275,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No File", "Load a COL file first.")
             return
-        from apps.methods.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
+        from apps.components.Col_Editor.depends.col_workshop_classes import COLModel, COLHeader, COLBounds, COLVersion
         from apps.methods.col_core_classes import Vector3
         hdr = COLHeader(fourcc=b'COLL', size=0, name='new_model',
                         model_id=0, version=COLVersion.COL_1)
@@ -2310,7 +2305,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Create stub COL models for each texture name in a loaded TXD."""
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         from apps.methods.col_workshop_loader import COLFile
-        from apps.methods.col_workshop_classes import COLModel, COLVersion, COLBounds
+        from apps.components.Col_Editor.depends.col_workshop_classes import COLModel, COLVersion, COLBounds
         txd_path, _ = QFileDialog.getOpenFileName(
             self, "Select TXD file", "", "TXD Files (*.txd);;All Files (*)")
         if not txd_path:
@@ -2372,7 +2367,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
     def _convert_surface(self): #vers 2
         """Convert selected model to a different COL version."""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QMessageBox
-        from apps.methods.col_workshop_classes import COLVersion
+        from apps.components.Col_Editor.depends.col_workshop_classes import COLVersion
         model = self._get_selected_model()
         if not model:
             QMessageBox.warning(self, "No Selection", "Select a collision model first.")
@@ -2434,7 +2429,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.warning(self, "No Mesh", f"'{model.name}' has no vertex/face data.")
             return
         # Upgrade to COL3 if needed
-        from apps.methods.col_workshop_classes import COLVersion
+        from apps.components.Col_Editor.depends.col_workshop_classes import COLVersion
         if getattr(model.version, 'value', 0) < 3:
             reply = QMessageBox.question(self, "Upgrade to COL3",
                 "Shadow mesh requires COL3. Upgrade this model?",
