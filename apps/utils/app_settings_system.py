@@ -1845,7 +1845,9 @@ class AppSettings:
         # Handle style — 4 types: line, gradient, dots, invisible
         cs = getattr(self, 'current_settings', {})
         _hstyle = colors.get('handle_style', cs.get('handle_style', 'line'))
-        _hcol   = colors.get('handle_color',  cs.get('handle_color',  border))
+        _hcol   = colors.get('handle_color',
+                    colors.get('splitter_color_background',
+                        cs.get('handle_color', border)))
         _hsize  = colors.get('handle_size',   cs.get('handle_size',   '4'))
         _hide_docked = cs.get('handle_hide_docked', False)
         if _hide_docked:
@@ -1871,6 +1873,9 @@ class AppSettings:
         button_normal = colors.get('button_normal', '#e0e0e0')
         button_hover = colors.get('button_hover', '#d0d0d0')
         button_pressed = colors.get('button_pressed', '#b0b0b0')
+        button_text   = colors.get('button_text_color',   text_primary)
+        button_text_h = colors.get('button_text_hover',   text_primary)
+        button_text_p = colors.get('button_text_pressed', text_primary)
         selection_bg   = colors.get('selection_background', '#0078d4')
         selection_text = colors.get('selection_text', '#ffffff')
         menu_hl_bg     = colors.get('menu_highlight_bg',   selection_bg)
@@ -1972,6 +1977,7 @@ class AppSettings:
 
         QPushButton {{
             background-color: {button_normal};
+            color: {button_text};
             border: 1px solid {border};
             border-radius: 4px;
             padding: 6px 12px;
@@ -2940,6 +2946,12 @@ class AppSettings:
                 'selection_text': '#ffffff',
                 'menu_highlight_bg': '#0188c4',
                 'menu_highlight_text': '#ffffff',
+                'button_text_color': '#000000',
+                'button_text_hover': '#000000',
+                'button_text_pressed': '#000000',
+                'splitter_color_background': '#cccccc',
+                'splitter_color_shine': '#ffffff',
+                'splitter_color_shadow': '#aaaaaa',
                 'table_row_even': '#fcfcfc',
                 'table_row_odd': '#f1f1f1',
                 'success': '#4caf50',
