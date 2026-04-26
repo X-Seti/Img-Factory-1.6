@@ -8272,13 +8272,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
             self.setAutoFillBackground(True)
 
-            # Size: full width of viewport, capped height
+            # Size: compact fixed width, capped height, bottom-left corner
             vp_w = parent_vp.width()  or 600
             vp_h = parent_vp.height() or 400
-            panel_h = min(380, max(260, vp_h // 2))
-            self.setFixedWidth(vp_w)
+            panel_w = min(520, max(360, vp_w // 2))
+            panel_h = min(340, max(240, vp_h // 2))
+            self.setFixedWidth(panel_w)
             self.setFixedHeight(panel_h)
-            # Position at bottom of viewport
+            # Anchor to bottom-left of viewport
             self.move(0, vp_h - panel_h)
             self.raise_()
             self.show()
