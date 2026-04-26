@@ -4943,10 +4943,8 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         _QTimer.singleShot(100, self._load_col_toolbar_layouts)
 
         # Information group below
-        info_group = QGroupBox("")
-        info_group.setFont(self.title_font)
-        info_group.setAutoFillBackground(True)
-        info_group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        info_group = QFrame()
+        info_group.setFrameStyle(QFrame.Shape.StyledPanel)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(180)  # extra 40px for paint row
 

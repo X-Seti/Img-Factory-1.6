@@ -4613,10 +4613,8 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         main_layout.addLayout(top_layout, stretch=1)
 
         # Information group below
-        info_group = QGroupBox("")
-        info_group.setFont(self.title_font)
-        info_group.setAutoFillBackground(True)
-        info_group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        info_group = QFrame()
+        info_group.setFrameStyle(QFrame.Shape.StyledPanel)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(180)  # extra 40px for paint row
 
