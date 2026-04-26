@@ -200,7 +200,7 @@ class COL3DViewport(QWidget): #vers 2
         self._flip_v = not self._flip_v; self.update()
 
     def set_background_color(self, rgb):
-        self._bg_color = rgb; self.update()
+        self._bg_color = rgb; self._user_bg_set = True; self.update()
 
     def set_show_spheres(self, v): self._show_spheres = v; self.update()
     def set_show_boxes(self,   v): self._show_boxes   = v; self.update()
@@ -727,11 +727,19 @@ class COL3DViewport(QWidget): #vers 2
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
+
+        # Always read bg from palette unless user explicitly picked a colour
+        if not getattr(self, '_user_bg_set', False):
+            _pal = self.palette()
+            _w   = _pal.color(_pal.ColorRole.Base)
+            self._bg_color = (_w.red(), _w.green(), _w.blue())
+
         r2, g2, b2 = self._bg_color
         p.fillRect(self.rect(), QColor(r2, g2, b2))
 
         if not self._model:
-            p.setPen(QColor(120, 120, 120))
+            _pal2 = self.palette()
+            p.setPen(_pal2.color(_pal2.ColorRole.PlaceholderText))
             p.setFont(QFont('Arial', 11))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No model selected")
             return
@@ -4644,9 +4652,18 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
 
         # paint_toolbar built by _build_float_paint_bar() — floats over preview_widget
 
-        # Preview controls (right side, vertical)
-        self.preview_controls = self._create_preview_controls()
-        top_layout.addWidget(self.preview_controls, stretch=0)
+        # Preview controls (right side) — wrap in DockableToolbar for collapse support
+        ctrl_frame = self._create_preview_controls()
+        self.preview_controls = ctrl_frame
+        try:
+            from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
+            right_toolbar = DockableToolbar(panel, settings_key='model_right_toolbar')
+            right_toolbar.set_content(ctrl_frame)
+            right_toolbar.set_dock_position('right')
+            self._model_right_toolbar = right_toolbar
+            top_layout.addWidget(right_toolbar, stretch=0)
+        except ImportError:
+            top_layout.addWidget(ctrl_frame, stretch=0)
         main_layout.addLayout(top_layout, stretch=1)
 
         # Information group below
