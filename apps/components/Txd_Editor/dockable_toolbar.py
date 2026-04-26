@@ -226,7 +226,24 @@ class _FloatWindow(QWidget):
         lo.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
         lo.addWidget(content)
 
-        self.setStyleSheet("background:palette(window); border:1px solid palette(mid);")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
+        # Get theme colour explicitly — palette() may not resolve for frameless Tool windows
+        try:
+            app_settings = getattr(parent_panel, 'app_settings', None) or                 getattr(getattr(parent_panel, 'main_window', None), 'app_settings', None)
+            if app_settings:
+                tc  = app_settings.get_theme_colors() or {}
+                bg  = tc.get('bg_primary',  tc.get('window_bg', ''))
+                brd = tc.get('border', '')
+                if bg:
+                    self.setStyleSheet(
+                        f"background:{bg}; border:1px solid {brd if brd else bg};")
+                else:
+                    self.setStyleSheet("background:palette(window); border:1px solid palette(mid);")
+            else:
+                self.setStyleSheet("background:palette(window); border:1px solid palette(mid);")
+        except Exception:
+            self.setStyleSheet("background:palette(window); border:1px solid palette(mid);")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.adjustSize()
         self.move(initial_global - QPoint(self.width() // 2, self.height() // 2))

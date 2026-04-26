@@ -2,11 +2,7 @@
   "debug_mode": false,
   "debug_level": "INFO",
   "current_theme": "App_Factory",
-<<<<<<< Updated upstream
   "theme": "default_green",
-=======
-  "theme": "Default Green",
->>>>>>> Stashed changes
   "button_display_mode": "both",
   "use_custom_gadgets": true,
   "enable_corner_resize": true,
@@ -64,11 +60,7 @@
   "disabled_text": "#777777",
   "panel_fill_a": "#1a1a2e",
   "panel_fill_b": "#16213e",
-<<<<<<< Updated upstream
   "panel_fill_dir": 5,
-=======
-  "panel_fill_dir": 0,
->>>>>>> Stashed changes
   "panel_grad_dir": 2,
   "panel_grad_stop1": "#1a1a2e",
   "panel_grad_stop2": "#2d1b4e",
