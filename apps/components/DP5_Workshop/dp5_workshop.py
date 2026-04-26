@@ -8341,15 +8341,15 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 ctrl_row.addWidget(controls_widget, 1)
 
             btn_col = QVBoxLayout()
+            apply_btn = QPushButton("Apply")
+            apply_btn.clicked.connect(self._apply)
+            btn_col.addWidget(apply_btn)
             if generate_fn:
                 gen_btn = QPushButton("Generate")
                 gen_btn.clicked.connect(self._generate)
                 btn_col.addWidget(gen_btn)
-            apply_btn = QPushButton("Apply")
-            apply_btn.clicked.connect(self._apply)
-            close_btn2 = QPushButton("Close")
+            close_btn2 = QPushButton("Cancel")
             close_btn2.clicked.connect(self._close)
-            btn_col.addWidget(apply_btn)
             btn_col.addWidget(close_btn2)
             btn_col.addStretch()
             ctrl_row.addLayout(btn_col)
@@ -8592,25 +8592,30 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             overlay._generate_fn = _gen
             overlay._apply_fn = _apply
 
-            # Rebuild buttons now we have fns
-            from PyQt6.QtWidgets import QPushButton
-            gen_btn = QPushButton("Generate Snow")
-            gen_btn.clicked.connect(_gen)
-            overlay.layout().itemAt(overlay.layout().count()-1).layout()                 .insertWidget(0, gen_btn)
-
             pm_orig = rgba_to_qpixmap(rgba, w, h, _preview_bg(overlay))
             overlay.set_orig_pixmap(pm_orig)
 
         except Exception as e:
             self._set_status(f"Snow error: {e}")
 
-    def _open_icon_browser(self): #vers 1
-        """Open the SVG Icon Browser dialog."""
+    def _open_icon_browser(self): #vers 2
+        """Open SVG icon browser as floating panel — click icon to load into canvas."""
         try:
             from apps.components.DP5_Workshop.svg_icon_browser import SVGIconBrowser
-            mw = getattr(self, 'main_window', None) or getattr(self, '_imgfactory', None)
-            dlg = SVGIconBrowser(main_window=mw, parent=self)
-            dlg.exec()
+            if not hasattr(self, '_svg_browser_panel'):
+                self._svg_browser_panel = SVGIconBrowser(workshop=self, parent=None)
+
+            if self._svg_browser_panel.isVisible():
+                self._svg_browser_panel.hide()
+            else:
+                # Position to the left of the DP5 window
+                pos = self.mapToGlobal(self.rect().topLeft())
+                pw  = self._svg_browser_panel.width()
+                self._svg_browser_panel.move(
+                    max(0, pos.x() - pw - 6), pos.y() + 40)
+                self._svg_browser_panel.resize(220, self.height() - 60)
+                self._svg_browser_panel.show()
+                self._svg_browser_panel.raise_()
         except Exception as e:
             self._set_status(f"Icon Browser error: {e}")
 
