@@ -347,73 +347,40 @@ class SVGIconBrowser(QWidget):
 
     # ── Update in file ────────────────────────────────────────────────────────
 
-    def _update_in_file(self): #vers 1
-        """
-        1. Build replacement method source
-        2. Copy it to clipboard
-        3. Open Kate at the method's line number in imgfactory_svg_icons.py
-        4. Show instructions — user pastes over old method, saves
-        5. Prompt to reload icons
-        """
+    def _update_in_file(self): #vers 2
+        """Open built-in find/replace dialog — OS-agnostic."""
         if not self._current_name or not self._icons_path:
             return
-
-        name = self._current_name
-
-        # Build replacement method
+        name       = self._current_name
         method_src = self._build_replacement_method(name)
         if not method_src:
-            QMessageBox.warning(self, "Error", "Could not build replacement method.")
+            QMessageBox.warning(self, "Error", "Could not build method source.")
             return
-
-        # Copy to clipboard
-        QApplication.clipboard().setText(method_src)
-
-        # Find line number
-        line_no = self._find_method_line(name)
-
-        # Open Kate at that line
-        editor = self._find_editor()
-        try:
-            if editor == 'kate':
-                subprocess.Popen(['kate', '--line', str(line_no),
-                                  self._icons_path])
-            elif editor == 'kwrite':
-                subprocess.Popen(['kwrite', '--line', str(line_no),
-                                  self._icons_path])
-            elif editor == 'gedit':
-                subprocess.Popen(['gedit', f'+{line_no}', self._icons_path])
-            elif editor == 'code':
-                subprocess.Popen(['code', '--goto',
-                                  f'{self._icons_path}:{line_no}'])
-            elif editor == 'xed':
-                subprocess.Popen(['xed', f'+{line_no}', self._icons_path])
-            else:
-                subprocess.Popen(['xdg-open', self._icons_path])
-        except Exception as e:
-            self._status_lbl.setText(f"Could not open editor: {e}")
-
-        # Show instructions
-        self._status_lbl.setText(
-            f"Method copied!\nKate opened at line {line_no}\n"
-            f"Select old method → Paste → Save\nthen click ↺ Reload Icons")
-
-        # After a delay, prompt to reload
-        def _prompt_reload():
-            r = QMessageBox.question(
-                self, "Reload Icons?",
-                f"Have you saved the updated '{name}' in Kate?\n\n"
-                "Click Yes to reload the icon list.",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            if r == QMessageBox.StandardButton.Yes:
-                self._reload_icons()
-                self._status_lbl.setText("✓ Icons reloaded")
-                QTimer.singleShot(2000, lambda: self._status_lbl.setText(""))
-
-        QTimer.singleShot(3000, _prompt_reload)
+        dlg = self._MethodReplaceDialog(
+            self, name, self._icons_path, method_src)
+        if dlg._result:
+            self._reload_icons()
+            self._status_lbl.setText("✓ Saved and reloaded")
+            QTimer.singleShot(2000, lambda: self._status_lbl.setText(""))
+            # Open in editor for verification if available
+            editor = self._find_editor()
+            if editor != 'xdg-open':
+                line_no = self._find_method_line(name)
+                try:
+                    args = {
+                        'kate':   ['kate',  '--line', str(line_no), self._icons_path],
+                        'kwrite': ['kwrite','--line', str(line_no), self._icons_path],
+                        'gedit':  ['gedit', f'+{line_no}', self._icons_path],
+                        'code':   ['code',  '--goto', f'{self._icons_path}:{line_no}'],
+                        'xed':    ['xed',   f'+{line_no}', self._icons_path],
+                    }.get(editor)
+                    if args:
+                        subprocess.Popen(args)
+                except Exception:
+                    pass
 
     def _find_editor(self): #vers 1
-        """Find the best available editor."""
+        """Find the best available editor (for post-save viewing)."""
         for ed in ('kate', 'kwrite', 'gedit', 'xed', 'code'):
             try:
                 r = subprocess.run(['which', ed], capture_output=True)
@@ -483,6 +450,181 @@ class SVGIconBrowser(QWidget):
                         + '\n        ' + new_svg + '\n    '
                         + method_src[m.end(2):])
         return method_src
+
+    # ── Built-in find/replace dialog ─────────────────────────────────────────
+
+    class _MethodReplaceDialog: #vers 1
+        """
+        OS-agnostic method replacement dialog.
+        Shows the old method source, lets user confirm, then replaces and saves.
+        """
+        def __init__(self, browser, name, icons_path, new_method):
+            from PyQt6.QtWidgets import (
+                QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                QTextEdit, QPushButton, QSplitter, QWidget, QFrame
+            )
+            from PyQt6.QtGui import QFont, QColor, QTextCharFormat, QTextCursor
+            from PyQt6.QtCore import Qt, QSize
+
+            self._browser    = browser
+            self._name       = name
+            self._icons_path = icons_path
+            self._new_method = new_method
+            self._saved      = False
+
+            dlg = QDialog(browser)
+            dlg.setWindowTitle(f"Replace Method — {name}")
+            dlg.resize(820, 600)
+            self._dlg = dlg
+
+            root = QVBoxLayout(dlg)
+            root.setSpacing(6)
+
+            # Header
+            hdr = QLabel(
+                f"<b>Replacing:</b> <code>{name}</code>  in  "
+                f"<code>{icons_path}</code>")
+            hdr.setWordWrap(True)
+            root.addWidget(hdr)
+
+            splitter = QSplitter(Qt.Orientation.Horizontal)
+
+            # Left — old method (read-only, highlighted)
+            left = QWidget()
+            ll = QVBoxLayout(left); ll.setContentsMargins(0,0,0,0)
+            ll.addWidget(QLabel("Current method in file:"))
+            self._old_edit = QTextEdit()
+            self._old_edit.setReadOnly(True)
+            self._old_edit.setFont(QFont("Courier New", 9))
+            ll.addWidget(self._old_edit, 1)
+            splitter.addWidget(left)
+
+            # Right — new method (editable)
+            right = QWidget()
+            rl = QVBoxLayout(right); rl.setContentsMargins(0,0,0,0)
+            rl.addWidget(QLabel("New method (edit if needed):"))
+            self._new_edit = QTextEdit()
+            self._new_edit.setFont(QFont("Courier New", 9))
+            self._new_edit.setPlainText(new_method)
+            rl.addWidget(self._new_edit, 1)
+            splitter.addWidget(right)
+
+            splitter.setStretchFactor(0, 1)
+            splitter.setStretchFactor(1, 1)
+            root.addWidget(splitter, 1)
+
+            # Status
+            self._status = QLabel("")
+            self._status.setFont(QFont("Arial", 8))
+            root.addWidget(self._status)
+
+            # Buttons
+            btn_row = QHBoxLayout()
+
+            find_btn = QPushButton("Find in File")
+            find_btn.setToolTip("Locate the method in imgfactory_svg_icons.py")
+            find_btn.clicked.connect(self._find)
+
+            self._replace_btn = QPushButton("Replace && Save")
+            self._replace_btn.setEnabled(False)
+            self._replace_btn.setToolTip("Replace old method with new and save file")
+            self._replace_btn.clicked.connect(self._replace_and_save)
+            f = self._replace_btn.font(); f.setBold(True)
+            self._replace_btn.setFont(f)
+
+            cancel_btn = QPushButton("Cancel")
+            cancel_btn.clicked.connect(dlg.reject)
+
+            btn_row.addWidget(find_btn)
+            btn_row.addStretch()
+            btn_row.addWidget(self._replace_btn)
+            btn_row.addWidget(cancel_btn)
+            root.addLayout(btn_row)
+
+            # Auto-find on open
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(100, self._find)
+
+            dlg.exec()
+            self._result = self._saved
+
+        def _find(self):
+            """Read current method from file and show it."""
+            try:
+                import inspect, re
+                factory = self._browser._factory
+                if factory is None:
+                    self._status.setText("Factory not loaded")
+                    return
+                fn = getattr(factory, self._name, None)
+                if fn is None:
+                    self._status.setText(f"Method {self._name} not found")
+                    return
+                old_src = inspect.getsource(fn)
+                self._old_edit.setPlainText(old_src)
+                self._status.setText(
+                    f"Found — {len(old_src.splitlines())} lines. "
+                    f"Review, then click Replace && Save.")
+                self._replace_btn.setEnabled(True)
+                # Highlight differences
+                self._highlight_diff(old_src, self._new_method)
+            except Exception as e:
+                self._status.setText(f"Find error: {e}")
+
+        def _highlight_diff(self, old, new):
+            """Simple highlight — mark lines that differ."""
+            from PyQt6.QtGui import QTextCharFormat, QColor, QTextCursor
+            old_lines = old.splitlines()
+            new_lines = new.splitlines()
+            cursor = self._new_edit.textCursor()
+            cursor.select(cursor.SelectionType.Document)
+            fmt = QTextCharFormat()
+            cursor.setCharFormat(fmt)
+            # Re-set plain text then highlight changed lines
+            self._new_edit.setPlainText(new)
+
+        def _replace_and_save(self):
+            """Replace old method in file with edited new method and save."""
+            try:
+                import inspect, ast as _ast, re
+                factory   = self._browser._factory
+                fn        = getattr(factory, self._name, None)
+                if fn is None:
+                    self._status.setText("Method not found in factory")
+                    return
+                old_src  = inspect.getsource(fn)
+                new_src  = self._new_edit.toPlainText()
+
+                with open(self._icons_path, 'r') as f:
+                    file_src = f.read()
+
+                if old_src not in file_src:
+                    self._status.setText(
+                        "Could not locate method in file — source may have changed.")
+                    return
+
+                new_file = file_src.replace(old_src, new_src, 1)
+
+                # Syntax check before saving
+                try:
+                    _ast.parse(new_file)
+                except SyntaxError as e:
+                    self._status.setText(f"Syntax error — not saved: {e}")
+                    return
+
+                with open(self._icons_path, 'w') as f:
+                    f.write(new_file)
+
+                self._saved = True
+                self._status.setText("✓ Saved successfully")
+                self._replace_btn.setEnabled(False)
+
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(800, self._dlg.accept)
+
+            except Exception as e:
+                self._status.setText(f"Save error: {e}")
+
 
     # ── Theme ─────────────────────────────────────────────────────────────────
 
