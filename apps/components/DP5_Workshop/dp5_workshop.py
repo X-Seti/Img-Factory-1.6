@@ -4941,7 +4941,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         for _ in range(12):
             b = QPushButton()
             b.setFixedSize(12, 12)
-            b.setStyleSheet("background:#222; border:1px solid palette(mid);")
+            b.setStyleSheet("background:palette(base); border:1px solid palette(mid);")
             b.setEnabled(False)
             hist_row.addWidget(b)
             self._color_hist_btns.append(b)
@@ -11001,6 +11001,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
             # gadgetbar_bg applied via QFrame#titlebar in global stylesheet — no manual refresh needed
+            # Refresh icons so they contrast correctly with new theme
+            self._refresh_icons()
         except Exception as e:
             print(f"Theme application error: {e}")
 
@@ -11034,10 +11036,20 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Theme Error", str(e))
 
 
-    def _get_icon_color(self) -> str: #vers 1
+    def _get_icon_color(self) -> str: #vers 2
+        """Return icon colour that contrasts with gadgetbar_bg."""
         if self.app_settings:
             colors = self.app_settings.get_theme_colors()
-            return colors.get('text_primary', '#ffffff')
+            # Use gadgetbar_bg to determine if we need light or dark icons
+            bar_bg = colors.get('gadgetbar_bg', colors.get('toolbar_bg', '#333333'))
+            try:
+                r = int(bar_bg[1:3], 16)
+                g = int(bar_bg[3:5], 16)
+                b = int(bar_bg[5:7], 16)
+                lightness = (r * 299 + g * 587 + b * 114) // 1000
+                return '#000000' if lightness > 128 else '#ffffff'
+            except Exception:
+                return colors.get('text_primary', '#ffffff')
         return '#ffffff'
 
 
