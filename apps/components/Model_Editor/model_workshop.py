@@ -1415,6 +1415,23 @@ class _ModelListDelegate(QStyledItemDelegate): #vers 1
         return QSize(w, max(72, r.height() + 12))
 
 class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme-aware QColor. No hardcoded colors."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':    return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':  return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':         return pal.color(pal.ColorRole.Mid)
+        if key == 'accent_primary': return pal.color(pal.ColorRole.Highlight)
+        return pal.color(pal.ColorRole.WindowText)
     """COL Workshop - Main window"""
 
     workshop_closed = pyqtSignal()
@@ -6011,43 +6028,18 @@ class ModelWorkshop(QWidget): #vers 1  # renamed from ModelWorkshop
         print("======================\n")
 
 
-    def _apply_theme(self): #vers 3
-        """Apply theme from app_settings"""
+    def _apply_theme(self): #vers 6
+        """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
-            # Use self.app_settings first, then fall back to main_window
-            app_settings = None
-            if hasattr(self, 'app_settings') and self.app_settings:
-                app_settings = self.app_settings
-            elif self.main_window and hasattr(self.main_window, 'app_settings'):
-                app_settings = self.main_window.app_settings
-
-            if app_settings:
-                # Get current theme
-                theme_name = app_settings.current_settings.get('theme', 'App_Factory')
-                stylesheet = app_settings.get_stylesheet()
-
-                # Apply stylesheet
-                self.setStyleSheet(stylesheet)
-
-                # Force update
-                self.update()
-
-                print(f"Theme applied: {theme_name}")
-                if self.main_window and hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message(f"Theme applied: {theme_name}")
-            else:
-                # Fallback dark theme
-                self.setStyleSheet("""
-                    QWidget {
-                        background-color: #2b2b2b;
-                        color: #e0e0e0;
-                    }
-                    QListWidget, QTableWidget, QTextEdit {
-                        background-color: #1e1e1e;
-                        border: 1px solid #3a3a3a;
-                    }
-                """)
-                print("No app_settings found, using fallback theme")
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_stylesheet'):
+                from PyQt6.QtWidgets import QApplication
+                ss = app_settings.get_stylesheet()
+                if ss:
+                    QApplication.instance().setStyleSheet(ss)
+            # Clear widget-level override — children inherit from QApplication
+            self.setStyleSheet("")
         except Exception as e:
             print(f"Theme application error: {e}")
 
