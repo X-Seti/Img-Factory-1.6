@@ -11943,7 +11943,7 @@ class _DockablePanelMixin:
             ws.dp5_settings.save()
 
 
-class _CharFontEditor(QWidget):
+class _CharFontEditor(_DockablePanelMixin, QWidget):
     """Edit 8×8 or 8×16 pixel character sets — bit grid per character,
     load/save binary, export as C header or ASM data.
     Left panel: system font browser — click to load glyphs.
@@ -12352,7 +12352,7 @@ class _CharGrid(QWidget):
 
 #  Sprite Editor
 
-class _SpriteEditor(QWidget):
+class _SpriteEditor(_DockablePanelMixin, QWidget):
     """View and edit sprites with platform native size constraints.
     Shows the canvas sliced into sprite-sized frames.
     Floating Tool window — stays on top of DP5 canvas.
