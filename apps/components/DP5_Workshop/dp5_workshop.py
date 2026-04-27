@@ -12720,8 +12720,13 @@ class _IconEditor(QWidget): #vers 1
         self._alpha_swatch = QPushButton()
         self._alpha_swatch.setFixedSize(24, 24)
         self._alpha_swatch.setStyleSheet("background:#000000; border:1px solid palette(mid);")
-        self._alpha_swatch.setToolTip("Click to pick alpha colour")
+        self._alpha_swatch.setToolTip(
+            "Left-click: colour dialog\nRight-click: pick from user palette")
         self._alpha_swatch.clicked.connect(self._pick_alpha)
+        self._alpha_swatch.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self._alpha_swatch.customContextMenuRequested.connect(
+            self._alpha_swatch_context)
         alpha_row.addWidget(self._alpha_chk)
         alpha_row.addWidget(QLabel("Colour:"))
         alpha_row.addWidget(self._alpha_swatch)
@@ -12906,6 +12911,49 @@ class _IconEditor(QWidget): #vers 1
             self._current = idx
 
     # ── Alpha picker ──────────────────────────────────────────────────────────
+
+    def _alpha_swatch_context(self, pos): #vers 1
+        """Right-click alpha swatch — show user palette as a colour picker."""
+        from PyQt6.QtWidgets import QMenu, QWidgetAction, QWidget, QGridLayout, QPushButton
+        from PyQt6.QtGui import QColor
+
+        ws = self._editor
+        if not ws or not hasattr(ws, '_get_user_palette_rgb'):
+            self._pick_alpha()
+            return
+        palette = ws._get_user_palette_rgb()
+        if not palette:
+            self._pick_alpha()
+            return
+
+        menu  = QMenu(self)
+        act   = QWidgetAction(menu)
+        grid_w = QWidget()
+        grid_l = QGridLayout(grid_w)
+        grid_l.setSpacing(2)
+        grid_l.setContentsMargins(4, 4, 4, 4)
+
+        cols = 16
+        for i, (r, g, b) in enumerate(palette):
+            btn = QPushButton()
+            btn.setFixedSize(16, 16)
+            btn.setStyleSheet(
+                f"background:#{r:02x}{g:02x}{b:02x};"
+                f"border:1px solid palette(mid); border-radius:1px;")
+            btn.setToolTip(f"#{r:02x}{g:02x}{b:02x}  R:{r} G:{g} B:{b}")
+            def _pick(_, rgb=(r,g,b)):
+                self._alpha_color = rgb
+                self._refresh_alpha_swatch()
+                self._save_settings()
+                menu.close()
+            btn.clicked.connect(_pick)
+            grid_l.addWidget(btn, i // cols, i % cols)
+
+        act.setDefaultWidget(grid_w)
+        menu.addAction(act)
+        menu.addSeparator()
+        menu.addAction("Colour dialog…", self._pick_alpha)
+        menu.exec(self._alpha_swatch.mapToGlobal(pos))
 
     def _refresh_alpha_swatch(self): #vers 1
         r, g, b = self._alpha_color
