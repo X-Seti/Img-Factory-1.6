@@ -11982,7 +11982,9 @@ class _CharFontEditor(QWidget):
         self._build_ui()
         self._refresh_grid()
         self._refresh_char_list()
-        self._init_dock(parent, 'char_editor_docked', 'left')
+
+        # TODO: relating to error on line 11999
+        #self._init_dock(parent, 'char_editor_docked', 'left')
 
 
     def _build_ui(self): #vers 1
@@ -11994,7 +11996,9 @@ class _CharFontEditor(QWidget):
         # Title + D button
         _te_row = QHBoxLayout()
         _te_row.addWidget(QLabel("Font / Char Editor"))
-        self._add_dock_button(_te_row)
+        # TODO: error:  File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/DP5_Workshop/dp5_workshop.py", line 11997, in _build_ui self._add_dock_button(_te_row)
+
+        #self._add_dock_button(_te_row)
         left.addLayout(_te_row)
 
         # Font browser
@@ -12385,7 +12389,9 @@ class _SpriteEditor(QWidget):
         self._zoom = 4
         self._build_ui()
         self._refresh_frames()
-        self._init_dock(parent, 'sprite_editor_docked', 'left')
+
+        #TODO: relating to error on line 12411
+        #self._init_dock(parent, 'sprite_editor_docked', 'left')
 
     def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
@@ -12402,7 +12408,11 @@ class _SpriteEditor(QWidget):
         # - Centre: sprite view
         centre = QVBoxLayout()
         ctrl = QHBoxLayout()
-        self._add_dock_button(ctrl)
+
+        # TODO: error: File "/home/x2/Documents/GitHub/Img-Factory-1.6/apps/components/DP5_Workshop/dp5_workshop.py", line 12405, in _build_ui - self._add_dock_button(ctrl)
+
+        #self._add_dock_button(ctrl)
+
         ctrl.addWidget(QLabel("Sprite size:"))
         sizes = ["8×8","8×16","16×16","16×32","32×32","32×64","64×64"]
         self._size_combo = QComboBox()
