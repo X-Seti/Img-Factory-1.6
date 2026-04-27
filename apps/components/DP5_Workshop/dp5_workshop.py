@@ -10391,417 +10391,273 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
     #    Batch Converters                                                       
 
 
-    def _batch_convert_icons(self):  # vers 4 (alpha + recursive + preview)
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                                    QComboBox, QPushButton, QFileDialog,
-                                    QLineEdit, QProgressBar, QTextEdit,
-                                    QCheckBox, QSpinBox, QApplication)
+    def _batch_convert_icons(self): #vers 5
+        """Batch convert icons — inline _ToolOverlay panel."""
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+            QComboBox, QPushButton, QFileDialog, QLineEdit,
+            QProgressBar, QTextEdit, QCheckBox, QSpinBox, QApplication)
         from PyQt6.QtGui import QImage, QPixmap
-        from PyQt6.QtCore import Qt
 
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Batch Convert Icons")
-        dlg.setMinimumWidth(520)
-        vl = QVBoxLayout(dlg)
+        ctrl = QWidget()
+        vl = QVBoxLayout(ctrl); vl.setContentsMargins(0,0,0,0); vl.setSpacing(3)
 
-        # Source
+        # Source folder
         hl_src = QHBoxLayout()
         src_edit = QLineEdit(); src_edit.setPlaceholderText("Source folder…")
-        src_btn  = QPushButton("Browse…")
+        src_btn  = QPushButton("…"); src_btn.setFixedWidth(28)
         src_btn.clicked.connect(lambda: src_edit.setText(
-            QFileDialog.getExistingDirectory(dlg, "Source folder")))
-        hl_src.addWidget(QLabel("From:")); hl_src.addWidget(src_edit); hl_src.addWidget(src_btn)
+            QFileDialog.getExistingDirectory(ctrl, "Source folder")))
+        hl_src.addWidget(QLabel("From:")); hl_src.addWidget(src_edit, 1); hl_src.addWidget(src_btn)
         vl.addLayout(hl_src)
 
-        # Recursive scan
-        scan_recursive_chk = QCheckBox("Scan recursive folders")
-        scan_recursive_chk.setChecked(True)
-        vl.addWidget(scan_recursive_chk)
-
-        # Input format
-        hl_ifmt = QHBoxLayout()
+        # Input/Output format row
+        fmt_row = QHBoxLayout()
         ifmt = QComboBox()
-        ifmt.addItems(["Amiga .info","Windows ICO","Apple ICNS","PNG","BMP","SVG","Any image"])
-        hl_ifmt.addWidget(QLabel("Input format:")); hl_ifmt.addWidget(ifmt)
-        vl.addLayout(hl_ifmt)
-
-        # Output format
-        hl_ofmt = QHBoxLayout()
+        ifmt.addItems(["Auto-detect","Amiga .info","Windows ICO",
+                       "Apple ICNS","PNG","BMP","SVG","Any image"])
         ofmt = QComboBox()
         ofmt.addItems(["PNG","BMP","ICO (Windows)","ICNS (Apple)",
-                    "Amiga .info (AGA WB)","Amiga .info (MagicWB)","Amiga .info (OCS)",
-                    "TGA","SVG"])
-        hl_ofmt.addWidget(QLabel("Output format:")); hl_ofmt.addWidget(ofmt)
-        vl.addLayout(hl_ofmt)
+                       "Amiga .info (AGA WB)","Amiga .info (MagicWB)",
+                       "Amiga .info (OCS)","TGA","SVG"])
+        fmt_row.addWidget(QLabel("In:")); fmt_row.addWidget(ifmt, 1)
+        fmt_row.addWidget(QLabel("Out:")); fmt_row.addWidget(ofmt, 1)
+        vl.addLayout(fmt_row)
 
-        # Destination
+        # Dest folder
         hl_dst = QHBoxLayout()
         dst_edit = QLineEdit(); dst_edit.setPlaceholderText("Output folder…")
-        dst_btn  = QPushButton("Browse…")
+        dst_btn  = QPushButton("…"); dst_btn.setFixedWidth(28)
         dst_btn.clicked.connect(lambda: dst_edit.setText(
-            QFileDialog.getExistingDirectory(dlg, "Output folder")))
-        hl_dst.addWidget(QLabel("To:"))
-        hl_dst.addWidget(dst_edit)
-        hl_dst.addWidget(dst_btn)
+            QFileDialog.getExistingDirectory(ctrl, "Output folder")))
+        hl_dst.addWidget(QLabel("To:")); hl_dst.addWidget(dst_edit, 1); hl_dst.addWidget(dst_btn)
         vl.addLayout(hl_dst)
 
-        # Preview name
-        preview_name = QLabel("")
-        preview_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vl.addWidget(preview_name)
-
-        # Preview image
-        preview_lbl = QLabel("Preview")
-        preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_lbl.setFixedSize(128, 128)
-        preview_lbl.setStyleSheet("border:1px solid palette(mid); background:#222;")
-        vl.addWidget(preview_lbl)
-
-        # Resize
-        hl_sz = QHBoxLayout()
-        resize_chk = QCheckBox("Resize to:")
-        sz_w = QSpinBox(); sz_w.setRange(1,4096); sz_w.setValue(256)
-        sz_h = QSpinBox(); sz_h.setRange(1,4096); sz_h.setValue(256)
-        keep_aspect = QCheckBox("Keep aspect")
-
-        resize_chk.toggled.connect(lambda v: (sz_w.setEnabled(v), sz_h.setEnabled(v), keep_aspect.setEnabled(v)))
-        sz_w.setEnabled(False); sz_h.setEnabled(False); keep_aspect.setEnabled(False)
-
-        hl_sz.addWidget(resize_chk)
-        hl_sz.addWidget(sz_w)
-        hl_sz.addWidget(QLabel("×"))
-        hl_sz.addWidget(sz_h)
-        hl_sz.addWidget(keep_aspect)
-        hl_sz.addStretch()
-        vl.addLayout(hl_sz)
-
-        # Scale
-        hl_scale = QHBoxLayout()
-        scale_chk = QCheckBox("Scale:")
-        scale_combo = QComboBox()
-        scale_combo.addItems(["×2","×3","×4"])
-        scale_combo.setEnabled(False)
-        scale_chk.toggled.connect(scale_combo.setEnabled)
-
-        hl_scale.addWidget(scale_chk)
-        hl_scale.addWidget(scale_combo)
-        hl_scale.addStretch()
-        vl.addLayout(hl_scale)
-
-        # Power-of-two
-        pot_chk = QCheckBox("Snap to nearest power-of-two")
-        vl.addWidget(pot_chk)
-
-        # Alpha palette 0
-        hl_alpha = QHBoxLayout()
-        alpha_chk = QCheckBox("Alpha palette color 0")
-        hl_alpha.addWidget(alpha_chk)
-        hl_alpha.addStretch()
-        vl.addLayout(hl_alpha)
+        # Options row
+        opt_row = QHBoxLayout()
+        resize_chk = QCheckBox("Resize:")
+        sz_w = QSpinBox(); sz_w.setRange(1,4096); sz_w.setValue(256); sz_w.setEnabled(False)
+        sz_h = QSpinBox(); sz_h.setRange(1,4096); sz_h.setValue(256); sz_h.setEnabled(False)
+        resize_chk.toggled.connect(lambda v: (sz_w.setEnabled(v), sz_h.setEnabled(v)))
+        alpha_chk = QCheckBox("Alpha=col 0")
+        alpha_chk.setChecked(True)
+        pot_chk   = QCheckBox("Pow2")
+        recur_chk = QCheckBox("Recurse")
+        recur_chk.setChecked(True)
+        opt_row.addWidget(resize_chk); opt_row.addWidget(sz_w)
+        opt_row.addWidget(QLabel("×")); opt_row.addWidget(sz_h)
+        opt_row.addWidget(alpha_chk); opt_row.addWidget(pot_chk)
+        opt_row.addWidget(recur_chk); opt_row.addStretch()
+        vl.addLayout(opt_row)
 
         # Progress + log
-        prog  = QProgressBar(); prog.setValue(0)
-        log   = QTextEdit(); log.setReadOnly(True); log.setFixedHeight(120)
+        prog = QProgressBar(); prog.setValue(0)
+        log  = QTextEdit(); log.setReadOnly(True); log.setMaximumHeight(80)
         vl.addWidget(prog); vl.addWidget(log)
 
-        from PyQt6.QtWidgets import QLabel
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        # Buttons
-        hl_btn = QHBoxLayout()
-        run_btn = QPushButton("Convert"); can_btn = QPushButton("Close")
-        can_btn.clicked.connect(dlg.reject)
-        hl_btn.addStretch(); hl_btn.addWidget(run_btn); hl_btn.addWidget(can_btn)
-        vl.addLayout(hl_btn)
-
-        # Helpers
-        def nearest_pot(x):
-            return 1 << (x - 1).bit_length()
-
-        def pil_to_qpixmap(pil_img):
-            rgba = pil_img.convert("RGBA")
-            data = rgba.tobytes("raw", "RGBA")
-            qimg = QImage(data, rgba.width, rgba.height, QImage.Format.Format_RGBA8888)
-            return QPixmap.fromImage(qimg)
-
-        def update_preview(img):
-            pix = pil_to_qpixmap(img)
-            preview_lbl.setPixmap(
-                pix.scaled(preview_lbl.size(),
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.FastTransformation)
-            )
-            QApplication.processEvents()
-
-        def run():
+        def _run():
             src = src_edit.text(); dst = dst_edit.text()
-
             if not src or not dst:
                 log.append("ERROR: set source and output folders"); return
-
             import os
             from PIL import Image
 
+            def nearest_pot(x): return 1 << (x-1).bit_length()
+
             # Gather files
             files = []
-            if scan_recursive_chk.isChecked():
-                for root, _, filenames in os.walk(src):
-                    for f in filenames:
-                        files.append(os.path.join(root, f))
+            if recur_chk.isChecked():
+                for root, _, fnames in os.walk(src):
+                    for f in fnames: files.append(os.path.join(root, f))
             else:
-                for f in os.listdir(src):
-                    files.append(os.path.join(src, f))
+                files = [os.path.join(src, f) for f in os.listdir(src)]
 
-            prog.setMaximum(len(files)); prog.setValue(0)
+            EXT_IN = {
+                "Auto-detect": [".info",".ico",".icns",".png",".bmp",".svg",
+                                ".tga",".jpg",".jpeg",".gif",".webp"],
+                "Amiga .info": [".info"], "Windows ICO": [".ico"],
+                "Apple ICNS": [".icns"], "PNG": [".png"], "BMP": [".bmp"],
+                "SVG": [".svg"], "Any image": [".png",".bmp",".tga",".ico",
+                    ".jpg",".jpeg",".gif",".webp",".info"],
+            }
+            EXT_OUT = {
+                "PNG":".png","BMP":".bmp","ICO (Windows)":".ico",
+                "ICNS (Apple)":".icns","TGA":".tga","SVG":".svg",
+                "Amiga .info (AGA WB)":".info","Amiga .info (MagicWB)":".info",
+                "Amiga .info (OCS)":".info",
+            }
+            valid_exts = EXT_IN.get(ifmt.currentText(), [])
+            out_ext    = EXT_OUT.get(ofmt.currentText(), ".png")
+            files = [f for f in files
+                     if os.path.splitext(f)[1].lower() in valid_exts]
+            if not files:
+                log.append("No matching files found"); return
 
-            for idx, path in enumerate(files):
-                prog.setValue(idx)
-                QApplication.processEvents()
-
+            prog.setMaximum(len(files)); ok = err = 0
+            for idx, fpath in enumerate(files):
+                prog.setValue(idx); QApplication.processEvents()
+                fname = os.path.basename(fpath)
+                base  = os.path.splitext(fname)[0]
+                out_path = os.path.join(dst, base + out_ext)
                 try:
-                    fname = os.path.basename(path)
-                    ext = os.path.splitext(fname)[1].lower()
-
-                    # Route .info through our own decoder; PIL can't handle it
-                    if ifmt.currentText().startswith("Amiga .info") or ext == ".info":
-                        pal_mode = "wb39"
-                        out_fmt = ofmt.currentText()
-                        if "MagicWB" in out_fmt: pal_mode = "magicwb"
-                        elif "OCS"    in out_fmt: pal_mode = "ocs"
-                        elif "XL"     in out_fmt: pal_mode = "wb39xl"
-                        raw_data = open(path, "rb").read()
-                        rgba_bytes, iw, ih, fmt_name = self._decode_amiga_info(raw_data, pal_mode)
-                        if rgba_bytes is None:
-                            log.append(f"SKIP {fname}: {fmt_name}"); continue
-                        img = Image.frombytes("RGBA", (iw, ih), bytes(rgba_bytes))
+                    ext = os.path.splitext(fpath)[1].lower()
+                    if ext == ".info":
+                        with open(fpath, "rb") as f: data = f.read()
+                        pal = ("magicwb" if "MagicWB" in ofmt.currentText()
+                               else "ocs" if "OCS" in ofmt.currentText() else "wb39")
+                        rgba, w, h, fmt = self._decode_amiga_info(data, pal)
+                        if rgba is None: raise ValueError(fmt)
+                        img = Image.frombytes("RGBA", (w, h), bytes(rgba))
                     else:
-                        img = Image.open(path).convert("RGBA")
-
-                    preview_name.setText(fname)
-                    update_preview(img)  # BEFORE
-
-                    # Resize / Scale
-                    if resize_chk.isChecked():
-                        w,h = img.size
-                        nw, nh = sz_w.value(), sz_h.value()
-
-                        if keep_aspect.isChecked():
-                            r = min(nw/w, nh/h)
-                            nw, nh = int(w*r), int(h*r)
-
-                        img = img.resize((nw,nh), Image.LANCZOS)
-
-                    elif scale_chk.isChecked():
-                        factor = int(scale_combo.currentText().replace("×",""))
-                        w,h = img.size
-                        img = img.resize((w*factor,h*factor), Image.NEAREST)
-
-                    if pot_chk.isChecked():
-                        w,h = img.size
-                        img = img.resize((nearest_pot(w), nearest_pot(h)), Image.NEAREST)
-
-                    update_preview(img)  # AFTER
-
-                    # Apply alpha-as-palette-0 (all output formats)
+                        img = Image.open(fpath).convert("RGBA")
                     if alpha_chk.isChecked():
-                        img = self._apply_palette0_alpha(img)
-
-                    # Output path (preserve structure), fix extension
-                    rel = os.path.relpath(path, src)
-                    out_path = os.path.join(dst, rel)
-                    out_fmt_str = ofmt.currentText()
-                    ext_map = {
-                        "PNG": ".png", "BMP": ".bmp", "TGA": ".tga",
-                        "ICO (Windows)": ".ico", "ICNS (Apple)": ".icns", "SVG": ".svg",
-                    }
-                    for fmt_label, new_ext in ext_map.items():
-                        if out_fmt_str == fmt_label:
-                            out_path = os.path.splitext(out_path)[0] + new_ext
-                            break
+                        r,g,b,a = img.split()
+                        pal_data = img.getpalette()
+                        if pal_data:
+                            c0 = tuple(pal_data[:3])
+                            arr = img.load()
+                            for y in range(img.height):
+                                for x in range(img.width):
+                                    if arr[x,y][:3] == c0:
+                                        arr[x,y] = c0 + (0,)
+                    if resize_chk.isChecked():
+                        nw, nh = sz_w.value(), sz_h.value()
+                        if pot_chk.isChecked():
+                            nw, nh = nearest_pot(nw), nearest_pot(nh)
+                        img = img.resize((nw, nh), Image.LANCZOS)
+                    out_fmt = ofmt.currentText()
+                    if "Amiga .info" in out_fmt:
+                        pal = ("magicwb" if "MagicWB" in out_fmt
+                               else "ocs" if "OCS" in out_fmt else "aga_wb")
+                        enc = self._encode_amiga_info(
+                            bytearray(img.tobytes()), img.width, img.height, pal)
+                        with open(out_path, "wb") as f: f.write(enc)
                     else:
-                        if out_fmt_str.startswith("Amiga .info"):
-                            out_path = os.path.splitext(out_path)[0] + ".info"
-                    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-
-                    # Save
-                    if out_fmt_str.startswith("Amiga .info"):
-                        self._write_amiga_info(out_path, img.tobytes(), *img.size)
-                    else:
-                        img.save(out_path)
-
-                    log.append(f"OK {fname}")
-
+                        save_fmt = out_fmt.split()[0].upper()
+                        img.save(out_path, save_fmt)
+                    log.append(f"✓ {fname}"); ok += 1
                 except Exception as e:
-                    log.append(f"ERR {path}: {e}")
+                    log.append(f"✗ {fname}: {e}"); err += 1
+                log.repaint()
+            prog.setValue(len(files))
+            log.append(f"Done: {ok} ok, {err} errors")
 
-            log.append("Done")
+        ov = self._ToolOverlay(parent_vp, self, "Batch Convert Icons",
+                               ctrl, apply_fn=_run, generate_fn=None)
+        # Widen overlay for batch UI
+        ov.setFixedWidth(min(700, max(500, parent_vp.width() - 40)))
+        ov.move(max(0, (parent_vp.width() - ov.width()) // 2),
+                parent_vp.height() - ov.height())
 
-        run_btn.clicked.connect(run)
-        dlg.exec()
+    def _batch_convert_textures(self): #vers 2
+        """Batch convert textures — inline _ToolOverlay panel."""
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+            QComboBox, QPushButton, QFileDialog, QLineEdit,
+            QProgressBar, QTextEdit, QCheckBox, QSpinBox, QApplication)
 
-
-    def _batch_convert_textures(self): #vers 1
-        """Batch convert textures between formats with optional resize."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                                     QComboBox, QPushButton, QFileDialog,
-                                     QLineEdit, QProgressBar, QTextEdit,
-                                     QCheckBox, QSpinBox)
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Batch Convert Textures")
-        dlg.setMinimumWidth(480)
-        vl = QVBoxLayout(dlg)
+        ctrl = QWidget()
+        vl = QVBoxLayout(ctrl); vl.setContentsMargins(0,0,0,0); vl.setSpacing(3)
 
         # Source
         hl_src = QHBoxLayout()
         src_edit = QLineEdit(); src_edit.setPlaceholderText("Source folder…")
-        src_btn  = QPushButton("Browse…")
+        src_btn  = QPushButton("…"); src_btn.setFixedWidth(28)
         src_btn.clicked.connect(lambda: src_edit.setText(
-            QFileDialog.getExistingDirectory(dlg, "Source folder")))
-        hl_src.addWidget(QLabel("From:")); hl_src.addWidget(src_edit); hl_src.addWidget(src_btn)
+            QFileDialog.getExistingDirectory(ctrl, "Source folder")))
+        hl_src.addWidget(QLabel("From:")); hl_src.addWidget(src_edit, 1); hl_src.addWidget(src_btn)
         vl.addLayout(hl_src)
 
-        # Input format
-        hl_ifmt = QHBoxLayout()
+        # Format row
+        fmt_row = QHBoxLayout()
         ifmt = QComboBox()
-        ifmt.addItems(["Any image","PNG","BMP","TGA","DDS","JPG","TIFF","PCX","Any"])
-        hl_ifmt.addWidget(QLabel("Input:")); hl_ifmt.addWidget(ifmt)
-        vl.addLayout(hl_ifmt)
-
-        # Output format
-        hl_ofmt = QHBoxLayout()
+        ifmt.addItems(["Any image","PNG","BMP","TGA","DDS","JPG","TIFF","PCX"])
         ofmt = QComboBox()
         ofmt.addItems(["PNG","BMP","TGA","DDS","JPG","TIFF","PCX"])
-        hl_ofmt.addWidget(QLabel("Output:")); hl_ofmt.addWidget(ofmt)
-        vl.addLayout(hl_ofmt)
+        fmt_row.addWidget(QLabel("In:")); fmt_row.addWidget(ifmt, 1)
+        fmt_row.addWidget(QLabel("Out:")); fmt_row.addWidget(ofmt, 1)
+        vl.addLayout(fmt_row)
 
-        # Resize option
-        hl_sz = QHBoxLayout()
-        resize_chk = QCheckBox("Resize to:")
-        sz_w = QSpinBox(); sz_w.setRange(1,4096); sz_w.setValue(256)
-        sz_h = QSpinBox(); sz_h.setRange(1,4096); sz_h.setValue(256)
-        resize_chk.toggled.connect(lambda v: (sz_w.setEnabled(v), sz_h.setEnabled(v)))
-        sz_w.setEnabled(False); sz_h.setEnabled(False)
-        hl_sz.addWidget(resize_chk); hl_sz.addWidget(sz_w)
-        hl_sz.addWidget(QLabel("×")); hl_sz.addWidget(sz_h)
-        hl_sz.addStretch()
-        vl.addLayout(hl_sz)
-
-        # Power-of-two snap
-        pot_chk = QCheckBox("Snap to nearest power-of-two")
-        vl.addWidget(pot_chk)
-
-        # Destination
+        # Dest
         hl_dst = QHBoxLayout()
         dst_edit = QLineEdit(); dst_edit.setPlaceholderText("Output folder…")
-        dst_btn  = QPushButton("Browse…")
+        dst_btn  = QPushButton("…"); dst_btn.setFixedWidth(28)
         dst_btn.clicked.connect(lambda: dst_edit.setText(
-            QFileDialog.getExistingDirectory(dlg, "Output folder")))
-        hl_dst.addWidget(QLabel("To:"))
-        hl_dst.addWidget(dst_edit)
-        hl_dst.addWidget(dst_btn)
+            QFileDialog.getExistingDirectory(ctrl, "Output folder")))
+        hl_dst.addWidget(QLabel("To:")); hl_dst.addWidget(dst_edit, 1); hl_dst.addWidget(dst_btn)
         vl.addLayout(hl_dst)
 
-        prog = QProgressBar(); log = QTextEdit()
-        log.setReadOnly(True); log.setFixedHeight(120)
+        # Options
+        opt_row = QHBoxLayout()
+        resize_chk = QCheckBox("Resize:")
+        sz_w = QSpinBox(); sz_w.setRange(1,4096); sz_w.setValue(256); sz_w.setEnabled(False)
+        sz_h = QSpinBox(); sz_h.setRange(1,4096); sz_h.setValue(256); sz_h.setEnabled(False)
+        resize_chk.toggled.connect(lambda v: (sz_w.setEnabled(v), sz_h.setEnabled(v)))
+        pot_chk = QCheckBox("Pow2")
+        opt_row.addWidget(resize_chk); opt_row.addWidget(sz_w)
+        opt_row.addWidget(QLabel("×")); opt_row.addWidget(sz_h)
+        opt_row.addWidget(pot_chk); opt_row.addStretch()
+        vl.addLayout(opt_row)
+
+        prog = QProgressBar(); prog.setValue(0)
+        log  = QTextEdit(); log.setReadOnly(True); log.setMaximumHeight(80)
         vl.addWidget(prog); vl.addWidget(log)
 
-        hl_btn = QHBoxLayout()
-        run_btn = QPushButton("Convert"); can_btn = QPushButton("Close")
-        can_btn.clicked.connect(dlg.reject)
-        hl_btn.addStretch(); hl_btn.addWidget(run_btn); hl_btn.addWidget(can_btn)
-        vl.addLayout(hl_btn)
+        parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        def nearest_pot(n):
-            p = 1
-            while p < n: p <<= 1
-            return p if (p-n) < (n-p//2) else p//2
-
-        def run():
+        def _run():
             src = src_edit.text(); dst = dst_edit.text()
             if not src or not dst:
                 log.append("ERROR: set source and output folders"); return
-            import os, struct
+            import os
             from PIL import Image
+
+            def nearest_pot(n):
+                p = 1
+                while p < n: p <<= 1
+                return p
 
             EXT_MAP = {
                 "Any image": [".png",".bmp",".tga",".dds",".jpg",".jpeg",
                               ".tiff",".tif",".pcx",".gif",".webp"],
-                "PNG":  [".png"], "BMP":  [".bmp"], "TGA":  [".tga"],
-                "DDS":  [".dds"], "JPG":  [".jpg",".jpeg"],
-                "TIFF": [".tiff",".tif"], "PCX":  [".pcx"], "Any": [".png",".bmp",".tga",".dds",".jpg",".jpeg",".tiff",".tif",".pcx"],
+                "PNG":[".png"],"BMP":[".bmp"],"TGA":[".tga"],"DDS":[".dds"],
+                "JPG":[".jpg",".jpeg"],"TIFF":[".tiff",".tif"],"PCX":[".pcx"],
             }
             OUT_EXT = {"PNG":".png","BMP":".bmp","TGA":".tga","DDS":".dds",
                        "JPG":".jpg","TIFF":".tiff","PCX":".pcx"}
-
-            exts  = EXT_MAP[ifmt.currentText()]
-            out_e = OUT_EXT[ofmt.currentText()]
+            exts  = EXT_MAP.get(ifmt.currentText(), [".png"])
+            out_e = OUT_EXT.get(ofmt.currentText(), ".png")
             do_resize = resize_chk.isChecked()
             do_pot    = pot_chk.isChecked()
             files = [f for f in os.listdir(src)
                      if os.path.splitext(f)[1].lower() in exts]
             if not files:
                 log.append("No matching files found"); return
-
-            prog.setMaximum(len(files)); prog.setValue(0)
-            ok = err = 0
-
+            prog.setMaximum(len(files)); ok = err = 0
             for idx, fname in enumerate(files):
-                prog.setValue(idx)
-                QApplication.processEvents()
+                prog.setValue(idx); QApplication.processEvents()
                 src_path = os.path.join(src, fname)
                 base = os.path.splitext(fname)[0]
                 dst_path = os.path.join(dst, base + out_e)
                 try:
-                    img = Image.open(src_path).convert('RGBA')
-                    w2, h2 = img.size
-
+                    img = Image.open(src_path).convert("RGBA")
                     if do_resize:
-                        w2, h2 = sz_w.value(), sz_h.value()
-                    if do_pot:
-                        w2, h2 = nearest_pot(w2), nearest_pot(h2)
-                    if (w2, h2) != img.size:
-                        img = img.resize((w2, h2), Image.LANCZOS)
-
-                    if out_e == '.dds':
-                        rgba = img.convert('RGBA').tobytes()
-                        bgra = bytearray(len(rgba))
-                        for i in range(0,len(rgba),4):
-                            bgra[i]=rgba[i+2]; bgra[i+1]=rgba[i+1]
-                            bgra[i+2]=rgba[i]; bgra[i+3]=rgba[i+3]
-                        hdr = bytearray(128)
-                        hdr[0:4] = b'DDS '
-                        struct.pack_into('<I',hdr,4,124)
-                        struct.pack_into('<I',hdr,8,0x00021007)
-                        struct.pack_into('<I',hdr,12,h2)
-                        struct.pack_into('<I',hdr,16,w2)
-                        struct.pack_into('<I',hdr,20,w2*4)
-                        struct.pack_into('<I',hdr,28,1)
-                        struct.pack_into('<I',hdr,76,32)
-                        struct.pack_into('<I',hdr,80,0x41)
-                        struct.pack_into('<I',hdr,88,32)
-                        struct.pack_into('<I',hdr,92,0x00FF0000)
-                        struct.pack_into('<I',hdr,96,0x0000FF00)
-                        struct.pack_into('<I',hdr,100,0x000000FF)
-                        struct.pack_into('<I',hdr,104,0xFF000000)
-                        struct.pack_into('<I',hdr,108,0x00001000)
-                        open(dst_path,'wb').write(bytes(hdr)+bytes(bgra))
-                    elif out_e == '.jpg':
-                        img.convert('RGB').save(dst_path,'JPEG',quality=92)
-                    else:
-                        img.save(dst_path)
-
-                    log.append(f"OK  {fname} → {os.path.basename(dst_path)}  ({w2}×{h2})")
-                    ok += 1
-                except Exception as ex:
-                    log.append(f"ERR {fname}: {ex}"); err += 1
-
+                        nw, nh = sz_w.value(), sz_h.value()
+                        if do_pot: nw, nh = nearest_pot(nw), nearest_pot(nh)
+                        img = img.resize((nw, nh), Image.LANCZOS)
+                    img.save(dst_path, ofmt.currentText().split()[0].upper())
+                    log.append(f"✓ {fname}"); ok += 1
+                except Exception as e:
+                    log.append(f"✗ {fname}: {e}"); err += 1
+                log.repaint()
             prog.setValue(len(files))
-            log.append(f"\nDone: {ok} converted, {err} errors")
+            log.append(f"Done: {ok} ok, {err} errors")
 
-        run_btn.clicked.connect(run)
-        dlg.exec()
-
+        ov = self._ToolOverlay(parent_vp, self, "Batch Convert Textures",
+                               ctrl, apply_fn=_run, generate_fn=None)
+        ov.setFixedWidth(min(700, max(500, parent_vp.width() - 40)))
+        ov.move(max(0, (parent_vp.width() - ov.width()) // 2),
+                parent_vp.height() - ov.height())
 
     def _make_checkerboard(self, w, h, size=8): #vers 1
         from PyQt6.QtGui import QPixmap, QPainter, QColor
