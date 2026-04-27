@@ -1148,9 +1148,6 @@ class SVGIconFactory: #vers 8
         p.end()
         return QIcon(pix)
 
-
-
-
     @staticmethod
     def color_picker_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Color picker icon"""
@@ -1165,10 +1162,12 @@ class SVGIconFactory: #vers 8
 
     @staticmethod #added from img Factory
     def _colour_picker_icon(size: int = 24, color: str = None) -> QIcon: #vers 2
-        """Color picker icon"""
-        svg_data = '''<svg viewBox="0 0 24 24" fill="none"/>
-            <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2.5"/>
-            <path d="M10 3v4M10 13v4M3 10h4M13 10h4" stroke="currentColor" stroke-width="2.5"/>
+        """Colour picker icon"""
+        svg_data = '''<svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"
+                stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <path d="M12 4v6M12 14v6M4 12h6M14 12h6"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

@@ -5138,9 +5138,11 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _imgop_btn('dp_colour_correct_icon', 'Colour Adjustments…', self._open_dp5_colour_adjust)
         _imgop_btn('dp_seamless_op_icon',    'Seamless Tool…',       self._open_dp5_seamless)
         _imgop_btn('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
-        _imgop_btn('knob_icon',              'Zoom Lens…',           self._open_zoom_lens)
-        _imgop_btn('search_icon',            'SVG Icon Browser…',    self._open_icon_browser)
-        _imgop_btn('folder_icon',            'Icon Editor…',         self._open_icon_editor)
+        _imgop_btn('search_icon',              'Zoom Lens…',           self._open_zoom_lens)
+        #TODO create an icon that has "Svg" for icon editor
+        _imgop_btn('_create_eye_icon',            'SVG Icon Browser…',    self._open_icon_browser)
+        #TODO create an icon that has "Ico" for icon editor
+        _imgop_btn('edit_icon',            'Icon Editor…',         self._open_icon_editor)
         imgop_row.addStretch()
         layout.addLayout(imgop_row)
 
