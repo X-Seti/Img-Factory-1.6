@@ -78,9 +78,60 @@ from PyQt6.QtCore import Qt
 ##class SVGIconFactory -
 
 
-class SVGIconFactory: #vers 7
-    """Factory class for creating theme-aware scalable SVG icons"""
+class SVGIconFactory: #vers 8
+    """Factory class for creating theme-aware scalable SVG icons.
+    File-first icon loading: place .svg or .png in apps/icons/ to
+    override any built-in icon without editing this file."""
 
+    # Shared icons folder — same path works in IMG Factory and all standalones
+    _ICONS_DIR = None
+
+    @staticmethod
+    def _get_icons_dir() -> str: #vers 1
+        """Return path to apps/icons/, searching upward from this file."""
+        import os
+        if SVGIconFactory._ICONS_DIR and os.path.isdir(SVGIconFactory._ICONS_DIR):
+            return SVGIconFactory._ICONS_DIR
+        # Walk up from apps/methods/ to find apps/icons/
+        here = os.path.dirname(os.path.abspath(__file__))
+        for _ in range(4):
+            candidate = os.path.join(here, 'icons')
+            if os.path.isdir(candidate):
+                SVGIconFactory._ICONS_DIR = candidate
+                return candidate
+            here = os.path.dirname(here)
+        return ''
+
+    @staticmethod
+    def _load_from_file(name: str, size: int, color: str = None) -> 'QIcon | None': #vers 1
+        """Check apps/icons/name.svg or name.png — return QIcon or None."""
+        import os
+        icons_dir = SVGIconFactory._get_icons_dir()
+        if not icons_dir:
+            return None
+        # SVG takes priority over PNG
+        for ext in ('svg', 'png'):
+            fpath = os.path.join(icons_dir, f'{name}.{ext}')
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                if ext == 'svg':
+                    with open(fpath) as f:
+                        svg_data = f.read()
+                    if color:
+                        svg_data = svg_data.replace('currentColor', color)
+                    return SVGIconFactory._create_icon(svg_data, size, color)
+                else:
+                    from PyQt6.QtGui import QPixmap, QIcon
+                    from PyQt6.QtCore import Qt
+                    pm = QPixmap(fpath).scaled(
+                        size, size,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                    return QIcon(pm)
+            except Exception as e:
+                print(f"[SVGIconFactory] icon file error {fpath}: {e}")
+        return None
 
     @staticmethod
     def _create_icon(svg_data: str, size: int = 20, color: str = None, bg_color: str = None) -> QIcon: #vers 2

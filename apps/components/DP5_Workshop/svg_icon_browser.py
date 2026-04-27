@@ -276,13 +276,14 @@ class SVGIconBrowser(QWidget):
             pass
         return 1
 
-    def _build_replacement_method(self, name): #vers 2
+    def _build_replacement_method(self, name): #vers 3
         """
-        Build replacement method source.
-        If the canvas has been edited since loading the icon:
-          - Renders canvas RGBA → PNG → base64
-          - Wraps in a new staticmethod that returns the PNG as QIcon
-        Otherwise returns the original method source unchanged.
+        Build replacement method.
+        If canvas was edited:
+          - Save canvas as PNG to apps/icons/{name}.png
+          - SVGIconFactory._load_from_file() will pick it up automatically
+          - Return original method source (no Python source change needed)
+        If not edited: return original source unchanged.
         """
         if not self._loaded_into_canvas or not self.workshop:
             return self._get_full_method_source(name)
@@ -292,47 +293,25 @@ class SVGIconBrowser(QWidget):
             return self._get_full_method_source(name)
 
         try:
-            import base64, io
             from PyQt6.QtGui import QImage
-            canvas = ws.dp5_canvas
-            w, h   = canvas.tex_w, canvas.tex_h
-            rgba   = bytes(canvas.rgba)
-
-            # Build PNG from canvas RGBA
-            img = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
-            buf = io.BytesIO()
-            import tempfile, os
-            tmp = tempfile.mktemp(suffix='.png')
-            img.save(tmp, 'PNG')
-            with open(tmp, 'rb') as f:
-                png_data = f.read()
-            os.unlink(tmp)
-            b64 = base64.b64encode(png_data).decode('ascii')
-
-            # Build a staticmethod that loads the PNG
-            method = (
-                f"    @staticmethod\n"
-                f"    def {name}(size: int = {max(w,h)}, "
-                f"color: str = None) -> QIcon: #vers 2\n"
-                f"        \"\"\"Raster icon — edited in DP5 Workshop.\"\"\"\n"
-                f"        import base64\n"
-                f"        from PyQt6.QtCore import QByteArray\n"
-                f"        from PyQt6.QtGui import QPixmap, QIcon\n"
-                f"        _data = base64.b64decode(\n"
-                f"            {repr(b64)}\n"
-                f"        )\n"
-                f"        pm = QPixmap()\n"
-                f"        pm.loadFromData(QByteArray(_data), 'PNG')\n"
-                f"        if size != {max(w,h)}:\n"
-                f"            from PyQt6.QtCore import Qt\n"
-                f"            pm = pm.scaled(size, size,\n"
-                f"                Qt.AspectRatioMode.KeepAspectRatio,\n"
-                f"                Qt.TransformationMode.SmoothTransformation)\n"
-                f"        return QIcon(pm)\n"
-            )
-            return method
+            canvas  = ws.dp5_canvas
+            w, h    = canvas.tex_w, canvas.tex_h
+            rgba    = bytes(canvas.rgba)
+            img     = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
+            icons_dir = self._get_icons_dir()
+            if icons_dir:
+                os.makedirs(icons_dir, exist_ok=True)
+                # Save as SVG name (strip _icon suffix for file name)
+                base = name.replace('_icon', '')
+                png_path = os.path.join(icons_dir, f'{base}.png')
+                img.save(png_path, 'PNG')
+                self._status_lbl.setText(
+                    f"Canvas saved to apps/icons/{base}.png\n"
+                    f"Click ↺ Reload to apply — no Python edit needed")
+            # Return original source — file override handles the rest
+            return self._get_full_method_source(name)
         except Exception as e:
-            print(f"[_build_replacement_method] canvas capture failed: {e}")
+            print(f"[_build_replacement_method] {e}")
             return self._get_full_method_source(name)
 
     # ── Canvas integration ────────────────────────────────────────────────────
@@ -442,7 +421,30 @@ class SVGIconBrowser(QWidget):
 
     # ── Export ────────────────────────────────────────────────────────────────
 
-    def _export_svg(self): #vers 1
+    def _get_icons_dir(self): #vers 1
+        """Return apps/icons/ path."""
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            d = SVGIconFactory._get_icons_dir()
+            if d:
+                return d
+        except Exception:
+            pass
+        # Fallback: relative to this file
+        import os
+        here = os.path.dirname(os.path.abspath(__file__))
+        for _ in range(4):
+            c = os.path.join(here, 'apps', 'icons')
+            if os.path.isdir(c):
+                return c
+            c2 = os.path.join(here, 'icons')
+            if os.path.isdir(c2):
+                return c2
+            here = os.path.dirname(here)
+        return ''
+
+    def _export_svg(self): #vers 2
+        """Export SVG — defaults to apps/icons/ for instant override effect."""
         if not self._current_name:
             return
         svg = self._get_svg_source(self._current_name)
@@ -450,10 +452,14 @@ class SVGIconBrowser(QWidget):
         if not svg.strip().startswith('<svg'):
             svg = (f'<svg viewBox="0 0 {w} {h}" '
                    f'xmlns="http://www.w3.org/2000/svg">\n{svg}\n</svg>')
+        icons_dir = self._get_icons_dir()
+        default = os.path.join(
+            icons_dir,
+            self._current_name.replace('_icon', '') + '.svg') if icons_dir else \
+            self._current_name.replace('_icon', '') + '.svg'
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export SVG",
-            self._current_name.replace('_icon', '') + '.svg',
-            "SVG Files (*.svg)")
+            self, "Export SVG — Save to apps/icons/ to override built-in",
+            default, "SVG Files (*.svg)")
         if not path:
             return
         try:
@@ -461,6 +467,11 @@ class SVGIconBrowser(QWidget):
                 f.write(svg)
             self._status_lbl.setText(f"Saved: {os.path.basename(path)}")
             QTimer.singleShot(2000, lambda: self._status_lbl.setText(""))
+            # If saved into icons_dir — it will be picked up immediately on reload
+            if icons_dir and os.path.dirname(os.path.abspath(path)) == \
+                    os.path.abspath(icons_dir):
+                self._status_lbl.setText(
+                    "✓ Saved to apps/icons/ — click ↺ Reload to apply")
         except Exception as e:
             QMessageBox.warning(self, "Export Error", str(e))
 

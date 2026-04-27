@@ -132,22 +132,33 @@ except ImportError:
 
 # - Tool icon renderer — Photoshop-style white silhouettes on dark tile
 def _load_tool_icon(shape: str, size: int = 42, active: bool = False,
-                    tile_bg: str = '', icon_col: str = '') -> QIcon:  #vers 3
+                    tile_bg: str = '', icon_col: str = '') -> QIcon:  #vers 4
     """
-    Load tool icon: checks DP5_Workshop/icons/{shape}.png then .svg,
-    falls back to _make_tool_icon SVG/QPainter renderer.
-    tile_bg / icon_col override the default dark theme colours.
+    Load tool icon — checks in order:
+    1. apps/icons/{shape}.svg or .png  (shared icons folder)
+    2. DP5_Workshop/icons/{shape}.svg or .png  (DP5-specific overrides)
+    3. _make_tool_icon SVG/QPainter renderer  (built-in fallback)
     """
     import os
-    icons_dir = os.path.join(os.path.dirname(__file__), 'icons')
-    for ext in ('png', 'svg'):
-        fpath = os.path.join(icons_dir, f'{shape}.{ext}')
+    # 1. Shared apps/icons/ folder
+    try:
+        from apps.methods.imgfactory_svg_icons import SVGIconFactory
+        icon = SVGIconFactory._load_from_file(shape, size, icon_col or None)
+        if icon is not None:
+            return icon
+    except Exception:
+        pass
+    # 2. DP5-local icons folder
+    local_dir = os.path.join(os.path.dirname(__file__), 'icons')
+    for ext in ('svg', 'png'):
+        fpath = os.path.join(local_dir, f'{shape}.{ext}')
         if os.path.isfile(fpath):
             pix = QPixmap(fpath).scaled(
                 size, size,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation)
             return QIcon(pix)
+    # 3. Built-in renderer
     return _make_tool_icon(shape, size, active, tile_bg=tile_bg, icon_col=icon_col)
 
 
