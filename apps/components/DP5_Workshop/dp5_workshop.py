@@ -2331,6 +2331,22 @@ class _AutoCellPaletteGrid(PaletteGrid):
     On resize the cells re-scale automatically.
     """
 
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme QColor via palette fallback."""
+        from PyQt6.QtGui import QColor
+        pal = self.palette()
+        _map = {
+            'viewport_bg':   pal.ColorRole.Base,
+            'viewport_text': pal.ColorRole.PlaceholderText,
+            'border':        pal.ColorRole.Mid,
+            'bg_primary':    pal.ColorRole.Window,
+            'bg_secondary':  pal.ColorRole.AlternateBase,
+            'text_primary':  pal.ColorRole.WindowText,
+            'accent_primary':pal.ColorRole.Highlight,
+        }
+        return pal.color(_map.get(key, pal.ColorRole.WindowText))
+
     def __init__(self, cols: int = 16, parent=None):
         self._fixed_cols = cols   # must be set BEFORE super().__init__ calls _recalc_height
         super().__init__(cols=cols, cell=13, parent=parent)
@@ -2447,6 +2463,22 @@ class FGBGSwatch(QWidget):
 
     fg_changed = pyqtSignal(QColor)
     bg_changed = pyqtSignal(QColor)
+
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme QColor via palette fallback."""
+        from PyQt6.QtGui import QColor
+        pal = self.palette()
+        _map = {
+            'viewport_bg':   pal.ColorRole.Base,
+            'viewport_text': pal.ColorRole.PlaceholderText,
+            'border':        pal.ColorRole.Mid,
+            'bg_primary':    pal.ColorRole.Window,
+            'bg_secondary':  pal.ColorRole.AlternateBase,
+            'text_primary':  pal.ColorRole.WindowText,
+            'accent_primary':pal.ColorRole.Highlight,
+        }
+        return pal.color(_map.get(key, pal.ColorRole.WindowText))
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3716,9 +3748,11 @@ class _CornerOverlay(QWidget):
                 colors = self._app_settings.get_theme_colors()
                 accent = QColor(colors.get('accent_primary', '#4682FF'))
             except Exception:
-                accent = QColor(70, 130, 255)
+                _p = self.palette()
+            accent = _p.color(_p.ColorRole.Highlight)
         else:
-            accent = QColor(70, 130, 255)
+            _p = self.palette()
+            accent = _p.color(_p.ColorRole.Highlight)
         accent.setAlpha(200)
         hover_c = QColor(accent); hover_c.setAlpha(255)
         w, h = self.width(), self.height()
@@ -12200,6 +12234,22 @@ class _CharGrid(QWidget):
     bit_toggled = pyqtSignal(int, int, bool)
     CELL = 24
 
+
+    def _get_ui_color(self, key): #vers 1
+        """Return theme QColor via palette fallback."""
+        from PyQt6.QtGui import QColor
+        pal = self.palette()
+        _map = {
+            'viewport_bg':   pal.ColorRole.Base,
+            'viewport_text': pal.ColorRole.PlaceholderText,
+            'border':        pal.ColorRole.Mid,
+            'bg_primary':    pal.ColorRole.Window,
+            'bg_secondary':  pal.ColorRole.AlternateBase,
+            'text_primary':  pal.ColorRole.WindowText,
+            'accent_primary':pal.ColorRole.Highlight,
+        }
+        return pal.color(_map.get(key, pal.ColorRole.WindowText))
+
     def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self._w = 8; self._h = 8
@@ -12223,7 +12273,7 @@ class _CharGrid(QWidget):
                 x = col*self.CELL; y = row*self.CELL
                 bit = bool(self._data[row] & (0x80>>col)) if row<len(self._data) else False
                 p.fillRect(x, y, self.CELL-1, self.CELL-1,
-                           QColor(0,220,0) if bit else QColor(20,20,20))
+                           self._get_ui_color("accent_primary") if bit else self._get_ui_color("bg_secondary"))
                 p.setPen(QPen(self._get_ui_color('bg_secondary')))
                 p.drawRect(x, y, self.CELL-1, self.CELL-1)
 
