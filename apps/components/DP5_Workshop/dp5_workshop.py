@@ -5842,18 +5842,33 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
 
     #    Character / Font Editor                                                
 
-    def _open_char_editor(self): #vers 1
-        """Open the character/font editor — edit 8×8 or 8×16 pixel character sets."""
-        dlg = _CharFontEditor(self)
-        dlg.show()
+    def _open_char_editor(self): #vers 2
+        """Toggle character/font editor floating panel."""
+        if not hasattr(self, "_char_editor_panel") or \
+                not self._char_editor_panel.isVisible():
+            self._char_editor_panel = _CharFontEditor(self)
+            # Position to right of DP5 window
+            pos = self.mapToGlobal(self.rect().topRight())
+            self._char_editor_panel.move(pos.x() + 6, pos.y())
+            self._char_editor_panel.show()
+            self._char_editor_panel.raise_()
+        else:
+            self._char_editor_panel.hide()
 
 
     #    Sprite Editor                                                          
 
-    def _open_sprite_editor(self): #vers 1
-        """Open sprite editor — view/edit sprites with platform constraints."""
-        dlg = _SpriteEditor(self)
-        dlg.show()
+    def _open_sprite_editor(self): #vers 2
+        """Toggle sprite editor floating panel."""
+        if not hasattr(self, "_sprite_editor_panel") or \
+                not self._sprite_editor_panel.isVisible():
+            self._sprite_editor_panel = _SpriteEditor(self)
+            pos = self.mapToGlobal(self.rect().topRight())
+            self._sprite_editor_panel.move(pos.x() + 6, pos.y() + 60)
+            self._sprite_editor_panel.show()
+            self._sprite_editor_panel.raise_()
+        else:
+            self._sprite_editor_panel.hide()
 
     def _toggle_anim_strip(self, on: bool): #vers 1
         self.dp5_settings.set('show_anim_strip', on)
@@ -11940,16 +11955,20 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop: #vers 1
 
 #  Character / Font Editor
 
-class _CharFontEditor(QDialog):
+class _CharFontEditor(QWidget):
     """Edit 8×8 or 8×16 pixel character sets — bit grid per character,
-    load/save binary, export as C header or ASM data."""
+    load/save binary, export as C header or ASM data.
+    Left panel: system font browser — click to load glyphs.
+    Floating Tool window, stays on top.
+    """
 
     CELL = 24   # display pixels per bit-cell
 
-    def __init__(self, parent=None): #vers 1
-        super().__init__(parent)
+    def __init__(self, parent=None): #vers 2
+        super().__init__(parent, Qt.WindowType.Tool |
+                         Qt.WindowType.WindowStaysOnTopHint)
         self.setWindowTitle("Character / Font Editor")
-        self.setMinimumSize(700, 520)
+        self.setMinimumSize(820, 560)
         self._char_w = 8
         self._char_h = 8
         self._n_chars = 128
@@ -11964,8 +11983,29 @@ class _CharFontEditor(QDialog):
     def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
 
-        #    Left: character list                                      
+        #    Left: font browser + character list
         left = QVBoxLayout()
+
+        # Font browser
+        left.addWidget(QLabel("System Font:"))
+        self._font_search = QLineEdit()
+        self._font_search.setPlaceholderText("Filter fonts…")
+        self._font_search.textChanged.connect(self._filter_fonts)
+        left.addWidget(self._font_search)
+        self._font_list = QListWidget()
+        self._font_list.setFixedWidth(160)
+        self._font_list.setMaximumHeight(160)
+        self._font_list.itemDoubleClicked.connect(self._load_system_font)
+        self._font_list.setToolTip("Double-click to load font glyphs into grid")
+        left.addWidget(self._font_list)
+        self._populate_font_list()
+
+        # Divider
+        from PyQt6.QtWidgets import QFrame as _QF
+        _sep = _QF(); _sep.setFrameShape(_QF.Shape.HLine)
+        left.addWidget(_sep)
+
+        # Char set size + character list
         hl = QHBoxLayout()
         hl.addWidget(QLabel("Char set:"))
         self._size_combo = QComboBox()
@@ -11975,7 +12015,7 @@ class _CharFontEditor(QDialog):
         left.addLayout(hl)
 
         self._char_list = QListWidget()
-        self._char_list.setFixedWidth(110)
+        self._char_list.setFixedWidth(160)
         self._char_list.currentRowChanged.connect(self._on_char_select)
         left.addWidget(self._char_list)
 
@@ -12028,7 +12068,7 @@ class _CharFontEditor(QDialog):
         right.addWidget(QLabel("Preview:"))
         self._preview = QLabel()
         self._preview.setFixedSize(64,64)
-        self._preview.setStyleSheet("background:#000; border:1px solid palette(mid);")
+        self._preview.setStyleSheet("background:palette(shadow); border:1px solid palette(mid);")
         right.addWidget(self._preview)
         right.addStretch()
         close_btn = QPushButton("Close")
@@ -12036,6 +12076,50 @@ class _CharFontEditor(QDialog):
         right.addWidget(close_btn)
         lay.addLayout(right)
 
+
+    def _populate_font_list(self): #vers 1
+        """Populate font list with system fonts."""
+        from PyQt6.QtGui import QFontDatabase
+        self._all_fonts = sorted(QFontDatabase.families())
+        self._font_list.clear()
+        for f in self._all_fonts:
+            self._font_list.addItem(f)
+
+    def _filter_fonts(self, text): #vers 1
+        text = text.lower()
+        self._font_list.clear()
+        for f in self._all_fonts:
+            if text in f.lower():
+                self._font_list.addItem(f)
+
+    def _load_system_font(self, item): #vers 1
+        """Render glyphs from selected system font into character grid."""
+        from PyQt6.QtGui import QFont as _QFont, QImage as _QImg, QPainter as _QPainter
+        font_name = item.text()
+        try:
+            font = _QFont(font_name, self._char_h - 1)
+            font.setStyleHint(_QFont.StyleHint.Monospace)
+            for ci in range(self._n_chars):
+                ch_str = chr(ci) if 32 <= ci < 127 else ' '
+                img = _QImg(self._char_w, self._char_h, _QImg.Format.Format_Mono)
+                img.fill(0)
+                p = _QPainter(img)
+                p.setFont(font)
+                p.drawText(0, self._char_h - 2, ch_str)
+                p.end()
+                row_data = []
+                for row in range(self._char_h):
+                    byte = 0
+                    for col in range(self._char_w):
+                        if img.pixel(col, row) & 0xFFFFFF:
+                            byte |= (0x80 >> col)
+                    row_data.append(byte)
+                self._chars[ci] = row_data
+            self._refresh_char_list()
+            self._on_char_select(self._current)
+            self.setWindowTitle(f"Font Editor — {font_name}")
+        except Exception as e:
+            print(f"[_load_system_font] {e}")
 
     def _on_size_change(self, txt): #vers 1
         self._char_h = 16 if txt == "8×16" else 8
@@ -12273,12 +12357,15 @@ class _CharGrid(QWidget):
 
 #  Sprite Editor
 
-class _SpriteEditor(QDialog):
+class _SpriteEditor(QWidget):
     """View and edit sprites with platform native size constraints.
-    Shows the canvas sliced into sprite-sized frames."""
+    Shows the canvas sliced into sprite-sized frames.
+    Floating Tool window — stays on top of DP5 canvas.
+    """
 
-    def __init__(self, parent=None): #vers 1
-        super().__init__(parent)
+    def __init__(self, parent=None): #vers 2
+        super().__init__(parent, Qt.WindowType.Tool |
+                         Qt.WindowType.WindowStaysOnTopHint)
         self.setWindowTitle("Sprite Editor")
         self.setMinimumSize(640, 480)
         self._editor = parent
@@ -12355,6 +12442,50 @@ class _SpriteEditor(QDialog):
         right.addWidget(close_btn)
         lay.addLayout(right)
 
+
+    def _populate_font_list(self): #vers 1
+        """Populate font list with system fonts."""
+        from PyQt6.QtGui import QFontDatabase
+        self._all_fonts = sorted(QFontDatabase.families())
+        self._font_list.clear()
+        for f in self._all_fonts:
+            self._font_list.addItem(f)
+
+    def _filter_fonts(self, text): #vers 1
+        text = text.lower()
+        self._font_list.clear()
+        for f in self._all_fonts:
+            if text in f.lower():
+                self._font_list.addItem(f)
+
+    def _load_system_font(self, item): #vers 1
+        """Render glyphs from selected system font into character grid."""
+        from PyQt6.QtGui import QFont as _QFont, QImage as _QImg, QPainter as _QPainter
+        font_name = item.text()
+        try:
+            font = _QFont(font_name, self._char_h - 1)
+            font.setStyleHint(_QFont.StyleHint.Monospace)
+            for ci in range(self._n_chars):
+                ch_str = chr(ci) if 32 <= ci < 127 else ' '
+                img = _QImg(self._char_w, self._char_h, _QImg.Format.Format_Mono)
+                img.fill(0)
+                p = _QPainter(img)
+                p.setFont(font)
+                p.drawText(0, self._char_h - 2, ch_str)
+                p.end()
+                row_data = []
+                for row in range(self._char_h):
+                    byte = 0
+                    for col in range(self._char_w):
+                        if img.pixel(col, row) & 0xFFFFFF:
+                            byte |= (0x80 >> col)
+                    row_data.append(byte)
+                self._chars[ci] = row_data
+            self._refresh_char_list()
+            self._on_char_select(self._current)
+            self.setWindowTitle(f"Font Editor — {font_name}")
+        except Exception as e:
+            print(f"[_load_system_font] {e}")
 
     def _on_size_change(self, txt): #vers 1
         w,h = map(int, txt.split("×"))
