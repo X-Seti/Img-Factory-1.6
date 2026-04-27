@@ -5999,76 +5999,57 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._select_tool(TOOL_SELECT)
         self._set_status("All selected")
 
-    def _rotate_selection_dialog(self): #vers 1
-        """Rotate the active selection by preset or arbitrary degrees.
-        Works on the selection buffer — rotates the pixels, expands if needed,
-        updates _sel_buffer/_sel_buf_w/_sel_buf_h and re-floats the selection."""
+    def _rotate_selection_dialog(self): #vers 2
+        """Rotate the active selection — inline overlay panel."""
         if not self.dp5_canvas: return
         c = self.dp5_canvas
         if not (c._sel_active and c._selection_rect):
             self._set_status("No selection to rotate — use Select tool first")
             return
-
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QDialogButtonBox, QPushButton, QDoubleSpinBox, QLabel, QSlider)
-        from PyQt6.QtCore import Qt as _Qt
-
-        # Auto-copy if buffer not filled yet
         if not c._sel_buffer:
             c.copy_selection()
         if not c._sel_buffer:
             return
 
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Rotate Selection")
-        dlg.setFixedWidth(300)
-        lay = QVBoxLayout(dlg); lay.setSpacing(8)
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+            QPushButton, QDoubleSpinBox, QLabel, QSlider, QCheckBox)
 
-        # Degree input
-        lay.addWidget(QLabel("Rotation angle (°):"))
+        ctrl = QWidget()
+        cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(4)
+
+        cl.addWidget(QLabel("Rotation angle (°):"))
         deg_spin = QDoubleSpinBox()
-        deg_spin.setRange(-359.9, 359.9)
-        deg_spin.setDecimals(1)
-        deg_spin.setSingleStep(1.0)
-        deg_spin.setValue(0.0)
-        deg_spin.setSuffix("°")
-        lay.addWidget(deg_spin)
+        deg_spin.setRange(-359.9, 359.9); deg_spin.setDecimals(1)
+        deg_spin.setSingleStep(1.0); deg_spin.setValue(0.0); deg_spin.setSuffix("°")
+        cl.addWidget(deg_spin)
 
-        # Slider for quick scrub
-        sl = QSlider(_Qt.Orientation.Horizontal)
+        sl = QSlider(Qt.Orientation.Horizontal)
         sl.setRange(-180, 180); sl.setValue(0)
         sl.valueChanged.connect(lambda v: deg_spin.setValue(float(v)))
         deg_spin.valueChanged.connect(lambda v: sl.setValue(int(v)))
-        lay.addWidget(sl)
+        cl.addWidget(sl)
 
-        # Quick-angle preset buttons
         preset_row = QHBoxLayout()
-        for label, angle in [("−90°", -90), ("−45°", -45), ("+45°", 45), ("+90°", 90), ("180°", 180)]:
-            b = QPushButton(label); b.setFixedHeight(26)
+        for label, angle in [("−90°",-90),("−45°",-45),("+45°",45),("+90°",90),("180°",180)]:
+            b = QPushButton(label); b.setFixedHeight(24)
             b.clicked.connect(lambda _=False, a=angle: deg_spin.setValue(float(a)))
             preset_row.addWidget(b)
-        lay.addLayout(preset_row)
+        cl.addLayout(preset_row)
 
-        # Expand checkbox
-        from PyQt6.QtWidgets import QCheckBox
-        expand_cb = QCheckBox("Expand selection to fit rotated content")
+        expand_cb = QCheckBox("Expand to fit")
         expand_cb.setChecked(True)
-        lay.addWidget(expand_cb)
+        cl.addWidget(expand_cb)
 
-        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
-                              QDialogButtonBox.StandardButton.Cancel)
-        lay.addWidget(bb)
-        bb.accepted.connect(dlg.accept)
-        bb.rejected.connect(dlg.reject)
+        parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
+        def _apply():
+            angle = deg_spin.value()
+            if angle != 0.0:
+                self._apply_selection_rotation(angle, expand=expand_cb.isChecked())
+                self._set_status(f"Selection rotated {angle}°")
 
-        angle = deg_spin.value()
-        if angle == 0.0:
-            return
-
-        self._apply_selection_rotation(angle, expand=expand_cb.isChecked())
+        self._ToolOverlay(parent_vp, self, "Rotate Selection",
+                          ctrl, apply_fn=_apply, generate_fn=None)
 
     def _apply_selection_rotation(self, angle: float, expand: bool = True): #vers 1
         """Rotate the selection buffer by angle degrees (CCW positive).
@@ -7395,66 +7376,52 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         self._pil_transform(lambda i: i.transpose(Image.Transpose.FLIP_TOP_BOTTOM))
 
 
-    def _scale_canvas(self): #vers 1
-        """Scale canvas to a new size with a dialog offering presets."""
+    def _scale_canvas(self): #vers 2
+        """Scale canvas — inline overlay panel."""
         if not self.dp5_canvas: return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Scale Canvas")
-        dlg.setModal(True)
-        lay = QVBoxLayout(dlg)
-        form = QFormLayout()
 
-        w_spin = QSpinBox(); w_spin.setRange(8, 8192)
-        w_spin.setValue(self._canvas_width)
-        h_spin = QSpinBox(); h_spin.setRange(8, 8192)
-        h_spin.setValue(self._canvas_height)
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+            QGridLayout, QFormLayout, QSpinBox, QLabel, QPushButton, QComboBox)
+
+        ctrl = QWidget()
+        cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(3)
+
+        form = QFormLayout()
+        w_spin = QSpinBox(); w_spin.setRange(8, 8192); w_spin.setValue(self._canvas_width)
+        h_spin = QSpinBox(); h_spin.setRange(8, 8192); h_spin.setValue(self._canvas_height)
         form.addRow("Width:", w_spin)
         form.addRow("Height:", h_spin)
-        lay.addLayout(form)
+        cl.addLayout(form)
 
-        # Quick-preset buttons
-        preset_lbl = QLabel("Presets:")
-        preset_lbl.setFont(QFont("Arial", 8))
-        lay.addWidget(preset_lbl)
-        presets = [
-            ("32×32",   32,   32),   ("64×64",   64,   64),
-            ("128×128", 128,  128),  ("256×256", 256,  256),
-            ("512×512", 512,  512),  ("1024×1024",1024, 1024),
-            ("2048×2048",2048,2048), ("320×200", 320,  200),
-            ("640×480", 640,  480),  ("1280×720",1280, 720),
-        ]
-        grid = QGridLayout()
-        for i, (lbl, pw, ph) in enumerate(presets):
-            b = QPushButton(lbl)
-            b.setFont(QFont("Arial", 8))
-            b.clicked.connect(lambda _, pw=pw, ph=ph:
+        cl.addWidget(QLabel("Presets:"))
+        grid = QGridLayout(); grid.setSpacing(2)
+        for i, (lbl, pw, ph) in enumerate([
+            ("32×32",32,32),("64×64",64,64),("128×128",128,128),("256×256",256,256),
+            ("512×512",512,512),("1024×1024",1024,1024),("320×200",320,200),("640×480",640,480),
+        ]):
+            b = QPushButton(lbl); b.setFixedHeight(22)
+            b.clicked.connect(lambda _=False, pw=pw, ph=ph:
                               (w_spin.setValue(pw), h_spin.setValue(ph)))
             grid.addWidget(b, i // 4, i % 4)
-        lay.addLayout(grid)
+        cl.addLayout(grid)
 
-        # Resampling method
         resamp_combo = QComboBox()
-        resamp_combo.addItems(["Nearest (pixelart)", "Bilinear", "Bicubic", "Lanczos"])
-        resamp_form = QFormLayout()
-        resamp_form.addRow("Resample:", resamp_combo)
-        lay.addLayout(resamp_form)
+        resamp_combo.addItems(["Nearest", "Bilinear", "Bicubic", "Lanczos"])
+        rf = QFormLayout(); rf.addRow("Resample:", resamp_combo)
+        cl.addLayout(rf)
 
-        btns = QHBoxLayout()
-        ok_btn = QPushButton("Scale"); ok_btn.setDefault(True)
-        cancel_btn = QPushButton("Cancel")
-        ok_btn.clicked.connect(dlg.accept)
-        cancel_btn.clicked.connect(dlg.reject)
-        btns.addStretch(); btns.addWidget(ok_btn); btns.addWidget(cancel_btn)
-        lay.addLayout(btns)
+        parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        if dlg.exec():
+        def _apply():
             from PIL import Image
             methods = [Image.Resampling.NEAREST, Image.Resampling.BILINEAR,
                        Image.Resampling.BICUBIC, Image.Resampling.LANCZOS]
-            method = methods[resamp_combo.currentIndex()]
             nw, nh = w_spin.value(), h_spin.value()
-            self._pil_transform(lambda i, nw=nw, nh=nh, m=method:
+            self._pil_transform(lambda i, nw=nw, nh=nh, m=methods[resamp_combo.currentIndex()]:
                                 i.resize((nw, nh), m))
+
+        self._ToolOverlay(parent_vp, self, "Scale Canvas",
+                          ctrl, apply_fn=_apply, generate_fn=None)
 
     def _new_btn_context_menu(self, pos): #vers 1
         """Right-click on New button — pick mode then open New Canvas on that tab."""
@@ -7749,60 +7716,55 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Crop Error", str(e))
 
 
-    def _resize_canvas_dialog(self): #vers 2
-        """Resize canvas — single dialog with width, height, bit depth and resampling."""
+    def _resize_canvas_dialog(self): #vers 3
+        """Resize canvas — inline overlay panel."""
         if not self.dp5_canvas: return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Resize Canvas")
-        dlg.setMinimumWidth(280)
-        layout = QVBoxLayout(dlg)
+
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout,
+            QSpinBox, QComboBox)
+
+        ctrl = QWidget()
+        cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(3)
         form = QFormLayout()
 
-        w_spin = QSpinBox(); w_spin.setRange(1, 4096)
-        w_spin.setValue(self.dp5_canvas.tex_w)
+        w_spin = QSpinBox(); w_spin.setRange(1, 4096); w_spin.setValue(self.dp5_canvas.tex_w)
+        h_spin = QSpinBox(); h_spin.setRange(1, 4096); h_spin.setValue(self.dp5_canvas.tex_h)
         form.addRow("Width:", w_spin)
-
-        h_spin = QSpinBox(); h_spin.setRange(1, 4096)
-        h_spin.setValue(self.dp5_canvas.tex_h)
         form.addRow("Height:", h_spin)
 
         depth_combo = QComboBox()
-        depth_combo.addItems(["32-bit RGBA", "24-bit RGB", "16-bit (R5G6B5)", "8-bit indexed"])
+        depth_combo.addItems(["32-bit RGBA","24-bit RGB","16-bit (R5G6B5)","8-bit indexed"])
         depth_combo.setCurrentIndex(getattr(self, '_canvas_bit_depth', 0))
         form.addRow("Bit depth:", depth_combo)
 
         resample_combo = QComboBox()
-        resample_combo.addItems(["Nearest (pixel perfect)", "Bilinear", "Lanczos"])
+        resample_combo.addItems(["Nearest","Bilinear","Lanczos"])
         form.addRow("Resample:", resample_combo)
+        cl.addLayout(form)
 
-        layout.addLayout(form)
-        btns = QHBoxLayout(); btns.addStretch()
-        ok = QPushButton("Resize"); ok.setDefault(True)
-        can = QPushButton("Cancel")
-        ok.clicked.connect(dlg.accept); can.clicked.connect(dlg.reject)
-        btns.addWidget(ok); btns.addWidget(can)
-        layout.addLayout(btns)
+        parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
 
-        if dlg.exec() != QDialog.DialogCode.Accepted: return
+        def _apply():
+            w, h = w_spin.value(), h_spin.value()
+            self._canvas_bit_depth = depth_combo.currentIndex()
+            try:
+                from PIL import Image
+                resample = [Image.NEAREST, Image.BILINEAR, Image.LANCZOS][resample_combo.currentIndex()]
+                img = Image.frombytes('RGBA', (self.dp5_canvas.tex_w, self.dp5_canvas.tex_h),
+                                      bytes(self.dp5_canvas.rgba))
+                resized = img.resize((w, h), resample)
+                self._push_undo()
+                self.dp5_canvas.tex_w = self._canvas_width  = w
+                self.dp5_canvas.tex_h = self._canvas_height = h
+                self.dp5_canvas.rgba  = bytearray(resized.tobytes())
+                self.dp5_canvas.update()
+                self._fit_canvas_to_viewport()
+                self._set_status(f"Resized to {w}×{h}  {depth_combo.currentText()}")
+            except Exception as e:
+                self._set_status(f"Resize error: {e}")
 
-        w = w_spin.value()
-        h = h_spin.value()
-        self._canvas_bit_depth = depth_combo.currentIndex()
-        resample_map = [0, 2, 1]  # NEAREST, BILINEAR, LANCZOS
-        from PIL import Image
-        resample = [Image.NEAREST, Image.BILINEAR, Image.LANCZOS][resample_combo.currentIndex()]
-        try:
-            img = Image.frombytes('RGBA', (self.dp5_canvas.tex_w, self.dp5_canvas.tex_h),
-                                  bytes(self.dp5_canvas.rgba))
-            resized = img.resize((w, h), resample)
-            self.dp5_canvas.tex_w, self.dp5_canvas.tex_h = w, h
-            self._canvas_width, self._canvas_height = w, h
-            self.dp5_canvas.rgba = bytearray(resized.tobytes())
-            self.dp5_canvas.update()
-            self._fit_canvas_to_viewport()
-            self._set_status(f"Resized to {w}×{h}  {depth_combo.currentText()}")
-        except Exception as e:
-            QMessageBox.warning(self, "Resize Error", str(e))
+        self._ToolOverlay(parent_vp, self, "Resize Canvas",
+                          ctrl, apply_fn=_apply, generate_fn=None)
 
 
     #    File I/O                                                               
@@ -7930,48 +7892,51 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             QMessageBox.warning(self, "Snap + Dither",
                                 "No user palette loaded. Load a palette first.")
             return
-        # Ask dither type
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Dither Method")
-        vl = QVBoxLayout(dlg)
-        vl.addWidget(QLabel(f"Palette: {self.current_retro_palette}  ({len(palette)} colours)\n\nDither method:"))
-        from PyQt6.QtWidgets import QRadioButton, QButtonGroup
-        bg = QButtonGroup(dlg)
+        # Inline overlay — pick dither method then open file
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel,
+            QRadioButton, QButtonGroup)
+
+        ctrl = QWidget()
+        cl = QVBoxLayout(ctrl); cl.setContentsMargins(0,0,0,0); cl.setSpacing(4)
+        cl.addWidget(QLabel(
+            f"Palette: {self.current_retro_palette}  ({len(palette)} colours)"))
+        cl.addWidget(QLabel("Dither method:"))
+
+        bg = QButtonGroup(ctrl)
         opts = [
-            ('floyd',   'Floyd-Steinberg  — smooth gradients, best for photos'),
-            ('bayer',   'Bayer 4×4 ordered — crisp pattern, retro look'),
-            ('checker', 'Checkerboard — hard alternating pattern'),
+            ('floyd',   'Floyd-Steinberg'),
+            ('bayer',   'Bayer 4×4 ordered'),
+            ('checker', 'Checkerboard'),
         ]
         radios = []
         for mode_id, label in opts:
             rb = QRadioButton(label)
-            bg.addButton(rb)
-            vl.addWidget(rb)
+            bg.addButton(rb); cl.addWidget(rb)
             radios.append((mode_id, rb))
         radios[0][1].setChecked(True)
-        btns = QHBoxLayout(); ok = QPushButton("Open…"); can = QPushButton("Cancel")
-        ok.clicked.connect(dlg.accept); can.clicked.connect(dlg.reject)
-        btns.addStretch(); btns.addWidget(ok); btns.addWidget(can)
-        vl.addLayout(btns)
-        if dlg.exec() != QDialog.DialogCode.Accepted: return
-        mode = next(m for m, rb in radios if rb.isChecked())
 
-        path, _ = QFileDialog.getOpenFileName(
-            self, f"Open + Snap ({mode} dither)", "",
-            "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.tga *.tiff *.gif *.dds *.psd);;All Files (*)")
-        if not path or not self.dp5_canvas: return
-        self._import_bitmap_path(path)
-        # Apply chosen dither
-        old_mode = getattr(self, '_pal_dither_mode', 'off')
-        self._pal_dither_mode = mode
-        from PIL import Image
-        img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
-                              bytes(self.dp5_canvas.rgba))
-        snapped = self._apply_user_palette_dither(img)
-        self._pal_dither_mode = old_mode  # restore
-        self.dp5_canvas.rgba = bytearray(snapped.tobytes())
-        self.dp5_canvas.update()
-        self._set_status(f"Opened + {mode} dither: {os.path.basename(path)}")
+        parent_vp = self._canvas_scroll.viewport() if hasattr(self, '_canvas_scroll') else self
+
+        def _apply():
+            mode = next(m for m, rb in radios if rb.isChecked())
+            path, _ = QFileDialog.getOpenFileName(
+                self, f"Open + Snap ({mode} dither)", "",
+                "Images (*.png *.bmp *.jpg *.jpeg *.iff *.lbm *.tga *.tiff *.gif *.dds *.psd);;All Files (*)")
+            if not path or not self.dp5_canvas: return
+            self._import_bitmap_path(path)
+            old_mode = getattr(self, '_pal_dither_mode', 'off')
+            self._pal_dither_mode = mode
+            from PIL import Image
+            img = Image.frombytes('RGBA', (self._canvas_width, self._canvas_height),
+                                  bytes(self.dp5_canvas.rgba))
+            snapped = self._apply_user_palette_dither(img)
+            self._pal_dither_mode = old_mode
+            self.dp5_canvas.rgba = bytearray(snapped.tobytes())
+            self.dp5_canvas.update()
+            self._set_status(f"Opened + {mode} dither: {os.path.basename(path)}")
+
+        self._ToolOverlay(parent_vp, self, "Dither Method",
+                          ctrl, apply_fn=_apply, generate_fn=None)
 
 
     def _import_bitmap_path(self, path: str): #vers 3
