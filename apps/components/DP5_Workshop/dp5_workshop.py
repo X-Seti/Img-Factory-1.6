@@ -3743,16 +3743,16 @@ class _CornerOverlay(QWidget):
 
     def paintEvent(self, event): #vers 2
         s = self.SIZE
+        _p = self.palette()
+        _accent_fallback = _p.color(_p.ColorRole.Highlight)
         if self._app_settings:
             try:
                 colors = self._app_settings.get_theme_colors()
-                accent = QColor(colors.get('accent_primary', '#4682FF'))
+                accent = QColor(colors.get('accent_primary', _accent_fallback.name()))
             except Exception:
-                _p = self.palette()
-            accent = _p.color(_p.ColorRole.Highlight)
+                accent = _accent_fallback
         else:
-            _p = self.palette()
-            accent = _p.color(_p.ColorRole.Highlight)
+            accent = _accent_fallback
         accent.setAlpha(200)
         hover_c = QColor(accent); hover_c.setAlpha(255)
         w, h = self.width(), self.height()
