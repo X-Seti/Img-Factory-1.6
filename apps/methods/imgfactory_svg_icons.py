@@ -60,6 +60,7 @@ from PyQt6.QtCore import Qt
 # saveas_icon
 # screenshot_icon
 # search_icon
+# svg_edit_icon
 # settings_icon
 # sphere_icon
 # stop_icon
@@ -470,6 +471,35 @@ class SVGIconFactory: #vers 8
 # - ART & MANAGEMENT ICONS
 
     @staticmethod
+    @staticmethod
+    def svg_edit_icon(size: int = 20, color: str = None) -> QIcon: #vers 2
+        """SVG editor badge — [SvG] three-colour icon like [RGB].
+        S=orange, v=theme colour, G=blue. Uses geometric paths (no <text>)."""
+        # S shape (orange)  v shape (theme)  G shape (blue)
+        svg = (
+            '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'''
+            # Border badge
+            '''<rect x="0.5" y="3.5" width="23" height="17" rx="2.5"
+                 fill="none" stroke="currentColor" stroke-width="1.2"/>'''
+            # S — orange: top bar, mid bar, bottom bar + verticals
+            '''<rect x="2.5" y="5.5" width="4"  height="1.5" rx="0.5" fill="#ff6600"/>
+               <rect x="2.5" y="10"  width="4"  height="1.5" rx="0.5" fill="#ff6600"/>
+               <rect x="2.5" y="14.5" width="4" height="1.5" rx="0.5" fill="#ff6600"/>
+               <rect x="2.5" y="5.5" width="1.5" height="4.5" rx="0.5" fill="#ff6600"/>
+               <rect x="5"   y="11.5" width="1.5" height="4.5" rx="0.5" fill="#ff6600"/>'''
+            # v — theme colour: two diagonal lines meeting at bottom
+            '''<path d="M9.5 6.5 L11.5 14 L13.5 6.5"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"/>'''
+            # G — blue: C shape + horizontal bar
+            '''<path d="M22 6.5 Q18 5 17.5 10.5 Q18 16 22 15"
+                 fill="none" stroke="#00aaff" stroke-width="2"
+                 stroke-linecap="round"/>
+               <rect x="19.5" y="10" width="2.5" height="1.5" rx="0.5" fill="#00aaff"/>'''
+            '''</svg>'''
+        )
+        return SVGIconFactory._create_icon(svg, size, color)
+
     def search_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
         """Search/detect/magnifying glass icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
@@ -1152,13 +1182,15 @@ class SVGIconFactory: #vers 8
 
 
     @staticmethod
-    def color_picker_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
-        """Color picker icon"""
-        svg_data = '''<svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"
-                stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <path d="M12 4v6M12 14v6M4 12h6M14 12h6"
-                stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    def color_picker_icon(size: int = 20, color: str = None) -> QIcon: #vers 8
+        """Eyedropper / colour picker icon."""
+        svg_data = '''<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.71 5.63l-2.34-2.34a1 1 0 0 0-1.41 0l-3.12 3.12-1.41-1.41
+                     -1.42 1.41 1.41 1.42-6.6 6.6A2 2 0 0 0 5 16v3h3
+                     a2 2 0 0 0 1.42-.59l6.6-6.6 1.41 1.42 1.42-1.42
+                     -1.42-1.41 3.12-3.12a1 1 0 0 0 0-1.65z"
+                  fill="currentColor"/>
+            <circle cx="6.5" cy="17.5" r="1.8" fill="currentColor" opacity="0.5"/>
         </svg>'''
         return SVGIconFactory._create_icon(svg_data, size, color)
 

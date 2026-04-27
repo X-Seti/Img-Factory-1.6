@@ -5138,8 +5138,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _imgop_btn('dp_colour_correct_icon', 'Colour Adjustments…', self._open_dp5_colour_adjust)
         _imgop_btn('dp_seamless_op_icon',    'Seamless Tool…',       self._open_dp5_seamless)
         _imgop_btn('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
-        _imgop_btn('knob_icon',              'Zoom Lens…',           self._open_zoom_lens)
-        _imgop_btn('search_icon',            'SVG Icon Browser…',    self._open_icon_browser)
+        _imgop_btn('zoom_in_icon',           'Zoom Lens…',           self._open_zoom_lens)
+        _imgop_btn('svg_edit_icon',          'SVG Icon Browser…',    self._open_icon_browser)
         _imgop_btn('folder_icon',            'Icon Editor…',         self._open_icon_editor)
         imgop_row.addStretch()
         layout.addLayout(imgop_row)
@@ -8259,6 +8259,14 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 pm = getattr(self, '_pixmap', None)
                 if pm:
                     p.drawPixmap(0, 22, pm)
+                    # Tint overlay — right-click to set
+                    tint_a = getattr(self, '_tint_alpha', 0)
+                    if tint_a > 0:
+                        from PyQt6.QtGui import QColor as _TC
+                        tc = QColor(getattr(self, '_tint_color',
+                                            QColor(255, 255, 255)))
+                        tc.setAlpha(tint_a)
+                        p.fillRect(0, 22, sz, sz, tc)
                 else:
                     p.fillRect(0, 22, sz, sz, _vp_bg)
                 # Resize grip — bottom-right corner dots
@@ -8310,6 +8318,34 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     else:
                         self._drag_start = ev.globalPosition().toPoint() - self.pos()
                 ev.accept()
+
+            def contextMenuEvent(self, ev):
+                """Right-click: tint controls."""
+                from PyQt6.QtWidgets import QMenu, QWidgetAction, QSlider, QLabel, QColorDialog
+                menu = QMenu(self)
+                menu.addAction("No tint",   lambda: self._set_tint(0))
+                menu.addAction("Light tint (25%)", lambda: self._set_tint(64))
+                menu.addAction("Medium tint (50%)", lambda: self._set_tint(128))
+                menu.addAction("Strong tint (75%)", lambda: self._set_tint(192))
+                menu.addSeparator()
+                menu.addAction("Pick tint colour…", self._pick_tint_color)
+                menu.exec(ev.globalPos())
+
+            def _set_tint(self, alpha):
+                self._tint_alpha = alpha
+                self._refresh()
+
+            def _pick_tint_color(self):
+                from PyQt6.QtWidgets import QColorDialog
+                from PyQt6.QtGui import QColor
+                c = QColorDialog.getColor(
+                    getattr(self, "_tint_color", QColor(255,255,255)),
+                    self, "Pick Tint Colour")
+                if c.isValid():
+                    self._tint_color = c
+                    if not getattr(self, "_tint_alpha", 0):
+                        self._tint_alpha = 64
+                    self._refresh()
 
             def mouseMoveEvent(self, ev):
                 if getattr(self, '_resize_drag', False) and \
