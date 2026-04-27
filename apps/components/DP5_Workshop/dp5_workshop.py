@@ -12985,6 +12985,12 @@ class _IconEditor(QWidget): #vers 1
         self._icon_list.setUniformItemSizes(True)
         self._icon_list.itemSelectionChanged.connect(self._on_folder_icon_selected)
         self._icon_list.itemDoubleClicked.connect(self._on_folder_icon_open)
+        self._icon_list.setSelectionMode(
+            QListWidget.SelectionMode.ExtendedSelection)
+        self._icon_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self._icon_list.customContextMenuRequested.connect(
+            self._icon_context_menu)
         root.addWidget(self._icon_list, 1)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
@@ -13105,8 +13111,8 @@ class _IconEditor(QWidget): #vers 1
                 self._settings.save()
             self._scan_folder(folder)
 
-    def _scan_folder(self, folder: str): #vers 2
-        """Scan folder for icon files and populate the icon grid."""
+    def _scan_folder(self, folder: str): #vers 3
+        """Scan folder for icon files and populate the list."""
         import os
         from PyQt6.QtWidgets import QListWidgetItem, QApplication
         self._icon_list.clear()
@@ -13114,25 +13120,38 @@ class _IconEditor(QWidget): #vers 1
             self._count_lbl.setText("Folder not found")
             return
         exts = set(self.FORMATS_IN)
-        files = sorted(
+        self._all_files = sorted(
             f for f in os.listdir(folder)
             if os.path.isfile(os.path.join(folder, f))
             and os.path.splitext(f)[1].lower() in exts
         )
-        self._count_lbl.setText(f"Loading {len(files)} icons…")
+        self._populate_icon_list(self._all_files)
+
+    def _populate_icon_list(self, files): #vers 1
+        """Fill the icon list from a file name list."""
+        import os
+        from PyQt6.QtWidgets import QListWidgetItem, QApplication
+        self._icon_list.clear()
+        folder = self._icon_folder
+        if not files:
+            self._count_lbl.setText("No icons found")
+            return
+        self._count_lbl.setText(f"Loading {len(files)}…")
         QApplication.processEvents()
         for fname in files:
             fpath = os.path.join(folder, fname)
             icon  = self._make_thumbnail(fpath)
-            label = os.path.splitext(fname)[0]
-            item  = QListWidgetItem(icon, label)
+            item  = QListWidgetItem(icon, fname)
             item.setData(Qt.ItemDataRole.UserRole, fpath)
-            item.setToolTip(f"{fname}\nDouble-click to open in canvas")
-            item.setSizeHint(QSize(70, 58))
+            item.setData(Qt.ItemDataRole.UserRole + 1, fname)
+            item.setToolTip(
+                f"{fname}\nRight-click for options\nDouble-click to open")
+            item.setSizeHint(QSize(68, 56))
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
             self._icon_list.addItem(item)
-        self._count_lbl.setText(
-            f"{len(files)} icons" if files else "No icons found")
+        self._count_lbl.setText(f"{len(files)} icons")
         self._icon_list.update()
+        self._icon_list.repaint()
 
     def _make_thumbnail(self, fpath: str) -> QIcon: #vers 2
         """Generate a thumbnail QIcon from an icon file."""
@@ -13247,8 +13266,8 @@ class _IconEditor(QWidget): #vers 1
         p.end()
         return QIcon(pm)
 
-    def _on_folder_icon_selected(self): #vers 1
-        """Single-click folder icon — load file info without opening canvas."""
+    def _on_folder_icon_selected(self): #vers 2
+        """Single-click — show filename in path edit."""
         items = self._icon_list.selectedItems()
         if not items:
             return
@@ -13256,11 +13275,174 @@ class _IconEditor(QWidget): #vers 1
         if fpath:
             self._path_edit.setText(fpath)
 
-    def _on_folder_icon_open(self, item): #vers 1
-        """Double-click folder icon — load file and open in canvas."""
+    def _on_folder_icon_open(self, item): #vers 2
+        """Double-click — load and open in canvas."""
         fpath = item.data(Qt.ItemDataRole.UserRole)
         if fpath:
             self._load_file(fpath)
+
+    def _icon_context_menu(self, pos): #vers 1
+        """Right-click context menu on icon list."""
+        import os, shutil as _shutil
+        from PyQt6.QtWidgets import QMenu, QInputDialog, QMessageBox
+        items = self._icon_list.selectedItems()
+        menu  = QMenu(self)
+
+        # Open icon folder in file manager
+        act_open_folder = menu.addAction("Open Icon Folder…")
+        act_open_folder.triggered.connect(self._open_folder_in_fm)
+
+        menu.addSeparator()
+
+        # Search / sort
+        act_search = menu.addAction("Search…")
+        act_search.triggered.connect(self._search_icons)
+        sort_menu = menu.addMenu("Sort by")
+        sort_menu.addAction("Name A–Z",  lambda: self._sort_icons('name_asc'))
+        sort_menu.addAction("Name Z–A",  lambda: self._sort_icons('name_desc'))
+        sort_menu.addAction("Type",      lambda: self._sort_icons('ext'))
+        sort_menu.addAction("Date",      lambda: self._sort_icons('date'))
+
+        menu.addSeparator()
+
+        if items:
+            fpath = items[0].data(Qt.ItemDataRole.UserRole)
+            fname = items[0].data(Qt.ItemDataRole.UserRole + 1)
+
+            # Open
+            act_open = menu.addAction("Open in Canvas")
+            act_open.triggered.connect(lambda: self._load_file(fpath))
+
+            menu.addSeparator()
+
+            # Rename
+            act_rename = menu.addAction("Rename…")
+            def _do_rename():
+                base, ext = os.path.splitext(fname)
+                new_name, ok = QInputDialog.getText(
+                    self, "Rename Icon", "New name (without extension):", text=base)
+                if ok and new_name.strip():
+                    new_fname = new_name.strip() + ext
+                    new_path  = os.path.join(self._icon_folder, new_fname)
+                    if os.path.exists(new_path):
+                        QMessageBox.warning(self, "Rename", f"'{new_fname}' already exists.")
+                        return
+                    os.rename(fpath, new_path)
+                    self._scan_folder(self._icon_folder)
+            act_rename.triggered.connect(_do_rename)
+
+            # Copy / Paste
+            act_copy = menu.addAction("Copy")
+            act_copy.triggered.connect(lambda: self._clipboard_copy(items))
+
+            act_paste = menu.addAction("Paste")
+            act_paste.setEnabled(bool(getattr(self, '_clipboard_files', [])))
+            act_paste.triggered.connect(self._clipboard_paste)
+
+            menu.addSeparator()
+
+            # Delete
+            act_delete = menu.addAction("Delete…")
+            def _do_delete():
+                sel_items = self._icon_list.selectedItems()
+                names = [i.data(Qt.ItemDataRole.UserRole + 1) for i in sel_items]
+                r = QMessageBox.question(
+                    self, "Delete",
+                    f"Delete {len(names)} file(s)?\n" + "\n".join(names[:5]))
+                if r == QMessageBox.StandardButton.Yes:
+                    for i in sel_items:
+                        fp = i.data(Qt.ItemDataRole.UserRole)
+                        try:
+                            os.remove(fp)
+                        except Exception as e:
+                            self._status.setText(f"Error: {e}")
+                    self._scan_folder(self._icon_folder)
+            act_delete.triggered.connect(_do_delete)
+
+        menu.addSeparator()
+
+        # Select all
+        act_sel_all = menu.addAction("Select All")
+        act_sel_all.triggered.connect(self._icon_list.selectAll)
+
+        menu.exec(self._icon_list.mapToGlobal(pos))
+
+    def _open_folder_in_fm(self): #vers 1
+        """Open icon folder in system file manager."""
+        import subprocess, os
+        if not self._icon_folder or not os.path.isdir(self._icon_folder):
+            return
+        for cmd in (['xdg-open'], ['dolphin'], ['nautilus'], ['thunar']):
+            try:
+                subprocess.Popen(cmd + [self._icon_folder])
+                return
+            except FileNotFoundError:
+                continue
+
+    def _search_icons(self): #vers 1
+        """Filter icon list by search term."""
+        from PyQt6.QtWidgets import QInputDialog
+        term, ok = QInputDialog.getText(self, "Search Icons", "Filter by name:")
+        if not ok:
+            return
+        term = term.strip().lower()
+        if not term:
+            self._populate_icon_list(getattr(self, '_all_files', []))
+        else:
+            filtered = [f for f in getattr(self, '_all_files', [])
+                        if term in f.lower()]
+            self._populate_icon_list(filtered)
+        self._count_lbl.setText(
+            f"{self._icon_list.count()} icons"
+            + (f" (filtered: '{term}')" if term else ""))
+
+    def _sort_icons(self, mode: str): #vers 1
+        """Re-sort and repopulate icon list."""
+        import os
+        files = list(getattr(self, '_all_files', []))
+        folder = self._icon_folder
+        if mode == 'name_asc':
+            files.sort(key=str.lower)
+        elif mode == 'name_desc':
+            files.sort(key=str.lower, reverse=True)
+        elif mode == 'ext':
+            files.sort(key=lambda f: (os.path.splitext(f)[1].lower(), f.lower()))
+        elif mode == 'date':
+            files.sort(
+                key=lambda f: os.path.getmtime(os.path.join(folder, f)),
+                reverse=True)
+        self._all_files = files
+        self._populate_icon_list(files)
+
+    def _clipboard_copy(self, items): #vers 1
+        self._clipboard_files = [
+            i.data(Qt.ItemDataRole.UserRole) for i in items]
+        self._status.setText(f"Copied {len(self._clipboard_files)} file(s)")
+
+    def _clipboard_paste(self): #vers 1
+        """Paste copied files into current folder."""
+        import os, shutil as _shutil
+        from PyQt6.QtWidgets import QInputDialog
+        if not self._clipboard_files or not self._icon_folder:
+            return
+        for src_path in self._clipboard_files:
+            fname = os.path.basename(src_path)
+            dst   = os.path.join(self._icon_folder, fname)
+            if os.path.exists(dst):
+                base, ext = os.path.splitext(fname)
+                new_name, ok = QInputDialog.getText(
+                    self, "Paste — Name Conflict",
+                    f"'{fname}' exists. New name (without ext):", text=base + "_copy")
+                if not ok or not new_name.strip():
+                    continue
+                dst = os.path.join(self._icon_folder, new_name.strip() + ext)
+            try:
+                _shutil.copy2(src_path, dst)
+            except Exception as e:
+                self._status.setText(f"Paste error: {e}")
+                return
+        self._scan_folder(self._icon_folder)
+        self._status.setText(f"Pasted {len(self._clipboard_files)} file(s)")
 
     def _browse_open(self): #vers 1
         path, _ = QFileDialog.getOpenFileName(
