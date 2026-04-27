@@ -11963,10 +11963,10 @@ class _CharFontEditor(QWidget):
         # Each char: list of n_chars lists, each char_h bytes
         self._chars = [[0]*self._char_h for _ in range(self._n_chars)]
         self._current = 0
+        self._init_dock(parent, 'char_editor_docked', 'left')
         self._build_ui()
         self._refresh_grid()
         self._refresh_char_list()
-        self._init_dock(parent, 'char_editor_docked', 'left')
 
 
     def _build_ui(self): #vers 1
@@ -12367,9 +12367,9 @@ class _SpriteEditor(QWidget):
         self._sprite_w = 16; self._sprite_h = 16
         self._current_frame = 0
         self._zoom = 4
+        self._init_dock(parent, 'sprite_editor_docked', 'left')
         self._build_ui()
         self._refresh_frames()
-        self._init_dock(parent, 'sprite_editor_docked', 'left')
 
     def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
