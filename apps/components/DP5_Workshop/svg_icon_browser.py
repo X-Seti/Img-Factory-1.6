@@ -829,28 +829,41 @@ class SVGIconBrowser(QWidget):
             ws.dp5_settings.set('svg_browser_docked', self._dock_btn.isChecked())
             ws.dp5_settings.save()
 
-    def _snap_to_canvas(self): #vers 1
+    def _snap_to_canvas(self): #vers 2
         """Snap to left edge of canvas viewport."""
         ws = self.workshop
         if not ws or not hasattr(ws, '_canvas_scroll'):
             return
         vp = ws._canvas_scroll.viewport()
-        vp_h = vp.height()
-        pw = 220; ph = min(vp_h - 8, max(400, self.minimumHeight()))
         self.setWindowFlags(Qt.WindowType.Widget)
         self.setParent(vp)
-        self.move(4, 4)
-        self.resize(pw, ph)
-        self.show(); self.raise_()
+        self.setWindowOpacity(0.88)
         self._dock_btn.setChecked(True)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._reposition_docked)
+        self.show(); self.raise_()
 
-    def _float_panel(self): #vers 1
+    def _reposition_docked(self): #vers 1
+        ws = self.workshop
+        if not ws or not hasattr(ws, '_canvas_scroll'):
+            return
+        vp = ws._canvas_scroll.viewport()
+        self.move(4, 4)
+        self.resize(220, vp.height() - 8)
+        self.raise_()
+
+    def _float_panel(self): #vers 2
         """Return to floating Tool window."""
-        pos = self.mapToGlobal(self.rect().topLeft())
+        try:
+            pos = self.mapToGlobal(self.rect().topLeft())
+        except Exception:
+            pos = None
+        self.setWindowOpacity(1.0)
         self.setParent(None)
         self.setWindowFlags(Qt.WindowType.Tool |
                             Qt.WindowType.WindowStaysOnTopHint)
-        self.move(pos)
+        if pos:
+            self.move(pos)
         self.resize(220, 520)
         self.show()
         self._dock_btn.setChecked(False)

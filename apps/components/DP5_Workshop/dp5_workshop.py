@@ -11903,34 +11903,54 @@ class _DockablePanelMixin:
             self._dmp_float()
         self._dmp_save()
 
-    def _dmp_snap(self): #vers 1
+    def _dmp_snap(self): #vers 2
         """Snap panel to left or right edge of canvas viewport."""
         ws = getattr(self, '_dmp_workshop', None)
         if not ws or not hasattr(ws, '_canvas_scroll'):
             return
         vp = ws._canvas_scroll.viewport()
-        vp_w = vp.width(); vp_h = vp.height()
-        pw = min(self.width(), 280)
-        ph = min(vp_h - 8, max(400, self.minimumHeight()))
         self.setWindowFlags(Qt.WindowType.Widget)
         self.setParent(vp)
+        # Semi-transparent background
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self.setWindowOpacity(0.88)
+        self._dmp_docked = True
+        if self._dmp_dock_btn:
+            self._dmp_dock_btn.setChecked(True)
+        # Position after reparent — use timer so Qt processes the parent change first
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._dmp_reposition)
+        self.show(); self.raise_()
+
+    def _dmp_reposition(self): #vers 1
+        """Reposition docked panel to correct edge. Call after snap or viewport resize."""
+        ws = getattr(self, '_dmp_workshop', None)
+        if not ws or not hasattr(ws, '_canvas_scroll'):
+            return
+        vp = ws._canvas_scroll.viewport()
+        vp_w = vp.width()
+        vp_h = vp.height()
+        pw = 260
+        ph = vp_h - 8   # full viewport height minus margin
         if self._dmp_side == 'right':
             self.move(vp_w - pw - 4, 4)
         else:
             self.move(4, 4)
         self.resize(pw, ph)
-        self.show(); self.raise_()
-        self._dmp_docked = True
-        if self._dmp_dock_btn:
-            self._dmp_dock_btn.setChecked(True)
+        self.raise_()
 
-    def _dmp_float(self): #vers 1
+    def _dmp_float(self): #vers 2
         """Return panel to free-floating Tool window."""
-        pos = self.mapToGlobal(self.rect().topLeft())
+        try:
+            pos = self.mapToGlobal(self.rect().topLeft())
+        except Exception:
+            pos = None
+        self.setWindowOpacity(1.0)
         self.setParent(None)
         self.setWindowFlags(Qt.WindowType.Tool |
                             Qt.WindowType.WindowStaysOnTopHint)
-        self.move(pos)
+        if pos:
+            self.move(pos)
         self.show()
         self._dmp_docked = False
         if self._dmp_dock_btn:
@@ -12924,32 +12944,45 @@ class _IconEditor(QWidget): #vers 1
             self._float_panel()
         self._save_settings()
 
-    def _snap_to_overlay(self): #vers 1
-        """Reparent into canvas viewport as an overlay widget."""
+    def _snap_to_overlay(self): #vers 2
+        """Reparent into canvas viewport, snap to right edge."""
         if not self._editor or not hasattr(self._editor, '_canvas_scroll'):
             return
         vp = self._editor._canvas_scroll.viewport()
-        # Detach from desktop, reparent to viewport
         self.setWindowFlags(Qt.WindowType.Widget)
         self.setParent(vp)
-        vp_h = vp.height()
-        panel_h = min(500, vp_h - 20)
-        self.setFixedWidth(260)
-        self.setFixedHeight(panel_h)
-        # Snap to right edge of viewport
-        self.move(vp.width() - 268, max(0, (vp_h - panel_h) // 2))
-        self.show()
-        self.raise_()
+        self.setWindowOpacity(0.88)
         self._dock_btn.setChecked(True)
         self._docked = True
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._reposition_overlay)
+        self.show(); self.raise_()
 
-    def _float_panel(self): #vers 1
+    def _reposition_overlay(self): #vers 1
+        """Reposition icon editor to right edge of viewport."""
+        if not self._editor or not hasattr(self._editor, '_canvas_scroll'):
+            return
+        vp = self._editor._canvas_scroll.viewport()
+        pw = 260
+        ph = vp.height() - 8
+        self.setMinimumSize(0, 0)
+        self.setMaximumSize(16777215, 16777215)
+        self.move(vp.width() - pw - 4, 4)
+        self.resize(pw, ph)
+        self.raise_()
+
+    def _float_panel(self): #vers 2
         """Detach from viewport, return to floating Tool window."""
-        pos = self.mapToGlobal(self.rect().topLeft())
+        try:
+            pos = self.mapToGlobal(self.rect().topLeft())
+        except Exception:
+            pos = None
+        self.setWindowOpacity(1.0)
         self.setParent(None)
         self.setWindowFlags(Qt.WindowType.Tool |
                             Qt.WindowType.WindowStaysOnTopHint)
-        self.move(pos)
+        if pos:
+            self.move(pos)
         self.resize(480, 560)
         self.show()
         self._dock_btn.setChecked(False)
