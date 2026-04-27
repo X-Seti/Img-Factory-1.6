@@ -667,6 +667,7 @@ class DP5Settings:
         'icon_editor_alpha_g': 0,      # alpha colour G
         'icon_editor_alpha_b': 0,      # alpha colour B
         'icon_editor_amiga_pal':'AGA Workbench (WB3.9)',
+        'icon_editor_folder':   '',   # last source icon folder
     }
 
     def __init__(self): #vers 1
@@ -12632,6 +12633,9 @@ class _IconEditor(QWidget): #vers 1
         self.setWindowTitle("Icon Editor")
         self.resize(480, 560)
         self._build_ui()
+        # Scan saved folder on startup
+        if self._icon_folder:
+            QTimer.singleShot(0, lambda: self._scan_folder(self._icon_folder))
 
         # Restore choices
         fmt = _s('icon_editor_out_fmt', 'PNG')
@@ -12648,6 +12652,7 @@ class _IconEditor(QWidget): #vers 1
             self._amiga_pal_combo.setCurrentIndex(idx)
 
         self._refresh_alpha_swatch()
+        self._icon_folder = _s('icon_editor_folder', '')
 
         # Restore position
         x = _s('icon_editor_x', -1)
@@ -12658,14 +12663,14 @@ class _IconEditor(QWidget): #vers 1
         if self._docked:
             QTimer.singleShot(100, self._snap_to_overlay)
 
-    def _build_ui(self): #vers 1
+    def _build_ui(self): #vers 2
         from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
-            QListWidget, QComboBox, QPushButton, QCheckBox, QLineEdit,
-            QProgressBar, QFrame, QFileDialog, QGroupBox, QColorDialog,
-            QScrollArea, QSpinBox, QTextEdit, QFormLayout)
+            QListWidget, QListWidgetItem, QComboBox, QPushButton, QCheckBox,
+            QLineEdit, QFrame, QSplitter, QWidget, QScrollArea, QFormLayout)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(4,4,4,4); root.setSpacing(4)
+        root.setContentsMargins(4, 4, 4, 4)
+        root.setSpacing(3)
 
         # ── Title bar with [D] dock toggle ───────────────────────────────────
         title_row = QHBoxLayout()
@@ -12682,44 +12687,93 @@ class _IconEditor(QWidget): #vers 1
         title_row.addWidget(self._dock_btn)
         root.addLayout(title_row)
 
-        # ── Load row ─────────────────────────────────────────────────────────
+        # ── Main splitter: left=folder browser, right=controls ───────────────
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(4)
+
+        # ── LEFT: source folder + icon grid ──────────────────────────────────
+        left_w = QWidget()
+        left_l = QVBoxLayout(left_w)
+        left_l.setContentsMargins(0, 0, 0, 0)
+        left_l.setSpacing(3)
+
+        # Folder row
+        folder_row = QHBoxLayout()
+        self._folder_edit = QLineEdit()
+        self._folder_edit.setPlaceholderText("Source folder…")
+        self._folder_edit.setReadOnly(True)
+        self._folder_edit.setText(self._icon_folder)
+        folder_btn = QPushButton("…")
+        folder_btn.setFixedWidth(24)
+        folder_btn.setToolTip("Set source icon folder")
+        folder_btn.clicked.connect(self._browse_folder)
+        folder_row.addWidget(self._folder_edit, 1)
+        folder_row.addWidget(folder_btn)
+        left_l.addLayout(folder_row)
+
+        self._count_lbl = QLabel("No folder set")
+        self._count_lbl.setFont(QFont("Arial", 7))
+        left_l.addWidget(self._count_lbl)
+
+        # Icon grid — thumbnail list
+        self._icon_list = QListWidget()
+        self._icon_list.setViewMode(QListWidget.ViewMode.IconMode)
+        self._icon_list.setIconSize(QSize(36, 36))
+        self._icon_list.setGridSize(QSize(72, 60))
+        self._icon_list.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self._icon_list.setMovement(QListWidget.Movement.Static)
+        self._icon_list.setWordWrap(True)
+        self._icon_list.setUniformItemSizes(True)
+        self._icon_list.itemSelectionChanged.connect(self._on_folder_icon_selected)
+        self._icon_list.itemDoubleClicked.connect(self._on_folder_icon_open)
+        left_l.addWidget(self._icon_list, 1)
+
+        splitter.addWidget(left_w)
+
+        # ── RIGHT: file info + export controls ───────────────────────────────
+        right_w = QWidget()
+        right_l = QVBoxLayout(right_w)
+        right_l.setContentsMargins(0, 0, 0, 0)
+        right_l.setSpacing(3)
+
+        # File path (manual open)
         load_row = QHBoxLayout()
         self._path_edit = QLineEdit()
-        self._path_edit.setPlaceholderText("Icon file path…")
+        self._path_edit.setPlaceholderText("Icon file…")
         self._path_edit.setReadOnly(True)
         browse_btn = QPushButton("Open…")
+        browse_btn.setFixedWidth(48)
         browse_btn.clicked.connect(self._browse_open)
-        load_row.addWidget(QLabel("File:"))
         load_row.addWidget(self._path_edit, 1)
         load_row.addWidget(browse_btn)
-        root.addLayout(load_row)
+        right_l.addLayout(load_row)
 
-        # ── Variants list (sizes/depths found in file) ────────────────────────
-        root.addWidget(QLabel("Variants in file:"))
+        # Variants list
+        right_l.addWidget(QLabel("Variants:"))
         self._variants_list = QListWidget()
-        self._variants_list.setMaximumHeight(90)
+        self._variants_list.setMaximumHeight(72)
         self._variants_list.currentRowChanged.connect(self._on_variant_select)
-        root.addWidget(self._variants_list)
+        right_l.addWidget(self._variants_list)
 
-        # ── Open in canvas button ─────────────────────────────────────────────
-        open_btn = QPushButton("▶  Open Selected in Canvas")
+        # Open in canvas
+        open_btn = QPushButton("▶  Open in Canvas")
         open_btn.clicked.connect(self._open_in_canvas)
         f = open_btn.font(); f.setBold(True); open_btn.setFont(f)
-        root.addWidget(open_btn)
+        right_l.addWidget(open_btn)
 
-        line = QFrame(); line.setFrameShape(QFrame.Shape.HLine)
-        root.addWidget(line)
+        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
+        right_l.addWidget(sep)
 
-        # ── Alpha colour ──────────────────────────────────────────────────────
+        # Alpha colour
         alpha_row = QHBoxLayout()
-        self._alpha_chk = QCheckBox("Colour 0 = alpha")
+        self._alpha_chk = QCheckBox("Col 0 = alpha")
         self._alpha_chk.setChecked(True)
         self._alpha_chk.setToolTip(
-            "Treat palette colour 0 as transparent on export\n"
-            "(Amiga .info default)")
+            "Treat palette colour 0 as transparent\n(Amiga .info default)")
         self._alpha_swatch = QPushButton()
-        self._alpha_swatch.setFixedSize(24, 24)
-        self._alpha_swatch.setStyleSheet("background:#000000; border:1px solid palette(mid);")
+        self._alpha_swatch.setFixedSize(20, 20)
+        self._alpha_swatch.setStyleSheet(
+            "background:#000000; border:1px solid palette(mid);")
         self._alpha_swatch.setToolTip(
             "Left-click: colour dialog\nRight-click: pick from user palette")
         self._alpha_swatch.clicked.connect(self._pick_alpha)
@@ -12728,53 +12782,58 @@ class _IconEditor(QWidget): #vers 1
         self._alpha_swatch.customContextMenuRequested.connect(
             self._alpha_swatch_context)
         alpha_row.addWidget(self._alpha_chk)
-        alpha_row.addWidget(QLabel("Colour:"))
         alpha_row.addWidget(self._alpha_swatch)
         alpha_row.addStretch()
-        root.addLayout(alpha_row)
+        right_l.addLayout(alpha_row)
 
-        # ── Export format ─────────────────────────────────────────────────────
-        fmt_row = QHBoxLayout()
+        # Export format
         self._out_fmt = QComboBox()
         self._out_fmt.addItems(self.FORMATS_OUT)
-        fmt_row.addWidget(QLabel("Export as:"))
-        fmt_row.addWidget(self._out_fmt, 1)
-        root.addLayout(fmt_row)
+        right_l.addWidget(self._out_fmt)
 
-        # Amiga palette preset (shown when Amiga format selected)
+        # Amiga palette (conditional)
         self._amiga_pal_combo = QComboBox()
         self._amiga_pal_combo.addItems([
-            "AGA Workbench (WB3.9)","AGA Workbench XL",
-            "MagicWB","OCS Workbench","User palette"])
+            "AGA Workbench (WB3.9)", "AGA Workbench XL",
+            "MagicWB", "OCS Workbench", "User palette"])
         self._amiga_pal_row = QHBoxLayout()
-        self._amiga_pal_row.addWidget(QLabel("Amiga palette:"))
+        self._amiga_pal_row.addWidget(QLabel("Palette:"))
         self._amiga_pal_row.addWidget(self._amiga_pal_combo, 1)
-        root.addLayout(self._amiga_pal_row)
+        right_l.addLayout(self._amiga_pal_row)
         self._out_fmt.currentTextChanged.connect(self._on_format_changed)
         self._out_fmt.currentTextChanged.connect(lambda _: self._save_settings())
         self._alpha_chk.stateChanged.connect(lambda _: self._save_settings())
         self._on_format_changed(self._out_fmt.currentText())
 
-        # ── Export single ─────────────────────────────────────────────────────
+        # Export buttons
         exp_row = QHBoxLayout()
         exp_row.setSpacing(2)
         exp_single = QPushButton("Export…")
-        exp_single.setMinimumWidth(60)
+        exp_single.setMinimumWidth(56)
         exp_single.clicked.connect(self._export_single)
-        exp_all = QPushButton("All Variants…")
+        exp_all = QPushButton("All…")
+        exp_all.setMinimumWidth(40)
         exp_all.clicked.connect(self._export_all)
-        exp_row.addWidget(exp_single); exp_row.addWidget(exp_all)
-        root.addLayout(exp_row)
+        exp_row.addWidget(exp_single)
+        exp_row.addWidget(exp_all)
+        right_l.addLayout(exp_row)
 
-        # ── Batch convert (quick launch) ──────────────────────────────────────
-        line2 = QFrame(); line2.setFrameShape(QFrame.Shape.HLine)
-        root.addWidget(line2)
-        batch_btn = QPushButton("Batch Convert…")
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
+        right_l.addWidget(sep2)
+
+        batch_btn = QPushButton("Batch…")
         batch_btn.clicked.connect(
             lambda: self._editor._batch_convert_icons()
             if self._editor else None)
-        batch_btn.setToolTip("Opens batch converter overlay on the canvas")
-        root.addWidget(batch_btn)
+        batch_btn.setToolTip("Open batch converter overlay")
+        right_l.addWidget(batch_btn)
+
+        right_l.addStretch()
+
+        splitter.addWidget(right_w)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        root.addWidget(splitter, 1)
 
         # ── Status ────────────────────────────────────────────────────────────
         self._status = QLabel("")
@@ -12793,6 +12852,105 @@ class _IconEditor(QWidget): #vers 1
                 w.setVisible(amiga)
 
     # ── Load ──────────────────────────────────────────────────────────────────
+
+    def _browse_folder(self): #vers 1
+        """Set source icon folder and scan it."""
+        from PyQt6.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Icon Folder",
+            self._icon_folder or '')
+        if folder:
+            self._icon_folder = folder
+            self._folder_edit.setText(folder)
+            if self._settings:
+                self._settings.set('icon_editor_folder', folder)
+                self._settings.save()
+            self._scan_folder(folder)
+
+    def _scan_folder(self, folder: str): #vers 1
+        """Scan folder for icon files and populate the icon grid."""
+        import os
+        from PyQt6.QtWidgets import QListWidgetItem
+        self._icon_list.clear()
+        if not folder or not os.path.isdir(folder):
+            self._count_lbl.setText("Folder not found")
+            return
+        exts = set(self.FORMATS_IN)
+        files = sorted([
+            f for f in os.listdir(folder)
+            if os.path.splitext(f)[1].lower() in exts
+        ])
+        for fname in files:
+            fpath = os.path.join(folder, fname)
+            icon = self._make_thumbnail(fpath)
+            label = os.path.splitext(fname)[0]
+            item = QListWidgetItem(icon, label)
+            item.setData(Qt.ItemDataRole.UserRole, fpath)
+            item.setToolTip(f"{fname}\nDouble-click to open in canvas")
+            item.setSizeHint(QSize(70, 58))
+            self._icon_list.addItem(item)
+        self._count_lbl.setText(f"{len(files)} icons")
+
+    def _make_thumbnail(self, fpath: str) -> QIcon: #vers 1
+        """Generate a thumbnail QIcon from an icon file."""
+        import os
+        ext = os.path.splitext(fpath)[1].lower()
+        try:
+            if ext == '.svg':
+                from PyQt6.QtSvg import QSvgRenderer
+                from PyQt6.QtGui import QPainter
+                data = open(fpath, 'rb').read()
+                renderer = QSvgRenderer(data)
+                pm = QPixmap(36, 36)
+                pm.fill(Qt.GlobalColor.transparent)
+                p = QPainter(pm)
+                renderer.render(p); p.end()
+                return QIcon(pm)
+            elif ext == '.info':
+                if self._editor and hasattr(self._editor, '_decode_amiga_info'):
+                    data = open(fpath, 'rb').read()
+                    rgba, w, h, _ = self._editor._decode_amiga_info(
+                        data, 'wb39')
+                    if rgba and w and h:
+                        img = QImage(bytes(rgba), w, h,
+                                     w * 4, QImage.Format.Format_RGBA8888)
+                        return QIcon(QPixmap.fromImage(img).scaled(
+                            36, 36, Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation))
+            else:
+                pm = QPixmap(fpath).scaled(
+                    36, 36,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)
+                if not pm.isNull():
+                    return QIcon(pm)
+        except Exception:
+            pass
+        # Fallback: file extension label
+        from PyQt6.QtGui import QPainter, QColor
+        pm = QPixmap(36, 36)
+        pm.fill(QColor(60, 60, 60))
+        p = QPainter(pm)
+        p.setPen(QColor(200, 200, 200))
+        p.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter,
+                   ext.upper().lstrip('.'))
+        p.end()
+        return QIcon(pm)
+
+    def _on_folder_icon_selected(self): #vers 1
+        """Single-click folder icon — load file info without opening canvas."""
+        items = self._icon_list.selectedItems()
+        if not items:
+            return
+        fpath = items[0].data(Qt.ItemDataRole.UserRole)
+        if fpath:
+            self._path_edit.setText(fpath)
+
+    def _on_folder_icon_open(self, item): #vers 1
+        """Double-click folder icon — load file and open in canvas."""
+        fpath = item.data(Qt.ItemDataRole.UserRole)
+        if fpath:
+            self._load_file(fpath)
 
     def _browse_open(self): #vers 1
         path, _ = QFileDialog.getOpenFileName(
