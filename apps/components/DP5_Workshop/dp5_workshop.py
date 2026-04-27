@@ -12933,41 +12933,30 @@ class _IconEditor(QWidget): #vers 1
         if self._docked:
             QTimer.singleShot(100, self._snap_to_overlay)
 
-    def _build_ui(self): #vers 2
+    def _build_ui(self): #vers 3
         from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
-            QListWidget, QListWidgetItem, QComboBox, QPushButton, QCheckBox,
-            QLineEdit, QFrame, QSplitter, QWidget, QScrollArea, QFormLayout)
+            QListWidget, QComboBox, QPushButton, QCheckBox, QLineEdit, QFrame)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(3)
 
-        # ── Title bar with [D] dock toggle ───────────────────────────────────
+        # ── Title + [D] ───────────────────────────────────────────────────────
         title_row = QHBoxLayout()
         title_lbl = QLabel("Icon Editor")
         title_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self._dock_btn = QPushButton("D")
         self._dock_btn.setFixedSize(22, 22)
         self._dock_btn.setFlat(True)
-        self._dock_btn.setToolTip("Toggle dock: snap to canvas overlay / float")
         self._dock_btn.setCheckable(True)
         self._dock_btn.setChecked(self._docked)
+        self._dock_btn.setToolTip("Snap to canvas edge / float")
         self._dock_btn.clicked.connect(self._toggle_dock)
         title_row.addWidget(title_lbl, 1)
         title_row.addWidget(self._dock_btn)
         root.addLayout(title_row)
 
-        # ── Main splitter: left=folder browser, right=controls ───────────────
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(4)
-
-        # ── LEFT: source folder + icon grid ──────────────────────────────────
-        left_w = QWidget()
-        left_l = QVBoxLayout(left_w)
-        left_l.setContentsMargins(0, 0, 0, 0)
-        left_l.setSpacing(3)
-
-        # Folder row
+        # ── Source folder ─────────────────────────────────────────────────────
         folder_row = QHBoxLayout()
         self._folder_edit = QLineEdit()
         self._folder_edit.setPlaceholderText("Source folder…")
@@ -12979,13 +12968,13 @@ class _IconEditor(QWidget): #vers 1
         folder_btn.clicked.connect(self._browse_folder)
         folder_row.addWidget(self._folder_edit, 1)
         folder_row.addWidget(folder_btn)
-        left_l.addLayout(folder_row)
+        root.addLayout(folder_row)
 
         self._count_lbl = QLabel("No folder set")
         self._count_lbl.setFont(QFont("Arial", 7))
-        left_l.addWidget(self._count_lbl)
+        root.addWidget(self._count_lbl)
 
-        # Icon grid — thumbnail list
+        # ── Icon grid ─────────────────────────────────────────────────────────
         self._icon_list = QListWidget()
         self._icon_list.setViewMode(QListWidget.ViewMode.IconMode)
         self._icon_list.setIconSize(QSize(36, 36))
@@ -12996,50 +12985,45 @@ class _IconEditor(QWidget): #vers 1
         self._icon_list.setUniformItemSizes(True)
         self._icon_list.itemSelectionChanged.connect(self._on_folder_icon_selected)
         self._icon_list.itemDoubleClicked.connect(self._on_folder_icon_open)
-        left_l.addWidget(self._icon_list, 1)
+        root.addWidget(self._icon_list, 1)
 
-        splitter.addWidget(left_w)
+        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
+        root.addWidget(sep)
 
-        # ── RIGHT: file info + export controls ───────────────────────────────
-        right_w = QWidget()
-        right_l = QVBoxLayout(right_w)
-        right_l.setContentsMargins(0, 0, 0, 0)
-        right_l.setSpacing(3)
-
-        # File path (manual open)
-        load_row = QHBoxLayout()
+        # ── Open icon file ────────────────────────────────────────────────────
+        open_row = QHBoxLayout()
         self._path_edit = QLineEdit()
         self._path_edit.setPlaceholderText("Icon file…")
         self._path_edit.setReadOnly(True)
         browse_btn = QPushButton("Open…")
-        browse_btn.setFixedWidth(48)
+        browse_btn.setFixedWidth(52)
         browse_btn.clicked.connect(self._browse_open)
-        load_row.addWidget(self._path_edit, 1)
-        load_row.addWidget(browse_btn)
-        right_l.addLayout(load_row)
+        open_row.addWidget(self._path_edit, 1)
+        open_row.addWidget(browse_btn)
+        root.addLayout(open_row)
 
         # Variants list
-        right_l.addWidget(QLabel("Variants:"))
         self._variants_list = QListWidget()
-        self._variants_list.setMaximumHeight(72)
+        self._variants_list.setMaximumHeight(60)
+        self._variants_list.setVisible(False)  # shown when file loaded
         self._variants_list.currentRowChanged.connect(self._on_variant_select)
-        right_l.addWidget(self._variants_list)
+        root.addWidget(self._variants_list)
 
         # Open in canvas
-        open_btn = QPushButton("▶  Open in Canvas")
-        open_btn.clicked.connect(self._open_in_canvas)
-        f = open_btn.font(); f.setBold(True); open_btn.setFont(f)
-        right_l.addWidget(open_btn)
+        open_canvas_btn = QPushButton("▶  Open in Canvas")
+        open_canvas_btn.clicked.connect(self._open_in_canvas)
+        f = open_canvas_btn.font(); f.setBold(True); open_canvas_btn.setFont(f)
+        root.addWidget(open_canvas_btn)
 
-        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        right_l.addWidget(sep)
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
+        root.addWidget(sep2)
 
-        # Alpha colour
-        alpha_row = QHBoxLayout()
+        # ── Col 0 = alpha  [colour swatch]  [format combo] ───────────────────
+        alpha_fmt_row = QHBoxLayout()
         self._alpha_chk = QCheckBox("Col 0 = alpha")
         self._alpha_chk.setChecked(True)
         self._alpha_chk.setToolTip(
-            "Treat palette colour 0 as transparent\n(Amiga .info default)")
+            "Treat palette colour 0 as transparent\n(Amiga default)")
         self._alpha_swatch = QPushButton()
         self._alpha_swatch.setFixedSize(20, 20)
         self._alpha_swatch.setStyleSheet(
@@ -13051,17 +13035,15 @@ class _IconEditor(QWidget): #vers 1
             Qt.ContextMenuPolicy.CustomContextMenu)
         self._alpha_swatch.customContextMenuRequested.connect(
             self._alpha_swatch_context)
-        alpha_row.addWidget(self._alpha_chk)
-        alpha_row.addWidget(self._alpha_swatch)
-        alpha_row.addStretch()
-        right_l.addLayout(alpha_row)
-
-        # Export format
         self._out_fmt = QComboBox()
         self._out_fmt.addItems(self.FORMATS_OUT)
-        right_l.addWidget(self._out_fmt)
+        self._out_fmt.setFixedWidth(80)
+        alpha_fmt_row.addWidget(self._alpha_chk)
+        alpha_fmt_row.addWidget(self._alpha_swatch)
+        alpha_fmt_row.addWidget(self._out_fmt)
+        root.addLayout(alpha_fmt_row)
 
-        # Amiga palette (conditional)
+        # Amiga palette — hidden row, shown only for Amiga formats
         self._amiga_pal_combo = QComboBox()
         self._amiga_pal_combo.addItems([
             "AGA Workbench (WB3.9)", "AGA Workbench XL",
@@ -13069,50 +13051,36 @@ class _IconEditor(QWidget): #vers 1
         self._amiga_pal_row = QHBoxLayout()
         self._amiga_pal_row.addWidget(QLabel("Palette:"))
         self._amiga_pal_row.addWidget(self._amiga_pal_combo, 1)
-        right_l.addLayout(self._amiga_pal_row)
+        root.addLayout(self._amiga_pal_row)
+
         self._out_fmt.currentTextChanged.connect(self._on_format_changed)
         self._out_fmt.currentTextChanged.connect(lambda _: self._save_settings())
         self._alpha_chk.stateChanged.connect(lambda _: self._save_settings())
         self._on_format_changed(self._out_fmt.currentText())
 
-        # Export buttons
+        # ── [Export] [All]  ───────────────────────────────────────────────────
         exp_row = QHBoxLayout()
-        exp_row.setSpacing(2)
+        exp_row.setSpacing(4)
         exp_single = QPushButton("Export…")
-        exp_single.setMinimumWidth(56)
         exp_single.clicked.connect(self._export_single)
         exp_all = QPushButton("All…")
-        exp_all.setMinimumWidth(40)
         exp_all.clicked.connect(self._export_all)
-        exp_row.addWidget(exp_single)
-        exp_row.addWidget(exp_all)
-        right_l.addLayout(exp_row)
+        exp_row.addWidget(exp_single, 1)
+        exp_row.addWidget(exp_all, 1)
+        root.addLayout(exp_row)
 
-        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
-        right_l.addWidget(sep2)
-
-        batch_btn = QPushButton("Batch…")
+        # ── Batch ─────────────────────────────────────────────────────────────
+        batch_btn = QPushButton("Batch Convert…")
         batch_btn.clicked.connect(
             lambda: self._editor._batch_convert_icons()
             if self._editor else None)
-        batch_btn.setToolTip("Open batch converter overlay")
-        right_l.addWidget(batch_btn)
-
-        right_l.addStretch()
-
-        splitter.addWidget(right_w)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-        root.addWidget(splitter, 1)
+        root.addWidget(batch_btn)
 
         # ── Status ────────────────────────────────────────────────────────────
         self._status = QLabel("")
         self._status.setFont(QFont("Arial", 8))
         self._status.setWordWrap(True)
         root.addWidget(self._status)
-
-    # ── Format visibility ─────────────────────────────────────────────────────
-
     def _on_format_changed(self, fmt): #vers 1
         amiga = "Amiga" in fmt or ".info" in fmt
         self._amiga_pal_combo.setEnabled(amiga)
@@ -13325,6 +13293,7 @@ class _IconEditor(QWidget): #vers 1
 
     def _populate_variants(self): #vers 1
         self._variants_list.clear()
+        self._variants_list.setVisible(bool(self._variants))
         for i, (w, h, rgba) in enumerate(self._variants):
             self._variants_list.addItem(f"{w}×{h}  ({len(rgba)//4} px)")
         if self._variants:
