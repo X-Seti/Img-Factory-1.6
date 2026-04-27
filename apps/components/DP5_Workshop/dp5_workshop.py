@@ -8197,6 +8197,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             def paintEvent(self, ev):
                 from PyQt6.QtGui import QPainter, QColor, QPen, QFont
                 p = QPainter(self)
+                if not p.isActive():
+                    return
                 sz = self._sz[0]
                 pal = self.palette()
                 # Header uses toolbar bg so it matches the rest of the UI
@@ -8265,6 +8267,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 p.setPen(QPen(QColor(255, 80, 80, 160), 1))
                 p.drawLine(mid - 8, 22 + mid, mid + 8, 22 + mid)
                 p.drawLine(mid, 22 + mid - 8, mid, 22 + mid + 8)
+                p.end()
 
             def _change_mag(self, delta):
                 self._mag[0] = max(2, min(32, self._mag[0] + delta))
@@ -11922,16 +11925,15 @@ class _DockablePanelMixin:
         QTimer.singleShot(0, self._dmp_reposition)
         self.show(); self.raise_()
 
-    def _dmp_reposition(self): #vers 1
-        """Reposition docked panel to correct edge. Call after snap or viewport resize."""
+    def _dmp_reposition(self): #vers 2
+        """Reposition docked panel to correct edge."""
         ws = getattr(self, '_dmp_workshop', None)
         if not ws or not hasattr(ws, '_canvas_scroll'):
             return
         vp = ws._canvas_scroll.viewport()
-        vp_w = vp.width()
-        vp_h = vp.height()
-        pw = 260
-        ph = vp_h - 8   # full viewport height minus margin
+        vp_w = vp.width(); vp_h = vp.height()
+        pw = min(240, vp_w // 3)  # max 1/3 of canvas width
+        ph = vp_h - 8
         if self._dmp_side == 'right':
             self.move(vp_w - pw - 4, 4)
         else:
@@ -12752,9 +12754,9 @@ class _IconEditor(QWidget): #vers 1
 
         # ── Export single ─────────────────────────────────────────────────────
         exp_row = QHBoxLayout()
-        exp_single = QPushButton("Export Single…")
+        exp_single = QPushButton("Export…")
         exp_single.clicked.connect(self._export_single)
-        exp_all = QPushButton("Export All Variants…")
+        exp_all = QPushButton("All Variants…")
         exp_all.clicked.connect(self._export_all)
         exp_row.addWidget(exp_single); exp_row.addWidget(exp_all)
         root.addLayout(exp_row)
@@ -12762,7 +12764,7 @@ class _IconEditor(QWidget): #vers 1
         # ── Batch convert (quick launch) ──────────────────────────────────────
         line2 = QFrame(); line2.setFrameShape(QFrame.Shape.HLine)
         root.addWidget(line2)
-        batch_btn = QPushButton("⚡ Batch Convert Icons…")
+        batch_btn = QPushButton("Batch Convert…")
         batch_btn.clicked.connect(
             lambda: self._editor._batch_convert_icons()
             if self._editor else None)
@@ -12958,16 +12960,17 @@ class _IconEditor(QWidget): #vers 1
         QTimer.singleShot(0, self._reposition_overlay)
         self.show(); self.raise_()
 
-    def _reposition_overlay(self): #vers 1
+    def _reposition_overlay(self): #vers 2
         """Reposition icon editor to right edge of viewport."""
         if not self._editor or not hasattr(self._editor, '_canvas_scroll'):
             return
         vp = self._editor._canvas_scroll.viewport()
-        pw = 260
-        ph = vp.height() - 8
+        vp_w = vp.width(); vp_h = vp.height()
+        pw = min(240, vp_w // 3)
+        ph = vp_h - 8
         self.setMinimumSize(0, 0)
         self.setMaximumSize(16777215, 16777215)
-        self.move(vp.width() - pw - 4, 4)
+        self.move(vp_w - pw - 4, 4)
         self.resize(pw, ph)
         self.raise_()
 
