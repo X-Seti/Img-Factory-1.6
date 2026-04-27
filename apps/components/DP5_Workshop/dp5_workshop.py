@@ -13105,71 +13105,143 @@ class _IconEditor(QWidget): #vers 1
                 self._settings.save()
             self._scan_folder(folder)
 
-    def _scan_folder(self, folder: str): #vers 1
+    def _scan_folder(self, folder: str): #vers 2
         """Scan folder for icon files and populate the icon grid."""
         import os
-        from PyQt6.QtWidgets import QListWidgetItem
+        from PyQt6.QtWidgets import QListWidgetItem, QApplication
         self._icon_list.clear()
         if not folder or not os.path.isdir(folder):
             self._count_lbl.setText("Folder not found")
             return
         exts = set(self.FORMATS_IN)
-        files = sorted([
+        files = sorted(
             f for f in os.listdir(folder)
-            if os.path.splitext(f)[1].lower() in exts
-        ])
+            if os.path.isfile(os.path.join(folder, f))
+            and os.path.splitext(f)[1].lower() in exts
+        )
+        self._count_lbl.setText(f"Loading {len(files)} icons…")
+        QApplication.processEvents()
         for fname in files:
             fpath = os.path.join(folder, fname)
-            icon = self._make_thumbnail(fpath)
+            icon  = self._make_thumbnail(fpath)
             label = os.path.splitext(fname)[0]
-            item = QListWidgetItem(icon, label)
+            item  = QListWidgetItem(icon, label)
             item.setData(Qt.ItemDataRole.UserRole, fpath)
             item.setToolTip(f"{fname}\nDouble-click to open in canvas")
             item.setSizeHint(QSize(70, 58))
             self._icon_list.addItem(item)
-        self._count_lbl.setText(f"{len(files)} icons")
+        self._count_lbl.setText(
+            f"{len(files)} icons" if files else "No icons found")
+        self._icon_list.update()
 
-    def _make_thumbnail(self, fpath: str) -> QIcon: #vers 1
+    def _make_thumbnail(self, fpath: str) -> QIcon: #vers 2
         """Generate a thumbnail QIcon from an icon file."""
         import os
         ext = os.path.splitext(fpath)[1].lower()
         try:
+            data = open(fpath, 'rb').read()
+
+            # SVG
             if ext == '.svg':
                 from PyQt6.QtSvg import QSvgRenderer
-                from PyQt6.QtGui import QPainter
-                data = open(fpath, 'rb').read()
                 renderer = QSvgRenderer(data)
                 pm = QPixmap(36, 36)
                 pm.fill(Qt.GlobalColor.transparent)
                 p = QPainter(pm)
                 renderer.render(p); p.end()
-                return QIcon(pm)
+                if not pm.isNull():
+                    return QIcon(pm)
+
+            # Amiga .info — try decode, fall back to PIL
             elif ext == '.info':
                 if self._editor and hasattr(self._editor, '_decode_amiga_info'):
-                    data = open(fpath, 'rb').read()
-                    rgba, w, h, _ = self._editor._decode_amiga_info(
-                        data, 'wb39')
+                    rgba, w, h, _ = self._editor._decode_amiga_info(data, 'wb39')
                     if rgba and w and h:
                         img = QImage(bytes(rgba), w, h,
                                      w * 4, QImage.Format.Format_RGBA8888)
-                        return QIcon(QPixmap.fromImage(img).scaled(
-                            36, 36, Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation))
+                        pm  = QPixmap.fromImage(img).scaled(
+                            36, 36,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
+                        if not pm.isNull():
+                            return QIcon(pm)
+
+            # Windows .ico
+            elif ext == '.ico':
+                from apps.methods.ico_handler import read_ico
+                variants = read_ico(data)
+                if variants:
+                    # Pick the smallest variant for thumbnail
+                    w, h, rgba = min(variants, key=lambda v: v[0])
+                    img = QImage(bytes(rgba), w, h,
+                                 w * 4, QImage.Format.Format_RGBA8888)
+                    pm  = QPixmap.fromImage(img).scaled(
+                        36, 36,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                    if not pm.isNull():
+                        return QIcon(pm)
+
+            # Apple .icns
+            elif ext == '.icns':
+                from apps.methods.ico_handler import read_icns
+                variants = read_icns(data)
+                if variants:
+                    w, h, rgba = min(variants, key=lambda v: v[0])
+                    img = QImage(bytes(rgba), w, h,
+                                 w * 4, QImage.Format.Format_RGBA8888)
+                    pm  = QPixmap.fromImage(img).scaled(
+                        36, 36,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                    if not pm.isNull():
+                        return QIcon(pm)
+
+            # IFF ILBM
+            elif ext in ('.iff', '.lbm', '.ilbm'):
+                from apps.methods.iff_ilbm import read_iff_ilbm_rgba
+                result = read_iff_ilbm_rgba(data, alpha_index=0)
+                if result:
+                    w, h, rgba = result
+                    img = QImage(bytes(rgba), w, h,
+                                 w * 4, QImage.Format.Format_RGBA8888)
+                    pm  = QPixmap.fromImage(img).scaled(
+                        36, 36,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                    if not pm.isNull():
+                        return QIcon(pm)
+
+            # Raster fallback — QPixmap handles PNG/BMP/TGA/GIF/WEBP
             else:
-                pm = QPixmap(fpath).scaled(
-                    36, 36,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation)
+                pm = QPixmap()
+                pm.loadFromData(data)
+                if pm.isNull():
+                    # Try PIL
+                    try:
+                        from PIL import Image
+                        import io
+                        img_pil = Image.open(io.BytesIO(data)).convert('RGBA')
+                        qi = QImage(img_pil.tobytes(), img_pil.width, img_pil.height,
+                                    img_pil.width * 4, QImage.Format.Format_RGBA8888)
+                        pm = QPixmap.fromImage(qi)
+                    except Exception:
+                        pass
                 if not pm.isNull():
-                    return QIcon(pm)
-        except Exception:
+                    return QIcon(pm.scaled(
+                        36, 36,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation))
+
+        except Exception as e:
             pass
-        # Fallback: file extension label
-        from PyQt6.QtGui import QPainter, QColor
+
+        # Fallback — grey tile with extension text
         pm = QPixmap(36, 36)
-        pm.fill(QColor(60, 60, 60))
+        pm.fill(QColor(50, 50, 60))
         p = QPainter(pm)
-        p.setPen(QColor(200, 200, 200))
+        p.setPen(QColor(180, 200, 220))
+        p.setFont(QFont("Arial", 7))
         p.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter,
                    ext.upper().lstrip('.'))
         p.end()
