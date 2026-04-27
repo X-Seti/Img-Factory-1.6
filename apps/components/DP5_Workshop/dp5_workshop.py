@@ -11914,14 +11914,7 @@ class _DockablePanelMixin:
         vp = ws._canvas_scroll.viewport()
         self.setWindowFlags(Qt.WindowType.Widget)
         self.setParent(vp)
-        self.setObjectName("_docked_panel")
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setWindowOpacity(1.0)
-        self.setStyleSheet(
-            "QWidget#_docked_panel { background: rgba(20,20,20,160); border-radius:6px; }\n"
-            "QWidget { background: transparent; }\n"
-            "QPushButton, QListWidget, QLineEdit, QComboBox, QLabel,"
-            " QCheckBox, QScrollArea { background: palette(base); }")
+        self.setWindowOpacity(0.88)
         self._dmp_docked = True
         if self._dmp_dock_btn:
             self._dmp_dock_btn.setChecked(True)
@@ -11953,8 +11946,6 @@ class _DockablePanelMixin:
         except Exception:
             pos = None
         self.setWindowOpacity(1.0)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
-        self.setStyleSheet("")
         self.setParent(None)
         self.setWindowFlags(Qt.WindowType.Tool |
                             Qt.WindowType.WindowStaysOnTopHint)
@@ -12962,14 +12953,7 @@ class _IconEditor(QWidget): #vers 1
         vp = self._editor._canvas_scroll.viewport()
         self.setWindowFlags(Qt.WindowType.Widget)
         self.setParent(vp)
-        self.setObjectName("_docked_panel")
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setWindowOpacity(1.0)
-        self.setStyleSheet(
-            "QWidget#_docked_panel { background: rgba(20,20,20,160); border-radius:6px; }\n"
-            "QWidget { background: transparent; }\n"
-            "QPushButton, QListWidget, QLineEdit, QLabel,"
-            " QComboBox { background: palette(base); }")
+        self.setWindowOpacity(0.88)
         self._dock_btn.setChecked(True)
         self._docked = True
         from PyQt6.QtCore import QTimer
