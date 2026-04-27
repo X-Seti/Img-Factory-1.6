@@ -5127,6 +5127,7 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         _imgop_btn('snow_icon',              'Snow Effect…',         self._open_dp5_snow)
         _imgop_btn('knob_icon',              'Zoom Lens…',           self._open_zoom_lens)
         _imgop_btn('search_icon',            'SVG Icon Browser…',    self._open_icon_browser)
+        _imgop_btn('folder_icon',            'Icon Editor…',         self._open_icon_editor)
         imgop_row.addStretch()
         layout.addLayout(imgop_row)
 
@@ -5869,6 +5870,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             self._sprite_editor_panel.raise_()
         else:
             self._sprite_editor_panel.hide()
+
+
+    def _open_icon_editor(self): #vers 1
+        """Toggle icon editor floating panel."""
+        if not hasattr(self, "_icon_editor_panel") or \
+                not self._icon_editor_panel.isVisible():
+            self._icon_editor_panel = _IconEditor(self)
+            pos = self.mapToGlobal(self.rect().topRight())
+            self._icon_editor_panel.move(pos.x() + 6, pos.y() + 120)
+            self._icon_editor_panel.show()
+            self._icon_editor_panel.raise_()
+        else:
+            self._icon_editor_panel.hide()
 
     def _toggle_anim_strip(self, on: bool): #vers 1
         self.dp5_settings.set('show_anim_strip', on)
@@ -12421,6 +12435,439 @@ class _SpriteEditor(QWidget):
             out.paste(frame,(dx,dy))
         out.save(path)
         QMessageBox.information(self,"Export","Exported {n} sprites to {path}")
+
+
+
+class _IconEditor(QWidget): #vers 1
+    """
+    Floating icon editor panel — load, edit, export icons in multiple formats.
+
+    Left panel: file browser (load .info/.ico/.icns/.iff/.png/.svg)
+    Centre:     format toggles + alpha colour picker
+    Right:      export options + batch convert shortcut
+    Bottom:     status + progress
+    Loads selected icon into DP5 canvas for pixel editing.
+    Exports via iff_ilbm + ico_handler — full format support.
+    """
+
+    FORMATS_IN  = [".info",".ico",".icns",".iff",".lbm",".ilbm",
+                   ".png",".bmp",".tga",".gif",".webp",".svg"]
+    FORMATS_OUT = ["PNG","IFF ILBM (indexed)","IFF ILBM (24-bit)",
+                   "HAM6 IFF","HAM8 IFF","ICO (Windows)","ICNS (Apple)",
+                   "Amiga .info (AGA WB)","Amiga .info (MagicWB)",
+                   "Amiga .info (OCS)","BMP","TGA"]
+
+    def __init__(self, parent=None): #vers 1
+        super().__init__(parent, Qt.WindowType.Tool |
+                         Qt.WindowType.WindowStaysOnTopHint)
+        self._editor   = parent
+        self._variants = []   # list of (w,h,rgba) from loaded file
+        self._current  = 0    # index into _variants
+        self._src_path = None
+        self._alpha_color = (0, 0, 0)  # palette colour 0
+        self.setWindowTitle("Icon Editor")
+        self.resize(480, 560)
+        self._build_ui()
+
+    def _build_ui(self): #vers 1
+        from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
+            QListWidget, QComboBox, QPushButton, QCheckBox, QLineEdit,
+            QProgressBar, QFrame, QFileDialog, QGroupBox, QColorDialog,
+            QScrollArea, QSpinBox, QTextEdit, QFormLayout)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(4,4,4,4); root.setSpacing(4)
+
+        # ── Load row ─────────────────────────────────────────────────────────
+        load_row = QHBoxLayout()
+        self._path_edit = QLineEdit()
+        self._path_edit.setPlaceholderText("Icon file path…")
+        self._path_edit.setReadOnly(True)
+        browse_btn = QPushButton("Open…")
+        browse_btn.clicked.connect(self._browse_open)
+        load_row.addWidget(QLabel("File:"))
+        load_row.addWidget(self._path_edit, 1)
+        load_row.addWidget(browse_btn)
+        root.addLayout(load_row)
+
+        # ── Variants list (sizes/depths found in file) ────────────────────────
+        root.addWidget(QLabel("Variants in file:"))
+        self._variants_list = QListWidget()
+        self._variants_list.setMaximumHeight(90)
+        self._variants_list.currentRowChanged.connect(self._on_variant_select)
+        root.addWidget(self._variants_list)
+
+        # ── Open in canvas button ─────────────────────────────────────────────
+        open_btn = QPushButton("▶  Open Selected in Canvas")
+        open_btn.clicked.connect(self._open_in_canvas)
+        f = open_btn.font(); f.setBold(True); open_btn.setFont(f)
+        root.addWidget(open_btn)
+
+        line = QFrame(); line.setFrameShape(QFrame.Shape.HLine)
+        root.addWidget(line)
+
+        # ── Alpha colour ──────────────────────────────────────────────────────
+        alpha_row = QHBoxLayout()
+        self._alpha_chk = QCheckBox("Colour 0 = alpha")
+        self._alpha_chk.setChecked(True)
+        self._alpha_chk.setToolTip(
+            "Treat palette colour 0 as transparent on export\n"
+            "(Amiga .info default)")
+        self._alpha_swatch = QPushButton()
+        self._alpha_swatch.setFixedSize(24, 24)
+        self._alpha_swatch.setStyleSheet("background:#000000; border:1px solid palette(mid);")
+        self._alpha_swatch.setToolTip("Click to pick alpha colour")
+        self._alpha_swatch.clicked.connect(self._pick_alpha)
+        alpha_row.addWidget(self._alpha_chk)
+        alpha_row.addWidget(QLabel("Colour:"))
+        alpha_row.addWidget(self._alpha_swatch)
+        alpha_row.addStretch()
+        root.addLayout(alpha_row)
+
+        # ── Export format ─────────────────────────────────────────────────────
+        fmt_row = QHBoxLayout()
+        self._out_fmt = QComboBox()
+        self._out_fmt.addItems(self.FORMATS_OUT)
+        fmt_row.addWidget(QLabel("Export as:"))
+        fmt_row.addWidget(self._out_fmt, 1)
+        root.addLayout(fmt_row)
+
+        # Amiga palette preset (shown when Amiga format selected)
+        self._amiga_pal_combo = QComboBox()
+        self._amiga_pal_combo.addItems([
+            "AGA Workbench (WB3.9)","AGA Workbench XL",
+            "MagicWB","OCS Workbench","User palette"])
+        self._amiga_pal_row = QHBoxLayout()
+        self._amiga_pal_row.addWidget(QLabel("Amiga palette:"))
+        self._amiga_pal_row.addWidget(self._amiga_pal_combo, 1)
+        root.addLayout(self._amiga_pal_row)
+        self._out_fmt.currentTextChanged.connect(self._on_format_changed)
+        self._on_format_changed(self._out_fmt.currentText())
+
+        # ── Export single ─────────────────────────────────────────────────────
+        exp_row = QHBoxLayout()
+        exp_single = QPushButton("Export Single…")
+        exp_single.clicked.connect(self._export_single)
+        exp_all = QPushButton("Export All Variants…")
+        exp_all.clicked.connect(self._export_all)
+        exp_row.addWidget(exp_single); exp_row.addWidget(exp_all)
+        root.addLayout(exp_row)
+
+        # ── Batch convert (quick launch) ──────────────────────────────────────
+        line2 = QFrame(); line2.setFrameShape(QFrame.Shape.HLine)
+        root.addWidget(line2)
+        batch_btn = QPushButton("⚡ Batch Convert Icons…")
+        batch_btn.clicked.connect(
+            lambda: self._editor._batch_convert_icons()
+            if self._editor else None)
+        batch_btn.setToolTip("Opens batch converter overlay on the canvas")
+        root.addWidget(batch_btn)
+
+        # ── Status ────────────────────────────────────────────────────────────
+        self._status = QLabel("")
+        self._status.setFont(QFont("Arial", 8))
+        self._status.setWordWrap(True)
+        root.addWidget(self._status)
+
+    # ── Format visibility ─────────────────────────────────────────────────────
+
+    def _on_format_changed(self, fmt): #vers 1
+        amiga = "Amiga" in fmt or ".info" in fmt
+        self._amiga_pal_combo.setEnabled(amiga)
+        for i in range(self._amiga_pal_row.count()):
+            w = self._amiga_pal_row.itemAt(i).widget()
+            if w:
+                w.setVisible(amiga)
+
+    # ── Load ──────────────────────────────────────────────────────────────────
+
+    def _browse_open(self): #vers 1
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Icon",
+            "",
+            "Icons (*.info *.ico *.icns *.iff *.lbm *.ilbm *.png *.bmp "
+            "*.tga *.gif *.webp *.svg);;All Files (*)")
+        if path:
+            self._load_file(path)
+
+    def _load_file(self, path: str): #vers 1
+        """Auto-detect format and load all variants."""
+        import os
+        self._src_path = path
+        self._path_edit.setText(path)
+        self._variants.clear()
+        self._variants_list.clear()
+
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            data = open(path, 'rb').read()
+
+            if ext == '.ico':
+                from apps.methods.ico_handler import read_ico
+                self._variants = read_ico(data)
+
+            elif ext == '.icns':
+                from apps.methods.ico_handler import read_icns
+                self._variants = read_icns(data)
+
+            elif ext == '.info':
+                if self._editor and hasattr(self._editor, '_decode_amiga_info'):
+                    pal = self._amiga_pal_to_mode()
+                    rgba, w, h, fmt = self._editor._decode_amiga_info(data, pal)
+                    if rgba:
+                        self._variants = [(w, h, bytes(rgba))]
+                    else:
+                        self._status.setText(f"Failed: {fmt}")
+                        return
+
+            elif ext in ('.iff','.lbm','.ilbm'):
+                from apps.methods.iff_ilbm import read_iff_ilbm_rgba
+                result = read_iff_ilbm_rgba(data,
+                    alpha_index=0 if self._alpha_chk.isChecked() else None)
+                if result:
+                    w, h, rgba = result
+                    self._variants = [(w, h, rgba)]
+
+            elif ext == '.svg':
+                self._load_svg(data, path)
+                return
+
+            else:
+                # PIL/QImage fallback
+                self._load_raster(data, path)
+                return
+
+            self._populate_variants()
+
+        except Exception as e:
+            self._status.setText(f"Load error: {e}")
+
+    def _load_raster(self, data: bytes, path: str): #vers 1
+        """Load a raster image via PIL or QImage."""
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(data)).convert('RGBA')
+            self._variants = [(img.width, img.height, img.tobytes())]
+            self._populate_variants()
+        except Exception:
+            try:
+                from PyQt6.QtGui import QImage
+                from PyQt6.QtCore import QByteArray
+                img = QImage()
+                img.loadFromData(QByteArray(data))
+                img = img.convertToFormat(QImage.Format.Format_RGBA8888)
+                rgba = bytes(img.bits().asarray(img.width() * img.height() * 4))
+                self._variants = [(img.width(), img.height(), rgba)]
+                self._populate_variants()
+            except Exception as e:
+                self._status.setText(f"Load error: {e}")
+
+    def _load_svg(self, data: bytes, path: str): #vers 1
+        """Render SVG to canvas size RGBA."""
+        try:
+            from PyQt6.QtSvg import QSvgRenderer
+            from PyQt6.QtGui import QPainter
+            renderer = QSvgRenderer(data)
+            sz = renderer.defaultSize()
+            w = sz.width() or 32; h = sz.height() or 32
+            pm = QPixmap(w, h)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            renderer.render(p); p.end()
+            img = pm.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+            rgba = bytes(img.bits().asarray(w * h * 4))
+            self._variants = [(w, h, rgba)]
+            self._populate_variants()
+        except Exception as e:
+            self._status.setText(f"SVG error: {e}")
+
+    def _populate_variants(self): #vers 1
+        self._variants_list.clear()
+        for i, (w, h, rgba) in enumerate(self._variants):
+            self._variants_list.addItem(f"{w}×{h}  ({len(rgba)//4} px)")
+        if self._variants:
+            self._variants_list.setCurrentRow(0)
+            self._status.setText(
+                f"Loaded {len(self._variants)} variant(s) from "
+                f"{os.path.basename(self._src_path)}")
+        import os
+
+    def _on_variant_select(self, idx): #vers 1
+        if 0 <= idx < len(self._variants):
+            self._current = idx
+
+    # ── Alpha picker ──────────────────────────────────────────────────────────
+
+    def _pick_alpha(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+        c = QColorDialog.getColor(QColor(*self._alpha_color), self, "Alpha Colour")
+        if c.isValid():
+            self._alpha_color = (c.red(), c.green(), c.blue())
+            self._alpha_swatch.setStyleSheet(
+                f"background:{c.name()}; border:1px solid palette(mid);")
+
+    # ── Open in canvas ────────────────────────────────────────────────────────
+
+    def _open_in_canvas(self): #vers 1
+        if not self._variants or not self._editor:
+            return
+        if not hasattr(self._editor, 'dp5_canvas') or not self._editor.dp5_canvas:
+            self._status.setText("DP5 canvas not ready")
+            return
+        w, h, rgba = self._variants[self._current]
+        try:
+            ws = self._editor
+            if hasattr(ws, '_push_undo'):
+                ws._push_undo()
+            ws.dp5_canvas.tex_w = w
+            ws.dp5_canvas.tex_h = h
+            ws.dp5_canvas.rgba  = bytearray(rgba)
+            ws._canvas_width    = w
+            ws._canvas_height   = h
+            ws.dp5_canvas.update()
+            if hasattr(ws, '_fit_canvas_to_viewport'):
+                ws._fit_canvas_to_viewport()
+            if hasattr(ws, '_set_status'):
+                ws._set_status(f"Icon: {w}×{h} loaded for editing")
+            self._status.setText(f"Opened {w}×{h} in canvas")
+        except Exception as e:
+            self._status.setText(f"Canvas error: {e}")
+
+    # ── Export ────────────────────────────────────────────────────────────────
+
+    def _amiga_pal_to_mode(self): #vers 1
+        t = self._amiga_pal_combo.currentText()
+        if 'XL' in t:   return 'wb39xl'
+        if 'MagicWB' in t: return 'magicwb'
+        if 'OCS' in t:  return 'ocs'
+        if 'User' in t: return 'user'
+        return 'wb39'
+
+    def _get_export_rgba(self) -> tuple: #vers 1
+        """Get RGBA from canvas if available, else from loaded variant."""
+        ws = self._editor
+        if ws and hasattr(ws, 'dp5_canvas') and ws.dp5_canvas:
+            c = ws.dp5_canvas
+            return c.tex_w, c.tex_h, bytes(c.rgba)
+        if self._variants:
+            return self._variants[self._current]
+        return None, None, None
+
+    def _export_rgba(self, rgba: bytes, w: int, h: int,
+                     path: str, fmt: str): #vers 1
+        """Write RGBA to path in the given format."""
+        import os
+        alpha_idx = 0 if self._alpha_chk.isChecked() else None
+        alpha_col = self._alpha_color if self._alpha_chk.isChecked() else None
+
+        if fmt == "PNG":
+            from PyQt6.QtGui import QImage
+            img = QImage(rgba, w, h, w*4, QImage.Format.Format_RGBA8888)
+            img.save(path, 'PNG')
+
+        elif fmt == "IFF ILBM (indexed)":
+            from apps.methods.iff_ilbm import write_iff_ilbm_rgba
+            data = write_iff_ilbm_rgba(rgba, w, h, n_planes=8,
+                alpha_color=alpha_col, alpha_is_index0=self._alpha_chk.isChecked())
+            open(path, 'wb').write(data)
+
+        elif fmt == "IFF ILBM (24-bit)":
+            from apps.methods.iff_ilbm import write_iff_24bit
+            open(path, 'wb').write(write_iff_24bit(rgba, w, h))
+
+        elif fmt == "HAM6 IFF":
+            from apps.methods.iff_ilbm import write_iff_ham
+            open(path, 'wb').write(write_iff_ham(rgba, w, h, ham8=False))
+
+        elif fmt == "HAM8 IFF":
+            from apps.methods.iff_ilbm import write_iff_ham
+            open(path, 'wb').write(write_iff_ham(rgba, w, h, ham8=True))
+
+        elif fmt == "ICO (Windows)":
+            from apps.methods.ico_handler import write_ico
+            open(path, 'wb').write(write_ico([(w, h, rgba)]))
+
+        elif fmt == "ICNS (Apple)":
+            from apps.methods.ico_handler import write_icns
+            open(path, 'wb').write(write_icns([(w, h, rgba)]))
+
+        elif "Amiga .info" in fmt:
+            if self._editor and hasattr(self._editor, '_encode_amiga_info'):
+                pal_mode = self._amiga_pal_to_mode()
+                data = self._editor._encode_amiga_info(
+                    bytearray(rgba), w, h, pal_mode)
+                open(path, 'wb').write(data)
+            else:
+                raise ValueError("_encode_amiga_info not available")
+
+        elif fmt == "BMP":
+            from PyQt6.QtGui import QImage
+            img = QImage(rgba, w, h, w*4, QImage.Format.Format_RGBA8888)
+            img.save(path, 'BMP')
+
+        elif fmt == "TGA":
+            from PIL import Image
+            Image.frombytes('RGBA', (w, h), rgba).save(path, 'TGA')
+
+    def _fmt_ext(self, fmt: str) -> str: #vers 1
+        exts = {
+            "PNG":".png","IFF ILBM (indexed)":".iff","IFF ILBM (24-bit)":".iff",
+            "HAM6 IFF":".iff","HAM8 IFF":".iff","ICO (Windows)":".ico",
+            "ICNS (Apple)":".icns","BMP":".bmp","TGA":".tga",
+        }
+        for k,v in exts.items():
+            if fmt.startswith(k): return v
+        return ".info" if "info" in fmt else ".png"
+
+    def _export_single(self): #vers 1
+        w, h, rgba = self._get_export_rgba()
+        if not rgba:
+            self._status.setText("Nothing to export"); return
+        fmt = self._out_fmt.currentText()
+        ext = self._fmt_ext(fmt)
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export {fmt}", f"icon{ext}", f"Files (*{ext})")
+        if not path: return
+        try:
+            self._export_rgba(rgba, w, h, path, fmt)
+            self._status.setText(f"✓ Exported: {os.path.basename(path)}")
+        except Exception as e:
+            self._status.setText(f"Export error: {e}")
+        import os
+
+    def _export_all(self): #vers 1
+        """Export all loaded variants as a multi-size ICO or individual files."""
+        if not self._variants:
+            self._status.setText("No variants loaded"); return
+        fmt = self._out_fmt.currentText()
+        if fmt == "ICO (Windows)" and len(self._variants) > 1:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export Multi-size ICO", "icon.ico", "ICO Files (*.ico)")
+            if not path: return
+            try:
+                from apps.methods.ico_handler import write_ico
+                open(path, 'wb').write(write_ico(self._variants))
+                self._status.setText(
+                    f"✓ Exported {len(self._variants)} sizes to ICO")
+            except Exception as e:
+                self._status.setText(f"Export error: {e}")
+        else:
+            folder = QFileDialog.getExistingDirectory(
+                self, "Export folder for all variants")
+            if not folder: return
+            import os
+            ext = self._fmt_ext(fmt)
+            ok = 0
+            for i, (w, h, rgba) in enumerate(self._variants):
+                try:
+                    p = os.path.join(folder, f"icon_{w}x{h}{ext}")
+                    self._export_rgba(rgba, w, h, p, fmt)
+                    ok += 1
+                except Exception as e:
+                    self._status.setText(f"Error on {w}×{h}: {e}")
+            self._status.setText(f"✓ Exported {ok} variants to {folder}")
 
 
 class _SpriteView(QWidget):
