@@ -657,6 +657,8 @@ class DP5Settings:
         # Icon editor
         'char_editor_docked':  False,  # _CharFontEditor dock state
         'sprite_editor_docked': False, # _SpriteEditor dock state
+        'sprite_editor_folder': '',    # sprite source folder
+        'char_editor_folder':   '',    # bitmap font folder
         'svg_browser_docked':  False,  # SVGIconBrowser dock state
         'icon_editor_docked':  False,  # True = snapped to overlay, False = floating
         'icon_editor_x':       -1,     # last window X (-1 = auto)
@@ -11984,10 +11986,16 @@ class _CharFontEditor(_DockablePanelMixin, QWidget):
         # Each char: list of n_chars lists, each char_h bytes
         self._chars = [[0]*self._char_h for _ in range(self._n_chars)]
         self._current = 0
+        self._font_folder = ''
+        if parent and hasattr(parent, 'dp5_settings'):
+            self._font_folder = parent.dp5_settings.get(
+                'char_editor_folder', '')
         self._init_dock(parent, 'char_editor_docked', 'left')
         self._build_ui()
         self._refresh_grid()
         self._refresh_char_list()
+        if self._font_folder:
+            QTimer.singleShot(0, lambda: self._scan_font_folder(self._font_folder))
 
 
     def _build_ui(self): #vers 1
@@ -12002,7 +12010,29 @@ class _CharFontEditor(_DockablePanelMixin, QWidget):
         self._add_dock_button(_te_row)
         left.addLayout(_te_row)
 
-        # Font browser
+        # Bitmap font folder browser
+        _ff_row = QHBoxLayout()
+        self._font_folder_edit = QLineEdit()
+        self._font_folder_edit.setPlaceholderText("Font files folder…")
+        self._font_folder_edit.setReadOnly(True)
+        self._font_folder_edit.setText(self._font_folder)
+        _ff_btn = QPushButton("…"); _ff_btn.setFixedWidth(22)
+        _ff_btn.clicked.connect(self._browse_font_folder)
+        _ff_row.addWidget(self._font_folder_edit, 1)
+        _ff_row.addWidget(_ff_btn)
+        left.addLayout(_ff_row)
+
+        self._font_file_list = QListWidget()
+        self._font_file_list.setFixedWidth(160)
+        self._font_file_list.setMaximumHeight(120)
+        self._font_file_list.itemDoubleClicked.connect(self._load_font_file)
+        self._font_file_list.setToolTip("Double-click to load bitmap font")
+        left.addWidget(self._font_file_list)
+
+        _sep_f = QFrame(); _sep_f.setFrameShape(QFrame.Shape.HLine)
+        left.addWidget(_sep_f)
+
+        # System Font browser
         left.addWidget(QLabel("System Font:"))
         self._font_search = QLineEdit()
         self._font_search.setPlaceholderText("Filter fonts…")
@@ -12092,6 +12122,80 @@ class _CharFontEditor(_DockablePanelMixin, QWidget):
         right.addWidget(close_btn)
         lay.addLayout(right)
 
+
+    def _browse_font_folder(self): #vers 1
+        """Browse for bitmap font folder."""
+        from PyQt6.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(
+            self, "Font Folder", self._font_folder or '')
+        if folder:
+            self._font_folder = folder
+            self._font_folder_edit.setText(folder)
+            ws = self._editor if hasattr(self, '_editor') else None
+            if ws and hasattr(ws, 'dp5_settings'):
+                ws.dp5_settings.set('char_editor_folder', folder)
+                ws.dp5_settings.save()
+            self._scan_font_folder(folder)
+
+    def _scan_font_folder(self, folder: str): #vers 1
+        """Scan folder for bitmap font files."""
+        import os
+        self._font_file_list.clear()
+        if not folder or not os.path.isdir(folder):
+            return
+        exts = {'.png','.bmp','.fnt','.bin','.chr','.raw'}
+        files = sorted(f for f in os.listdir(folder)
+                       if os.path.splitext(f)[1].lower() in exts)
+        for fname in files:
+            fpath = os.path.join(folder, fname)
+            item = QListWidgetItem(os.path.splitext(fname)[0])
+            item.setData(Qt.ItemDataRole.UserRole, fpath)
+            item.setToolTip(f"{fname}\nDouble-click to load")
+            self._font_file_list.addItem(item)
+
+    def _load_font_file(self, item): #vers 1
+        """Load a bitmap font PNG/BMP into the character grid."""
+        import os
+        fpath = item.data(Qt.ItemDataRole.UserRole)
+        if not fpath:
+            return
+        ext = os.path.splitext(fpath)[1].lower()
+        try:
+            if ext in ('.png', '.bmp'):
+                # Treat as a standard bitmap font sheet — slice into chars
+                from PyQt6.QtGui import QImage
+                img = QImage(fpath)
+                if img.isNull():
+                    return
+                iw, ih = img.width(), img.height()
+                cw, ch = self._char_w, self._char_h
+                cols = max(1, iw // cw)
+                for ci in range(min(self._n_chars, (iw//cw) * (ih//ch))):
+                    cx = (ci % cols) * cw
+                    cy = (ci // cols) * ch
+                    row_data = []
+                    for row in range(ch):
+                        byte = 0
+                        for col in range(cw):
+                            px = img.pixel(cx+col, cy+row) if cx+col < iw and cy+row < ih else 0
+                            if (px & 0xFFFFFF) > 0x101010:
+                                byte |= (0x80 >> col)
+                        row_data.append(byte)
+                    self._chars[ci] = row_data
+                self._refresh_char_list()
+                self._on_char_select(0)
+                self.setWindowTitle(f"Font Editor — {os.path.basename(fpath)}")
+            elif ext in ('.bin', '.chr', '.raw'):
+                # Raw binary font data
+                data = open(fpath, 'rb').read()
+                ch_bytes = self._char_h
+                for ci in range(min(self._n_chars, len(data) // ch_bytes)):
+                    self._chars[ci] = list(data[ci*ch_bytes:(ci+1)*ch_bytes])
+                self._refresh_char_list()
+                self._on_char_select(0)
+                self.setWindowTitle(f"Font Editor — {os.path.basename(fpath)}")
+        except Exception as e:
+            print(f"[_load_font_file] {e}")
 
     def _populate_font_list(self): #vers 1
         """Populate font list with system fonts."""
@@ -12388,20 +12492,52 @@ class _SpriteEditor(_DockablePanelMixin, QWidget):
         self._sprite_w = 16; self._sprite_h = 16
         self._current_frame = 0
         self._zoom = 4
+        self._sprite_folder = ''
+        if parent and hasattr(parent, 'dp5_settings'):
+            self._sprite_folder = parent.dp5_settings.get(
+                'sprite_editor_folder', '')
         self._init_dock(parent, 'sprite_editor_docked', 'left')
         self._build_ui()
         self._refresh_frames()
+        if self._sprite_folder:
+            QTimer.singleShot(0, lambda: self._scan_sprite_folder(self._sprite_folder))
 
     def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
 
-        # - Left: frame list
+        # - Left: folder browser + frame list
         left = QVBoxLayout()
+
+        # Sprite folder browser
+        _sf_row = QHBoxLayout()
+        self._sprite_folder_edit = QLineEdit()
+        self._sprite_folder_edit.setPlaceholderText("Sprites folder…")
+        self._sprite_folder_edit.setReadOnly(True)
+        self._sprite_folder_edit.setText(self._sprite_folder)
+        _sf_btn = QPushButton("…"); _sf_btn.setFixedWidth(22)
+        _sf_btn.clicked.connect(self._browse_sprite_folder)
+        _sf_row.addWidget(self._sprite_folder_edit, 1)
+        _sf_row.addWidget(_sf_btn)
+        left.addLayout(_sf_row)
+
+        self._sprite_file_list = QListWidget()
+        self._sprite_file_list.setFixedWidth(130)
+        self._sprite_file_list.setMaximumHeight(150)
+        self._sprite_file_list.setViewMode(QListWidget.ViewMode.IconMode)
+        self._sprite_file_list.setIconSize(QSize(32,32))
+        self._sprite_file_list.setGridSize(QSize(64,52))
+        self._sprite_file_list.setMovement(QListWidget.Movement.Static)
+        self._sprite_file_list.itemDoubleClicked.connect(self._load_sprite_file)
+        left.addWidget(self._sprite_file_list)
+
+        _sep_s = QFrame(); _sep_s.setFrameShape(QFrame.Shape.HLine)
+        left.addWidget(_sep_s)
+
         left.addWidget(QLabel("Frames:"))
         self._frame_list = QListWidget()
-        self._frame_list.setFixedWidth(80)
+        self._frame_list.setFixedWidth(130)
         self._frame_list.currentRowChanged.connect(self._on_frame_select)
-        left.addWidget(self._frame_list)
+        left.addWidget(self._frame_list, 1)
         lay.addLayout(left)
 
         # - Centre: sprite view
@@ -12461,6 +12597,80 @@ class _SpriteEditor(_DockablePanelMixin, QWidget):
         right.addWidget(close_btn)
         lay.addLayout(right)
 
+
+    def _browse_font_folder(self): #vers 1
+        """Browse for bitmap font folder."""
+        from PyQt6.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(
+            self, "Font Folder", self._font_folder or '')
+        if folder:
+            self._font_folder = folder
+            self._font_folder_edit.setText(folder)
+            ws = self._editor if hasattr(self, '_editor') else None
+            if ws and hasattr(ws, 'dp5_settings'):
+                ws.dp5_settings.set('char_editor_folder', folder)
+                ws.dp5_settings.save()
+            self._scan_font_folder(folder)
+
+    def _scan_font_folder(self, folder: str): #vers 1
+        """Scan folder for bitmap font files."""
+        import os
+        self._font_file_list.clear()
+        if not folder or not os.path.isdir(folder):
+            return
+        exts = {'.png','.bmp','.fnt','.bin','.chr','.raw'}
+        files = sorted(f for f in os.listdir(folder)
+                       if os.path.splitext(f)[1].lower() in exts)
+        for fname in files:
+            fpath = os.path.join(folder, fname)
+            item = QListWidgetItem(os.path.splitext(fname)[0])
+            item.setData(Qt.ItemDataRole.UserRole, fpath)
+            item.setToolTip(f"{fname}\nDouble-click to load")
+            self._font_file_list.addItem(item)
+
+    def _load_font_file(self, item): #vers 1
+        """Load a bitmap font PNG/BMP into the character grid."""
+        import os
+        fpath = item.data(Qt.ItemDataRole.UserRole)
+        if not fpath:
+            return
+        ext = os.path.splitext(fpath)[1].lower()
+        try:
+            if ext in ('.png', '.bmp'):
+                # Treat as a standard bitmap font sheet — slice into chars
+                from PyQt6.QtGui import QImage
+                img = QImage(fpath)
+                if img.isNull():
+                    return
+                iw, ih = img.width(), img.height()
+                cw, ch = self._char_w, self._char_h
+                cols = max(1, iw // cw)
+                for ci in range(min(self._n_chars, (iw//cw) * (ih//ch))):
+                    cx = (ci % cols) * cw
+                    cy = (ci // cols) * ch
+                    row_data = []
+                    for row in range(ch):
+                        byte = 0
+                        for col in range(cw):
+                            px = img.pixel(cx+col, cy+row) if cx+col < iw and cy+row < ih else 0
+                            if (px & 0xFFFFFF) > 0x101010:
+                                byte |= (0x80 >> col)
+                        row_data.append(byte)
+                    self._chars[ci] = row_data
+                self._refresh_char_list()
+                self._on_char_select(0)
+                self.setWindowTitle(f"Font Editor — {os.path.basename(fpath)}")
+            elif ext in ('.bin', '.chr', '.raw'):
+                # Raw binary font data
+                data = open(fpath, 'rb').read()
+                ch_bytes = self._char_h
+                for ci in range(min(self._n_chars, len(data) // ch_bytes)):
+                    self._chars[ci] = list(data[ci*ch_bytes:(ci+1)*ch_bytes])
+                self._refresh_char_list()
+                self._on_char_select(0)
+                self.setWindowTitle(f"Font Editor — {os.path.basename(fpath)}")
+        except Exception as e:
+            print(f"[_load_font_file] {e}")
 
     def _populate_font_list(self): #vers 1
         """Populate font list with system fonts."""
@@ -12523,6 +12733,66 @@ class _SpriteEditor(_DockablePanelMixin, QWidget):
         self._zoom = z
         self._sprite_view.set_zoom(z)
 
+
+    def _browse_sprite_folder(self): #vers 1
+        """Browse for sprite source folder."""
+        from PyQt6.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(
+            self, "Sprite Folder", self._sprite_folder or '')
+        if folder:
+            self._sprite_folder = folder
+            self._sprite_folder_edit.setText(folder)
+            ws = self._editor
+            if ws and hasattr(ws, 'dp5_settings'):
+                ws.dp5_settings.set('sprite_editor_folder', folder)
+                ws.dp5_settings.save()
+            self._scan_sprite_folder(folder)
+
+    def _scan_sprite_folder(self, folder: str): #vers 1
+        """Scan folder for sprite files and populate thumbnail list."""
+        import os
+        self._sprite_file_list.clear()
+        if not folder or not os.path.isdir(folder):
+            return
+        exts = {'.png','.bmp','.tga','.iff','.lbm','.gif','.webp'}
+        files = sorted(f for f in os.listdir(folder)
+                       if os.path.splitext(f)[1].lower() in exts)
+        for fname in files:
+            fpath = os.path.join(folder, fname)
+            pm = QPixmap(fpath).scaled(32,32,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            icon = QIcon(pm) if not pm.isNull() else QIcon()
+            item = QListWidgetItem(icon, os.path.splitext(fname)[0])
+            item.setData(Qt.ItemDataRole.UserRole, fpath)
+            item.setToolTip(fname + "\nDouble-click to load")
+            item.setSizeHint(QSize(62, 50))
+            self._sprite_file_list.addItem(item)
+
+    def _load_sprite_file(self, item): #vers 1
+        """Load sprite file into DP5 canvas."""
+        fpath = item.data(Qt.ItemDataRole.UserRole)
+        if not fpath or not self._editor:
+            return
+        try:
+            from PIL import Image
+            img = Image.open(fpath).convert('RGBA')
+            ws = self._editor
+            if hasattr(ws, '_push_undo'):
+                ws._push_undo()
+            ws.dp5_canvas.tex_w = img.width
+            ws.dp5_canvas.tex_h = img.height
+            ws.dp5_canvas.rgba  = bytearray(img.tobytes())
+            ws._canvas_width    = img.width
+            ws._canvas_height   = img.height
+            ws.dp5_canvas.update()
+            if hasattr(ws, '_fit_canvas_to_viewport'):
+                ws._fit_canvas_to_viewport()
+            if hasattr(ws, '_set_status'):
+                ws._set_status(f"Loaded: {fpath}")
+            self._refresh_frames()
+        except Exception as e:
+            print(f"[_load_sprite_file] {e}")
 
     def _refresh_frames(self): #vers 1
         ed = self._editor
@@ -12630,6 +12900,7 @@ class _IconEditor(QWidget): #vers 1
             _s('icon_editor_alpha_b', 0),
         )
         self._docked = _s('icon_editor_docked', False)
+        self._icon_folder = _s('icon_editor_folder', '')
         self.setWindowTitle("Icon Editor")
         self.resize(480, 560)
         self._build_ui()
@@ -12652,7 +12923,6 @@ class _IconEditor(QWidget): #vers 1
             self._amiga_pal_combo.setCurrentIndex(idx)
 
         self._refresh_alpha_swatch()
-        self._icon_folder = _s('icon_editor_folder', '')
 
         # Restore position
         x = _s('icon_editor_x', -1)
