@@ -276,14 +276,64 @@ class SVGIconBrowser(QWidget):
             pass
         return 1
 
-    def _build_replacement_method(self, name): #vers 1
+    def _build_replacement_method(self, name): #vers 2
         """
-        Build a replacement Python method for the icon.
-        Uses original method source with updated SVG if canvas was edited.
-        If canvas was loaded — embeds a note that user drew changes.
-        Returns the full method source string.
+        Build replacement method source.
+        If the canvas has been edited since loading the icon:
+          - Renders canvas RGBA → PNG → base64
+          - Wraps in a new staticmethod that returns the PNG as QIcon
+        Otherwise returns the original method source unchanged.
         """
-        return self._get_full_method_source(name)
+        if not self._loaded_into_canvas or not self.workshop:
+            return self._get_full_method_source(name)
+
+        ws = self.workshop
+        if not hasattr(ws, 'dp5_canvas') or not ws.dp5_canvas:
+            return self._get_full_method_source(name)
+
+        try:
+            import base64, io
+            from PyQt6.QtGui import QImage
+            canvas = ws.dp5_canvas
+            w, h   = canvas.tex_w, canvas.tex_h
+            rgba   = bytes(canvas.rgba)
+
+            # Build PNG from canvas RGBA
+            img = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
+            buf = io.BytesIO()
+            import tempfile, os
+            tmp = tempfile.mktemp(suffix='.png')
+            img.save(tmp, 'PNG')
+            with open(tmp, 'rb') as f:
+                png_data = f.read()
+            os.unlink(tmp)
+            b64 = base64.b64encode(png_data).decode('ascii')
+
+            # Build a staticmethod that loads the PNG
+            method = (
+                f"    @staticmethod\n"
+                f"    def {name}(size: int = {max(w,h)}, "
+                f"color: str = None) -> QIcon: #vers 2\n"
+                f"        \"\"\"Raster icon — edited in DP5 Workshop.\"\"\"\n"
+                f"        import base64\n"
+                f"        from PyQt6.QtCore import QByteArray\n"
+                f"        from PyQt6.QtGui import QPixmap, QIcon\n"
+                f"        _data = base64.b64decode(\n"
+                f"            {repr(b64)}\n"
+                f"        )\n"
+                f"        pm = QPixmap()\n"
+                f"        pm.loadFromData(QByteArray(_data), 'PNG')\n"
+                f"        if size != {max(w,h)}:\n"
+                f"            from PyQt6.QtCore import Qt\n"
+                f"            pm = pm.scaled(size, size,\n"
+                f"                Qt.AspectRatioMode.KeepAspectRatio,\n"
+                f"                Qt.TransformationMode.SmoothTransformation)\n"
+                f"        return QIcon(pm)\n"
+            )
+            return method
+        except Exception as e:
+            print(f"[_build_replacement_method] canvas capture failed: {e}")
+            return self._get_full_method_source(name)
 
     # ── Canvas integration ────────────────────────────────────────────────────
 

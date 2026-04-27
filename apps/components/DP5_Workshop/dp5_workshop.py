@@ -8163,7 +8163,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 p = QPainter(self)
                 sz = self._sz[0]
                 pal = self.palette()
-                _hdr_bg  = pal.color(pal.ColorRole.Shadow)
+                # Header uses toolbar bg so it matches the rest of the UI
+                _hdr_bg  = pal.color(pal.ColorRole.Window)
                 _hdr_txt = pal.color(pal.ColorRole.BrightText)
                 _hint_c  = pal.color(pal.ColorRole.PlaceholderText)
                 _brd_c   = pal.color(pal.ColorRole.Highlight)
@@ -8173,7 +8174,19 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 p.setPen(_hdr_txt)
                 f = QFont("Arial", 8); p.setFont(f)
                 info = getattr(self, '_info', 'Zoom Lens')
-                p.drawText(4, 15, f"🔍 {info}")
+                # SVG zoom icon drawn as simple geometric shapes
+                p.setBrush(_hdr_txt)
+                p.setPen(Qt.PenStyle.NoPen)
+                # Circle
+                p.drawEllipse(3, 4, 10, 10)
+                p.setBrush(_hdr_bg)
+                p.drawEllipse(5, 6, 6, 6)
+                # Handle
+                p.setBrush(_hdr_txt)
+                p.drawRect(12, 13, 5, 2)
+                p.setPen(_hdr_txt)
+                p.setFont(QFont("Arial", 8))
+                p.drawText(20, 15, info)
                 # [+] [-] zoom magnification buttons
                 btn_w, btn_h = 18, 14
                 btn_y = 4
@@ -8196,6 +8209,10 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                     p.drawPixmap(0, 22, pm)
                 else:
                     p.fillRect(0, 22, sz, sz, _vp_bg)
+                # Resize grip — bottom-right corner dots
+                p.setPen(_hint_c)
+                for gx, gy in [(sz-4,sz+18),(sz-4,sz+14),(sz-8,sz+18)]:
+                    p.drawEllipse(gx, gy, 2, 2)
                 # Border
                 p.setPen(QPen(_brd_c, 1))
                 p.drawRect(0, 0, sz - 1, sz + 22 - 1)
@@ -8223,6 +8240,13 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
             def mousePressEvent(self, ev):
                 sz = self._sz[0]
                 x, y = ev.position().x(), ev.position().y()
+                total_h = sz + 22
+                # Resize grip: bottom-right 14×14 corner
+                if x > sz - 14 and y > total_h - 14:
+                    self._resize_drag  = True
+                    self._resize_start = (ev.globalPosition().toPoint(), sz)
+                    ev.accept(); return
+                self._resize_drag = False
                 if y < 22:   # header — check [+] [-] or start drag
                     btn_w = 18
                     minus_x = sz - btn_w - 2
@@ -8236,9 +8260,17 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 ev.accept()
 
             def mouseMoveEvent(self, ev):
+                if getattr(self, '_resize_drag', False) and \
+                        ev.buttons() & Qt.MouseButton.LeftButton:
+                    gp = ev.globalPosition().toPoint()
+                    start_gp, start_sz = self._resize_start
+                    new_sz = max(120, min(400, start_sz + gp.x() - start_gp.x()))
+                    self._sz[0] = new_sz
+                    self.setFixedSize(new_sz, new_sz + 22)
+                    self.update()
+                    ev.accept(); return
                 if self._drag_start and ev.buttons() & Qt.MouseButton.LeftButton:
                     new_pos = ev.globalPosition().toPoint() - self._drag_start
-                    # Clamp within parent
                     pw = self.parent().width()  - self.width()
                     ph = self.parent().height() - self.height()
                     self.move(max(0, min(new_pos.x(), pw)),
@@ -8246,7 +8278,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
                 ev.accept()
 
             def mouseReleaseEvent(self, ev):
-                self._drag_start = None
+                self._drag_start  = None
+                self._resize_drag = False
                 ev.accept()
 
         overlay = _ZoomOverlay(self)
@@ -10911,8 +10944,8 @@ class DP5Workshop(ColorPalPresetsMixin, _ToolMenuMixin, QWidget):
         struct.pack_into('>H',do,20,0x0001)
         struct.pack_into('>I',do,22,0x00000001)
         do[48]=3
-        struct.pack_into('>i',do,58,0x80000000)
-        struct.pack_into('>i',do,62,0x80000000)
+        struct.pack_into('>I',do,58,0x80000000)
+        struct.pack_into('>I',do,62,0x80000000)
         img_hdr = bytearray(40)
         struct.pack_into('>H',img_hdr,4,w)
         struct.pack_into('>H',img_hdr,6,h)
