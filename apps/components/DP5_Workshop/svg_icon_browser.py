@@ -63,6 +63,10 @@ class SVGIconBrowser(QWidget):
         self._build_ui()
         self._load_icons()
         QTimer.singleShot(0, self._apply_theme)
+        # Restore dock state
+        if workshop and hasattr(workshop, 'dp5_settings'):
+            if workshop.dp5_settings.get('svg_browser_docked', False):
+                QTimer.singleShot(200, self._snap_to_canvas)
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +74,18 @@ class SVGIconBrowser(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(3)
+
+        # Title + D button
+        _title_row = QHBoxLayout()
+        _title_row.addWidget(QLabel("SVG Icons"))
+        self._dock_btn = QPushButton("D")
+        self._dock_btn.setFixedSize(22, 22)
+        self._dock_btn.setFlat(True)
+        self._dock_btn.setCheckable(True)
+        self._dock_btn.setToolTip("Snap to left of canvas / float")
+        self._dock_btn.clicked.connect(self._toggle_dock)
+        _title_row.addWidget(self._dock_btn)
+        root.addLayout(_title_row)
 
         # Search
         self._search = QLineEdit()
@@ -154,18 +170,34 @@ class SVGIconBrowser(QWidget):
 
     # ── Icon loading ──────────────────────────────────────────────────────────
 
-    def _load_icons(self): #vers 1
+    def _load_icons(self): #vers 2
         try:
             from apps.methods.imgfactory_svg_icons import SVGIconFactory
             import apps.methods.imgfactory_svg_icons as _mod
             self._factory    = SVGIconFactory
             self._icons_path = os.path.normpath(os.path.abspath(_mod.__file__))
+            # Built-in icon methods
             names = sorted([
                 n for n in dir(SVGIconFactory)
                 if n.endswith('_icon') and not n.startswith('__')
             ])
-            self._icon_names = names
-            self._populate_list(names)
+            # Also include any overrides in apps/icons/ not already in factory
+            icons_dir = self._get_icons_dir()
+            self._file_overrides = set()   # names that have a file override
+            if icons_dir and os.path.isdir(icons_dir):
+                for fname in sorted(os.listdir(icons_dir)):
+                    base, ext = os.path.splitext(fname)
+                    if ext.lower() in ('.svg', '.png'):
+                        # Mark as having a file override
+                        name = base + '_icon'
+                        self._file_overrides.add(name)
+                        # Add to list if not already a factory method
+                        if name not in names:
+                            names.append(name + '__file')  # file-only
+            else:
+                self._file_overrides = set()
+            self._icon_names = sorted(names)
+            self._populate_list(self._icon_names)
         except Exception as e:
             self._count_lbl.setText(f"Error: {e}")
 
@@ -186,21 +218,54 @@ class SVGIconBrowser(QWidget):
         except Exception as e:
             self._status_lbl.setText(f"Reload error: {e}")
 
-    def _populate_list(self, names): #vers 1
+    def _populate_list(self, names): #vers 2
         self._list.clear()
         color = self._icon_color()
+        icons_dir = self._get_icons_dir()
+        overrides = getattr(self, '_file_overrides', set())
         for name in names:
             try:
-                icon  = getattr(self._factory, name)(32, color)
-                label = name.replace('_icon', '').replace('_', ' ')
-                item  = QListWidgetItem(icon, label)
+                # File-only entries (not in factory)
+                if name.endswith('__file'):
+                    real_name = name[:-6]  # strip __file
+                    label = real_name.replace('_icon','').replace('_',' ') + ' [F]'
+                    icon  = SVGIconFactory._load_from_file(
+                        real_name.replace('_icon',''), 32, color) or QIcon()
+                    item  = QListWidgetItem(icon, label)
+                    item.setData(Qt.ItemDataRole.UserRole, real_name)
+                    item.setData(Qt.ItemDataRole.UserRole + 1, 'file_only')
+                    item.setToolTip(f"{real_name}\nFile override in apps/icons/")
+                    item.setSizeHint(QSize(78, 56))
+                    self._list.addItem(item)
+                    continue
+                # Factory icon — check if file override exists
+                has_override = name in overrides
+                base = name.replace('_icon', '')
+                file_icon = SVGIconFactory._load_from_file(base, 32, color) if has_override else None
+                icon = file_icon if file_icon else getattr(self._factory, name)(32, color)
+                label = base.replace('_', ' ')
+                if has_override:
+                    label += ' ★'   # mark overridden icons
+                item = QListWidgetItem(icon, label)
                 item.setData(Qt.ItemDataRole.UserRole, name)
-                item.setToolTip(f"{name}\nDouble-click to open in canvas")
+                item.setData(Qt.ItemDataRole.UserRole + 1,
+                             'override' if has_override else 'factory')
+                tip = f"{name}"
+                if has_override:
+                    tip += f"\n★ File override in apps/icons/{base}.*"
+                tip += "\nDouble-click to open in canvas\nRight-click to replace with file"
+                item.setToolTip(tip)
                 item.setSizeHint(QSize(78, 56))
                 self._list.addItem(item)
             except Exception:
                 pass
         self._count_lbl.setText(f"{self._list.count()} icons")
+
+        # Enable right-click context menu on the list
+        self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        if not hasattr(self, '_ctx_connected') or not self._ctx_connected:
+            self._list.customContextMenuRequested.connect(self._icon_context_menu)
+            self._ctx_connected = True
 
     def _icon_color(self): #vers 1
         try:
@@ -212,6 +277,71 @@ class SVGIconBrowser(QWidget):
         return self.palette().color(self.palette().ColorRole.WindowText).name()
 
     # ── Selection ─────────────────────────────────────────────────────────────
+
+    def _icon_context_menu(self, pos): #vers 1
+        """Right-click: replace icon with file, remove override, open in canvas."""
+        from PyQt6.QtWidgets import QMenu
+        item = self._list.itemAt(pos)
+        if not item:
+            return
+        name   = item.data(Qt.ItemDataRole.UserRole)
+        kind   = item.data(Qt.ItemDataRole.UserRole + 1)
+        base   = name.replace('_icon', '')
+        icons_dir = self._get_icons_dir()
+
+        menu = QMenu(self)
+        menu.addAction("Open in Canvas", self._load_into_canvas)
+
+        act_replace = menu.addAction("Replace with PNG / SVG file…")
+        act_replace.triggered.connect(lambda: self._replace_with_file(name, base, icons_dir))
+
+        if kind in ('override', 'file_only'):
+            act_remove = menu.addAction("Remove file override (restore built-in)")
+            act_remove.triggered.connect(lambda: self._remove_override(base, icons_dir))
+
+        menu.addSeparator()
+        menu.addAction("Export .svg", self._export_svg)
+        menu.addAction("Export as Method .py", self._export_as_method)
+        menu.exec(self._list.mapToGlobal(pos))
+
+    def _replace_with_file(self, name, base, icons_dir): #vers 1
+        """Copy a PNG or SVG file into apps/icons/ as the override for this icon."""
+        if not icons_dir:
+            self._status_lbl.setText("apps/icons/ not found"); return
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Replace {name} with file",
+            "", "Images (*.png *.svg *.bmp);;All Files (*)")
+        if not path:
+            return
+        import shutil
+        ext = os.path.splitext(path)[1].lower()
+        dst = os.path.join(icons_dir, f"{base}{ext}")
+        try:
+            os.makedirs(icons_dir, exist_ok=True)
+            shutil.copy2(path, dst)
+            self._status_lbl.setText(f"✓ Saved to apps/icons/{base}{ext}")
+            QTimer.singleShot(100, self._reload_icons)  # refresh list
+        except Exception as e:
+            self._status_lbl.setText(f"Error: {e}")
+
+    def _remove_override(self, base, icons_dir): #vers 1
+        """Delete the file override from apps/icons/, restoring built-in icon."""
+        if not icons_dir:
+            return
+        removed = False
+        for ext in ('.png', '.svg'):
+            fpath = os.path.join(icons_dir, f"{base}{ext}")
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                    removed = True
+                except Exception as e:
+                    self._status_lbl.setText(f"Error: {e}"); return
+        if removed:
+            self._status_lbl.setText(f"✓ Removed override, restored built-in")
+            QTimer.singleShot(100, self._reload_icons)
+        else:
+            self._status_lbl.setText("No override file found")
 
     def _apply_filter(self, text): #vers 1
         text = text.lower().strip()
@@ -686,6 +816,44 @@ class SVGIconBrowser(QWidget):
             except Exception as e:
                 self._status.setText(f"Save error: {e}")
 
+
+    # ── Dock ──────────────────────────────────────────────────────────────────
+
+    def _toggle_dock(self): #vers 1
+        if self._dock_btn.isChecked():
+            self._snap_to_canvas()
+        else:
+            self._float_panel()
+        ws = self.workshop
+        if ws and hasattr(ws, 'dp5_settings'):
+            ws.dp5_settings.set('svg_browser_docked', self._dock_btn.isChecked())
+            ws.dp5_settings.save()
+
+    def _snap_to_canvas(self): #vers 1
+        """Snap to left edge of canvas viewport."""
+        ws = self.workshop
+        if not ws or not hasattr(ws, '_canvas_scroll'):
+            return
+        vp = ws._canvas_scroll.viewport()
+        vp_h = vp.height()
+        pw = 220; ph = min(vp_h - 8, max(400, self.minimumHeight()))
+        self.setWindowFlags(Qt.WindowType.Widget)
+        self.setParent(vp)
+        self.move(4, 4)
+        self.resize(pw, ph)
+        self.show(); self.raise_()
+        self._dock_btn.setChecked(True)
+
+    def _float_panel(self): #vers 1
+        """Return to floating Tool window."""
+        pos = self.mapToGlobal(self.rect().topLeft())
+        self.setParent(None)
+        self.setWindowFlags(Qt.WindowType.Tool |
+                            Qt.WindowType.WindowStaysOnTopHint)
+        self.move(pos)
+        self.resize(220, 520)
+        self.show()
+        self._dock_btn.setChecked(False)
 
     # ── Theme ─────────────────────────────────────────────────────────────────
 

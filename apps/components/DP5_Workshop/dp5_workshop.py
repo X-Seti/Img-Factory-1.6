@@ -655,6 +655,9 @@ class DP5Settings:
         'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
         'splitter_sizes':    [],             # [left, canvas, right] — saved on close
         # Icon editor
+        'char_editor_docked':  False,  # _CharFontEditor dock state
+        'sprite_editor_docked': False, # _SpriteEditor dock state
+        'svg_browser_docked':  False,  # SVGIconBrowser dock state
         'icon_editor_docked':  False,  # True = snapped to overlay, False = floating
         'icon_editor_x':       -1,     # last window X (-1 = auto)
         'icon_editor_y':       -1,     # last window Y
@@ -11835,6 +11838,91 @@ def open_dp5_workshop(main_window=None) -> DP5Workshop: #vers 1
 
 #  Character / Font Editor
 
+
+class _DockablePanelMixin:
+    """
+    Mixin for floating DP5 Tool panels.
+    Adds a [D] button that snaps the panel to the left or right edge of the
+    canvas viewport, or returns it to a free-floating Tool window.
+    Usage: inherit alongside QWidget, call _init_dock(workshop, side='left').
+    """
+
+    def _init_dock(self, workshop, settings_key: str = '',
+                   side: str = 'left'): #vers 1
+        """Call from __init__ after _build_ui(). workshop = DP5Workshop instance."""
+        self._dmp_workshop    = workshop
+        self._dmp_settings_key = settings_key  # e.g. 'svg_browser_docked'
+        self._dmp_side        = side            # 'left' or 'right'
+        self._dmp_docked      = False
+        self._dmp_dock_btn    = None            # set by _add_dock_button()
+
+    def _add_dock_button(self, layout): #vers 1
+        """Insert a [D] checkable button into the given QHBoxLayout."""
+        from PyQt6.QtWidgets import QPushButton
+        btn = QPushButton("D")
+        btn.setFixedSize(22, 22)
+        btn.setFlat(True)
+        btn.setCheckable(True)
+        btn.setToolTip("Snap to canvas edge / float")
+        btn.clicked.connect(self._dmp_toggle_dock)
+        self._dmp_dock_btn = btn
+        layout.addWidget(btn)
+        # Restore saved state
+        ws = getattr(self, '_dmp_workshop', None)
+        if ws and self._dmp_settings_key and hasattr(ws, 'dp5_settings'):
+            saved = ws.dp5_settings.get(self._dmp_settings_key, False)
+            if saved:
+                btn.setChecked(True)
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(150, self._dmp_snap)
+
+    def _dmp_toggle_dock(self): #vers 1
+        if self._dmp_dock_btn and self._dmp_dock_btn.isChecked():
+            self._dmp_snap()
+        else:
+            self._dmp_float()
+        self._dmp_save()
+
+    def _dmp_snap(self): #vers 1
+        """Snap panel to left or right edge of canvas viewport."""
+        ws = getattr(self, '_dmp_workshop', None)
+        if not ws or not hasattr(ws, '_canvas_scroll'):
+            return
+        vp = ws._canvas_scroll.viewport()
+        vp_w = vp.width(); vp_h = vp.height()
+        pw = min(self.width(), 280)
+        ph = min(vp_h - 8, max(400, self.minimumHeight()))
+        self.setWindowFlags(Qt.WindowType.Widget)
+        self.setParent(vp)
+        if self._dmp_side == 'right':
+            self.move(vp_w - pw - 4, 4)
+        else:
+            self.move(4, 4)
+        self.resize(pw, ph)
+        self.show(); self.raise_()
+        self._dmp_docked = True
+        if self._dmp_dock_btn:
+            self._dmp_dock_btn.setChecked(True)
+
+    def _dmp_float(self): #vers 1
+        """Return panel to free-floating Tool window."""
+        pos = self.mapToGlobal(self.rect().topLeft())
+        self.setParent(None)
+        self.setWindowFlags(Qt.WindowType.Tool |
+                            Qt.WindowType.WindowStaysOnTopHint)
+        self.move(pos)
+        self.show()
+        self._dmp_docked = False
+        if self._dmp_dock_btn:
+            self._dmp_dock_btn.setChecked(False)
+
+    def _dmp_save(self): #vers 1
+        ws = getattr(self, '_dmp_workshop', None)
+        if ws and self._dmp_settings_key and hasattr(ws, 'dp5_settings'):
+            ws.dp5_settings.set(self._dmp_settings_key, self._dmp_docked)
+            ws.dp5_settings.save()
+
+
 class _CharFontEditor(QWidget):
     """Edit 8×8 or 8×16 pixel character sets — bit grid per character,
     load/save binary, export as C header or ASM data.
@@ -11858,6 +11946,7 @@ class _CharFontEditor(QWidget):
         self._build_ui()
         self._refresh_grid()
         self._refresh_char_list()
+        self._init_dock(parent, 'char_editor_docked', 'left')
 
 
     def _build_ui(self): #vers 1
@@ -11865,6 +11954,12 @@ class _CharFontEditor(QWidget):
 
         #    Left: font browser + character list
         left = QVBoxLayout()
+
+        # Title + D button
+        _te_row = QHBoxLayout()
+        _te_row.addWidget(QLabel("Font / Char Editor"))
+        self._add_dock_button(_te_row)
+        left.addLayout(_te_row)
 
         # Font browser
         left.addWidget(QLabel("System Font:"))
@@ -12254,6 +12349,7 @@ class _SpriteEditor(QWidget):
         self._zoom = 4
         self._build_ui()
         self._refresh_frames()
+        self._init_dock(parent, 'sprite_editor_docked', 'left')
 
     def _build_ui(self): #vers 1
         lay = QHBoxLayout(self)
@@ -12270,6 +12366,7 @@ class _SpriteEditor(QWidget):
         # - Centre: sprite view
         centre = QVBoxLayout()
         ctrl = QHBoxLayout()
+        self._add_dock_button(ctrl)
         ctrl.addWidget(QLabel("Sprite size:"))
         sizes = ["8×8","8×16","16×16","16×32","32×32","32×64","64×64"]
         self._size_combo = QComboBox()
