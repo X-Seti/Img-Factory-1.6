@@ -654,6 +654,16 @@ class DP5Settings:
         'menu_bar_height':     22,        # topbar menubar height (px)
         'menu_dropdown_font_size': 9,     # dropdown menu item font size (pt)
         'splitter_sizes':    [],             # [left, canvas, right] — saved on close
+        # Icon editor
+        'icon_editor_docked':  False,  # True = snapped to overlay, False = floating
+        'icon_editor_x':       -1,     # last window X (-1 = auto)
+        'icon_editor_y':       -1,     # last window Y
+        'icon_editor_out_fmt': 'PNG',  # last export format
+        'icon_editor_alpha':   True,   # colour 0 = alpha
+        'icon_editor_alpha_r': 0,      # alpha colour R
+        'icon_editor_alpha_g': 0,      # alpha colour G
+        'icon_editor_alpha_b': 0,      # alpha colour B
+        'icon_editor_amiga_pal':'AGA Workbench (WB3.9)',
     }
 
     def __init__(self): #vers 1
@@ -12457,17 +12467,58 @@ class _IconEditor(QWidget): #vers 1
                    "Amiga .info (AGA WB)","Amiga .info (MagicWB)",
                    "Amiga .info (OCS)","BMP","TGA"]
 
-    def __init__(self, parent=None): #vers 1
+    def __init__(self, parent=None): #vers 2
         super().__init__(parent, Qt.WindowType.Tool |
                          Qt.WindowType.WindowStaysOnTopHint)
         self._editor   = parent
-        self._variants = []   # list of (w,h,rgba) from loaded file
-        self._current  = 0    # index into _variants
+        self._variants = []
+        self._current  = 0
         self._src_path = None
-        self._alpha_color = (0, 0, 0)  # palette colour 0
+        self._docked   = False   # True = snapped overlay, False = floating
+        self._overlay_widget = None
+
+        # Load saved settings
+        self._settings = None
+        if parent and hasattr(parent, 'dp5_settings'):
+            self._settings = parent.dp5_settings
+
+        def _s(key, default=None):
+            return self._settings.get(key, default) if self._settings else default
+
+        self._alpha_color = (
+            _s('icon_editor_alpha_r', 0),
+            _s('icon_editor_alpha_g', 0),
+            _s('icon_editor_alpha_b', 0),
+        )
+        self._docked = _s('icon_editor_docked', False)
         self.setWindowTitle("Icon Editor")
         self.resize(480, 560)
         self._build_ui()
+
+        # Restore choices
+        fmt = _s('icon_editor_out_fmt', 'PNG')
+        idx = self._out_fmt.findText(fmt)
+        if idx >= 0:
+            self._out_fmt.setCurrentIndex(idx)
+
+        alpha = _s('icon_editor_alpha', True)
+        self._alpha_chk.setChecked(alpha)
+
+        pal = _s('icon_editor_amiga_pal', 'AGA Workbench (WB3.9)')
+        idx = self._amiga_pal_combo.findText(pal)
+        if idx >= 0:
+            self._amiga_pal_combo.setCurrentIndex(idx)
+
+        self._refresh_alpha_swatch()
+
+        # Restore position
+        x = _s('icon_editor_x', -1)
+        y = _s('icon_editor_y', -1)
+        if x >= 0 and y >= 0:
+            self.move(x, y)
+
+        if self._docked:
+            QTimer.singleShot(100, self._snap_to_overlay)
 
     def _build_ui(self): #vers 1
         from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
@@ -12477,6 +12528,21 @@ class _IconEditor(QWidget): #vers 1
 
         root = QVBoxLayout(self)
         root.setContentsMargins(4,4,4,4); root.setSpacing(4)
+
+        # ── Title bar with [D] dock toggle ───────────────────────────────────
+        title_row = QHBoxLayout()
+        title_lbl = QLabel("Icon Editor")
+        title_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self._dock_btn = QPushButton("D")
+        self._dock_btn.setFixedSize(22, 22)
+        self._dock_btn.setFlat(True)
+        self._dock_btn.setToolTip("Toggle dock: snap to canvas overlay / float")
+        self._dock_btn.setCheckable(True)
+        self._dock_btn.setChecked(self._docked)
+        self._dock_btn.clicked.connect(self._toggle_dock)
+        title_row.addWidget(title_lbl, 1)
+        title_row.addWidget(self._dock_btn)
+        root.addLayout(title_row)
 
         # ── Load row ─────────────────────────────────────────────────────────
         load_row = QHBoxLayout()
@@ -12542,6 +12608,8 @@ class _IconEditor(QWidget): #vers 1
         self._amiga_pal_row.addWidget(self._amiga_pal_combo, 1)
         root.addLayout(self._amiga_pal_row)
         self._out_fmt.currentTextChanged.connect(self._on_format_changed)
+        self._out_fmt.currentTextChanged.connect(lambda _: self._save_settings())
+        self._alpha_chk.stateChanged.connect(lambda _: self._save_settings())
         self._on_format_changed(self._out_fmt.currentText())
 
         # ── Export single ─────────────────────────────────────────────────────
@@ -12699,14 +12767,80 @@ class _IconEditor(QWidget): #vers 1
 
     # ── Alpha picker ──────────────────────────────────────────────────────────
 
-    def _pick_alpha(self): #vers 1
+    def _refresh_alpha_swatch(self): #vers 1
+        r, g, b = self._alpha_color
+        self._alpha_swatch.setStyleSheet(
+            f"background:#{r:02x}{g:02x}{b:02x}; border:1px solid palette(mid);")
+
+    def _pick_alpha(self): #vers 2
         from PyQt6.QtWidgets import QColorDialog
         from PyQt6.QtGui import QColor
         c = QColorDialog.getColor(QColor(*self._alpha_color), self, "Alpha Colour")
         if c.isValid():
             self._alpha_color = (c.red(), c.green(), c.blue())
-            self._alpha_swatch.setStyleSheet(
-                f"background:{c.name()}; border:1px solid palette(mid);")
+            self._refresh_alpha_swatch()
+            self._save_settings()
+
+    def _save_settings(self): #vers 1
+        """Persist icon editor choices to dp5_settings."""
+        if not self._settings:
+            return
+        pos = self.pos()
+        self._settings.set('icon_editor_docked',  self._docked)
+        self._settings.set('icon_editor_x',        pos.x())
+        self._settings.set('icon_editor_y',        pos.y())
+        self._settings.set('icon_editor_out_fmt',  self._out_fmt.currentText())
+        self._settings.set('icon_editor_alpha',    self._alpha_chk.isChecked())
+        self._settings.set('icon_editor_alpha_r',  self._alpha_color[0])
+        self._settings.set('icon_editor_alpha_g',  self._alpha_color[1])
+        self._settings.set('icon_editor_alpha_b',  self._alpha_color[2])
+        self._settings.set('icon_editor_amiga_pal',self._amiga_pal_combo.currentText())
+        self._settings.save()
+
+    def _toggle_dock(self): #vers 1
+        """Toggle between floating Tool window and canvas-overlay snap."""
+        self._docked = self._dock_btn.isChecked()
+        if self._docked:
+            self._snap_to_overlay()
+        else:
+            self._float_panel()
+        self._save_settings()
+
+    def _snap_to_overlay(self): #vers 1
+        """Reparent into canvas viewport as an overlay widget."""
+        if not self._editor or not hasattr(self._editor, '_canvas_scroll'):
+            return
+        vp = self._editor._canvas_scroll.viewport()
+        # Detach from desktop, reparent to viewport
+        self.setWindowFlags(Qt.WindowType.Widget)
+        self.setParent(vp)
+        vp_h = vp.height()
+        panel_h = min(500, vp_h - 20)
+        self.setFixedWidth(260)
+        self.setFixedHeight(panel_h)
+        # Snap to right edge of viewport
+        self.move(vp.width() - 268, max(0, (vp_h - panel_h) // 2))
+        self.show()
+        self.raise_()
+        self._dock_btn.setChecked(True)
+        self._docked = True
+
+    def _float_panel(self): #vers 1
+        """Detach from viewport, return to floating Tool window."""
+        pos = self.mapToGlobal(self.rect().topLeft())
+        self.setParent(None)
+        self.setWindowFlags(Qt.WindowType.Tool |
+                            Qt.WindowType.WindowStaysOnTopHint)
+        self.move(pos)
+        self.resize(480, 560)
+        self.show()
+        self._dock_btn.setChecked(False)
+        self._docked = False
+
+    def closeEvent(self, event): #vers 1
+        self._save_settings()
+        super().closeEvent(event)
+
 
     # ── Open in canvas ────────────────────────────────────────────────────────
 
