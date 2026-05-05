@@ -550,7 +550,7 @@ class TXDDumpDialog(QDialog): #vers 1
 
         def _parse_txd_data(data):
             try:
-                from apps.components.Model_Editor.model_workshop import ModelWorkshop
+                from apps.components.Mdl_Editor.mdl_workshop import MDLWorkshop as ModelWorkshop
                 from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
                 parser = getattr(ModelWorkshop,'_txd_parser_cache',None)
                 if parser is None:
@@ -2250,7 +2250,7 @@ class DATBrowserWidget(QWidget): #vers 2
             return
 
         # Open Model Workshop with DFF
-        from apps.components.Model_Editor.model_workshop import open_model_workshop
+        from apps.components.Mdl_Editor.mdl_workshop import open_model_workshop
         workshop = open_model_workshop(mw, dff_tmp)
 
         # Also load TXD if found
@@ -2519,7 +2519,7 @@ class DATBrowserWidget(QWidget): #vers 2
         dff_tmp = self._extract_entry_to_temp(dff_img, model_name + '.dff')
         if not dff_tmp:
             return
-        from apps.components.Model_Editor.model_workshop import open_model_workshop
+        from apps.components.Mdl_Editor.mdl_workshop import open_model_workshop
         mw = self.main_window
         workshop = open_model_workshop(mw, dff_tmp)
         if workshop and txd_img:
