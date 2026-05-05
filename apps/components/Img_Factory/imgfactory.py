@@ -1522,7 +1522,7 @@ class IMGFactory(QMainWindow):
     def open_model_workshop_docked(self, dff_name=None, file_path=None): #vers 1
         """Open Model Workshop in its own tab with icon"""
         try:
-            from apps.components.Model_Editor.model_workshop import open_model_workshop
+            from apps.components.Mdl_Editor.mdl_workshop import open_model_workshop
             if file_path:
                 open_model_workshop(self, file_path)
             elif dff_name and hasattr(self, 'current_img') and self.current_img:
@@ -3451,7 +3451,7 @@ class IMGFactory(QMainWindow):
                 return
 
             # Check if this tab contains an embedded Model Workshop
-            from apps.components.Model_Editor.model_workshop import ModelWorkshop
+            from apps.components.Mdl_Editor.mdl_workshop import MDLWorkshop as ModelWorkshop
             model_workshops = current_tab.findChildren(ModelWorkshop)
             if model_workshops:
                 workshop = model_workshops[0]
@@ -6051,7 +6051,7 @@ class IMGFactory(QMainWindow):
     def open_dff_editor(self): #vers 1
         """Open Model Workshop for DFF editing."""
         try:
-            from apps.components.Model_Editor.model_workshop import open_model_workshop
+            from apps.components.Mdl_Editor.mdl_workshop import open_model_workshop
             open_model_workshop(self)
         except Exception as e:
             self.log_message(f"Model Workshop error: {e}")
