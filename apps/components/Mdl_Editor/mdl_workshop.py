@@ -168,7 +168,7 @@ except ImportError:
 
 # Temporary 3D viewport placeholder
 class COL3DViewport(QWidget): #vers 2
-    """COL preview viewport.
+    """MDL/DFF preview viewport.
     Left-drag = pan, Right-drag = free rotate, Scroll = zoom, Middle = pan.
     G key / button = translate gizmo, R key / button = rotate gizmo.
     """
@@ -1736,11 +1736,11 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         # File
         fm = parent_menu.addMenu("File")
         fm.addAction("Open COL…",        self._open_file)
-        fm.addAction("Save COL",         self._save_file)
-        fm.addAction("Save COL As…",     self._save_file_as)
+        fm.addAction("Save File",         self._save_file)
+        fm.addAction("Save File As…",     self._save_file_as)
         fm.addSeparator()
         fm.addAction("Import COL…",      self._import_col_data)
-        fm.addAction("Export COL…",      self._export_col_data)
+        fm.addAction("Export COL/DFF…",   self._export_col_data)
 
         # Edit
         em = parent_menu.addMenu("Edit")
@@ -2725,9 +2725,9 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Mark COL file for compressed output (sets flags on export)."""
         from PyQt6.QtWidgets import QMessageBox
         if not self.current_col_file:
-            QMessageBox.warning(self, "No File", "No COL file loaded.")
+            QMessageBox.warning(self, "No File", "No file loaded.")
             return
-        QMessageBox.information(self, "COL Compression",
+        QMessageBox.information(self, "Compression",
             "COL files do not use zlib/LZO compression internally.\n\n"
             "To reduce size: remove unused models, clear shadow meshes,\n"
             "or reduce vertex/face counts in the mesh editor.")
@@ -2736,7 +2736,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         """Reload COL file (parses fresh from disk, clears in-memory edits)."""
         from PyQt6.QtWidgets import QMessageBox
         if not self.current_col_file or not getattr(self, 'current_file_path', None):
-            QMessageBox.warning(self, "No File", "No COL file loaded.")
+            QMessageBox.warning(self, "No File", "No file loaded.")
             return
         reply = QMessageBox.question(self, "Reload File",
             "Reload from disk? Unsaved changes will be lost.",
@@ -2951,7 +2951,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
     def _update_status_indicators(self): #vers 2
         """Update status indicators"""
         if hasattr(self, 'status_collision'):
-            self.status_textures.setText(f"collision: {len(self.collision_list)}")
+            self.status_textures.setText(f"models: {len(self.collision_list)}")
 
         if hasattr(self, 'status_selected'):
             if self.selected_texture:
@@ -2963,9 +2963,9 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if hasattr(self, 'status_size'):
             if self.current_txd_data:
                 size_kb = len(self.current_col_data) / 1024
-                self.status_size.setText(f"COL Size: {size_kb:.1f} KB")
+                self.status_size.setText(f"File Size: {size_kb:.1f} KB")
             else:
-                self.status_size.setText("COL Size: Unknown")
+                self.status_size.setText("File Size: Unknown")
 
         if hasattr(self, 'status_modified'):
             if self.windowTitle().endswith("*"):
@@ -5477,7 +5477,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.format_combo.currentTextChanged.connect(self._change_format)
         self.format_combo.setMaximumWidth(100)
         self.format_combo.setVisible(False)   # shown only when COL is loaded
-        self.format_combo.setToolTip("COL export format — only relevant when exporting collision")
+        self.format_combo.setToolTip("Export format — COL/DFF/OBJ")
         fmt_lay.addWidget(self.format_combo)
         fmt_lay.addStretch()
 
@@ -6409,7 +6409,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         format_combo.addItems(["COL", "COL2", "COL3", "CST", "3DS"])
         format_combo.setCurrentText(getattr(self, 'default_export_format', 'COL'))
         format_layout.addWidget(format_combo)
-        format_hint = QLabel("COL recommended for GTAIII/VC, COL2 for SA")
+        format_hint = QLabel("COL recommended for GTA III/VC, COL2 for SA (collision export)")
         format_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         format_layout.addWidget(format_hint)
 
@@ -7156,7 +7156,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             hdr = getattr(self, '_col_models_header', None)
             if hdr:
                 n = self.col_compact_list.rowCount()
-                hdr.setText(f"COL Models  ({n})" if n else "Models")
+                hdr.setText(f"Models  ({n})" if n else "Models")
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
@@ -7513,7 +7513,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         from apps.methods.col_workshop_writer import save_col_file
 
         if not self.current_col_file:
-            QMessageBox.warning(self, "Export", "No COL file loaded.")
+            QMessageBox.warning(self, "Export", "No file loaded.")
             return
         models = getattr(self.current_col_file, 'models', [])
         if not models:
@@ -7850,7 +7850,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             return True
         except Exception as e:
             if mw and hasattr(mw, 'log_message'):
-                mw.log_message(f"COL DB lookup error: {e}")
+                mw.log_message(f"IDE DB lookup error: {e}")
             return False
 
     def _pick_col_from_current_img(self): #vers 1
@@ -10391,7 +10391,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
                         f"{sum(len(g.vertices) for g in geoms if hasattr(g,'vertices'))} verts  "
                         f"→ {os.path.basename(tmp_path)}")
             else:
-                QMessageBox.information(self, "COL Created",
+                QMessageBox.information(self, "Model Created",
                     f"COL file written to:\n{tmp_path}\n\n"
                     f"{len(col_blobs)} model(s) from DFF geometry.")
 
@@ -10401,7 +10401,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         except Exception as e:
             import traceback; traceback.print_exc()
-            QMessageBox.critical(self, "COL Error",
+            QMessageBox.critical(self, "Model Error",
                 f"Failed to create COL from DFF:\n{e}")
 
     def _create_primitive_dialog(self): #vers 1
@@ -10733,7 +10733,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         col_version = QComboBox()
         col_version.addItems(["COL 1 (GTA III/VC)", "COL 2 (GTA SA)", "COL 3 (GTA SA extended)"])
         col_version.setCurrentIndex(1)
-        opts_row.addWidget(QLabel("COL version:")); opts_row.addWidget(col_version)
+        opts_row.addWidget(QLabel("COL format:")); opts_row.addWidget(col_version)
         use_mesh = QCheckBox("Include mesh faces")
         use_mesh.setChecked(True)
         opts_row.addWidget(use_mesh)
@@ -13916,7 +13916,7 @@ class ZoomablePreview(QLabel): #vers 2
         else:
             # Fallback - just show text for now
             name = getattr(self.current_model, 'name', 'Unknown')
-            self.setText(f"Collision Model: {name}\n\nRendering...")
+            self.setText(f"{name}\n\nRendering...")
             return
 
         self._update_scaled_pixmap()
@@ -14243,7 +14243,7 @@ class MDLEditorDialog(QDialog): #vers 3
             self.status_bar.showMessage(f"Loaded: {os.path.basename(file_path)} ({model_count} models)")
             self.progress_bar.setVisible(False)
 
-            self.setWindowTitle(f"COL Editor - {os.path.basename(file_path)}")
+            self.setWindowTitle(f"MDL Workshop - {os.path.basename(file_path)}")
             self.is_modified = False
 
             print(f"COL file loaded: {file_path}")
@@ -14684,7 +14684,7 @@ def open_col_editor(parent=None, file_path: str = None) -> MDLEditorDialog: #ver
     except Exception as e:
         print(f"Error opening COL editor: {str(e)}")
         if parent:
-            QMessageBox.critical(parent, "COL Editor Error", f"Failed to open COL editor:\n{str(e)}")
+            QMessageBox.critical(parent, "MDL Workshop Error", f"Failed to open COL editor:\n{str(e)}")
         return None
 
 
