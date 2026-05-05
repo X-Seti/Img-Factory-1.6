@@ -1001,7 +1001,7 @@ class DATBrowserWidget(QWidget): #vers 2
             lambda pos, tbl=t: self._table_context_menu(tbl, pos))
         # Double-click on Objects (IDE) table → open in Model Workshop
         t.cellDoubleClicked.connect(
-            lambda row, col, tbl=t: self._on_ide_row_double_click(tbl, row))
+            lambda row, col, tbl=t: self._on_ide_cell_double_click(tbl, row, col))
         t.viewport().setAutoFillBackground(True)
         return t
 
@@ -2155,6 +2155,43 @@ class DATBrowserWidget(QWidget): #vers 2
             if hasattr(mw, 'log_message'):
                 mw.log_message(f"IMG open error: {e}")
 
+    def _on_ide_cell_double_click(self, table, row, col): #vers 1
+        """Route double-click to the right workshop based on column.
+        Col 0 (ID)       → Model Workshop (DFF + TXD)
+        Col 1 (Model)    → Model Workshop (DFF + TXD)
+        Col 2 (TXD)      → TXD Workshop only
+        Col 3-7 (others) → Model Workshop (DFF + TXD)
+        """
+        if col == 2:
+            # TXD column — open just the TXD in TXD Workshop
+            self._open_txd_only_from_row(table, row)
+        else:
+            # Any other column — open Model Workshop with DFF + TXD
+            self._on_ide_row_double_click(table, row)
+
+    def _open_txd_only_from_row(self, table, row): #vers 1
+        """Open TXD Workshop for the TXD referenced by this IDE row."""
+        txd_name = table.item(row, 2).text().strip() if table.item(row, 2) else ''
+        found    = self._get_row_xref(table, row)
+        txd_img  = found.get('txd')
+        txd_stem = (found.get('txd_name') or txd_name).lower()
+        mw = self.main_window
+        if not txd_img:
+            if mw and hasattr(mw, 'log_message'):
+                mw.log_message(f"TXD not found: {txd_stem}.txd")
+            return
+        txd_tmp = self._extract_entry_to_temp(txd_img, txd_stem + '.txd')
+        if not txd_tmp:
+            return
+        try:
+            from apps.components.Txd_Editor.txd_workshop import open_txd_workshop
+            open_txd_workshop(mw, txd_tmp)
+            self._log(f"TXD Workshop: {txd_stem}.txd")
+        except ImportError:
+            # Fallback: open in Model Workshop texture panel
+            self._open_model_workshop_for_row(table, row)
+            self._log(f"TXD Workshop not available — opened in Model Workshop")
+
     def _on_ide_row_double_click(self, table, row): #vers 1
         """Double-click on an IDE Objects row → open DFF + TXD in Model Workshop.
         Uses the XRef to find model_name.dff and txd_name.txd in the IMG archives."""
@@ -2325,15 +2362,22 @@ class DATBrowserWidget(QWidget): #vers 2
 
         menu = QMenu(self)
 
-        # ── Model Workshop ──────────────────────────────────────────────────
+        # ── Show / open ─────────────────────────────────────────────────────
         if is_ide_table:
-            open_mw_act    = menu.addAction(f"Open in Model Workshop  [{model_name}.dff]")
-            export_dff_act = menu.addAction(f"Export DFF…  [{model_name}.dff]")
-            replace_dff_act= menu.addAction(f"Replace DFF…  [{model_name}.dff]")
-            rename_act     = menu.addAction(f"Rename model…  [{model_name}]")
+            show_mw_act  = menu.addAction(f"⏎  Show in Model Workshop  [{model_name}]")
+            if txd_name and txd_name not in ('', '—', 'null'):
+                show_txd_act = menu.addAction(f"⏎  Show in TXD Workshop  [{txd_name}]")
+            else:
+                show_txd_act = None
             menu.addSeparator()
 
-            # ── Texture ─────────────────────────────────────────────────────
+            # ── DFF ─────────────────────────────────────────────────────────
+            export_dff_act  = menu.addAction(f"Export DFF…  [{model_name}.dff]")
+            replace_dff_act = menu.addAction(f"Replace DFF…  [{model_name}.dff]")
+            rename_act      = menu.addAction(f"Rename model…  [{model_name}]")
+            menu.addSeparator()
+
+            # ── TXD ─────────────────────────────────────────────────────────
             if txd_name and txd_name not in ('', '—', 'null'):
                 open_txd_act    = menu.addAction(f"Open in TXD Workshop  [{txd_name}.txd]")
                 export_txd_act  = menu.addAction(f"Export TXD…  [{txd_name}.txd]")
@@ -2347,19 +2391,18 @@ class DATBrowserWidget(QWidget): #vers 2
             flags_act = menu.addAction("Edit flags…")
             txdn_act  = menu.addAction("Edit TXD name…")
             add_act   = menu.addAction("Add new IDE entry…")
-            if multi:
-                del_act = menu.addAction(f"Delete {len(sel_rows)} selected entries")
-            else:
-                del_act = menu.addAction("Delete entry")
+            del_act   = menu.addAction(
+                f"Delete {len(sel_rows)} selected entries" if multi else "Delete entry")
             menu.addSeparator()
 
             # ── ID tools ────────────────────────────────────────────────────
-            copy_id_act   = menu.addAction(f"Copy ID  [{model_id}]")
-            scan_ids_act  = menu.addAction("Scan free IDs (0–32767)…")
+            copy_id_act  = menu.addAction(f"Copy ID  [{model_id}]")
+            scan_ids_act = menu.addAction("Scan free IDs (0–32767)…")
             menu.addSeparator()
 
         else:
-            open_mw_act = export_dff_act = replace_dff_act = rename_act = None
+            show_mw_act = show_txd_act = None
+            export_dff_act = replace_dff_act = rename_act = None
             open_txd_act = export_txd_act = replace_txd_act = None
             dd_act = flags_act = txdn_act = add_act = del_act = None
             copy_id_act = scan_ids_act = None
@@ -2371,11 +2414,8 @@ class DATBrowserWidget(QWidget): #vers 2
         find_inst_act = menu.addAction("Find all instances of this model")
         if is_ide_table:
             menu.addSeparator()
-            if multi:
-                dump_sel_act = menu.addAction(
-                    f"Extract TXDs for {len(sel_rows)} selected rows…")
-            else:
-                dump_sel_act = None
+            dump_sel_act = menu.addAction(
+                f"Extract TXDs for {len(sel_rows)} selected rows…") if multi else None
             dump_all_act = menu.addAction("Dump ALL game TXDs to folder…")
         else:
             dump_sel_act = dump_all_act = None
@@ -2385,9 +2425,12 @@ class DATBrowserWidget(QWidget): #vers 2
         if not chosen:
             return
 
-        # Model Workshop actions
-        if chosen == open_mw_act:
+        # Show / open
+        if chosen == show_mw_act:
             self._open_model_workshop_for_row(table, row)
+        elif show_txd_act and chosen == show_txd_act:
+            self._open_txd_only_from_row(table, row)
+        # DFF actions
         elif chosen == export_dff_act:
             self._export_dff_from_row(table, row)
         elif chosen == replace_dff_act:
@@ -2395,11 +2438,11 @@ class DATBrowserWidget(QWidget): #vers 2
         elif chosen == rename_act:
             self._rename_ide_model(table, row)
         # TXD actions
-        elif chosen == open_txd_act:
-            self._open_txd_from_row(table, row)
-        elif chosen == export_txd_act:
+        elif open_txd_act and chosen == open_txd_act:
+            self._open_txd_only_from_row(table, row)
+        elif export_txd_act and chosen == export_txd_act:
             self._export_txd_from_row(table, row)
-        elif chosen == replace_txd_act:
+        elif replace_txd_act and chosen == replace_txd_act:
             self._replace_txd_in_img(table, row)
         # IDE edit actions
         elif chosen == dd_act:
