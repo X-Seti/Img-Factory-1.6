@@ -3181,7 +3181,9 @@ class AppPanelEffect: #vers 1
         if effect == 'none' or not effect:
             return
 
-        p = QPainter(widget)
+        p = QPainter()
+        if not p.begin(widget):
+            return   # widget not paintable right now — skip silently
         p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         r = widget.rect()
 
@@ -3195,7 +3197,8 @@ class AppPanelEffect: #vers 1
         except Exception:
             pass
         finally:
-            p.end()
+            if p.isActive():
+                p.end()
 
     @staticmethod
     def _paint_fill(p, r, cs): #vers 2
@@ -3355,7 +3358,9 @@ class PanelPreviewWidget(QWidget): #vers 1
         from PyQt6.QtGui import (QPainter, QColor, QLinearGradient,
                                   QPen, QBrush, QImage, QPixmap)
         from PyQt6.QtCore import QRectF, Qt, QPointF
-        p = QPainter(self)
+        p = QPainter()
+        if not p.begin(self):
+            return
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = self.rect()
         cs = self._get_colours()
@@ -3383,7 +3388,8 @@ class PanelPreviewWidget(QWidget): #vers 1
         p.setPen(QPen(QColor("#555555"), 1))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRect(r.adjusted(0, 0, -1, -1))
-        p.end()
+        if p.isActive():
+            p.end()
 
     def _c(self, key, default="#1a1a2e"):
         return self._dlg.app_settings.current_settings.get(key, default)
