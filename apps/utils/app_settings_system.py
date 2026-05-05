@@ -3198,11 +3198,19 @@ class AppPanelEffect: #vers 1
             p.end()
 
     @staticmethod
-    def _paint_fill(p, r, cs): #vers 1
+    def _paint_fill(p, r, cs): #vers 2
         from PyQt6.QtGui import QColor, QLinearGradient
         from PyQt6.QtCore import QPointF
         ca = QColor(cs.get('panel_fill_a', '#1a1a2e'))
         cb = QColor(cs.get('panel_fill_b', '#16213e'))
+
+        # If the theme is light but fill colours are dark, use panel_bg instead
+        panel_bg = cs.get('panel_bg') or cs.get('bg_primary', '')
+        if panel_bg:
+            theme_col = QColor(panel_bg)
+            if theme_col.lightness() > 128 and ca.lightness() < 64:
+                ca = cb = theme_col
+
         d  = cs.get('panel_fill_dir', 0)
         if d == 0:
             p.fillRect(r, ca)
@@ -3221,12 +3229,20 @@ class AppPanelEffect: #vers 1
         p.fillRect(r, g)
 
     @staticmethod
-    def _paint_gradient(p, r, cs): #vers 1
+    def _paint_gradient(p, r, cs): #vers 2
         from PyQt6.QtGui import QColor, QLinearGradient
         from PyQt6.QtCore import QPointF
         s1 = QColor(cs.get('panel_grad_stop1', '#1a1a2e'))
         s2 = QColor(cs.get('panel_grad_stop2', '#2d1b4e'))
         s3 = QColor(cs.get('panel_grad_stop3', '#16213e'))
+
+        # Light theme guard — if stops are dark but theme is light, use panel_bg
+        panel_bg = cs.get('panel_bg') or cs.get('bg_primary', '')
+        if panel_bg:
+            theme_col = QColor(panel_bg)
+            if theme_col.lightness() > 128 and s1.lightness() < 64:
+                s1 = s2 = s3 = theme_col
+
         d  = cs.get('panel_grad_dir', 1)
         pts = {
             0: (QPointF(r.left(), r.top()),    QPointF(r.right(), r.top())),
@@ -3377,6 +3393,12 @@ class PanelPreviewWidget(QWidget): #vers 1
         from PyQt6.QtCore import QPointF
         ca = QColor(cs.get("panel_fill_a", "#1a1a2e"))
         cb = QColor(cs.get("panel_fill_b", "#16213e"))
+        # Light theme guard
+        panel_bg = cs.get('panel_bg') or cs.get('bg_primary', '')
+        if panel_bg:
+            tc = QColor(panel_bg)
+            if tc.lightness() > 128 and ca.lightness() < 64:
+                ca = cb = tc
         d  = cs.get("panel_fill_dir", 0)
         if d == 0:
             p.fillRect(r, ca)
