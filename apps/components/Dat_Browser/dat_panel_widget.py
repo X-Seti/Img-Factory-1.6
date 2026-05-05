@@ -417,7 +417,7 @@ class DATPanel(QWidget): #vers 1
             t.setItem(r, 0, QTableWidgetItem(str(obj.model_id)))
             t.setItem(r, 1, QTableWidgetItem(obj.model_name))
             t.setItem(r, 2, QTableWidgetItem(obj.txd_name or ''))
-            t.setItem(r, 3, QTableWidgetItem(getattr(obj, 'object_type', '')))
+            t.setItem(r, 3, QTableWidgetItem(getattr(obj, 'obj_type', '')))
             t.setItem(r, 4, QTableWidgetItem(getattr(obj, 'source_ide', '')))
         t.setSortingEnabled(True)
 
@@ -459,8 +459,42 @@ class DATPanel(QWidget): #vers 1
             t.setItem(r, 3, QTableWidgetItem("✓" if ok else "✗"))
         t.setSortingEnabled(True)
 
-    def _on_tree_click(self, item, col): #vers 1
-        pass  # future: filter tables to selected dat file
+    def _on_tree_click(self, item, col): #vers 2
+        """Filter IDE/IPL tables to show only entries from the clicked file."""
+        bname      = item.text(0).strip()
+        entry_type = item.text(1).strip()
+
+        if entry_type == 'IDE':
+            t = self._obj_table
+            t.setSortingEnabled(False)
+            t.setRowCount(0)
+            for obj in self._loader.objects.values():
+                if getattr(obj, 'source_ide', '') != bname:
+                    continue
+                r = t.rowCount()
+                t.insertRow(r)
+                t.setItem(r, 0, QTableWidgetItem(str(obj.model_id)))
+                t.setItem(r, 1, QTableWidgetItem(obj.model_name))
+                t.setItem(r, 2, QTableWidgetItem(obj.txd_name or ''))
+                t.setItem(r, 3, QTableWidgetItem(getattr(obj, 'obj_type', '')))
+                t.setItem(r, 4, QTableWidgetItem(bname))
+            t.setSortingEnabled(True)
+
+        elif entry_type == 'IPL':
+            t = self._ipl_table
+            t.setSortingEnabled(False)
+            t.setRowCount(0)
+            for inst in self._loader.instances:
+                if getattr(inst, 'source_ipl', '') != bname:
+                    continue
+                r = t.rowCount()
+                t.insertRow(r)
+                t.setItem(r, 0, QTableWidgetItem(getattr(inst, 'model_name', '')))
+                pos = getattr(inst, 'position', None)
+                if pos:
+                    for i, v in enumerate(pos[:3]):
+                        t.setItem(r, 1+i, QTableWidgetItem(f"{v:.2f}"))
+            t.setSortingEnabled(True)
 
     def _apply_filter(self, text): #vers 1
         t = self._obj_table
