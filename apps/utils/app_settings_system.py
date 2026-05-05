@@ -1883,14 +1883,24 @@ class AppSettings:
         grid = colors.get('grid', '#e0e0e0')
 
         # System ui - overrides
-        window_bg = colors.get('window_bg', bg_primary)
-        window_text = colors.get('window_text', text_primary)
-        base = colors.get('base', bg_primary)
-        alternate_base = colors.get('alternate_base', bg_secondary)
-        tooltip_bg = colors.get('tooltip_bg', bg_secondary)
-        tooltip_text = colors.get('tooltip_text', text_primary)
-        placeholder_text = colors.get('placeholder_text', '#aaaaaa')
-        disabled_text = colors.get('disabled_text', '#777777')
+        # Derive sensible defaults from bg_primary so light themes stay light
+        from PyQt6.QtGui import QColor as _QC
+        _is_light = _QC(bg_primary).lightness() > 128
+        window_bg = colors.get('window_bg') or bg_primary
+        # If saved window_bg is dark but theme is light, override with bg_primary
+        if _is_light and _QC(window_bg).lightness() < 64:
+            window_bg = bg_primary
+        window_text = colors.get('window_text') or text_primary
+        base = colors.get('base') or bg_primary
+        if _is_light and _QC(base).lightness() < 64:
+            base = bg_primary
+        alternate_base = colors.get('alternate_base') or bg_secondary
+        if _is_light and _QC(alternate_base).lightness() < 64:
+            alternate_base = bg_secondary
+        tooltip_bg = colors.get('tooltip_bg') or bg_secondary
+        tooltip_text = colors.get('tooltip_text') or text_primary
+        placeholder_text = colors.get('placeholder_text', '#888888' if _is_light else '#aaaaaa')
+        disabled_text = colors.get('disabled_text', '#999999' if _is_light else '#777777')
 
         # Additional colors
         success = colors.get('success', '#4caf50')

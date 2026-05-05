@@ -5095,12 +5095,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self.size_grip.move(self.width() - 20, self.height() - 20)
         self._update_transform_text_panel_visibility()
         self._update_tex_btn_compact()
-        # Auto icon-only for middle button row when window is narrow
+        # Auto icon-only for middle button row when middle panel is narrow
         try:
             from apps.methods.imgfactory_ui_settings import apply_compact_buttons
             mid_btns = getattr(self, '_mid_compact_btns', [])
             if mid_btns:
-                apply_compact_buttons(mid_btns, self.width(), compact_threshold=700)
+                # Use middle panel width, not total workshop width
+                mid_row = getattr(self, '_middle_btn_row', None)
+                mid_w = mid_row.parent().width() if (mid_row and mid_row.parent()) else self.width()
+                apply_compact_buttons(mid_btns, mid_w, compact_threshold=320)
         except Exception:
             pass
 
