@@ -1767,8 +1767,6 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         self.undo_stack = []
         self.button_display_mode = 'both'
-        self.icon_display_mode = 'icons_and_text'  # 'icons_and_text'|'icons_only'|'text_only'
-        self._col_compact_btns = []   # list of (widget, full_label) for adaptive display
         self.last_save_directory = None
         # Thumbnail spin animation state
         self._spin_timer  = None
@@ -1806,6 +1804,15 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.app_settings.theme_changed.connect(self._refresh_icons)
             self.app_settings.theme_changed.connect(self._on_theme_changed)
 
+        # Load persisted texlist folder path
+        self._texlist_folder = ''
+        self._load_texlist_setting()
+
+        # IDE database (lazy — populated on first lookup)
+        self._ide_db        = None
+        self._ide_db_root   = ''
+        self._source_img_path = ''
+
         self._show_boxes = True
         self._show_mesh = True
 
@@ -1813,8 +1820,8 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._overlay_opacity = 50
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
-
-        self.background_color = self._get_ui_color('viewport_bg')
+        _win = self.palette().color(self.palette().ColorRole.Window)
+        #self.background_color = self._get_ui_color('viewport_bg') #crashes app
 
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
@@ -1849,6 +1856,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if parent:
             parent_pos = parent.pos()
             self.move(parent_pos.x() + 50, parent_pos.y() + 80)
+
 
         # Paint toolbar attrs — set by _create_paint_bar() called from _create_right_panel
         self.paint_toolbar   = None
@@ -2052,20 +2060,27 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
     def _open_surface_type_dialog(self): #vers 1
         """Show surface material type picker for selected model."""
         rows = self.collision_list.selectionModel().selectedRows()
+
         if not rows or not self.current_col_file: return
         row = rows[0].row()
         item = self.collision_list.item(row, 1)
+
         if not item: return
         idx = item.data(Qt.ItemDataRole.UserRole)
+
         if idx is None: return
         model = self.current_col_file.models[idx]
-        types = {0:"Default",1:"Tarmac",2:"Gravel",3:"Grass",4:"Sand",5:"Water",
-                 6:"Metal",7:"Wood",8:"Concrete",63:"Obstacle"}
+        types = {0:"Default",1:"Tarmac",2:"Gravel",3:"Grass",4:"Sand",5:"Water", 6:"Metal",7:"Wood",8:"Concrete",63:"Obstacle"}
+
+        # FUTURE: Add material surface support for GTA3/VC/SA COL export via _dff_to_col_surfaces
+
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QDialogButtonBox
         dlg = QDialog(self); dlg.setWindowTitle(f"Surface Type — {model.name}")
         lay = QVBoxLayout(dlg)
         lst = QListWidget()
+
         for k,v in types.items(): lst.addItem(f"{k:3d}  {v}")
+
         lay.addWidget(lst)
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
@@ -2083,18 +2098,29 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         pw.update()
 
 
-    def _open_paint_editor(self): #vers 4
-        """Enter paint mode immediately — no dialog.
-        All material selection happens in the viewport overlay."""
+    def _open_paint_editor(self): #vers 5
+        """Enter paint mode — works on DFF model materials or COL faces.
+        When a DFF is loaded, opens the Material List for texture painting.
+        When a COL is loaded, enters face-paint mode for surface types."""
+        vp = getattr(self, 'preview_widget', None)
+
+        # DFF mode: open material list dialog for texture assignment
+        dff = getattr(self, '_current_dff_model', None)
+        if dff is not None:
+            self._open_dff_material_list()
+            return
+
+        # COL mode: enter face-paint mode
         if not self.current_col_file:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "No File", "Load a COL file first.")
+            QMessageBox.information(self, "No Model",
+                "Load a DFF or COL file first.")
             return
         model = self._get_selected_model()
         if model is None:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No Model Selected",
-                "Select a model in the list first.")
+                "Select a collision model in the list first.")
             return
         if not getattr(model, 'faces', []):
             from PyQt6.QtWidgets import QMessageBox
@@ -2102,11 +2128,10 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 f"'{model.name}' has no mesh faces to paint.")
             return
 
-        vp = getattr(self, 'preview_widget', None)
         if not vp:
             return
 
-        models  = getattr(self.current_col_file, 'models', [])
+        models    = getattr(self.current_col_file, 'models', [])
         model_idx = models.index(model) if model in models else -1
 
         # Use last active mat or default 0
@@ -2118,7 +2143,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Cache the full material list for this model's version
         try:
-            from apps.methods.col_materials import get_materials_for_version, COLGame
+            from apps.components.Model_Editor.depends.col_materials import get_materials_for_version, COLGame
             ver     = getattr(getattr(model,'version',None),'value',3) if model else 3
             game    = COLGame.VC if ver == 1 else COLGame.SA
             self._paint_mat_list = get_materials_for_version(game, include_procedural=True)
@@ -2143,10 +2168,10 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             except: pass
             btn.clicked.connect(self._exit_paint_mode)
             btn.setText("[ ] Exit Paint")
-            btn.setStyleSheet("color:palette(link); font-weight:bold;")
+            btn.setStyleSheet("color: palette(windowText); font-weight:bold;")
 
         self._set_status(
-            "Paint mode — click faces to paint | change material  "
+            "Paint mode - click faces to paint  |  ◀▶ change material  "
             "|  Shift+drag to select  |  Esc to exit")
 
 
@@ -4252,7 +4277,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 # - Panel Setup
 
     def _create_toolbar(self): #vers 13
-        """Create toolbar - FIXED: Hide drag button when docked, ensure buttons visible"""
+        """Create toolbar - Hide drag button when docked, ensure buttons visible"""
         # Read sizes from app_settings so they match Global App System Settings
         try:
             from apps.utils.app_settings_system import get_titlebar_sizes as _gts
@@ -4318,7 +4343,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.open_img_btn.setIcon(self.icon_factory.folder_icon(color=icon_color))
             self.open_img_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
             self.open_img_btn.clicked.connect(self.open_img_archive)
-            self.open_img_btn.setToolTip("Open an IMG archive and browse its COL entries")
+            self.open_img_btn.setToolTip("Open an IMG archive and browse its DFF/COL entries")
             layout.addWidget(self.open_img_btn)
 
             # "From IMG" — pick a COL entry from the currently loaded IMG in IMG Factory
@@ -4327,7 +4352,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.from_img_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
             self.from_img_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
             self.from_img_btn.clicked.connect(self._pick_col_from_current_img)
-            self.from_img_btn.setToolTip("Pick a COL entry from the currently loaded IMG")
+            self.from_img_btn.setToolTip("Pick a DFF/COL entry from the currently loaded IMG")
             layout.addWidget(self.from_img_btn)
 
         # Open button
@@ -4339,9 +4364,34 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.open_btn.setShortcut("Ctrl+O")
         if self.button_display_mode == 'icons':
             self.open_btn.setFixedSize(40, 40)
-        self.open_btn.setToolTip("Open COL file (Ctrl+O)")
+        self.open_btn.setToolTip("Open DFF or COL model file (Ctrl+O)")
         self.open_btn.clicked.connect(self._open_file)
         layout.addWidget(self.open_btn)
+
+        # Open DFF (standalone — skips COL filter)
+        self.open_dff_btn = QPushButton()
+        self.open_dff_btn.setFont(self.button_font)
+        self.open_dff_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.open_dff_btn.setText("DFF/ TXD")
+        self.open_dff_btn.setIconSize(QSize(20, 20))
+        self.open_dff_btn.setToolTip("Open a DFF model file directly (Ctrl+D)")
+        self.open_dff_btn.setShortcut("Ctrl+D")
+        self.open_dff_btn.clicked.connect(self._open_dff_standalone)
+        layout.addWidget(self.open_dff_btn)
+
+        # Open TXD button — loads TXD for the current DFF, or browses for one
+        self.open_txd_btn = QPushButton()
+        self.open_txd_btn.setFont(self.button_font)
+        self.open_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.open_txd_btn.setText("TXD")
+        self.open_txd_btn.setIconSize(QSize(20, 20))
+        self.open_txd_btn.setToolTip(
+            "Open TXD for current DFF model (Ctrl+T)\n"
+            "If IDE link is known, auto-finds TXD from open IMGs.\n"
+            "Hold Shift to always browse for a file.")
+        self.open_txd_btn.setShortcut("Ctrl+T")
+        self.open_txd_btn.clicked.connect(self._open_txd_combined)
+        layout.addWidget(self.open_txd_btn)
 
         # Save button
         self.save_btn = QPushButton()
@@ -4353,7 +4403,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if self.button_display_mode == 'icons':
             self.save_btn.setFixedSize(40, 40)
         self.save_btn.setEnabled(True)
-        self.save_btn.setToolTip("Save COL file (Ctrl+S)")
+        self.save_btn.setToolTip("Export/save model (Ctrl+S)")
         self.save_btn.clicked.connect(self._save_file)
         layout.addWidget(self.save_btn)
 
@@ -4367,47 +4417,37 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if self.button_display_mode == 'icons':
             self.saveall_btn.setFixedSize(40, 40)
         self.saveall_btn.setEnabled(True)
-        self.saveall_btn.setToolTip("Save COL file (Ctrl+S)")
+        self.saveall_btn.setToolTip("Export/save model (Ctrl+S)")
         self.saveall_btn.clicked.connect(self._saveall_file)
         #layout.addWidget(self.saveall_btn)
 
-        self.export_all_btn = QPushButton("Extract")
-        self.export_all_btn.setFont(self.button_font)
-        self.export_all_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
-        self.export_all_btn.setIconSize(QSize(20, 20))
-        self.export_all_btn.setToolTip("Export all as col, cst or 3ds files")
-        self.export_all_btn.clicked.connect(self.export_all)
-        self.export_all_btn.setEnabled(True)
-        layout.addWidget(self.export_all_btn)
+        self.export_ojs_btn = QPushButton("Ojs/ Col")
+        self.export_ojs_btn.setFont(self.button_font)
+        self.export_ojs_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+        self.export_ojs_btn.setIconSize(QSize(20, 20))
+        self.export_ojs_btn.setToolTip("Export geometries as OBJ, COL, or other formats")
+        self.export_ojs_btn.clicked.connect(self.export_all)
+        self.export_ojs_btn.setEnabled(True)
+        layout.addWidget(self.export_ojs_btn)
+
+        self.export_tex_btn = QPushButton("Extract Tex")
+        self.export_tex_btn.setFont(self.button_font)
+        self.export_tex_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+        self.export_tex_btn.setIconSize(QSize(20, 20))
+        self.export_tex_btn.setToolTip("Export textures as png, tga, dss or other formats")
+        self.export_tex_btn.clicked.connect(self.export_all)
+        self.export_tex_btn.setEnabled(True)
+        layout.addWidget(self.export_tex_btn)
 
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
         self.undo_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
-        self.undo_btn.setText("Undo")
+        self.undo_btn.setText("")
         self.undo_btn.setIconSize(QSize(20, 20))
         self.undo_btn.clicked.connect(self._undo_last_action)
         self.undo_btn.setEnabled(True)
         self.undo_btn.setToolTip("Undo last change")
         layout.addWidget(self.undo_btn)
-
-        # Register compact-aware buttons (adaptive icon/text display)
-        self._col_compact_btns = [
-            (getattr(self, 'settings_btn',    None), "Settings"),
-            (getattr(self, 'open_btn',        None), "Open"),
-            (getattr(self, 'save_btn',        None), "Save"),
-            (getattr(self, 'export_all_btn',  None), "Extract"),
-            (getattr(self, 'undo_btn',        None), "Undo"),
-            (getattr(self, 'open_img_btn',    None), "OpenIMG"),
-            (getattr(self, 'from_img_btn',    None), "From IMG"),
-        ]
-        # Restore saved mode
-        try:
-            if self.main_window and hasattr(self.main_window, 'img_settings'):
-                saved = self.main_window.img_settings.get('col_icon_display_mode', 'icons_and_text')
-                self.icon_display_mode = saved
-                self._apply_col_btn_display()
-        except Exception:
-            pass
 
         # Info button
         self.info_btn = QPushButton("")
@@ -4453,7 +4493,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.tearoff_btn.setMaximumWidth(40)
             self.tearoff_btn.setMinimumHeight(30)
             self.tearoff_btn.clicked.connect(self._toggle_tearoff)
-            self.tearoff_btn.setToolTip("TXD Workshop - Tearoff window")
+            self.tearoff_btn.setToolTip(App_name + " Workshop - Tearoff window")
 
             layout.addWidget(self.tearoff_btn)
 
@@ -4492,29 +4532,27 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     #Left side vertical panel
     def _create_transform_icon_panel(self): #vers 13
-        """Icon grid panel — TXD Workshop pattern.
-        Returns DockableToolbar wrapping a QGridLayout frame."""
-        from apps.components.Col_Editor.dockable_toolbar import DockableToolbar
+        """Icon grid panel - DockableToolbar pattern (same as COL Workshop)."""
+        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
         from PyQt6.QtWidgets import QGridLayout
         icon_color = self._get_icon_color()
 
         icon_frame = QFrame()
         icon_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        # Pass parent to constructor so Qt C++ owns the layout (prevents GC)
         grid = QGridLayout(icon_frame)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(2)
-        icon_frame._grid = grid   # extra Python ref on the frame object
+        icon_frame._grid = grid
 
-        self._col_icon_grid    = icon_frame._grid
-        self._col_icon_buttons = []
-        self._col_icon_frame   = icon_frame
+        self._mod_icon_grid    = icon_frame._grid
+        self._mod_icon_buttons = []
+        self._mod_icon_frame   = icon_frame
 
         rp = getattr(self, '_right_panel_ref', None)
-        toolbar = DockableToolbar(rp or self, settings_key='col_left_toolbar')
-        toolbar.reflow_requested.connect(self._reflow_col_left_toolbar)
-        self._col_left_toolbar    = toolbar
-        self.transform_icon_panel = toolbar
+        toolbar = DockableToolbar(rp or self, settings_key='model_left_toolbar')
+        toolbar.reflow_requested.connect(self._reflow_mod_left_toolbar)
+        self._mod_left_toolbar         = toolbar
+        self.transform_icon_panel      = toolbar
         self._transform_icon_panel_ref = toolbar
 
         btn_height = 26
@@ -4524,7 +4562,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         def _add(btn):
             btn.setFixedSize(26, 26)
-            self._col_icon_buttons.append(btn)
+            self._mod_icon_buttons.append(btn)
             return btn
 
         layout = type('_FakeLayout', (), {
@@ -4664,53 +4702,170 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.addWidget(self.paint_btn)
         layout.addSpacing(spacer)
 
-        # Surface Type
+        # Material List (DFF) / Surface Types (COL)
         self.surface_type_btn = QPushButton()
         self.surface_type_btn.setIcon(self.icon_factory.checkerboard_icon(color=icon_color))
         self.surface_type_btn.setIconSize(icon_size)
         self.surface_type_btn.setFixedHeight(btn_height)
         self.surface_type_btn.setMinimumWidth(btn_width)
-        self.surface_type_btn.setToolTip("Surface types")
-        self.surface_type_btn.clicked.connect(self._open_surface_type_dialog)
+        self.surface_type_btn.setToolTip(
+            "Material Editor (DFF) — view all materials, textures, IDE info, swap TXD\n"
+            "Surface Types (COL) — paint collision surface materials")
+        self.surface_type_btn.clicked.connect(self._open_material_list_or_surface_types)
         layout.addWidget(self.surface_type_btn)
         layout.addSpacing(spacer)
 
-        # Surface Edit
-        self.surface_edit_btn = QPushButton()
-        self.surface_edit_btn.setIcon(self.icon_factory.surfaceedit_icon(color=icon_color))
-        self.surface_edit_btn.setIconSize(icon_size)
-        self.surface_edit_btn.setFixedHeight(btn_height)
-        self.surface_edit_btn.setMinimumWidth(btn_width)
-        self.surface_edit_btn.setToolTip("Surface Editor — edit mesh faces and vertices")
-        self.surface_edit_btn.clicked.connect(self._open_surface_edit_dialog)
-        layout.addWidget(self.surface_edit_btn)
-        layout.addSpacing(spacer)
+        # surface_edit_btn removed — unified Material Editor opened via surface_type_btn
+        self.surface_edit_btn = None  # kept as attr so _enable_dff_toolbar doesn't crash
 
-        # Build from TXD
+        # Create COL from DFF geometry
         self.build_from_txd_btn = QPushButton()
-        self.build_from_txd_btn.setIcon(self.icon_factory.build_icon(color=icon_color))
+        try:
+            self.build_from_txd_btn.setIcon(
+                self.icon_factory.col_from_dff_icon(color=icon_color))
+        except Exception:
+            self.build_from_txd_btn.setIcon(
+                self.icon_factory.build_icon(color=icon_color))
         self.build_from_txd_btn.setIconSize(icon_size)
         self.build_from_txd_btn.setFixedHeight(btn_height)
         self.build_from_txd_btn.setMinimumWidth(btn_width)
-        self.build_from_txd_btn.setToolTip("Create col surface from txd texture names")
-        self.build_from_txd_btn.clicked.connect(self._build_col_from_txd)
+        self.build_from_txd_btn.setToolTip(
+            "Create COL from DFF geometry\n"
+            "Generates a collision mesh from the loaded DFF model vertices")
+        self.build_from_txd_btn.clicked.connect(self._create_col_from_dff)
         layout.addWidget(self.build_from_txd_btn)
 
-        # Initial placement: 1 row (all cols) so grid is populated.
-        # forced_cols left as None so resize event auto-reflows to actual width.
-        n = len(self._col_icon_buttons)
-        for i in range(self._col_icon_grid.count()-1, -1, -1):
-            item = self._col_icon_grid.itemAt(i)
+        # - DFF-mode buttons (shown when DFF loaded, hidden for COL)
+        # Select mode buttons
+        def _sel_btn(attr, tip, mode, icon_fn_name):
+            b = QPushButton()
+            b.setFixedSize(btn_width, btn_height)
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.setIconSize(icon_size)
+            try:
+                b.setIcon(getattr(self.icon_factory, icon_fn_name)(color=icon_color))
+            except Exception:
+                b.setText(mode[0].upper())
+            b.clicked.connect(lambda _=False, m=mode: self._set_select_mode(m))
+            setattr(self, attr, b)
+            self._mod_icon_buttons.append(b)
+            return b
+
+        _sel_btn('_sel_vert_btn',  'Vertex select — click individual vertices',  'vertex', 'vertex_select_icon')
+        _sel_btn('_sel_edge_btn',  'Edge select — click edges between vertices',  'edge',   'edge_select_icon')
+        _sel_btn('_sel_face_btn',  'Face select — click individual triangles',    'face',   'face_select_icon')
+        _sel_btn('_sel_poly_btn',  'Polygon select — click connected face groups','poly',   'poly_select_icon')
+
+        # Backface cull toggle
+        self._backface_cull_btn = QPushButton()
+        self._backface_cull_btn.setFixedSize(btn_width, btn_height)
+        self._backface_cull_btn.setCheckable(True)
+        self._backface_cull_btn.setToolTip(
+            "Backface culling — ON: only front faces visible\n"
+            "Prevents accidentally selecting/painting faces behind geometry")
+        self._backface_cull_btn.setIconSize(icon_size)
+        try:
+            self._backface_cull_btn.setIcon(
+                self.icon_factory.backface_icon(color=icon_color))
+        except Exception:
+            self._backface_cull_btn.setText("BF")
+        self._backface_cull_btn.toggled.connect(
+            lambda v: self._toggle_backface_cull())
+        self._mod_icon_buttons.append(self._backface_cull_btn)
+
+        # Front-only paint toggle
+        self._front_paint_btn = QPushButton()
+        self._front_paint_btn.setFixedSize(btn_width, btn_height)
+        self._front_paint_btn.setCheckable(True)
+        self._front_paint_btn.setToolTip(
+            "Front-only paint — only paint faces pointing toward the camera\n"
+            "Prevents painting hidden back faces through geometry")
+        self._front_paint_btn.setIconSize(icon_size)
+        try:
+            self._front_paint_btn.setIcon(
+                self.icon_factory.front_paint_icon(color=icon_color))
+        except Exception:
+            try:
+                self._front_paint_btn.setIcon(
+                    self.icon_factory.view_icon(color=icon_color))
+            except Exception:
+                self._front_paint_btn.setText("FP")
+        self._front_paint_btn.toggled.connect(
+            lambda v: self._toggle_front_only_paint())
+        self._mod_icon_buttons.append(self._front_paint_btn)
+
+        # Create Primitive button
+        self._prim_btn = QPushButton()
+        self._prim_btn.setFixedSize(btn_width, btn_height)
+        self._prim_btn.setToolTip(
+            "Create primitive shape (Box, Sphere, Cylinder, Plane)\n"
+            "Set dimensions and subdivision count")
+        self._prim_btn.setIconSize(icon_size)
+        try:
+            self._prim_btn.setIcon(self.icon_factory.add_icon(color=icon_color))
+        except Exception:
+            self._prim_btn.setText("+□")
+        self._prim_btn.clicked.connect(self._create_primitive_dialog)
+        self._mod_icon_buttons.append(self._prim_btn)
+
+        # Store refs to DFF-only buttons for enable/disable
+        # Shading on/off toggle
+        self._shading_btn = QPushButton()
+        self._shading_btn.setFixedSize(btn_width, btn_height)
+        self._shading_btn.setCheckable(True)
+        self._shading_btn.setChecked(True)
+        self._shading_btn.setIconSize(icon_size)
+        self._shading_btn.setToolTip(
+            "Toggle viewport shading ON/OFF\n"
+            "OFF = flat unlit render (full brightness)")
+        try:
+            self._shading_btn.setIcon(
+                self.icon_factory.backface_icon(color=icon_color))
+        except Exception:
+            self._shading_btn.setText("S")
+        self._shading_btn.toggled.connect(self._toggle_viewport_shading)
+        self._mod_icon_buttons.append(self._shading_btn)
+
+        # Light setup button (lightbulb)
+        self._light_setup_btn = QPushButton()
+        self._light_setup_btn.setFixedSize(btn_width, btn_height)
+        self._light_setup_btn.setIconSize(icon_size)
+        self._light_setup_btn.setToolTip(
+            "Viewport light setup\n"
+            "Set light direction, intensity and ambient level\n"
+            "Changes preview immediately — saved to settings")
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+            self._light_setup_btn.setIcon(
+                _SVG.light_icon(size=16, color=icon_color))
+        except Exception:
+            self._light_setup_btn.setText("💡")
+        self._light_setup_btn.clicked.connect(self._open_light_setup_dialog)
+        self._mod_icon_buttons.append(self._light_setup_btn)
+
+        self._dff_only_toolbar_btns = [
+            self._sel_vert_btn, self._sel_edge_btn,
+            self._sel_face_btn, self._sel_poly_btn,
+            self._backface_cull_btn, self._front_paint_btn,
+            self._prim_btn,
+            self._shading_btn,
+            self._light_setup_btn,
+        ]
+
+        # Place into grid BEFORE set_content (same as COL/TXD pattern)
+        n = len(self._mod_icon_buttons)
+        for i in range(self._mod_icon_grid.count()-1, -1, -1):
+            item = self._mod_icon_grid.itemAt(i)
             if item and item.widget():
-                self._col_icon_grid.removeWidget(item.widget())
-        for idx, btn in enumerate(self._col_icon_buttons):
-            if btn.parent() is not self._col_icon_frame:
-                btn.setParent(self._col_icon_frame)
-            self._col_icon_grid.addWidget(btn, 0, idx)  # single row
+                self._mod_icon_grid.removeWidget(item.widget())
+        for idx, btn in enumerate(self._mod_icon_buttons):
+            if btn.parent() is not icon_frame:
+                btn.setParent(icon_frame)
+            self._mod_icon_grid.addWidget(btn, 0, idx)
             btn.show()
-        # _col_icon_forced_cols stays None → resize event will reflow to fill width
+
         toolbar.set_content(icon_frame)
-        # Note: set_dock_position called from _create_right_panel, not here
 
         # Resize event reflows grid
         from PyQt6.QtCore import QObject, QEvent
@@ -4718,15 +4873,15 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         class _Filter(QObject):
             def eventFilter(self, obj, ev):
                 if ev.type() == QEvent.Type.Resize:
-                    if getattr(_ws, '_col_icon_forced_cols', None) is None:
+                    if getattr(_ws, '_mod_icon_forced_cols', None) is None:
                         pw = obj.width()
                         new_cols = max(1, pw // 28)
-                        if new_cols != getattr(_ws, '_col_icon_last_cols', 0):
-                            _ws._col_icon_last_cols = new_cols
-                            _ws._col_place_icon_grid(new_cols)
+                        if new_cols != getattr(_ws, '_mod_icon_last_cols', 0):
+                            _ws._mod_icon_last_cols = new_cols
+                            _ws._mod_place_icon_grid(new_cols)
                 return False
-        self._col_icon_filter = _Filter(icon_frame)
-        icon_frame.installEventFilter(self._col_icon_filter)
+        self._mod_icon_filter = _Filter(icon_frame)
+        icon_frame.installEventFilter(self._mod_icon_filter)
 
         return toolbar
 
@@ -4955,7 +5110,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        # Header row with search button
+      # Header row with search button
         hdr_row = QHBoxLayout()
         self._dff_list_header = QLabel("DFF Files")
         self._dff_list_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
@@ -4976,7 +5131,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Search box (hidden by default)
         self.dff_search_box = QLineEdit()
-        self.dff_search_box.setPlaceholderText("Search DFF files...")
+        self.dff_search_box.setPlaceholderText("Search COL files...")
         self.dff_search_box.setVisible(False)
         self.dff_search_box.textChanged.connect(self._filter_dff_list)
         layout.addWidget(self.dff_search_box)
@@ -4985,6 +5140,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.dff_list_widget.setAlternatingRowColors(True)
         #self.dff_list_widget.setAutoFillBackground(True)
         self.dff_list_widget.itemClicked.connect(self._on_dff_selected)
+
         layout.addWidget(self.dff_list_widget)
         return panel
 
@@ -4999,11 +5155,11 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(4)
 
-        #    Header row: title + [T] view-toggle                           
+        # - Header row: title + [T] view-toggle
         hdr_row = QHBoxLayout()
-        self._col_models_header = QLabel("Collisions")
-        self._col_models_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        hdr_row.addWidget(self._col_models_header)
+        header = QLabel("Models")
+        header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        hdr_row.addWidget(header)
         hdr_row.addStretch()
 
         self._col_view_mode = 'detail'   # start in compact thumbnail view
@@ -5017,53 +5173,77 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         hdr_row.addWidget(self.col_view_toggle_btn)
         layout.addLayout(hdr_row)
 
-        #    Mini toolbar: Open / Save / Extract / Undo                    
+        # - Mini toolbar: Open / Save / Extract / Undo
         icon_color = self._get_icon_color()
         self._middle_btn_row = QFrame()
         btn_layout = QHBoxLayout(self._middle_btn_row)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(3)
 
-        self.open_col_btn = QPushButton("")
-        self.open_col_btn.setFont(self.button_font)
-        self.open_col_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
-        self.open_col_btn.setIconSize(QSize(20, 20))
-        self.open_col_btn.setToolTip("Open COL file")
-        self.open_col_btn.clicked.connect(self._open_file)
+        def _icon_btn(icon, tooltip, slot, enabled=True):
+            b = QPushButton()
+            b.setIcon(icon)
+            b.setIconSize(QSize(20, 20))
+            b.setFixedSize(28, 28)
+            b.setToolTip(tooltip)
+            b.clicked.connect(slot)
+            b.setEnabled(enabled)
+            return b
+
+        # Load (DFF + TXD + COL multi-select)
+        self.open_col_btn = _icon_btn(
+            self.icon_factory.open_icon(color=icon_color),
+            "Load — DFF model, TXD textures, COL collision (multi-select)",
+            self._open_dff_standalone)
         btn_layout.addWidget(self.open_col_btn)
 
-        self.save_col_btn = QPushButton("")
-        self.save_col_btn.setFont(self.button_font)
-        self.save_col_btn.setIcon(self.icon_factory.save_icon(color=icon_color))
-        self.save_col_btn.setIconSize(QSize(20, 20))
-        self.save_col_btn.setToolTip("Save COL file")
-        self.save_col_btn.clicked.connect(self._save_file)
-        self.save_col_btn.setEnabled(True)
+        # Save
+        self.save_col_btn = _icon_btn(
+            self.icon_factory.save_icon(color=icon_color),
+            "Save current file",
+            self._save_file)
         btn_layout.addWidget(self.save_col_btn)
 
-        self.export_col_btn = QPushButton("")
-        self.export_col_btn.setFont(self.button_font)
-        self.export_col_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
-        self.export_col_btn.setIconSize(QSize(20, 20))
-        self.export_col_btn.setToolTip("Export all COL models")
-        self.export_col_btn.clicked.connect(self._export_col_data)
-        self.export_col_btn.setEnabled(True)
+        # Import (other formats)
+        self.import_btn = _icon_btn(
+            self.icon_factory.import_icon(color=icon_color)
+                if hasattr(self.icon_factory, 'import_icon')
+                else self.icon_factory.open_icon(color=icon_color),
+            "Import — MDL, OBJ, FBX and other formats",
+            self._import_model)
+        btn_layout.addWidget(self.import_btn)
+
+        # Export (COL, CST, OBS, 3DS, OBJ…)
+        self.export_col_btn = _icon_btn(
+            self.icon_factory.export_icon(color=icon_color)
+                if hasattr(self.icon_factory, 'export_icon')
+                else self.icon_factory.package_icon(color=icon_color),
+            "Export — COL, CST, OBS, 3DS, OBJ and other formats",
+            self._export_model_menu)
         btn_layout.addWidget(self.export_col_btn)
 
-        self.undo_col_btn = QPushButton()
-        self.undo_col_btn.setFont(self.button_font)
-        self.undo_col_btn.setIcon(self.icon_factory.undo_icon(color=icon_color))
-        self.undo_col_btn.setIconSize(QSize(20, 20))
-        self.undo_col_btn.setToolTip("Undo last change")
-        self.undo_col_btn.clicked.connect(self._undo_last_action)
-        self.undo_col_btn.setEnabled(True)
+        # Undo
+        self.undo_col_btn = _icon_btn(
+            self.icon_factory.undo_icon(color=icon_color),
+            "Undo last change",
+            self._undo_last_action)
         btn_layout.addWidget(self.undo_col_btn)
+
+        #TODO; Once this is fixed, we need to add the same compact function to COL,TXD WS
 
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
         self._middle_btn_row.setVisible(self.is_docked and not self.standalone_mode)
+        # Register for adaptive compact display
+        self._mid_compact_btns = [
+            (getattr(self, 'open_col_btn',  None), "Open"),
+            (getattr(self, 'save_col_btn',  None), "Save"),
+            (getattr(self, 'import_btn',    None), "Import"),
+            (getattr(self, 'export_col_btn',None), "Export"),
+            (getattr(self, 'undo_col_btn',  None), "Undo"),
+        ]
 
-        #    Model table (detail view)                                     
+        # - Model table (detail view)
         self.collision_list = QTableWidget()
 
         class _GuiLayout:
@@ -5073,8 +5253,8 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         self.collision_list.setColumnCount(8)
         self.collision_list.setHorizontalHeaderLabels([
-            "Model Name", "Type", "Version", "Size",
-            "Spheres", "Boxes", "Vertices", "Faces"])
+            "Name", "Format", "RW Version", "Size",
+            "Verts", "Tris", "Materials", "UV Layers"])
         self.collision_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.collision_list.setSelectionMode(
@@ -5089,35 +5269,75 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.collision_list.setVisible(False)  # hidden at startup — compact view is default
         layout.addWidget(self.collision_list)
 
-        #    Compact list (thumbnail + name/version/counts, single row)    
-        self.col_compact_list = QTableWidget()
-        self.col_compact_list.setColumnCount(2)
-        self.col_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
-        self.col_compact_list.horizontalHeader().setStretchLastSection(True)
-        self.col_compact_list.setSelectionBehavior(
+        # - Compact list (thumbnail + name/version/counts, single row)
+        self.mod_compact_list = QTableWidget()
+        self.mod_compact_list.setColumnCount(2)
+        self.mod_compact_list.setHorizontalHeaderLabels(["Preview", "Details"])
+        self.mod_compact_list.horizontalHeader().setStretchLastSection(True)
+        self.mod_compact_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
-        self.col_compact_list.setSelectionMode(
+        self.mod_compact_list.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.col_compact_list.setAlternatingRowColors(True)
-        self.col_compact_list.setIconSize(QSize(64, 64))
-        self.col_compact_list.itemSelectionChanged.connect(
+        self.mod_compact_list.setAlternatingRowColors(True)
+        self.mod_compact_list.setIconSize(QSize(64, 64))
+        self.mod_compact_list.itemSelectionChanged.connect(
             self._on_compact_col_selected)
-        self.col_compact_list.setContextMenuPolicy(
+        self.mod_compact_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
-        self.col_compact_list.customContextMenuRequested.connect(
+        self.mod_compact_list.customContextMenuRequested.connect(
             self._show_collision_context_menu)
-        self.col_compact_list.setVisible(True)    # start in compact view
-        self.col_compact_list.setRowCount(0)      # populated on first file load
-        self.col_compact_list.setWordWrap(True)
-        self.col_compact_list.setItemDelegate(_ColListDelegate(self.col_compact_list))
-        layout.addWidget(self.col_compact_list)
+        self.mod_compact_list.setVisible(True)    # start in compact view
+        self.mod_compact_list.setRowCount(0)      # populated on first file load
+        self.mod_compact_list.setWordWrap(True)
+        self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
+        layout.addWidget(self.mod_compact_list)
+
+        # - Frame / Bone hierarchy tree (DFF only)
+        from PyQt6.QtWidgets import QTreeWidget
+        self._frame_tree_panel = QFrame()
+        self._frame_tree_panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        ft_lay = QVBoxLayout(self._frame_tree_panel)
+        ft_lay.setContentsMargins(2, 2, 2, 2)
+        ft_lay.setSpacing(2)
+
+        ft_hdr = QHBoxLayout()
+        ft_lbl = QLabel("Frame Hierarchy")
+        ft_lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        ft_hdr.addWidget(ft_lbl)
+        ft_hdr.addStretch()
+        ft_collapse = QPushButton("▾")
+        ft_collapse.setFixedSize(20, 18)
+        ft_collapse.setFlat(True)
+        ft_collapse.setToolTip("Collapse/expand frame tree")
+        ft_collapse.clicked.connect(lambda: (
+            self._frame_tree.setVisible(not self._frame_tree.isVisible()),
+            ft_collapse.setText("▸" if not self._frame_tree.isVisible() else "▾")
+        ))
+        ft_hdr.addWidget(ft_collapse)
+        ft_lay.addLayout(ft_hdr)
+
+        self._frame_tree = QTreeWidget()
+        self._frame_tree.setHeaderLabels(["Frame", "Parent", "Position"])
+        self._frame_tree.setAlternatingRowColors(True)
+        self._frame_tree.setMaximumHeight(180)
+        self._frame_tree.setMinimumHeight(60)
+        self._frame_tree.setFont(self.panel_font)
+        self._frame_tree.itemClicked.connect(self._on_frame_tree_clicked)
+        ft_lay.addWidget(self._frame_tree)
+
+        self._frame_tree_panel.setVisible(False)  # hidden until DFF loaded
+        layout.addWidget(self._frame_tree_panel)
+
+        # - Texture panel (shown when TXD loaded)
+        layout.addWidget(self._create_texture_panel())
 
         return panel
 
 
-    def _create_right_panel(self): #vers 13
-        """Create right panel — TXD Workshop layout style."""
-        icon_color = self._get_icon_color()
+    def _create_right_panel(self): #vers 12
+        """Create right panel — DockableToolbar layout (same as COL Workshop)."""
+        from apps.components.Model_Editor.dockable_toolbar import DockableToolbar
+        icon_color = self._get_icon_color()   # used by info row buttons below
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
@@ -5126,12 +5346,12 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(3)
 
-        #    Top toolbar row: icons fill full width above viewport          
-        # _create_transform_icon_panel returns the DockableToolbar directly
+        # - Top toolbar row
         left_toolbar = self._create_transform_icon_panel()
         main_layout.addWidget(left_toolbar, stretch=0)
+        left_toolbar.set_dock_position('top')
 
-        #    Preview row: viewport + right dockable toolbar                 
+        # - Preview row: viewport + right dockable toolbar
         preview_row = QHBoxLayout()
         preview_row.setSpacing(3)
 
@@ -5141,34 +5361,29 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         self._create_paint_bar()
 
-        # _create_preview_controls returns frame; wrap in DockableToolbar
-        from apps.components.Col_Editor.dockable_toolbar import DockableToolbar
         ctrl_frame = self._create_preview_controls()
-        right_toolbar = DockableToolbar(panel, settings_key='col_right_toolbar')
+        right_toolbar = DockableToolbar(panel, settings_key='model_right_toolbar')
         right_toolbar.set_content(ctrl_frame)
         right_toolbar.set_dock_position('right')
-        right_toolbar.reflow_requested.connect(self._reflow_col_right_toolbar)
-        self._col_right_toolbar = right_toolbar
+        right_toolbar.reflow_requested.connect(self._reflow_mod_right_toolbar)
+        self._mod_right_toolbar = right_toolbar
         self.preview_controls   = ctrl_frame
         preview_row.addWidget(right_toolbar, stretch=0)
 
         main_layout.addLayout(preview_row, stretch=1)
 
-        # Set dock positions (like TXD Workshop)
-        left_toolbar.set_dock_position('top')
-        # right_toolbar already set to 'right' above
-
-        # Extra snap targets
         left_toolbar._extra_panels  = [self.preview_widget]
         right_toolbar._extra_panels = [self.preview_widget]
 
-        # Load saved layouts after UI settles (like TXD Workshop)
-        from PyQt6.QtCore import QTimer as _QTimer
-        _QTimer.singleShot(100, self._load_col_toolbar_layouts)
+        from PyQt6.QtCore import QTimer as _QT
+        # 400ms: wait for parent widget to be fully laid out before restoring
+        _QT.singleShot(400, self._load_mod_toolbar_layouts)
 
-        # Information group below
+        # Information group below — QFrame matches COL Workshop (QGroupBox has OS bg override issues)
         info_group = QFrame()
         info_group.setFrameStyle(QFrame.Shape.StyledPanel)
+        info_group.setAutoFillBackground(True)
+        info_group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(180)  # extra 40px for paint row
 
@@ -5182,16 +5397,74 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.info_name.setText("Click to edit...")
         self.info_name.setFont(self.panel_font)
         self.info_name.setReadOnly(True)
-        self.info_name.setStyleSheet("padding: 2px; border: 1px solid palette(mid);")
+        self.info_name.setStyleSheet("padding: px; border: 1px solid palette(mid);")
         #self.info_name.returnPressed.connect(self._save_surface_name)
         #self.info_name.editingFinished.connect(self._save_surface_name)
         self.info_name.mousePressEvent = lambda e: self._enable_name_edit(e, False)
         name_layout.addWidget(self.info_name, stretch=1)
         info_layout.addLayout(name_layout)
 
-        # === LINES 2 & 3: Build BOTH rows, show/hide based on panel width ===
-        #    Text+label row (wide)                                         
+        # - LINE 1b: IDE / TXD link row
+        ide_layout = QHBoxLayout()
+        ide_layout.setSpacing(4)
+
+        ide_lbl = QLabel("IDE:")
+        ide_lbl.setFont(self.panel_font)
+        ide_lbl.setFixedWidth(28)
+        ide_layout.addWidget(ide_lbl)
+
+        self.info_ide_section = QLabel("—")
+        self.info_ide_section.setFont(self.panel_font)
+        self.info_ide_section.setToolTip("IDE section / object type")
+        self.info_ide_section.setFixedWidth(90)
+        ide_layout.addWidget(self.info_ide_section)
+
+        self.info_model_id = QLabel("ID: —")
+        self.info_model_id.setFont(self.panel_font)
+        self.info_model_id.setFixedWidth(70)
+        ide_layout.addWidget(self.info_model_id)
+
+        txd_lbl = QLabel("TXD:")
+        txd_lbl.setFont(self.panel_font)
+        txd_lbl.setFixedWidth(32)
+        ide_layout.addWidget(txd_lbl)
+
+        self.info_txd_name = QLabel("—")
+        self.info_txd_name.setFont(self.panel_font)
+        self.info_txd_name.setToolTip("Linked TXD name from IDE")
+        ide_layout.addWidget(self.info_txd_name, stretch=1)
+
+        self.load_txd_btn = QPushButton("Open TXD")
+        self.load_txd_btn.setFont(self.button_font)
+        self.load_txd_btn.setIcon(self.icon_factory.open_icon(color=icon_color))
+        self.load_txd_btn.setIconSize(QSize(16, 16))
+        self.load_txd_btn.setFixedHeight(26)
+        self.load_txd_btn.setMinimumWidth(80)
+        self.load_txd_btn.setToolTip("Open linked TXD in TXD Workshop")
+        self.load_txd_btn.clicked.connect(self._open_linked_txd)
+        self.load_txd_btn.setEnabled(False)
+        ide_layout.addWidget(self.load_txd_btn)
+
+        self.find_in_ide_btn = QPushButton("IDE Ref")
+        self.find_in_ide_btn.setFont(self.button_font)
+        self.find_in_ide_btn.setIcon(self.icon_factory.search_icon(color=icon_color))
+        self.find_in_ide_btn.setIconSize(QSize(16, 16))
+        self.find_in_ide_btn.setFixedHeight(26)
+        self.find_in_ide_btn.setMinimumWidth(72)
+        self.find_in_ide_btn.setToolTip("Look up model in DAT Browser IDE entries")
+        self.find_in_ide_btn.clicked.connect(self._find_in_ide)
+        self.find_in_ide_btn.setEnabled(False)
+        ide_layout.addWidget(self.find_in_ide_btn)
+
+        info_layout.addLayout(ide_layout)
+
+        # -  LINES 2 & 3: Build BOTH rows, show/hide based on panel width
+        # - Text+label row (wide)
+        # Kept this part, Because we also need to export optimized collision files.
+
         self._bottom_text_row = QWidget()
+        self._bottom_text_row.setAutoFillBackground(True)
+        self._bottom_text_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         tr_lay = QVBoxLayout(self._bottom_text_row)
         tr_lay.setContentsMargins(0, 0, 0, 0)
         tr_lay.setSpacing(2)
@@ -5203,8 +5476,14 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.format_combo.addItems(["COL", "COL2", "COL3", "COL4"])
         self.format_combo.currentTextChanged.connect(self._change_format)
         self.format_combo.setMaximumWidth(100)
+        self.format_combo.setVisible(False)   # shown only when COL is loaded
+        self.format_combo.setToolTip("COL export format — only relevant when exporting collision")
         fmt_lay.addWidget(self.format_combo)
         fmt_lay.addStretch()
+
+        """ #commented out, we might beable to use some of this later,
+            #adding more dff model functionality
+
         for attr, label, icon_fn, tip, slot in [
             ('switch_btn',     'Mesh',       'flip_vert_icon',  'Cycle render mode',   'switch_surface_view'),
             ('convert_btn',    'Convert',    'convert_icon',    'Convert format',      '_convert_surface'),
@@ -5223,31 +5502,57 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             setattr(self, attr, b)
             fmt_lay.addWidget(b)
         tr_lay.addLayout(fmt_lay)
+        """
 
         shd_lay = QHBoxLayout()
         shd_lay.setSpacing(5)
-        self.info_format = QLabel("Shadow Mesh: ")
+
+        self.info_format = QLabel("Prelight: ")
         self.info_format.setFont(self.panel_font)
-        self.info_format.setMinimumWidth(100)
+        self.info_format.setMinimumWidth(80)
         shd_lay.addWidget(self.info_format)
-        for attr, label, icon_fn, tip, slot in [
-            ('show_shadow_btn',   'View',   'view_icon',   'View Shadow Mesh',   '_open_mipmap_manager'),
-            ('create_shadow_btn', 'Create', 'add_icon',    'Create Shadow Mesh', 'shadow_dialog'),
-            ('remove_shadow_btn', 'Remove', 'delete_icon', 'Remove Shadow Mesh', '_remove_shadow'),
-        ]:
-            b = QPushButton(label)
-            b.setFont(self.button_font)
-            b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
-            b.setIconSize(QSize(20, 20))
-            b.setToolTip(tip)
-            b.clicked.connect(getattr(self, slot))
-            b.setEnabled(False)
-            setattr(self, attr, b)
-            shd_lay.addWidget(b)
+
+        # Prelighting buttons (DFF mode — replaces shadow mesh for model editing)
+        self.prelight_apply_btn = QPushButton("Apply")
+        self.prelight_apply_btn.setFont(self.button_font)
+        try:
+            self.prelight_apply_btn.setIcon(
+                self.icon_factory.color_picker_icon(color=icon_color))
+            self.prelight_apply_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            pass
+        self.prelight_apply_btn.setFixedHeight(26)
+        self.prelight_apply_btn.setToolTip(
+            "Apply vertex prelighting to DFF model\n"
+            "(ambient + directional light baked into vertex colours)")
+        self.prelight_apply_btn.setEnabled(False)
+        self.prelight_apply_btn.clicked.connect(self._apply_prelighting)
+        shd_lay.addWidget(self.prelight_apply_btn)
+
+        self.prelight_setup_btn = QPushButton("Setup…")
+        self.prelight_setup_btn.setFont(self.button_font)
+        try:
+            self.prelight_setup_btn.setIcon(
+                self.icon_factory.settings_icon(color=icon_color))
+            self.prelight_setup_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            pass
+        self.prelight_setup_btn.setFixedHeight(26)
+        self.prelight_setup_btn.setToolTip(
+            "Configure light sources for prelighting\n"
+            "Set ambient colour, directional lights and intensity")
+        self.prelight_setup_btn.clicked.connect(self._prelight_setup_dialog)
+        shd_lay.addWidget(self.prelight_setup_btn)
+
+        # Keep shadow refs for COL mode (hidden in DFF mode)
+        self.show_shadow_btn   = None
+        self.create_shadow_btn = None
+        self.remove_shadow_btn = None
+        shd_lay.addStretch()
         tr_lay.addLayout(shd_lay)
         info_layout.addWidget(self._bottom_text_row)
 
-        #    Icon-only row (narrow)                                          
+        # - Icon-only row (narrow)
         self._bottom_icon_row = QWidget()
         ir_lay = QHBoxLayout(self._bottom_icon_row)
         ir_lay.setContentsMargins(0, 0, 0, 0)
@@ -5256,6 +5561,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         fmt_ico.addItems(["COL","COL2","COL3","COL4"])
         fmt_ico.currentTextChanged.connect(self._change_format)
         fmt_ico.setMaximumWidth(65)
+        fmt_ico.setVisible(False)  # shown only when COL is loaded
         ir_lay.addWidget(fmt_ico)
         for icon_fn, tip, slot in [
             ('flip_vert_icon',  'Cycle render mode',  'switch_surface_view'),
@@ -5264,9 +5570,8 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             ('uncompress_icon', 'Uncompress',         '_uncompress_surface'),
             ('import_icon',     'Import',             '_import_selected'),
             ('export_icon',     'Export',             'export_selected'),
-            ('view_icon',       'View Shadow',        '_open_mipmap_manager'),
-            ('add_icon',        'Create Shadow',      'shadow_dialog'),
-            ('delete_icon',     'Remove Shadow',      '_remove_shadow'),
+            ('color_picker_icon', 'Apply Prelighting',   '_apply_prelighting'),
+            ('settings_icon',     'Prelight Setup',      '_prelight_setup_dialog'),
         ]:
             b = QPushButton()
             b.setIcon(getattr(self.icon_factory, icon_fn)(color=icon_color))
@@ -5280,7 +5585,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         info_layout.addWidget(self._bottom_icon_row)
         self._bottom_icon_row.setVisible(False)
 
-        #    Paint mode row (hidden until paint mode active)                
+        # - Paint mode row (hidden until paint mode active)
         main_layout.addWidget(info_group, stretch=0)
         return panel
 
@@ -6095,7 +6400,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         format_combo.setCurrentText(getattr(self, 'default_export_format', 'COL'))
         format_layout.addWidget(format_combo)
         format_hint = QLabel("COL recommended for GTAIII/VC, COL2 for SA")
-        format_hint.setStyleSheet("color: #888; font-style: italic;")
+        format_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         format_layout.addWidget(format_hint)
 
         format_group.setLayout(format_layout)
@@ -6124,11 +6429,47 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
         # Compatibility note
         compat_label = QLabel(
-            "Note: Export format support varies by game version. COL1 is compatible with GTA3/VC. COL2/COL3 requires SA or later."
+            "Export settings apply to the active model. "
+            "COL export uses the format set in the Format combo. "
+            "OBJ export includes vertex positions and face indices."
         )
         compat_label.setWordWrap(True)
-        compat_label.setStyleSheet("padding: 10px; background-color: palette(base); border-radius: 4px;")
+        compat_label.setStyleSheet("padding: 10px; background-color: palette(mid); border-radius: 4px;")
         export_layout.addWidget(compat_label)
+
+        # - Texture Sources
+        tex_src_group = QGroupBox("Texture Sources")
+        tex_src_layout = QVBoxLayout(tex_src_group)
+
+        tex_src_layout.addWidget(QLabel(
+            "texlist/ folder: pre-exported PNG/IFF/TGA textures.\nFallback when TXD not found in any open IMG."))
+
+        texlist_row = QHBoxLayout()
+        texlist_row.addWidget(QLabel("texlist/ folder:"))
+        texlist_edit = QLineEdit()
+        texlist_edit.setPlaceholderText("Browse to set, or leave blank for auto-discover")
+        texlist_edit.setText(getattr(self, '_texlist_folder', '') or '')
+        texlist_edit.setFixedHeight(26)
+        texlist_row.addWidget(texlist_edit, 1)
+
+        texlist_browse = QPushButton("…")
+        texlist_browse.setFixedSize(28, 24)
+        texlist_browse.setToolTip("Browse for texlist/ root folder")
+        texlist_browse.clicked.connect(lambda: (
+            (folder := __import__('PyQt6.QtWidgets', fromlist=['QFileDialog'])
+                       .QFileDialog.getExistingDirectory(
+                           dialog, "Select texlist/ folder",
+                           texlist_edit.text() or __import__('os').path.expanduser('~'))),
+            texlist_edit.setText(folder) if folder else None))
+        texlist_row.addWidget(texlist_browse)
+        tex_src_layout.addLayout(texlist_row)
+
+        auto_discover_lbl = QLabel(
+            "If blank: auto-discovers texlist/ next to the loaded DFF file.")
+        auto_discover_lbl.setStyleSheet("color: palette(mid); font-style: italic;")
+        tex_src_layout.addWidget(auto_discover_lbl)
+
+        export_layout.addWidget(tex_src_group)
 
         export_layout.addStretch()
         tabs.addTab(export_tab, "Export")
@@ -6163,7 +6504,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         import_format_layout.addWidget(import_format_combo)
 
         format_note = QLabel("COL2/COL3: compression\n, COL type 1 always Uncompressed")
-        format_note.setStyleSheet("color: #888; font-style: italic;")
+        format_note.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         import_format_layout.addWidget(format_note)
 
         import_format_group.setLayout(import_format_layout)
@@ -6232,7 +6573,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         force_save_layout = QHBoxLayout()
         force_save_layout.addWidget(hotkey_edit_force_save)
         force_save_hint = QLabel("(Force save even if unmodified)")
-        force_save_hint.setStyleSheet("color: #888; font-style: italic;")
+        force_save_hint.setStyleSheet("color: palette(placeholderText); font-style: italic;")
         force_save_layout.addWidget(force_save_hint)
         file_form.addRow("Force Save:", force_save_layout)
 
@@ -6378,6 +6719,11 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self.export_preserve_alpha = preserve_alpha_check.isChecked()
             self.export_shadow_separate = export_shadow_check.isChecked()
             self.export_create_subfolders = create_subfolders_check.isChecked()
+            # Texture Sources — texlist folder
+            new_texlist = texlist_edit.text().strip()
+            if new_texlist != getattr(self, '_texlist_folder', ''):
+                self._texlist_folder = new_texlist
+                self._save_texlist_setting()
 
             # Apply import settings
             self.import_auto_name = auto_name_check.isChecked()
@@ -6643,18 +6989,32 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.update()
 
 
-    def _apply_theme(self): #vers 6
+    def _apply_theme(self): #vers 5
         """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
-            app_settings = getattr(self, 'app_settings', None) or \
-                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            mw = getattr(self, 'main_window', None)
+            app_settings = None
+            if hasattr(self, 'app_settings') and self.app_settings:
+                app_settings = self.app_settings
+            elif mw and hasattr(mw, 'app_settings'):
+                app_settings = mw.app_settings
+
             if app_settings and hasattr(app_settings, 'get_stylesheet'):
+                # Apply to QApplication so all widgets inherit it
                 from PyQt6.QtWidgets import QApplication
                 ss = app_settings.get_stylesheet()
                 if ss:
                     QApplication.instance().setStyleSheet(ss)
-            # Clear widget-level override — children inherit from QApplication
+                    # Apply panel effects (fill/gradient/pattern) if configured
+            try:
+                from apps.utils.app_settings_system import apply_panel_effects
+                apply_panel_effects(self, app_settings)
+            except Exception:
+                pass
+            # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
+            # Reset viewport bg so it picks up the new theme on next paint
+            self._on_theme_changed()
         except Exception as e:
             print(f"Theme application error: {e}")
 
@@ -6790,12 +7150,18 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             print("_populate_compact_col_list error: " + str(e))
 
-    def _on_compact_col_selected(self): #vers 3
-        """Handle compact [=] list selection."""
+    def _on_compact_col_selected(self): #vers 4
+        """Handle compact [=] list selection — routes to DFF or COL handler."""
         try:
-            rows = self.col_compact_list.selectionModel().selectedRows()
-            if rows:
-                self._select_model_by_row(rows[0].row())
+            rows = self.mod_compact_list.selectionModel().selectedRows()
+            if not rows:
+                return
+            row = rows[0].row()
+            # DFF mode: _dff_adapters set when a DFF is loaded
+            if getattr(self, '_dff_adapters', None):
+                self._on_dff_geom_selected_tbl()
+            else:
+                self._select_model_by_row(row)
         except Exception as e:
             print("_on_compact_col_selected error: " + str(e))
 
@@ -7299,14 +7665,15 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     def open_col_file(self, file_path): #vers 3
         """Open standalone COL file - supports COL1, COL2, COL3"""
+        self._dff_adapters = []   # clear DFF mode
         try:
-            from apps.methods.col_workshop_loader import COLFile
+            from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
 
             # Create and load COL file
             # col_file = COLFile()
             # col_file.load_from_file(file_path)
 
-            #from apps.methods.col_workshop_loader import load_col_with_progress
+            #from apps.components.Model_Editor.depends.col_workshop_loader import load_col_with_progress
             #col_file = load_col_with_progress(file_path, self)
 
             #if not col_file:  # Just check if None
@@ -7344,7 +7711,10 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
             # Store loaded file
             self.current_col_file = col_file
+            if hasattr(self, 'format_combo'):
+                self.format_combo.setVisible(True)
             self.current_file_path = file_path
+            self._enable_dff_toolbar(False)   # switch to COL mode
 
             # Update window title with model count
             model_count = len(col_file.models) if hasattr(col_file, 'models') else 0
@@ -7356,7 +7726,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             self._populate_collision_list()
 
             # Select first model by default
-            active_list = (self.col_compact_list
+            active_list = (self.mod_compact_list
                           if self._col_view_mode == 'detail'
                           else self.collision_list)
             if active_list.rowCount() > 0:
@@ -7568,57 +7938,64 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             QMessageBox.critical(self, "Error", f"Failed to open IMG:\n{str(e)}")
 
 
-    def load_from_img_archive(self, img_path): #vers 2
-        """Load all COL entries from an IMG archive and populate the collision list"""
+    def load_from_img_archive(self, img_path): #vers 3
+        """Load IMG archive — populates left panel with all DFF/COL/TXD entries."""
         try:
             from apps.methods.img_core_classes import IMGFile
-            from apps.methods.col_workshop_loader import COLFile
-
             img = IMGFile(img_path)
             img.open()
             self.current_img = img
+            self._current_img_path = img_path
 
             img_name = os.path.basename(img_path)
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Scanning {img_name} for COL entries...")
+                self.main_window.log_message(f"Model Workshop: scanning {img_name}…")
 
-            col_entries = [e for e in img.entries
-                           if getattr(e, 'name', '').lower().endswith('.col')]
+            model_exts = ('.dff', '.col', '.txd')
+            model_entries = [e for e in img.entries
+                             if getattr(e, 'name', '').lower().endswith(model_exts)]
 
-            if not col_entries:
-                QMessageBox.information(self, "No COL Files",
-                    f"No .col entries found in {img_name}")
-                return False
+            lw = getattr(self, 'col_list_widget', None)
+            if lw is not None:
+                lw.clear()
+                for entry in model_entries:
+                    name = entry.name
+                    ext  = os.path.splitext(name)[1].lower()
+                    item = QListWidgetItem(name)
+                    item.setData(Qt.ItemDataRole.UserRole, entry)
+                    from PyQt6.QtGui import QColor
+                    if ext == '.dff':
+                        item.setForeground(QColor('#4db6ac'))
+                    elif ext == '.col':
+                        item.setForeground(QColor('#ef5350'))
+                    elif ext == '.txd':
+                        item.setForeground(QColor('#ffa726'))
+                    lw.addItem(item)
 
-            # Populate the compact left-panel list with COL entries
-            # col_compact_list is the QTableWidget visible in default view
-            if hasattr(self, 'col_compact_list'):
-                tbl = self.col_compact_list
-                tbl.setRowCount(0)
-                for i, entry in enumerate(col_entries):
-                    tbl.insertRow(i)
-                    cell = QTableWidgetItem(entry.name)
-                    cell.setData(Qt.ItemDataRole.UserRole, entry)
-                    tbl.setItem(i, 0, cell)
-                    # Blank detail cell so delegate doesn't crash
-                    tbl.setItem(i, 1, QTableWidgetItem(""))
-                    tbl.setRowHeight(i, 22)
-                self._img_col_entries = col_entries   # store for selection handler
+                # Update header counts
+                n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
+                n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
+                n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
+                hdr = getattr(self, '_left_panel_header', None)
+                if hdr:
+                    hdr.setText(
+                        f"Model Files  —  "
+                        f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
 
-            count = len(col_entries)
-            hdr = getattr(self, '_col_list_header', None)
-            if hdr:
-                hdr.setText(f"COL Files  ({count})")
+            n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
+            n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
+            n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(
-                    f"Loaded {count} COL entr{'ies' if count != 1 else 'y'} from {img_name}")
+                    f"Model Workshop: {img_name} — "
+                    f"{n_dff} DFF, {n_col} COL, {n_txd} TXD")
 
-            self.setWindowTitle(f"MDL Workshop: {img_name}")
+            self.setWindowTitle(f"Model Workshop: {img_name}")
             return True
 
         except Exception as e:
-            print(f"Error loading from IMG archive: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to load from IMG:\n{str(e)}")
+            import traceback; traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Failed to load from IMG:\n{e}")
             return False
 
 
@@ -7723,7 +8100,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         from PyQt6.QtCore import QPointF
         import math
 
-        #    Use viewport's projection if available                         
+        # - Use viewport's projection if available
         if viewport is not None:
             vp = viewport
         else:
@@ -7747,7 +8124,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             def to_screen(x,y,z):
                 px,py=proj3(x,y,z); return px*scale+ox, py*scale+oy
 
-        #    Model geometry extent for grid sizing                          
+        # - Model geometry extent for grid sizing
         verts = getattr(model, 'vertices', [])
         if verts:
             xs=[v.x for v in verts]; ys=[v.y for v in verts]; zs=[v.z for v in verts]
@@ -7755,7 +8132,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         else:
             extent = 5.0
 
-        #    Reference grid (XY plane Z=0)                                 
+        # - Reference grid (XY plane Z=0)
         raw_step = extent / 4.0
         mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
         step = round(raw_step / mag) * mag; step = max(step, 0.01)
@@ -7773,7 +8150,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             painter.drawLine(int(x0),int(y0),int(x1),int(y1))
         painter.setRenderHint(painter.renderHints().__class__.Antialiasing, True)
 
-        #    Model geometry (uses viewport's to_screen — zoom/pan consistent)   
+        # - Model geometry (uses viewport's to_screen — zoom/pan consistent)
         from PyQt6.QtGui import QPolygonF as _PF
         from PyQt6.QtCore import QPointF as _P, QRectF as _R
 
@@ -7783,24 +8160,110 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             if hasattr(obj,'position'): return obj.position.x,obj.position.y,obj.position.z
             return float(obj[0]),float(obj[1]),float(obj[2])
 
-        # Mesh faces
+        # Mesh faces — render style: wireframe / semi / solid / textured
         if show_mesh:
-            _verts = getattr(model,'vertices',[])
-            _faces = getattr(model,'faces',[])
+            _verts    = getattr(model, 'vertices', [])
+            _faces    = getattr(model, 'faces',    [])
+            _mats     = getattr(model, 'materials', [])   # DFF materials
+            # UV layer from DFFGeometryAdapter._geometry or direct Geometry object
+            _geom_obj  = getattr(model, '_geometry', model)
+            _uv_layers = getattr(_geom_obj, 'uv_layers', [])
+            _uv_layer  = _uv_layers[0] if _uv_layers else []
+            _tex_cache = getattr(vp, '_tex_cache', {}) if vp else {}
+
             if _verts and _faces:
-                painter.setPen(QPen(QColor(120,180,120,180), 0.5))
-                painter.setBrush(QBrush(QColor(60,120,60,80)))
                 for face in _faces:
-                    idx = getattr(face,'vertex_indices',None)
+                    idx = getattr(face, 'vertex_indices', None)
                     if idx is None:
-                        fa = getattr(face,'a',None)
-                        if fa is not None: idx=(fa,face.b,face.c)
-                    if idx and len(idx)==3:
-                        try:
-                            pts=[_P(*to_screen(*g3(_verts[i]))) for i in idx]
+                        fa = getattr(face, 'a', None)
+                        if fa is not None: idx = (fa, face.b, face.c)
+                    if not idx or len(idx) != 3:
+                        continue
+                    try:
+                        pts = [_P(*to_screen(*g3(_verts[i]))) for i in idx]
+                    except (IndexError, AttributeError):
+                        continue
+
+                    # Determine fill colour / texture
+                    mat_id  = getattr(face, 'material', 0)
+                    mat_id  = mat_id if isinstance(mat_id, int) else 0
+                    mat_obj = _mats[mat_id] if 0 <= mat_id < len(_mats) else None
+
+                    if render_style == 'wireframe':
+                        painter.setPen(QPen(QColor(120, 200, 120, 180), 0.5))
+                        painter.setBrush(Qt.BrushStyle.NoBrush)
+                        painter.drawPolygon(_PF(pts))
+
+                    elif render_style == 'semi':
+                        painter.setPen(QPen(QColor(120, 180, 120, 180), 0.5))
+                        painter.setBrush(QBrush(QColor(60, 120, 60, 80)))
+                        painter.drawPolygon(_PF(pts))
+
+                    elif render_style == 'solid':
+                        col = QColor(170, 175, 180)
+                        if mat_obj and hasattr(mat_obj, 'colour'):
+                            c = mat_obj.colour
+                            col = QColor(c.r, c.g, c.b, 255)
+                        painter.setPen(QPen(QColor(80, 80, 80, 120), 0.3))
+                        painter.setBrush(QBrush(col))
+                        painter.drawPolygon(_PF(pts))
+
+                    elif render_style == 'textured':
+                        tex_img = None
+                        if mat_obj:
+                            tname = (getattr(mat_obj, 'texture_name', '') or '').strip()
+                            if tname and tname.lower() not in ('', 'null', 'none'):
+                                # Try exact name, then stem without extension
+                                tex_img = (_tex_cache.get(tname.lower()) or
+                                           _tex_cache.get(tname.lower().split('.')[0]))
+                        if tex_img and _uv_layer and all(i < len(_uv_layer) for i in idx):
+                            # Affine UV mapping via QTransform per triangle
+                            uvs = [_uv_layer[i] for i in idx]
+                            try:
+                                from PyQt6.QtGui import QTransform
+                                tw, th = tex_img.width(), tex_img.height()
+                                # Source: UV * texture size
+                                sx0,sy0 = uvs[0].u*tw, uvs[0].v*th
+                                sx1,sy1 = uvs[1].u*tw, uvs[1].v*th
+                                sx2,sy2 = uvs[2].u*tw, uvs[2].v*th
+                                # Dest: screen positions
+                                dx0,dy0 = pts[0].x(), pts[0].y()
+                                dx1,dy1 = pts[1].x(), pts[1].y()
+                                dx2,dy2 = pts[2].x(), pts[2].y()
+                                # Solve affine: src → dst
+                                det = (sx1-sx0)*(sy2-sy0)-(sx2-sx0)*(sy1-sy0)
+                                if abs(det) > 0.001:
+                                    a11=(( dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
+                                    a12=(( dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
+                                    a21=(( dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
+                                    a22=(( dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
+                                    tx=dx0-a11*sx0-a12*sy0
+                                    ty=dy0-a21*sx0-a22*sy0
+                                    xf = QTransform(a11,a21,a12,a22,tx,ty)
+                                    painter.save()
+                                    painter.setClipRegion(
+                                        __import__('PyQt6.QtGui',fromlist=['QRegion']).QRegion(
+                                            _PF(pts).toPolygon()))
+                                    painter.setTransform(xf, combine=True)
+                                    painter.drawImage(0, 0, tex_img)
+                                    painter.restore()
+                                else:
+                                    raise ValueError("degenerate")
+                            except Exception:
+                                # Fallback: solid colour
+                                col = QColor(170, 120, 80)
+                                painter.setPen(Qt.PenStyle.NoPen)
+                                painter.setBrush(QBrush(col))
+                                painter.drawPolygon(_PF(pts))
+                        else:
+                            # No texture: draw solid grey + wire
+                            col = QColor(170, 175, 180)
+                            if mat_obj and hasattr(mat_obj, 'colour'):
+                                c = mat_obj.colour
+                                col = QColor(c.r, c.g, c.b, 220)
+                            painter.setPen(QPen(QColor(80,80,80,80), 0.3))
+                            painter.setBrush(QBrush(col))
                             painter.drawPolygon(_PF(pts))
-                        except (IndexError,AttributeError):
-                            pass
 
         # Boxes
         if show_boxes:
@@ -7822,7 +8285,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 sx,sy=to_screen(cx,cy,cz)
                 painter.drawEllipse(_R(sx-r,sy-r,r*2 or 2,r*2 or 2))
 
-        #    Gizmo at model centroid                                        
+        # - Gizmo at model centroid
         if verts:
             cx3=sum(v.x for v in verts)/len(verts)
             cy3=sum(v.y for v in verts)/len(verts)
@@ -7882,7 +8345,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         painter.setBrush(QBrush(self._get_ui_color('border'))); painter.setPen(QPen(self._get_ui_color('viewport_text'),1))
         painter.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
-        #    Toggle button (top-right)                                      
+        # - Toggle button (top-right)
         bx,by,bw,bh = W-70,4,66,22
         painter.setBrush(QBrush(QColor(40,44,62)))
         painter.setPen(QPen(QColor(80,90,130),1))
@@ -7891,7 +8354,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         lbl = '↕ Move [G]' if gizmo_mode=='translate' else '↻ Rotate [R]'
         painter.drawText(bx+4,by+15,lbl)
 
-        #    HUD                                                            
+        # - HUD
         painter.setFont(QFont('Arial',8)); painter.setPen(self._get_ui_color('border'))
         painter.drawText(6,14,getattr(model,'name',''))
         y2=H-54
@@ -8170,10 +8633,12 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         except Exception as e:
             print("_on_collision_selected error: " + str(e))
 
-    def _select_model_by_row(self, row): #vers 2
-        """Load model by row index into preview — works for both list views."""
+    def _select_model_by_row(self, row): #vers 3
+        """Load model by row index into preview — COL mode only."""
         try:
-            if not self.current_col_file:
+            if getattr(self, '_dff_adapters', None):
+                return   # DFF mode — handled by _on_dff_geom_selected_tbl
+            if not getattr(self, 'current_col_file', None):
                 return
             models = getattr(self.current_col_file, 'models', [])
             if row < 0 or row >= len(models):
@@ -8901,17 +9366,27 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message("Hotkeys updated")
 
-        # Save hotkeys to img_settings JSON
+        # Save hotkeys to config
         try:
-            mw = getattr(self, 'main_window', None)
-            settings = getattr(mw, 'img_settings', None)
-            if settings:
-                settings.set('col_hotkeys', {
-                    'find':    self.hotkey_edit_find.keySequence().toString(),
-                    'help':    self.hotkey_edit_help.keySequence().toString(),
-                })
-        except Exception:
-            pass
+            import json, os
+            cfg_path = os.path.expanduser('~/.config/imgfactory/model_workshop.json')
+            try:
+                cfg = json.load(open(cfg_path))
+            except Exception:
+                cfg = {}
+            cfg['hotkeys'] = {
+                'save':       self.hotkey_edit_save.keySequence().toString(),
+                'open':       self.hotkey_edit_open.keySequence().toString(),
+                'undo':       self.hotkey_edit_undo.keySequence().toString(),
+                'refresh':    self.hotkey_edit_refresh.keySequence().toString(),
+                'properties': self.hotkey_edit_properties.keySequence().toString(),
+                'find':       self.hotkey_edit_find.keySequence().toString(),
+                'help':       self.hotkey_edit_help.keySequence().toString(),
+            }
+            os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
+            json.dump(cfg, open(cfg_path, 'w'), indent=2)
+        except Exception as _e:
+            pass   # non-fatal if config can't be written
 
         if close:
             dialog.accept()
