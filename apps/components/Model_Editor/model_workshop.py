@@ -7130,9 +7130,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # 400ms: wait for parent widget to be fully laid out before restoring
         _QT.singleShot(400, self._load_mod_toolbar_layouts)
 
-        # Information group below
-        info_group = QGroupBox("")
-        info_group.setFont(self.title_font)
+        # Information group below — QFrame matches COL Workshop (QGroupBox has OS bg override issues)
+        info_group = QFrame()
+        info_group.setFrameStyle(QFrame.Shape.StyledPanel)
+        info_group.setAutoFillBackground(True)
+        info_group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(180)  # extra 40px for paint row
 
@@ -7212,6 +7214,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Kept this part, Because we also need to export optimized collision files.
 
         self._bottom_text_row = QWidget()
+        self._bottom_text_row.setAutoFillBackground(True)
+        self._bottom_text_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         tr_lay = QVBoxLayout(self._bottom_text_row)
         tr_lay.setContentsMargins(0, 0, 0, 0)
         tr_lay.setSpacing(2)
