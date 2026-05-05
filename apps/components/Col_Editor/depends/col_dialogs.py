@@ -16,7 +16,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap, QIcon
 
-from img_core_classes import format_file_size
+try:
+    from img_core_classes import format_file_size
+except ImportError:
+    from apps.methods.img_core_classes import format_file_size
 from apps.debug.debug_functions import img_debugger
 
 ##Methods list -

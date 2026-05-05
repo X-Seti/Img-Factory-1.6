@@ -8,10 +8,16 @@ Supports GTA III / VC / SA PC DFF format.
 
 import struct
 from typing import Optional, List
-from dff_classes import (
-    DFFModel, Frame, Geometry, Atomic, Material, Triangle,
-    Vector3, RGBA, TexCoord, BoundingSphere, RWChunkType
-)
+try:
+    from dff_classes import (
+        DFFModel, Frame, Geometry, Atomic, Material, Triangle,
+        Vector3, RGBA, TexCoord, BoundingSphere, RWChunkType
+    )
+except ImportError:
+    from apps.components.Model_Editor.depends.dff_classes import (
+        DFFModel, Frame, Geometry, Atomic, Material, Triangle,
+        Vector3, RGBA, TexCoord, BoundingSphere, RWChunkType
+    )
 
 ## Methods list -
 # read_chunk

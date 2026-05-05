@@ -9760,9 +9760,19 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             return
         self._load_txd_file(path)
 
-    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 1
-        """Lightweight TXD parser — no UI, returns list of texture dicts.
-        Uses TXDWorkshop._parse_single_texture via a minimal wrapper."""
+    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 2
+        """Lightweight TXD parser — self-contained, no TXDWorkshop dependency.
+        Uses apps/methods/txd_parser.py which decodes DXT1/DXT3/DXT5/RGBA32."""
+        try:
+            from apps.methods.txd_parser import parse_txd
+            return parse_txd(data)
+        except Exception as e:
+            print(f"_parse_txd_lightweight error: {e}")
+            import traceback; traceback.print_exc()
+            return []
+
+    def _parse_txd_lightweight_UNUSED(self, data: bytes) -> list: #vers 1_archived
+        """ARCHIVED: old TXDWorkshop-dependent version -- kept for reference."""
         import struct
         textures = []
         try:
