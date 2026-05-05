@@ -1874,7 +1874,14 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self._setup_hotkeys()
 
         # Apply theme ONCE at the end
-        self._apply_theme()
+        # In embedded (IMG Factory) mode, delay until after the widget is
+        # added to the tab and shown — palette propagation hasn't happened yet
+        # at __init__ time, so AppPanelEffect would paint with wrong colours.
+        if self.standalone_mode:
+            self._apply_theme()
+        else:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(150, self._apply_theme)
 
 
     def setup_ui(self): #vers 8
@@ -14116,6 +14123,9 @@ def open_model_workshop(main_window, dff_path=None,
             layout.addWidget(workshop)
             idx = tw.addTab(container, "Model Workshop")
             tw.setCurrentIndex(idx)
+            # Apply theme after tab is shown so palette is fully propagated
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(200, workshop._apply_theme)
         else:
             # Standalone window
             workshop = MDLWorkshop(main_window=main_window)
