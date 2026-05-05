@@ -1,4 +1,4 @@
-#this belongs in methods/col_workshop_parser.py - Version: 8
+#this belongs in methods/col_workshop_parser.py - Version: 1
 # X-Seti - December21 2025 - Col Workshop - COL Binary Parser
 """
 COL Binary Parser - Handles parsing binary COL data
@@ -9,8 +9,11 @@ Based on GTA Wiki specification
 import struct
 from typing import Tuple, List, Optional
 from apps.debug.debug_functions import img_debugger
-from apps.components.Model_Editor.depends.col_workshop_classes import (COLHeader, COLBounds, COLSphere, COLBox, COLVertex, COLFace, COLModel, COLVersion)
-from apps.components.Model_Editor.depends.col_core_classes import Vector3, COLMaterial, BoundingBox
+from apps.components.Mdl_Editor.depends.col_workshop_classes import (
+    COLHeader, COLBounds, COLSphere, COLBox,
+    COLVertex, COLFace, COLModel, COLVersion
+)
+from apps.components.Mdl_Editor.depends.col_core_classes import Vector3, COLMaterial, BoundingBox
 
 ##Classes list -
 # COLParser

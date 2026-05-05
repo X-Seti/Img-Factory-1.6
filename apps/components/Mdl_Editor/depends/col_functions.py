@@ -15,7 +15,7 @@ from PyQt6.QtCore import Qt, QTimer
 
 # Import IMG debug system and COL classes
 from apps.debug.debug_functions import img_debugger
-from col_core_classes import COLFile, COLModel
+from apps.components.Mdl_Editor.depends.col_core_classes import COLFile, COLModel
 from apps.debug.debug_functions import col_debug_log
 
 ##Methods list -

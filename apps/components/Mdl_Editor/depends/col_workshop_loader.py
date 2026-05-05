@@ -28,8 +28,8 @@ import os
 import struct
 from typing import List, Optional, Tuple
 
-from apps.components.Model_Editor.depends.col_workshop_parser import COLParser
-from apps.components.Model_Editor.depends.col_workshop_classes import COLModel, COLVersion
+from apps.components.Mdl_Editor.depends.col_workshop_parser import COLParser
+from apps.components.Mdl_Editor.depends.col_workshop_classes import COLModel, COLVersion
 from apps.debug.debug_functions import img_debugger
 
 _VALID_FOURCCS = {b'COLL', b'COL2', b'COL3', b'COL4'}

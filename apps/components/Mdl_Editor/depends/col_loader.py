@@ -11,7 +11,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 # Import IMG debug system and COL classes
 from apps.debug.debug_functions import img_debugger
-from col_core_classes import COLFile
+from apps.components.Mdl_Editor.depends.col_core_classes import COLFile
 
 ##Functions list -
 # _load_with_progress
