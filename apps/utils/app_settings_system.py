@@ -3309,10 +3309,11 @@ class AppPanelEffect: #vers 1
                 p.drawRect(r.left(), r.top()+row*scale, r.width(), scale)
 
 
-def apply_panel_effects(window, app_settings): #vers 1
+def apply_panel_effects(window, app_settings): #vers 2
     """Walk a window's panels and apply the current panel effect to each.
     Call this after _apply_theme() in any window that uses app_settings.
     Panels targeted: QGroupBox, QFrame with StyledPanel, central widget.
+    Skips: AppSettings dialog itself (its own QGroupBox rows should not be painted over).
     """
     from PyQt6.QtWidgets import QGroupBox, QFrame
     cs = app_settings.current_settings
@@ -3321,8 +3322,24 @@ def apply_panel_effects(window, app_settings): #vers 1
     if effect == 'none':
         return
 
+    # Don't apply panel effects to the settings dialog itself — its
+    # font/colour rows are QGroupBoxes that should show plain theme colour.
+    window_class = type(window).__name__
+    if 'Settings' in window_class or 'Dialog' in window_class:
+        return
+
     # Target panels — QGroupBox and StyledPanel QFrames
     for widget in window.findChildren(QGroupBox):
+        # Skip any widget that lives inside a QScrollArea (settings rows)
+        parent = widget.parent()
+        skip = False
+        while parent:
+            if 'Settings' in type(parent).__name__ or 'Dialog' in type(parent).__name__:
+                skip = True
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        if skip:
+            continue
         AppPanelEffect.install(widget, cs)
         widget.update()
 

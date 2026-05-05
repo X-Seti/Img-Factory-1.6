@@ -7347,12 +7347,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         bar.setObjectName("paint_bar")
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar.setStyleSheet(
-            "QWidget#paint_bar { background:palette(base); border-bottom:2px solid #ff8c00; }"
-            "QLabel  { color:#ddd; background:transparent; }"
+            "QWidget#paint_bar { background:palette(base); border-bottom:2px solid palette(mid); }"
+            "QLabel  { color:palette(windowText); background:transparent; }"
             "QComboBox { background:palette(base); color:palette(windowText); border:1px solid palette(mid); }"
-            "QPushButton { background:palette(base); color:palette(windowText); border:1px solid palette(mid); border-radius:3px; }"
-            "QPushButton:hover   { background:#353548; }"
-            "QPushButton:checked { background:#ff8c00; color:#000; border:1px solid #ff8c00; }"
+            "QPushButton { background:palette(button); color:palette(buttonText); border:1px solid palette(mid); border-radius:3px; }"
+            "QPushButton:hover   { background:palette(midlight); }"
+            "QPushButton:checked { background:palette(highlight); color:palette(highlightedText); border:1px solid palette(highlight); }"
         )
         bar.setFixedHeight(34)
 
