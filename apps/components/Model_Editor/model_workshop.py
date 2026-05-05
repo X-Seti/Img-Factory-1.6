@@ -263,10 +263,26 @@ class COL3DViewport(QWidget): #vers 2
             return pal.color(pal.ColorRole.PlaceholderText)
         return pal.color(pal.ColorRole.WindowText)
 
-    def _set_theme_bg(self, palette): #vers 1
-        """Set background from palette — light theme=white, dark=near-black."""
+    def _set_theme_bg(self, palette): #vers 2
+        """Set background from palette or app_settings theme — light/dark aware."""
         if self._theme_bg_set:
             return  # user manually picked a colour — respect it
+        # Try app_settings first (most reliable in embedded mode)
+        try:
+            ws = self._find_workshop()
+            app_settings = (getattr(ws, 'app_settings', None) if ws else None) or \
+                           getattr(self, 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_theme_colors'):
+                tc = app_settings.get_theme_colors() or {}
+                bg = tc.get('viewport_bg') or tc.get('bg_primary') or tc.get('panel_bg')
+                if bg:
+                    from PyQt6.QtGui import QColor as _QC
+                    c = _QC(bg)
+                    self._bg_color = (c.red(), c.green(), c.blue())
+                    return
+        except Exception:
+            pass
+        # Palette fallback
         win = palette.color(palette.ColorRole.Window)
         if win.lightness() > 128:   # light theme
             self._bg_color = (245, 245, 245)
@@ -1740,6 +1756,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self.app_settings = None
         if hasattr(self.app_settings, 'theme_changed'):
             self.app_settings.theme_changed.connect(self._refresh_icons)
+            self.app_settings.theme_changed.connect(self._on_theme_changed)
         # Load persisted texlist folder path
         self._texlist_folder = ''
         self._load_texlist_setting()
@@ -6838,6 +6855,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         self.col_list_widget = QListWidget()
         self.col_list_widget.setAlternatingRowColors(True)
+        self.col_list_widget.setAutoFillBackground(True)
+        self.col_list_widget.setStyleSheet(
+            "QListWidget { background: palette(base); color: palette(windowText); "
+            "border: none; } "
+            "QListWidget::item:selected { background: palette(highlight); "
+            "color: palette(highlightedText); }")
         self.col_list_widget.itemClicked.connect(self._on_col_selected)
         layout.addWidget(self.col_list_widget)
         return panel
@@ -8645,6 +8668,23 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         print("======================\n")
 
 
+    def _on_theme_changed(self): #vers 1
+        """Called when app theme switches -- reset viewport bg and repaint panels."""
+        # Reset viewport so _set_theme_bg re-reads the new theme color
+        pw = getattr(self, 'preview_widget', None)
+        if pw and hasattr(pw, '_theme_bg_set'):
+            pw._theme_bg_set = False
+            pw.update()
+        # Force palette refresh on left panel list widget
+        if hasattr(self, 'col_list_widget') and self.col_list_widget:
+            self.col_list_widget.setStyleSheet(
+                "QListWidget { background: palette(base); color: palette(windowText); "
+                "border: none; } "
+                "QListWidget::item:selected { background: palette(highlight); "
+                "color: palette(highlightedText); }")
+        # Repaint the whole workshop
+        self.update()
+
     def _apply_theme(self): #vers 5
         """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
@@ -8669,6 +8709,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 pass
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
+            # Reset viewport bg so it picks up the new theme on next paint
+            self._on_theme_changed()
         except Exception as e:
             print(f"Theme application error: {e}")
 
@@ -9279,11 +9321,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         dlg_lay.setSpacing(6)
         dlg.setStyleSheet(
             "QDialog { background: palette(base); border: 1px solid palette(mid); border-radius: 4px; }"
-            "QLabel  { color: #ccc; }")
+            "QLabel  { color: palette(windowText); }")
 
         # Build display pixmap
         pix = QPixmap(128, 128)
-        pix.fill(QColor(40, 40, 55))
+        pix.fill(self.palette().color(self.palette().ColorRole.Base))
         disp_w, disp_h = w, h
 
         if rgba and w > 0 and h > 0 and len(rgba) >= w * h * 4:
@@ -9363,7 +9405,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         popup.setAttribute(_Qt.WidgetAttribute.WA_DeleteOnClose)
         popup.setStyleSheet(
             "QWidget { background:palette(base); border:1px solid palette(mid); border-radius:3px; }"
-            "QLabel  { color:#ccc; background:transparent; }")
+            "QLabel  { color:palette(windowText); background:transparent; }")
 
         v = QVBoxLayout(popup)
         v.setContentsMargins(6, 6, 6, 6)
@@ -9372,7 +9414,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         img_lbl = QLabel()
         img_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
         pix = QPixmap(MAX_D, MAX_D)
-        pix.fill(QColor(40, 40, 55))
+        pix.fill(self.palette().color(self.palette().ColorRole.Base))
         if rgba and w > 0 and h > 0 and len(rgba) >= w*h*4:
             try:
                 qi = QImage(rgba[:w*h*4], w, h,
