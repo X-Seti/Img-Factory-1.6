@@ -13444,7 +13444,7 @@ class ZoomablePreview(QLabel): #vers 2
             self.zoom_out()
 
 
-class COLEditorDialog(QDialog): #vers 3
+class MDLEditorDialog(QDialog): #vers 3
     """Enhanced COL Editor Dialog"""
 
 
@@ -14014,10 +14014,10 @@ class COLEditorDialog(QDialog): #vers 3
 
 
 # Convenience functions
-def open_col_editor(parent=None, file_path: str = None) -> COLEditorDialog: #vers 2
+def open_col_editor(parent=None, file_path: str = None) -> MDLEditorDialog: #vers 2
     """Open COL editor dialog - ENHANCED VERSION"""
     try:
-        editor = COLEditorDialog(parent)
+        editor = MDLEditorDialog(parent)
 
         if file_path:
             if editor.load_col_file(file_path):
@@ -14079,7 +14079,7 @@ def delete_model(col_file: COLFile, model_index: int) -> bool: #vers 1
 
 
 def export_model(model: COLModel, file_path: str) -> bool: #vers 2
-    """Export single model — use COLWorkshop._export_col_model for UI export."""
+    """Export single model — use MDLWorkshop._export_col_model for UI export."""
     from apps.methods.col_workshop_writer import save_col_file
     return save_col_file([model], file_path)
 
@@ -14141,7 +14141,7 @@ def update_view_options(viewer: 'COL3DViewport', **options): #vers 1
 
 
 
-def apply_changes(editor: COLEditorDialog) -> bool: #vers 2
+def apply_changes(editor: MDLEditorDialog) -> bool: #vers 2
     """Apply all pending changes via editor's apply method."""
     try:
         if hasattr(editor, '_apply_changes'):
@@ -14163,7 +14163,7 @@ import sys
 def open_workshop(main_window, img_path=None): #vers 3
     """Open Workshop from main window - works with or without IMG"""
     try:
-        workshop = COLWorkshop(main_window, main_window)
+        workshop = MDLWorkshop(main_window, main_window)
 
         if img_path:
             # Check if it's a col file or IMG file
@@ -14186,7 +14186,7 @@ def open_workshop(main_window, img_path=None): #vers 3
 
 
 # Compatibility alias for imports
-COLEditorDialog = COLWorkshop  #vers 1
+MDLEditorDialog = MDLWorkshop  #vers 1
 
 
 def open_col_workshop(main_window, img_path=None): #vers 2
@@ -14196,7 +14196,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
 
         # Standalone mode
         if not main_window or not hasattr(main_window, 'main_tab_widget'):
-            workshop = COLWorkshop(None, main_window)
+            workshop = MDLWorkshop(None, main_window)
             workshop.setWindowFlags(Qt.WindowType.Window)
             if img_path and img_path.lower().endswith('.col'):
                 if hasattr(workshop, 'open_col_file'):
@@ -14214,7 +14214,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
         tab_layout = QVBoxLayout(tab_container)
         tab_layout.setContentsMargins(0, 0, 0, 0)
 
-        workshop = COLWorkshop(tab_container, main_window)
+        workshop = MDLWorkshop(tab_container, main_window)
         workshop.setWindowFlags(Qt.WindowType.Widget)
         tab_layout.addWidget(workshop)
 
@@ -14252,7 +14252,7 @@ def open_col_workshop(main_window, img_path=None): #vers 2
             main_window.log_message(f"Error opening MDL Workshop: {str(e)}")
         return None
 
-COLEditorDialog = COLWorkshop
+MDLEditorDialog = MDLWorkshop
 
 if __name__ == "__main__":
     import sys
@@ -14264,7 +14264,7 @@ if __name__ == "__main__":
         app = QApplication(sys.argv)
         print("QApplication created")
 
-        workshop = COLWorkshop()
+        workshop = MDLWorkshop()
         print(App_name + " instance created")
 
         workshop.setWindowTitle(App_name + " - Standalone")
