@@ -327,7 +327,9 @@ class ToolTaskbar(QWidget):  # vers 2
             )
 
     def _raise_target(self, key: str) -> None:
-        """Raise / show the tool's widget or call its opener."""
+        """Raise / show the tool's widget or call its opener.
+        Clicking an already-active tool hides it (OS taskbar behaviour).
+        Always raises the main window to front so it isn't blocked."""
         info = self._tools.get(key)
         if not info:
             return
@@ -335,49 +337,71 @@ class ToolTaskbar(QWidget):  # vers 2
         if t is None:
             return
 
+        mw = self._main_window
+
         # Dir tree: show/toggle via left stack
         if key == "dirtree":
-            _show_dir_tree(self._main_window)
+            _show_dir_tree(mw)
             return
 
         if key == "dat":
-            _show_dat_browser(self._main_window)
+            _show_dat_browser(mw)
             return
 
         if callable(t):
             t()
             self._set_exclusive_active(key)
+            # Bring main window to front
+            if mw:
+                mw.raise_()
+                mw.activateWindow()
             return
+
         if isinstance(t, QWidget):
             # Guard: the C++ object may have been deleted (e.g. workshop closed)
             try:
                 _ = t.isVisible()  # will raise RuntimeError if deleted
             except RuntimeError:
-                # Widget deleted — remove stale registration and bail
                 self.unregister(key)
                 return
-            # If it's a docked tab, switch to it
-            mw = self._main_window
+
+            # OS-taskbar behaviour: clicking an active tool hides it
             tw = getattr(mw, "main_tab_widget", None)
             if tw:
                 for i in range(tw.count()):
                     try:
                         w = tw.widget(i)
                         if w is t or (w and t in w.findChildren(QWidget)):
+                            # Already the current tab? → OS-style toggle = do nothing
+                            # (hiding a tab is disruptive; just ensure visible + raised)
                             tw.setCurrentIndex(i)
-                            # Force splitter open if content panel is collapsed
                             self._ensure_content_visible(mw)
                             self._set_exclusive_active(key)
+                            # Always bring main window to front
+                            if mw:
+                                mw.raise_()
+                                mw.activateWindow()
                             return
                     except RuntimeError:
                         continue
-            # Floating window
+
+            # Floating window — toggle hide/show like OS taskbar
             try:
-                if not t.isVisible():
-                    t.show()
-                t.raise_()
-                t.activateWindow()
-                self._set_exclusive_active(key)
+                is_active = info.get("active", False)
+                if is_active and t.isVisible():
+                    # Same button clicked again → hide (OS taskbar behaviour)
+                    t.hide()
+                    self.set_active(key, False)
+                else:
+                    if not t.isVisible():
+                        t.show()
+                    t.raise_()
+                    t.activateWindow()
+                    self._set_exclusive_active(key)
+                # Also raise main window so it isn't buried
+                if mw:
+                    mw.raise_()
+                    mw.activateWindow()
             except RuntimeError:
                 self.unregister(key)
 

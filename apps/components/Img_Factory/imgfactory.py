@@ -6085,8 +6085,11 @@ class IMGFactory(QMainWindow):
             try:
                 from apps.components.Img_Factory.welcome_screen import WelcomeScreen
                 if WelcomeScreen.should_show_on_startup():
-                    from PyQt6.QtCore import QTimer
-                    QTimer.singleShot(1500, _show)
+                    # Guard: only auto-show once per session
+                    if not getattr(self, '_intro_auto_shown', False):
+                        self._intro_auto_shown = True
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(1500, _show)
             except Exception:
                 pass
         except Exception as e:

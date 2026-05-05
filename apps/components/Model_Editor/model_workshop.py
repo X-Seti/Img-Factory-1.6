@@ -1890,6 +1890,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()
         self._connect_all_buttons()
+        # Apply theme once at end so all panels inherit correct palette
+        self._apply_theme()
 
 
     def _connect_all_buttons(self): #vers 2
