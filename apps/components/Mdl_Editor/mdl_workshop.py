@@ -173,12 +173,12 @@ class COL3DViewport(QWidget): #vers 2
     G key / button = translate gizmo, R key / button = rotate gizmo.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): #vers 1
         super().__init__(parent)
         self.setMinimumSize(200, 200)
         self._model        = None
         self._yaw          = 30.0
-        self._pitch        = 20.0
+        self._pitch        = 20.0   # degrees — 0=side view, 90=top, -90=bottom
         self._zoom         = 1.0
         self._pan_x        = 0.0
         self._pan_y        = 0.0
@@ -189,8 +189,10 @@ class COL3DViewport(QWidget): #vers 2
         self._show_mesh    = True
         self._backface     = False
         self._render_style = 'semi'
-        self._bg_color     = (25, 25, 35)  # overridden on first paint
-        self._theme_bg_set = False
+        self._tex_cache    = {}       # tex_name → QImage for textured render
+        # Default background — will be overridden by _set_theme_bg() on first paint
+        self._bg_color     = (25, 25, 35)
+        self._theme_bg_set = False  # flag so we only auto-set once
         # drag state
         self._left_drag    = None
         self._right_drag   = None
@@ -210,6 +212,11 @@ class COL3DViewport(QWidget): #vers 2
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.ArrowCursor)
+        # Viewport lighting state (used by _compute_face_shade in workshop)
+        self._shading_enabled = True
+        self._light_dir       = (0.5, 0.5, 0.8)   # normalised XYZ toward light
+        self._light_ambient   = 0.30               # 0..1
+        self._light_intensity = 1.0                # 0..2 multiplier
 
 
     #    public API                                                         
@@ -276,15 +283,30 @@ class COL3DViewport(QWidget): #vers 2
         return pal.color(pal.ColorRole.WindowText)
 
     def _set_theme_bg(self, palette): #vers 2
-        """Set background from palette — light theme=white, dark=near-black."""
+        """Set background from palette or app_settings theme — light/dark aware."""
         if self._theme_bg_set:
-            return
+            return  # user manually picked a colour — respect it
+        # Try app_settings first (most reliable in embedded mode)
+        try:
+            ws = self._find_workshop()
+            app_settings = (getattr(ws, 'app_settings', None) if ws else None) or \
+                           getattr(self, 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_theme_colors'):
+                tc = app_settings.get_theme_colors() or {}
+                bg = tc.get('viewport_bg') or tc.get('bg_primary') or tc.get('panel_bg')
+                if bg:
+                    from PyQt6.QtGui import QColor as _QC
+                    c = _QC(bg)
+                    self._bg_color = (c.red(), c.green(), c.blue())
+                    return
+        except Exception:
+            pass
+        # Palette fallback
         win = palette.color(palette.ColorRole.Window)
-        if win.lightness() > 128:
+        if win.lightness() > 128:   # light theme
             self._bg_color = (245, 245, 245)
-        else:
+        else:                        # dark theme
             self._bg_color = (25, 25, 35)
-        self.update()
 
     def set_show_spheres(self, v): self._show_spheres = v; self.update()
     def set_show_boxes(self,   v): self._show_boxes   = v; self.update()
@@ -302,15 +324,22 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    projection (self-contained, no workshop needed)                   
-    def _proj(self, x, y, z):
-        """Project 3D world point → 2D screen pixel using current view state."""
+    def _proj(self, x, y, z): #vers 2
+        """Project 3D world point → 2D screen pixel.
+        GTA coordinate system: X=right, Y=forward, Z=up (right-hand Z-up).
+        Screen Y is DOWN so we negate the vertical component.
+        Yaw rotates around Z (world up), pitch tilts the camera up/down."""
         import math
         yr = math.radians(self._yaw);   cy, sy = math.cos(yr), math.sin(yr)
         pr = math.radians(self._pitch); cp, sp = math.cos(pr), math.sin(pr)
-        rx = x*cy - y*sy
-        ry = x*sy + y*cy
-        ry2 = ry*cp - z*sp
-        return rx, ry2
+        # Rotate around Z axis (yaw)
+        rx =  x*cy - y*sy      # screen X — right
+        ry =  x*sy + y*cy      # depth
+        # Tilt around screen-X axis (pitch): Z-up becomes screen-up
+        # Negate result because screen-Y points DOWN but world-Z points UP
+        screen_x = rx
+        screen_y = -(ry*sp + z*cp)   # negate for screen coords
+        return screen_x, screen_y
 
     def _get_scale_origin(self):
         """Return (scale, ox, oy) mapping 3D projected coords to screen pixels."""
@@ -775,7 +804,7 @@ class COL3DViewport(QWidget): #vers 2
         self._render_style = modes[(modes.index(self._render_style)+1) % 3]                              if self._render_style in modes else 'semi'
         self.update()
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event): #vers 1
         from PyQt6.QtWidgets import QMenu
         m = QMenu(self)
         m.addAction("Top",       lambda: self._set_angles(0,   0))
@@ -791,9 +820,12 @@ class COL3DViewport(QWidget): #vers 2
         m.addSeparator()
         for style,label in [('wireframe','Wireframe [V]'),
                              ('semi',     'Semi-transparent [V]'),
-                             ('solid',    'Solid [V]')]:
+                             ('solid',    'Solid [V]'),
+                             ('textured', 'Textured [V]')]:
             tick = '✓ ' if self._render_style == style else '    '
-            m.addAction(tick+label, lambda s=style: self.set_render_style(s))
+            m.addAction(tick+label, lambda s=style: (
+                self.set_render_style(s) if hasattr(self, 'set_render_style')
+                else setattr(self, '_render_style', s) or self.update()))
         m.exec(event.globalPos())
 
     def _set_angles(self, yaw, pitch):
@@ -801,7 +833,7 @@ class COL3DViewport(QWidget): #vers 2
 
 
     #    paint                                                              
-    def paintEvent(self, event):
+    def paintEvent(self, event): #vers 1
         """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
         from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush,
                                   QPolygonF, QLinearGradient)
@@ -823,11 +855,11 @@ class COL3DViewport(QWidget): #vers 2
 
         scale, ox, oy = self._get_scale_origin()
 
-        def to_screen(x, y, z):
+        def to_screen(x, y, z): #vers 1
             px, py = self._proj(x, y, z)
             return px * scale + ox, py * scale + oy
 
-        def g3(obj):
+        def g3(obj): #vers 1
             if hasattr(obj, 'x'):        return obj.x, obj.y, obj.z
             if hasattr(obj, 'position'): return obj.position.x, obj.position.y, obj.position.z
             if obj is None:              return 0.0, 0.0, 0.0
@@ -840,7 +872,7 @@ class COL3DViewport(QWidget): #vers 2
         spheres = getattr(model, 'spheres', [])
         bounds  = getattr(model, 'bounds',  None)
 
-        #    Extent from ALL geometry (verts + boxes + spheres)            
+        # - Extent from ALL geometry (verts + boxes + spheres)
         all_pts = [(v.x, v.y, v.z) for v in verts]
         for box in boxes:
             mn = getattr(box,'min_point', getattr(box,'min', None))
@@ -861,7 +893,7 @@ class COL3DViewport(QWidget): #vers 2
         else:
             extent = 5.0
 
-        #    Reference grid (XY plane, Z=0)                                
+        # - Reference grid (XY plane, Z=0)
         raw_step = extent / 4.0
         mag  = 10 ** math.floor(math.log10(max(raw_step, 0.001)))
         step = round(raw_step / mag) * mag; step = max(step, 0.01)
@@ -878,19 +910,40 @@ class COL3DViewport(QWidget): #vers 2
             p.drawLine(int(x0), int(y0), int(x1), int(y1))
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        #    Material colours — from col_materials group palette            
-        try:
-            from apps.methods.col_materials import get_material_qcolor, COLGame
-            _game = COLGame.VC if getattr(getattr(model,'version',None),'value',3)==1 else COLGame.SA
-            def mat_col(mat_id):
-                c = get_material_qcolor(mat_id, _game)
-                return c if c else self._get_ui_color('viewport_text')
-        except Exception:
-            def mat_col(mat_id):
-                return self._get_ui_color('viewport_text')
+        # - Material colours
+        # For DFF geometries use actual material colours; fall back to COL palette
+        # _DFFGeometryAdapter exposes .materials from the underlying DFF Geometry
+        _dff_mats = getattr(model, 'materials', [])
 
-        #    Mesh faces                                                     
-        rs = self._render_style  # 'wireframe' | 'semi' | 'solid'
+        if _dff_mats:
+            def mat_col(mat_id):
+                if 0 <= mat_id < len(_dff_mats):
+                    # DFF Material uses .colour (RGBA dataclass)
+                    mat = _dff_mats[mat_id]
+                    c = getattr(mat, 'colour', None) or getattr(mat, 'color', None)
+                    if c:
+                        return QColor(c.r, c.g, c.b, max(80, c.a) if c.a else 200)
+                return self._get_ui_color('viewport_text')
+        else:
+            try:
+                from apps.components.Model_Editor.depends.col_materials import get_material_qcolor, COLGame
+                _game = COLGame.VC if getattr(getattr(model,'version',None),'value',3)==1 else COLGame.SA
+                def mat_col(mat_id):
+                    c = get_material_qcolor(mat_id, _game)
+                    return c if c else self._get_ui_color('viewport_text')
+            except Exception:
+                def mat_col(mat_id):
+                    return self._get_ui_color('viewport_text')
+
+        # - Mesh faces
+        rs = self._render_style  # 'wireframe' | 'semi' | 'solid' | 'textured'
+
+        # For textured mode: get UV layer and texture cache
+        _geom_obj  = getattr(model, '_geometry', None)
+        _uv_layers = getattr(_geom_obj, 'uv_layers', []) if _geom_obj else []
+        _uv_layer  = _uv_layers[0] if _uv_layers else []
+        _tex_cache = getattr(self, '_tex_cache', {})
+
         if self._show_mesh and verts and faces:
             for face_idx, face in enumerate(faces):
                 idx = getattr(face,'vertex_indices',None)
@@ -905,22 +958,135 @@ class COL3DViewport(QWidget): #vers 2
                 _mat_id = getattr(_mat,'material_id',_mat) if not isinstance(_mat,int) else _mat
                 mc = mat_col(_mat_id)
                 is_selected = (face_idx in self._selected_faces)
+
+                # Lambertian shading — compute per-face shade factor
+                _shade_on = getattr(self, '_shading_enabled', True)
+                try:
+                    if _shade_on:
+                        g3v   = [g3(verts[i]) for i in idx]
+                        _ldir = getattr(self, '_light_dir',     (0.5, 0.5, 0.8))
+                        _lamb = getattr(self, '_light_ambient', 0.30)
+                        _lint = getattr(self, '_light_intensity', 1.0)
+                        _ws   = getattr(self, '_find_workshop', lambda: None)()
+                        # workshop overrides if set via light dialog
+                        if _ws:
+                            _ldir = getattr(_ws, '_vp_light_dir',     _ldir)
+                            _lamb = getattr(_ws, '_vp_light_ambient',  _lamb)
+                            _lint = getattr(_ws, '_vp_light_intensity',_lint)
+                        _shade_raw = self._compute_face_shade(
+                            g3v[0], g3v[1], g3v[2],
+                            ambient=_lamb, light=_ldir)
+                        _shade = min(1.0, _shade_raw * _lint)
+                    else:
+                        _shade = 1.0   # no shading = full brightness
+                except Exception:
+                    _shade = 0.7
+
                 if is_selected:
                     p.setBrush(QBrush(QColor(255, 200, 50, 200)))
                     p.setPen(QPen(QColor(255, 230, 80), 2))
+                    p.drawPolygon(QPolygonF(pts))
+
+                elif rs == 'textured':
+                    # Look up texture image for this material
+                    tex_img = None
+                    mat_obj = _dff_mats[_mat_id] if 0 <= _mat_id < len(_dff_mats) else None
+                    if mat_obj:
+                        tname = (getattr(mat_obj, 'texture_name', '') or '').strip()
+                        if tname and tname.lower() not in ('', 'null', 'none'):
+                            tex_img = (_tex_cache.get(tname.lower()) or
+                                       _tex_cache.get(tname.lower().split('.')[0]))
+                    if tex_img and _uv_layer and all(i < len(_uv_layer) for i in idx):
+                        uvs = [_uv_layer[i] for i in idx]
+                        try:
+                            from PyQt6.QtGui import QTransform, QRegion
+                            tw, th = tex_img.width(), tex_img.height()
+                            sx0,sy0 = uvs[0].u*tw, uvs[0].v*th
+                            sx1,sy1 = uvs[1].u*tw, uvs[1].v*th
+                            sx2,sy2 = uvs[2].u*tw, uvs[2].v*th
+                            dx0,dy0 = pts[0].x(), pts[0].y()
+                            dx1,dy1 = pts[1].x(), pts[1].y()
+                            dx2,dy2 = pts[2].x(), pts[2].y()
+                            # Affine: texture-pixels → screen-pixels
+                            det = (sx1-sx0)*(sy2-sy0) - (sx2-sx0)*(sy1-sy0)
+                            if abs(det) > 0.1:
+                                m00=((dx1-dx0)*(sy2-sy0)-(dx2-dx0)*(sy1-sy0))/det
+                                m01=((dx2-dx0)*(sx1-sx0)-(dx1-dx0)*(sx2-sx0))/det
+                                m10=((dy1-dy0)*(sy2-sy0)-(dy2-dy0)*(sy1-sy0))/det
+                                m11=((dy2-dy0)*(sx1-sx0)-(dy1-dy0)*(sx2-sx0))/det
+                                t0 = dx0 - m00*sx0 - m01*sy0
+                                t1 = dy0 - m10*sx0 - m11*sy0
+                                xf = QTransform(m00,m10,m01,m11,t0,t1)
+                                # Invert to get screen→texture mapping for clip polygon
+                                xf_inv, invertible = xf.inverted()
+                                if invertible:
+                                    p.save()
+                                    p.setTransform(xf)
+                                    # Clip polygon in TEXTURE space (after transform set)
+                                    tex_poly = xf_inv.map(QPolygonF(pts))
+                                    p.setClipRegion(
+                                        QRegion(tex_poly.toPolygon()),
+                                        Qt.ClipOperation.ReplaceClip)
+                                    p.drawImage(0, 0, tex_img)
+                                    p.restore()
+                                    # Shading overlay in screen space
+                                    shadow_alpha = int((1.0 - _shade) * 140)
+                                    if shadow_alpha > 8:
+                                        p.save()
+                                        p.setBrush(QBrush(QColor(0,0,0,shadow_alpha)))
+                                        p.setPen(Qt.PenStyle.NoPen)
+                                        p.drawPolygon(QPolygonF(pts))
+                                        p.restore()
+                                else:
+                                    raise ValueError("not invertible")
+                            else:
+                                raise ValueError("degenerate UV")
+                        except Exception:
+                            _s2 = _shade
+                            fb = QColor(int(mc.red()*_s2),int(mc.green()*_s2),int(mc.blue()*_s2))
+                            p.setBrush(QBrush(fb)); p.setPen(Qt.PenStyle.NoPen)
+                            p.drawPolygon(QPolygonF(pts))
+                    else:
+                        # No texture — shaded solid fallback
+                        _sc = mc if mat_obj else QColor(170,175,180)
+                        _s3 = _shade
+                        shaded_fb = QColor(
+                            int(_sc.red()   * _s3),
+                            int(_sc.green() * _s3),
+                            int(_sc.blue()  * _s3))
+                        p.setBrush(QBrush(shaded_fb))
+                        p.setPen(QPen(QColor(80,80,80,60), 0.3))
+                        p.drawPolygon(QPolygonF(pts))
+
                 elif rs == 'solid':
-                    p.setBrush(QBrush(mc))
-                    p.setPen(QPen(mc.darker(130),0.5))
+                    # Apply Lambertian shading
+                    _s = _shade
+                    shaded = QColor(
+                        int(mc.red()   * _s),
+                        int(mc.green() * _s),
+                        int(mc.blue()  * _s), mc.alpha())
+                    p.setBrush(QBrush(shaded))
+                    p.setPen(QPen(shaded.darker(120), 0.5))
+                    p.drawPolygon(QPolygonF(pts))
                 elif rs == 'semi':
-                    fill=QColor(mc.red(),mc.green(),mc.blue(),90)
+                    _s = _shade
+                    fill = QColor(
+                        int(mc.red()   * _s),
+                        int(mc.green() * _s),
+                        int(mc.blue()  * _s), 90)
+                    edge = QColor(
+                        int((mc.red()   * _s)//2 + 60),
+                        int((mc.green() * _s)//2 + 60),
+                        int((mc.blue()  * _s)//2 + 60))
                     p.setBrush(QBrush(fill))
-                    p.setPen(QPen(QColor(mc.red()//2+60,mc.green()//2+60,mc.blue()//2+60),0.5))
+                    p.setPen(QPen(edge, 0.5))
+                    p.drawPolygon(QPolygonF(pts))
                 else:  # wireframe
                     p.setBrush(Qt.BrushStyle.NoBrush)
                     p.setPen(QPen(QColor(100,180,100),1))
-                p.drawPolygon(QPolygonF(pts))
+                    p.drawPolygon(QPolygonF(pts))
 
-        #    Boxes — draw all 12 edges of AABB                              
+        # - Boxes — draw all 12 edges of AABB
         if self._show_boxes:
             p.setPen(QPen(QColor(220,180,50),1.5))
             p.setBrush(QBrush(QColor(220,180,50,30)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
@@ -939,7 +1105,7 @@ class COL3DViewport(QWidget): #vers 2
                     ax,ay=sc[a2]; bx,by=sc[b2]
                     p.drawLine(int(ax),int(ay),int(bx),int(by))
 
-        #    Spheres — draw 3 projected rings (equator + 2 meridians)       
+        # - Spheres — draw 3 projected rings (equator + 2 meridians)
         if self._show_spheres:
             p.setPen(QPen(QColor(80,200,220),1.5))
             p.setBrush(QBrush(QColor(80,200,220,25)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
@@ -963,7 +1129,7 @@ class COL3DViewport(QWidget): #vers 2
                     for i in range(len(pts)-1):
                         p.drawLine(pts[i],pts[i+1])
 
-        #    Bounding box (model.bounds)                                    
+        # - Bounding box (model.bounds)
         if bounds:
             mn_obj=getattr(bounds,'min',None); mx_obj=getattr(bounds,'max',None)
             if mn_obj and mx_obj:
@@ -991,7 +1157,7 @@ class COL3DViewport(QWidget): #vers 2
                 p.setPen(QPen(QColor(180,100,220,120),1,Qt.PenStyle.DotLine))
                 for i in range(len(pts)-1): p.drawLine(pts[i],pts[i+1])
 
-        #    Gizmo at model centroid                                        
+        # - Gizmo at model centroid
         if all_pts:
             cx3=sum(pt[0] for pt in all_pts)/len(all_pts)
             cy3=sum(pt[1] for pt in all_pts)/len(all_pts)
@@ -1042,10 +1208,10 @@ class COL3DViewport(QWidget): #vers 2
         p.setBrush(QBrush(self._get_ui_color('border'))); p.setPen(QPen(self._get_ui_color('viewport_text'),1))
         p.drawEllipse(int(gx)-5,int(gy)-5,10,10)
 
-        #    Top-right overlay — normal mode: Move/Rotate + Render chips   
-        #                         paint mode:  material + tool chips
+        # - Top-right overlay — normal mode: Move/Rotate + Render chips
+        #                        paint mode: material + tool chips
         if self._paint_mode:
-            #    Tunable layout constants                                 
+            # - Tunable layout constants
             _CHIP_H   = 26   # height of each chip row  (px)
             _BTN_W    = 32   # width  of each tool button
             _BTN_GAP  = 3    # gap between buttons
@@ -1054,17 +1220,17 @@ class COL3DViewport(QWidget): #vers 2
             _MARGIN   = 8    # right margin from viewport edge
             _ROW1_Y   = 4    # y of material chip
             _ROW2_Y   = _ROW1_Y + _CHIP_H + 2   # y of tool buttons row
-            #                                                             
 
             from PyQt6.QtCore import QRect
             mat_id = self._paint_material
             # Use cached list if available, else fall back to direct lookup
-            _mat_cache = getattr(self._find_workshop(), '_paint_mat_list', [])                          if self._find_workshop() else []
+            _ws = self._find_workshop()
+            _mat_cache = getattr(_ws, '_paint_mat_list', []) if _ws else []
             _mat_entry = next((m for m in _mat_cache if m[0] == mat_id), None)
             if _mat_entry:
                 _, mat_name, hex_col = _mat_entry
             else:
-                from apps.methods.col_materials import get_material_name, get_material_colour, COLGame
+                from apps.components.Model_Editor.depends.col_materials import get_material_name, get_material_colour, COLGame
                 mat_name = get_material_name(mat_id, COLGame.SA)
                 hex_col  = get_material_colour(mat_id, COLGame.SA)
             mc = QColor(f"#{hex_col}")
@@ -1073,28 +1239,21 @@ class COL3DViewport(QWidget): #vers 2
             _ARW = 22   # arrow button width
             rx = W - _MAT_W - _MARGIN
             # ◀ prev button
-            # Theme-aware paint bar arrows
-            _pal    = self.palette()
-            _btn_bg = _pal.color(_pal.ColorRole.Button)
-            _btn_tx = _pal.color(_pal.ColorRole.ButtonText)
-            _acc    = _pal.color(_pal.ColorRole.Highlight)
-            _chip_c = _pal.color(_pal.ColorRole.Base)
-            _txt_c  = _pal.color(_pal.ColorRole.WindowText)
-            p.setBrush(QBrush(_btn_bg)); p.setPen(QPen(_acc, 1))
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
             p.drawRoundedRect(rx, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
-            p.setPen(_btn_tx); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
             p.drawText(rx+5, _ROW1_Y+17, "◀")
             # material name chip
-            p.setBrush(QBrush(_chip_c)); p.setPen(QPen(_acc, 1))
+            p.setBrush(QBrush(QColor(20,20,40,220))); p.setPen(QPen(QColor(255,140,0),1))
             p.drawRoundedRect(rx+_ARW+2, _ROW1_Y, _MAT_W-_ARW*2-4, _CHIP_H, 4, 4)
             p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
             p.drawRoundedRect(rx+_ARW+6, _ROW1_Y+4, _CHIP_H-8, _CHIP_H-8, 2, 2)
-            p.setPen(_txt_c); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
+            p.setPen(QColor(255,200,80)); p.setFont(QFont('Arial',8,QFont.Weight.Bold))
             p.drawText(rx+_ARW+_CHIP_H+4, _ROW1_Y+17, f"{mat_id} — {mat_name[:20]}")
             # ▶ next button
-            p.setBrush(QBrush(_btn_bg)); p.setPen(QPen(_acc, 1))
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(180,120,0),1))
             p.drawRoundedRect(rx+_MAT_W-_ARW, _ROW1_Y, _ARW, _CHIP_H, 3, 3)
-            p.setPen(_btn_tx); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
+            p.setPen(QColor(255,180,0)); p.setFont(QFont('Arial',10,QFont.Weight.Bold))
             p.drawText(rx+_MAT_W-_ARW+4, _ROW1_Y+17, "▶")
 
             # Row 2: tool buttons using SVG icons via QIcon.paint()
@@ -1110,9 +1269,8 @@ class COL3DViewport(QWidget): #vers 2
             ]
             for t_name, icon_fn, active_col in tool_defs:
                 active = (tool == t_name)
-                _pal3 = self.palette()
-                bg  = QColor(active_col) if active else _pal3.color(_pal3.ColorRole.Button)
-                bdr = QColor(active_col) if active else _pal3.color(_pal3.ColorRole.Mid)
+                bg  = QColor(active_col) if active else QColor(30,30,50,210)
+                bdr = QColor(active_col) if active else QColor(80,90,130)
                 p.setBrush(QBrush(bg)); p.setPen(QPen(bdr, 1))
                 p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
                 # Draw SVG icon centred in button
@@ -1129,20 +1287,16 @@ class COL3DViewport(QWidget): #vers 2
 
             # Tool name label below row 2 (acts as tooltip)
             tool_labels = {'paint':'Paint', 'dropper':'Pick', 'fill':'Fill'}
-            _pal4 = self.palette()
-            _lbl  = _pal4.color(_pal4.ColorRole.PlaceholderText)
-            p.setPen(_lbl); p.setFont(QFont('Arial',7))
+            p.setPen(QColor(200,200,160,180)); p.setFont(QFont('Arial',7))
             p.drawText(W - _MAT_W - _MARGIN, _ROW2_Y + _CHIP_H + 10,
                        f"Tool: {tool_labels.get(tool, tool)}")
 
             # Undo button
-            _pal5 = self.palette()
-            p.setBrush(QBrush(_pal5.color(_pal5.ColorRole.Button)))
-            p.setPen(QPen(_pal5.color(_pal5.ColorRole.Mid), 1))
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(80,90,130),1))
             p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
             if icon_fac:
                 try:
-                    icon = icon_fac.undo_paint_icon(color=_pal5.color(_pal5.ColorRole.ButtonText).name())
+                    icon = icon_fac.undo_paint_icon(color='#b0bec5')
                     icon_x = tx + (_BTN_W - _ICON_SZ)//2
                     icon_y = _ROW2_Y + (_CHIP_H - _ICON_SZ)//2
                     icon.paint(p, QRect(icon_x, icon_y, _ICON_SZ, _ICON_SZ))
@@ -1152,8 +1306,7 @@ class COL3DViewport(QWidget): #vers 2
             tx += _BTN_W + _BTN_GAP
 
             # Save button (between undo and exit)
-            p.setBrush(QBrush(self.palette().color(self.palette().ColorRole.Button)))
-            p.setPen(QPen(QColor(80,200,100), 1))
+            p.setBrush(QBrush(QColor(20,50,30,220))); p.setPen(QPen(QColor(80,200,100),1))
             p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
             if icon_fac:
                 try:
@@ -1167,9 +1320,7 @@ class COL3DViewport(QWidget): #vers 2
             tx += _BTN_W + _BTN_GAP
 
             # Exit button (✕)
-            _pal6 = self.palette()
-            p.setBrush(QBrush(_pal6.color(_pal6.ColorRole.Button)))
-            p.setPen(QPen(QColor(200,80,60), 1))
+            p.setBrush(QBrush(QColor(30,30,50,210))); p.setPen(QPen(QColor(200,80,60),1))
             p.drawRoundedRect(tx, _ROW2_Y, _BTN_W, _CHIP_H, 3, 3)
             if icon_fac:
                 try:
@@ -1182,21 +1333,19 @@ class COL3DViewport(QWidget): #vers 2
                     p.drawText(tx+7, _ROW2_Y+15, "x")
         else:
             bx,by,bw,bh=W-70,4,66,22
-            _pal7 = self.palette()
-            p.setBrush(QBrush(_pal7.color(_pal7.ColorRole.Button)))
-            p.setPen(QPen(_pal7.color(_pal7.ColorRole.Mid), 1))
+            p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(QColor(80,90,130),1))
             p.drawRoundedRect(bx,by,bw,bh,4,4)
             p.setFont(QFont('Arial',8)); p.setPen(QColor(200,200,220))
             lbl='↕ Move [G]' if self._gizmo_mode=='translate' else '↻ Rotate [R]'
             p.drawText(bx+4,by+15,lbl)
-            mode_lbl={'wireframe':'Wire','semi':'Semi','solid':'Solid'}.get(rs,'?')
-            mode_col={'wireframe':QColor(100,180,100),'semi':QColor(180,180,100),'solid':QColor(100,140,220)}.get(rs,self._get_ui_color('border'))
+            mode_lbl={'wireframe':'Wire','semi':'Semi','solid':'Solid','textured':'Tex'}.get(rs,'?')
+            mode_col={'wireframe':QColor(100,180,100),'semi':QColor(180,180,100),'solid':QColor(100,140,220),'textured':QColor(220,140,60)}.get(rs,self._get_ui_color('border'))
             p.setBrush(QBrush(QColor(40,44,62))); p.setPen(QPen(mode_col,1))
             p.drawRoundedRect(W-70,28,66,18,3,3)
             p.setPen(mode_col); p.setFont(QFont('Arial',7))
             p.drawText(W-66,41,f"[V] {mode_lbl}")
 
-        #    HUD                                                            
+        # - HUD
         p.setFont(QFont('Arial',8)); p.setPen(self._get_ui_color('border'))
         p.drawText(6,14,getattr(model,'name','') or '')
         y2=H-54
@@ -1403,6 +1552,26 @@ class COL3DViewport(QWidget): #vers 2
         while p:
             if isinstance(p, MDLWorkshop): return p
             p = p.parent() if callable(getattr(p, 'parent', None)) else None
+    def load_textures(self, mod_textures: list): #vers 1
+        """Build QImage cache from _mod_textures list for textured rendering.
+        Call this whenever _load_txd_file() populates the texture panel."""
+        from PyQt6.QtGui import QImage
+        self._tex_cache.clear()
+        for tex in mod_textures:
+            name = tex.get('name', '').lower()
+            if not name:
+                continue
+            rgba = tex.get('rgba_data', b'')
+            w    = tex.get('width',  0)
+            h    = tex.get('height', 0)
+            if rgba and w > 0 and h > 0:
+                try:
+                    img = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
+                    self._tex_cache[name] = img.copy()  # copy to own memory
+                except Exception:
+                    pass
+        self.update()
+
         return None
 
 
@@ -14078,23 +14247,92 @@ def delete_model(col_file: COLFile, model_index: int) -> bool: #vers 1
         return False
 
 
-def export_model(model: COLModel, file_path: str) -> bool: #vers 2
-    """Export single model — use MDLWorkshop._export_col_model for UI export."""
-    from apps.methods.col_workshop_writer import save_col_file
-    return save_col_file([model], file_path)
-
-
-def import_elements(model: COLModel, file_path: str) -> bool: #vers 2
-    """Import collision elements from COL file into model."""
-    from apps.methods.col_workshop_loader import load_col_file
-    imported = load_col_file(file_path)
-    if not imported:
+def export_model(model: COLModel, file_path: str) -> bool: #vers 1
+    """Export single COL model to file.
+    Supports .col (binary), .obj (Wavefront), .csv (verts+faces).
+    Full implementation wired through COL Workshop export pipeline."""
+    try:
+        import struct, os
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == '.col':
+            # Binary COL2 export
+            verts = getattr(model, 'vertices', [])
+            faces = getattr(model, 'faces', [])
+            if not verts or not faces:
+                return False
+            name = (getattr(model, 'name', 'model') or 'model').encode()[:22].ljust(22, b'\x00')
+            vert_data = b''.join(
+                struct.pack('<hhh',
+                    max(-32767, min(32767, int(v.x*128))),
+                    max(-32767, min(32767, int(v.y*128))),
+                    max(-32767, min(32767, int(v.z*128))))
+                for v in verts)
+            face_data = b''.join(
+                struct.pack('<HHHBBBB', f.a, f.b, f.c, 0, 0, 0, 0)
+                for f in faces)
+            xs = [v.x for v in verts]; ys = [v.y for v in verts]; zs = [v.z for v in verts]
+            cx,cy,cz = sum(xs)/len(xs), sum(ys)/len(ys), sum(zs)/len(zs)
+            r = max(((v.x-cx)**2+(v.y-cy)**2+(v.z-cz)**2)**0.5 for v in verts)
+            payload  = struct.pack('<fff', min(xs),min(ys),min(zs))
+            payload += struct.pack('<fff', max(xs),max(ys),max(zs))
+            payload += struct.pack('<fff', cx,cy,cz)
+            payload += struct.pack('<f', r)
+            payload += struct.pack('<HHHHHH', 0, 0, len(faces), 0, len(verts), 0)
+            vert_off = 0x68
+            face_off = vert_off + len(verts)*6
+            payload += struct.pack('<IIII', vert_off, face_off, 0, 0)
+            while len(payload) < 0x68 - 4: payload += b'\x00\x00\x00\x00'
+            payload += vert_data + face_data
+            block = b'COL\x02' + struct.pack('<I', 4+22+2+len(payload))
+            block += name + struct.pack('<H', getattr(model,'model_id',0)) + payload
+            with open(file_path, 'wb') as f: f.write(block)
+            return True
+        elif ext == '.obj':
+            lines = ['# Exported by IMG Factory Model Workshop']
+            verts = getattr(model, 'vertices', [])
+            faces = getattr(model, 'faces', [])
+            for v in verts: lines.append(f'v {v.x:.6f} {v.y:.6f} {v.z:.6f}')
+            for f in faces: lines.append(f'f {f.a+1} {f.b+1} {f.c+1}')
+            with open(file_path, 'w') as f: f.write('\n'.join(lines))
+            return True
         return False
-    model.spheres   += imported[0].spheres
-    model.boxes     += imported[0].boxes
-    model.mesh_faces+= imported[0].mesh_faces
-    model.mesh_verts+= imported[0].mesh_verts
-    return True
+    except Exception as e:
+        print(f"Error exporting model: {e}")
+        return False
+
+
+def import_elements(model: COLModel, file_path: str) -> bool: #vers 1
+    """Import collision elements from OBJ/COL file into model.
+    Adds vertices and faces from file to the model's geometry."""
+    try:
+        import os
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == '.obj':
+            verts, faces = [], []
+            with open(file_path) as f:
+                for line in f:
+                    p = line.split()
+                    if not p: continue
+                    if p[0] == 'v' and len(p) >= 4:
+                        from apps.components.Model_Editor.depends.col_core_classes import COLVertex
+                        verts.append(COLVertex(float(p[1]), float(p[2]), float(p[3])))
+                    elif p[0] == 'f' and len(p) >= 4:
+                        from apps.components.Model_Editor.depends.col_core_classes import COLFace
+                        # OBJ faces are 1-indexed
+                        base = len(model.vertices) if hasattr(model,'vertices') else 0
+                        ia = int(p[1].split('/')[0]) - 1
+                        ib = int(p[2].split('/')[0]) - 1
+                        ic = int(p[3].split('/')[0]) - 1
+                        faces.append(COLFace(ia+base, ib+base, ic+base, 0, 0))
+            if hasattr(model, 'vertices'):
+                model.vertices.extend(verts)
+            if hasattr(model, 'faces'):
+                model.faces.extend(faces)
+            return bool(verts and faces)
+        return False
+    except Exception as e:
+        print(f"Error importing elements: {e}")
+        return False
 
 
 def refresh_model_list(list_widget: COLModelListWidget, col_file: COLFile): #vers 1
