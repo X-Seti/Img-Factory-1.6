@@ -3929,6 +3929,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         status_bar = QFrame()
         status_bar.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
         status_bar.setFixedHeight(22)
+        status_bar.setAutoFillBackground(True)
+        status_bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         layout = QHBoxLayout(status_bar)
         layout.setContentsMargins(5, 0, 5, 0)
@@ -6847,6 +6849,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
         panel.setMaximumWidth(300)
+        panel.setAutoFillBackground(True)
+        panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        panel.setStyleSheet("QFrame { background-color: palette(window); }")
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -6873,6 +6878,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(250)
+        panel.setAutoFillBackground(True)
+        panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        panel.setStyleSheet("QFrame { background-color: palette(window); }")
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -7062,6 +7070,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(200)
+        panel.setAutoFillBackground(True)
+        panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._right_panel_ref = panel
         main_layout = QVBoxLayout(panel)
         main_layout.setContentsMargins(4, 4, 4, 4)
@@ -8670,21 +8680,35 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         print("======================\n")
 
 
-    def _on_theme_changed(self): #vers 1
+    def _on_theme_changed(self): #vers 2
         """Called when app theme switches -- reset viewport bg and repaint panels."""
         # Reset viewport so _set_theme_bg re-reads the new theme color
         pw = getattr(self, 'preview_widget', None)
         if pw and hasattr(pw, '_theme_bg_set'):
             pw._theme_bg_set = False
             pw.update()
-        # Force palette refresh on left panel list widget
+        # Reapply palette-based stylesheet to all QFrame panels
+        panel_style = "QFrame { background-color: palette(window); }"
+        for attr in ('_right_panel_ref',):
+            panel = getattr(self, attr, None)
+            if panel:
+                panel.setStyleSheet(panel_style)
+                panel.update()
+        # Left and middle panels don't have refs -- find via splitter
+        sp = getattr(self, '_main_splitter', None)
+        if sp:
+            for i in range(sp.count()):
+                w = sp.widget(i)
+                if w and hasattr(w, 'setStyleSheet'):
+                    w.setStyleSheet(panel_style)
+                    w.update()
+        # Force list widget refresh
         if hasattr(self, 'col_list_widget') and self.col_list_widget:
             self.col_list_widget.setStyleSheet(
                 "QListWidget { background: palette(base); color: palette(windowText); "
                 "border: none; } "
                 "QListWidget::item:selected { background: palette(highlight); "
                 "color: palette(highlightedText); }")
-        # Repaint the whole workshop
         self.update()
 
     def _apply_theme(self): #vers 5
