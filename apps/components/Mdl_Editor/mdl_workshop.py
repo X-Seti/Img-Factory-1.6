@@ -5839,11 +5839,10 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 self.info_bar.setFont(self.infobar_font)
 
 
-    def _load_img_col_list(self): #vers 2
-        """Load COL files from IMG archive"""
+    def _load_img_col_list(self): #vers 3
+        """Load DFF/TXD/COL files from IMG archive into left panel."""
         try:
-            # Safety check for standalone mode
-            if self.standalone_mode or not hasattr(self, 'col_list_widget') or self.dff_list_widget is None:
+            if self.standalone_mode or self.dff_list_widget is None:
                 return
 
             self.dff_list_widget.clear()
@@ -5852,20 +5851,31 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             if not self.current_img:
                 return
 
+            from PyQt6.QtGui import QColor
+            n_dff = n_txd = n_col = 0
             for entry in self.current_img.entries:
-                if entry.name.lower().endswith('.col'):
-                    self.col_list.append(entry)
-                    item = QListWidgetItem(entry.name)
-                    item.setData(Qt.ItemDataRole.UserRole, entry)
-                    size_kb = entry.size / 1024
-                    item.setToolTip(f"{entry.name}\nSize: {size_kb:.1f} KB")
-                    self.dff_list_widget.addItem(item)
+                name = getattr(entry, 'name', '')
+                ext  = os.path.splitext(name)[1].lower()
+                if ext not in ('.dff', '.txd', '.col'):
+                    continue
+                self.col_list.append(entry)
+                item = QListWidgetItem(name)
+                item.setData(Qt.ItemDataRole.UserRole, entry)
+                size_kb = getattr(entry, 'size', 0) / 1024
+                item.setToolTip(f"{name}\nSize: {size_kb:.1f} KB")
+                if ext == '.dff':
+                    item.setForeground(QColor('#4db6ac')); n_dff += 1
+                elif ext == '.col':
+                    item.setForeground(QColor('#ef5350')); n_col += 1
+                elif ext == '.txd':
+                    item.setForeground(QColor('#ffa726')); n_txd += 1
+                self.dff_list_widget.addItem(item)
 
-            hdr = getattr(self, '_col_list_header', None)
+            hdr = getattr(self, '_dff_list_header', None)
             if hdr:
-                hdr.setText(f"COL Files  ({len(self.col_list)})")
+                hdr.setText(f"DFF Files  ({n_dff} dff / {n_txd} txd / {n_col} col)")
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"📋 Found {len(self.col_list)} COL files")
+                self.main_window.log_message(f"MDL Workshop: {n_dff} DFF, {n_txd} TXD, {n_col} COL")
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Error loading COL list: {str(e)}")
@@ -6979,7 +6989,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             pw._theme_bg_set = False
             pw.update()
         # Force palette refresh on left panel list widget
-        if hasattr(self, 'col_list_widget') and self.dff_list_widget:
+        if self.dff_list_widget:
             self.dff_list_widget.setStyleSheet(
                 "QListWidget { background: palette(base); color: palette(windowText); "
                 "border: none; } "
@@ -7955,7 +7965,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             model_entries = [e for e in img.entries
                              if getattr(e, 'name', '').lower().endswith(model_exts)]
 
-            lw = getattr(self, 'col_list_widget', None)
+            lw = getattr(self, 'dff_list_widget', None)
             if lw is not None:
                 lw.clear()
                 for entry in model_entries:
@@ -7976,10 +7986,10 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
                 n_txd = sum(1 for e in model_entries if e.name.lower().endswith('.txd'))
                 n_col = sum(1 for e in model_entries if e.name.lower().endswith('.col'))
-                hdr = getattr(self, '_left_panel_header', None)
+                hdr = getattr(self, '_dff_list_header', None)
                 if hdr:
                     hdr.setText(
-                        f"Model Files  —  "
+                        f"DFF Files  —  "
                         f"DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
 
             n_dff = sum(1 for e in model_entries if e.name.lower().endswith('.dff'))
@@ -8032,7 +8042,6 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         """When COL workshop becomes visible, try to populate from loaded IMG."""
         super().showEvent(event)
         if (not self.standalone_mode and
-                hasattr(self, 'col_list_widget') and
                 self.dff_list_widget is not None and
                 self.dff_list_widget.count() == 0):
             # Try to get current IMG from main window
@@ -8069,7 +8078,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
 
     def _filter_col_list(self, text: str): #vers 1
         """Filter COL list by search text."""
-        if not hasattr(self, 'col_list_widget'): return
+        if not self.dff_list_widget: return
         for i in range(self.dff_list_widget.count()):
             item = self.dff_list_widget.item(i)
             item.setHidden(bool(text) and text.lower() not in item.text().lower())
@@ -13068,10 +13077,10 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         if panel:
             panel.setVisible(True)
 
-    def _populate_left_panel_from_img(self, img): #vers 4
+    def _populate_left_panel_from_img(self, img): #vers 5
         """Populate the left panel list from an already-open IMGFile object.
-        Also stores img as self.current_img so _extract_col_from_img can read entries."""
-        lw = getattr(self, 'col_list_widget', None)
+        Shows DFF, TXD and COL entries. Stores img as self.current_img."""
+        lw = getattr(self, 'dff_list_widget', None)
         if lw is None:
             return
         # Store so clicking entries can extract data
@@ -13096,10 +13105,10 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 item.setForeground(QColor('#ffa726')); n_txd += 1
             lw.addItem(item)
 
-        hdr = getattr(self, '_left_panel_header', None)
+        hdr = getattr(self, '_dff_list_header', None)
         if hdr:
             hdr.setText(
-                f"Model Files  —  DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
+                f"DFF Files  —  DFF ({n_dff})  TXD ({n_txd})  COL ({n_col})")
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(
                 f"Model Workshop: {lw.count()} entries in left panel")
