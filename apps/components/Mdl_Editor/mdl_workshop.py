@@ -5289,7 +5289,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.mod_compact_list.setVisible(True)    # start in compact view
         self.mod_compact_list.setRowCount(0)      # populated on first file load
         self.mod_compact_list.setWordWrap(True)
-        self.mod_compact_list.setItemDelegate(_ModelListDelegate(self.mod_compact_list))
+        self.mod_compact_list.setItemDelegate(_ColListDelegate(self.mod_compact_list))
         layout.addWidget(self.mod_compact_list)
 
         # - Frame / Bone hierarchy tree (DFF only)
@@ -6989,7 +6989,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
             pw._theme_bg_set = False
             pw.update()
         # Force palette refresh on left panel list widget
-        if self.dff_list_widget:
+        if getattr(self, 'dff_list_widget', None):
             self.dff_list_widget.setStyleSheet(
                 "QListWidget { background: palette(base); color: palette(windowText); "
                 "border: none; } "
@@ -6999,7 +6999,7 @@ class MDLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.update()
 
 
-    def _apply_theme(self): #vers 5
+    def _apply_theme(self): #vers 6
         """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
             mw = getattr(self, 'main_window', None)
