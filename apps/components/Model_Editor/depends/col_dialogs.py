@@ -19,7 +19,7 @@ from PyQt6.QtGui import QFont, QPixmap, QIcon
 try:
     from img_core_classes import format_file_size
 except ImportError:
-    from apps.methods.img_core_classes import format_file_size
+    from apps.components.Model_Editor.depends.img_core_classes import format_file_size
 from apps.debug.debug_functions import img_debugger
 
 ##Methods list -

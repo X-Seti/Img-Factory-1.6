@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 99
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 100
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -66,14 +66,6 @@ VIEWPORT_AVAILABLE = True
 App_name = "Model Workshop"
 DEBUG_STANDALONE = False
 
-# Import AppSettings
-try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
-    APPSETTINGS_AVAILABLE = True
-except ImportError:
-    APPSETTINGS_AVAILABLE = False
-    print("Warning: AppSettings not available")
-
 ##Methods list - (key methods only; see MODEL_METHODS.md for full index)
 # _apply_prelighting        TODO: bake ambient+directional into DFF vertex colours
 # _auto_load_txd_from_imgs  search open IMGs for IDE-linked TXD
@@ -95,6 +87,14 @@ except ImportError:
 # apply_changes             TODO: commit pending edits to DFF/COL data
 # export_model              done via _export_dff_obj/_export_col_data
 # import_elements           OBJ import done via _import_obj
+
+# Import AppSettings
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    APPSETTINGS_AVAILABLE = False
+    print("Warning: AppSettings not available")
 
 
 # Model Workshop icon available: SVGIconFactory.model_workshop_icon()
@@ -263,10 +263,26 @@ class COL3DViewport(QWidget): #vers 2
             return pal.color(pal.ColorRole.PlaceholderText)
         return pal.color(pal.ColorRole.WindowText)
 
-    def _set_theme_bg(self, palette): #vers 1
-        """Set background from palette — light theme=white, dark=near-black."""
+    def _set_theme_bg(self, palette): #vers 2
+        """Set background from palette or app_settings theme — light/dark aware."""
         if self._theme_bg_set:
             return  # user manually picked a colour — respect it
+        # Try app_settings first (most reliable in embedded mode)
+        try:
+            ws = self._find_workshop()
+            app_settings = (getattr(ws, 'app_settings', None) if ws else None) or \
+                           getattr(self, 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_theme_colors'):
+                tc = app_settings.get_theme_colors() or {}
+                bg = tc.get('viewport_bg') or tc.get('bg_primary') or tc.get('panel_bg')
+                if bg:
+                    from PyQt6.QtGui import QColor as _QC
+                    c = _QC(bg)
+                    self._bg_color = (c.red(), c.green(), c.blue())
+                    return
+        except Exception:
+            pass
+        # Palette fallback
         win = palette.color(palette.ColorRole.Window)
         if win.lightness() > 128:   # light theme
             self._bg_color = (245, 245, 245)
@@ -1569,6 +1585,7 @@ class COL3DViewport(QWidget): #vers 2
             p = p.parent() if callable(getattr(p, 'parent', None)) else None
         return None
 
+
 class ModelListWidget(QListWidget): #vers 1
     """Enhanced model list widget"""
 
@@ -1740,9 +1757,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self.app_settings = None
         if hasattr(self.app_settings, 'theme_changed'):
             self.app_settings.theme_changed.connect(self._refresh_icons)
+            self.app_settings.theme_changed.connect(self._on_theme_changed)
+
         # Load persisted texlist folder path
         self._texlist_folder = ''
         self._load_texlist_setting()
+
         # IDE database (lazy — populated on first lookup)
         self._ide_db        = None
         self._ide_db_root   = ''
@@ -1757,6 +1777,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.pan_offset = QPoint(0, 0)
         _win = self.palette().color(self.palette().ColorRole.Window)
         #self.background_color = self._get_ui_color('viewport_bg') #crashes app
+
         self.background_mode = 'solid'
         self.placeholder_text = "No Surface"
         self.setMinimumSize(200, 200)
@@ -1827,7 +1848,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Tab bar for multiple col files
         self.col_tabs = QTabWidget()
         self.col_tabs.setTabsClosable(True)
-        self.col_tabs.tabCloseRequested.connect(self._close_col_tab)
+        self.col_tabs.tabCloseRequested.connect(self._close_dff_tab)
 
 
         # Create initial tab with main content
@@ -1873,6 +1894,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Apply theme colours to all icons now that UI is fully built
         self._refresh_icons()
         self._connect_all_buttons()
+
+        # Apply theme once at end so all panels inherit correct palette
+        self._apply_theme()
 
 
     def _connect_all_buttons(self): #vers 2
@@ -3760,7 +3784,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
 
     def _change_format(self, *a, **kw): pass
-    def _close_col_tab(self, *a, **kw): pass
+    def _close_dff_tab(self, *a, **kw): pass
     def _edit_main_surface(self, *a, **kw): pass
     def _focus_search(self, *a, **kw): pass
     def _rename_shadow_shortcut(self, *a, **kw): pass
@@ -5068,15 +5092,18 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
-            self.size_grip.move(self.width() - 16, self.height() - 16)
+            self.size_grip.move(self.width() - 20, self.height() - 20)
         self._update_transform_text_panel_visibility()
         self._update_tex_btn_compact()
-        # Auto icon-only for middle button row when window is narrow
+        # Auto icon-only for middle button row when middle panel is narrow
         try:
             from apps.methods.imgfactory_ui_settings import apply_compact_buttons
             mid_btns = getattr(self, '_mid_compact_btns', [])
             if mid_btns:
-                apply_compact_buttons(mid_btns, self.width(), compact_threshold=520)
+                # Use middle panel width, not total workshop width
+                mid_row = getattr(self, '_middle_btn_row', None)
+                mid_w = mid_row.parent().width() if (mid_row and mid_row.parent()) else self.width()
+                apply_compact_buttons(mid_btns, mid_w, compact_threshold=320)
         except Exception:
             pass
 
@@ -5979,8 +6006,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self.surface_type_btn.setToolTip(
                     "Material Editor — view materials, textures, IDE info, swap TXD")
 
-    # - Render / selection mode
 
+    # - Render / selection mode
     def _set_select_mode(self, mode: str): #vers 1
         """Set viewport selection mode: vertex / edge / face / poly / object."""
         vp = getattr(self, 'preview_widget', None)
@@ -6612,6 +6639,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
         return toolbar
 
+
     def _mod_place_icon_grid(self, n_cols=None): #vers 1
         grid  = getattr(self, '_mod_icon_grid', None)
         btns  = getattr(self, '_mod_icon_buttons', [])
@@ -6638,6 +6666,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             btn.show()
         if frame:
             frame.setMaximumWidth(btn_w + 4 if n_cols == 1 else 16777215)
+
 
     def _reflow_mod_left_toolbar(self, pos): #vers 1
         from apps.components.Model_Editor.dockable_toolbar import SNAP_LEFT, SNAP_RIGHT
@@ -6816,7 +6845,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
-            self.col_list_widget = None  # Explicitly set to None
+            self.dff_list_widget = None  # Explicitly set to None
             return None
 
         if not self.main_window:
@@ -6832,14 +6861,38 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        self._left_panel_header = QLabel("Model Files")
-        self._left_panel_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(self._left_panel_header)
+      # Header row with search button
+        hdr_row = QHBoxLayout()
+        self._dff_list_header = QLabel("DFF Files")
+        self._dff_list_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        hdr_row.addWidget(self._dff_list_header)
+        hdr_row.addStretch()
+        self.dff_search_btn = QPushButton()
+        self.dff_search_btn.setFixedSize(24, 24)
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
+            self.dff_search_btn.setIcon(SVGIconFactory.search_icon(16))
+            self.dff_search_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            pass  # No icon — button still works
+        self.dff_search_btn.setToolTip("Search DFF files")
+        self.dff_search_btn.clicked.connect(self._show_dff_search)
+        hdr_row.addWidget(self.dff_search_btn)
+        layout.addLayout(hdr_row)
 
-        self.col_list_widget = QListWidget()
-        self.col_list_widget.setAlternatingRowColors(True)
-        self.col_list_widget.itemClicked.connect(self._on_col_selected)
-        layout.addWidget(self.col_list_widget)
+        # Search box (hidden by default)
+        self.dff_search_box = QLineEdit()
+        self.dff_search_box.setPlaceholderText("Search COL files...")
+        self.dff_search_box.setVisible(False)
+        self.dff_search_box.textChanged.connect(self._filter_dff_list)
+        layout.addWidget(self.dff_search_box)
+
+        self.dff_list_widget = QListWidget()
+        self.dff_list_widget.setAlternatingRowColors(True)
+        #self.dff_list_widget.setAutoFillBackground(True)
+        self.dff_list_widget.itemClicked.connect(self._on_dff_selected)
+
+        layout.addWidget(self.dff_list_widget)
         return panel
 
 
@@ -6926,6 +6979,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             "Undo last change",
             self._undo_last_action)
         btn_layout.addWidget(self.undo_col_btn)
+
+        #TODO; Once this is fixed, we need to add the same compact function to COL,TXD WS
 
         btn_layout.addStretch()
         layout.addWidget(self._middle_btn_row)
@@ -7075,9 +7130,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # 400ms: wait for parent widget to be fully laid out before restoring
         _QT.singleShot(400, self._load_mod_toolbar_layouts)
 
-        # Information group below
-        info_group = QGroupBox("")
-        info_group.setFont(self.title_font)
+        # Information group below — QFrame matches COL Workshop (QGroupBox has OS bg override issues)
+        info_group = QFrame()
+        info_group.setFrameStyle(QFrame.Shape.StyledPanel)
+        info_group.setAutoFillBackground(True)
+        info_group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         info_layout = QVBoxLayout(info_group)
         info_group.setMaximumHeight(180)  # extra 40px for paint row
 
@@ -7157,6 +7214,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Kept this part, Because we also need to export optimized collision files.
 
         self._bottom_text_row = QWidget()
+        self._bottom_text_row.setAutoFillBackground(True)
+        self._bottom_text_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         tr_lay = QVBoxLayout(self._bottom_text_row)
         tr_lay.setContentsMargins(0, 0, 0, 0)
         tr_lay.setSpacing(2)
@@ -7292,12 +7351,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         bar.setObjectName("paint_bar")
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bar.setStyleSheet(
-            "QWidget#paint_bar { background:palette(base); border-bottom:2px solid #ff8c00; }"
-            "QLabel  { color:#ddd; background:transparent; }"
+            "QWidget#paint_bar { background:palette(base); border-bottom:2px solid palette(mid); }"
+            "QLabel  { color:palette(windowText); background:transparent; }"
             "QComboBox { background:palette(base); color:palette(windowText); border:1px solid palette(mid); }"
-            "QPushButton { background:palette(base); color:palette(windowText); border:1px solid palette(mid); border-radius:3px; }"
-            "QPushButton:hover   { background:#353548; }"
-            "QPushButton:checked { background:#ff8c00; color:#000; border:1px solid #ff8c00; }"
+            "QPushButton { background:palette(button); color:palette(buttonText); border:1px solid palette(mid); border-radius:3px; }"
+            "QPushButton:hover   { background:palette(midlight); }"
+            "QPushButton:checked { background:palette(highlight); color:palette(highlightedText); border:1px solid palette(highlight); }"
         )
         bar.setFixedHeight(34)
 
@@ -8645,6 +8704,19 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         print("======================\n")
 
 
+    def _on_theme_changed(self): #vers 1
+        """Called when app theme switches -- reset viewport bg and repaint panels."""
+        # Reset viewport so _set_theme_bg re-reads the new theme color
+        pw = getattr(self, 'preview_widget', None)
+        if pw and hasattr(pw, '_theme_bg_set'):
+            pw._theme_bg_set = False
+            pw.update()
+        # Force palette refresh on left panel list widget
+
+        # Repaint the whole workshop
+        self.update()
+
+
     def _apply_theme(self): #vers 5
         """Apply global app theme — uses QApplication stylesheet set by app_settings."""
         try:
@@ -8669,6 +8741,8 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 pass
             # Clear any widget-level override so we inherit from QApplication
             self.setStyleSheet("")
+            # Reset viewport bg so it picks up the new theme on next paint
+            self._on_theme_changed()
         except Exception as e:
             print(f"Theme application error: {e}")
 
@@ -9279,11 +9353,11 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         dlg_lay.setSpacing(6)
         dlg.setStyleSheet(
             "QDialog { background: palette(base); border: 1px solid palette(mid); border-radius: 4px; }"
-            "QLabel  { color: #ccc; }")
+            "QLabel  { color: palette(windowText); }")
 
         # Build display pixmap
         pix = QPixmap(128, 128)
-        pix.fill(QColor(40, 40, 55))
+        pix.fill(self.palette().color(self.palette().ColorRole.Base))
         disp_w, disp_h = w, h
 
         if rgba and w > 0 and h > 0 and len(rgba) >= w * h * 4:
@@ -9363,7 +9437,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         popup.setAttribute(_Qt.WidgetAttribute.WA_DeleteOnClose)
         popup.setStyleSheet(
             "QWidget { background:palette(base); border:1px solid palette(mid); border-radius:3px; }"
-            "QLabel  { color:#ccc; background:transparent; }")
+            "QLabel  { color:palette(windowText); background:transparent; }")
 
         v = QVBoxLayout(popup)
         v.setContentsMargins(6, 6, 6, 6)
@@ -9372,7 +9446,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         img_lbl = QLabel()
         img_lbl.setAlignment(_Qt.AlignmentFlag.AlignCenter)
         pix = QPixmap(MAX_D, MAX_D)
-        pix.fill(QColor(40, 40, 55))
+        pix.fill(self.palette().color(self.palette().ColorRole.Base))
         if rgba and w > 0 and h > 0 and len(rgba) >= w*h*4:
             try:
                 qi = QImage(rgba[:w*h*4], w, h,
@@ -9770,6 +9844,60 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             print(f"_parse_txd_lightweight error: {e}")
             import traceback; traceback.print_exc()
             return []
+
+    def _parse_txd_lightweight_UNUSED(self, data: bytes) -> list: #vers 1_archived
+        """ARCHIVED: old TXDWorkshop-dependent version -- kept for reference."""
+        import struct
+        textures = []
+        try:
+            if len(data) < 24:
+                return textures
+            # TXD header: 0x16 dict chunk
+            main_type, main_size, main_version = struct.unpack_from('<III', data, 0)
+            if main_type != 0x16:
+                return textures
+            # Struct chunk at offset 12
+            st_type, st_size, st_ver = struct.unpack_from('<III', data, 12)
+            if st_type != 0x01:
+                return textures
+            offset = 24  # skip 12-byte header + 12-byte struct header
+            # Texture count (SA = uint16+uint16, earlier = uint32)
+            if main_version >= 0x1803FFFF:
+                tex_count = struct.unpack_from('<H', data, offset)[0]
+            else:
+                tex_count = struct.unpack_from('<I', data, offset)[0]
+            offset += st_size  # advance past struct payload
+            if tex_count <= 0 or tex_count > 4096:
+                return textures
+            # Use a real TXDWorkshop instance (created headlessly once, cached).
+            # The stub approach fails because _parse_single_texture calls many
+            # other self.* methods internally (_decompress_texture, etc.).
+            from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
+            parser = getattr(ModelWorkshop, '_txd_parser_cache', None)
+            if parser is None:
+                try:
+                    parser = TXDWorkshop(main_window=None)
+                    ModelWorkshop._txd_parser_cache = parser
+                except Exception as _e:
+                    print(f"TXDWorkshop init failed: {_e}")
+                    return textures
+            # Set version for this TXD
+            parser.txd_version_id  = main_version
+            parser.txd_device_id   = 2
+            parser.txd_version_str = ''
+            for i in range(tex_count):
+                if offset + 12 > len(data):
+                    break
+                tex_type, tex_size, _ = struct.unpack_from('<III', data, offset)
+                if tex_type == 0x15:
+                    tex = parser._parse_single_texture(
+                        data, offset, i, rw_version=main_version)
+                    if tex and tex.get('name') and tex.get('width', 0) > 0:
+                        textures.append(tex)
+                offset += 12 + tex_size
+        except Exception as e:
+            print(f"_parse_txd_lightweight error: {e}")
+        return textures
 
     def _load_txd_file(self, path: str): #vers 3
         """Parse a TXD file, populate texture panel, and feed textures into viewport."""
@@ -11736,7 +11864,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             show_col_analysis_dialog(self, analysis_data, os.path.basename(self.current_file_path))
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"✅ Analyzed COL: {os.path.basename(self.current_file_path)}")
+                self.main_window.log_message(f"Analyzed COL: {os.path.basename(self.current_file_path)}")
 
         except Exception as e:
             print(f"Error analyzing file: {str(e)}")
@@ -11794,7 +11922,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD load error: {e}")
 
-    def _on_col_selected(self, item): #vers 2
+    def _on_dff_selected(self, item): #vers 2
         """Handle entry selection from left panel — routes by extension."""
         try:
             entry = item.data(Qt.ItemDataRole.UserRole)
@@ -11823,8 +11951,27 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self.main_window.log_message(f"Error selecting entry: {e}")
 
 
+    def _show_dff_search(self): #vers 1
+        """Toggle COL search box visibility."""
+        if hasattr(self, 'dff_search_box'):
+            visible = not self.dff_search_box.isVisible()
+            self.dff_search_box.setVisible(visible)
+            if visible:
+                self.dff_search_box.setFocus()
+            else:
+                self.dff_search_box.clear()
+
+
+    def _filter_dff_list(self, text: str): #vers 1
+        """Filter COL list by search text."""
+        if not hasattr(self, 'dff_list_widget'): return
+        for i in range(self.dff_list_widget.count()):
+            item = self.dff_list_widget.item(i)
+            item.setHidden(bool(text) and text.lower() not in item.text().lower())
+
+
     def _extract_col_from_img(self, entry): #vers 2
-        """Extract TXD data from IMG entry"""
+        """Extract COL data from IMG entry"""
         try:
             if not self.current_img:
                 return None
@@ -11834,6 +11981,17 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self.main_window.log_message(f"Extract error: {str(e)}")
             return None
 
+
+    def _extract_dff_from_img(self, entry): #vers 1
+        """Extract DFF data from IMG entry"""
+        try:
+            if not self.current_img:
+                return None
+            return self.current_img.read_entry_data(entry)
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Extract error: {str(e)}")
+            return None
 
 
     def _paint_model_onto(self, painter, model, W, H,

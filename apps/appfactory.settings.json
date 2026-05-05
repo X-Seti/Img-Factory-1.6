@@ -2,7 +2,7 @@
   "debug_mode": false,
   "debug_level": "INFO",
   "current_theme": "App_Factory",
-  "theme": "default_green",
+  "theme": "red_dead_theme_dark",
   "button_display_mode": "both",
   "use_custom_gadgets": true,
   "enable_corner_resize": true,
@@ -17,7 +17,8 @@
     "IMG_LOADING",
     "TABLE_POPULATION",
     "BUTTON_ACTIONS",
-    "FILE_OPERATIONS"
+    "FILE_OPERATIONS",
+    "THEME_SYSTEM"
   ],
   "working_gta_folder": "/home/x2/Projects/GTASOLBeta70.5(FireBull)",
   "assists_folder": "/home/x2/Desktop/Assists",
