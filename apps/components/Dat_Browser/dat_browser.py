@@ -2286,65 +2286,633 @@ class DATBrowserWidget(QWidget): #vers 2
 
     #    Context menu                                                        
 
-    def _table_context_menu(self, table, pos): #vers 2
+    def _table_context_menu(self, table, pos): #vers 3
+        """Right-click menu on IDE Objects table.
+        Full feature set — replaces IDE Editor:
+          Model    : Open in Model Workshop, Export DFF, Replace DFF, Rename
+          Texture  : Open in TXD Workshop, Export TXD, Replace TXD
+          IDE edit : Edit draw distance, Edit flags, Add entry, Delete entry
+          IDs      : Scan free IDs (range highlight), Copy ID
+          Misc     : Find instances, Copy name/row, Dump TXDs
+        """
         index = table.indexAt(pos)
         if not index.isValid():
             return
-        row  = index.row()
+        row = index.row()
+
+        # Gather row data
+        def _txt(col):
+            it = table.item(row, col)
+            return it.text().strip() if it else ''
+
+        model_name = _txt(1)
+        txd_name   = _txt(2)
+        obj_type   = _txt(3)
+        draw_dist  = _txt(5)
+        flags_txt  = _txt(6)
+        source_ide = _txt(7)
+        model_id_s = _txt(0)
+        try:
+            model_id = int(model_id_s)
+        except ValueError:
+            model_id = -1
+
+        # Multi-selection info
+        sel_rows = sorted({i.row() for i in table.selectedItems()})
+        multi    = len(sel_rows) > 1
+
+        is_ide_table = (table is self._obj_table)
+
         menu = QMenu(self)
 
-        copy_name = menu.addAction("Copy model name")
-        copy_row  = menu.addAction("Copy row as text")
-        menu.addSeparator()
-        find_inst = menu.addAction("Find all instances of this model")
-
-        # TXD actions — only for Objects (IDE) table which has TXD column
-        open_txd_act = None
-        sel_txd_act  = None
-        dump_sel_act = None
-        if table is self._obj_table:
-            txd_item = table.item(row, 2)
-            txd_name = txd_item.text().strip() if txd_item else ''
-            if txd_name and txd_name not in ('—', ''):
-                menu.addSeparator()
-                open_txd_act = menu.addAction(f"Open {txd_name}.txd in TXD Workshop")
+        # ── Model Workshop ──────────────────────────────────────────────────
+        if is_ide_table:
+            open_mw_act    = menu.addAction(f"Open in Model Workshop  [{model_name}.dff]")
+            export_dff_act = menu.addAction(f"Export DFF…  [{model_name}.dff]")
+            replace_dff_act= menu.addAction(f"Replace DFF…  [{model_name}.dff]")
+            rename_act     = menu.addAction(f"Rename model…  [{model_name}]")
             menu.addSeparator()
-            sel_rows = list({i.row() for i in table.selectedItems()})
-            if len(sel_rows) > 1:
+
+            # ── Texture ─────────────────────────────────────────────────────
+            if txd_name and txd_name not in ('', '—', 'null'):
+                open_txd_act    = menu.addAction(f"Open in TXD Workshop  [{txd_name}.txd]")
+                export_txd_act  = menu.addAction(f"Export TXD…  [{txd_name}.txd]")
+                replace_txd_act = menu.addAction(f"Replace TXD…  [{txd_name}.txd]")
+            else:
+                open_txd_act = export_txd_act = replace_txd_act = None
+            menu.addSeparator()
+
+            # ── IDE edit ────────────────────────────────────────────────────
+            dd_act    = menu.addAction("Edit draw distance…")
+            flags_act = menu.addAction("Edit flags…")
+            txdn_act  = menu.addAction("Edit TXD name…")
+            add_act   = menu.addAction("Add new IDE entry…")
+            if multi:
+                del_act = menu.addAction(f"Delete {len(sel_rows)} selected entries")
+            else:
+                del_act = menu.addAction("Delete entry")
+            menu.addSeparator()
+
+            # ── ID tools ────────────────────────────────────────────────────
+            copy_id_act   = menu.addAction(f"Copy ID  [{model_id}]")
+            scan_ids_act  = menu.addAction("Scan free IDs (0–32767)…")
+            menu.addSeparator()
+
+        else:
+            open_mw_act = export_dff_act = replace_dff_act = rename_act = None
+            open_txd_act = export_txd_act = replace_txd_act = None
+            dd_act = flags_act = txdn_act = add_act = del_act = None
+            copy_id_act = scan_ids_act = None
+
+        # ── Common ──────────────────────────────────────────────────────────
+        copy_name_act = menu.addAction("Copy model name")
+        copy_row_act  = menu.addAction("Copy row as text")
+        menu.addSeparator()
+        find_inst_act = menu.addAction("Find all instances of this model")
+        if is_ide_table:
+            menu.addSeparator()
+            if multi:
                 dump_sel_act = menu.addAction(
                     f"Extract TXDs for {len(sel_rows)} selected rows…")
+            else:
+                dump_sel_act = None
             dump_all_act = menu.addAction("Dump ALL game TXDs to folder…")
         else:
-            dump_all_act = None
+            dump_sel_act = dump_all_act = None
 
+        # ── Execute ─────────────────────────────────────────────────────────
         chosen = menu.exec(table.viewport().mapToGlobal(pos))
         if not chosen:
             return
 
-        if chosen == copy_name:
-            it = table.item(row, 1)
-            if it:
-                QApplication.clipboard().setText(it.text())
-        elif chosen == copy_row:
-            parts = []
-            for col in range(table.columnCount()):
-                it = table.item(row, col)
-                parts.append(it.text() if it else "")
-            QApplication.clipboard().setText("\t".join(parts))
-        elif chosen == find_inst:
-            id_it   = table.item(row, 0)
-            name_it = table.item(row, 1)
-            if name_it:
-                self._search_edit.setText(name_it.text())
-                self._tabs.setCurrentIndex(1)
-        elif open_txd_act and chosen == open_txd_act:
+        # Model Workshop actions
+        if chosen == open_mw_act:
+            self._open_model_workshop_for_row(table, row)
+        elif chosen == export_dff_act:
+            self._export_dff_from_row(table, row)
+        elif chosen == replace_dff_act:
+            self._replace_dff_in_img(table, row)
+        elif chosen == rename_act:
+            self._rename_ide_model(table, row)
+        # TXD actions
+        elif chosen == open_txd_act:
             self._open_txd_from_row(table, row)
+        elif chosen == export_txd_act:
+            self._export_txd_from_row(table, row)
+        elif chosen == replace_txd_act:
+            self._replace_txd_in_img(table, row)
+        # IDE edit actions
+        elif chosen == dd_act:
+            self._edit_draw_distance(table, row)
+        elif chosen == flags_act:
+            self._edit_flags(table, row)
+        elif chosen == txdn_act:
+            self._edit_txd_name(table, row)
+        elif chosen == add_act:
+            self._add_ide_entry_dialog(table)
+        elif chosen == del_act:
+            self._delete_ide_entries(table, sel_rows)
+        # ID tools
+        elif chosen == copy_id_act:
+            QApplication.clipboard().setText(str(model_id))
+        elif chosen == scan_ids_act:
+            self._scan_free_ids_dialog()
+        # Common
+        elif chosen == copy_name_act:
+            QApplication.clipboard().setText(model_name)
+        elif chosen == copy_row_act:
+            parts = [_txt(c) for c in range(table.columnCount())]
+            QApplication.clipboard().setText("\t".join(parts))
+        elif chosen == find_inst_act:
+            self._search_edit.setText(model_name)
+            self._tabs.setCurrentIndex(1)
         elif dump_sel_act and chosen == dump_sel_act:
             self._dump_selected_txds(table)
         elif dump_all_act and chosen == dump_all_act:
             self._dump_all_game_txds()
 
+    # ── Context menu action helpers ─────────────────────────────────────────
+
+    def _get_row_xref(self, table, row):
+        """Resolve DFF/TXD IMG paths for a row using xref. Returns dict."""
+        model_name = table.item(row, 1).text().strip() if table.item(row, 1) else ''
+        if not self.loader or not self.xref or not model_name:
+            return {}
+        return self.xref.find_in_imgs(model_name, self.loader.load_log,
+                                       getattr(self.xref, 'game_root', ''))
+
+    def _extract_entry_to_temp(self, img_path, entry_name):
+        """Extract a named entry from an IMG to a tempfile. Returns path or None."""
+        import tempfile, os
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(img_path); arc.open()
+            entry = next((e for e in arc.entries
+                          if e.name.lower() == entry_name.lower()), None)
+            if not entry:
+                return None
+            data = arc.read_entry_data(entry)
+            ext  = os.path.splitext(entry_name)[1]
+            tmp  = tempfile.NamedTemporaryFile(
+                delete=False, suffix=ext,
+                prefix=os.path.splitext(entry_name)[0] + '_')
+            tmp.write(data); tmp.close()
+            return tmp.name
+        except Exception as e:
+            self._log(f"Extract error: {e}")
+            return None
+
+    def _open_model_workshop_for_row(self, table, row): #vers 1
+        """Open DFF + TXD in Model Workshop from IDE row."""
+        model_name = table.item(row, 1).text().strip() if table.item(row, 1) else ''
+        txd_name   = table.item(row, 2).text().strip() if table.item(row, 2) else ''
+        found = self._get_row_xref(table, row)
+        dff_img = found.get('dff')
+        txd_img = found.get('txd')
+        if not dff_img:
+            QMessageBox.warning(self, "Not found",
+                f"{model_name}.dff not found in any loaded IMG.")
+            return
+        dff_tmp = self._extract_entry_to_temp(dff_img, model_name + '.dff')
+        if not dff_tmp:
+            return
+        from apps.components.Model_Editor.model_workshop import open_model_workshop
+        mw = self.main_window
+        workshop = open_model_workshop(mw, dff_tmp)
+        if workshop and txd_img:
+            txd_stem = (found.get('txd_name') or txd_name or model_name).lower()
+            txd_tmp = self._extract_entry_to_temp(txd_img, txd_stem + '.txd')
+            if txd_tmp and hasattr(workshop, '_load_txd_file'):
+                workshop._load_txd_file(txd_tmp)
+        self._log(f"Model Workshop: {model_name}.dff")
+
+    def _export_dff_from_row(self, table, row): #vers 1
+        """Export model's DFF from IMG to a user-chosen location."""
+        model_name = table.item(row, 1).text().strip() if table.item(row, 1) else ''
+        found = self._get_row_xref(table, row)
+        dff_img = found.get('dff')
+        if not dff_img:
+            QMessageBox.warning(self, "Not found",
+                f"{model_name}.dff not found in any loaded IMG.")
+            return
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Export DFF", model_name + '.dff',
+            "RenderWare DFF (*.dff);;All files (*)")
+        if not out_path:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(dff_img); arc.open()
+            entry = next((e for e in arc.entries
+                          if e.name.lower() == model_name.lower() + '.dff'), None)
+            if not entry:
+                QMessageBox.warning(self, "Not found", f"DFF entry not in IMG.")
+                return
+            data = arc.read_entry_data(entry)
+            with open(out_path, 'wb') as f:
+                f.write(data)
+            self._log(f"Exported DFF: {out_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _export_txd_from_row(self, table, row): #vers 1
+        """Export TXD from IMG to a user-chosen location."""
+        txd_name = table.item(row, 2).text().strip() if table.item(row, 2) else ''
+        found = self._get_row_xref(table, row)
+        txd_img  = found.get('txd')
+        txd_stem = (found.get('txd_name') or txd_name).lower()
+        if not txd_img:
+            QMessageBox.warning(self, "Not found",
+                f"{txd_stem}.txd not found in any loaded IMG.")
+            return
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Export TXD", txd_stem + '.txd',
+            "TXD (*.txd);;All files (*)")
+        if not out_path:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(txd_img); arc.open()
+            entry = next((e for e in arc.entries
+                          if e.name.lower() == txd_stem + '.txd'), None)
+            if not entry:
+                QMessageBox.warning(self, "Not found", "TXD entry not in IMG.")
+                return
+            data = arc.read_entry_data(entry)
+            with open(out_path, 'wb') as f:
+                f.write(data)
+            self._log(f"Exported TXD: {out_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _replace_dff_in_img(self, table, row): #vers 1
+        """Replace a model's DFF in its IMG archive with a user-supplied file."""
+        model_name = table.item(row, 1).text().strip() if table.item(row, 1) else ''
+        found   = self._get_row_xref(table, row)
+        dff_img = found.get('dff')
+        if not dff_img:
+            QMessageBox.warning(self, "Not found",
+                f"{model_name}.dff not found in any loaded IMG.")
+            return
+        src, _ = QFileDialog.getOpenFileName(
+            self, f"Replace {model_name}.dff",
+            "", "RenderWare DFF (*.dff);;All files (*)")
+        if not src:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(dff_img); arc.open()
+            with open(src, 'rb') as f:
+                data = f.read()
+            arc.replace_entry(model_name + '.dff', data)
+            arc.save()
+            self._log(f"Replaced DFF: {model_name}.dff in {os.path.basename(dff_img)}")
+            QMessageBox.information(self, "Done",
+                f"Replaced {model_name}.dff in {os.path.basename(dff_img)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Replace Error", str(e))
+
+    def _replace_txd_in_img(self, table, row): #vers 1
+        """Replace a TXD in its IMG archive with a user-supplied file."""
+        txd_name = table.item(row, 2).text().strip() if table.item(row, 2) else ''
+        found    = self._get_row_xref(table, row)
+        txd_img  = found.get('txd')
+        txd_stem = (found.get('txd_name') or txd_name).lower()
+        if not txd_img:
+            QMessageBox.warning(self, "Not found",
+                f"{txd_stem}.txd not found in any loaded IMG.")
+            return
+        src, _ = QFileDialog.getOpenFileName(
+            self, f"Replace {txd_stem}.txd",
+            "", "TXD (*.txd);;All files (*)")
+        if not src:
+            return
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            arc = IMGFile(txd_img); arc.open()
+            with open(src, 'rb') as f:
+                data = f.read()
+            arc.replace_entry(txd_stem + '.txd', data)
+            arc.save()
+            self._log(f"Replaced TXD: {txd_stem}.txd in {os.path.basename(txd_img)}")
+            QMessageBox.information(self, "Done",
+                f"Replaced {txd_stem}.txd in {os.path.basename(txd_img)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Replace Error", str(e))
+
+    def _rename_ide_model(self, table, row): #vers 1
+        """Inline-rename the model name in the IDE table (in-memory)."""
+        from PyQt6.QtWidgets import QInputDialog
+        model_name = table.item(row, 1).text().strip() if table.item(row, 1) else ''
+        new_name, ok = QInputDialog.getText(
+            self, "Rename model", "New model name:", text=model_name)
+        if not ok or not new_name.strip() or new_name.strip() == model_name:
+            return
+        new_name = new_name.strip().lower()
+        table.item(row, 1).setText(new_name)
+        # Update in-memory loader objects
+        try:
+            model_id = int(table.item(row, 0).text())
+            obj = self.loader.objects.get(model_id)
+            if obj:
+                obj.model_name = new_name
+        except Exception:
+            pass
+        self._log(f"Renamed IDE entry: {model_name} → {new_name}  (in-memory, save IDE to persist)")
+
+    def _edit_draw_distance(self, table, row): #vers 1
+        """Edit draw distance for the selected IDE entry."""
+        from PyQt6.QtWidgets import QInputDialog
+        cur = table.item(row, 5).text().strip() if table.item(row, 5) else ''
+        try:
+            cur_val = float(cur) if cur else 300.0
+        except ValueError:
+            cur_val = 300.0
+        val, ok = QInputDialog.getDouble(
+            self, "Edit Draw Distance",
+            "Draw distance (world units):",
+            value=cur_val, min=0.0, max=10000.0, decimals=2)
+        if not ok:
+            return
+        table.item(row, 5).setText(f"{val:.2f}")
+        try:
+            model_id = int(table.item(row, 0).text())
+            obj = self.loader.objects.get(model_id)
+            if obj:
+                obj.extra['draw_dist'] = val
+        except Exception:
+            pass
+        self._log(f"Draw distance updated: {table.item(row, 1).text()} → {val:.2f}")
+
+    def _edit_flags(self, table, row): #vers 1
+        """Edit flags for the selected IDE entry."""
+        from PyQt6.QtWidgets import QInputDialog
+        cur = table.item(row, 6).text().strip() if table.item(row, 6) else '0'
+        try:
+            cur_val = int(cur) if cur else 0
+        except ValueError:
+            cur_val = 0
+        val, ok = QInputDialog.getInt(
+            self, "Edit Flags",
+            "Flags (integer):", value=cur_val, min=0, max=0xFFFF)
+        if not ok:
+            return
+        table.item(row, 6).setText(str(val))
+        try:
+            model_id = int(table.item(row, 0).text())
+            obj = self.loader.objects.get(model_id)
+            if obj:
+                obj.extra['flags'] = val
+        except Exception:
+            pass
+        self._log(f"Flags updated: {table.item(row, 1).text()} → {val}")
+
+    def _edit_txd_name(self, table, row): #vers 1
+        """Edit the TXD name for an IDE entry."""
+        from PyQt6.QtWidgets import QInputDialog
+        cur = table.item(row, 2).text().strip() if table.item(row, 2) else ''
+        new_txd, ok = QInputDialog.getText(
+            self, "Edit TXD Name", "TXD name:", text=cur)
+        if not ok or new_txd.strip() == cur:
+            return
+        new_txd = new_txd.strip().lower()
+        table.item(row, 2).setText(new_txd)
+        try:
+            model_id = int(table.item(row, 0).text())
+            obj = self.loader.objects.get(model_id)
+            if obj:
+                obj.txd_name = new_txd
+        except Exception:
+            pass
+        self._log(f"TXD name updated: {table.item(row, 1).text()} → {new_txd}")
+
+    def _add_ide_entry_dialog(self, table): #vers 1
+        """Dialog to add a new IDE entry to the in-memory world."""
+        from PyQt6.QtWidgets import (QDialog, QFormLayout, QLineEdit,
+                                     QSpinBox, QDoubleSpinBox, QComboBox,
+                                     QDialogButtonBox)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Add IDE Entry")
+        dlg.setMinimumWidth(340)
+        form = QFormLayout(dlg)
+
+        id_spin   = QSpinBox(); id_spin.setRange(0, 32767)
+        # Suggest next free ID
+        used = set(self.loader.objects.keys()) if self.loader else set()
+        next_id = next((i for i in range(1987, 32768) if i not in used), 1987)
+        id_spin.setValue(next_id)
+
+        name_edit = QLineEdit(); name_edit.setPlaceholderText("model_name")
+        txd_edit  = QLineEdit(); txd_edit.setPlaceholderText("txd_name")
+        type_combo= QComboBox()
+        type_combo.addItems(["object", "vehicle", "ped", "weapon", "hierarchy"])
+        dd_spin   = QDoubleSpinBox(); dd_spin.setRange(0, 10000); dd_spin.setValue(300)
+        flags_spin= QSpinBox(); flags_spin.setRange(0, 0xFFFF); flags_spin.setValue(0)
+
+        form.addRow("ID:",           id_spin)
+        form.addRow("Model name:",   name_edit)
+        form.addRow("TXD name:",     txd_edit)
+        form.addRow("Type:",         type_combo)
+        form.addRow("Draw dist:",    dd_spin)
+        form.addRow("Flags:",        flags_spin)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        form.addRow(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        new_id   = id_spin.value()
+        new_name = name_edit.text().strip().lower()
+        new_txd  = txd_edit.text().strip().lower()
+        if not new_name:
+            return
+
+        # Add to loader objects
+        from apps.methods.gta_dat_parser import IDEObject
+        obj = IDEObject(
+            model_id   = new_id,
+            model_name = new_name,
+            txd_name   = new_txd,
+            obj_type   = type_combo.currentText(),
+            section    = type_combo.currentText(),
+            extra      = {'draw_dist': dd_spin.value(), 'flags': flags_spin.value()},
+            source_ide = '',
+        )
+        if self.loader:
+            self.loader.objects[new_id] = obj
+
+        # Add row to table
+        r = table.rowCount()
+        table.insertRow(r)
+        for col, val in enumerate([
+            str(new_id), new_name, new_txd,
+            type_combo.currentText(), type_combo.currentText(),
+            f"{dd_spin.value():.2f}", str(flags_spin.value()), ''
+        ]):
+            item = QTableWidgetItem(val)
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            table.setItem(r, col, item)
+
+        self._log(f"Added IDE entry: ID={new_id} {new_name} txd={new_txd}")
+
+    def _delete_ide_entries(self, table, rows): #vers 1
+        """Delete selected IDE entries from table and in-memory loader."""
+        from PyQt6.QtWidgets import QMessageBox
+        if not rows:
+            return
+        n = len(rows)
+        names = [table.item(r, 1).text() if table.item(r, 1) else '?' for r in rows[:5]]
+        preview = ', '.join(names) + (f'  … and {n-5} more' if n > 5 else '')
+        reply = QMessageBox.question(
+            self, "Delete entries",
+            f"Delete {n} IDE entry/entries?\n{preview}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        # Remove from loader
+        for r in rows:
+            try:
+                mid = int(table.item(r, 0).text())
+                if self.loader and mid in self.loader.objects:
+                    del self.loader.objects[mid]
+            except Exception:
+                pass
+        # Remove rows in reverse order so indices don't shift
+        for r in sorted(rows, reverse=True):
+            table.removeRow(r)
+        self._log(f"Deleted {n} IDE entries")
+
+    def _scan_free_ids_dialog(self): #vers 1
+        """Show a dialog scanning free IDs from 0–32767.
+        Highlights used vs free, shows largest free blocks.
+        Lets user set a range to scan."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QLabel, QSpinBox, QPushButton, QTableWidget, QTableWidgetItem,
+            QHeaderView, QDialogButtonBox, QTextEdit)
+        from PyQt6.QtGui import QColor
+
+        if not self.loader:
+            return
+
+        used_ids = set(self.loader.objects.keys())
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Free ID Scanner  (0 – 32767)")
+        dlg.setMinimumSize(560, 500)
+        root = QVBoxLayout(dlg)
+
+        # Range controls
+        ctrl = QHBoxLayout()
+        ctrl.addWidget(QLabel("From:"))
+        from_spin = QSpinBox(); from_spin.setRange(0, 32767); from_spin.setValue(1987)
+        ctrl.addWidget(from_spin)
+        ctrl.addWidget(QLabel("To:"))
+        to_spin = QSpinBox(); to_spin.setRange(0, 32767); to_spin.setValue(32767)
+        ctrl.addWidget(to_spin)
+        scan_btn = QPushButton("Scan"); scan_btn.setFixedWidth(72)
+        ctrl.addWidget(scan_btn)
+        ctrl.addStretch()
+        root.addLayout(ctrl)
+
+        # Summary text
+        summary_lbl = QLabel()
+        root.addWidget(summary_lbl)
+
+        # Results table
+        tbl = QTableWidget(0, 3)
+        tbl.setHorizontalHeaderLabels(["ID", "Status", "Block size"])
+        tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        tbl.horizontalHeader().setStretchLastSection(True)
+        tbl.setAlternatingRowColors(True)
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        root.addWidget(tbl, 1)
+
+        def _run_scan():
+            lo = from_spin.value()
+            hi = to_spin.value()
+            if lo > hi:
+                lo, hi = hi, lo
+
+            # Build block list
+            blocks = []   # (start, end, is_free)
+            i = lo
+            while i <= hi:
+                is_free = i not in used_ids
+                start   = i
+                while i <= hi and (i not in used_ids) == is_free:
+                    i += 1
+                blocks.append((start, i - 1, is_free))
+
+            # Populate table — only show FREE blocks + single used sentinel rows
+            tbl.setSortingEnabled(False)
+            tbl.setRowCount(0)
+            free_total = 0
+            used_total = 0
+            for (bstart, bend, is_free) in blocks:
+                blen = bend - bstart + 1
+                if is_free:
+                    free_total += blen
+                    r = tbl.rowCount()
+                    tbl.insertRow(r)
+                    lbl_id   = (f"{bstart}" if blen == 1
+                                else f"{bstart} – {bend}")
+                    lbl_stat = "FREE"
+                    item_id   = QTableWidgetItem(lbl_id)
+                    item_stat = QTableWidgetItem(lbl_stat)
+                    item_blk  = QTableWidgetItem(f"{blen} slot{'s' if blen>1 else ''}")
+                    item_stat.setForeground(QColor("#4ade80"))  # green
+                    item_id.setForeground(QColor("#4ade80"))
+                    tbl.setItem(r, 0, item_id)
+                    tbl.setItem(r, 1, item_stat)
+                    tbl.setItem(r, 2, item_blk)
+                else:
+                    used_total += blen
+                    # Show used blocks as a single greyed row
+                    r = tbl.rowCount()
+                    tbl.insertRow(r)
+                    lbl_id   = (f"{bstart}" if blen == 1
+                                else f"{bstart} – {bend}")
+                    item_id   = QTableWidgetItem(lbl_id)
+                    item_stat = QTableWidgetItem(f"USED ({blen})")
+                    item_blk  = QTableWidgetItem("—")
+                    for item in (item_id, item_stat, item_blk):
+                        item.setForeground(QColor("#888"))
+                    tbl.setItem(r, 0, item_id)
+                    tbl.setItem(r, 1, item_stat)
+                    tbl.setItem(r, 2, item_blk)
+
+            tbl.setSortingEnabled(True)
+            range_total = hi - lo + 1
+            summary_lbl.setText(
+                f"Range {lo}–{hi}  |  "
+                f"Free: {free_total:,}  ({100*free_total//range_total}%)  |  "
+                f"Used: {used_total:,}  |  "
+                f"Total IDs loaded: {len(used_ids):,}")
+
+        scan_btn.clicked.connect(_run_scan)
+        _run_scan()   # auto-scan on open
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.close)
+        root.addWidget(btns)
+        dlg.exec()
+
+    def _log(self, msg: str): #vers 1
+        """Log a message to main_window and load log."""
+        mw = getattr(self, 'main_window', None)
+        if mw and hasattr(mw, 'log_message'):
+            mw.log_message(msg)
+        self._set_status(msg)
+
     #    Tree right-click — open source file in editor                      
+
 
     def _apply_theme_stylesheet(self): #vers 4
         """Apply theme colors. Uses QApplication global stylesheet for most
