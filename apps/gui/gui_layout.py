@@ -1908,7 +1908,7 @@ class IMGFactoryGUILayout:
 
         # Splitter: left = stacked panel (dir tree / dat browser), right = main tab widget
         self.content_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.content_splitter.setAutoFillBackground(False)
+        self.content_splitter.setAutoFillBackground(True)
         self.content_splitter.setHandleWidth(5)
         self.content_splitter.setOpaqueResize(True)
         # Left stacked panel — page 0: dir tree, page 1: DAT browser, page 2: intro

@@ -170,6 +170,8 @@ class WelcomeScreen(QWidget):
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        self.setAutoFillBackground(True)
         self.main_window = main_window
         self._build_ui()
         # Do not expand vertically beyond preferred size — prevents the welcome
