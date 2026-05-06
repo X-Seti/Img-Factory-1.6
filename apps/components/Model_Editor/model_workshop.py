@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 106
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 107
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -10121,11 +10121,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             import tempfile
             stem = os.path.splitext(
                 os.path.basename(getattr(self, '_current_dff_path', 'model')))[0]
-            tmp = tempfile.NamedTemporaryFile(
-                suffix='.txd', prefix=f'{stem}_', delete=False)
-            tmp.write(txd_data)
-            tmp.close()
-            mw.open_txd_workshop_docked(file_path=tmp.name)
+            tmp_dir = tempfile.mkdtemp()
+            tmp_path = os.path.join(tmp_dir, f'{stem}.txd')
+            with open(tmp_path, 'wb') as _f: _f.write(txd_data)
+            mw.open_txd_workshop_docked(file_path=tmp_path)
             self._set_status(
                 f"Passed {len(self._mod_textures)} texture(s) to TXD Workshop")
         elif txd_data:
@@ -10133,16 +10132,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             import tempfile
             stem = os.path.splitext(
                 os.path.basename(getattr(self, '_current_dff_path', 'model')))[0]
-            tmp = tempfile.NamedTemporaryFile(
-                suffix='.txd', prefix=f'{stem}_', delete=False)
-            tmp.write(txd_data)
-            tmp.close()
+            tmp_dir = tempfile.mkdtemp()
+            tmp_path = os.path.join(tmp_dir, f'{stem}.txd')
+            with open(tmp_path, 'wb') as _f: _f.write(txd_data)
             try:
                 from apps.components.Txd_Editor.txd_workshop import TXDWorkshop
                 txd_win = TXDWorkshop(main_window=None)
                 txd_win.setWindowTitle(f"TXD Workshop — {stem}.txd")
                 txd_win.show(); txd_win.resize(1000, 700)
-                txd_win.open_txd_file(tmp.name)
+                txd_win.open_txd_file(tmp_path)
                 if not hasattr(self, '_standalone_txd_windows'):
                     self._standalone_txd_windows = []
                 self._standalone_txd_windows.append(txd_win)

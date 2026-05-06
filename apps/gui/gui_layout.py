@@ -1,4 +1,4 @@
-#this belongs in gui/ gui_layout.py - Version: 33
+#this belongs in gui/ gui_layout.py - Version: 34
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -283,12 +283,13 @@ def edit_dff_file(main_window): #vers 1
         from apps.gui.gui_layout import _register_tool_taskbar
         from apps.methods.imgfactory_svg_icons import get_tba_icon as get_model_workshop_icon
 
-        def _open(dff_path=None):
+        def _open(dff_path=None, original_name=None):
             from apps.components.Model_Editor.model_workshop import open_model_workshop
-            w = open_model_workshop(main_window, dff_path)
+            w = open_model_workshop(main_window, dff_path, original_dff_name=original_name)
             _register_tool_taskbar(main_window, "model", "DFF",
                 get_model_workshop_icon, "Model Workshop", w)
-            msg = f"Model Workshop: {os.path.basename(dff_path)}" if dff_path else "Model Workshop opened"
+            display = original_name or (os.path.basename(dff_path) if dff_path else None)
+            msg = f"Model Workshop: {display}" if display else "Model Workshop opened"
             main_window.log_message(msg)
             return w
 
@@ -325,11 +326,11 @@ def edit_dff_file(main_window): #vers 1
                         import tempfile
                         data = img.read_entry_data(entry)
                         if data:
-                            tmp = tempfile.NamedTemporaryFile(
-                                delete=False, suffix='.dff',
-                                prefix=os.path.splitext(filename)[0] + '_')
-                            tmp.write(data); tmp.close()
-                            _open(tmp.name); return
+                            import os as _os2
+                            tmp_dir = tempfile.mkdtemp()
+                            tmp_path = _os2.path.join(tmp_dir, filename)
+                            with open(tmp_path, 'wb') as _f: _f.write(data)
+                            _open(tmp_path, original_name=filename); return
                     except Exception:
                         pass
                 _open(); return

@@ -120,8 +120,8 @@ def show_context_menu(main_window, position): #vers 6
             a = QAction(icons.search_icon(color=icon_color), "Texture List", menu_parent)
             a.triggered.connect(lambda: show_dff_texture_list(main_window, row))
             dff_menu.addAction(a)
-            a = QAction("View in Model Workshop", menu_parent)
-            a.setEnabled(False)
+            a = QAction("Open in Model Workshop", menu_parent)
+            a.triggered.connect(lambda checked=False, r=row: open_dff_in_model_workshop(main_window, r))
             dff_menu.addAction(a)
             menu.addSeparator()
 
@@ -707,21 +707,17 @@ def show_dff_model_viewer(main_window, row): #vers 2
         data = img.read_entry_data(entry)
         if not data:
             return
-        tmp = tempfile.NamedTemporaryFile(
-            delete=False, suffix='.dff',
-            prefix=os.path.splitext(entry.name)[0] + '_')
-        tmp.write(data); tmp.close()
+        tmp_dir = tempfile.mkdtemp()
+        tmp_path = os.path.join(tmp_dir, entry.name)
+        with open(tmp_path, 'wb') as _f: _f.write(data)
         from apps.components.Model_Editor.model_workshop import open_model_workshop
-        open_model_workshop(main_window, tmp.name)
+        open_model_workshop(main_window, tmp_path, original_dff_name=entry.name)
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Model Workshop: {entry.name}")
     except Exception as e:
         import traceback; traceback.print_exc()
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Model Workshop error: {e}")
-    except Exception as e:
-        if hasattr(main_window, 'log_message'):
-            main_window.log_message(f"Error showing DFF model viewer: {str(e)}")
 
 
 def get_selected_entry_info(main_window, row): #vers 1
