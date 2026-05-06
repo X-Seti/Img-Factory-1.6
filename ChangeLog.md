@@ -1,4 +1,17 @@
-#this belongs in root /ChangeLog.md - Version: 48
+#this belongs in root /ChangeLog.md - Version: 49
+
+## May 2026 — QPainter engine==0 spam fixed, standalone launcher
+
+**QPainter engine==0 fixed (`model_workshop.py` v103):**
+- `COL3DViewport.paintEvent #vers 2`: added `isVisible`/size guard, `p.isActive()`
+  check, and `p.end()` at all exit points. Painter was firing before widget
+  was realized in embedded mode causing the spam.
+- `ModelWorkshop.paintEvent #vers 3`: added `standalone_mode` guard and
+  `painter.isActive()` check. Corner resize triangles only needed standalone.
+
+**Model-Workshop standalone launcher fixed (`launch_model_workshop.py` v2):**
+- Was importing `Mdl_Editor.mdl_workshop.MDLWorkshop` — path and class both wrong.
+  Fixed to `Mdl_Editor.model_workshop.ModelWorkshop`.
 
 ## May 2026 — Model Workshop embedded launch rewritten
 
