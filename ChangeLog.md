@@ -1,10 +1,24 @@
-#this belongs in root /ChangeLog.md - Version: 63
+#this belongs in root /ChangeLog.md - Version: 64
 
 ## May 2026 — Model Workshop bleed-through CONFIRMED FIXED
 
 The bleed-through in Model Workshop when docked inside IMG Factory is now
 confirmed fixed. Took multiple sessions to track down. Full root cause
 documented in v58 entry below. Tested across theme switches - no bleed.
+
+## May 2026 — DFF frame names, vehicle structure analysis
+
+**DFF frame name plugin fixed (`dff_parser.py` v5):**
+- Extension 0x0253F2FE was treated as HAnim PLG header (skip). In VC vehicle
+  DFFs, this extension IS the frame name string directly.
+- Frame names now read correctly: chassis_hi, door_lf_hi_ok, bonnet_hi_ok,
+  wheel_rf, wing_rf_hi_dam etc. Essential for vehicle part identification.
+- All 46 frames of admiral.dff now named correctly.
+
+**Vehicle editor planned (`TODO.md` v7):**
+- 107 VC vehicles parse and frame-name correctly.
+- Plan: render all atomics composited, handling.cfg editor, ped editor.
+- Radar Workshop as base for handling editor layout.
 
 ## May 2026 — DFF parser: RW 3.3 has_pos fix (vehicles/peds)
 
