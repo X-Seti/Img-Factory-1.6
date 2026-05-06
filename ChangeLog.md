@@ -1,10 +1,25 @@
-#this belongs in root /ChangeLog.md - Version: 62
+#this belongs in root /ChangeLog.md - Version: 63
 
 ## May 2026 — Model Workshop bleed-through CONFIRMED FIXED
 
 The bleed-through in Model Workshop when docked inside IMG Factory is now
 confirmed fixed. Took multiple sessions to track down. Full root cause
 documented in v58 entry below. Tested across theme switches - no bleed.
+
+## May 2026 — DFF parser: RW 3.3 has_pos fix (vehicles/peds)
+
+**DFF parser: vehicles and peds now render (`dff_parser.py` v4):**
+- `_parse_geometry`: in RW 3.3 (GTA VC, cv=0x0c02ffff) the morph target
+  `has_pos` flag is stored as 0 even when vertices ARE present. All vehicle
+  and ped DFFs were returning 0 vertices because the `if has_pos` check
+  skipped the vertex data.
+- Fix: when `has_pos=0` but `vert_count>0` and remaining struct bytes can
+  hold `vert_count*12` bytes, force `has_pos=1` and read vertices.
+- Confirmed: train.dff geom[0] now 2163v/1480t (was 0v), geom[1] 254v/146t.
+
+**Texture thumbnail crash fixed (`model_workshop.py` v115):**
+- `_populate_tex_thumbnails`: called `self._get_ui_color()` which only exists
+  on `COL3DViewport`, not `ModelWorkshop`. Replaced with `QColor(40,40,40)`.
 
 ## May 2026 — DFF parser: RW 3.3 older format support
 
