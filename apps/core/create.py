@@ -1,4 +1,4 @@
-#this belongs in apps/core/creator.py - Version: 17
+#this belongs in apps/core/create.py - Version: 18
 # X-Seti - August27 2025 - IMG Factory 1.5 - IMG Creator Dialog UI Only
 # Credit MexUK 2007 IMG Factory 1.2
 
@@ -13,7 +13,8 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
                            QLabel, QComboBox, QSpinBox, QCheckBox, QLineEdit, 
                            QFileDialog, QProgressBar, QGroupBox, QGridLayout,
-                           QMessageBox, QTextEdit, QApplication, QProgressDialog)
+                           QMessageBox, QTextEdit, QApplication, QProgressDialog,
+                           QButtonGroup, QRadioButton)
 
 from PyQt6.QtGui import QFont
 from pathlib import Path
