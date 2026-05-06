@@ -1,4 +1,16 @@
-#this belongs in root /ChangeLog.md - Version: 41
+#this belongs in root /ChangeLog.md - Version: 42
+
+## May 2026 — Panel bleed-through, repaint on stack switch
+
+**Panel switch bleed fixed (`gui_layout_custom.py` v13):**
+- `_show_dir_tree #vers 3`: `left_stack.repaint()` after `setCurrentIndex(0)`.
+- `_show_dat_browser #vers 4`: `left_stack.repaint()` after `setCurrentIndex(1)`.
+- `_show_intro_panel #vers 5`: `left_stack.repaint()` after `setCurrentIndex(2)`.
+  QStackedWidget was not repainting on page switch — previous panel content bled through.
+
+**DAT Browser internal splitter fixed (`dat_browser.py` v2):**
+- `DATBrowserWidget #vers 3`: internal `splitter.setAutoFillBackground` changed
+  False to True — same bleed root cause as content_splitter in gui_layout.py.
 
 ## May 2026 — Bleed-through fix, Model Workshop open bug
 
