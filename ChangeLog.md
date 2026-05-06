@@ -1,4 +1,23 @@
-#this belongs in root /ChangeLog.md - Version: 57
+#this belongs in root /ChangeLog.md - Version: 58
+
+## May 2026 — Model Workshop bleed root cause found and fixed
+
+**Bleed root cause (`model_workshop.py` v111):**
+Three issues, all absent from COL/TXD, all contributing to bleed:
+
+1. `_apply_theme #vers 8`: was calling `apply_panel_effects(self, app_settings)`
+   which walks all child QFrame/QGroupBox and installs custom paintEvent hooks
+   using `panel_fill_a`/`panel_fill_b` colours. These painted over widget
+   backgrounds with wrong colours, and generated QPainter engine==0 spam on
+   docked widgets. COL/TXD do not call this. Removed.
+
+2. `_apply_theme`: was setting `self.setStyleSheet(ss)` (widget-level override)
+   instead of `QApplication.setStyleSheet(ss)` + `self.setStyleSheet("")`.
+   Widget-level override creates CSS specificity conflicts. Fixed to match
+   COL/TXD exactly.
+
+3. `open_model_workshop`: `container.setAutoFillBackground(True)` set on tab
+   container. COL/TXD do not set this. Removed.
 
 ## May 2026 — TXD parser VC/III fix, no fallback
 
