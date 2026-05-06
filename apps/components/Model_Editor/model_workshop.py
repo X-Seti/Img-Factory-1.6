@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 101
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 102
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -14479,23 +14479,31 @@ import sys
 
 
 def open_model_workshop(main_window, dff_path=None,
-                        original_dff_name=None): #vers 4
+                        original_dff_name=None): #vers 5
     """Open Model Workshop — routes DFF/COL/IMG correctly.
     original_dff_name: the DFF entry name from the IMG (e.g. 'airportwall_2_2.dff')
     so that IDE lookup works even when the DFF was extracted to /tmp/ with a random suffix."""
     try:
         # Try to dock in main window tab if available
         if main_window and hasattr(main_window, 'main_tab_widget'):
-            tw = main_window.main_tab_widget
+            import os as _os
             from PyQt6.QtWidgets import QWidget, QVBoxLayout
             container = QWidget()
+            container.setAutoFillBackground(True)
             layout = QVBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
-            workshop = ModelWorkshop(main_window=main_window, parent=container)
+            workshop = ModelWorkshop(container, main_window)
             workshop.setWindowFlags(Qt.WindowType.Widget)
             layout.addWidget(workshop)
-            idx = tw.addTab(container, "Model Workshop")
-            tw.setCurrentIndex(idx)
+            tab_label = _os.path.splitext(_os.path.basename(dff_path))[0] if dff_path else "Model Workshop"
+            try:
+                from apps.methods.imgfactory_svg_icons import get_dff_edit_icon
+                icon = get_dff_edit_icon()
+                idx = main_window.main_tab_widget.addTab(container, icon, tab_label)
+            except Exception:
+                idx = main_window.main_tab_widget.addTab(container, tab_label)
+            main_window.main_tab_widget.setCurrentIndex(idx)
+            workshop.show()
         else:
             # Standalone window
             workshop = ModelWorkshop(main_window=main_window)
