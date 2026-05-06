@@ -121,7 +121,7 @@ def show_context_menu(main_window, position): #vers 6
             a.triggered.connect(lambda: show_dff_texture_list(main_window, row))
             dff_menu.addAction(a)
             a = QAction("Open in Model Workshop", menu_parent)
-            a.triggered.connect(lambda checked=False, r=row: open_dff_in_model_workshop(main_window, r))
+            a.triggered.connect(lambda checked=False, r=row: show_dff_model_viewer(main_window, r))
             dff_menu.addAction(a)
             menu.addSeparator()
 

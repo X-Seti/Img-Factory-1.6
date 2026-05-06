@@ -500,7 +500,8 @@ class SVGIconFactory: #vers 8
         )
         return SVGIconFactory._create_icon(svg, size, color)
 
-    def search_icon(size: int = 20, color: str = None) -> QIcon: #vers 7
+    @staticmethod
+    def search_icon(size: int = 20, color: str = None) -> QIcon: #vers 8
         """Search/detect/magnifying glass icon"""
         svg_data = '''<svg viewBox="0 0 24 24">
             <path fill="currentColor"
