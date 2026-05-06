@@ -3957,9 +3957,18 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                 btn.setMaximumWidth(16777215)
 
 
-    def _on_splitter_moved(self, pos, index): #vers 1
-        """Called when main splitter is dragged — update text panel visibility."""
+    def _on_splitter_moved(self, pos, index): #vers 2
+        """Called when main splitter is dragged — update text panel and compact buttons."""
         self._update_transform_text_panel_visibility()
+        try:
+            from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+            btns = getattr(self, '_col_compact_btns', [])
+            if btns:
+                row = getattr(self, '_middle_btn_row', None)
+                w = row.width() if (row and row.width() > 0) else self.width()
+                apply_compact_buttons(btns, w, compact_threshold=320)
+        except Exception:
+            pass
 
     def _update_transform_text_panel_visibility(self): #vers 3
         """DockableToolbar version — toolbars manage their own visibility.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 105
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 106
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5036,9 +5036,18 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             self.size_grip.move(self.width() - 16, self.height() - 16)
         self._update_transform_text_panel_visibility()
 
-    def _on_splitter_moved(self, pos, index): #vers 1
-        """Called when main splitter is dragged - update text panel visibility."""
+    def _on_splitter_moved(self, pos, index): #vers 2
+        """Called when main splitter is dragged - update text panel and compact buttons."""
         self._update_transform_text_panel_visibility()
+        try:
+            from apps.methods.imgfactory_ui_settings import apply_compact_buttons
+            mid_btns = getattr(self, '_mid_compact_btns', [])
+            if mid_btns:
+                row = getattr(self, '_middle_btn_row', None)
+                w = row.width() if (row and row.width() > 0) else self.width()
+                apply_compact_buttons(mid_btns, w, compact_threshold=320)
+        except Exception:
+            pass
 
     def _update_transform_text_panel_visibility(self): #vers 3
         """DockableToolbar version — toolbars manage their own visibility."""
