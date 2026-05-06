@@ -1,4 +1,17 @@
-#this belongs in root /ChangeLog.md - Version: 55
+#this belongs in root /ChangeLog.md - Version: 56
+
+## May 2026 — Search bar in model left panel, TXD parser fallback
+
+**Search added to Model Workshop left panel (`model_workshop.py` v109):**
+- `_create_left_panel #vers 6`: search button + hidden `QLineEdit` added
+  matching COL Workshop pattern.
+- `_show_model_search #vers 1`: toggles search box, clears on hide.
+- `_filter_model_list #vers 1`: hides non-matching items live as user types.
+
+**TXD parser fallback (`model_workshop.py` v109):**
+- `_parse_txd_lightweight #vers 3`: if primary `txd_parser.py` returns empty,
+  falls back to raw RW chunk walk extracting texture names from string chunks.
+  Handles VC/III TXD variants that the primary parser misses.
 
 ## May 2026 — Temp file suffix + docked bleed (panel palette)
 
