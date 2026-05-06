@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 47
+#this belongs in root /ChangeLog.md - Version: 48
+
+## May 2026 — Model Workshop embedded launch rewritten
+
+**Model Workshop embedded launch matched to TXD pattern (`model_workshop.py` v102):**
+- `open_model_workshop #vers 5`: three fixes vs TXD:
+  1. `container.setAutoFillBackground(True)` — tab container now paints background.
+  2. `ModelWorkshop(container, main_window)` — positional args, container is Qt parent.
+  3. `workshop.show()` added after tab insertion — was never called in embedded mode.
+  Also adds DFF icon to tab label.
 
 ## May 2026 — Model Workshop docked bleed fixed
 
