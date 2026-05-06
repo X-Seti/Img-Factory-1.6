@@ -1,4 +1,17 @@
-#this belongs in root /ChangeLog.md - Version: 54
+#this belongs in root /ChangeLog.md - Version: 55
+
+## May 2026 — Temp file suffix + docked bleed (panel palette)
+
+**Temp file random suffix fixed (2 more paths, `model_workshop.py` v108):**
+- `_load_txd_file_from_data #vers 1`: `NamedTemporaryFile(prefix=name_, suffix=.txd)`
+  was generating `tree3prc_m7lvjvto.txd`. Now uses `mkdtemp()` + real name.
+- `_on_col_selected #vers 2`: same fix for DFF extraction from left panel.
+
+**Docked bleed - panel background (`model_workshop.py` v108):**
+- `_apply_theme #vers 7`: when docked, now walks `_main_splitter` children
+  and sets `autoFillBackground` + Window palette colour on each panel.
+  `WA_StyledBackground` set on self. Left and middle panels no longer
+  transparent to imgfactory theme.
 
 ## May 2026 — Right-click model workshop, temp file name fix
 
