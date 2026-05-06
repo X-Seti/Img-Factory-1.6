@@ -1,4 +1,4 @@
-#this belongs in gui/ gui_layout.py - Version: 31
+#this belongs in gui/ gui_layout.py - Version: 32
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os

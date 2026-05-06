@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 12
+#belongs in gui/gui_layout_custom.py - Version 13
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -75,7 +75,7 @@ def _ensure_left_panel_visible(mw, splitter, left_stack, wide=False):
     left_stack.show()
 
 
-def _show_dir_tree(mw): #vers 2
+def _show_dir_tree(mw): #vers 3
     """Show dir tree in left stack — toggle collapse if already active."""
     try:
         left_stack, splitter = _get_left_stack(mw)
@@ -114,6 +114,7 @@ def _show_dir_tree(mw): #vers 2
                 mw.log_message("Dir Tree hidden")
         else:
             left_stack.setCurrentIndex(0)
+            left_stack.repaint()
             _ensure_left_panel_visible(mw, splitter, left_stack)
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar._set_exclusive_active('dirtree')
@@ -124,7 +125,7 @@ def _show_dir_tree(mw): #vers 2
             mw.log_message(f"Dir tree show error: {e}")
 
 
-def _show_dat_browser(mw): #vers 3
+def _show_dat_browser(mw): #vers 4
     """Show DAT Browser in left stack — toggle collapse if already active."""
     try:
         left_stack, splitter = _get_left_stack(mw)
@@ -159,6 +160,7 @@ def _show_dat_browser(mw): #vers 3
                 mw.log_message("DAT Browser hidden")
         else:
             left_stack.setCurrentIndex(1)
+            left_stack.repaint()
             _ensure_left_panel_visible(mw, splitter, left_stack)
             if hasattr(mw, 'tool_taskbar'):
                 mw.tool_taskbar._set_exclusive_active('dat')
@@ -169,7 +171,7 @@ def _show_dat_browser(mw): #vers 3
             mw.log_message(f"DAT Browser show error: {e}")
 
 
-def _show_intro_panel(mw): #vers 4
+def _show_intro_panel(mw): #vers 5
     """Show welcome/intro screen in left_stack page 2 — same pattern as Dir Tree / DAT."""
     try:
         left_stack, splitter = _get_left_stack(mw)
@@ -229,6 +231,7 @@ def _show_intro_panel(mw): #vers 4
                 mw.log_message("Intro hidden")
         else:
             left_stack.setCurrentIndex(2)
+            left_stack.repaint()
             # Show left_stack first so splitter knows its width
             left_stack.show()
             # Intro takes the full content width — use splitter's actual pixel width

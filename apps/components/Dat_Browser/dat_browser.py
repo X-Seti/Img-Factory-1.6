@@ -1,4 +1,4 @@
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 1
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 2
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -691,7 +691,7 @@ class TXDDumpDialog(QDialog): #vers 1
         self.accept()
 
 
-class DATBrowserWidget(QWidget): #vers 2
+class DATBrowserWidget(QWidget): #vers 3
     """
     Full DAT/IDE/IPL browser panel.
     Drop into any QTabWidget or use standalone.
@@ -867,7 +867,7 @@ class DATBrowserWidget(QWidget): #vers 2
 
         # Main splitter: left = load-order tree  |  right = data tabs
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setAutoFillBackground(False)
+        splitter.setAutoFillBackground(True)
         splitter.setHandleWidth(4)
         splitter.setOpaqueResize(True)
         self._dat_splitter = splitter

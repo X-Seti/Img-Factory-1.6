@@ -1,4 +1,4 @@
-# apps/components/Img_Factory/welcome_screen.py — Version 17
+# apps/components/Img_Factory/welcome_screen.py — Version 18
 # X-Seti - 25Apr2026 - IMG Factory 1.6 - Welcome / Intro screen
 """Welcome / Intro screen shown on startup.
 Full documentation of all IMG Factory features and workflows.
