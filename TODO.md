@@ -1,6 +1,36 @@
-#this belongs in root /TODO.md - Version: 6
+#this belongs in root /TODO.md - Version: 7
 
 ## May 2026 - Model Workshop TODOs
+
+## Future Projects
+
+### Vehicle Editor (Model Workshop Extension)
+**Status**: PLANNED
+Vehicles have 16-24 geometries per DFF (body, 4 wheels, doors, bonnet, boot, extras).
+Current model_workshop only renders geometry[0]. Full vehicle editor needs:
+
+**Rendering:**
+- Render ALL atomics composited in one viewport (chassis + all parts)
+- Frame hierarchy: atomics link to frames via frame_index, frames have parent hierarchy
+- Frame names currently not parsed (extension 0x0253F2FE / Frame Name plugin) — needed
+  to identify chassis, wheel_lf, wheel_rf, wheel_lb, wheel_rb, door_lf, door_rf etc
+- Colour remapping: vehicles use 2 paint job colours (primary/secondary from IDE)
+
+**IDE vehicle fields (already parsed in gta_dat_parser.py):**
+- handling_id, game_name, anim_file, veh_class, freq, level, wheel_model, wheel_scale
+- Show these in the info panel alongside IDE/ID/TXD
+
+**Handling.cfg editor:**
+- Parse handling.cfg entries (one line per vehicle, 23 fields)
+- Fields: mass, drag, centre_of_mass(x,y,z), multipliers, top_speed, etc
+- Edit and save back to handling.cfg
+- Could use Radar Workshop as layout base (has similar tabular editor pattern)
+
+**Ped Editor:**
+- peds.ide section: id, model, txd, pedType, behaviour, animGroup, carsDriveMask,
+  animFile, radio1, radio2
+- pedstats.dat for ped stats
+- Simpler than vehicles — single geometry, no frame hierarchy needed
 
 ## Future Projects
 

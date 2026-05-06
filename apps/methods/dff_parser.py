@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_parser.py - Version: 4
+#this belongs in apps/methods/dff_parser.py - Version: 5
 # X-Seti - Apr 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
@@ -114,12 +114,21 @@ class DFFParser:
                 ep = p2; ee = p2 + sz2
                 while ep < ee - 12:
                     ect, esz, _, ep2 = read_chunk(self.data, ep)
-                    if ect == 0x0253F2FE:   # HAnim PLG / Frame name
-                        pass
-                    elif ect == 0x0253F2FF: # Frame name string
+                    if ect == 0x0253F2FE:   # Frame Name plugin (VC) — data IS the name string
                         raw = self.data[ep2:ep2+esz]
-                        name = raw.split(b'\x00')[0].decode('ascii','replace')
-                        self.model.frames[frame_idx].name = name
+                        name = raw.split(b'\x00')[0].decode('ascii','replace').strip()
+                        if name:
+                            self.model.frames[frame_idx].name = name
+                    elif ect == 0x0253F2FF: # Frame name string (RW 3.4+)
+                        raw = self.data[ep2:ep2+esz]
+                        name = raw.split(b'\x00')[0].decode('ascii','replace').strip()
+                        if name:
+                            self.model.frames[frame_idx].name = name
+                    elif ect == 0x00000002: # RW_STRING — frame name in VC format
+                        raw = self.data[ep2:ep2+esz]
+                        name = raw.split(b'\x00')[0].decode('ascii','replace').strip()
+                        if name and not self.model.frames[frame_idx].name:
+                            self.model.frames[frame_idx].name = name
                     ep = ep2 + esz
             frame_idx += 1
             pos = p2 + sz2
