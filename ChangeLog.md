@@ -1,4 +1,16 @@
-#this belongs in root /ChangeLog.md - Version: 56
+#this belongs in root /ChangeLog.md - Version: 57
+
+## May 2026 — TXD parser VC/III fix, no fallback
+
+**TXD parser fixed for VC/III format (`txd_parser.py` v2):**
+- `_parse_native_texture`: The 4 bytes after raster_format are `d3d_format`
+  (FourCC) in SA but `has_alpha` (0 or 1) in VC/III. Parser was treating all
+  games as SA so DXT FourCC never matched, rgba stayed None, texture dropped.
+- VC/III fix: when field is not a known FourCC, reads mip data using the
+  4-byte size prefix that precedes each mip level in VC/III format.
+  Detects DXT1/DXT5 from mip data size signature; handles RGBA32/RGB24/RGB565.
+- `_parse_txd_lightweight #vers 4`: fallback chunk-walker removed per no-fallback
+  rule. Parser either works or returns empty.
 
 ## May 2026 — Search bar in model left panel, TXD parser fallback
 
