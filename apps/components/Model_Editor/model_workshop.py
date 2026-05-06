@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 109
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 110
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -9828,59 +9828,13 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             return
         self._load_txd_file(path)
 
-    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 3
-        """Lightweight TXD parser — tries own parser first, falls back to txd_versions."""
+    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 4
+        """Parse TXD data. Uses txd_parser.py — supports VC/III/SA PC formats."""
         try:
             from apps.methods.txd_parser import parse_txd
-            result = parse_txd(data)
-            if result:
-                return result
+            return parse_txd(data)
         except Exception as e:
-            print(f"_parse_txd_lightweight primary error: {e}")
-
-        # Fallback: use txd_versions detect for basic texture name extraction
-        try:
-            from apps.methods.txd_versions import detect_txd_version
-            # Just check if it's a valid TXD at all
-            info = detect_txd_version(data)
-            if not info:
-                return []
-        except Exception:
-            pass
-
-        # Secondary fallback: raw RW chunk walk to extract texture names only
-        try:
-            import struct
-            textures = []
-            pos = 0
-            while pos + 12 <= len(data):
-                ct, cs = struct.unpack_from('<II', data, pos)[:2]
-                if ct == 0x15:  # RW_TEXTURE_NATIVE
-                    # Try to extract texture name from string chunks inside
-                    end = pos + 12 + cs
-                    p2 = pos + 12
-                    # Skip struct chunk
-                    if p2 + 12 <= len(data):
-                        st2, ss2 = struct.unpack_from('<II', data, p2)[:2]
-                        if st2 == 0x01:
-                            p2 += 12 + ss2
-                    # Next should be texture name string
-                    if p2 + 12 <= len(data):
-                        st3, ss3 = struct.unpack_from('<II', data, p2)[:2]
-                        if st3 == 0x02 and ss3 > 0:
-                            raw = data[p2+12:p2+12+ss3]
-                            name = raw.split(b'\x00')[0].decode('ascii', 'replace').strip()
-                            if name:
-                                textures.append({
-                                    'name': name, 'width': 0, 'height': 0,
-                                    'rgba_data': b'', 'format': 'unknown'
-                                })
-                    pos = end
-                else:
-                    pos += 12 + cs
-            return textures
-        except Exception as e:
-            print(f"_parse_txd_lightweight fallback error: {e}")
+            print(f"_parse_txd_lightweight error: {e}")
             return []
 
     def _load_txd_file(self, path: str): #vers 3

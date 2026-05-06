@@ -1,4 +1,4 @@
-# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 1
+# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 2
 # Self-contained GTA PC TXD parser (VC/III/SA).
 # Decodes DXT1, DXT3, DXT5 and uncompressed RGBA32/RGB24 textures to RGBA8888.
 # No external dependencies -- works standalone inside Model-Workshop.
@@ -208,90 +208,99 @@ def _decode_rgb565(data: bytes, w: int, h: int) -> bytes:
 
 
 def _parse_native_texture(data: bytes, base: int) -> Optional[dict]:
-    """Parse one NativeTexture (chunk type 0x15) and return a texture dict."""
+    """Parse one NativeTexture (chunk type 0x15).
+    Handles both SA (d3d_format FourCC) and VC/III (has_alpha + mip data header) layouts."""
     try:
         pos = base
-        # Outer chunk header (type 0x15)
         ct, cs, cv, pos = _read_chunk(data, pos)
         if ct != RW_TEXTURE_NATIVE:
             return None
-        end = base + 12 + cs
 
-        # Struct chunk
         st, ss, sv, pos = _read_chunk(data, pos)
         if st != RW_STRUCT:
             return None
-        struct_end = pos + ss
 
-        # Platform ID (4 bytes) + filter/wrap (4 bytes)
         platform_id = struct.unpack_from('<I', data, pos)[0]
         pos += 4
-        filter_mode = struct.unpack_from('<H', data, pos)[0]
-        uv_address  = struct.unpack_from('<H', data, pos+2)[0]
-        pos += 4
+        pos += 4  # filter/wrap flags
 
-        # Texture name (32 bytes null-terminated)
-        tex_name = data[pos:pos+32].split(b'\x00')[0].decode('ascii','replace').strip()
+        tex_name  = data[pos:pos+32].split(b'\x00')[0].decode('ascii','replace').strip()
         pos += 32
         mask_name = data[pos:pos+32].split(b'\x00')[0].decode('ascii','replace').strip()
         pos += 32
 
-        # Raster format flags
         raster_format = struct.unpack_from('<I', data, pos)[0]
         pos += 4
 
-        # D3D compression format (FourCC or 0)
-        d3d_format = struct.unpack_from('<I', data, pos)[0]
+        # Next 4 bytes: SA = D3D FourCC, VC/III = has_alpha bool (0 or 1)
+        d3d_or_alpha = struct.unpack_from('<I', data, pos)[0]
         pos += 4
 
-        w = struct.unpack_from('<H', data, pos)[0]
-        h = struct.unpack_from('<H', data, pos+2)[0]
-        depth = data[pos+4]
+        w         = struct.unpack_from('<H', data, pos)[0]
+        h         = struct.unpack_from('<H', data, pos+2)[0]
+        depth     = data[pos+4]
         mip_count = data[pos+5]
         raster_type = data[pos+6]
-        flags = data[pos+7]
+        flags     = data[pos+7]
         pos += 8
-
-        has_alpha = bool(flags & 0x01)
-        compressed = bool(flags & 0x02)
 
         if w == 0 or h == 0 or w > 4096 or h > 4096:
             return None
 
-        # Read texture data (first mip only)
-        fmt = 'UNKNOWN'
+        # Determine if this is SA (FourCC) or VC/III (has_alpha) format
+        known_fourccs = (D3D_DXT1, D3D_DXT2, D3D_DXT3, D3D_DXT4, D3D_DXT5)
+        is_sa_format  = d3d_or_alpha in known_fourccs
+
+        fmt  = 'UNKNOWN'
         rgba = None
 
-        if d3d_format == D3D_DXT1:
-            fmt = 'DXT1'
-            size = max(1, (w+3)//4) * max(1, (h+3)//4) * 8
-            if pos + size <= len(data):
-                rgba = _decode_dxt1(data[pos:pos+size], w, h)
-        elif d3d_format in (D3D_DXT2, D3D_DXT3):
-            fmt = 'DXT3'
-            size = max(1, (w+3)//4) * max(1, (h+3)//4) * 16
-            if pos + size <= len(data):
-                rgba = _decode_dxt3(data[pos:pos+size], w, h)
-        elif d3d_format in (D3D_DXT4, D3D_DXT5):
-            fmt = 'DXT5'
-            size = max(1, (w+3)//4) * max(1, (h+3)//4) * 16
-            if pos + size <= len(data):
-                rgba = _decode_dxt5(data[pos:pos+size], w, h)
-        elif (raster_format & 0x0F00) == RASTER_8888:
-            fmt = 'RGBA32'
-            size = w * h * 4
-            if pos + size <= len(data):
-                rgba = _decode_rgba8888(data[pos:pos+size], w, h)
-        elif (raster_format & 0x0F00) == RASTER_888:
-            fmt = 'RGB24'
-            size = w * h * 3
-            if pos + size <= len(data):
-                rgba = _decode_rgb888(data[pos:pos+size], w, h)
-        elif (raster_format & 0x0F00) == RASTER_565:
-            fmt = 'RGB565'
-            size = w * h * 2
-            if pos + size <= len(data):
-                rgba = _decode_rgb565(data[pos:pos+size], w, h)
+        if is_sa_format:
+            # SA: d3d_or_alpha IS the FourCC
+            if d3d_or_alpha == D3D_DXT1:
+                fmt  = 'DXT1'
+                size = max(1,(w+3)//4)*max(1,(h+3)//4)*8
+                if pos+size <= len(data): rgba = _decode_dxt1(data[pos:pos+size], w, h)
+            elif d3d_or_alpha in (D3D_DXT2, D3D_DXT3):
+                fmt  = 'DXT3'
+                size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
+                if pos+size <= len(data): rgba = _decode_dxt3(data[pos:pos+size], w, h)
+            elif d3d_or_alpha in (D3D_DXT4, D3D_DXT5):
+                fmt  = 'DXT5'
+                size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
+                if pos+size <= len(data): rgba = _decode_dxt5(data[pos:pos+size], w, h)
+        else:
+            # VC/III: compression signalled by raster_format flags or mip data header
+            # Each mip level is preceded by a 4-byte size field
+            if mip_count > 0 and pos+4 <= len(data):
+                mip_size = struct.unpack_from('<I', data, pos)[0]
+                pos += 4
+                mip_data = data[pos:pos+mip_size] if pos+mip_size <= len(data) else b''
+            else:
+                mip_size = 0
+                mip_data = b''
+
+            rf_base = raster_format & 0x0F00
+            if rf_base == RASTER_8888:
+                fmt = 'RGBA32'
+                if mip_size == w*h*4: rgba = _decode_rgba8888(mip_data, w, h)
+            elif rf_base == RASTER_888:
+                fmt = 'RGB24'
+                if mip_size == w*h*3: rgba = _decode_rgb888(mip_data, w, h)
+            elif rf_base == RASTER_565:
+                fmt = 'RGB565'
+                if mip_size == w*h*2: rgba = _decode_rgb565(mip_data, w, h)
+            elif rf_base == RASTER_1555:
+                fmt = 'ARGB1555'
+                # treat as RGB565 approximation
+                if mip_size == w*h*2: rgba = _decode_rgb565(mip_data, w, h)
+            else:
+                # Try DXT from mip data size signature
+                dxt1_size = max(1,(w+3)//4)*max(1,(h+3)//4)*8
+                dxt5_size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
+                if mip_size == dxt1_size:
+                    fmt = 'DXT1'; rgba = _decode_dxt1(mip_data[:mip_size], w, h)
+                elif mip_size == dxt5_size:
+                    fmt = 'DXT5'; rgba = _decode_dxt5(mip_data[:mip_size], w, h)
 
         if rgba is None:
             return None
