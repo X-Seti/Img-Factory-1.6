@@ -1,4 +1,4 @@
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 2
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 3
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -4018,19 +4018,20 @@ def _register_dat_taskbar(widget, main_window): #vers 1
         pass
 
 
-def integrate_dat_browser(main_window) -> bool: #vers 5
+def integrate_dat_browser(main_window) -> bool: #vers 6
     """Create DAT Browser widget and place it in the left_stack panel.\nUse show_dat_browser() / _show_dat_browser() to open/focus it.
     """
     try:
         from PyQt6.QtWidgets import QWidget as _QW
-        parent_arg = main_window if isinstance(main_window, _QW) else None
+        gl = getattr(main_window, 'gui_layout', None)
+        left_stack = getattr(gl, 'left_stack', None)
+        # Parent to left_stack so Qt paint coordinates are correct
+        parent_arg = left_stack if left_stack is not None else None
         widget = DATBrowserWidget(main_window, parent=parent_arg)
         widget.setAutoFillBackground(True)
         main_window.dat_browser = widget
 
         # Place in left_stack page 1 if available
-        gl = getattr(main_window, 'gui_layout', None)
-        left_stack = getattr(gl, 'left_stack', None)
         if left_stack is not None:
             old = left_stack.widget(1)
             if old is not None:
