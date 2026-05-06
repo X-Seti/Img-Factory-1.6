@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 108
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 109
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -6834,7 +6834,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         return self.transform_text_panel
 
 
-    def _create_left_panel(self): #vers 5
+    def _create_left_panel(self): #vers 6
         """Create left panel - COL file list (only in IMG Factory mode)"""
         # In standalone mode, don't create this panel
         if self.standalone_mode:
@@ -6854,9 +6854,32 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
 
+        # Header row with search button
+        hdr_row = QHBoxLayout()
         self._left_panel_header = QLabel("Model Files")
         self._left_panel_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        layout.addWidget(self._left_panel_header)
+        hdr_row.addWidget(self._left_panel_header)
+        hdr_row.addStretch()
+
+        self._model_search_btn = QPushButton()
+        self._model_search_btn.setFixedSize(24, 24)
+        self._model_search_btn.setToolTip("Search model files")
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SVG
+            self._model_search_btn.setIcon(_SVG.search_icon(16))
+            self._model_search_btn.setIconSize(QSize(16, 16))
+        except Exception:
+            self._model_search_btn.setText("?")
+        self._model_search_btn.clicked.connect(self._show_model_search)
+        hdr_row.addWidget(self._model_search_btn)
+        layout.addLayout(hdr_row)
+
+        # Search box (hidden by default)
+        self._model_search_box = QLineEdit()
+        self._model_search_box.setPlaceholderText("Search model files...")
+        self._model_search_box.setVisible(False)
+        self._model_search_box.textChanged.connect(self._filter_model_list)
+        layout.addWidget(self._model_search_box)
 
         self.col_list_widget = QListWidget()
         self.col_list_widget.setAlternatingRowColors(True)
@@ -9805,15 +9828,59 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             return
         self._load_txd_file(path)
 
-    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 2
-        """Lightweight TXD parser — self-contained, no TXDWorkshop dependency.
-        Uses apps/methods/txd_parser.py which decodes DXT1/DXT3/DXT5/RGBA32."""
+    def _parse_txd_lightweight(self, data: bytes) -> list: #vers 3
+        """Lightweight TXD parser — tries own parser first, falls back to txd_versions."""
         try:
             from apps.methods.txd_parser import parse_txd
-            return parse_txd(data)
+            result = parse_txd(data)
+            if result:
+                return result
         except Exception as e:
-            print(f"_parse_txd_lightweight error: {e}")
-            import traceback; traceback.print_exc()
+            print(f"_parse_txd_lightweight primary error: {e}")
+
+        # Fallback: use txd_versions detect for basic texture name extraction
+        try:
+            from apps.methods.txd_versions import detect_txd_version
+            # Just check if it's a valid TXD at all
+            info = detect_txd_version(data)
+            if not info:
+                return []
+        except Exception:
+            pass
+
+        # Secondary fallback: raw RW chunk walk to extract texture names only
+        try:
+            import struct
+            textures = []
+            pos = 0
+            while pos + 12 <= len(data):
+                ct, cs = struct.unpack_from('<II', data, pos)[:2]
+                if ct == 0x15:  # RW_TEXTURE_NATIVE
+                    # Try to extract texture name from string chunks inside
+                    end = pos + 12 + cs
+                    p2 = pos + 12
+                    # Skip struct chunk
+                    if p2 + 12 <= len(data):
+                        st2, ss2 = struct.unpack_from('<II', data, p2)[:2]
+                        if st2 == 0x01:
+                            p2 += 12 + ss2
+                    # Next should be texture name string
+                    if p2 + 12 <= len(data):
+                        st3, ss3 = struct.unpack_from('<II', data, p2)[:2]
+                        if st3 == 0x02 and ss3 > 0:
+                            raw = data[p2+12:p2+12+ss3]
+                            name = raw.split(b'\x00')[0].decode('ascii', 'replace').strip()
+                            if name:
+                                textures.append({
+                                    'name': name, 'width': 0, 'height': 0,
+                                    'rgba_data': b'', 'format': 'unknown'
+                                })
+                    pos = end
+                else:
+                    pos += 12 + cs
+            return textures
+        except Exception as e:
+            print(f"_parse_txd_lightweight fallback error: {e}")
             return []
 
     def _load_txd_file(self, path: str): #vers 3
@@ -11835,6 +11902,29 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD load error: {e}")
+
+    def _show_model_search(self): #vers 1
+        """Toggle search box in left panel."""
+        box = getattr(self, '_model_search_box', None)
+        if not box:
+            return
+        visible = not box.isVisible()
+        box.setVisible(visible)
+        if visible:
+            box.setFocus()
+        else:
+            box.clear()
+
+    def _filter_model_list(self, text: str): #vers 1
+        """Filter left panel list by search text."""
+        lw = getattr(self, 'col_list_widget', None)
+        if not lw:
+            return
+        text = text.lower()
+        for i in range(lw.count()):
+            item = lw.item(i)
+            if item:
+                item.setHidden(bool(text) and text not in item.text().lower())
 
     def _on_col_selected(self, item): #vers 2
         """Handle entry selection from left panel — routes by extension."""
