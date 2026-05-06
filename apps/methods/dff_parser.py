@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_parser.py - Version: 2
+#this belongs in apps/methods/dff_parser.py - Version: 3
 # X-Seti - Apr 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
@@ -146,6 +146,12 @@ class DFFParser:
         pos = start
         ct, sz, lib, p = read_chunk(self.data, pos)
         if ct != int(RWChunkType.STRUCT):
+            # Older VC/GTA3 DFFs encode geometry flags in the chunk type itself.
+            # e.g. type=0x00010074 means upper 16=format version, lower 16=flags.
+            # The data at p then starts directly with tri_count(4)+vert_count(4)+morph(4)
+            # rather than flags(2)+uv(1)+unk(1)+tri(4)+vert(4)+morph(4).
+            if (ct >> 16) == 0x0001 and (ct & 0xFFFF) != 0:
+                return self._parse_geometry_v33(ct, p, p + sz, end)
             return None
 
         geom = Geometry()
@@ -210,6 +216,120 @@ class DFFParser:
             pos = p2 + sz2
 
         return geom
+
+    def _parse_geometry_v33(self, chunk_type: int, struct_start: int,
+                            struct_end: int, geom_end: int) -> 'Optional[Geometry]': #vers 1
+        """Parse RW 3.3 / older VC geometry where chunk type encodes flags.
+        Vertex data lives after the struct chunk in the raw geometry body.
+        Triangle indices come from the BinMesh extension (0x050e)."""
+        geom = Geometry()
+        flags = chunk_type & 0xFFFF
+        geom.flags = flags
+
+        HAS_COLORS   = bool(flags & 0x0008)
+        HAS_TEXCOORD = bool(flags & (0x0004 | 0x0080))
+        HAS_NORMALS  = bool(flags & 0x0010)
+
+        # The struct chunk contains: numMorphTargets(4) + bsphere(16)
+        # then optionally: prelit colors, UV layers
+        p = struct_start
+        n_morph = struct.unpack_from('<I', self.data, p)[0]
+        p += 4
+        # bsphere: cx cy cz r
+        p += 16  # skip bounding sphere
+
+        # Count UVs in struct: (struct_end - p) / (8 * uv_layer_count)
+        uv_count = 1 if HAS_TEXCOORD else 0
+        struct_remaining = struct_end - p
+
+        # After the struct chunk body, vertex data is raw in the geometry chunk body
+        # Layout: struct_chunk | raw_vert_data | MATERIAL_LIST | EXTENSION
+        # raw_vert_data starts at struct_end and ends at MATERIAL_LIST
+
+        # Find MATERIAL_LIST and EXTENSION positions
+        mat_list_pos = None
+        ext_pos      = None
+        pos = struct_end
+        while pos + 12 <= geom_end:
+            ct, cs, cv, dp = read_chunk(self.data, pos)
+            if ct == int(RWChunkType.MATERIAL_LIST):
+                mat_list_pos = pos
+                self._parse_material_list(dp, dp + cs, geom)
+            elif ct == 0x00000003:  # EXTENSION
+                ext_pos = pos
+                self._parse_extension_v33(dp, dp + cs, geom)
+            pos = dp + cs
+
+        # Vertex data is between struct_end and first known chunk after struct
+        vert_data_start = struct_end
+        vert_data_end   = mat_list_pos if mat_list_pos else geom_end
+
+        raw_size = vert_data_end - vert_data_start
+        if raw_size > 0:
+            # Determine vert_count: raw_size / bytes_per_vert
+            # Each vert: XYZ(12) + normals(12 if HAS_NORMALS)
+            bpv = 12 + (12 if HAS_NORMALS else 0)
+            vert_count = raw_size // bpv
+
+            vp = vert_data_start
+            for i in range(vert_count):
+                x, y, z = struct.unpack_from('<3f', self.data, vp)
+                geom.vertices.append(Vector3(x, y, z))
+                vp += 12
+                if HAS_NORMALS:
+                    nx, ny, nz = struct.unpack_from('<3f', self.data, vp)
+                    geom.normals.append(Vector3(nx, ny, nz))
+                    vp += 12
+
+        # UV data is in the struct chunk body
+        vert_count = len(geom.vertices)
+        if HAS_TEXCOORD and vert_count:
+            uv_bytes = vert_count * 8  # u(4) + v(4) per vert
+            if struct_remaining >= uv_bytes:
+                uvs = []
+                for i in range(vert_count):
+                    u, v = struct.unpack_from('<2f', self.data, p + i * 8)
+                    uvs.append(TexCoord(u, v))
+                geom.uv_layers.append(uvs)
+
+        # Triangles come from BinMesh (already populated by _parse_extension_v33)
+        return geom
+
+    def _parse_extension_v33(self, start: int, end: int, geom: Geometry): #vers 1
+        """Parse extension chunk for RW 3.3 geometry — handles BinMesh (0x050e)."""
+        pos = start
+        while pos + 12 <= end:
+            ct, cs, cv, dp = read_chunk(self.data, pos)
+            if ct == 0x0000050e:  # BinMesh plugin
+                face_type, mesh_count, total_idx = struct.unpack_from('<III', self.data, dp)
+                bp = dp + 12
+                indices = []
+                for _ in range(mesh_count):
+                    idx_count, mat_idx = struct.unpack_from('<II', self.data, bp)
+                    bp += 8
+                    for j in range(idx_count):
+                        indices.append((struct.unpack_from('<I', self.data, bp + j * 4)[0], mat_idx))
+                    bp += idx_count * 4
+                # Build triangles from index list
+                if face_type == 0:  # triangle list
+                    i = 0
+                    while i + 2 < len(indices):
+                        v0, m = indices[i]
+                        v1, _ = indices[i+1]
+                        v2, _ = indices[i+2]
+                        geom.triangles.append(Triangle(v0, v1, v2, m))
+                        i += 3
+                else:  # triangle strip
+                    for i in range(len(indices) - 2):
+                        v0, m = indices[i]
+                        v1, _ = indices[i+1]
+                        v2, _ = indices[i+2]
+                        if v0 != v1 and v1 != v2 and v0 != v2:
+                            if i % 2 == 0:
+                                geom.triangles.append(Triangle(v0, v1, v2, m))
+                            else:
+                                geom.triangles.append(Triangle(v0, v2, v1, m))
+            pos = dp + cs
 
     def _parse_material_list(self, start: int, end: int, geom: Geometry):
         pos = start
