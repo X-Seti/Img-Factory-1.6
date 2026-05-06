@@ -1,4 +1,17 @@
-#this belongs in root /ChangeLog.md - Version: 40
+#this belongs in root /ChangeLog.md - Version: 41
+
+## May 2026 — Bleed-through fix, Model Workshop open bug
+
+**Bleed-through rendering fixed (`gui_layout.py`, `welcome_screen.py`):**
+- `content_splitter.setAutoFillBackground` changed False to True — splitter
+  now paints its own background; intro/DAT browser no longer bleeds through
+  when panels collapse or switch.
+- `WelcomeScreen.__init__ #vers 1`: added `WA_OpaquePaintEvent` attribute and
+  `setAutoFillBackground(True)` — screen is fully opaque, no ghost pixels.
+
+**Model-Workshop open error dialog fixed (`Model-Workshop/Mdl_Editor/model_workshop.py`):**
+- `open_workshop #vers 4`: `App_name * " Error"` corrected to
+  `App_name + " Error"` — was a Python TypeError on any open failure.
 
 ## April 2026 — Standalone structure fixes, theme-aware colors
 
