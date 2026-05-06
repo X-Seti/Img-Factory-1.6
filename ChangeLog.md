@@ -1,10 +1,25 @@
-#this belongs in root /ChangeLog.md - Version: 60
+#this belongs in root /ChangeLog.md - Version: 61
 
 ## May 2026 — Model Workshop bleed-through CONFIRMED FIXED
 
 The bleed-through in Model Workshop when docked inside IMG Factory is now
 confirmed fixed. Took multiple sessions to track down. Full root cause
 documented in v58 entry below. Tested across theme switches - no bleed.
+
+## May 2026 — Texture thumbnails in list, TXD parser DXT fix
+
+**Texture list now shows thumbnails (`model_workshop.py` v114):**
+- `_populate_texture_list #vers 2`: was reading `pixel_data`/`compressed_data`
+  (wrong keys). Now reads `rgba_data` from the parser dict.
+- Column 0 is now a 48×48 thumbnail; col 1=Name, col 2=Size, col 3=Format.
+- Row height set to 52px. Name tooltip shows #N, dimensions, format, mips.
+
+**TXD parser DXT detection fixed (`txd_parser.py` v5):**
+- `_parse_native_texture`: DXT size check now runs FIRST before raster_format
+  interpretation. VC stores DXT data but marks raster_format as ARGB1555 —
+  mip_size matching dxt1/dxt5 block size is the reliable discriminator.
+- PAL8 (256-colour palette) support added.
+- Debug output disabled (was left on for diagnosis).
 
 ## May 2026 — Model Workshop DFF toolbar buttons implemented
 
