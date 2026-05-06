@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 114
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 115
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -9457,7 +9457,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
             # Build 64×64 pixmap
             pix = QPixmap(THUMB_SIZE, THUMB_SIZE)
-            pix.fill(self._get_ui_color('viewport_bg'))
+            pix.fill(QColor(40, 40, 40))
             if rgba and w > 0 and h > 0 and len(rgba) >= w * h * 4:
                 try:
                     qimg = QImage(rgba[:w*h*4], w, h,

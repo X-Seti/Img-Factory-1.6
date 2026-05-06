@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_parser.py - Version: 3
+#this belongs in apps/methods/dff_parser.py - Version: 4
 # X-Seti - Apr 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
@@ -193,6 +193,13 @@ class DFFParser:
         cx, cy, cz, r = struct.unpack_from('<4f', self.data, p); p += 16
         geom.bounding_sphere = BoundingSphere(Vector3(cx,cy,cz), r)
         has_pos, has_nrm = struct.unpack_from('<II', self.data, p); p += 8
+
+        # In RW 3.3 (cv < 0x0c03ffff, e.g. GTA VC 0x0c02ffff) has_pos=0
+        # is unreliable — vertices are stored regardless. Force read if
+        # remaining struct bytes can hold them.
+        struct_bytes_left = (start + 12 + sz) - p
+        if not has_pos and vert_count > 0 and struct_bytes_left >= vert_count * 12:
+            has_pos = 1
 
         # Vertices
         if has_pos:
