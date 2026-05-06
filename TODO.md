@@ -1,6 +1,21 @@
-#this belongs in root /TODO.md - Version: 4
+#this belongs in root /TODO.md - Version: 5
 
 ## May 2026 - Model Workshop TODOs
+
+### Model Workshop - Stub buttons in viewport toolbar (do nothing)
+**Status**: PENDING
+The following buttons in the bottom viewport toolbar are stubs (setEnabled(False)
+or connected to _export_not_implemented). Need implementing:
+- flip_vert_btn / flip_horz_btn - flip DFF geometry vertically/horizontally
+- rotate_cw_btn / rotate_ccw_btn - rotate DFF geometry 90 degrees
+- analyze_btn - analyse mesh stats
+- copy_btn / paste_btn - copy/paste surfaces
+- delete_surface_btn / duplicate_surface_btn - surface operations
+- paint_btn - vertex/face paint mode
+- load_txd_btn - load TXD directly
+- find_in_ide_btn - find entry in IDE
+- prelight_apply_btn - apply prelight colours
+- Export stubs: 3DS, CST, OBS, FBX
 
 ### Model Workshop - Texture rendering on 3D model
 **Status**: PENDING

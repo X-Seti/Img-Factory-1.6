@@ -1,7 +1,19 @@
 # IMG Factory 1.6
 
-**GTA modding toolkit** — Build 335  
+**GTA modding toolkit** — Build 370.80  
 PyQt6 · Python 3.11+ · Linux / Windows / macOS
+
+---
+
+## Recent fixes (May 2026)
+
+- Model Workshop bleed-through when docked in IMG Factory — fixed
+- TXD parser updated for GTA VC/III format (was only reading SA correctly)
+- All `Mdl_Editor` import references replaced with `Model_Editor`
+- Standalone repos (Col-Workshop, Txd-Workshop, Model-Workshop) now
+  self-contained with required methods included
+- DAT Browser bleed-through — fixed (wrong parent widget + missing paintEvent)
+- Compact toolbar buttons now respond to splitter drag, not just window resize
 
 ---
 

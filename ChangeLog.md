@@ -1,4 +1,15 @@
-#this belongs in root /ChangeLog.md - Version: 58
+#this belongs in root /ChangeLog.md - Version: 59
+
+## May 2026 — Model Workshop bleed-through CONFIRMED FIXED
+
+The bleed-through in Model Workshop when docked inside IMG Factory is now
+confirmed fixed. Took multiple sessions to track down. Full root cause
+documented in v58 entry below. Tested across theme switches - no bleed.
+
+## May 2026 — Model Workshop bleed CONFIRMED FIXED
+
+Bleed-through when docked in IMG Factory confirmed resolved after multiple
+sessions. All three root causes fixed (see v58 entry). Tested across themes.
 
 ## May 2026 — Model Workshop bleed root cause found and fixed
 
