@@ -425,6 +425,13 @@ class IMGFactory(QMainWindow):
         from apps.methods.img_factory_settings import IMGFactorySettings
         self.img_settings = IMGFactorySettings()
 
+        # Initialize project manager
+        try:
+            from apps.components.Project_Manager.project_manager import ProjectManager
+            self.project_manager = ProjectManager()
+        except Exception:
+            self.project_manager = None
+
         self.apply_window_decoration_setting()
 
         # Get UI mode from img_settings (now initialized)
@@ -524,6 +531,52 @@ class IMGFactory(QMainWindow):
         self.menu_bar_system = self.menu_system
 
         # Menu callbacks (will be wired after _create_ui when methods exist)
+        # Project callback helpers — lazy import to avoid circular deps
+        def _pm_new(mw):
+            try:
+                from apps.components.Project_Manager.project_manager import create_new_project
+                if not getattr(mw, 'project_manager', None):
+                    from apps.components.Project_Manager.project_manager import ProjectManager
+                    mw.project_manager = ProjectManager()
+                create_new_project(mw)
+            except Exception as e:
+                mw.log_message(f"New project error: {e}")
+
+        def _pm_open(mw):
+            try:
+                from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                if not getattr(mw, 'project_manager', None):
+                    from apps.components.Project_Manager.project_manager import ProjectManager
+                    mw.project_manager = ProjectManager()
+                show_project_manager_dialog(mw)
+            except Exception as e:
+                mw.log_message(f"Open project error: {e}")
+
+        def _pm_save(mw):
+            try:
+                from apps.gui.file_menu_integration import save_project_settings
+                save_project_settings(mw)
+                mw.log_message("Project saved.")
+            except Exception as e:
+                mw.log_message(f"Save project error: {e}")
+
+        def _pm_manage(mw):
+            try:
+                from apps.components.Project_Manager.project_manager import show_project_manager_dialog
+                if not getattr(mw, 'project_manager', None):
+                    from apps.components.Project_Manager.project_manager import ProjectManager
+                    mw.project_manager = ProjectManager()
+                show_project_manager_dialog(mw)
+            except Exception as e:
+                mw.log_message(f"Manage project error: {e}")
+
+        def _pm_set(mw):
+            try:
+                from apps.components.Project_Manager.project_manager import handle_set_project_folder
+                handle_set_project_folder(mw)
+            except Exception as e:
+                mw.log_message(f"Set project error: {e}")
+
         callbacks = {
             "about": self.show_about,
             "open_img": self.open_img_file,
@@ -535,6 +588,12 @@ class IMGFactory(QMainWindow):
             "img_validate": self.validate_img,
             "customize_interface": self.show_gui_settings,
             "open_col_in_workshop": self._open_col_file_in_workshop,
+            # Project menu
+            "new_project":    lambda: _pm_new(self),
+            "open_project":   lambda: _pm_open(self),
+            "save_project":   lambda: _pm_save(self),
+            "manage_project": lambda: _pm_manage(self),
+            "set_project":    lambda: _pm_set(self),
         }
         self.menu_bar_system.set_callbacks(callbacks)
         integrate_drag_drop_system(self)
