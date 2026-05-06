@@ -1,4 +1,22 @@
-#this belongs in root /ChangeLog.md - Version: 45
+#this belongs in root /ChangeLog.md - Version: 46
+
+## May 2026 — DAT Browser bleed CONFIRMED FIXED
+
+**DAT Browser bleed-through — root causes found and fixed (3 files):**
+
+The bleed persisted through multiple attempts because it had three separate causes
+that all had to be resolved together.
+
+1. `gui_layout.py` v32 — `content_splitter.setAutoFillBackground` False to True.
+   The main splitter was not painting its own background.
+
+2. `dat_browser.py` v4 — `integrate_dat_browser #vers 6`: widget was parented to
+   `main_window` instead of `left_stack`. Qt paint coordinates were relative to
+   `main_window`, so content drew at wrong position over whatever was beneath.
+
+3. `dat_browser.py` v4 — `paintEvent #vers 1` and `showEvent #vers 1` added.
+   No background fill was happening before child widgets rendered. paintEvent now
+   fills Window palette colour first. showEvent forces repaint on every panel switch.
 
 ## May 2026 — Model Workshop QPainter fix, DAT browser paint
 
