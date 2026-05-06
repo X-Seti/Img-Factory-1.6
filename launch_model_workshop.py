@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 X-Seti - December14 2025 - Model_Workshop 1.5 - Root Launcher
-#this belongs in root /launch_model_workshop.py - Version: 1
+#this belongs in root /launch_model_workshop.py - Version: 2
 """
 import sys
 from pathlib import Path
@@ -23,7 +23,7 @@ if __name__ == "__main__":
         
         # If col_workshop has a main() function, call it
         if hasattr(model_workshop, 'main'):
-            sys.exit(col_workshop.main())
+            sys.exit(model_workshop.main())
         else:
             # No main() function - run workshop directly
             from PyQt6.QtWidgets import QApplication

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 103
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 104
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8656,8 +8656,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         print("======================\n")
 
 
-    def _apply_theme(self): #vers 5
-        """Apply global app theme — uses QApplication stylesheet set by app_settings."""
+    def _apply_theme(self): #vers 6
+        """Apply theme. Standalone: sets QApplication stylesheet.
+        Docked: sets own stylesheet so imgfactory theme does not bleed through."""
         try:
             mw = getattr(self, 'main_window', None)
             app_settings = None
@@ -8667,19 +8668,22 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 app_settings = mw.app_settings
 
             if app_settings and hasattr(app_settings, 'get_stylesheet'):
-                # Apply to QApplication so all widgets inherit it
                 from PyQt6.QtWidgets import QApplication
                 ss = app_settings.get_stylesheet()
                 if ss:
-                    QApplication.instance().setStyleSheet(ss)
-                    # Apply panel effects (fill/gradient/pattern) if configured
+                    if self.standalone_mode:
+                        # Standalone — own QApplication, safe to set globally
+                        QApplication.instance().setStyleSheet(ss)
+                        self.setStyleSheet("")
+                    else:
+                        # Docked inside imgfactory — set on self only to
+                        # prevent imgfactory theme bleeding through
+                        self.setStyleSheet(ss)
             try:
                 from apps.utils.app_settings_system import apply_panel_effects
                 apply_panel_effects(self, app_settings)
             except Exception:
                 pass
-            # Clear any widget-level override so we inherit from QApplication
-            self.setStyleSheet("")
         except Exception as e:
             print(f"Theme application error: {e}")
 

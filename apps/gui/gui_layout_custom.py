@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 14
+#belongs in gui/gui_layout_custom.py - Version 15
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -3157,6 +3157,19 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 
 
 # - Window functionality
+
+    def _apply_theme(self): #vers 1
+        """Apply app theme via app_settings stylesheet."""
+        try:
+            mw = getattr(self, 'main_window', None)
+            as_ = getattr(mw, 'app_settings', None) if mw else None
+            if as_ and hasattr(as_, 'get_stylesheet'):
+                from PyQt6.QtWidgets import QApplication
+                ss = as_.get_stylesheet()
+                if ss:
+                    QApplication.instance().setStyleSheet(ss)
+        except Exception as e:
+            print(f"gui_layout_custom _apply_theme error: {e}")
 
     def _initialize_features(self): #vers 5
         """Initialize all features after UI setup - including enhanced logging"""
