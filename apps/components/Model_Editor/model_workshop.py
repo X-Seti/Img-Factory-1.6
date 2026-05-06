@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 107
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 108
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8667,9 +8667,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         print("======================\n")
 
 
-    def _apply_theme(self): #vers 6
+    def _apply_theme(self): #vers 7
         """Apply theme. Standalone: sets QApplication stylesheet.
-        Docked: sets own stylesheet so imgfactory theme does not bleed through."""
+        Docked: sets own stylesheet and forces child panels to fill background."""
         try:
             mw = getattr(self, 'main_window', None)
             app_settings = None
@@ -8679,17 +8679,36 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 app_settings = mw.app_settings
 
             if app_settings and hasattr(app_settings, 'get_stylesheet'):
-                from PyQt6.QtWidgets import QApplication
+                from PyQt6.QtWidgets import QApplication, QFrame
+                from PyQt6.QtGui import QPalette, QColor
                 ss = app_settings.get_stylesheet()
                 if ss:
                     if self.standalone_mode:
-                        # Standalone — own QApplication, safe to set globally
                         QApplication.instance().setStyleSheet(ss)
                         self.setStyleSheet("")
                     else:
-                        # Docked inside imgfactory — set on self only to
-                        # prevent imgfactory theme bleeding through
+                        # Docked — set stylesheet on self so imgfactory theme
+                        # doesn't bleed through. Also force child panel bg.
                         self.setStyleSheet(ss)
+                        self.setAttribute(
+                            Qt.WidgetAttribute.WA_StyledBackground, True)
+                        # Force background fill on direct child panels
+                        colors = app_settings.get_theme_colors() or {}
+                        bg = colors.get('panel_bg') or colors.get('bg_primary', '')
+                        if bg:
+                            try:
+                                col = QColor(bg)
+                                splitter = getattr(self, '_main_splitter', None)
+                                if splitter:
+                                    for i in range(splitter.count()):
+                                        w = splitter.widget(i)
+                                        if w:
+                                            w.setAutoFillBackground(True)
+                                            pal = w.palette()
+                                            pal.setColor(QPalette.ColorRole.Window, col)
+                                            w.setPalette(pal)
+                            except Exception:
+                                pass
             try:
                 from apps.utils.app_settings_system import apply_panel_effects
                 apply_panel_effects(self, app_settings)
@@ -11809,11 +11828,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Load TXD from raw bytes into the texture panel."""
         try:
             import tempfile
-            tmp = tempfile.NamedTemporaryFile(
-                delete=False, suffix='.txd',
-                prefix=os.path.splitext(name)[0] + '_')
-            tmp.write(data); tmp.close()
-            self._load_txd_file(tmp.name)
+            tmp_dir = tempfile.mkdtemp()
+            tmp_path = os.path.join(tmp_dir, name if name.lower().endswith('.txd') else os.path.splitext(name)[0] + '.txd')
+            with open(tmp_path, 'wb') as _f: _f.write(data)
+            self._load_txd_file(tmp_path)
         except Exception as e:
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"TXD load error: {e}")
@@ -11830,11 +11848,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 return
             if name.endswith('.dff'):
                 import tempfile, os as _os
-                tmp = tempfile.NamedTemporaryFile(
-                    delete=False, suffix='.dff',
-                    prefix=_os.path.splitext(entry.name)[0] + '_')
-                tmp.write(data); tmp.close()
-                self.open_dff_file(tmp.name)
+                tmp_dir = tempfile.mkdtemp()
+                tmp_path = _os.path.join(tmp_dir, entry.name)
+                with open(tmp_path, 'wb') as _f: _f.write(data)
+                self.open_dff_file(tmp_path)
             elif name.endswith('.col'):
                 self.current_col_data = data
                 self.current_col_name = entry.name
