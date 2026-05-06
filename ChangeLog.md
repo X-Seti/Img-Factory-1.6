@@ -1,10 +1,25 @@
-#this belongs in root /ChangeLog.md - Version: 61
+#this belongs in root /ChangeLog.md - Version: 62
 
 ## May 2026 — Model Workshop bleed-through CONFIRMED FIXED
 
 The bleed-through in Model Workshop when docked inside IMG Factory is now
 confirmed fixed. Took multiple sessions to track down. Full root cause
 documented in v58 entry below. Tested across theme switches - no bleed.
+
+## May 2026 — DFF parser: RW 3.3 older format support
+
+**DFF parser handles older VC/GTA3 format (`dff_parser.py` v3):**
+- `_parse_geometry`: older VC DFFs (vehicles, peds) encode geometry flags in
+  the struct chunk TYPE (e.g. 0x00010074) rather than using type=0x00000001.
+  Parser was returning None for these, giving 0 vertices despite having triangles.
+- `_parse_geometry_v33 #vers 1`: new method handles the older format:
+  - Struct chunk body contains: numMorphTargets(4) + bsphere(16) + optional UVs
+  - Vertex data lives AFTER the struct chunk in raw geometry chunk body
+  - Triangle indices come from BinMesh extension (0x050e) not the struct
+  - Builds triangles from BinMesh index list (triangle list or strip)
+- `_parse_extension_v33 #vers 1`: parses BinMesh plugin for older geometry.
+- Confirmed: TRAM.dff (standard) unaffected, train_dl.dff (older) now parses
+  correctly (126v 96t vs previous 0v 96t).
 
 ## May 2026 — Texture thumbnails in list, TXD parser DXT fix
 
