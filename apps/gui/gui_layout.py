@@ -1,4 +1,4 @@
-#this belongs in gui/ gui_layout.py - Version: 32
+#this belongs in gui/ gui_layout.py - Version: 33
 # X-Seti - February04 2026 - Img Factory 1.6 - GUI Layout Module
 
 import os
@@ -3735,12 +3735,13 @@ class IMGFactoryGUILayout:
             import traceback
             traceback.print_exc()
 
-    def load_and_apply_pins(self, img_path: str): # vers 4 Fixed
+    def load_and_apply_pins(self, img_path: str): #vers 5
         """Load .pin file, apply pin icons to Status column, colour rows, set entry.is_pinned, restore date_modified."""
         try:
             from apps.methods.export_shared import get_active_table
             from apps.methods.pin_file_manager import load_pin_file
             from PyQt6.QtGui import QBrush
+            from PyQt6.QtWidgets import QTableWidgetItem
 
             table = get_active_table(self.main_window) or self.table
             if not table or not img_path:
@@ -3802,7 +3803,6 @@ class IMGFactoryGUILayout:
                         if date_item:
                             date_item.setText(saved_date)
                         else:
-                            from PyQt6.QtWidgets import QTableWidgetItem
                             table.setItem(row, date_col, QTableWidgetItem(saved_date))
 
                 if not entry_data.get("pinned", False):
