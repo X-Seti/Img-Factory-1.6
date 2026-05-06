@@ -1,4 +1,18 @@
-#this belongs in root /ChangeLog.md - Version: 49
+#this belongs in root /ChangeLog.md - Version: 50
+
+## May 2026 — Model Workshop docked bleed root fix
+
+**Docked bleed root cause fixed (`model_workshop.py` v104):**
+- `_apply_theme #vers 6`: when docked, `self.setStyleSheet("")` was clearing
+  widget stylesheet so imgfactory dark-red theme bled through. Now sets
+  `self.setStyleSheet(ss)` on self when docked; standalone still sets QApplication.
+
+**`_apply_theme` missing in gui_layout_custom (`gui_layout_custom.py` v15):**
+- Added `_apply_theme #vers 1` — `_initialize_features` called it but it did
+  not exist, causing AttributeError on every startup.
+
+**Imgfactory `launch_model_workshop.py` v2:**
+- Fixed `col_workshop.main()` typo — should be `model_workshop.main()`.
 
 ## May 2026 — QPainter engine==0 spam fixed, standalone launcher
 
