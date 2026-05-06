@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 112
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 113
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -6037,26 +6037,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
 
     # - Render / selection mode
 
-    def _wire_dff_buttons(self): #vers 1
-        """Connect shared toolbar buttons to DFF-mode handlers."""
-        pairs = [
-            ('flip_vert_btn',       self._dff_flip_y),
-            ('flip_horz_btn',       self._dff_flip_x),
-            ('rotate_cw_btn',       self._dff_rotate_cw),
-            ('rotate_ccw_btn',      self._dff_rotate_ccw),
-            ('analyze_btn',         self._dff_analyze),
-            ('copy_btn',            self._dff_copy_geometry),
-            ('paste_btn',           self._dff_paste_geometry),
-            ('delete_surface_btn',  self._dff_delete_geometry),
-            ('duplicate_surface_btn', self._dff_duplicate_geometry),
-        ]
-        for attr, fn in pairs:
-            b = getattr(self, attr, None)
-            if b:
-                try: b.clicked.disconnect()
-                except Exception: pass
-                b.clicked.connect(fn)
-
     def _wire_col_buttons(self): #vers 1
         """Reconnect shared toolbar buttons to COL-mode handlers."""
         pairs = [
@@ -6069,6 +6049,26 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             ('paste_btn',           self._paste_surface),
             ('delete_surface_btn',  self._delete_surface),
             ('duplicate_surface_btn', self._duplicate_surface),
+        ]
+        for attr, fn in pairs:
+            b = getattr(self, attr, None)
+            if b:
+                try: b.clicked.disconnect()
+                except Exception: pass
+                b.clicked.connect(fn)
+
+    def _wire_dff_buttons(self): #vers 1
+        """Connect shared toolbar buttons to DFF-mode handlers."""
+        pairs = [
+            ('flip_vert_btn',       self._dff_flip_y),
+            ('flip_horz_btn',       self._dff_flip_x),
+            ('rotate_cw_btn',       self._dff_rotate_cw),
+            ('rotate_ccw_btn',      self._dff_rotate_ccw),
+            ('analyze_btn',         self._dff_analyze),
+            ('copy_btn',            self._dff_copy_geometry),
+            ('paste_btn',           self._dff_paste_geometry),
+            ('delete_surface_btn',  self._dff_delete_geometry),
+            ('duplicate_surface_btn', self._dff_duplicate_geometry),
         ]
         for attr, fn in pairs:
             b = getattr(self, attr, None)
@@ -6103,7 +6103,6 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         geoms = self._dff_get_geometries()
         if not geoms:
             return
-        import struct
         for geom in geoms:
             verts = getattr(geom, 'vertices', None)
             if not verts:
@@ -6115,17 +6114,16 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             vp.update()
         self._set_status("Geometry transformed.")
 
-    def _dff_flip_y(self): #vers 1
-        """Flip DFF geometry on Y axis (up/down)."""
-        self._dff_transform_vertices(lambda x, y, z: (x, -y, z))
-
     def _dff_flip_x(self): #vers 1
         """Flip DFF geometry on X axis (left/right)."""
         self._dff_transform_vertices(lambda x, y, z: (-x, y, z))
 
+    def _dff_flip_y(self): #vers 1
+        """Flip DFF geometry on Y axis (up/down)."""
+        self._dff_transform_vertices(lambda x, y, z: (x, -y, z))
+
     def _dff_rotate_cw(self): #vers 1
         """Rotate DFF geometry 90° clockwise around Z axis."""
-        import math
         self._dff_transform_vertices(lambda x, y, z: (y, -x, z))
 
     def _dff_rotate_ccw(self): #vers 1
