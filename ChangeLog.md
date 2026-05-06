@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 52
+#this belongs in root /ChangeLog.md - Version: 53
+
+## May 2026 — All Mdl_Editor references purged
+
+**All `Mdl_Editor` references replaced (`dat_browser.py`, `imgfactory.py`,
+`right_click_actions.py`, `gui_context.py`, `gui_menu.py`):**
+- 9 occurrences of `apps.components.Mdl_Editor.mdl_workshop` replaced with
+  `apps.components.Model_Editor.model_workshop`. `MDLWorkshop as ModelWorkshop`
+  aliases removed. No more broken imports from any entry point.
 
 ## May 2026 — Compact restore on splitter move, DFF tab switch
 
