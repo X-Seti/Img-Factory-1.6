@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 115
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 116
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -10957,11 +10957,29 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                     pass
             tbl.itemSelectionChanged.connect(self._on_dff_geom_selected_tbl)
 
-            # selectRow(0) fires the signal which calls _show_dff_geometry(0)
+            # Select best initial geometry:
+            # Prefer chassis_hi or the geometry with most vertices (not _vlo/_dam)
+            best_row = 0
             if tbl.rowCount() > 0:
-                tbl.selectRow(0)
+                best_verts = 0
+                for r in range(tbl.rowCount()):
+                    item = tbl.item(r, 0)
+                    if not item: continue
+                    name = (item.text() or '').lower()
+                    idx  = item.data(Qt.ItemDataRole.UserRole)
+                    if idx is None or idx >= len(self._dff_adapters): continue
+                    geom = self._dff_adapters[idx]._geometry
+                    # Skip LOD and damaged variants as default view
+                    if '_vlo' in name or '_dam' in name or '_l0' in name:
+                        continue
+                    # Prefer chassis_hi explicitly
+                    if 'chassis_hi' in name or 'chassis' in name:
+                        best_row = r; break
+                    verts = len(getattr(geom, 'vertices', []))
+                    if verts > best_verts:
+                        best_verts = verts; best_row = r
+                tbl.selectRow(best_row)
             elif self._dff_adapters:
-                # No table rows somehow — show manually
                 self._show_dff_geometry(0)
 
         except Exception as e:
