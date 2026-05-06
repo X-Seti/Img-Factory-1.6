@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 43
+#this belongs in root /ChangeLog.md - Version: 44
+
+## May 2026 — DAT browser parent fix (root cause)
+
+**DAT browser bleed root cause fixed (`dat_browser.py` v3):**
+- `integrate_dat_browser #vers 6`: widget was parented to `main_window` instead
+  of `left_stack` — Qt paint coordinates were wrong, causing DAT browser content
+  to draw over whatever was rendered before it. Parent now set to `left_stack`.
+- Duplicate `gl`/`left_stack` lookup removed.
 
 ## May 2026 — Intro->DAT bleed fix
 
