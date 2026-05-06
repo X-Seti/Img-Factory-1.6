@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 99
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 100
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -1691,7 +1691,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
     window_closed = pyqtSignal()
 
 
-    def __init__(self, parent=None, main_window=None): #vers 10
+    def __init__(self, parent=None, main_window=None): #vers 11
         """initialize_features"""
         if DEBUG_STANDALONE and main_window is None:
             print(App_name + " Initializing ...")
@@ -1774,8 +1774,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.use_system_titlebar = False
         self.window_always_on_top = False
 
-        # Window flags
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        # Window flags — FramelessWindowHint only valid for top-level windows.
+        # When docked as a tab child, it breaks QPainter and causes bleed.
+        if self.standalone_mode:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
 
         self._initialize_features()
 
