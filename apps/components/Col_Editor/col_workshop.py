@@ -3979,7 +3979,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             if btr: btr.setVisible(wide)
             if bir: bir.setVisible(not wide)
 
-    def resizeEvent(self, event): #vers 4
+    def resizeEvent(self, event): #vers 5
         """Keep resize grip in corner; auto-collapse panels; adaptive button display."""
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
@@ -3988,10 +3988,11 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Auto icon-only when window is narrow (overrides saved mode only if narrower)
         try:
             from apps.methods.imgfactory_ui_settings import apply_compact_buttons
-            apply_compact_buttons(
-                getattr(self, '_col_compact_btns', []),
-                self.width(),
-                compact_threshold=480)
+            btns = getattr(self, '_col_compact_btns', [])
+            if btns:
+                row = getattr(self, '_middle_btn_row', None)
+                w = row.width() if (row and row.width() > 0) else self.width()
+                apply_compact_buttons(btns, w, compact_threshold=320)
         except Exception:
             pass
 
