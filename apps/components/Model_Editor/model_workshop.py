@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 100
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 101
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -14479,7 +14479,7 @@ import sys
 
 
 def open_model_workshop(main_window, dff_path=None,
-                        original_dff_name=None): #vers 3
+                        original_dff_name=None): #vers 4
     """Open Model Workshop — routes DFF/COL/IMG correctly.
     original_dff_name: the DFF entry name from the IMG (e.g. 'airportwall_2_2.dff')
     so that IDE lookup works even when the DFF was extracted to /tmp/ with a random suffix."""
@@ -14492,6 +14492,7 @@ def open_model_workshop(main_window, dff_path=None,
             layout = QVBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
             workshop = ModelWorkshop(main_window=main_window, parent=container)
+            workshop.setWindowFlags(Qt.WindowType.Widget)
             layout.addWidget(workshop)
             idx = tw.addTab(container, "Model Workshop")
             tw.setCurrentIndex(idx)
