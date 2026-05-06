@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 50
+#this belongs in root /ChangeLog.md - Version: 51
+
+## May 2026 — Compact button fix (model + col)
+
+**Compact buttons now use panel width (`model_workshop.py` v105, `col_workshop.py`):**
+- `resizeEvent #vers 5` (col), `resizeEvent` (model): was passing `self.width()`
+  (full window ~1000px) to `apply_compact_buttons` — threshold never triggered.
+  Now uses `_middle_btn_row.width()` so icon-only mode activates when the
+  middle panel is actually narrow. Threshold lowered to 320px.
+- TXD workshop not affected (different toolbar pattern).
 
 ## May 2026 — Model Workshop docked bleed root fix
 
