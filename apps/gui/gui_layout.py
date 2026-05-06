@@ -284,7 +284,7 @@ def edit_dff_file(main_window): #vers 1
         from apps.methods.imgfactory_svg_icons import get_tba_icon as get_model_workshop_icon
 
         def _open(dff_path=None):
-            from apps.components.Mdl_Editor.mdl_workshop import open_model_workshop
+            from apps.components.Model_Editor.model_workshop import open_model_workshop
             w = open_model_workshop(main_window, dff_path)
             _register_tool_taskbar(main_window, "model", "DFF",
                 get_model_workshop_icon, "Model Workshop", w)
