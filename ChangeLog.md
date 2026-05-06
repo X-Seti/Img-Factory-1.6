@@ -1,4 +1,12 @@
-#this belongs in root /ChangeLog.md - Version: 46
+#this belongs in root /ChangeLog.md - Version: 47
+
+## May 2026 — Model Workshop docked bleed fixed
+
+**Model Workshop bleed root cause (`model_workshop.py` v101):**
+- `open_model_workshop #vers 4`: missing `workshop.setWindowFlags(Qt.WindowType.Widget)`
+  after docked creation. TXD and COL both set this — it explicitly clears
+  `FramelessWindowHint` set in `__init__`, which is why they showed fine and
+  model_workshop bled on every theme.
 
 ## May 2026 — DAT Browser bleed CONFIRMED FIXED
 
