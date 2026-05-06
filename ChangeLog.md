@@ -1,4 +1,13 @@
-#this belongs in root /ChangeLog.md - Version: 42
+#this belongs in root /ChangeLog.md - Version: 43
+
+## May 2026 — Intro->DAT bleed fix
+
+**Right panel bleed fixed (`gui_layout_custom.py` v14):**
+- `_ensure_left_panel_visible #vers 2`: added `splitter.widget(1).repaint()` and
+  `splitter.update()` after `setSizes` — intro collapses right panel to 0px;
+  switching to DAT/Dir Tree now forces right panel to repaint on restore.
+- `_show_dat_browser #vers 5`: no logic change, version bump for tracking.
+- Dir Tree unaffected (intro never opened from Dir Tree context).
 
 ## May 2026 — Panel bleed-through, repaint on stack switch
 
