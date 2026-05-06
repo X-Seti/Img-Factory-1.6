@@ -1,4 +1,4 @@
-#this belongs in components/Dat_Browser/dat_browser.py - Version: 3
+#this belongs in components/Dat_Browser/dat_browser.py - Version: 4
 # X-Seti - March 2026 - IMG Factory 1.6 - GTA DAT/IDE/IPL Browser
 """
 DAT Browser — viewer panel for the GTA world data load chain.
@@ -1021,6 +1021,19 @@ class DATBrowserWidget(QWidget): #vers 3
         ('_group_btn',          'Group',  'get_tree_icon',     'Group by city section (SOL)'),
         ('_show_col_in_img_btn','COL▾',  'get_col_file_icon', 'Show COL files inside IMG archives'),
     ]
+
+    def paintEvent(self, event): #vers 1
+        """Fill background before children paint — prevents bleed-through."""
+        from PyQt6.QtGui import QPainter
+        p = QPainter(self)
+        p.fillRect(self.rect(), self.palette().color(self.palette().ColorRole.Window))
+        p.end()
+        super().paintEvent(event)
+
+    def showEvent(self, event): #vers 1
+        """Force full repaint when panel becomes visible."""
+        super().showEvent(event)
+        self.repaint()
 
     def resizeEvent(self, event): #vers 2
         super().resizeEvent(event)
