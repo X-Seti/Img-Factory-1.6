@@ -1,4 +1,18 @@
-#this belongs in root /ChangeLog.md - Version: 53
+#this belongs in root /ChangeLog.md - Version: 54
+
+## May 2026 — Right-click model workshop, temp file name fix
+
+**Right-click "Open in Model Workshop" enabled (`right_click_actions.py`):**
+- Action was wired but `setEnabled(False)` — now enabled and connected.
+- Duplicate `except` block removed from `open_dff_in_model_workshop`.
+
+**Temp file random suffix fixed (`gui_layout.py` v34, `right_click_actions.py`,
+`model_workshop.py` v107):**
+- `NamedTemporaryFile(prefix=stem_, suffix=.dff)` generated names like
+  `Air_brway_33_8ypw3fhr.dff` and `4culbulls_x6fvrfic.txd`.
+  Now uses `tempfile.mkdtemp()` + `os.path.join(dir, entry.name)` so
+  the file keeps its original name. `original_dff_name` passed through
+  to `open_model_workshop` for IDE lookups.
 
 ## May 2026 — All Mdl_Editor references purged
 
