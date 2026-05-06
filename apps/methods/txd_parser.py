@@ -1,4 +1,4 @@
-# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 3
+# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 4
 # Self-contained GTA PC TXD parser (VC/III/SA).
 # Decodes DXT1, DXT3, DXT5 and uncompressed RGBA32/RGB24 textures to RGBA8888.
 # No external dependencies -- works standalone inside Model-Workshop.
@@ -294,7 +294,15 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
                       f"mip_size={mip_size} dxt1={dxt1_sz} dxt5={dxt5_sz} "
                       f"rgba32={w*h*4} rgb24={w*h*3}")
 
-            if rf_pal == RASTER_PAL8:
+            dxt1_size = max(1,(w+3)//4)*max(1,(h+3)//4)*8
+            dxt5_size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
+
+            # DXT size check takes priority — VC overloads raster_format for compressed data
+            if mip_size == dxt1_size:
+                fmt = 'DXT1'; rgba = _decode_dxt1(mip_data[:mip_size], w, h)
+            elif mip_size == dxt5_size:
+                fmt = 'DXT5'; rgba = _decode_dxt5(mip_data[:mip_size], w, h)
+            elif rf_pal == RASTER_PAL8:
                 # 8-bit palette: 256 * 4 bytes palette + w*h bytes indices
                 fmt = 'PAL8'
                 pal_size  = 256 * 4
@@ -310,26 +318,12 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
                         out[i*4+2] = palette[p+2]
                         out[i*4+3] = palette[p+3]
                     rgba = bytes(out)
-            elif rf_base == RASTER_8888:
-                fmt = 'RGBA32'
-                if mip_size == w*h*4: rgba = _decode_rgba8888(mip_data, w, h)
-            elif rf_base == RASTER_888:
-                fmt = 'RGB24'
-                if mip_size == w*h*3: rgba = _decode_rgb888(mip_data, w, h)
-            elif rf_base == RASTER_565:
-                fmt = 'RGB565'
-                if mip_size == w*h*2: rgba = _decode_rgb565(mip_data, w, h)
-            elif rf_base == RASTER_1555:
-                fmt = 'ARGB1555'
-                if mip_size == w*h*2: rgba = _decode_rgb565(mip_data, w, h)
-            else:
-                # Try DXT from mip data size signature
-                dxt1_size = max(1,(w+3)//4)*max(1,(h+3)//4)*8
-                dxt5_size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
-                if mip_size == dxt1_size:
-                    fmt = 'DXT1'; rgba = _decode_dxt1(mip_data[:mip_size], w, h)
-                elif mip_size == dxt5_size:
-                    fmt = 'DXT5'; rgba = _decode_dxt5(mip_data[:mip_size], w, h)
+            elif rf_base == RASTER_8888 and mip_size == w*h*4:
+                fmt = 'RGBA32'; rgba = _decode_rgba8888(mip_data, w, h)
+            elif rf_base == RASTER_888 and mip_size == w*h*3:
+                fmt = 'RGB24';  rgba = _decode_rgb888(mip_data, w, h)
+            elif rf_base in (RASTER_565, RASTER_1555) and mip_size == w*h*2:
+                fmt = 'RGB565'; rgba = _decode_rgb565(mip_data, w, h)
 
         if rgba is None:
             if _debug:
