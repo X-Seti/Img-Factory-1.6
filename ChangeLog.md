@@ -1,4 +1,15 @@
-#this belongs in root /ChangeLog.md - Version: 44
+#this belongs in root /ChangeLog.md - Version: 45
+
+## May 2026 — Model Workshop QPainter fix, DAT browser paint
+
+**Model Workshop docked bleed + QPainter crash fixed (`model_workshop.py` v100):**
+- `__init__ #vers 11`: `FramelessWindowHint` now only set when `standalone_mode`
+  is True. When docked as tab child, the flag broke QPainter (engine==0 spam)
+  and caused wrong colours/bleed. Standalone behaviour unchanged.
+
+**DAT Browser background clear (`dat_browser.py` v4):**
+- `paintEvent #vers 1`: fills Window palette colour before children paint.
+- `showEvent #vers 1`: calls `repaint()` each time panel becomes visible.
 
 ## May 2026 — DAT browser parent fix (root cause)
 
