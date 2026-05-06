@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 110
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 111
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -8690,9 +8690,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         print("======================\n")
 
 
-    def _apply_theme(self): #vers 7
-        """Apply theme. Standalone: sets QApplication stylesheet.
-        Docked: sets own stylesheet and forces child panels to fill background."""
+    def _apply_theme(self): #vers 8
+        """Apply theme — matches COL/TXD pattern exactly.
+        Sets QApplication stylesheet globally, clears own override to inherit."""
         try:
             mw = getattr(self, 'main_window', None)
             app_settings = None
@@ -8702,41 +8702,12 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 app_settings = mw.app_settings
 
             if app_settings and hasattr(app_settings, 'get_stylesheet'):
-                from PyQt6.QtWidgets import QApplication, QFrame
-                from PyQt6.QtGui import QPalette, QColor
+                from PyQt6.QtWidgets import QApplication
                 ss = app_settings.get_stylesheet()
                 if ss:
-                    if self.standalone_mode:
-                        QApplication.instance().setStyleSheet(ss)
-                        self.setStyleSheet("")
-                    else:
-                        # Docked — set stylesheet on self so imgfactory theme
-                        # doesn't bleed through. Also force child panel bg.
-                        self.setStyleSheet(ss)
-                        self.setAttribute(
-                            Qt.WidgetAttribute.WA_StyledBackground, True)
-                        # Force background fill on direct child panels
-                        colors = app_settings.get_theme_colors() or {}
-                        bg = colors.get('panel_bg') or colors.get('bg_primary', '')
-                        if bg:
-                            try:
-                                col = QColor(bg)
-                                splitter = getattr(self, '_main_splitter', None)
-                                if splitter:
-                                    for i in range(splitter.count()):
-                                        w = splitter.widget(i)
-                                        if w:
-                                            w.setAutoFillBackground(True)
-                                            pal = w.palette()
-                                            pal.setColor(QPalette.ColorRole.Window, col)
-                                            w.setPalette(pal)
-                            except Exception:
-                                pass
-            try:
-                from apps.utils.app_settings_system import apply_panel_effects
-                apply_panel_effects(self, app_settings)
-            except Exception:
-                pass
+                    QApplication.instance().setStyleSheet(ss)
+            # Clear widget-level override — inherit from QApplication like COL/TXD
+            self.setStyleSheet("")
         except Exception as e:
             print(f"Theme application error: {e}")
 
@@ -14572,7 +14543,6 @@ def open_model_workshop(main_window, dff_path=None,
             import os as _os
             from PyQt6.QtWidgets import QWidget, QVBoxLayout
             container = QWidget()
-            container.setAutoFillBackground(True)
             layout = QVBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
             workshop = ModelWorkshop(container, main_window)
