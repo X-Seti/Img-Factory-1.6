@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 111
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 112
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -5953,18 +5953,22 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if mw and hasattr(mw, 'log_message'):
                 mw.log_message("Prelight setup saved — click Apply to bake")
 
-    def _enable_dff_toolbar(self, dff_mode: bool): #vers 2
+    def _enable_dff_toolbar(self, dff_mode: bool): #vers 3
         """Switch left toolbar between DFF mode and COL mode.
-        DFF mode: enables paint, material, render-select, prelighting.
+        DFF mode: enables paint, material, render-select, prelighting, flip, rotate, analyze, copy, delete, duplicate.
         COL mode: enables COL-specific buttons, disables DFF ones."""
         # Buttons only relevant for COL — hide entirely in DFF mode
         col_only = [
+            'create_surface_btn',
+        ]
+        # Buttons that work in BOTH modes (flip/rotate/analyze/copy/paste/delete/duplicate)
+        shared_btns = [
             'flip_vert_btn', 'flip_horz_btn', 'rotate_cw_btn', 'rotate_ccw_btn',
             'analyze_btn', 'copy_btn', 'paste_btn', 'delete_surface_btn',
-            'duplicate_surface_btn', 'create_surface_btn',
+            'duplicate_surface_btn',
         ]
         # Buttons shared but context-switches
-        dff_btns = ['paint_btn', 'surface_type_btn']  # surface_edit_btn removed (merged into surface_type_btn)
+        dff_btns = ['paint_btn', 'surface_type_btn']
 
         for attr in col_only:
             b = getattr(self, attr, None)
@@ -5972,9 +5976,21 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 b.setEnabled(not dff_mode)
                 b.setVisible(not dff_mode)
 
+        for attr in shared_btns:
+            b = getattr(self, attr, None)
+            if b:
+                b.setEnabled(True)
+                b.setVisible(True)
+
         for attr in dff_btns:
             b = getattr(self, attr, None)
             if b: b.setEnabled(dff_mode)
+
+        # Rewire shared buttons for correct mode
+        if dff_mode:
+            self._wire_dff_buttons()
+        else:
+            self._wire_col_buttons()
 
         # DFF-only toolbar buttons (V/E/F/P select, backface, front-paint, primitive)
         for btn in getattr(self, '_dff_only_toolbar_btns', []):
@@ -6000,8 +6016,229 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             if hasattr(self, 'surface_type_btn'):
                 self.surface_type_btn.setToolTip(
                     "Material Editor — view materials, textures, IDE info, swap TXD")
+            if hasattr(self, 'flip_vert_btn'):
+                self.flip_vert_btn.setToolTip("Flip DFF geometry on Y axis")
+            if hasattr(self, 'flip_horz_btn'):
+                self.flip_horz_btn.setToolTip("Flip DFF geometry on X axis")
+            if hasattr(self, 'rotate_cw_btn'):
+                self.rotate_cw_btn.setToolTip("Rotate DFF geometry 90° clockwise (Z axis)")
+            if hasattr(self, 'rotate_ccw_btn'):
+                self.rotate_ccw_btn.setToolTip("Rotate DFF geometry 90° counter-clockwise (Z axis)")
+            if hasattr(self, 'analyze_btn'):
+                self.analyze_btn.setToolTip("Analyze DFF — verts, tris, materials, frames")
+            if hasattr(self, 'copy_btn'):
+                self.copy_btn.setToolTip("Copy selected geometry to clipboard")
+            if hasattr(self, 'paste_btn'):
+                self.paste_btn.setToolTip("Paste geometry from clipboard")
+            if hasattr(self, 'delete_surface_btn'):
+                self.delete_surface_btn.setToolTip("Delete selected geometry from DFF")
+            if hasattr(self, 'duplicate_surface_btn'):
+                self.duplicate_surface_btn.setToolTip("Duplicate selected geometry")
 
     # - Render / selection mode
+
+    def _wire_dff_buttons(self): #vers 1
+        """Connect shared toolbar buttons to DFF-mode handlers."""
+        pairs = [
+            ('flip_vert_btn',       self._dff_flip_y),
+            ('flip_horz_btn',       self._dff_flip_x),
+            ('rotate_cw_btn',       self._dff_rotate_cw),
+            ('rotate_ccw_btn',      self._dff_rotate_ccw),
+            ('analyze_btn',         self._dff_analyze),
+            ('copy_btn',            self._dff_copy_geometry),
+            ('paste_btn',           self._dff_paste_geometry),
+            ('delete_surface_btn',  self._dff_delete_geometry),
+            ('duplicate_surface_btn', self._dff_duplicate_geometry),
+        ]
+        for attr, fn in pairs:
+            b = getattr(self, attr, None)
+            if b:
+                try: b.clicked.disconnect()
+                except Exception: pass
+                b.clicked.connect(fn)
+
+    def _wire_col_buttons(self): #vers 1
+        """Reconnect shared toolbar buttons to COL-mode handlers."""
+        pairs = [
+            ('flip_vert_btn',       lambda: self.preview_widget and self.preview_widget.flip_vertical()),
+            ('flip_horz_btn',       lambda: self.preview_widget and self.preview_widget.flip_horizontal()),
+            ('rotate_cw_btn',       lambda: self.preview_widget and self.preview_widget.rotate_cw()),
+            ('rotate_ccw_btn',      lambda: self.preview_widget and self.preview_widget.rotate_ccw()),
+            ('analyze_btn',         self._analyze_collision),
+            ('copy_btn',            self._copy_surface),
+            ('paste_btn',           self._paste_surface),
+            ('delete_surface_btn',  self._delete_surface),
+            ('duplicate_surface_btn', self._duplicate_surface),
+        ]
+        for attr, fn in pairs:
+            b = getattr(self, attr, None)
+            if b:
+                try: b.clicked.disconnect()
+                except Exception: pass
+                b.clicked.connect(fn)
+
+    def _dff_get_geometries(self): #vers 1
+        """Return geometry list from current DFF model or None."""
+        model = getattr(self, '_current_dff_model', None)
+        if not model:
+            QMessageBox.warning(self, "No DFF", "No DFF loaded.")
+            return None
+        geoms = getattr(model, 'geometries', [])
+        if not geoms:
+            QMessageBox.warning(self, "No Geometry", "DFF has no geometry.")
+            return None
+        return geoms
+
+    def _dff_get_selected_geom_idx(self): #vers 1
+        """Return index of selected geometry in the Models list, or 0."""
+        lw = getattr(self, 'mod_compact_list', None) or getattr(self, 'collision_list', None)
+        if lw:
+            row = lw.currentRow()
+            if row >= 0:
+                return row
+        return 0
+
+    def _dff_transform_vertices(self, fn): #vers 1
+        """Apply fn(x,y,z)->x,y,z to every vertex in every geometry. Refreshes viewport."""
+        geoms = self._dff_get_geometries()
+        if not geoms:
+            return
+        import struct
+        for geom in geoms:
+            verts = getattr(geom, 'vertices', None)
+            if not verts:
+                continue
+            geom.vertices = [fn(*v) for v in verts]
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._model = getattr(self, '_current_dff_model', None)
+            vp.update()
+        self._set_status("Geometry transformed.")
+
+    def _dff_flip_y(self): #vers 1
+        """Flip DFF geometry on Y axis (up/down)."""
+        self._dff_transform_vertices(lambda x, y, z: (x, -y, z))
+
+    def _dff_flip_x(self): #vers 1
+        """Flip DFF geometry on X axis (left/right)."""
+        self._dff_transform_vertices(lambda x, y, z: (-x, y, z))
+
+    def _dff_rotate_cw(self): #vers 1
+        """Rotate DFF geometry 90° clockwise around Z axis."""
+        import math
+        self._dff_transform_vertices(lambda x, y, z: (y, -x, z))
+
+    def _dff_rotate_ccw(self): #vers 1
+        """Rotate DFF geometry 90° counter-clockwise around Z axis."""
+        self._dff_transform_vertices(lambda x, y, z: (-y, x, z))
+
+    def _dff_analyze(self): #vers 1
+        """Show DFF mesh statistics dialog."""
+        model = getattr(self, '_current_dff_model', None)
+        if not model:
+            QMessageBox.warning(self, "No DFF", "No DFF loaded.")
+            return
+        geoms   = getattr(model, 'geometries', [])
+        frames  = getattr(model, 'frames',     [])
+        atomics = getattr(model, 'atomics',    [])
+        total_v = sum(len(getattr(g, 'vertices', [])) for g in geoms)
+        total_t = sum(len(getattr(g, 'triangles', [])) for g in geoms)
+        total_m = sum(len(getattr(g, 'materials', [])) for g in geoms)
+        name = getattr(self, '_original_dff_name', None) or \
+               getattr(self, '_current_dff_path', 'unknown')
+        import os as _os
+        name = _os.path.basename(name)
+        lines = [
+            f"File:       {name}",
+            f"Geometries: {len(geoms)}",
+            f"Frames:     {len(frames)}",
+            f"Atomics:    {len(atomics)}",
+            f"Vertices:   {total_v:,}",
+            f"Triangles:  {total_t:,}",
+            f"Materials:  {total_m}",
+        ]
+        for i, g in enumerate(geoms):
+            vs = len(getattr(g, 'vertices',  []))
+            ts = len(getattr(g, 'triangles', []))
+            ms = len(getattr(g, 'materials', []))
+            lines.append(f"\nGeometry [{i}]:  {vs}v  {ts}t  {ms} mats")
+        QMessageBox.information(self, "DFF Analysis", "\n".join(lines))
+
+    def _dff_copy_geometry(self): #vers 1
+        """Copy selected geometry to internal clipboard."""
+        geoms = self._dff_get_geometries()
+        if not geoms:
+            return
+        import copy
+        idx = self._dff_get_selected_geom_idx()
+        idx = min(idx, len(geoms)-1)
+        self._dff_clipboard_geom = copy.deepcopy(geoms[idx])
+        b = getattr(self, 'paste_btn', None)
+        if b:
+            b.setEnabled(True)
+        self._set_status(f"Geometry [{idx}] copied.")
+
+    def _dff_paste_geometry(self): #vers 1
+        """Paste geometry from clipboard into current DFF."""
+        if not hasattr(self, '_dff_clipboard_geom') or self._dff_clipboard_geom is None:
+            QMessageBox.warning(self, "Paste", "Nothing in clipboard.")
+            return
+        model = getattr(self, '_current_dff_model', None)
+        if not model:
+            return
+        import copy
+        geoms = getattr(model, 'geometries', [])
+        geoms.append(copy.deepcopy(self._dff_clipboard_geom))
+        model.geometries = geoms
+        self._populate_dff_detail_table(model)
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._model = model
+            vp.update()
+        self._set_status("Geometry pasted.")
+
+    def _dff_delete_geometry(self): #vers 1
+        """Delete selected geometry from DFF."""
+        geoms = self._dff_get_geometries()
+        if not geoms:
+            return
+        idx = self._dff_get_selected_geom_idx()
+        idx = min(idx, len(geoms)-1)
+        if len(geoms) == 1:
+            QMessageBox.warning(self, "Delete", "Cannot delete the only geometry.")
+            return
+        reply = QMessageBox.question(self, "Delete Geometry",
+            f"Delete geometry [{idx}]? This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        del geoms[idx]
+        model = getattr(self, '_current_dff_model', None)
+        self._populate_dff_detail_table(model)
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._model = model
+            vp.update()
+        self._set_status(f"Geometry [{idx}] deleted.")
+
+    def _dff_duplicate_geometry(self): #vers 1
+        """Duplicate selected geometry in DFF."""
+        geoms = self._dff_get_geometries()
+        if not geoms:
+            return
+        import copy
+        model = getattr(self, '_current_dff_model', None)
+        idx = self._dff_get_selected_geom_idx()
+        idx = min(idx, len(geoms)-1)
+        dup = copy.deepcopy(geoms[idx])
+        geoms.insert(idx+1, dup)
+        model.geometries = geoms
+        self._populate_dff_detail_table(model)
+        vp = getattr(self, 'preview_widget', None)
+        if vp:
+            vp._model = model
+            vp.update()
+        self._set_status(f"Geometry [{idx}] duplicated.")
 
     def _set_select_mode(self, mode: str): #vers 1
         """Set viewport selection mode: vertex / edge / face / poly / object."""
