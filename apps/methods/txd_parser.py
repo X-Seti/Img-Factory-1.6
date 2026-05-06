@@ -1,4 +1,4 @@
-# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 4
+# X-Seti - May 2026 - apps/methods/txd_parser.py - Version: 5
 # Self-contained GTA PC TXD parser (VC/III/SA).
 # Decodes DXT1, DXT3, DXT5 and uncompressed RGBA32/RGB24 textures to RGBA8888.
 # No external dependencies -- works standalone inside Model-Workshop.
@@ -374,7 +374,7 @@ def parse_txd(data: bytes) -> List[dict]:
                 break
             ct, cs, cv, _ = _read_chunk(data, pos)
             if ct == RW_TEXTURE_NATIVE:
-                tex = _parse_native_texture(data, pos, _debug=True)
+                tex = _parse_native_texture(data, pos)
                 if tex:
                     textures.append(tex)
             pos += 12 + cs

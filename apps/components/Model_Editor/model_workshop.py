@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 113
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 114
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -9355,15 +9355,18 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Page 0: Table list
         self._tex_list = QTableWidget()
         self._tex_list.setColumnCount(4)
-        self._tex_list.setHorizontalHeaderLabels(["Name", "Size", "Format", "Mipmaps"])
+        self._tex_list.setHorizontalHeaderLabels(["", "Name", "Size", "Format"])
         self._tex_list.horizontalHeader().setStretchLastSection(True)
+        self._tex_list.setColumnWidth(0, 56)  # thumbnail
+        self._tex_list.setColumnWidth(2, 72)  # size
+        self._tex_list.setColumnWidth(3, 56)  # format
         self._tex_list.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self._tex_list.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tex_list.setAlternatingRowColors(True)
         self._tex_list.setIconSize(QSize(32, 32))
-        self._tex_list.verticalHeader().setDefaultSectionSize(36)
+        self._tex_list.verticalHeader().setDefaultSectionSize(52)
         self._tex_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tex_list.customContextMenuRequested.connect(self._tex_context_menu)
         self._tex_list.itemSelectionChanged.connect(self._on_tex_selected)
@@ -10096,38 +10099,54 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         except Exception as e:
             print(f"Add textures error: {e}")
 
-    def _populate_texture_list(self): #vers 1
+    def _populate_texture_list(self): #vers 2
         """Fill the texture QTableWidget from self._mod_textures."""
+        from PyQt6.QtGui import QImage, QPixmap, QIcon
         tbl = self._tex_list
         tbl.setRowCount(0)
-        for tex in self._mod_textures:
+        tbl.setIconSize(QSize(48, 48))
+        tbl.verticalHeader().setDefaultSectionSize(52)
+
+        for i, tex in enumerate(self._mod_textures):
             row = tbl.rowCount()
             tbl.insertRow(row)
 
-            # Thumbnail from pixel data
-            name_item = QTableWidgetItem(tex.get('name', '?'))
-            try:
-                from PyQt6.QtGui import QImage, QPixmap
-                img_data = tex.get('pixel_data') or tex.get('compressed_data', b'')
-                w, h = tex.get('width', 0), tex.get('height', 0)
-                if img_data and w and h:
-                    # Try to build a QImage for thumbnail
-                    fmt_str = tex.get('format', '')
-                    if 'DXT' not in fmt_str and len(img_data) >= w * h * 4:
-                        qimg = QImage(img_data[:w*h*4], w, h, QImage.Format.Format_RGBA8888)
-                        pix = QPixmap.fromImage(qimg).scaled(
-                            32, 32,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation)
-                        name_item.setIcon(QIcon(pix))
-            except Exception:
-                pass
+            w = tex.get('width',  0)
+            h = tex.get('height', 0)
+            name = tex.get('name', '?')
+            fmt  = tex.get('format', '?')
+            mips = tex.get('mip_count', 1)
+            rgba = tex.get('rgba_data', b'')
 
-            tbl.setItem(row, 0, name_item)
-            tbl.setItem(row, 1, QTableWidgetItem(
-                f"{tex.get('width',0)}×{tex.get('height',0)}"))
-            tbl.setItem(row, 2, QTableWidgetItem(tex.get('format', '?')))
-            tbl.setItem(row, 3, QTableWidgetItem(str(tex.get('mipmaps', 1))))
+            # Thumbnail
+            thumb_item = QTableWidgetItem()
+            thumb_item.setTextAlignment(
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+            if rgba and w > 0 and h > 0:
+                try:
+                    qimg = QImage(rgba, w, h, w * 4, QImage.Format.Format_RGBA8888)
+                    pix  = QPixmap.fromImage(qimg).scaled(
+                        48, 48,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                    thumb_item.setIcon(QIcon(pix))
+                except Exception:
+                    thumb_item.setText("?")
+            else:
+                thumb_item.setText("—")
+
+            # Name + number as tooltip
+            name_item = QTableWidgetItem(name)
+            name_item.setToolTip(
+                f"#{i+1}  {name}\n{w}×{h}  {fmt}  {mips} mip(s)")
+
+            size_item = QTableWidgetItem(f"{w}×{h}")
+            fmt_item  = QTableWidgetItem(fmt)
+
+            tbl.setItem(row, 0, thumb_item)
+            tbl.setItem(row, 1, name_item)
+            tbl.setItem(row, 2, size_item)
+            tbl.setItem(row, 3, fmt_item)
 
         count = len(self._mod_textures)
         if hasattr(self, '_tex_count_lbl'):
