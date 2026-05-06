@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 102
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 103
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -848,14 +848,18 @@ class COL3DViewport(QWidget): #vers 2
 
 
     # - paint
-    def paintEvent(self, event): #vers 1
+    def paintEvent(self, event): #vers 2
         """Fully self-contained paint — grid, mesh, boxes, spheres, bounds, gizmo, HUD."""
+        if not self.isVisible() or self.width() < 1 or self.height() < 1:
+            return
         from PyQt6.QtGui import (QPainter, QColor, QFont, QPen, QBrush,
                                   QPolygonF, QLinearGradient)
         from PyQt6.QtCore import QPointF, QRectF
         import math
 
         p = QPainter(self)
+        if not p.isActive():
+            return
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
         self._set_theme_bg(self.palette())
@@ -866,6 +870,7 @@ class COL3DViewport(QWidget): #vers 2
             p.setPen(self._get_ui_color('viewport_text'))
             p.setFont(QFont('Arial', 11))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No model selected")
+            p.end()
             return
 
         scale, ox, oy = self._get_scale_origin()
@@ -1373,6 +1378,7 @@ class COL3DViewport(QWidget): #vers 2
 
         # Paint mode indicator now shown in paint_toolbar above viewport (not drawn here)
         p.drawText(W-68,H-4,f"grid {step:.3g}")
+        p.end()
 
 
     def _apply_to_selected_faces(self): #vers 1
@@ -4757,14 +4763,17 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 self._apply_button_mode_to_button(button, btn_text)
         self._update_dock_button_visibility()
 
-    def paintEvent(self, event): #vers 2
-        """Paint corner resize triangles"""
+    def paintEvent(self, event): #vers 3
+        """Paint corner resize triangles — only in standalone/frameless mode."""
         super().paintEvent(event)
+        if not self.standalone_mode:
+            return
 
         from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not painter.isActive():
+            return
 
         # Colors
         normal_color = QColor(100, 100, 100, 150)
