@@ -1,4 +1,4 @@
-#this belongs in apps/methods/dff_parser.py - Version: 1
+#this belongs in apps/methods/dff_parser.py - Version: 2
 # X-Seti - Apr 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
@@ -158,7 +158,9 @@ class DFFParser:
         geom.uv_layer_count = uv_count if uv_count > 0 else 1
 
         HAS_COLORS   = bool(flags & 0x0008)
-        HAS_TEXCOORD = bool(flags & (0x0004 | 0x0080))  # rpGEOMETRYTEXTURED | TEXTURED2
+        # rpGEOMETRYTEXTURED=0x0004, TEXTURED2=0x0080
+        # Also treat uv_count > 0 as having UVs (some VC DFFs set count but not flag)
+        HAS_TEXCOORD = bool(flags & (0x0004 | 0x0080)) or uv_count > 0
         HAS_NORMALS  = bool(flags & 0x0010)
 
         # Prelit vertex colors
@@ -167,8 +169,8 @@ class DFFParser:
                 r,g,b,a = struct.unpack_from('<BBBB', self.data, p); p += 4
                 geom.colors.append(RGBA(r,g,b,a))
 
-        # UV layers — only read if texture flags are set
-        layer_count = geom.uv_layer_count if HAS_TEXCOORD else 0
+        # UV layers — read if texture flags set OR uv_count > 0
+        layer_count = uv_count if uv_count > 0 else (1 if HAS_TEXCOORD else 0)
         for layer_i in range(layer_count):
             uvs = []
             for _ in range(vert_count):
