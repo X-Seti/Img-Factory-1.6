@@ -1,4 +1,4 @@
-#belongs in gui/gui_layout_custom.py - Version 13
+#belongs in gui/gui_layout_custom.py - Version 14
 # X-Seti - February04 2026 - Img Factory 1.6 - Custom UI Module
 
 from PyQt6.QtWidgets import (
@@ -64,7 +64,7 @@ def _get_left_stack(mw):
     return getattr(gl, 'left_stack', None), getattr(gl, 'content_splitter', None)
 
 
-def _ensure_left_panel_visible(mw, splitter, left_stack, wide=False):
+def _ensure_left_panel_visible(mw, splitter, left_stack, wide=False): #vers 2
     """Show left_stack in splitter if currently hidden."""
     sizes = splitter.sizes()
     total = sum(sizes) or 10000
@@ -73,6 +73,12 @@ def _ensure_left_panel_visible(mw, splitter, left_stack, wide=False):
         want = min(450 if wide else total // 3, total * 2 // 3)
         splitter.setSizes([want, total - want])
     left_stack.show()
+    # Force repaint both sides — right panel may have been squashed to 0 by intro
+    right = splitter.widget(1)
+    if right:
+        right.update()
+        right.repaint()
+    splitter.update()
 
 
 def _show_dir_tree(mw): #vers 3
@@ -125,7 +131,7 @@ def _show_dir_tree(mw): #vers 3
             mw.log_message(f"Dir tree show error: {e}")
 
 
-def _show_dat_browser(mw): #vers 4
+def _show_dat_browser(mw): #vers 5
     """Show DAT Browser in left stack — toggle collapse if already active."""
     try:
         left_stack, splitter = _get_left_stack(mw)
