@@ -1,4 +1,22 @@
-#this belongs in root /TODO.md - Version: 3
+#this belongs in root /TODO.md - Version: 4
+
+## May 2026 - Model Workshop TODOs
+
+### Model Workshop - Texture rendering on 3D model
+**Status**: PENDING
+Textures load correctly from IMG (confirmed auto-loaded from generics.img),
+texture list shows names and sizes, but textures do not render on the 3D mesh
+in the viewport. The _load_txd_file path works, _mod_textures is populated,
+but the COL3DViewport is not applying them to the DFF geometry surfaces.
+Next session: check how textures are passed to the viewport and why
+the textured render mode has no effect on DFF geometry.
+
+### Model Workshop - Bleed-through when docked in IMG Factory
+**Status**: PENDING - partially fixed
+_apply_theme sets stylesheet on self + child panel palettes. Still showing
+some bleed on certain themes. Investigate whether container QWidget in
+open_model_workshop needs explicit background or whether the splitter
+handle area is the remaining source.
 # X-Seti - October22 2025 - IMG Factory 1.5 TODO List
 
 # IMG Factory 1.5 - TODO List
