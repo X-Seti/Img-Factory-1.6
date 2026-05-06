@@ -1,4 +1,17 @@
-#this belongs in root /ChangeLog.md - Version: 51
+#this belongs in root /ChangeLog.md - Version: 52
+
+## May 2026 — Compact restore on splitter move, DFF tab switch
+
+**Compact buttons restore on splitter move (`model_workshop.py` v106, `col_workshop.py`):**
+- `_on_splitter_moved #vers 2` (both): was only updating text panel visibility.
+  Now also calls `apply_compact_buttons` with panel width — buttons restore
+  to full text when panel is widened via splitter drag.
+
+**DFF tab not switching on open fixed (`imgfactory.py`):**
+- `_on_tab_changed #vers 10`: was importing `Mdl_Editor.mdl_workshop.MDLWorkshop`
+  (deleted path) — `findChildren` found nothing, so taskbar sync and tab focus
+  never fired. Fixed to `Model_Editor.model_workshop.ModelWorkshop`.
+- Two other `Mdl_Editor` references in imgfactory.py also fixed.
 
 ## May 2026 — Compact button fix (model + col)
 
