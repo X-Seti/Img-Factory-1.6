@@ -803,7 +803,7 @@ def edit_dff_model(main_window, row): #vers 2
                     delete=False, suffix='.dff',
                     prefix=os.path.splitext(filename)[0] + '_')
                 tmp.write(data); tmp.close()
-                from apps.components.Mdl_Editor.mdl_workshop import open_model_workshop
+                from apps.components.Model_Editor.model_workshop import open_model_workshop
                 open_model_workshop(main_window, tmp.name)
                 main_window.log_message(f"Model Workshop: {filename}")
                 return

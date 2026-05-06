@@ -2271,7 +2271,7 @@ class IMGFactoryMenuBar:
     def _open_dff_editor(self): #vers 2
         """Open Model Workshop for DFF editing."""
         try:
-            from apps.components.Mdl_Editor.mdl_workshop import open_model_workshop
+            from apps.components.Model_Editor.model_workshop import open_model_workshop
             open_model_workshop(self.main_window)
         except Exception as e:
             if hasattr(self.main_window, 'log_message'):
