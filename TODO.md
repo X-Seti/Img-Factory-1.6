@@ -1,6 +1,42 @@
-#this belongs in root /TODO.md - Version: 5
+#this belongs in root /TODO.md - Version: 6
 
 ## May 2026 - Model Workshop TODOs
+
+## Future Projects
+
+### Path Editor
+**Status**: PLANNED
+GTA path nodes (.dat files - NODES, PEDGRP, CARGRP etc) visual editor.
+- Load and display path nodes on a 2D/3D map overlay
+- Edit node positions, connections, flags
+- Import/export to GTA path dat format
+- Integration with Map Editor for context
+- Reference: IPL/IDE integration already in IMG Factory
+- Related: Paths Map button already stubbed in gui_layout.py
+
+### Map Editor
+**Status**: EARLY STUB
+`apps/components/Map_Editor/Map_Workshop.py` exists but is a placeholder.
+`moomapper-090-src-r2_repacked` source is present for reference.
+- Visual placement of IPL objects on the map
+- IDE lookup for object names and models
+- Import/export IPL sections (INST, ZONE, CULL etc)
+- Integration with Model Workshop for DFF preview
+- Radar overlay from Radar Workshop tiles (1296 tiles)
+- Consider using existing moomapper as base
+
+### Radar Workshop - Path overlay
+**Status**: PLANNED
+Radar Workshop (`radar_workshop.py` v20, 4612 lines) handles the 1296 radar
+tile grid. Addition needed:
+- Overlay path nodes on radar tile view
+- Click tile to open corresponding area in Map Editor
+- Export radar tiles as single composited image
+- Mini-map mode for use within Model Workshop / Map Editor
+
+---
+
+## Model Workshop TODOs
 
 ### Model Workshop - Stub buttons in viewport toolbar (do nothing)
 **Status**: PENDING
