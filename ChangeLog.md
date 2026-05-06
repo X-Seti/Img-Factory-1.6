@@ -1,10 +1,27 @@
-#this belongs in root /ChangeLog.md - Version: 59
+#this belongs in root /ChangeLog.md - Version: 60
 
 ## May 2026 — Model Workshop bleed-through CONFIRMED FIXED
 
 The bleed-through in Model Workshop when docked inside IMG Factory is now
 confirmed fixed. Took multiple sessions to track down. Full root cause
 documented in v58 entry below. Tested across theme switches - no bleed.
+
+## May 2026 — Model Workshop DFF toolbar buttons implemented
+
+**DFF toolbar buttons implemented (`model_workshop.py` v112):**
+- `_enable_dff_toolbar #vers 3`: buttons no longer hidden in DFF mode.
+  `create_surface_btn` is COL-only (hidden). All others now active in both modes.
+- `_wire_dff_buttons #vers 1` / `_wire_col_buttons #vers 1`: disconnect/reconnect
+  shared buttons to mode-appropriate handlers on mode switch.
+- `_dff_flip_y #vers 1`: negate Y coord on all geometry vertices.
+- `_dff_flip_x #vers 1`: negate X coord on all geometry vertices.
+- `_dff_rotate_cw #vers 1`: rotate 90° CW around Z axis (x,y)→(y,-x).
+- `_dff_rotate_ccw #vers 1`: rotate 90° CCW around Z axis (x,y)→(-y,x).
+- `_dff_analyze #vers 1`: dialog showing geometries, frames, atomics, verts, tris, mats per geometry.
+- `_dff_copy_geometry #vers 1`: deepcopy selected geometry to `_dff_clipboard_geom`.
+- `_dff_paste_geometry #vers 1`: append clipboard geometry to model, refresh list.
+- `_dff_delete_geometry #vers 1`: confirm then delete selected geometry.
+- `_dff_duplicate_geometry #vers 1`: deepcopy selected geometry, insert after it.
 
 ## May 2026 — Model Workshop bleed CONFIRMED FIXED
 
