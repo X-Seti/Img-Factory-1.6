@@ -9,8 +9,8 @@ Based on GTA Wiki specification
 import struct
 from typing import Tuple, List, Optional
 from apps.debug.debug_functions import img_debugger
-from apps.components.Model_Editor.depends.col_workshop_classes import (COLHeader, COLBounds, COLSphere, COLBox, COLVertex, COLFace, COLModel, COLVersion)
-from apps.components.Model_Editor.depends.col_core_classes import Vector3, COLMaterial, BoundingBox
+from apps.components.Col_Editor.depends.col_workshop_classes import (COLHeader, COLBounds, COLSphere, COLBox, COLVertex, COLFace, COLModel, COLVersion)
+from apps.components.Col_Editor.depends.col_core_classes import Vector3, COLMaterial, BoundingBox
 
 ##Classes list -
 # COLParser
@@ -213,20 +213,20 @@ class COLParser: #vers 1
             raise ValueError(f"Bounds parse error: {str(e)}")
 
 
-    def parse_spheres(self, data: bytes, offset: int, count: int) -> Tuple[List[COLSphere], int]: #vers 3
+    def parse_spheres(self, data: bytes, offset: int, count: int) -> Tuple[List[COLSphere], int]: #vers 4
         """Parse collision spheres.
-        All versions: center(12) + radius(4) + surface(1) + piece(1) + pad(2) = 20 bytes.
-        VERIFIED from special.col RE March 2026.
+        COL1 layout: radius(4) + center(12) + surface(1) + piece(1) + pad(2) = 20 bytes.
+        Verified against vehicles.col binary May 2026.
         """
         spheres = []
         for _ in range(count):
             if len(data) < offset + 20:
                 raise ValueError("Data too short for sphere")
+            radius = struct.unpack('<f', data[offset:offset+4])[0]
+            offset += 4
             cx, cy, cz = struct.unpack('<fff', data[offset:offset+12])
             center = (cx, cy, cz)
             offset += 12
-            radius = struct.unpack('<f', data[offset:offset+4])[0]
-            offset += 4
             material = data[offset]      # surface type
             flag     = data[offset + 1]  # piece
             offset += 4  # surface(1) + piece(1) + pad(2)
@@ -237,29 +237,24 @@ class COLParser: #vers 1
         return spheres, offset
     
 
-    def parse_spheres_alt(self, data: bytes, offset: int, count: int, version: COLVersion) -> Tuple[list, int]: #vers 1
-        """Parse collision spheres
-
-        COL1: 24 bytes each (center + radius + material + flags)
-        COL2/3: 20 bytes each (center + radius + material)
-
-        Returns: (spheres_list, new_offset)
+    def parse_spheres_alt(self, data: bytes, offset: int, count: int, version: COLVersion) -> Tuple[list, int]: #vers 2
+        """Parse collision spheres.
+        COL1: radius(4) + center(12) + surface(1) + piece(1) + pad(2) = 20 bytes.
+        Verified against vehicles.col binary May 2026.
         """
         try:
             spheres = []
-            # All versions: sphere = center(12) + radius(4) + surface(1) + piece(1) + pad(2) = 20 bytes
-            # VERIFIED from special.col RE March 2026
             sphere_size = 20
 
             if len(data) < offset + (count * sphere_size):
                 raise ValueError(f"Data too short for {count} spheres")
 
             for i in range(count):
+                radius = struct.unpack('<f', data[offset:offset+4])[0]
+                offset += 4
                 cx, cy, cz = struct.unpack('<fff', data[offset:offset+12])
                 center = Vector3(cx, cy, cz)
                 offset += 12
-                radius = struct.unpack('<f', data[offset:offset+4])[0]
-                offset += 4
                 surface = data[offset]
                 piece   = data[offset+1]
                 offset += 4  # surface(1) + piece(1) + pad(2)
