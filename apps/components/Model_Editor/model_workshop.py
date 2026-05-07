@@ -1819,6 +1819,25 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self._apply_theme()
 
 
+    def _get_ui_color(self, key): #vers 1
+        """Get a theme-aware QColor. Works in both ModelWorkshop and COL3DViewport."""
+        from PyQt6.QtGui import QColor
+        try:
+            app_settings = getattr(self, 'app_settings', None) or \
+                getattr(getattr(self, 'main_window', None), 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
+        pal = self.palette()
+        if key == 'viewport_bg':
+            return pal.color(pal.ColorRole.Base)
+        if key == 'viewport_text':
+            return pal.color(pal.ColorRole.PlaceholderText)
+        if key == 'border':
+            return pal.color(pal.ColorRole.Mid)
+        return pal.color(pal.ColorRole.WindowText)
+
     def setup_ui(self): #vers 8
         """Setup the main UI layout"""
         main_layout = QVBoxLayout(self)
