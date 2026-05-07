@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 116
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 117
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
@@ -64,7 +64,7 @@ VIEWPORT_AVAILABLE = True
 
 # Add root directory to path
 App_name = "Model Workshop"
-App_build = "116"
+App_build = "117"
 DEBUG_STANDALONE = False
 
 # Import AppSettings
@@ -130,7 +130,9 @@ except ImportError:
 # Use for: DFF edit button in main toolbar, Model Workshop tab icon.
 # - DFF → Viewport adapter
 
-
+# Model Workshop icon available: SVGIconFactory.model_workshop_icon()
+# Use for: DFF edit button in main toolbar, Model Workshop tab icon.
+# - DFF → Viewport adapter
 class _DFFGeometryAdapter:
     """Adapts a DFF Geometry for use with COL3DViewport.
 
