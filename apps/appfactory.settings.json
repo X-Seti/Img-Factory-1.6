@@ -38,7 +38,7 @@
   "last_img_output_path": "",
   "last_import_path": "",
   "last_export_path": "",
-  "use_pastel_buttons": true,
+  "use_pastel_buttons": false,
   "high_contrast_buttons": false,
   "button_size": 24,
   "titlebar_button_height": 32,
