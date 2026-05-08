@@ -1,5 +1,5 @@
-#this belongs in apps/methods/dff_parser.py - Version: 5
-# X-Seti - Apr 2026 - Model Workshop - RenderWare DFF Parser
+#this belongs in apps/methods/dff_parser.py - Version: 6
+# X-Seti - May08 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
 Reads geometry, frames, materials, and atomic links.

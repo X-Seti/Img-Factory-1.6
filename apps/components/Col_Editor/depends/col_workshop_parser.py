@@ -1,5 +1,5 @@
-#this belongs in methods/col_workshop_parser.py - Version: 8
-# X-Seti - December21 2025 - Col Workshop - COL Binary Parser
+#this belongs in methods/col_workshop_parser.py - Version: 9
+# X-Seti - May08 2026 - Col Workshop - COL Binary Parser
 """
 COL Binary Parser - Handles parsing binary COL data
 Supports COL1 (GTA3/VC) initially, COL2/3 (SA) to be added

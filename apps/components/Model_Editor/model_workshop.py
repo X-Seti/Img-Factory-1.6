@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 117
+#this belongs in apps/components/Model_Editor/model_workshop.py - Version: 118
 # X-Seti - Apr 2026 - Model Workshop (based on COL Workshop)
 # [FIX] _make_slot_pix crash: imported QPolygonF into local scope.
 # [FIX] Material Editor cube preview crash: added missing QPolygonF import to _open_dff_material_list scope.
 # [FIX] _rebuild_grid QWidget crash: removed redundant deleteLater (QScrollArea auto-deletes old widget).
 # [FIX] _rebuild_grid QFrame deletion crash: reparent slots before scroll widget swap.
-# X-Seti - April 4 2025 - Model editor
+# X-Seti - May08 2026 - Model editor
 
 import os
 # Force X11/GLX backend for NVIDIA on Wayland
@@ -11275,7 +11275,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 faces   = len(getattr(model, 'faces',    []))
 
                 line1 = name
-                line2 = "Version: " + ver_str
+                line2 = "Version: 1" + ver_str
                 line3 = "Spheres: " + str(spheres) + "  Boxes: " + str(boxes)
                 line4 = "Verts: "   + str(verts)   + "  Faces: " + str(faces)
                 details = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4
@@ -13083,7 +13083,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         # Create detailed info text
         info_text = f"""Model: {model.name}
     Index: {index}
-    Version: {model.version.name if hasattr(model.version, 'name') else model.version}
+    Version: 1{model.version.name if hasattr(model.version, 'name') else model.version}
 
     Bounding Box:
     Center: ({model.bounding_box.center.x:.3f}, {model.bounding_box.center.y:.3f}, {model.bounding_box.center.z:.3f})
@@ -13745,7 +13745,7 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         layout.addWidget(author_label)
 
         # Version info
-        version_label = QLabel("Version: 1.5 - October 2025")
+        version_label = QLabel("Version: 11.5 - October 2025")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version_label)
 

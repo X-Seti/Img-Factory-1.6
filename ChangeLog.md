@@ -3334,3 +3334,39 @@ See `TODO.md` for planned features and fixes.
 - `apps/components/Img_Browser/img_browser.py`
 - `imgfactory.spec` (new)
 
+
+---
+
+#### DFF Parser fix (May 2026)
+
+**Mesh explosion on VC vehicles (dff_parser.py Version 6):**
+- RW 0x0C02FFFF morph target layout corrected: bsphere(16)+has_pos(4)+has_nrm(4) header precedes triangle data inside morph target, parser was reading triangles before this 24-byte header giving garbage indices
+- Added `_parse_binmesh()` method: EXTENSION chunk (0x03) containing BinMesh plugin (0x050E) was never parsed; BinMesh indices now take precedence over inline triangles when present
+- All triangle indices now 100% valid across VC vehicle DFFs (banshee, angel, mule tested)
+- Fix applied to all copies: `apps/methods/`, `apps/components/Col_Editor/depends/`, `apps/components/Model_Editor/depends/`
+
+**DFF frame world transform (_DFFGeometryAdapter, model_workshop.py Version 118):**
+- `_DFFGeometryAdapter` was using raw local vertex coordinates with no frame transform
+- Added `_world_matrix()` static method: walks frame parent chain accumulating rotation matrices and translations
+- Each geometry piece (wheels, chassis, extras) now renders at correct world position
+- `_display_dff_model` updated to pass `dff_model` and `atomic` to adapter constructor
+
+---
+
+#### COL Workshop sphere fix (May 2026)
+
+**COL1 sphere parsing wrong axis (col_workshop_parser.py Version 9):**
+- `parse_spheres` and `parse_spheres_alt` read `center(12) + radius(4)` but COL1 binary stores `radius(4) + center(12)`
+- Result was negative/wrong radii and sphere centers displaced by one field width
+- Fixed in all 4 copies across Img-Factory-1.6 and Col-Workshop repos
+- Verified against vehicles.col binary: all 19 deluxo spheres now have positive radii, centers within vehicle bounds
+
+**Files changed:**
+- `apps/methods/dff_parser.py`
+- `apps/components/Col_Editor/depends/dff_parser.py`
+- `apps/components/Model_Editor/depends/dff_parser.py`
+- `apps/components/Model_Editor/model_workshop.py`
+- `apps/methods/col_workshop_parser.py`
+- `apps/components/Col_Editor/depends/col_workshop_parser.py`
+- `apps/components/Model_Editor/depends/col_workshop_parser.py`
+
