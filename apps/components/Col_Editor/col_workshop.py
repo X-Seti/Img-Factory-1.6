@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 77
+#this belongs in apps/components/Col_Editor/col_workshop.py - Version: 78
 # X-Seti - August10 2025 - Converted col editor using gui base template.
 
 """
@@ -193,6 +193,11 @@ class COL3DViewport(QWidget): #vers 2
         self._show_mesh    = True
         self._backface     = False
         self._render_style = 'semi'
+        # Sphere/box display colours (R,G,B) and fill alpha (0-255)
+        self._sphere_color = (80, 200, 220)   # cyan
+        self._sphere_alpha = 25               # fill transparency
+        self._box_color    = (220, 180, 50)   # yellow
+        self._box_alpha    = 30               # fill transparency
         self._bg_color     = (25, 25, 35)  # overridden on first paint
         self._theme_bg_set = False
         # drag state
@@ -926,8 +931,10 @@ class COL3DViewport(QWidget): #vers 2
 
         #    Boxes — draw all 12 edges of AABB                              
         if self._show_boxes:
-            p.setPen(QPen(QColor(220,180,50),1.5))
-            p.setBrush(QBrush(QColor(220,180,50,30)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
+            _bc = getattr(self, '_box_color', (220, 180, 50))
+            _ba = getattr(self, '_box_alpha', 30)
+            p.setPen(QPen(QColor(*_bc), 1.5))
+            p.setBrush(QBrush(QColor(*_bc, _ba)) if rs != 'wireframe' else Qt.BrushStyle.NoBrush)
             for box in boxes:
                 mn_obj = getattr(box,'min_point',getattr(box,'min',None))
                 mx_obj = getattr(box,'max_point',getattr(box,'max',None))
@@ -945,8 +952,10 @@ class COL3DViewport(QWidget): #vers 2
 
         #    Spheres — draw 3 projected rings (equator + 2 meridians)       
         if self._show_spheres:
-            p.setPen(QPen(QColor(80,200,220),1.5))
-            p.setBrush(QBrush(QColor(80,200,220,25)) if rs!='wireframe' else Qt.BrushStyle.NoBrush)
+            _sc = getattr(self, '_sphere_color', (80, 200, 220))
+            _sa = getattr(self, '_sphere_alpha', 25)
+            p.setPen(QPen(QColor(*_sc), 1.5))
+            p.setBrush(QBrush(QColor(*_sc, _sa)) if rs != 'wireframe' else Qt.BrushStyle.NoBrush)
             N = 48
             for sph in spheres:
                 cx,cy3,cz = g3(getattr(sph,'center',sph))
@@ -6323,34 +6332,127 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         # Placeholder for upscale native functionality
         print("Upscale Native toggled")
 
-    def _show_shaders_dialog(self): #vers 2
-        """Viewport render style presets."""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
-                                      QRadioButton, QButtonGroup, QPushButton)
+    def _show_shaders_dialog(self): #vers 3
+        """Viewport display settings: render style, sphere/box colours and fill alpha."""
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                      QRadioButton, QButtonGroup, QPushButton,
+                                      QSlider, QGroupBox, QColorDialog, QFrame)
+        from PyQt6.QtCore import Qt as _Qt
+
+        pw = getattr(self, 'preview_widget', None)
+
         dlg = QDialog(self)
-        dlg.setWindowTitle("Viewport Render Style")
-        dlg.setFixedSize(260, 200)
-        lay = QVBoxLayout(dlg)
-        lay.addWidget(QLabel("<b>Render style (viewport display only)</b>"))
-        presets = [("Wireframe", "wireframe"), ("Solid", "solid"),
-                   ("Painted (material colours)", "painted")]
-        grp = QButtonGroup(dlg)
-        current = getattr(self, '_render_mode', 'wireframe')
+        dlg.setWindowTitle("Viewport Display Settings")
+        dlg.setFixedSize(320, 380)
+        root = QVBoxLayout(dlg)
+        root.setSpacing(8)
+
+        # --- Render style ---
+        grp_style = QGroupBox("Render Style")
+        hlay = QHBoxLayout(grp_style)
+        presets = [("Wireframe", "wireframe"), ("Semi", "semi"), ("Solid", "solid")]
+        btn_grp = QButtonGroup(dlg)
+        vp = pw if pw else self
+        cur_style = getattr(vp, '_render_style', 'semi')
         for label, key in presets:
             rb = QRadioButton(label)
-            rb.setChecked(key == current)
-            def _set(checked, k=key):
-                if checked:
-                    self._render_mode = k
-                    pw = getattr(self, 'preview_widget', None)
-                    if pw and hasattr(pw, '_refresh'):
-                        pw._refresh()
-            rb.toggled.connect(_set)
-            grp.addButton(rb)
-            lay.addWidget(rb)
+            rb.setChecked(key == cur_style)
+            def _set_style(checked, k=key, v=vp):
+                if checked and hasattr(v, 'set_render_style'):
+                    v.set_render_style(k)
+            rb.toggled.connect(_set_style)
+            btn_grp.addButton(rb)
+            hlay.addWidget(rb)
+        root.addWidget(grp_style)
+
+        # --- Colour + alpha helper ---
+        def _colour_row(parent_layout, label, get_col, set_col, get_alpha, set_alpha):
+            row = QHBoxLayout()
+            swatch = QFrame()
+            swatch.setFixedSize(24, 24)
+            r, g, b = get_col()
+            swatch.setStyleSheet(f"background: rgb({r},{g},{b}); border: 1px solid #666;")
+
+            lbl = QLabel(label)
+            lbl.setFixedWidth(60)
+
+            def _pick():
+                r2, g2, b2 = get_col()
+                col = QColorDialog.getColor(QColor(r2, g2, b2), dlg, f"Choose {label} colour")
+                if col.isValid():
+                    set_col((col.red(), col.green(), col.blue()))
+                    swatch.setStyleSheet(
+                        f"background: rgb({col.red()},{col.green()},{col.blue()}); border: 1px solid #666;")
+                    if pw: pw.update()
+
+            pick_btn = QPushButton("Colour")
+            pick_btn.setFixedWidth(60)
+            pick_btn.clicked.connect(_pick)
+
+            alpha_lbl = QLabel("Fill:")
+            slider = QSlider(_Qt.Orientation.Horizontal)
+            slider.setRange(0, 180)
+            slider.setValue(get_alpha())
+            slider.setFixedWidth(100)
+            val_lbl = QLabel(str(get_alpha()))
+            val_lbl.setFixedWidth(28)
+
+            def _alpha_changed(v):
+                set_alpha(v)
+                val_lbl.setText(str(v))
+                if pw: pw.update()
+            slider.valueChanged.connect(_alpha_changed)
+
+            row.addWidget(lbl)
+            row.addWidget(swatch)
+            row.addWidget(pick_btn)
+            row.addWidget(alpha_lbl)
+            row.addWidget(slider)
+            row.addWidget(val_lbl)
+            parent_layout.addLayout(row)
+
+        # --- Sphere colour ---
+        grp_sph = QGroupBox("Spheres")
+        sph_lay = QVBoxLayout(grp_sph)
+        _colour_row(
+            sph_lay, "Sphere",
+            lambda: tuple(getattr(pw or self, '_sphere_color', (80, 200, 220))),
+            lambda c: setattr(pw or self, '_sphere_color', c),
+            lambda:   getattr(pw or self, '_sphere_alpha', 25),
+            lambda v: setattr(pw or self, '_sphere_alpha', v))
+        root.addWidget(grp_sph)
+
+        # --- Box colour ---
+        grp_box = QGroupBox("Boxes")
+        box_lay = QVBoxLayout(grp_box)
+        _colour_row(
+            box_lay, "Box",
+            lambda: tuple(getattr(pw or self, '_box_color', (220, 180, 50))),
+            lambda c: setattr(pw or self, '_box_color', c),
+            lambda:   getattr(pw or self, '_box_alpha', 30),
+            lambda v: setattr(pw or self, '_box_alpha', v))
+        root.addWidget(grp_box)
+
+        # --- Reset + Close ---
+        btn_row = QHBoxLayout()
+        reset_btn = QPushButton("Reset Defaults")
+        def _reset():
+            tgt = pw or self
+            tgt._sphere_color = (80, 200, 220)
+            tgt._sphere_alpha = 25
+            tgt._box_color    = (220, 180, 50)
+            tgt._box_alpha    = 30
+            if pw: pw.update()
+            dlg.accept()
+            self._show_shaders_dialog()
+        reset_btn.clicked.connect(_reset)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dlg.accept)
-        lay.addWidget(close_btn)
+        btn_row.addWidget(reset_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(close_btn)
+        root.addLayout(btn_row)
+
         dlg.exec()
 
     def _show_window_context_menu(self, pos): #vers 1
