@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+#this belongs in apps/methods/smart_file_router.py - Version: 1
+# X-Seti - May08 2026 - Img Factory 1.6 - Smart File Router
+
+"""
+Routes GTA data files to the correct editor based on filename.
+Used by dat_browser and directory_tree_browser.
+Falls back to plain text editor for unrecognised files.
+"""
+
+##Methods list -
+# get_editor_label
+# open_smart_editor
+
+import os
+
+
+# Map: lowercase filename → (editor_label, launcher_function_name)
+_ROUTE_MAP = {
+    # Vehicle Workshop tabs
+    "handling.cfg":  ("Vehicle Workshop (Handling)",   "_launch_vehicle_workshop"),
+    "carcols.dat":   ("Vehicle Workshop (Car Colours)", "_launch_vehicle_workshop"),
+    "carmods.dat":   ("Vehicle Workshop (Car Mods)",    "_launch_vehicle_workshop"),
+    # Breakable objects
+    "object.dat":    ("Breakable Objects Editor",       "_launch_breakable_editor"),
+    # Time cycle
+    "timecyc.dat":   ("Time Cycle Editor",              "_launch_timecyc_editor"),
+    "timecycp.dat":  ("Time Cycle Editor",              "_launch_timecyc_editor"),
+    # Future — known files that will get editors later
+    "weapon.dat":    ("Weapon Data Editor",             None),
+    "ped.dat":       ("Ped Data Workshop",              None),
+    "pedgrp.dat":    ("Ped Data Workshop",              None),
+    "pedstats.dat":  ("Ped Data Workshop",              None),
+    "surface.dat":   ("Surface Data Editor",            None),
+    "carcols.dat":   ("Vehicle Workshop",               "_launch_vehicle_workshop"),
+    "cargrp.dat":    ("Vehicle Workshop",               "_launch_vehicle_workshop"),
+    "particle.cfg":  ("Particle Editor",                None),
+    "shopping.dat":  ("Shop Data Editor",               None),
+    "popcycle.dat":  ("Population Cycle Editor",        None),
+    "clothes.dat":   ("Ped Data Workshop",              None),
+    "animgrp.dat":   ("Ped Data Workshop",              None),
+}
+
+
+def get_editor_label(file_path: str) -> str: #vers 1
+    """Return human-readable editor name for a file, or empty string if plain text only."""
+    name = os.path.basename(file_path).lower()
+    entry = _ROUTE_MAP.get(name)
+    return entry[0] if entry else ""
+
+
+def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 1
+    """
+    Open file_path in the most appropriate editor.
+    Returns True if a specialist editor was opened, False if fell back to text editor.
+    """
+    name = os.path.basename(file_path).lower()
+    entry = _ROUTE_MAP.get(name)
+
+    if entry and entry[1]:
+        launcher = entry[1]
+        try:
+            if launcher == "_launch_vehicle_workshop":
+                from apps.components.Vehicle_Workshop.vehicle_workshop import open_vehicle_workshop
+                w = open_vehicle_workshop(main_window, path=file_path)
+                _log(main_window, f"Vehicle Workshop: {os.path.basename(file_path)}")
+                return True
+
+            elif launcher == "_launch_breakable_editor":
+                from apps.components.Breakable_Editor.breakable_editor import open_breakable_editor
+                open_breakable_editor(main_window, path=file_path)
+                _log(main_window, f"Breakable Editor: {os.path.basename(file_path)}")
+                return True
+
+            elif launcher == "_launch_timecyc_editor":
+                from apps.components.Timecyc_Editor.timecyc_editor import open_timecyc_editor
+                open_timecyc_editor(main_window, path=file_path)
+                _log(main_window, f"Time Cycle Editor: {os.path.basename(file_path)}")
+                return True
+
+        except Exception as ex:
+            _log(main_window, f"Editor launch error ({name}): {ex}")
+
+    # Fallback: plain text editor
+    try:
+        from apps.core.notepad import open_text_file_in_editor
+        open_text_file_in_editor(file_path, main_window)
+        _log(main_window, f"Text Editor: {os.path.basename(file_path)}")
+    except Exception as ex:
+        _log(main_window, f"Text editor error: {ex}")
+    return False
+
+
+def _log(main_window, msg: str): #vers 1
+    if main_window and hasattr(main_window, "log_message"):
+        main_window.log_message(msg)

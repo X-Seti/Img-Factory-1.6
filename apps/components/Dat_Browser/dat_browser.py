@@ -3302,8 +3302,20 @@ class DATBrowserWidget(QWidget): #vers 3
                     lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addSeparator()
             elif ext in (".dat", ".txt", ".cfg", ".ini"):
-                menu.addAction(f"✏  Edit  {bname}").triggered.connect(
-                    lambda _=False, p=abs_path: self._open_path_in_editor(p))
+                # Smart routing — show editor name if a specialist editor exists
+                try:
+                    from apps.methods.smart_file_router import get_editor_label
+                    editor_label = get_editor_label(abs_path)
+                except Exception:
+                    editor_label = ""
+                if editor_label:
+                    menu.addAction(f"⚙  Open in {editor_label}").triggered.connect(
+                        lambda _=False, p=abs_path: self._open_smart_editor(p))
+                    menu.addAction(f"✏  Edit as text  {bname}").triggered.connect(
+                        lambda _=False, p=abs_path: self._open_path_in_editor(p))
+                else:
+                    menu.addAction(f"✏  Edit  {bname}").triggered.connect(
+                        lambda _=False, p=abs_path: self._open_path_in_editor(p))
                 menu.addSeparator()
 
         copy_act = menu.addAction("Copy path")
@@ -3314,7 +3326,16 @@ class DATBrowserWidget(QWidget): #vers 3
         if menu.actions():
             menu.exec(self._tree.viewport().mapToGlobal(pos))
 
-    def _open_path_in_editor(self, file_path: str): #vers 1
+    def _open_smart_editor(self, file_path: str): #vers 1
+        """Route file to specialist editor based on filename."""
+        try:
+            from apps.methods.smart_file_router import open_smart_editor
+            open_smart_editor(file_path, self.main_window)
+        except Exception as e:
+            if self.main_window and hasattr(self.main_window, "log_message"):
+                self.main_window.log_message(f"Smart editor error: {e}")
+
+    def _open_path_in_editor(self, file_path: str): #vers 2
         """Open any text-type file in the IMG Factory text editor."""
         try:
             from apps.core.notepad import open_text_file_in_editor

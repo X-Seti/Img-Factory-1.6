@@ -1158,12 +1158,22 @@ class DirectoryTreeBrowser(QWidget):
                 w._dir_tree_selected_file = file_path
 
 
-    def on_item_double_clicked(self, item, column): #vers 1
-        """Handle item double-click"""
+    def on_item_double_clicked(self, item, column): #vers 2
+        """Handle item double-click — routes to smart editor for known data files."""
         file_path = item.data(0, Qt.ItemDataRole.UserRole)
         if os.path.isdir(file_path):
             self.browse_directory(file_path)
         elif os.path.isfile(file_path):
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext in ('.dat', '.cfg'):
+                try:
+                    from apps.methods.smart_file_router import get_editor_label, open_smart_editor
+                    if get_editor_label(file_path):
+                        mw = getattr(self, "main_window", None)
+                        open_smart_editor(file_path, mw)
+                        return
+                except Exception:
+                    pass
             self.file_opened.emit(file_path)
 
 
@@ -1190,7 +1200,18 @@ class DirectoryTreeBrowser(QWidget):
                               '.ini', '.zon', '.cut', '.fxt')
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in _TEXT_EDITABLE:
-                edit_action = QAction(f"Edit  {os.path.basename(file_path)}", self)
+                # Smart routing for known GTA data files
+                try:
+                    from apps.methods.smart_file_router import get_editor_label
+                    editor_label = get_editor_label(file_path)
+                except Exception:
+                    editor_label = ""
+                if editor_label:
+                    smart_action = QAction(f"⚙  Open in {editor_label}", self)
+                    smart_action.triggered.connect(
+                        lambda _=False, p=file_path: self._open_smart_editor(p))
+                    menu.addAction(smart_action)
+                edit_action = QAction(f"✏  Edit  {os.path.basename(file_path)}", self)
                 edit_action.triggered.connect(
                     lambda _=False, p=file_path: self._edit_text_file(p))
                 menu.addAction(edit_action)
@@ -1248,7 +1269,18 @@ class DirectoryTreeBrowser(QWidget):
         menu.addAction(props_action)
         menu.exec(self.tree.mapToGlobal(position))
 
-    def _edit_text_file(self, file_path: str): #vers 1
+    def _open_smart_editor(self, file_path: str): #vers 1
+        """Route file to specialist editor based on filename."""
+        try:
+            from apps.methods.smart_file_router import open_smart_editor
+            mw = getattr(self, "main_window", None)
+            open_smart_editor(file_path, mw)
+        except Exception as e:
+            mw = getattr(self, "main_window", None)
+            if mw and hasattr(mw, "log_message"):
+                mw.log_message(f"Smart editor error: {e}")
+
+    def _edit_text_file(self, file_path: str): #vers 2
         """Open a text-editable GTA file in the IMG Factory text editor."""
         try:
             from apps.core.notepad import open_text_file_in_editor
