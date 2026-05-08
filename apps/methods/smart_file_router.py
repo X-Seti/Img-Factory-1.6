@@ -26,13 +26,13 @@ _ROUTE_MAP = {
     # Time cycle
     "timecyc.dat":   ("Time Cycle Editor",              "_launch_timecyc_editor"),
     "timecycp.dat":  ("Time Cycle Editor",              "_launch_timecyc_editor"),
+    # Surface data — opens in COL Workshop Surface tab
+    "surface.dat":   ("COL Workshop (Surface Data)",    "_launch_surface_in_col"),
     # Future — known files that will get editors later
     "weapon.dat":    ("Weapon Data Editor",             None),
     "ped.dat":       ("Ped Data Workshop",              None),
     "pedgrp.dat":    ("Ped Data Workshop",              None),
     "pedstats.dat":  ("Ped Data Workshop",              None),
-    "surface.dat":   ("Surface Data Editor",            None),
-    "carcols.dat":   ("Vehicle Workshop",               "_launch_vehicle_workshop"),
     "cargrp.dat":    ("Vehicle Workshop",               "_launch_vehicle_workshop"),
     "particle.cfg":  ("Particle Editor",                None),
     "shopping.dat":  ("Shop Data Editor",               None),
@@ -76,6 +76,26 @@ def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 1
                 from apps.components.Timecyc_Editor.timecyc_editor import open_timecyc_editor
                 open_timecyc_editor(main_window, path=file_path)
                 _log(main_window, f"Time Cycle Editor: {os.path.basename(file_path)}")
+                return True
+
+            elif launcher == "_launch_surface_in_col":
+                from apps.components.Col_Editor.col_workshop import COLWorkshop
+                # Try to reuse an existing COL Workshop window
+                from PyQt6.QtWidgets import QApplication
+                for w in QApplication.topLevelWidgets():
+                    if isinstance(w, COLWorkshop):
+                        w._workshop_tabs.setCurrentIndex(1)  # Surface Data tab
+                        w._surf_open(file_path)
+                        w.raise_(); w.activateWindow()
+                        _log(main_window, f"Surface Data: {os.path.basename(file_path)}")
+                        return True
+                # No existing window — open a new one
+                cw = COLWorkshop(main_window)
+                cw.resize(1200, 720)
+                cw.show()
+                cw._workshop_tabs.setCurrentIndex(1)
+                cw._surf_open(file_path)
+                _log(main_window, f"COL Workshop (Surface Data): {os.path.basename(file_path)}")
                 return True
 
         except Exception as ex:
