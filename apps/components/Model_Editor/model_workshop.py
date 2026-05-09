@@ -12153,11 +12153,15 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
             QMessageBox.critical(self, "Error", f"Failed to analyze file:\n{str(e)}")
 
 
-    def _populate_left_panel_from_img(self, img): #vers 4
+    def _populate_left_panel_from_img(self, img): #vers 5
         """Populate the left panel list from an already-open IMGFile object.
         Also stores img as self.current_img so _extract_col_from_img can read entries."""
         lw = getattr(self, 'col_list_widget', None)
         if lw is None:
+            return
+        try:
+            lw.count()  # raises RuntimeError if C++ object deleted
+        except RuntimeError:
             return
         # Store so clicking entries can extract data
         self.current_img = img

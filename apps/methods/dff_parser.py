@@ -1,9 +1,21 @@
-#this belongs in apps/methods/dff_parser.py - Version: 6
-# X-Seti - May08 2026 - Model Workshop - RenderWare DFF Parser
+#this belongs in apps/methods/dff_parser.py - Version: 7
+# X-Seti - May09 2026 - Model Workshop - RenderWare DFF Parser
 """
 Parser for GTA RenderWare DFF (Clump) model files.
 Reads geometry, frames, materials, and atomic links.
 Supports GTA III / VC / SA PC DFF format.
+
+Correct RW Geometry Struct layout (SA/VC/III):
+  header(16): flags(H) uv_count(B) unk(B) tri_count(i) vert_count(i) morph_count(i)
+  [colors: vert_count * RGBA(4)]   if HAS_COLORS (flags & 0x08)
+  [uvs:    vert_count * UV(8)]     if HAS_UV     (flags & 0x04|0x80 or uv_count>0)
+  triangles: tri_count * 8 bytes   (v2:H v1:H mat:H v3:H)
+  morph_target_0:
+    bsphere: cx cy cz r (4 floats = 16 bytes)
+    vertices: vert_count * XYZ(12)
+    [normals: vert_count * XYZ(12)] if HAS_NORMALS (flags & 0x10)
+  [additional morph targets...]
+Triangles from BinMesh (0x050E extension) replace inline triangles when present.
 """
 
 import struct
@@ -19,10 +31,8 @@ from apps.methods.dff_classes import (
 # DFFParser._parse_clump
 # DFFParser._parse_frame_list
 # DFFParser._parse_geometry_list
-# DFFParser._parse_geometry #vers 2
-# DFFParser._parse_binmesh #vers 1
-# DFFParser._parse_geometry_v33
-# DFFParser._parse_extension_v33
+# DFFParser._parse_geometry
+# DFFParser._parse_binmesh
 # DFFParser._parse_material_list
 # DFFParser._parse_material
 # DFFParser._parse_atomic
@@ -47,104 +57,72 @@ class DFFParser:
         self.model = DFFModel(source_path=path)
         self.errors: List[str] = []
 
-    def _read(self, pos: int, fmt: str):
-        """Unpack struct at pos, return (values..., next_pos)."""
-        size = struct.calcsize(fmt)
-        vals = struct.unpack_from(fmt, self.data, pos)
-        return vals, pos + size
-
-    def parse(self) -> DFFModel:
-        """Parse the DFF file. Returns the DFFModel."""
+    def parse(self) -> DFFModel: #vers 1
         data = self.data
-        pos  = 0
-        ct, sz, lib, p = read_chunk(data, pos)
+        ct, sz, lib, p = read_chunk(data, 0)
         if ct != int(RWChunkType.CLUMP):
-            self.errors.append(f"Not a Clump: chunk type 0x{ct:04X}")
+            self.errors.append(f"Not a Clump: 0x{ct:04X}")
             return self.model
         self.model.rw_version = lib
         self._parse_clump(p, p + sz)
         return self.model
 
-    def _parse_clump(self, start: int, end: int):
+    def _parse_clump(self, start: int, end: int): #vers 1
         pos = start
-        geom_list_seen = False
         while pos < end - 12:
             ct, sz, lib, p = read_chunk(self.data, pos)
-            payload_end = p + sz
-
-            if ct == int(RWChunkType.STRUCT):
-                # Clump struct: atomic_count(4) + light_count(4) + camera_count(4) [SA only?]
-                pass
-            elif ct == int(RWChunkType.FRAME_LIST):
-                self._parse_frame_list(p, payload_end)
+            if ct == int(RWChunkType.FRAME_LIST):
+                self._parse_frame_list(p, p + sz)
             elif ct == int(RWChunkType.GEOMETRY_LIST):
-                self._parse_geometry_list(p, payload_end)
-                geom_list_seen = True
+                self._parse_geometry_list(p, p + sz)
             elif ct == int(RWChunkType.ATOMIC):
-                self._parse_atomic(p, payload_end)
-            elif ct == int(RWChunkType.EXTENSION):
-                pass  # extensions at clump level
+                self._parse_atomic(p, p + sz)
+            pos = p + sz
 
-            pos = payload_end
-
-    def _parse_frame_list(self, start: int, end: int):
+    def _parse_frame_list(self, start: int, end: int): #vers 1
         pos = start
         ct, sz, lib, p = read_chunk(self.data, pos)
         if ct != int(RWChunkType.STRUCT):
             return
-        # Struct: frame_count(4)
         frame_count = struct.unpack_from('<I', self.data, p)[0]
         p += 4
         for _ in range(frame_count):
             frame = Frame()
-            # rotation matrix (9 floats) + position (3 floats) + parent_idx (i) + flags (I)
-            rot9 = struct.unpack_from('<9f', self.data, p); p += 36
-            pos3 = struct.unpack_from('<3f', self.data, p); p += 12
+            rot9 = struct.unpack_from('<9f', self.data, p);  p += 36
+            pos3 = struct.unpack_from('<3f', self.data, p);  p += 12
             parent_idx, flags = struct.unpack_from('<iI', self.data, p); p += 8
-            frame.rotation    = list(rot9)
-            frame.position    = Vector3(*pos3)
+            frame.rotation     = list(rot9)
+            frame.position     = Vector3(*pos3)
             frame.parent_index = parent_idx
-            frame.flags       = flags
+            frame.flags        = flags
             self.model.frames.append(frame)
 
-        # Frame extensions (names are in Frame Name extension)
+        # Frame name extensions follow
         pos = start + 12 + sz
-        frame_idx = 0
-        while pos < end - 12 and frame_idx < len(self.model.frames):
+        for frame_idx in range(len(self.model.frames)):
+            if pos >= end - 12:
+                break
             ct2, sz2, lib2, p2 = read_chunk(self.data, pos)
             if ct2 == int(RWChunkType.EXTENSION):
-                # Walk inside extension for Frame Name (0x253F2FE)
-                ep = p2; ee = p2 + sz2
-                while ep < ee - 12:
+                ep = p2
+                while ep < p2 + sz2 - 12:
                     ect, esz, _, ep2 = read_chunk(self.data, ep)
-                    if ect == 0x0253F2FE:   # Frame Name plugin (VC) — data IS the name string
-                        raw = self.data[ep2:ep2+esz]
-                        name = raw.split(b'\x00')[0].decode('ascii','replace').strip()
-                        if name:
-                            self.model.frames[frame_idx].name = name
-                    elif ect == 0x0253F2FF: # Frame name string (RW 3.4+)
-                        raw = self.data[ep2:ep2+esz]
-                        name = raw.split(b'\x00')[0].decode('ascii','replace').strip()
-                        if name:
-                            self.model.frames[frame_idx].name = name
-                    elif ect == 0x00000002: # RW_STRING — frame name in VC format
-                        raw = self.data[ep2:ep2+esz]
-                        name = raw.split(b'\x00')[0].decode('ascii','replace').strip()
+                    if ect in (0x0253F2FE, 0x0253F2FF, 0x00000002):
+                        raw = self.data[ep2:ep2 + esz]
+                        name = raw.split(b'\x00')[0].decode('ascii', 'replace').strip()
                         if name and not self.model.frames[frame_idx].name:
                             self.model.frames[frame_idx].name = name
                     ep = ep2 + esz
-            frame_idx += 1
             pos = p2 + sz2
 
-    def _parse_geometry_list(self, start: int, end: int):
+    def _parse_geometry_list(self, start: int, end: int): #vers 1
         pos = start
         ct, sz, lib, p = read_chunk(self.data, pos)
         if ct != int(RWChunkType.STRUCT):
             return
         geom_count = struct.unpack_from('<I', self.data, p)[0]
         pos = p + sz
-
-        for _ in range(min(geom_count, 256)):
+        for _ in range(min(geom_count, 512)):
             if pos >= end - 12:
                 break
             ct2, sz2, lib2, p2 = read_chunk(self.data, pos)
@@ -154,129 +132,119 @@ class DFFParser:
                     self.model.geometries.append(geom)
             pos = p2 + sz2
 
-    def _parse_geometry(self, start: int, end: int) -> Optional[Geometry]: #vers 2
-        """Parse a RenderWare Geometry chunk.
+    def _parse_geometry(self, start: int, end: int) -> Optional[Geometry]: #vers 3
+        """Parse RW Geometry chunk (SA/VC/III format).
 
-        RW 3.3 (VC, 0x0C02FFFF) morph-target layout inside the struct:
-          header(16) + [colors] + [UVs] + morph_target_0 {
-              bsphere(16) + has_pos(4) + has_nrm(4) +
-              triangles(tri_count*8) + vertices(vert_count*12) + [normals(vert_count*12)]
-          }
-        Triangle indices from BinMesh extension (0x050E) always take precedence
-        over inline triangles when present.
+        Struct layout:
+          header(16) [colors] [uvs] triangles morph{bsphere+verts+[norms]}
+        BinMesh extension triangles replace inline triangles when present.
         """
         pos = start
         ct, sz, lib, p = read_chunk(self.data, pos)
         if ct != int(RWChunkType.STRUCT):
-            if (ct >> 16) == 0x0001 and (ct & 0xFFFF) != 0:
-                return self._parse_geometry_v33(ct, p, p + sz, end)
             return None
 
-        geom = Geometry()
+        if p + 16 > len(self.data):
+            return None
+
         flags, uv_count, unk, tri_count, vert_count, morph_count = \
             struct.unpack_from('<HBBiii', self.data, p)
         p += 16
 
-        geom.flags = flags
+        geom              = Geometry()
+        geom.flags        = flags
         geom.uv_layer_count = uv_count if uv_count > 0 else 1
 
-        HAS_COLORS   = bool(flags & 0x0008)
-        HAS_TEXCOORD = bool(flags & (0x0004 | 0x0080)) or uv_count > 0
-        HAS_NORMALS  = bool(flags & 0x0010)
+        HAS_COLORS  = bool(flags & 0x0008)
+        HAS_UV      = bool(flags & (0x0004 | 0x0080)) or uv_count > 0
+        HAS_NORMALS = bool(flags & 0x0010)
+        uv_layers   = uv_count if uv_count > 0 else (1 if HAS_UV else 0)
 
-        # Prelit vertex colors
-        if HAS_COLORS:
+        # --- Vertex colors ---
+        if HAS_COLORS and p + vert_count * 4 <= len(self.data):
             for _ in range(vert_count):
-                r,g,b,a = struct.unpack_from('<BBBB', self.data, p); p += 4
-                geom.colors.append(RGBA(r,g,b,a))
+                r, g, b, a = struct.unpack_from('<BBBB', self.data, p); p += 4
+                geom.colors.append(RGBA(r, g, b, a))
 
-        # UV layers
-        layer_count = uv_count if uv_count > 0 else (1 if HAS_TEXCOORD else 0)
-        for layer_i in range(layer_count):
+        # --- UV layers ---
+        for _ in range(uv_layers):
+            if p + vert_count * 8 > len(self.data):
+                break
             uvs = []
             for _ in range(vert_count):
-                u,v = struct.unpack_from('<ff', self.data, p); p += 8
+                u, v = struct.unpack_from('<ff', self.data, p); p += 8
                 uvs.append(TexCoord(u, v))
             geom.uv_layers.append(uvs)
 
-        # Morph target header: bsphere(16) + has_pos(4) + has_nrm(4)
-        # This header always precedes triangle + vertex data in the morph target.
-        cx, cy, cz, r = struct.unpack_from('<4f', self.data, p); p += 16
-        geom.bounding_sphere = BoundingSphere(Vector3(cx,cy,cz), r)
-        has_pos, has_nrm = struct.unpack_from('<II', self.data, p); p += 8
-
-        # Inline triangles (inside morph target, after bsphere+flags)
+        # --- Inline triangles (v2, v1, mat_id, v3) ---
         inline_tris = []
-        if tri_count > 0:
-            struct_bytes_left = (start + 12 + sz) - p
-            if struct_bytes_left >= tri_count * 8:
-                for _ in range(tri_count):
-                    v2, v1, mat_id, v3 = struct.unpack_from('<HHHH', self.data, p); p += 8
-                    inline_tris.append(Triangle(v1, v2, v3, mat_id))
+        if tri_count > 0 and p + tri_count * 8 <= len(self.data):
+            for _ in range(tri_count):
+                v2, v1, mat_id, v3 = struct.unpack_from('<HHHH', self.data, p); p += 8
+                inline_tris.append(Triangle(v1, v2, v3, mat_id))
 
-        # Force has_pos if struct contains enough bytes for vertices
-        struct_bytes_left = (start + 12 + sz) - p
-        if not has_pos and vert_count > 0 and struct_bytes_left >= vert_count * 12:
-            has_pos = 1
-
-        # Vertices
-        if has_pos:
+        # --- Morph target 0: bsphere(16) + vertices + [normals] ---
+        for _ in range(max(1, morph_count)):
+            if p + 16 > len(self.data):
+                break
+            cx, cy, cz, r = struct.unpack_from('<4f', self.data, p); p += 16
+            if not geom.bounding_sphere:
+                geom.bounding_sphere = BoundingSphere(Vector3(cx, cy, cz), r)
+            if p + vert_count * 12 > len(self.data):
+                break
             for _ in range(vert_count):
-                x,y,z = struct.unpack_from('<3f', self.data, p); p += 12
-                geom.vertices.append(Vector3(x,y,z))
+                x, y, z = struct.unpack_from('<3f', self.data, p); p += 12
+                geom.vertices.append(Vector3(x, y, z))
+            if HAS_NORMALS and p + vert_count * 12 <= len(self.data):
+                for _ in range(vert_count):
+                    nx, ny, nz = struct.unpack_from('<3f', self.data, p); p += 12
+                    geom.normals.append(Vector3(nx, ny, nz))
 
-        # Normals
-        if has_nrm:
-            for _ in range(vert_count):
-                x,y,z = struct.unpack_from('<3f', self.data, p); p += 12
-                geom.normals.append(Vector3(x,y,z))
+        struct_end = start + 12 + sz
 
-        pos = start + 12 + sz   # advance past struct chunk
-
-        # Post-struct chunks: MATERIAL_LIST and EXTENSION (contains BinMesh)
+        # --- Post-struct: MATERIAL_LIST and EXTENSION ---
         binmesh_tris = []
+        pos = struct_end
         while pos < end - 12:
             ct2, sz2, lib2, p2 = read_chunk(self.data, pos)
             if ct2 == int(RWChunkType.MATERIAL_LIST):
                 self._parse_material_list(p2, p2 + sz2, geom)
-            elif ct2 == 0x00000003:  # EXTENSION
+            elif ct2 == 0x00000003:   # EXTENSION
                 binmesh_tris = self._parse_binmesh(p2, p2 + sz2)
             pos = p2 + sz2
 
-        # BinMesh takes precedence over inline triangles when present
         geom.triangles = binmesh_tris if binmesh_tris else inline_tris
-
         return geom
 
     def _parse_binmesh(self, start: int, end: int) -> list: #vers 1
-        """Parse BinMesh plugin (0x050E) from an extension chunk.
-        Returns list of Triangle or empty list if not found."""
+        """Parse BinMesh plugin (0x050E). Returns Triangle list."""
         pos = start
         while pos + 12 <= end:
             ct, sz, lib, dp = read_chunk(self.data, pos)
             if ct == 0x0000050E:
+                if dp + 12 > len(self.data):
+                    break
                 face_type, mesh_count, total_idx = struct.unpack_from('<III', self.data, dp)
                 bp = dp + 12
                 indices = []
                 for _ in range(mesh_count):
+                    if bp + 8 > len(self.data):
+                        break
                     idx_count, mat_idx = struct.unpack_from('<II', self.data, bp); bp += 8
                     for j in range(idx_count):
+                        if bp + j * 4 + 4 > len(self.data):
+                            break
                         indices.append((struct.unpack_from('<I', self.data, bp + j * 4)[0], mat_idx))
                     bp += idx_count * 4
                 tris = []
                 if face_type == 0:  # triangle list
                     i = 0
                     while i + 2 < len(indices):
-                        v0, m = indices[i]
-                        v1, _ = indices[i+1]
-                        v2, _ = indices[i+2]
-                        tris.append(Triangle(v0, v1, v2, m))
-                        i += 3
-                else:  # triangle strip
+                        v0, m = indices[i];  v1, _ = indices[i+1];  v2, _ = indices[i+2]
+                        tris.append(Triangle(v0, v1, v2, m));  i += 3
+                else:               # triangle strip
                     for i in range(len(indices) - 2):
-                        v0, m = indices[i]
-                        v1, _ = indices[i+1]
-                        v2, _ = indices[i+2]
+                        v0, m = indices[i];  v1, _ = indices[i+1];  v2, _ = indices[i+2]
                         if v0 != v1 and v1 != v2 and v0 != v2:
                             if i % 2 == 0:
                                 tris.append(Triangle(v0, v1, v2, m))
@@ -286,205 +254,72 @@ class DFFParser:
             pos = dp + sz
         return []
 
-    def _parse_geometry_v33(self, chunk_type: int, struct_start: int,
-                            struct_end: int, geom_end: int) -> 'Optional[Geometry]': #vers 1
-        """Parse RW 3.3 / older VC geometry where chunk type encodes flags.
-        Vertex data lives after the struct chunk in the raw geometry body.
-        Triangle indices come from the BinMesh extension (0x050e)."""
-        geom = Geometry()
-        flags = chunk_type & 0xFFFF
-        geom.flags = flags
-
-        HAS_COLORS   = bool(flags & 0x0008)
-        HAS_TEXCOORD = bool(flags & (0x0004 | 0x0080))
-        HAS_NORMALS  = bool(flags & 0x0010)
-
-        # The struct chunk contains: numMorphTargets(4) + bsphere(16)
-        # then optionally: prelit colors, UV layers
-        p = struct_start
-        n_morph = struct.unpack_from('<I', self.data, p)[0]
-        p += 4
-        # bsphere: cx cy cz r
-        p += 16  # skip bounding sphere
-
-        # Count UVs in struct: (struct_end - p) / (8 * uv_layer_count)
-        uv_count = 1 if HAS_TEXCOORD else 0
-        struct_remaining = struct_end - p
-
-        # After the struct chunk body, vertex data is raw in the geometry chunk body
-        # Layout: struct_chunk | raw_vert_data | MATERIAL_LIST | EXTENSION
-        # raw_vert_data starts at struct_end and ends at MATERIAL_LIST
-
-        # Find MATERIAL_LIST and EXTENSION positions
-        mat_list_pos = None
-        ext_pos      = None
-        pos = struct_end
-        while pos + 12 <= geom_end:
-            ct, cs, cv, dp = read_chunk(self.data, pos)
-            if ct == int(RWChunkType.MATERIAL_LIST):
-                mat_list_pos = pos
-                self._parse_material_list(dp, dp + cs, geom)
-            elif ct == 0x00000003:  # EXTENSION
-                ext_pos = pos
-                self._parse_extension_v33(dp, dp + cs, geom)
-            pos = dp + cs
-
-        # Vertex data is between struct_end and first known chunk after struct
-        vert_data_start = struct_end
-        vert_data_end   = mat_list_pos if mat_list_pos else geom_end
-
-        raw_size = vert_data_end - vert_data_start
-        if raw_size > 0:
-            # Determine vert_count: raw_size / bytes_per_vert
-            # Each vert: XYZ(12) + normals(12 if HAS_NORMALS)
-            bpv = 12 + (12 if HAS_NORMALS else 0)
-            vert_count = raw_size // bpv
-
-            vp = vert_data_start
-            for i in range(vert_count):
-                x, y, z = struct.unpack_from('<3f', self.data, vp)
-                geom.vertices.append(Vector3(x, y, z))
-                vp += 12
-                if HAS_NORMALS:
-                    nx, ny, nz = struct.unpack_from('<3f', self.data, vp)
-                    geom.normals.append(Vector3(nx, ny, nz))
-                    vp += 12
-
-        # UV data is in the struct chunk body
-        vert_count = len(geom.vertices)
-        if HAS_TEXCOORD and vert_count:
-            uv_bytes = vert_count * 8  # u(4) + v(4) per vert
-            if struct_remaining >= uv_bytes:
-                uvs = []
-                for i in range(vert_count):
-                    u, v = struct.unpack_from('<2f', self.data, p + i * 8)
-                    uvs.append(TexCoord(u, v))
-                geom.uv_layers.append(uvs)
-
-        # Triangles come from BinMesh (already populated by _parse_extension_v33)
-        return geom
-
-    def _parse_extension_v33(self, start: int, end: int, geom: Geometry): #vers 1
-        """Parse extension chunk for RW 3.3 geometry — handles BinMesh (0x050e)."""
-        pos = start
-        while pos + 12 <= end:
-            ct, cs, cv, dp = read_chunk(self.data, pos)
-            if ct == 0x0000050e:  # BinMesh plugin
-                face_type, mesh_count, total_idx = struct.unpack_from('<III', self.data, dp)
-                bp = dp + 12
-                indices = []
-                for _ in range(mesh_count):
-                    idx_count, mat_idx = struct.unpack_from('<II', self.data, bp)
-                    bp += 8
-                    for j in range(idx_count):
-                        indices.append((struct.unpack_from('<I', self.data, bp + j * 4)[0], mat_idx))
-                    bp += idx_count * 4
-                # Build triangles from index list
-                if face_type == 0:  # triangle list
-                    i = 0
-                    while i + 2 < len(indices):
-                        v0, m = indices[i]
-                        v1, _ = indices[i+1]
-                        v2, _ = indices[i+2]
-                        geom.triangles.append(Triangle(v0, v1, v2, m))
-                        i += 3
-                else:  # triangle strip
-                    for i in range(len(indices) - 2):
-                        v0, m = indices[i]
-                        v1, _ = indices[i+1]
-                        v2, _ = indices[i+2]
-                        if v0 != v1 and v1 != v2 and v0 != v2:
-                            if i % 2 == 0:
-                                geom.triangles.append(Triangle(v0, v1, v2, m))
-                            else:
-                                geom.triangles.append(Triangle(v0, v2, v1, m))
-            pos = dp + cs
-
-    def _parse_material_list(self, start: int, end: int, geom: Geometry):
+    def _parse_material_list(self, start: int, end: int, geom: Geometry): #vers 1
         pos = start
         ct, sz, lib, p = read_chunk(self.data, pos)
         if ct != int(RWChunkType.STRUCT):
             return
-        mat_count = struct.unpack_from('<I', self.data, p)[0]
-        # material indices follow (mat_count × int32, -1 = new, else reference)
         pos = p + sz
-
-        mats_added = 0
         while pos < end - 12:
             ct2, sz2, lib2, p2 = read_chunk(self.data, pos)
             if ct2 == int(RWChunkType.MATERIAL):
-                mat = self._parse_material(p2, p2 + sz2)
-                geom.materials.append(mat)
-                mats_added += 1
+                geom.materials.append(self._parse_material(p2, p2 + sz2))
             pos = p2 + sz2
 
-    def _parse_material(self, start: int, end: int) -> Material:
+    def _parse_material(self, start: int, end: int) -> Material: #vers 1
         mat = Material()
         pos = start
         ct, sz, lib, p = read_chunk(self.data, pos)
         if ct != int(RWChunkType.STRUCT):
             return mat
-
-        # flags(4) + color(4) + unk(4) + textured(4) + ambient(f) + specular(f) + diffuse(f)
-        # RW Material Struct: flags(4)+RGBA(4)+unused(4)+textured(4)+ambient(f)+specular(f)+diffuse(f)
-        mflags, r,g,b,a, unk, textured = struct.unpack_from('<I4BII', self.data, p)[:7]
         try:
+            mflags, r, g, b, a, unk, textured = struct.unpack_from('<I4BII', self.data, p)
             ambient, specular, diffuse = struct.unpack_from('<3f', self.data, p + 16)
         except Exception:
-            ambient = specular = diffuse = 1.0
+            return mat
         mat.flags    = mflags
-        mat.color    = RGBA(r,g,b,a)
+        mat.colour   = RGBA(r, g, b, a)
+        mat.color    = mat.colour
         mat.ambient  = ambient
         mat.specular = specular
         mat.diffuse  = diffuse
-
         pos = p + sz
-
-        # Texture chunk
         while pos < end - 12:
             ct2, sz2, lib2, p2 = read_chunk(self.data, pos)
             if ct2 == int(RWChunkType.TEXTURE):
                 tp = p2
-                # Texture struct (flags)
-                ct3, sz3, _, p3 = read_chunk(self.data, tp); tp = p3 + sz3
-                # Texture name string
-                ct3, sz3, _, p3 = read_chunk(self.data, tp)
+                ct3, sz3, _, p3 = read_chunk(self.data, tp); tp = p3 + sz3  # tex struct
+                ct3, sz3, _, p3 = read_chunk(self.data, tp)                  # name string
                 mat.texture_name = self.data[p3:p3+sz3].split(b'\x00')[0].decode('ascii','replace')
                 tp = p3 + sz3
-                # Mask name string
-                ct3, sz3, _, p3 = read_chunk(self.data, tp)
-                mat.texture_mask = self.data[p3:p3+sz3].split(b'\x00')[0].decode('ascii','replace')
+                if tp + 12 <= end:
+                    ct3, sz3, _, p3 = read_chunk(self.data, tp)              # mask string
+                    mat.texture_mask = self.data[p3:p3+sz3].split(b'\x00')[0].decode('ascii','replace')
             pos = p2 + sz2
-
         return mat
 
-    def _parse_atomic(self, start: int, end: int):
+    def _parse_atomic(self, start: int, end: int): #vers 1
         pos = start
         ct, sz, lib, p = read_chunk(self.data, pos)
         if ct != int(RWChunkType.STRUCT):
             return
         frame_idx, geom_idx, flags, unk = struct.unpack_from('<4I', self.data, p)
-        atomic = Atomic(frame_index=frame_idx, geometry_index=geom_idx, flags=flags)
-        self.model.atomics.append(atomic)
+        self.model.atomics.append(Atomic(frame_index=frame_idx, geometry_index=geom_idx, flags=flags))
 
 
-def detect_dff(data: bytes) -> bool:
-    """Return True if data starts with a RenderWare Clump (DFF)."""
+def detect_dff(data: bytes) -> bool: #vers 1
     if len(data) < 12:
         return False
-    ct = struct.unpack_from('<I', data)[0]
-    return ct == int(RWChunkType.CLUMP)
+    return struct.unpack_from('<I', data)[0] == int(RWChunkType.CLUMP)
 
 
-def load_dff(path: str) -> Optional[DFFModel]:
-    """Load a DFF file from disk. Returns DFFModel or None on failure."""
+def load_dff(path: str) -> Optional[DFFModel]: #vers 1
     try:
         with open(path, 'rb') as f:
             data = f.read()
         if not detect_dff(data):
             return None
-        parser = DFFParser(data, path)
-        return parser.parse()
+        return DFFParser(data, path).parse()
     except Exception as e:
         print(f"[DFFParser] Failed to load {path}: {e}")
         return None

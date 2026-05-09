@@ -689,7 +689,7 @@ def apply_xref_status(table, xref) -> int: #vers 2
 
     green  = QColor(0, 160, 0)
     red    = QColor(180, 0, 0)
-    grey   = self._get_ui_color('viewport_text')
+    grey   = __import__('PyQt6.QtGui', fromlist=['QColor']).QColor(180, 180, 180)
 
     # Detect column indices by header name — robust to layout differences
     STATUS = IDE_MODEL = IDE_TXD = -1
