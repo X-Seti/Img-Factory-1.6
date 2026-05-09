@@ -1189,9 +1189,6 @@ class COL3DViewport(QWidget): #vers 2
                         dx1, dy1 = pts[1].x(), pts[1].y()
                         dx2, dy2 = pts[2].x(), pts[2].y()
                         _det = (sx1-sx0)*(sy2-sy0) - (sx2-sx0)*(sy1-sy0)
-                        p.save()
-                        # Clip in screen space BEFORE any transform (QPainterPath = subpixel accurate)
-                        p.setClipPath(_face_path(pts), Qt.ClipOperation.ReplaceClip)
                         if abs(_det) > 0.5:
                             _id = 1.0 / _det
                             _a = ((dx1-dx0)*(sy2-sy0) - (dx2-dx0)*(sy1-sy0)) * _id
@@ -1201,18 +1198,23 @@ class COL3DViewport(QWidget): #vers 2
                             _e = dx0 - _a*sx0 - _b*sy0
                             _f = dy0 - _c*sx0 - _d*sy0
                             xform = _QTransform(_a, _c, 0, _b, _d, 0, _e, _f, 1)
-                            p.setTransform(xform, False)
+                            p.save()
+                            # Set clip THEN transform — clip is in device coords via CoordMode
+                            p.setClipPath(_face_path(pts), Qt.ClipOperation.ReplaceClip)
+                            p.setWorldTransform(xform, False)
                             p.drawImage(_QRectF(0, 0, tw, th), tex_img)
-                            p.resetTransform()
+                            p.restore()
                         else:
+                            p.save()
+                            p.setClipPath(_face_path(pts), Qt.ClipOperation.ReplaceClip)
                             p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
+                            p.restore()
                         shadow_alpha = int((1.0 - _shade) * 90)
                         if shadow_alpha > 8:
                             p.setBrush(QBrush(QColor(0, 0, 0, shadow_alpha)))
                             p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
-                        p.restore()
                     else:
                         # No texture — shaded solid fallback
                         _sc = mc if mat_obj else QColor(170, 175, 180)
