@@ -1066,9 +1066,8 @@ class COL3DViewport(QWidget): #vers 2
 
         # Hoist imports out of face loop
         import math as _fmod_math  # used for depth sort
-        from PyQt6.QtGui import QTransform as _QTransform, QPolygon as _QPolygon
-        from PyQt6.QtCore import QRectF as _QRectF, QPoint as _QPoint
-        from PyQt6.QtGui import QRegion as _QRegion
+        from PyQt6.QtGui import QTransform as _QTransform
+        from PyQt6.QtCore import QRectF as _QRectF
 
         # Helper: build clip polygon for texture face
         def _face_path(screen_pts):
@@ -1080,9 +1079,6 @@ class COL3DViewport(QWidget): #vers 2
             path.closeSubpath()
             return path
 
-        def _face_region(screen_pts):
-            poly = _QPolygon([_QPoint(int(pt.x()), int(pt.y())) for pt in screen_pts])
-            return _QRegion(poly)
 
         if self._show_mesh and verts and faces:
             # Painter's algorithm: back-to-front depth sort (cached per yaw bucket)
@@ -1194,7 +1190,8 @@ class COL3DViewport(QWidget): #vers 2
                         dx2, dy2 = pts[2].x(), pts[2].y()
                         _det = (sx1-sx0)*(sy2-sy0) - (sx2-sx0)*(sy1-sy0)
                         p.save()
-                        p.setClipRegion(_face_region(pts), Qt.ClipOperation.ReplaceClip)
+                        # Clip in screen space BEFORE any transform (QPainterPath = subpixel accurate)
+                        p.setClipPath(_face_path(pts), Qt.ClipOperation.ReplaceClip)
                         if abs(_det) > 0.5:
                             _id = 1.0 / _det
                             _a = ((dx1-dx0)*(sy2-sy0) - (dx2-dx0)*(sy1-sy0)) * _id
@@ -1204,16 +1201,14 @@ class COL3DViewport(QWidget): #vers 2
                             _e = dx0 - _a*sx0 - _b*sy0
                             _f = dy0 - _c*sx0 - _d*sy0
                             xform = _QTransform(_a, _c, 0, _b, _d, 0, _e, _f, 1)
-                            # combine=False: replace painter transform, don't compound
                             p.setTransform(xform, False)
                             p.drawImage(_QRectF(0, 0, tw, th), tex_img)
                             p.resetTransform()
                         else:
                             p.setBrush(QBrush(mc)); p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
-                        shadow_alpha = int((1.0 - _shade) * 90)  # cap at 90 so texture stays visible
+                        shadow_alpha = int((1.0 - _shade) * 90)
                         if shadow_alpha > 8:
-                            p.resetTransform()
                             p.setBrush(QBrush(QColor(0, 0, 0, shadow_alpha)))
                             p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
