@@ -287,9 +287,11 @@ class COL3DViewport(QWidget): #vers 2
     def set_view_options(self, **kw):     pass
 
 
-    def set_current_model(self, model, index=0): #vers 2
+    def set_current_model(self, model, index=0): #vers 3
         self._model = model
         self._tex_diag_done = False
+        self._sort_cache = None   # invalidate depth sort
+        self._sort_yaw   = None
         # Reset view so the new model is centred and visible
         self._pan_x = 0.0
         self._pan_y = 0.0
@@ -1072,24 +1074,28 @@ class COL3DViewport(QWidget): #vers 2
             return path
 
         if self._show_mesh and verts and faces:
-            # Painter's algorithm: back-to-front depth sort
+            # Painter's algorithm: back-to-front depth sort (cached per yaw bucket)
             import math as _math
             _yr = _math.radians(self._yaw)
             _cy2, _sy2 = _math.cos(_yr), _math.sin(_yr)
-            def _face_depth(face):
-                _idx2 = getattr(face,'vertex_indices',None)
-                if _idx2 is None:
-                    _fa2 = getattr(face,'a',None)
-                    if _fa2 is not None: _idx2=(_fa2,face.b,face.c)
-                if not _idx2 or len(_idx2)!=3: return 0.0
-                try:
-                    d=0.0
-                    for _i in _idx2:
-                        _vx,_vy,_ = g3(verts[_i]); d += _vx*_sy2+_vy*_cy2
-                    return d/3.0
-                except Exception: return 0.0
-            _sorted_faces = sorted(enumerate(faces), key=lambda _t: _face_depth(_t[1]), reverse=True)
-            for face_idx, face in _sorted_faces:
+            _yaw_bucket = int(self._yaw) // 5  # re-sort every 5 degrees
+            if (getattr(self,'_sort_cache',None) is None or
+                    getattr(self,'_sort_yaw',None) != _yaw_bucket):
+                def _face_depth(face):
+                    _idx2 = getattr(face,'vertex_indices',None)
+                    if _idx2 is None:
+                        _fa2 = getattr(face,'a',None)
+                        if _fa2 is not None: _idx2=(_fa2,face.b,face.c)
+                    if not _idx2 or len(_idx2)!=3: return 0.0
+                    try:
+                        d=0.0
+                        for _i in _idx2:
+                            _vx,_vy,_ = g3(verts[_i]); d += _vx*_sy2+_vy*_cy2
+                        return d/3.0
+                    except Exception: return 0.0
+                self._sort_cache = sorted(enumerate(faces), key=lambda _t: _face_depth(_t[1]), reverse=True)
+                self._sort_yaw = _yaw_bucket
+            for face_idx, face in self._sort_cache:
                 idx = getattr(face,'vertex_indices',None)
                 if idx is None:
                     fa = getattr(face,'a',None)
@@ -5831,10 +5837,10 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
                 p.drawEllipse(int(lx)-14,int(ly)-14,28,28)
                 # Solid dot
                 p.setBrush(QBrush(QColor(255,220,80)))
-                p.setPen(QPen(self._get_ui_color('viewport_bg'), 1.5))
+                p.setPen(QPen(QColor(20,25,40), 1.5))
                 p.drawEllipse(int(lx)-5,int(ly)-5,10,10)
                 # Elevation label
-                p.setPen(QPen(self._get_ui_color('border')))
+                p.setPen(QPen(QColor(140,150,200)))
                 from PyQt6.QtGui import QFont
                 p.setFont(QFont("Arial",8))
                 p.drawText(4,196,f"El:{self.el:.0f}°  Az:{self.az:.0f}°")
