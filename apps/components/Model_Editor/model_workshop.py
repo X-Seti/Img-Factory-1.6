@@ -201,20 +201,8 @@ class _DFFGeometryAdapter:
         self.boxes     = []
         self.name      = f"geometry_{geometry_index}"
 
-        # Build world-space vertices when frame info is available
-        frames = getattr(dff_model, 'frames', []) if dff_model else []
-        frame_idx = atomic.frame_index if (atomic and frames) else -1
-
-        if frames and 0 <= frame_idx < len(frames):
-            rot, tx, ty, tz = self._world_matrix(frames, frame_idx)
-            self.vertices = []
-            for v in geometry.vertices:
-                wx = rot[0]*v.x + rot[1]*v.y + rot[2]*v.z + tx
-                wy = rot[3]*v.x + rot[4]*v.y + rot[5]*v.z + ty
-                wz = rot[6]*v.x + rot[7]*v.y + rot[8]*v.z + tz
-                self.vertices.append(self._V3(wx, wy, wz))
-        else:
-            self.vertices = list(geometry.vertices)
+        # Use raw local-space vertices — world transform not needed for single-geom preview
+        self.vertices = list(geometry.vertices)
 
     @property
     def vertex_count(self):   return len(self.vertices)
@@ -1111,8 +1099,10 @@ class COL3DViewport(QWidget): #vers 2
                 try:
                     pts=[QPointF(*to_screen(*g3(verts[i]))) for i in idx]
                 except (IndexError,AttributeError): continue
-                # Back-face cull disabled — GTA models have inconsistent winding
-                # Depth sort handles occlusion instead
+                # Backface detection — darken back faces, don't cull (GTA winding inconsistent)
+                _ax=pts[1].x()-pts[0].x(); _ay=pts[1].y()-pts[0].y()
+                _bx=pts[2].x()-pts[0].x(); _by=pts[2].y()-pts[0].y()
+                _is_backface = (_ax*_by - _ay*_bx) > 0
                 _mat = getattr(face,'material',0)
                 _mat_id = getattr(_mat,'material_id',_mat) if not isinstance(_mat,int) else _mat
                 mc = mat_col(_mat_id)
@@ -1141,12 +1131,16 @@ class COL3DViewport(QWidget): #vers 2
                 except Exception:
                     _shade = 0.7
 
+                # Darken back faces
+                if _is_backface:
+                    _shade = _shade * 0.35
+
                 if is_selected:
                     p.setBrush(QBrush(QColor(255, 200, 50, 200)))
                     p.setPen(QPen(QColor(255, 230, 80), 2))
                     p.drawPolygon(QPolygonF(pts))
 
-                elif rs == 'textured':
+                elif rs == 'textured' and not _is_backface:
                     # Fast textured path: affine UV blit using drawImage(target, src, src_rect)
                     # No per-face transform stack — one drawImage call per face.
                     tex_img = None
@@ -1226,6 +1220,14 @@ class COL3DViewport(QWidget): #vers 2
                         p.setBrush(QBrush(shaded_fb))
                         p.setPen(QPen(QColor(80, 80, 80, 60), 0.3))
                         p.drawPolygon(QPolygonF(pts))
+
+                elif rs == 'textured' and _is_backface:
+                    # Back face in textured mode — shaded solid with darkened colour
+                    _s = _shade
+                    shaded_bf = QColor(int(mc.red()*_s), int(mc.green()*_s), int(mc.blue()*_s), 200)
+                    p.setBrush(QBrush(shaded_bf))
+                    p.setPen(QPen(QColor(40,40,40,60), 0.3))
+                    p.drawPolygon(QPolygonF(pts))
 
                 elif rs == 'solid':
                     # Apply Lambertian shading
