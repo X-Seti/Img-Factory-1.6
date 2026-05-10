@@ -477,17 +477,19 @@ class ModelViewerWidget(QWidget):
 
     # ── UI construction ───────────────────────────────────────
 
-    def _build_ui(self): #vers 1
+    def _build_ui(self): #vers 2
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
+        # Viewport must exist before toolbar (toolbar buttons reference it)
+        self.viewport = DFFViewport()
 
         root.addWidget(self._build_toolbar())
 
         # Splitter: geom list | viewport
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._build_geom_panel())
-        self.viewport = DFFViewport()
         splitter.addWidget(self.viewport)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
