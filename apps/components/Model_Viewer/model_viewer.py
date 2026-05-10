@@ -117,11 +117,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     # ── helpers ──────────────────────────────────────────────
 
-    def _get_ui_color(self, key): #vers 1
-        pal = self.palette()
+    def _get_ui_color(self, key): #vers 2
+        try:
+            app_settings = getattr(self, 'app_settings', None)
+            if app_settings and hasattr(app_settings, 'get_ui_color'):
+                return app_settings.get_ui_color(key)
+        except Exception:
+            pass
         defaults = {
-            'viewport_bg': pal.color(pal.ColorRole.Base),
-            'grid':        QColor(60, 65, 80),
+            'viewport_bg': QColor(18, 20, 28),
+            'grid':        QColor(45, 50, 65),
         }
         return defaults.get(key, QColor(200, 200, 200))
 
@@ -175,6 +180,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
         if not self._vertices:
             return
+
+        # GTA uses Z-up, Y-forward. OpenGL is Y-up, Z-forward.
+        # Rotate -90° around X to convert: Z→Y, Y→-Z
+        glRotatef(-90, 1, 0, 0)
 
         # Backface culling
         if self._backface_cull:
@@ -473,7 +482,40 @@ class ModelViewerWidget(QWidget):
         self._dff_model    = None
         self._last_dir     = ''
         self._current_geom = 0
+        # Inherit app_settings from main_window for theme + icons
+        if main_window and hasattr(main_window, 'app_settings'):
+            self.app_settings = main_window.app_settings
+        else:
+            self.app_settings = None
         self._build_ui()
+        self._apply_theme()
+
+    # ── theme ─────────────────────────────────────────────────
+
+    def _apply_theme(self): #vers 1
+        try:
+            if self.app_settings:
+                self.setStyleSheet(self.app_settings.get_stylesheet())
+            else:
+                self.setStyleSheet(
+                    "QWidget{background:#1a1d26;color:#cccccc;}"
+                    "QPushButton{background:#2a2d3a;border:1px solid #444;color:#ccc;"
+                    "padding:2px 6px;border-radius:3px;}"
+                    "QPushButton:hover{background:#3a3d4a;}"
+                    "QPushButton:checked{background:#4a6090;border-color:#6a90d0;}"
+                    "QListWidget{background:#141620;border:1px solid #333;color:#ccc;}"
+                    "QLabel{color:#aaa;}")
+        except Exception as e:
+            print(f"[ModelViewer] Theme error: {e}")
+
+    def _get_icon_color(self): #vers 1
+        try:
+            if self.app_settings:
+                colors = self.app_settings.get_theme_colors()
+                return colors.get('text_primary', '#ffffff')
+        except Exception:
+            pass
+        return '#ffffff'
 
     # ── UI construction ───────────────────────────────────────
 
@@ -484,6 +526,7 @@ class ModelViewerWidget(QWidget):
 
         # Viewport must exist before toolbar (toolbar buttons reference it)
         self.viewport = DFFViewport()
+        self.viewport.app_settings = self.app_settings
 
         root.addWidget(self._build_toolbar())
 
@@ -501,7 +544,7 @@ class ModelViewerWidget(QWidget):
         self._status_lbl.setContentsMargins(6, 2, 6, 2)
         root.addWidget(self._status_lbl)
 
-    def _build_toolbar(self) -> QFrame: #vers 1
+    def _build_toolbar(self) -> QFrame: #vers 2
         bar = QFrame()
         bar.setFrameShape(QFrame.Shape.StyledPanel)
         bar.setFixedHeight(40)
@@ -509,10 +552,26 @@ class ModelViewerWidget(QWidget):
         lay.setContentsMargins(6, 2, 6, 2)
         lay.setSpacing(4)
 
-        def _btn(text, tip, cb, checkable=False, checked=False):
+        ic = self._get_icon_color()
+
+        def _icon(name):
+            if not ICONS_AVAILABLE:
+                return None
+            try:
+                factory = SVGIconFactory
+                fn = getattr(factory, name + '_icon', None)
+                return fn(size=16, color=ic) if fn else None
+            except Exception:
+                return None
+
+        def _btn(text, tip, cb, checkable=False, checked=False, icon_name=None):
             b = QPushButton(text)
             b.setToolTip(tip)
             b.setFixedHeight(28)
+            ico = _icon(icon_name) if icon_name else None
+            if ico:
+                b.setIcon(ico)
+                b.setIconSize(QSize(16, 16))
             if checkable:
                 b.setCheckable(True)
                 b.setChecked(checked)
@@ -521,18 +580,26 @@ class ModelViewerWidget(QWidget):
                 b.clicked.connect(cb)
             return b
 
-        lay.addWidget(_btn("Open DFF", "Open DFF model file", self._open_dff))
-        lay.addWidget(_btn("Open TXD", "Open TXD texture file", self._open_txd))
+        lay.addWidget(_btn("Open DFF", "Open DFF model file", self._open_dff, icon_name="open"))
+        lay.addWidget(_btn("Open TXD", "Open TXD texture file", self._open_txd, icon_name="open"))
         lay.addSpacing(8)
 
         # Render mode group
         self._mode_group = QButtonGroup(self)
-        for label, mode in [("Wire","wireframe"),("Solid","solid"),("Tex","textured")]:
+        self._mode_group.setExclusive(True)
+        for label, mode, iname in [
+            ("Wire",  "wireframe", "wireframe"),
+            ("Solid", "solid",     "solid"),
+            ("Tex",   "textured",  "texture"),
+        ]:
             b = QPushButton(label)
             b.setCheckable(True)
             b.setFixedHeight(28)
-            b.setFixedWidth(44)
+            b.setFixedWidth(52)
             b.setToolTip(f"{mode.capitalize()} render mode")
+            ico = _icon(iname)
+            if ico:
+                b.setIcon(ico); b.setIconSize(QSize(16,16))
             b.clicked.connect(lambda _, m=mode: self.viewport.set_render_mode(m))
             self._mode_group.addButton(b)
             lay.addWidget(b)
@@ -540,16 +607,20 @@ class ModelViewerWidget(QWidget):
                 b.setChecked(True)
 
         lay.addSpacing(8)
-        self._cull_btn = _btn("Cull", "Toggle backface culling", self.viewport.set_backface_cull, checkable=True, checked=True)
-        self._cull_btn.setFixedWidth(44)
+        self._cull_btn = _btn("Cull", "Toggle backface culling ON/OFF",
+                              self.viewport.set_backface_cull,
+                              checkable=True, checked=True, icon_name="backface")
+        self._cull_btn.setFixedWidth(52)
         lay.addWidget(self._cull_btn)
 
-        self._grid_btn = _btn("Grid", "Toggle grid", self.viewport.set_show_grid, checkable=True, checked=True)
-        self._grid_btn.setFixedWidth(44)
+        self._grid_btn = _btn("Grid", "Toggle grid",
+                              self.viewport.set_show_grid,
+                              checkable=True, checked=True, icon_name="grid")
+        self._grid_btn.setFixedWidth(52)
         lay.addWidget(self._grid_btn)
 
         lay.addSpacing(8)
-        lay.addWidget(_btn("Reset", "Reset camera", self.viewport.reset_camera))
+        lay.addWidget(_btn("Reset", "Reset camera", self.viewport.reset_camera, icon_name="reset"))
 
         lay.addStretch()
 
