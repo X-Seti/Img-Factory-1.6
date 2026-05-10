@@ -250,8 +250,12 @@ class DFFParser:
         geom.triangles = binmesh_tris if binmesh_tris else (inline_tris if 'inline_tris' in dir() else [])
         return geom
 
-    def _parse_binmesh(self, start: int, end: int) -> list: #vers 1
-        """Parse BinMesh plugin (0x050E). Returns Triangle list."""
+    def _parse_binmesh(self, start: int, end: int) -> list: #vers 2
+        """Parse BinMesh plugin (0x050E). Returns Triangle list.
+        Algorithm matches DragonFF exactly (see gtaLib/dff.py read_matplit_plg).
+        Strip: sliding window of 2 previous verts, j%2 controls winding, no restart detection.
+        List:  read 3 indices at a time, winding = (v2, v1, mat, v3) -> Triangle(v1,v2,v3).
+        """
         pos = start
         while pos + 12 <= end:
             ct, sz, lib, dp = read_chunk(self.data, pos)
@@ -259,38 +263,46 @@ class DFFParser:
                 if dp + 12 > len(self.data):
                     break
                 face_type, mesh_count, total_idx = struct.unpack_from('<III', self.data, dp)
+                is_strip = (face_type == 1)
                 bp = dp + 12
-                indices = []
-                for _ in range(mesh_count):
+                tris = []
+
+                for mi in range(mesh_count):
                     if bp + 8 > len(self.data):
                         break
                     idx_count, mat_idx = struct.unpack_from('<II', self.data, bp); bp += 8
-                    for j in range(idx_count):
-                        if bp + j * 4 + 4 > len(self.data):
-                            break
-                        indices.append((struct.unpack_from('<I', self.data, bp + j * 4)[0], mat_idx))
-                    bp += idx_count * 4
-                tris = []
-                if face_type == 0:  # triangle list
-                    i = 0
-                    while i + 2 < len(indices):
-                        v0, m = indices[i]; v1, _ = indices[i+1]; v2, _ = indices[i+2]
-                        tris.append(Triangle(v0, v1, v2, m)); i += 3
-                else:               # triangle strip with restart markers
-                    # Repeated index = strip restart; reset winding counter
-                    seg_pos = 0   # position within current strip segment
-                    for i in range(len(indices) - 2):
-                        v0, m = indices[i]; v1, _ = indices[i+1]; v2, _ = indices[i+2]
-                        # Degenerate = restart marker; reset segment position
-                        if v0 == v1 or v1 == v2 or v0 == v2:
-                            if v0 == v1:   # restart: skip and reset counter
-                                seg_pos = 0
-                            continue
-                        if seg_pos % 2 == 0:
-                            tris.append(Triangle(v0, v1, v2, m))
-                        else:
-                            tris.append(Triangle(v0, v2, v1, m))
-                        seg_pos += 1
+
+                    if is_strip:
+                        # DragonFF algorithm: sliding window, global j counter
+                        prev = []
+                        for j in range(idx_count):
+                            if bp + 4 > len(self.data): break
+                            vertex = struct.unpack_from('<I', self.data, bp)[0]; bp += 4
+                            if len(prev) < 2:
+                                prev.append(vertex)
+                                continue
+                            # Winding matches DragonFF:
+                            # even j: Triangle(a=prev[0], b=prev[1], c=vertex)
+                            # odd  j: Triangle(a=prev[1], b=prev[0], c=vertex)
+                            if j % 2 == 0:
+                                tris.append(Triangle(prev[0], prev[1], vertex, mat_idx))
+                            else:
+                                tris.append(Triangle(prev[1], prev[0], vertex, mat_idx))
+                            prev[0] = prev[1]
+                            prev[1] = vertex
+                    else:
+                        # Triangle list: ic indices as 4-byte ints, grouped by 3
+                        raw = []
+                        for j in range(idx_count):
+                            if bp + 4 > len(self.data): break
+                            raw.append(struct.unpack_from('<I', self.data, bp)[0]); bp += 4
+                        i = 0
+                        while i + 2 < len(raw):
+                            v0, v1, v2 = raw[i], raw[i+1], raw[i+2]
+                            tris.append(Triangle(v0, v1, v2, mat_idx)); i += 3
+
+                # Filter degenerate (restart marker) triangles
+                tris = [t for t in tris if t.v1!=t.v2 and t.v2!=t.v3 and t.v1!=t.v3]
                 return tris
             pos = dp + sz
         return []
