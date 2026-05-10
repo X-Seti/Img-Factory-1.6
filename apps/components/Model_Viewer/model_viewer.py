@@ -1392,8 +1392,14 @@ class ModelViewer(ToolMenuMixin, QWidget):
 #  Entry point
 # ─────────────────────────────────────────────────────────────
 
-def open_model_viewer(main_window=None, dff_path=None, txd_path=None, img=None): #vers 2
-    """Open the Model Viewer as a floating window."""
+def open_model_viewer(main_window=None, dff_path=None, txd_path=None, img=None): #vers 3
+    """Open the Model Viewer docked in main_window if available, else floating."""
+    # Prefer docked mode when main_window supports it
+    if main_window and hasattr(main_window, "open_model_viewer_docked"):
+        viewer = main_window.open_model_viewer_docked(dff_path, txd_path, img)
+        if viewer:
+            return viewer, viewer
+    # Fallback: floating window
     viewer = ModelViewer(None, main_window)
     if dff_path: viewer.load_dff(dff_path)
     if txd_path: viewer.load_txd(txd_path)
@@ -1401,7 +1407,7 @@ def open_model_viewer(main_window=None, dff_path=None, txd_path=None, img=None):
     viewer.show()
     viewer.raise_()
     viewer.activateWindow()
-    return viewer, viewer   # (win, viewer) compatible with callers
+    return viewer, viewer
 
 
 if __name__ == '__main__':

@@ -1578,6 +1578,57 @@ class IMGFactory(QMainWindow):
         except Exception as e:
             pass   # auto-load is best-effort
 
+    def open_model_viewer_docked(self, dff_path=None, txd_path=None, img=None): #vers 1
+        """Open GL Model Viewer docked as a tab in IMG Factory."""
+        try:
+            from PyQt6.QtWidgets import QVBoxLayout, QWidget
+            from PyQt6.QtCore import Qt, QTimer
+            from apps.components.Model_Viewer.model_viewer import ModelViewer
+
+            # Bring existing tab to front if already open
+            for i in range(self.main_tab_widget.count()):
+                widget = self.main_tab_widget.widget(i)
+                if widget:
+                    viewers = widget.findChildren(ModelViewer)
+                    if viewers:
+                        self.main_tab_widget.setCurrentIndex(i)
+                        v = viewers[0]
+                        if dff_path: QTimer.singleShot(100, lambda: v.load_dff(dff_path))
+                        if txd_path: QTimer.singleShot(200, lambda: v.load_txd(txd_path))
+                        if img:      QTimer.singleShot(50,  lambda: v.load_img(img))
+                        return v
+
+            # Create tab container
+            tab_container = QWidget()
+            tab_container.file_type = "WORKSHOP"
+            tab_layout = QVBoxLayout(tab_container)
+            tab_layout.setContentsMargins(0, 0, 0, 0)
+            tab_layout.setSpacing(0)
+
+            viewer = ModelViewer(tab_container, self)
+            viewer.setWindowFlags(Qt.WindowType.Widget)
+            viewer.standalone_mode = False
+            tab_layout.addWidget(viewer)
+
+            if dff_path: QTimer.singleShot(100, lambda: viewer.load_dff(dff_path))
+            if txd_path: QTimer.singleShot(200, lambda: viewer.load_txd(txd_path))
+            if img:      QTimer.singleShot(50,  lambda: viewer.load_img(img))
+
+            try:
+                from apps.methods.imgfactory_svg_icons import SVGIconFactory
+                icon = SVGIconFactory.cube_icon(20, '#ffffff')
+                idx = self.main_tab_widget.addTab(tab_container, icon, "Model Viewer")
+            except Exception:
+                idx = self.main_tab_widget.addTab(tab_container, "Model Viewer")
+
+            self.main_tab_widget.setCurrentIndex(idx)
+            self.log_message("Model Viewer opened")
+            return viewer
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            self.log_message(f"Model Viewer error: {e}")
+            return None
+
     def open_model_workshop_docked(self, dff_name=None, file_path=None): #vers 1
         """Open Model Workshop in its own tab with icon"""
         try:
