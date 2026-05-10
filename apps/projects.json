@@ -14,5 +14,29 @@
     "assists_path": "/home/x2/Desktop/depends",
     "created_date": "2026-05-06T23:14:15.984799",
     "last_used": "2026-05-06T23:14:37.640820"
+  },
+  "GTALC-PC": {
+    "name": "GTALC-PC",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTALC-PC",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTALC-PC",
+    "assists_path": "/home/x2/Desktop",
+    "created_date": "2026-05-10T16:36:25.590006",
+    "last_used": ""
+  },
+  "GTAVC-PC": {
+    "name": "GTAVC-PC",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC",
+    "assists_path": "/home/x2/Desktop/gta_resouce",
+    "created_date": "2026-05-10T16:38:03.292048",
+    "last_used": "2026-05-11T00:12:38.611174"
+  },
+  "GTASA-PC": {
+    "name": "GTASA-PC",
+    "project_folder": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC",
+    "game_root": "/home/x2/Desktop/gta_resouce/PC/GTASA-PC",
+    "assists_path": "/home/x2/Desktop/gta_resouce",
+    "created_date": "2026-05-10T16:39:18.222221",
+    "last_used": "2026-05-10T16:39:25.608893"
   }
 }

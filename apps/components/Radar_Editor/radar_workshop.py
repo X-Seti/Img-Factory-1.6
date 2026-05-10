@@ -1009,8 +1009,6 @@ class RadarPaletteWidget(QWidget):
                 self.color_picked.emit(new_c)
 
 
-
-
 class _BoredomPuzzle(QDialog):
     """🧩 Sliding tile puzzle using the loaded radar map tiles."""
 

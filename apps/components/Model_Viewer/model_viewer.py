@@ -7,17 +7,19 @@ Canvas: DFFViewport(QOpenGLWidget).
 View-only. Orbit/pan/zoom, wireframe/solid/textured, prelighting, light setup.
 """
 
-import os, sys, math, json
+import os, json, sys, requests, threading, struct, re, math, shutil
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict
-
-current_dir  = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+from typing import Optional, List, Dict, Tuple
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
 os.environ.setdefault('QSG_RHI_BACKEND',  'opengl')
+
+#Adding Standalone
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
@@ -27,8 +29,8 @@ from PyQt6.QtWidgets import (
     QTabWidget, QSlider, QComboBox, QSpinBox, QMenu, QScrollArea,
     QFontComboBox
 )
-from PyQt6.QtCore import Qt, QPoint, QSize, QTimer, pyqtSignal
-from PyQt6.QtGui  import QColor, QFont, QImage, QAction
+from PyQt6.QtCore import pyqtSignal, Qt, QPoint, QSize, QThread, QTimer
+from PyQt6.QtGui import  QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut
 
 try:
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
@@ -46,20 +48,68 @@ try:
 except ImportError:
     ICONS_AVAILABLE = False
 
-try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
-except ImportError:
-    class ToolMenuMixin: pass
 
-try:
-    from apps.utils.app_settings_system import AppSettings
-    APPSETTINGS_AVAILABLE = True
-except ImportError:
-    APPSETTINGS_AVAILABLE = False
+# - Detect standalone vs docked
+def _is_standalone():
+    import inspect
+    frame = inspect.currentframe()
+    try:
+        for _ in range(10):
+            frame = frame.f_back
+            if frame is None: break
+            if 'imgfactory' in frame.f_code.co_filename.lower(): return False
+        return True
+    finally:
+        del frame
+
+STANDALONE_MODE = _is_standalone()
+DEBUG_STANDALONE = False
 
 App_name  = "Model Viewer"
 App_build = "May 2026"
 Build     = "Build 001"
+
+
+#    Infrastructure imports
+try:
+    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+    ICONS_AVAILABLE = True
+except ImportError:
+    ICONS_AVAILABLE = False
+    class SVGIconFactory:
+        @staticmethod
+        def settings_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def properties_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def info_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def open_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def save_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def minimize_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def maximize_icon(s=20, c='#fff'): return QIcon()
+        @staticmethod
+        def close_icon(s=20, c='#fff'): return QIcon()
+
+try:
+    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    APPSETTINGS_AVAILABLE = True
+except ImportError:
+    APPSETTINGS_AVAILABLE = False
+    AppSettings = None
+
+
+try:
+    from apps.gui.tool_menu_mixin import ToolMenuMixin
+except ImportError:
+    class ToolMenuMixin:
+        def get_menu_title(self): return App_name
+        def _build_menus_into_qmenu(self, m): pass
+        def _get_tool_menu_style(self): return 'dropdown'
+
 
 ## Methods list -
 # MVSettings.__init__ / get / set / save
@@ -88,10 +138,8 @@ Build     = "Build 001"
 # open_model_viewer
 
 
-# ─────────────────────────────────────────────────────────────
-#  Settings
-# ─────────────────────────────────────────────────────────────
 
+# - Settings
 class MVSettings:
     """Lightweight JSON settings for Model Viewer."""
     _PATH = os.path.expanduser('~/.config/imgfactory/model_viewer.json')
@@ -129,37 +177,67 @@ class MVSettings:
         self._data['recent'] = r[:10]
 
 
-# ─────────────────────────────────────────────────────────────
-#  Corner overlay (from RadarWorkshop)
-# ─────────────────────────────────────────────────────────────
-
+# - Corner overlay (from RadarWorkshop)
 class _CornerOverlay(QWidget):
-    SIZE = 20
+    """Transparent overlay that draws corner resize triangles on top of all children.
+    Uses setMask() so only the triangle pixels exist — fully transparent elsewhere.
+    WA_AlwaysStackOnTop keeps it above all sibling widgets on Wayland/KDE."""
 
-    def __init__(self, parent): #vers 1
+    SIZE = 20   # triangle leg size in pixels
+
+    def __init__(self, parent): #vers 3
         super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
-        self._hover  = None
-        self._settings = None
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
+        self.setWindowFlags(Qt.WindowType.Widget)
+        self._hover_corner = None
+        self._app_settings = None
+        self.setGeometry(0, 0, parent.width(), parent.height())
+        self._update_mask()
 
-    def update_state(self, hover, app_settings=None): #vers 1
+    def _update_mask(self): #vers 1
+        """Create a mask covering only the four corner triangles."""
+        from PyQt6.QtGui import QRegion, QPolygon
+        from PyQt6.QtCore import QPoint
+        s = self.SIZE
+        w, h = self.width(), self.height()
+        region = QRegion()
+        for pts in [
+            [QPoint(0,0),    QPoint(s,0),    QPoint(0,s)],     # top-left
+            [QPoint(w,0),    QPoint(w-s,0),  QPoint(w,s)],     # top-right
+            [QPoint(0,h),    QPoint(s,h),    QPoint(0,h-s)],   # bottom-left
+            [QPoint(w,h),    QPoint(w-s,h),  QPoint(w,h-s)],   # bottom-right
+        ]:
+            region = region.united(QRegion(QPolygon(pts)))
+        self.setMask(region)
+
+    def update_state(self, hover_corner, app_settings): #vers 2
         self._hover    = hover
         self._settings = app_settings
         self.update()
 
-    def paintEvent(self, event): #vers 1
-        from PyQt6.QtGui import QPainter, QPainterPath, QColor
+    def setGeometry(self, *args): #vers 1
+        super().setGeometry(*args)
+        self._update_mask()
+
+    def resizeEvent(self, event): #vers 1
+        super().resizeEvent(event)
+        self._update_mask()
+
+    def paintEvent(self, event): #vers 2
         s = self.SIZE
-        try:
-            if self._settings:
-                colors  = self._settings.get_theme_colors()
-                accent  = QColor(colors.get('accent_primary', '#4682FF'))
-            else:
+        if self._app_settings:
+            try:
+                colors = self._app_settings.get_theme_colors()
+                accent = QColor(colors.get('accent_primary', '#4682FF'))
+            except Exception:
                 accent = QColor(70, 130, 255)
-        except Exception:
+        else:
             accent = QColor(70, 130, 255)
         accent.setAlpha(200)
+        hover_c = QColor(accent); hover_c.setAlpha(255)
         w, h = self.width(), self.height()
         corners = {
             'top-left':     [(0,0),  (s,0),   (0,s)],
@@ -167,19 +245,18 @@ class _CornerOverlay(QWidget):
             'bottom-left':  [(0,h),  (s,h),   (0,h-s)],
             'bottom-right': [(w,h),  (w-s,h), (w,h-s)],
         }
-        p = QPainter(self)
-        p.setRenderHint(p.RenderHint.Antialiasing)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         for name, pts in corners.items():
             path = QPainterPath()
-            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2]); path.closeSubpath()
-            col = QColor(accent); col.setAlpha(255 if name == self._hover else 160)
-            p.fillPath(path, col)
+            path.moveTo(*pts[0]); path.lineTo(*pts[1]); path.lineTo(*pts[2])
+            path.closeSubpath()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(hover_c if self._hover_corner == name else accent))
+            painter.drawPath(path)
+        painter.end()
 
-
-# ─────────────────────────────────────────────────────────────
-#  OpenGL viewport
-# ─────────────────────────────────────────────────────────────
-
+# - OpenGL viewport
 class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     """Hardware OpenGL viewport for DFF geometry."""
 
@@ -233,8 +310,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         }
         return defaults.get(key, QColor(200, 200, 200))
 
-    # ── OpenGL lifecycle ─────────────────────────────────────
 
+    # - OpenGL lifecycle
     def initializeGL(self): #vers 1
         if not OPENGL_AVAILABLE: return
         bg = self._get_ui_color('viewport_bg')
@@ -300,8 +377,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         elif self._mode == 'textured':  self._draw_textured()
         glPopMatrix()
 
-    # ── draw calls ───────────────────────────────────────────
 
+    # - draw calls
     def _draw_grid(self): #vers 1
         glDisable(GL_LIGHTING)
         gc = self._get_ui_color('grid')
@@ -380,6 +457,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 r,g,b = self._face_color(mid); glColor3f(r,g,b)
             self._emit_verts(v1,v2,v3, use_prelit=use_p)
         glEnd()
+
         # Wireframe overlay
         glDisable(GL_LIGHTING)
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
@@ -396,6 +474,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnable(GL_LIGHTING); glEnable(GL_TEXTURE_2D)
         use_p = self._use_prelight and self._prelit
         mats  = self._materials
+
         # Group by texture
         by_tex: Dict[int,list] = {}; no_tex = []
         for tri in self._triangles:
@@ -423,8 +502,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             glEnd()
         glEnable(GL_TEXTURE_2D)
 
-    # ── textures ─────────────────────────────────────────────
 
+    # - textures
     def _upload_textures(self, textures: list): #vers 1
         if not OPENGL_AVAILABLE: return
         self.makeCurrent(); self.clear_textures()
@@ -454,8 +533,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             except Exception: pass
         self._tex_ids.clear()
 
-    # ── public API ────────────────────────────────────────────
 
+    # - public API
     def load_geometry(self, geometry, materials: list): #vers 1
         self._vertices  = [(v.x,v.y,v.z) for v in geometry.vertices]
         self._normals   = [(n.x,n.y,n.z) for n in geometry.normals] if geometry.normals else []
@@ -589,8 +668,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
         self._auto_fit()
 
-    # ── mouse ─────────────────────────────────────────────────
 
+    # - mouse
     def mousePressEvent(self, event): #vers 1
         self._last_pos = event.pos(); self._dragging=True; self._drag_btn=event.button()
 
@@ -614,10 +693,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._dist = max(0.1, min(50000.0, self._dist*f)); self.update()
 
 
-# ─────────────────────────────────────────────────────────────
-#  Main workshop widget (RadarWorkshop pattern)
-# ─────────────────────────────────────────────────────────────
-
+# - Main workshop widget (RadarWorkshop pattern)
 class ModelViewer(ToolMenuMixin, QWidget):
     """Model Viewer — RadarWorkshop UI template with DFFViewport canvas."""
 
@@ -729,7 +805,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self.setup_ui()
         self._apply_theme()
 
-    # ── margins (template) ────────────────────────────────────
+    # - margins (template)
 
     def get_content_margins(self): #vers 1
         return (self.contmergina, self.contmerginb, self.contmerginc, self.contmergind)
@@ -740,7 +816,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
     def get_tab_margins(self): #vers 1
         return (self.tabmerginsa, self.tabmerginsb, self.tabmerginsc, self.tabmerginsd)
 
-    # ── setup_ui ─────────────────────────────────────────────
+    # - setup_ui
 
     def setup_ui(self): #vers 2
         main_layout = QVBoxLayout(self)
@@ -764,8 +840,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         main_layout.addWidget(splitter, 1)
         main_layout.addWidget(self._create_status_bar())
 
-    # ── toolbar ───────────────────────────────────────────────
 
+    # - toolbar
     def _create_toolbar(self): #vers 1
         self.toolbar = QFrame()
         self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -775,7 +851,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self.toolbar.setMouseTracking(True)
         self.toolbar.setFixedHeight(self.titlebarheight)
         self.titlebar = self.toolbar  # alias for drag detection
-
+        icon_color = self._get_icon_color()
         ic = self._get_icon_color()
         lay = QHBoxLayout(self.toolbar)
         lay.setContentsMargins(*self.get_panel_margins())
@@ -816,12 +892,16 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         # Settings
         self.settings_btn = QPushButton()
-        ico = _icon('settings'); 
-        if ico: self.settings_btn.setIcon(ico); self.settings_btn.setIconSize(QSize(20,20))
-        else: self.settings_btn.setText("Settings")
-        self.settings_btn.setFixedSize(35,35)
+        self.settings_btn.setFont(self.button_font)
+        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
+        self.settings_btn.setText("Settings")
+        self.settings_btn.setIconSize(QSize(20, 20))
+        self.settings_btn.setFixedHeight(28)
+        #self.settings_btn.setFixedSize(35,35)
         self.settings_btn.setToolTip("Model Viewer Settings")
         self.settings_btn.clicked.connect(self._show_workshop_settings)
+        self.settings_btn.setToolTip(App_name + "Workshop Settings")
+        self.settings_btn.setVisible(True)  # show in both standalone and docked
         lay.addWidget(self.settings_btn)
 
         lay.addSpacing(8)
@@ -833,6 +913,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         lay.addWidget(self.open_txd_btn)
 
         lay.addSpacing(8)
+
+        #TODO; Move Extea buttons shown below to right panel. keep standlone here.
 
         # Render mode (exclusive)
         self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
@@ -863,9 +945,9 @@ class ModelViewer(ToolMenuMixin, QWidget):
         for attr, label, tip, cb, iname, ch, chk in [
             ('_cull_btn',   'Cull', 'Backface culling',    self.viewport.set_backface_cull, 'backface', True, True),
             ('_grid_btn',   'Grid', 'Toggle grid',         self.viewport.set_show_grid,    'grid',     True, True),
-            ('_prelit_btn', 'Pre',  'Vertex prelighting',  self.viewport.set_prelight,     'shading',  True, False),
+            ('_prelit_btn', 'PreLight',  'Vertex prelighting',  self.viewport.set_prelight,     'shading',  True, False),
         ]:
-            b = _QTB(); b.setFixedHeight(26); b.setFont(self.button_font); b.setToolTip(tip)
+            b = _QTB(); b.setFixedHeight(28); b.setFont(self.button_font); b.setToolTip(tip)
             ico = _icon(iname,14)
             if ico:
                 b.setIcon(ico); b.setIconSize(QSize(14,14)); b.setText(label)
@@ -880,27 +962,31 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addSpacing(4)
         for label, tip, cb, iname in [
-            ("reL","Reset camera",self.viewport.reset_camera,'reset'),
+            ("Cam","Reset camera",self.viewport.reset_camera,'reset'),
             ("Light","Light setup",self._light_setup_dialog,'light'),
         ]:
-            b = QPushButton(label); b.setFixedHeight(26); b.setFont(self.button_font)
+            b = QPushButton(label); b.setFixedHeight(28); b.setFont(self.button_font)
             b.setToolTip(tip)
             ico = _icon(iname,14)
             if ico: b.setIcon(ico); b.setIconSize(QSize(14,14))
             b.clicked.connect(cb); lay.addWidget(b)
 
         lay.addSpacing(4)
-        self._assemble_btn = QPushButton("All")
-        self._assemble_btn.setFixedHeight(26); self._assemble_btn.setFixedWidth(36)
-        self._assemble_btn.setCheckable(True); self._assemble_btn.setChecked(False)
+        self._assemble_btn = QPushButton("Assemble")
+        self._assemble_btn.setFixedHeight(28)
+        self._assemble_btn.setFixedWidth(84)
+        self._assemble_btn.setCheckable(True)
+        self._assemble_btn.setChecked(False)
         self._assemble_btn.setFont(self.button_font)
         self._assemble_btn.setToolTip("Show all parts assembled at world positions")
         self._assemble_btn.toggled.connect(self._toggle_assembly_mode)
         lay.addWidget(self._assemble_btn)
 
-        self._damage_btn = QPushButton("Dmg")
-        self._damage_btn.setFixedHeight(26); self._damage_btn.setFixedWidth(36)
-        self._damage_btn.setCheckable(True); self._damage_btn.setChecked(False)
+        self._damage_btn = QPushButton("Damage")
+        self._damage_btn.setFixedHeight(28)
+        self._damage_btn.setFixedWidth(76)
+        self._damage_btn.setCheckable(True)
+        self._damage_btn.setChecked(False)
         self._damage_btn.setFont(self.button_font)
         self._damage_btn.setToolTip("Show damaged state (_dam parts)")
         self._damage_btn.toggled.connect(self._toggle_damage_mode)
@@ -914,8 +1000,27 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addStretch()
 
+
         # Window controls (standalone only)
         if self.standalone_mode:
+            # - Info button (before Theme)
+            self.info_radar_btn = QPushButton()
+            self.info_radar_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
+            self.info_radar_btn.setIconSize(QSize(20, 20))
+            self.info_radar_btn.setFixedSize(35, 35)
+            self.info_radar_btn.setToolTip("About Radar Workshop")
+            self.info_radar_btn.clicked.connect(self._show_about)
+            layout.addWidget(self.info_radar_btn)
+
+            # - Theme / Properties
+            self.properties_btn = QPushButton()
+            self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
+            self.properties_btn.setIconSize(QSize(20, 20))
+            self.properties_btn.setFixedSize(35, 35)
+            self.properties_btn.setToolTip("Theme Settings")
+            self.properties_btn.clicked.connect(self._launch_theme_settings)
+            layout.addWidget(self.properties_btn)
+
             self.minimize_btn = QPushButton(); self.minimize_btn.setFixedSize(32,28)
             self.maximize_btn = QPushButton(); self.maximize_btn.setFixedSize(32,28)
             self.close_btn    = QPushButton(); self.close_btn.setFixedSize(32,28)
@@ -932,12 +1037,13 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         return self.toolbar
 
+
     def _toggle_maximise(self): #vers 1
         if self.isMaximized(): self.showNormal()
         else:                  self.showMaximized()
 
-    # ── left panel — geometry + texture lists ─────────────────
 
+    # - left panel — geometry + texture lists
     def _make_section_header(self, title, search_cb=None): #vers 1
         """Collapsible section header row with optional search box."""
         row = QWidget(); rl = QHBoxLayout(row); rl.setContentsMargins(0,0,0,0); rl.setSpacing(2)
@@ -956,6 +1062,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
             item = self._img_list.item(i)
             item.setHidden(bool(ft) and ft not in item.text().lower())
 
+
     def _create_left_panel(self): #vers 2
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(180); panel.setMaximumWidth(280)
@@ -963,11 +1070,13 @@ class ModelViewer(ToolMenuMixin, QWidget):
         outer.setContentsMargins(*self.get_panel_margins())
         outer.setSpacing(2)
 
+
         # Vertical splitter — all three sections resizable
         splitter = QSplitter(Qt.Orientation.Vertical)
         outer.addWidget(splitter, 1)
 
-        # ── IMG Entries section ──
+
+        # - IMG Entries section
         img_sec = QWidget(); img_lay = QVBoxLayout(img_sec); img_lay.setContentsMargins(0,0,0,0); img_lay.setSpacing(2)
         img_lay.addWidget(self._make_section_header("IMG Entries (DFF)", self._filter_img_list))
         self._img_list = QListWidget()
@@ -976,7 +1085,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         img_lay.addWidget(self._img_list)
         splitter.addWidget(img_sec)
 
-        # ── Geometries section ──
+
+        # - Geometries section
         geom_sec = QWidget(); gl = QVBoxLayout(geom_sec); gl.setContentsMargins(0,0,0,0); gl.setSpacing(2)
         gl.addWidget(self._make_section_header("Geometries"))
         self._geom_list = QListWidget()
@@ -985,7 +1095,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         gl.addWidget(self._geom_list)
         splitter.addWidget(geom_sec)
 
-        # ── Textures section with thumbnails ──
+
+        # - Textures section with thumbnails
         tex_sec = QWidget(); tl = QVBoxLayout(tex_sec); tl.setContentsMargins(0,0,0,0); tl.setSpacing(2)
         tl.addWidget(self._make_section_header("Textures"))
         self._tex_list = QListWidget()
@@ -998,13 +1109,13 @@ class ModelViewer(ToolMenuMixin, QWidget):
         splitter.setSizes([200, 180, 150])
         return panel
 
-    # ── centre panel — OpenGL viewport ────────────────────────
 
+    # - centre panel — OpenGL viewport
     def _create_centre_panel(self): #vers 2
         return self.viewport
 
-    # ── right panel — model info ──────────────────────────────
 
+    # - right panel — model info
     def _create_right_panel(self): #vers 1
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(160); panel.setMaximumWidth(220)
@@ -1024,8 +1135,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         lay.addStretch()
         return panel
 
-    # ── status bar ────────────────────────────────────────────
 
+    # - status bar
     def _create_status_bar(self): #vers 1
         bar = QFrame()
         bar.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Sunken)
@@ -1037,8 +1148,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         hl.addWidget(self.status_label)
         return bar
 
-    # ── settings dialog ───────────────────────────────────────
 
+    # - settings dialog
     def _show_workshop_settings(self): #vers 1
         dlg = QDialog(self); dlg.setWindowTitle("Model Viewer Settings"); dlg.resize(400,300)
         lay = QVBoxLayout(dlg)
@@ -1060,6 +1171,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
         btn_row.addStretch(); btn_row.addWidget(ok)
         lay.addLayout(btn_row)
         dlg.exec()
+
 
     def _light_setup_dialog(self): #vers 1
         """Light direction and intensity setup dialog."""
@@ -1125,7 +1237,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
     def _show_about(self): #vers 1
         QMessageBox.about(self, App_name, f"{App_name}\n{Build} — {App_build}\n\nOpenGL DFF viewer for GTA models.")
 
-    # ── theme / icons ─────────────────────────────────────────
+    # - theme / icons
 
     def _apply_theme(self): #vers 1
         try:
@@ -1186,8 +1298,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
     def _set_mode(self, mode: str): #vers 1
         self.viewport.set_render_mode(mode)
 
-    # ── file operations ───────────────────────────────────────
 
+    # - file operations
     def _open_dff(self): #vers 1
         path, _ = QFileDialog.getOpenFileName(
             self, "Open DFF", self._last_dir,
@@ -1339,8 +1451,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         if self.main_window and hasattr(self.main_window, 'log_message'):
             self.main_window.log_message(f"[ModelViewer] {msg}")
 
-    # ── window chrome (from RadarWorkshop) ───────────────────
 
+    # - window chrome (from RadarWorkshop)
     def _get_resize_corner(self, pos): #vers 1
         s=self.corner_size; w=self.width(); h=self.height()
         if pos.x()<s and pos.y()<s:           return "top-left"
@@ -1349,118 +1461,231 @@ class ModelViewer(ToolMenuMixin, QWidget):
         if pos.x()>w-s and pos.y()>h-s:       return "bottom-right"
         return None
 
-    def _update_cursor(self, d): #vers 1
+
+    def _update_cursor(self, direction): #Vers 2
         cursors = {
+            "top":          Qt.CursorShape.SizeVerCursor,
+            "bottom":       Qt.CursorShape.SizeVerCursor,
+            "left":         Qt.CursorShape.SizeHorCursor,
+            "right":        Qt.CursorShape.SizeHorCursor,
             "top-left":     Qt.CursorShape.SizeFDiagCursor,
             "bottom-right": Qt.CursorShape.SizeFDiagCursor,
             "top-right":    Qt.CursorShape.SizeBDiagCursor,
             "bottom-left":  Qt.CursorShape.SizeBDiagCursor,
         }
-        self.setCursor(cursors.get(d, Qt.CursorShape.ArrowCursor))
+        self.setCursor(cursors.get(direction, Qt.CursorShape.ArrowCursor))
 
-    def _is_on_draggable_area(self, pos): #vers 1
-        if not hasattr(self,'titlebar'): return False
-        if not self.titlebar.rect().contains(pos): return False
+
+    def _get_resize_direction(self, pos): #vers 1
+        """Determine resize direction based on mouse position"""
+        rect = self.rect()
+        margin = self.resize_margin
+
+        left = pos.x() < margin
+        right = pos.x() > rect.width() - margin
+        top = pos.y() < margin
+        bottom = pos.y() > rect.height() - margin
+
+        if left and top:
+            return "top-left"
+        elif right and top:
+            return "top-right"
+        elif left and bottom:
+            return "bottom-left"
+        elif right and bottom:
+            return "bottom-right"
+        elif left:
+            return "left"
+        elif right:
+            return "right"
+        elif top:
+            return "top"
+        elif bottom:
+            return "bottom"
+
+        return None
+
+    def _handle_resize(self, global_pos): #vers 1
+        """Handle window resizing"""
+        if not self.resize_direction or not self.drag_position:
+            return
+
+        delta = global_pos - self.drag_position
+        geometry = self.frameGeometry()
+
+        min_width = 800
+        min_height = 600
+
+        # Handle horizontal resizing
+        if "left" in self.resize_direction:
+            new_width = geometry.width() - delta.x()
+            if new_width >= min_width:
+                geometry.setLeft(geometry.left() + delta.x())
+        elif "right" in self.resize_direction:
+            new_width = geometry.width() + delta.x()
+            if new_width >= min_width:
+                geometry.setRight(geometry.right() + delta.x())
+
+        # Handle vertical resizing
+        if "top" in self.resize_direction:
+            new_height = geometry.height() - delta.y()
+            if new_height >= min_height:
+                geometry.setTop(geometry.top() + delta.y())
+        elif "bottom" in self.resize_direction:
+            new_height = geometry.height() + delta.y()
+            if new_height >= min_height:
+                geometry.setBottom(geometry.bottom() + delta.y())
+
+        self.setGeometry(geometry)
+        self.drag_position = global_pos
+
+
+    def _is_on_draggable_area(self, pos): #Vers 1
+        if not hasattr(self, 'titlebar'):
+            return False
+        if not self.titlebar.rect().contains(pos):
+            return False
         for w in self.titlebar.findChildren(QPushButton):
-            if w.isVisible() and w.geometry().contains(pos): return False
+            if w.isVisible() and w.geometry().contains(pos):
+                return False
         return True
 
-    def _handle_corner_resize(self, global_pos): #vers 1
-        if not self.resize_corner or not self.drag_position: return
-        delta = global_pos - self.drag_position
-        geo   = self.initial_geometry
-        mw,mh = 800,500
-        c     = self.resize_corner
-        if c=="bottom-right":
-            nw=geo.width()+delta.x(); nh=geo.height()+delta.y()
-            if nw>=mw and nh>=mh: self.resize(nw,nh)
-        elif c=="bottom-left":
-            nx=geo.x()+delta.x(); nw=geo.width()-delta.x(); nh=geo.height()+delta.y()
-            if nw>=mw and nh>=mh: self.setGeometry(nx,geo.y(),nw,nh)
-        elif c=="top-right":
-            ny=geo.y()+delta.y(); nw=geo.width()+delta.x(); nh=geo.height()-delta.y()
-            if nw>=mw and nh>=mh: self.setGeometry(geo.x(),ny,nw,nh)
-        elif c=="top-left":
-            nx=geo.x()+delta.x(); ny=geo.y()+delta.y()
-            nw=geo.width()-delta.x(); nh=geo.height()-delta.y()
-            if nw>=mw and nh>=mh: self.setGeometry(nx,ny,nw,nh)
 
-    def _setup_corner_overlay(self): #vers 1
-        if not self.standalone_mode: return
-        existing = getattr(self,'_corner_overlay',None)
-        if existing is not None:
-            existing.setGeometry(0,0,self.width(),self.height())
-            existing.raise_(); existing.update(); return
-        ov = _CornerOverlay(self)
-        self._corner_overlay = ov
-        ov.setGeometry(0,0,self.width(),self.height())
-        ov.show(); ov.raise_()
-
-    def _refresh_corner_overlay(self): #vers 1
-        if hasattr(self,'_corner_overlay'):
-            self._corner_overlay.setGeometry(0,0,self.width(),self.height())
-            self._corner_overlay.update_state(
-                getattr(self,'hover_corner',None), self.app_settings)
-            self._corner_overlay.raise_()
-
-    def mousePressEvent(self, event): #vers 1
+    def mousePressEvent(self, event): #Vers 1
         if event.button() != Qt.MouseButton.LeftButton:
             return super().mousePressEvent(event)
         pos = event.pos()
         self.resize_corner = self._get_resize_corner(pos)
         if self.resize_corner:
-            self.resizing=True; self.drag_position=event.globalPosition().toPoint()
-            self.initial_geometry=self.geometry(); event.accept(); return
-        if hasattr(self,'titlebar') and self.titlebar.geometry().contains(pos):
+            self.resizing = True
+            self.drag_position = event.globalPosition().toPoint()
+            self.initial_geometry = self.geometry()
+            event.accept(); return
+        if hasattr(self, 'titlebar') and self.titlebar.geometry().contains(pos):
             tb_pos = self.titlebar.mapFromParent(pos)
             if self._is_on_draggable_area(tb_pos):
                 handle = self.windowHandle()
-                if handle: handle.startSystemMove()
+                if handle:
+                    handle.startSystemMove()
                 event.accept(); return
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event): #vers 1
-        if event.buttons()==Qt.MouseButton.LeftButton:
+
+    def mouseMoveEvent(self, event): #Vers 1
+        if event.buttons() == Qt.MouseButton.LeftButton:
             if self.resizing and self.resize_corner:
                 self._handle_corner_resize(event.globalPosition().toPoint())
                 event.accept(); return
         else:
             corner = self._get_resize_corner(event.pos())
             if corner != self.hover_corner:
-                self.hover_corner = corner; self.update()
+                self.hover_corner = corner
+                self.update()
             self._refresh_corner_overlay()
             self._update_cursor(corner)
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event): #vers 1
-        if event.button()==Qt.MouseButton.LeftButton:
-            self.dragging=self.resizing=False; self.resize_corner=None
-            self.setCursor(Qt.CursorShape.ArrowCursor); event.accept()
 
-    def paintEvent(self, event): #vers 1
+    def mouseReleaseEvent(self, event): #Vers 2
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = self.resizing = False
+            self.resize_corner = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+
+
+    def _handle_corner_resize(self, global_pos): #Vers 1
+        if not self.resize_corner or not self.drag_position:
+            return
+        delta = global_pos - self.drag_position
+        geometry = self.initial_geometry
+        min_w, min_h = 800, 500
+        if self.resize_corner == "bottom-right":
+            nw = geometry.width() + delta.x()
+            nh = geometry.height() + delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.resize(nw, nh)
+        elif self.resize_corner == "bottom-left":
+            nx = geometry.x() + delta.x()
+            nw = geometry.width() - delta.x()
+            nh = geometry.height() + delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(nx, geometry.y(), nw, nh)
+        elif self.resize_corner == "top-right":
+            ny = geometry.y() + delta.y()
+            nw = geometry.width() + delta.x()
+            nh = geometry.height() - delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(geometry.x(), ny, nw, nh)
+        elif self.resize_corner == "top-left":
+            nx = geometry.x() + delta.x()
+            ny = geometry.y() + delta.y()
+            nw = geometry.width() - delta.x()
+            nh = geometry.height() - delta.y()
+            if nw >= min_w and nh >= min_h:
+                self.setGeometry(nx, ny, nw, nh)
+
+
+    def paintEvent(self, event): #Vers 2
         super().paintEvent(event)
+        # Corner handles drawn by _corner_overlay — see _setup_corner_overlay
 
-    def resizeEvent(self, event): #vers 1
-        super().resizeEvent(event); self._refresh_corner_overlay()
+    def _setup_corner_overlay(self): #vers 4
+        """Create or refresh the corner resize overlay."""
+        if not self.standalone_mode:
+            return
+        # Destroy stale overlay if window was resized before it was created
+        existing = getattr(self, '_corner_overlay', None)
+        if existing is not None:
+            existing.setGeometry(0, 0, self.width(), self.height())
+            existing.raise_()
+            existing.update()
+            return
+        overlay = _CornerOverlay(self)
+        self._corner_overlay = overlay
+        overlay.setGeometry(0, 0, self.width(), self.height())
+        overlay.show()
+        overlay.raise_()
 
-    def showEvent(self, event): #vers 1
+    def _refresh_corner_overlay(self): #vers 1
+        if hasattr(self, '_corner_overlay'):
+            self._corner_overlay.setGeometry(0, 0, self.width(), self.height())
+            self._corner_overlay.update_state(
+                getattr(self, 'hover_corner', None),
+                self.app_settings)
+            self._corner_overlay.raise_()
+
+    def resizeEvent(self, event): #vers 2
+        super().resizeEvent(event)
+        self._refresh_corner_overlay()
+
+    def showEvent(self, event): #vers 2
         super().showEvent(event)
         if self.standalone_mode:
+            # Small delay ensures window geometry is finalised
             QTimer.singleShot(150, self._setup_corner_overlay)
 
-    def closeEvent(self, event): #vers 1
+    def resizeEvent(self, event): #vers 2
+        super().resizeEvent(event)
+        if hasattr(self,'size_grip'): self.size_grip.move(self.width()-16,self.height()-16)
+        self._refresh_corner_overlay()
+
+    def closeEvent(self, event): #Vers 2
+        # Save window geometry
         if self.standalone_mode:
             g = self.geometry()
-            self.MV_settings.set('window_x',g.x()); self.MV_settings.set('window_y',g.y())
-            self.MV_settings.set('window_w',g.width()); self.MV_settings.set('window_h',g.height())
-            self.MV_settings.save()
-        self.window_closed.emit(); event.accept()
+            self.RAD_settings.set('window_x', g.x())
+            self.RAD_settings.set('window_y', g.y())
+            self.RAD_settings.set('window_w', g.width())
+            self.RAD_settings.set('window_h', g.height())
+            self.RAD_settings.save()
+        self.window_closed.emit()
+        event.accept()
+
+    #End of Class
 
 
-# ─────────────────────────────────────────────────────────────
 #  Entry point
-# ─────────────────────────────────────────────────────────────
-
 def open_model_viewer(main_window=None, dff_path=None, txd_path=None, img=None): #vers 3
     """Open the Model Viewer docked in main_window if available, else floating."""
     # Prefer docked mode when main_window supports it
@@ -1485,5 +1710,23 @@ if __name__ == '__main__':
     if len(sys.argv) > 1: viewer.load_dff(sys.argv[1])
     if len(sys.argv) > 2: viewer.load_txd(sys.argv[2])
     sys.exit(app.exec())
+
+
+if __name__ == "__main__": #Vers 1
+    import traceback
+
+    print(App_name + " starting…")
+    try:
+        app = QApplication(sys.argv)
+        viewer, _ = open_model_viewer()
+        if len(sys.argv) > 1: viewer.load_dff(sys.argv[1])
+        if len(sys.argv) > 2: viewer.load_txd(sys.argv[2])
+
+        w.setWindowTitle(App_name + " – Standalone")
+        w.resize(1300, 800); w.show(); sys.exit(app.exec())
+    except Exception as e:
+        print(f"ERROR: {e}")
+        traceback.print_exc();sys.exit(1)
+        #sys.exit(app.exec())
 
 __all__ = ['ModelViewer', 'DFFViewport', 'open_model_viewer']
