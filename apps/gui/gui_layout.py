@@ -2263,6 +2263,33 @@ class IMGFactoryGUILayout:
         self.log_btn.clicked.connect(self._show_log_file)
         header_layout.addWidget(self.log_btn)
 
+
+        # Inline filter bar — hidden by default, toggled by search_btn
+        self._filter_bar = QWidget()
+        self._filter_bar.setVisible(False)
+        from PyQt6.QtWidgets import QLineEdit as _QLE
+        _fb_lay = QHBoxLayout(self._filter_bar)
+        _fb_lay.setContentsMargins(0, 2, 0, 2)
+        _fb_lay.setSpacing(4)
+        self.filter_input = _QLE()
+        self.filter_input.setPlaceholderText("Filter entries… (Esc to close)")
+        self.filter_input.setMinimumHeight(24)
+        self.filter_input.textChanged.connect(self._apply_table_filter)
+        self.filter_input.returnPressed.connect(self._filter_next_match)
+        from PyQt6.QtGui import QKeySequence as _QKS
+        from PyQt6.QtWidgets import QShortcut as _QSC
+        _esc = _QSC(_QKS("Escape"), self.filter_input)
+        _esc.activated.connect(self._hide_filter_bar)
+        _clear_btn = QPushButton("\u2715")
+        _clear_btn.setFixedSize(22, 22)
+        _clear_btn.setToolTip("Clear filter")
+        _clear_btn.clicked.connect(self.filter_input.clear)
+        self._filter_match_lbl = QLabel("")
+        self._filter_match_lbl.setFixedWidth(80)
+        _fb_lay.addWidget(self.filter_input, 1)
+        _fb_lay.addWidget(_clear_btn)
+        _fb_lay.addWidget(self._filter_match_lbl)
+        status_layout.addWidget(self._filter_bar)
         status_layout.addLayout(header_layout)
 
         # Connect tab changes to show/hide rw_scan_btn
@@ -2401,17 +2428,125 @@ class IMGFactoryGUILayout:
             return False
 
 
-    def _show_search(self): #vers 1
-        """Show search dialog"""
+    def _show_search(self): #vers 2
+        """Toggle inline filter bar - expand on first click, close on second."""
+        if not hasattr(self, '_filter_bar'):
+            return
+        if self._filter_bar.isVisible():
+            self._hide_filter_bar()
+        else:
+            self._filter_bar.setVisible(True)
+            self.filter_input.setFocus()
+            self.filter_input.selectAll()
+
+    def _hide_filter_bar(self): #vers 1
+        """Close filter bar and clear any filter."""
+        if hasattr(self, '_filter_bar'):
+            self._filter_bar.setVisible(False)
+        if hasattr(self, 'filter_input'):
+            self.filter_input.clear()
+        self._apply_table_filter("")
+
+    def _apply_table_filter(self, text=""): #vers 1
+        """Filter visible rows in the active table by text. Highlights matches."""
+        from PyQt6.QtGui import QColor, QBrush
+        from PyQt6.QtCore import Qt
+
+        # Get active table
+        table = self._get_active_table()
+        if not table:
+            if hasattr(self, '_filter_match_lbl'):
+                self._filter_match_lbl.setText("")
+            return
+
+        ft = text.lower().strip()
+        match_count = 0
+        total_visible = 0
+
+        # Get theme colours
         try:
-            if hasattr(self.main_window, 'search_manager'):
-                self.main_window.search_manager.show_search_dialog()
+            mw = self.main_window
+            app_settings = getattr(mw, 'app_settings', None)
+            if app_settings:
+                colors = app_settings.get_theme_colors()
+                hl_bg  = QColor(colors.get('highlight_bg',  '#1a5c1a'))
+                hl_fg  = QColor(colors.get('highlight_fg',  '#ffffff'))
             else:
-                if hasattr(self.main_window, 'log_message'):
-                    self.main_window.log_message("Search not available")
-        except Exception as e:
-            if hasattr(self.main_window, 'log_message'):
-                self.main_window.log_message(f"Search error: {str(e)}")
+                raise ValueError
+        except Exception:
+            hl_bg = QColor(30, 90, 30)
+            hl_fg = QColor(255, 255, 255)
+
+        for row in range(table.rowCount()):
+            if ft:
+                # Check all visible columns for match
+                row_text = " ".join(
+                    (table.item(row, c).text() if table.item(row, c) else "")
+                    for c in range(table.columnCount())
+                ).lower()
+                matched = ft in row_text
+                table.setRowHidden(row, not matched)
+                if matched:
+                    match_count += 1
+                    total_visible += 1
+                    # Highlight matching rows
+                    for c in range(table.columnCount()):
+                        item = table.item(row, c)
+                        if item:
+                            item.setBackground(QBrush(hl_bg))
+                            item.setForeground(QBrush(hl_fg))
+            else:
+                # No filter — show all rows, reset colours
+                table.setRowHidden(row, False)
+                for c in range(table.columnCount()):
+                    item = table.item(row, c)
+                    if item:
+                        item.setData(Qt.ItemDataRole.BackgroundRole, None)
+                        item.setData(Qt.ItemDataRole.ForegroundRole, None)
+
+        if hasattr(self, '_filter_match_lbl'):
+            if ft:
+                self._filter_match_lbl.setText(f"{match_count} match{'es' if match_count!=1 else ''}")
+            else:
+                self._filter_match_lbl.setText("")
+
+    def _filter_next_match(self): #vers 1
+        """Jump to next matched row on Enter."""
+        table = self._get_active_table()
+        if not table:
+            return
+        current = table.currentRow()
+        for row in range(current + 1, table.rowCount()):
+            if not table.isRowHidden(row):
+                table.setCurrentCell(row, 0)
+                table.scrollToItem(table.item(row, 0))
+                return
+        # Wrap around
+        for row in range(0, current + 1):
+            if not table.isRowHidden(row):
+                table.setCurrentCell(row, 0)
+                table.scrollToItem(table.item(row, 0))
+                return
+
+    def _get_active_table(self): #vers 1
+        """Return the currently visible QTableWidget."""
+        mw = self.main_window
+        if not mw: return None
+        # Try main_tab_widget current tab
+        tw = getattr(mw, 'main_tab_widget', None)
+        if tw:
+            w = tw.currentWidget()
+            if w:
+                from PyQt6.QtWidgets import QTableWidget
+                # Find first visible table in current tab
+                tables = w.findChildren(QTableWidget)
+                for t in tables:
+                    if t.isVisible() and t.rowCount() > 0:
+                        return t
+        # Fallback to gui_layout.table
+        if hasattr(self, 'table') and self.table and self.table.isVisible():
+            return self.table
+        return None
 
 
     def _toggle_log_visibility(self): #vers 1
