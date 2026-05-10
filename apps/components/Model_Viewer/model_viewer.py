@@ -325,15 +325,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,r)
         glEnd()
 
-    def _face_color(self, mat_id): #vers 2
-        """Return (r,g,b) 0-1 for a material. Black (0,0,0) = fallback grey."""
+    def _face_color(self, mat_id): #vers 3
+        """Return (r,g,b) 0-1 for a material.
+        Neutralises vehicle light colours and black placeholder materials."""
         mats = self._materials
         if mats and 0 <= mat_id < len(mats):
-            c = mats[mat_id].colour
+            mat = mats[mat_id]
+            c = mat.colour
             r = getattr(c,'r',180); g = getattr(c,'g',180); b = getattr(c,'b',180)
-            # Pure black with no texture = placeholder, use grey
-            if r == 0 and g == 0 and b == 0 and not getattr(mats[mat_id],'texture_name',''):
+            has_tex = bool(getattr(mat,'texture_name',''))
+            # Pure black no texture = placeholder -> grey
+            if r==0 and g==0 and b==0 and not has_tex:
                 return 0.55, 0.55, 0.55
+            # Saturated vehicle light/paint mask with texture -> white
+            sat = max(r,g,b) - min(r,g,b)
+            if has_tex and sat > 150 and max(r,g,b) > 150:
+                return 1.0, 1.0, 1.0
             return r/255, g/255, b/255
         return 0.7, 0.7, 0.7
 
@@ -476,13 +483,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_show_grid(self, v: bool): #vers 1
         self._show_grid = v; self.update()
 
-    def load_all_geometries(self, geometries, materials_list, frames, atomics): #vers 1
-        """Load all geometries with world transforms for assembly view."""
+    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 2
+        # Load all geometries with world transforms. damaged=True shows _dam parts.
         self._all_geoms = []
+        fname = {i: (f.name.lower() if f.name else '') for i,f in enumerate(frames)}
         for i, geom in enumerate(geometries):
             atomic = next((a for a in atomics if a.geometry_index == i), None)
-            frame_idx = atomic.frame_index if atomic else -1
-            rot, tx, ty, tz = self._calc_world_matrix(frames, frame_idx)
+            if not atomic: continue
+            fi = atomic.frame_index
+            name = fname.get(fi, '')
+            is_dam = name.endswith('_dam')
+            is_ok  = name.endswith('_ok')
+            if is_dam and not damaged: continue
+            if is_ok  and damaged: continue
+            rot, tx, ty, tz = self._calc_world_matrix(frames, fi)
             verts = [(rot[0]*v.x+rot[1]*v.y+rot[2]*v.z+tx,
                       rot[3]*v.x+rot[4]*v.y+rot[5]*v.z+ty,
                       rot[6]*v.x+rot[7]*v.y+rot[8]*v.z+tz) for v in geom.vertices]
@@ -493,6 +507,16 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             tris  = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
             prelit= [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
             self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit))
+            # Wheel instancing: repeat wheel mesh at all wheel dummy frames
+            if 'wheel' in name and not is_dam and not is_ok:
+                for fi2, fn2 in fname.items():
+                    if fi2 == fi: continue
+                    if 'wheel' in fn2 and 'dummy' in fn2:
+                        r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
+                        v2=[(r2[0]*v.x+r2[1]*v.y+r2[2]*v.z+tx2,
+                             r2[3]*v.x+r2[4]*v.y+r2[5]*v.z+ty2,
+                             r2[6]*v.x+r2[7]*v.y+r2[8]*v.z+tz2) for v in geom.vertices]
+                        self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit))
         all_pts=[p for g in self._all_geoms for p in g[0]]
         if all_pts:
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
@@ -854,6 +878,14 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self._assemble_btn.toggled.connect(self._toggle_assembly_mode)
         lay.addWidget(self._assemble_btn)
 
+        self._damage_btn = QPushButton("Dmg")
+        self._damage_btn.setFixedHeight(26); self._damage_btn.setFixedWidth(36)
+        self._damage_btn.setCheckable(True); self._damage_btn.setChecked(False)
+        self._damage_btn.setFont(self.button_font)
+        self._damage_btn.setToolTip("Show damaged state (_dam parts)")
+        self._damage_btn.toggled.connect(self._toggle_damage_mode)
+        lay.addWidget(self._damage_btn)
+
         lay.addStretch()
 
         self._title_lbl = QLabel(f"{App_name} — {Build}")
@@ -1086,15 +1118,22 @@ class ModelViewer(ToolMenuMixin, QWidget):
         btn = self.menu_toggle_btn
         pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _toggle_assembly_mode(self, enabled: bool): #vers 1
+    def _toggle_assembly_mode(self, enabled: bool): #vers 2
         self.viewport.set_assembly_mode(enabled)
         if enabled and self._dff_model:
+            damaged = getattr(self,'_damage_mode',False)
             self.viewport.load_all_geometries(
                 self._dff_model.geometries,
                 [g.materials for g in self._dff_model.geometries],
                 self._dff_model.frames,
-                self._dff_model.atomics)
+                self._dff_model.atomics,
+                damaged=damaged)
         self._geom_list.setEnabled(not enabled)
+
+    def _toggle_damage_mode(self, enabled: bool): #vers 1
+        self._damage_mode = enabled
+        if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
+            self._toggle_assembly_mode(True)
 
     def _set_mode(self, mode: str): #vers 1
         self.viewport.set_render_mode(mode)
