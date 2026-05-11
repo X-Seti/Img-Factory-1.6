@@ -407,33 +407,22 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,r)
         glEnd()
 
-    def _face_color(self, mat_id): #vers 4
-        """Return (r,g,b,use_tex_tint) 0-1 for a material.
-        Handles GTA SA vehicle paint slot system:
-          (60,255,0)   = primary paint   -> self._paint1
-          (255,0,175)  = secondary paint -> self._paint2
-          (255,255,255)= white           -> texture as-is (tint=white)
-          (r,g,b)      = real colour     -> multiply with texture
-        """
+    def _face_color(self, mat_id): #vers 5
+        """Return (r,g,b,a) 0-1 for a material including alpha for glass/transparency."""
         mats = self._materials
         if mats and 0 <= mat_id < len(mats):
             mat = mats[mat_id]
             c = mat.colour
-            r = getattr(c,'r',180); g = getattr(c,'g',180); b = getattr(c,'b',180)
+            r=getattr(c,'r',180); g=getattr(c,'g',180); b=getattr(c,'b',180); a=getattr(c,'a',255)
             has_tex = bool(getattr(mat,'texture_name',''))
-            # Pure black no texture = placeholder -> grey
             if r==0 and g==0 and b==0 and not has_tex:
-                return 0.55, 0.55, 0.55
-            # GTA SA primary paint slot: G=255, R<100, B<50
-            if g == 255 and r < 100 and b < 50:
-                return self._paint1
-            # GTA SA secondary paint slot: R=255, G<50, B>100
-            if r == 255 and g < 50 and b > 100:
-                return self._paint2
-            # Vehicle lights — bright saturated colours -> use as tint on texture
-            # Don't return solid colour, let texture render with light colour hint
-            return r/255, g/255, b/255
-        return 0.7, 0.7, 0.7
+                return 0.55, 0.55, 0.55, 1.0
+            if g==255 and r<100 and b<50:  # primary paint slot
+                return self._paint1[0], self._paint1[1], self._paint1[2], a/255
+            if r==255 and g<50 and b>100:  # secondary paint slot
+                return self._paint2[0], self._paint2[1], self._paint2[2], a/255
+            return r/255, g/255, b/255, a/255
+        return 0.7, 0.7, 0.7, 1.0
 
     def _emit_verts(self, v1, v2, v3, use_prelit=False, use_uv=False): #vers 1
         verts = self._vertices; norms = self._normals
@@ -462,15 +451,27 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glEnd()
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 
-    def _draw_solid(self): #vers 1
+    def _draw_solid(self): #vers 2
         glEnable(GL_LIGHTING)
         use_p = self._use_prelight and self._prelit
+        # Opaque first, then transparent (alpha < 1) for correct blending
+        opaque=[]; transparent=[]
+        for tri in self._triangles:
+            fc=self._face_color(tri[3])
+            (transparent if len(fc)>3 and fc[3]<0.99 else opaque).append((tri,fc))
         glBegin(GL_TRIANGLES)
-        for v1,v2,v3,mid in self._triangles:
-            if not use_p:
-                r,g,b = self._face_color(mid); glColor3f(r,g,b)
+        for (v1,v2,v3,mid),(r,g,b,*rest) in opaque:
+            if not use_p: glColor4f(r,g,b,1.0)
             self._emit_verts(v1,v2,v3, use_prelit=use_p)
         glEnd()
+        if transparent:
+            glEnable(GL_BLEND); glDepthMask(False)
+            glBegin(GL_TRIANGLES)
+            for (v1,v2,v3,mid),(r,g,b,a) in transparent:
+                if not use_p: glColor4f(r,g,b,a)
+                self._emit_verts(v1,v2,v3, use_prelit=use_p)
+            glEnd()
+            glDepthMask(True); glDisable(GL_BLEND)
 
         # Wireframe overlay
         glDisable(GL_LIGHTING)
@@ -502,27 +503,40 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 tname = getattr(mats[mid],'texture_name','') or ''
             gl_id = self._tex_ids.get(tname.lower(), 0)
             if gl_id:
-                r,g,b = self._face_color(mid)
-                key = (gl_id, round(r,2), round(g,2), round(b,2))
+                r,g,b,a = self._face_color(mid)
+                key = (gl_id, round(r,2), round(g,2), round(b,2), round(a,2))
                 batches.setdefault(key,[]).append(tri)
             else:
                 no_tex.append(tri)
 
-        for (gl_id,r,g,b), tris in batches.items():
-            glBindTexture(GL_TEXTURE_2D, gl_id)
-            if not use_p: glColor3f(r, g, b)
-            glBegin(GL_TRIANGLES)
-            for v1,v2,v3,mid in tris:
-                self._emit_verts(v1,v2,v3, use_prelit=use_p, use_uv=True)
-            glEnd()
+        # Sort: opaque batches first, then transparent
+        opaque_b = {k:v for k,v in batches.items() if len(k)<5 or k[4]>=0.99}
+        transp_b = {k:v for k,v in batches.items() if len(k)>=5 and k[4]<0.99}
+        for batch_dict, use_blend in [(opaque_b,False),(transp_b,True)]:
+            if use_blend: glEnable(GL_BLEND); glDepthMask(False)
+            for key, tris in batch_dict.items():
+                gl_id=key[0]; r=key[1]; g=key[2]; b=key[3]
+                a = key[4] if len(key)>4 else 1.0
+                glBindTexture(GL_TEXTURE_2D, gl_id)
+                if not use_p: glColor4f(r, g, b, a)
+                glBegin(GL_TRIANGLES)
+                for v1,v2,v3,mid in tris:
+                    self._emit_verts(v1,v2,v3, use_prelit=use_p, use_uv=True)
+                glEnd()
+            if use_blend: glDepthMask(True); glDisable(GL_BLEND)
 
         glBindTexture(GL_TEXTURE_2D, 0); glDisable(GL_TEXTURE_2D)
-        for v1,v2,v3,mid in no_tex:
-            r,g,b = self._face_color(mid)
-            if not use_p: glColor3f(r,g,b)
-            glBegin(GL_TRIANGLES)
-            self._emit_verts(v1,v2,v3, use_prelit=use_p)
-            glEnd()
+        no_opaque=[t for t in no_tex if self._face_color(t[3])[3]>=0.99]
+        no_transp=[t for t in no_tex if self._face_color(t[3])[3]<0.99]
+        for tri_list, use_blend in [(no_opaque,False),(no_transp,True)]:
+            if use_blend: glEnable(GL_BLEND); glDepthMask(False)
+            for v1,v2,v3,mid in tri_list:
+                r,g,b,a = self._face_color(mid)
+                if not use_p: glColor4f(r,g,b,a)
+                glBegin(GL_TRIANGLES)
+                self._emit_verts(v1,v2,v3, use_prelit=use_p)
+                glEnd()
+            if use_blend: glDepthMask(True); glDisable(GL_BLEND)
         glEnable(GL_TEXTURE_2D)
 
 
@@ -611,16 +625,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             tris  = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
             prelit= [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
             self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit))
-            # Wheel instancing: repeat wheel mesh at all wheel dummy frames
+            # Wheel instancing: place at all wheel dummy frames
+            # Use wheels.DFF geometry if available, else repeat vehicle's own wheel mesh
             if 'wheel' in name and not is_dam and not is_ok:
+                wheel_data = self._get_wheel_geom_data()
                 for fi2, fn2 in fname.items():
                     if fi2 == fi: continue
                     if 'wheel' in fn2 and 'dummy' in fn2:
                         r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
-                        v2=[(r2[0]*v.x+r2[1]*v.y+r2[2]*v.z+tx2,
-                             r2[3]*v.x+r2[4]*v.y+r2[5]*v.z+ty2,
-                             r2[6]*v.x+r2[7]*v.y+r2[8]*v.z+tz2) for v in geom.vertices]
-                        self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit))
+                        is_left = fn2.startswith('wheel_l')
+                        if wheel_data:
+                            wv,wn,wu,wt,wm,wp = wheel_data
+                            # Transform wheel.DFF verts to this dummy's world position
+                            v2=[(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,
+                                 r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,
+                                 r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
+                            if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
+                            self._all_geoms.append((v2,wn,wu,wt,wm,wp))
+                        else:
+                            # Fallback: repeat vehicle's own wheel mesh
+                            v2=[(r2[0]*v.x+r2[1]*v.y+r2[2]*v.z+tx2,
+                                 r2[3]*v.x+r2[4]*v.y+r2[5]*v.z+ty2,
+                                 r2[6]*v.x+r2[7]*v.y+r2[8]*v.z+tz2) for v in geom.vertices]
+                            if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
+                            self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit))
         all_pts=[p for g in self._all_geoms for p in g[0]]
         if all_pts:
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
@@ -643,6 +671,35 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             ntx=r[0]*fp.x+r[1]*fp.y+r[2]*fp.z+tx; nty=r[3]*fp.x+r[4]*fp.y+r[5]*fp.z+ty
             ntz=r[6]*fp.x+r[7]*fp.y+r[8]*fp.z+tz; r,tx,ty,tz=nr,ntx,nty,ntz
         return r,tx,ty,tz
+
+
+    def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1
+        try:
+            from apps.methods.dff_parser import load_dff
+            self._wheels_model = load_dff(path)
+            self._wheel_type   = wheel_type
+        except Exception as e:
+            print(f'[wheels.DFF] {e}')
+
+    def _get_wheel_geom_data(self): #vers 1
+        """Return geometry tuple for current wheel type from wheels.DFF."""
+        m = getattr(self,'_wheels_model',None)
+        if not m: return None
+        wtype = getattr(self,'_wheel_type','wheel_saloon_l0').lower()
+        for a in m.atomics:
+            fi = a.frame_index
+            fname = (m.frames[fi].name or '').lower() if fi<len(m.frames) else ''
+            if fname == wtype:
+                g = m.geometries[a.geometry_index]
+                return (
+                    [(v.x,v.y,v.z) for v in g.vertices],
+                    [(n.x,n.y,n.z) for n in g.normals] if g.normals else [],
+                    [(u.u,u.v) for u in g.uv_layers[0]] if g.uv_layers else [],
+                    [(t.v1,t.v2,t.v3,t.material_id) for t in g.triangles],
+                    g.materials,
+                    [(c.r,c.g,c.b,c.a) for c in g.colors] if g.colors else []
+                )
+        return None
 
     def set_assembly_mode(self, enabled: bool): #vers 1
         self._assembly_mode = enabled; self.update()
@@ -1699,6 +1756,11 @@ class ModelViewer(ToolMenuMixin, QWidget):
                             try:
                                 with open(p,'rb') as f: _try_txd_data(f.read())
                             except Exception: pass
+                    # Store wheels.DFF path for assembly use
+                    for wfn in ('wheels.DFF','wheels.dff'):
+                        wp=os.path.join(generic,wfn)
+                        if os.path.isfile(wp):
+                            viewer_ref._wheels_model_path=wp; break
                     if not miss:
                         if collected: self.found.emit(collected)
                         return
@@ -1747,8 +1809,11 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self._show_progress(True)
         self._shared_txd_worker.start()
 
-    def _on_shared_txds_found(self, textures: list): #vers 1
-        """Receive shared textures from worker thread and upload to GL on main thread."""
+    def _on_shared_txds_found(self, textures: list): #vers 2
+        """Receive shared textures from worker thread and upload to GL on main thread."""        # Load wheels.DFF if path was discovered by worker
+        wheels_path = getattr(self.viewport,'_wheels_model_path',None)
+        if wheels_path and not getattr(self.viewport,'_wheels_model',None):
+            self.viewport.load_wheels_dff(wheels_path)
         if not textures: return
         # Filter already-loaded
         new = [t for t in textures if t['name'].lower() not in self.viewport._tex_ids]
