@@ -1520,21 +1520,43 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self.viewport._paint1=p1; self.viewport._paint2=p2
         self._update_paint_btns(); self.viewport.update()
 
-    def _load_carcols(self, vehicle_name: str): #vers 1
-        lay = getattr(self,'_carcols_lay',None)
-        if not lay: return
-        while lay.count():
-            item = lay.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
+    def _load_vehicle_meta(self, vehicle_name: str): #vers 1
+        """Load vehicles.ide (wheel type) and carcols colours for vehicle."""
+        game_root = self._get_game_root()
+        # vehicles.ide — wheel type
+        if game_root:
+            try:
+                from apps.methods.vehicles_ide_parser import get_vehicle_info
+                entry = get_vehicle_info(game_root, vehicle_name)
+                if entry and entry.wheel_model:
+                    wheel_dff = entry.wheel_dff_name()
+                    self.viewport._wheel_type = wheel_dff
+                    self._set_status(f'IDE: {vehicle_name} txd={entry.txd_name} wheel={wheel_dff}')
+            except Exception as e:
+                pass
+        self._load_carcols(vehicle_name)
+
+    def _get_game_root(self): #vers 1
+        """Get game root from viewport or main_window."""
         game_root = ''
-        vp = self.viewport
-        if hasattr(vp,'_find_game_root'): game_root = vp._find_game_root()
+        if hasattr(self.viewport,'_find_game_root'):
+            game_root = self.viewport._find_game_root()
         if not game_root:
             mw = self.main_window
             if mw:
                 for attr in ('game_root','_game_root','game_directory'):
                     val=getattr(mw,attr,None)
                     if val and os.path.isdir(str(val)): game_root=str(val); break
+        return game_root
+
+    def _load_carcols(self, vehicle_name: str): #vers 1
+
+        lay = getattr(self,'_carcols_lay',None)
+        if not lay: return
+        while lay.count():
+            item = lay.takeAt(0)
+            if item.widget(): item.widget().deleteLater()
+        game_root = self._get_game_root()
         if not game_root: return
         try:
             from apps.methods.carcols_parser import get_vehicle_colours
@@ -1605,10 +1627,10 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self._set_status(
                 f"Loaded: {os.path.basename(path)} — "
                 f"{len(model.geometries)} geometries, {len(model.frames)} frames")
-            # Load carcols colour pairs for this vehicle
+            # Load vehicles.ide info (wheel type) + carcols colours
             stem = os.path.splitext(os.path.basename(path))[0]
             from PyQt6.QtCore import QTimer
-            QTimer.singleShot(100, lambda s=stem: self._load_carcols(s))
+            QTimer.singleShot(100, lambda s=stem: self._load_vehicle_meta(s))
             # Auto-load shared TXDs after primary TXD is loaded
             QTimer.singleShot(500, self._auto_load_shared_txds)
         except Exception as e:
@@ -1777,6 +1799,26 @@ class ModelViewer(ToolMenuMixin, QWidget):
                             except Exception: pass
                     except Exception: pass
 
+                # 1b. Other IMGs in same models/ dir (gta3.img, gta_int.img etc)
+                if miss and game_root:
+                    models_dir = os.path.join(game_root,'models')
+                    if os.path.isdir(models_dir):
+                        for img_fn in ('gta3.img','gta_int.img','cutscene.img','player.img'):
+                            img_path = os.path.join(models_dir, img_fn)
+                            if not os.path.isfile(img_path) or not miss: continue
+                            try:
+                                # Read only the IMG index (fast), not all data
+                                from apps.methods.img_reader import IMGReader
+                                arc = IMGReader(img_path)
+                                if hasattr(arc,'open'): arc.open()
+                                txd_map={e.name.lower():e for e in arc.entries if e.name.lower().endswith('.txd')}
+                                # Look for vehicle*.txd entries that might have our textures
+                                for cand in ('vehiclecommon.txd','vehicle.txd','vehicles.txd'):
+                                    if cand in txd_map and miss:
+                                        data=arc.read_entry_data(txd_map[cand])
+                                        if data: _try_txd_data(data)
+                            except Exception: pass
+
                 # 2. Current IMG — ONLY look up exact stem.txd entries, no full scan
                 if miss and img and hasattr(img,'entries'):
                     self.status.emit(f'Scanning IMG for {len(miss)} missing textures…')
@@ -1810,7 +1852,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self._shared_txd_worker.start()
 
     def _on_shared_txds_found(self, textures: list): #vers 2
-        """Receive shared textures from worker thread and upload to GL on main thread."""        # Load wheels.DFF if path was discovered by worker
+        """Receive shared textures from worker thread and upload to GL on main thread."""
+        # Load wheels.DFF if path was discovered by worker
         wheels_path = getattr(self.viewport,'_wheels_model_path',None)
         if wheels_path and not getattr(self.viewport,'_wheels_model',None):
             self.viewport.load_wheels_dff(wheels_path)
