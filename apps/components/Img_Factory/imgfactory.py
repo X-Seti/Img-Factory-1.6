@@ -1625,6 +1625,9 @@ class IMGFactory(QMainWindow):
                 if txd_path: QTimer.singleShot(300, lambda: v.load_txd(txd_path))
             QTimer.singleShot(200, _deferred_load)
 
+            # Register in taskbar
+            QTimer.singleShot(100, lambda: self._sync_img_taskbar_buttons(idx))
+
             self.log_message("Model Viewer opened")
             return viewer
         except Exception as e:
@@ -3297,6 +3300,10 @@ class IMGFactory(QMainWindow):
         self.main_tab_widget = QTabWidget()
         self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
         self.main_tab_widget.setTabsClosable(True)
+        # Keep taskbar in sync when tabs are added/removed
+        self.main_tab_widget.tabBar().tabMoved.connect(
+            lambda: QTimer.singleShot(50, lambda: self._sync_img_taskbar_buttons(
+                self.main_tab_widget.currentIndex())))
         self.main_tab_widget.setMovable(True)
         # Tab stylesheet — identical to app_settings_system so they look the same.
         # Colors injected from live theme via _apply_tab_theme().
@@ -3672,19 +3679,34 @@ class IMGFactory(QMainWindow):
             for i in range(tw.count()):
                 tab = tw.widget(i)
                 file_type = getattr(tab, 'file_type', None)
-                if file_type not in ('IMG', 'COL', None):
+                file_obj  = getattr(tab, 'file_object', None)
+
+                # Skip home tab (no file_type, no file_object)
+                if file_type is None and file_obj is None:
                     continue
-                # Only tabs that have an actual file loaded
-                file_obj = getattr(tab, 'file_object', None)
-                if file_obj is None and file_type is None:
-                    continue  # Home tab / empty
-                if file_obj is None:
+
+                # Pick icon by type
+                try:
+                    if file_type == 'WORKSHOP':
+                        tab_label = tw.tabText(i) or 'Tool'
+                        tab_icon  = SVGIconFactory.mesh_icon(16, icon_color)
+                    elif file_type == 'COL':
+                        tab_icon = SVGIconFactory.col_icon(16, icon_color) if hasattr(SVGIconFactory,'col_icon') else icon
+                        tab_label = tw.tabText(i) or 'COL'
+                    else:
+                        tab_icon  = icon
+                        tab_label = tw.tabText(i) or f'IMG{i}'
+                except Exception:
+                    tab_icon = icon
+                    tab_label = tw.tabText(i) or f'Tab{i}'
+
+                # Skip IMG/COL tabs with no file loaded
+                if file_type in ('IMG', 'COL') and file_obj is None:
                     continue
 
                 key = f'img_{i}'
                 valid_keys.add(key)
-                label = tw.tabText(i) or f'IMG{i}'
-                # Truncate long names
+                label = tab_label
                 if len(label) > 12:
                     label = label[:11] + '…'
 
@@ -3696,7 +3718,7 @@ class IMGFactory(QMainWindow):
                 if self.tool_taskbar.is_registered(key):
                     self.tool_taskbar.update_target(key, _make_switcher())
                 else:
-                    self.tool_taskbar.register(key, label, icon,
+                    self.tool_taskbar.register(key, label, tab_icon,
                                                _make_switcher(), f'Switch to {tw.tabText(i)}')
 
             # Remove buttons for closed tabs

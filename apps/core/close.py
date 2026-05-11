@@ -137,6 +137,11 @@ class IMGCloseManager:
 
             # Remove tab - this triggers currentChanged signal automatically
             self.main_window.main_tab_widget.removeTab(index)
+            # Sync taskbar after tab removal
+            if hasattr(self.main_window, '_sync_img_taskbar_buttons'):
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(50, lambda: self.main_window._sync_img_taskbar_buttons(
+                    self.main_window.main_tab_widget.currentIndex()))
             self.log_message(f"Closed tab: {tab_name}")
 
             # DON'T manually call update_references - let the signal do it
