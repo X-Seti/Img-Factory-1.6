@@ -939,7 +939,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self.properties_btn.setIconSize(QSize(20, 20))
             self.properties_btn.setFixedSize(35, 35)
             self.properties_btn.setToolTip("Theme Settings")
-            self.properties_btn.clicked.connect(self._show_workshop_settings)
+            self.properties_btn.clicked.connect(self._open_app_settings)
             lay.addWidget(self.properties_btn)
 
             self.minimize_btn = QPushButton(); self.minimize_btn.setFixedSize(32,28)
@@ -1233,7 +1233,20 @@ class ModelViewer(ToolMenuMixin, QWidget):
     def _show_about(self): #vers 1
         QMessageBox.about(self, App_name, f"{App_name}\n{Build} — {App_build}\n\nOpenGL DFF viewer for GTA models.")
 
+    def _open_app_settings(self): #vers 1
+        try:
+            from apps.utils.app_settings_system import SettingsDialog
+            if self.app_settings:
+                dlg = SettingsDialog(self.app_settings, self)
+                dlg.exec()
+            else:
+                self._show_workshop_settings()
+        except Exception as e:
+            self._set_status(f'Settings error: {e}')
+            self._show_workshop_settings()
+
     # - theme / icons
+
 
     def _apply_theme(self): #vers 1
         try:
