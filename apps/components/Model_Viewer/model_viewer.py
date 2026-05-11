@@ -794,10 +794,9 @@ class ModelViewer(ToolMenuMixin, QWidget):
             if wx >= 0 and wy >= 0:
                 self.move(wx, wy)
 
-        if self.standalone_mode:
+        if self.standalone_mode and parent is None:
             self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        else:
-            self.setWindowFlags(Qt.WindowType.Widget)
+        # Docked: no special flags needed — parent widget handles containment
 
         if parent:
             p = parent.pos(); self.move(p.x()+50, p.y()+80)
@@ -1278,22 +1277,31 @@ class ModelViewer(ToolMenuMixin, QWidget):
         btn = self.menu_toggle_btn
         pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
-    def _toggle_assembly_mode(self, enabled: bool): #vers 2
+    def _reload_assembly(self): #vers 1
+        if not self._dff_model: return
+        damaged = getattr(self, '_damage_mode', False)
+        self.viewport.load_all_geometries(
+            self._dff_model.geometries,
+            [g.materials for g in self._dff_model.geometries],
+            self._dff_model.frames,
+            self._dff_model.atomics,
+            damaged=damaged)
+
+    def _toggle_assembly_mode(self, enabled: bool): #vers 3
         self.viewport.set_assembly_mode(enabled)
-        if enabled and self._dff_model:
-            damaged = getattr(self,'_damage_mode',False)
-            self.viewport.load_all_geometries(
-                self._dff_model.geometries,
-                [g.materials for g in self._dff_model.geometries],
-                self._dff_model.frames,
-                self._dff_model.atomics,
-                damaged=damaged)
+        if enabled:
+            self._reload_assembly()
+        else:
+            if self._dff_model and self._current_geom < len(self._dff_model.geometries):
+                g = self._dff_model.geometries[self._current_geom]
+                self.viewport.load_geometry(g, g.materials)
         self._geom_list.setEnabled(not enabled)
 
-    def _toggle_damage_mode(self, enabled: bool): #vers 1
+    def _toggle_damage_mode(self, enabled: bool): #vers 2
         self._damage_mode = enabled
-        if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
-            self._toggle_assembly_mode(True)
+        if getattr(self, '_assemble_btn', None) and self._assemble_btn.isChecked():
+            self._reload_assembly()
+
 
     def _set_mode(self, mode: str): #vers 1
         self.viewport.set_render_mode(mode)

@@ -1605,26 +1605,26 @@ class IMGFactory(QMainWindow):
             tab_layout.setContentsMargins(0, 0, 0, 0)
             tab_layout.setSpacing(0)
 
-            viewer = ModelViewer(tab_container, self)
-            viewer.setWindowFlags(Qt.WindowType.Widget)
-            viewer.standalone_mode = False
-            tab_layout.addWidget(viewer)
-
-            # Load after widget is shown and GL context initialized
-            def _deferred_load(v=viewer):
-                if dff_path: v.load_dff(dff_path)
-                if txd_path: QTimer.singleShot(200, lambda: v.load_txd(txd_path))
-                if img:      v.load_img(img)
-            QTimer.singleShot(150, _deferred_load)
-
+            # Add tab first so viewer is embedded before init completes
             try:
                 from apps.methods.imgfactory_svg_icons import SVGIconFactory
                 icon = SVGIconFactory.cube_icon(20, '#ffffff')
                 idx = self.main_tab_widget.addTab(tab_container, icon, "Model Viewer")
             except Exception:
                 idx = self.main_tab_widget.addTab(tab_container, "Model Viewer")
-
             self.main_tab_widget.setCurrentIndex(idx)
+
+            # Create viewer with tab_container as parent — never shown as window
+            viewer = ModelViewer(tab_container, self)
+            tab_layout.addWidget(viewer)
+
+            # Deferred load — GL context needs widget visible first
+            def _deferred_load(v=viewer):
+                if dff_path: v.load_dff(dff_path)
+                if img:      v.load_img(img)
+                if txd_path: QTimer.singleShot(300, lambda: v.load_txd(txd_path))
+            QTimer.singleShot(200, _deferred_load)
+
             self.log_message("Model Viewer opened")
             return viewer
         except Exception as e:

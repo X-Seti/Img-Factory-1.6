@@ -260,19 +260,26 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
         rgba = None
 
         if is_sa_format:
-            # SA: d3d_or_alpha IS the FourCC
+            # SA: mip levels also preceded by 4-byte size field
+            if pos + 4 <= len(data):
+                mip_size = struct.unpack_from('<I', data, pos)[0]
+                pos += 4
+            else:
+                mip_size = 0
+            mip_data = data[pos:pos+mip_size] if mip_size > 0 and pos+mip_size <= len(data) else data[pos:]
+
             if d3d_or_alpha == D3D_DXT1:
                 fmt  = 'DXT1'
                 size = max(1,(w+3)//4)*max(1,(h+3)//4)*8
-                if pos+size <= len(data): rgba = _decode_dxt1(data[pos:pos+size], w, h)
+                rgba = _decode_dxt1(mip_data[:size], w, h)
             elif d3d_or_alpha in (D3D_DXT2, D3D_DXT3):
                 fmt  = 'DXT3'
                 size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
-                if pos+size <= len(data): rgba = _decode_dxt3(data[pos:pos+size], w, h)
+                rgba = _decode_dxt3(mip_data[:size], w, h)
             elif d3d_or_alpha in (D3D_DXT4, D3D_DXT5):
                 fmt  = 'DXT5'
                 size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
-                if pos+size <= len(data): rgba = _decode_dxt5(data[pos:pos+size], w, h)
+                rgba = _decode_dxt5(mip_data[:size], w, h)
         else:
             # VC/III: compression signalled by raster_format flags or mip data header
             # Each mip level is preceded by a 4-byte size field
