@@ -122,7 +122,7 @@ class DFFParser:
                     ect, esz, _, ep2 = read_chunk(self.data, ep)
                     if ect in (0x0253F2FE, 0x0253F2FF, 0x00000002):
                         raw  = self.data[ep2:ep2 + esz]
-                        name = raw.split(b'\x00')[0].decode('ascii', 'replace').strip()
+                        name = raw.split(b'\x00')[0].decode('ascii', 'ignore').strip()
                         if name and not self.model.frames[frame_idx].name:
                             self.model.frames[frame_idx].name = name
                     ep = ep2 + esz
@@ -343,11 +343,11 @@ class DFFParser:
                 tp = p2
                 ct3, sz3, _, p3 = read_chunk(self.data, tp); tp = p3 + sz3
                 ct3, sz3, _, p3 = read_chunk(self.data, tp)
-                mat.texture_name = self.data[p3:p3+sz3].split(b'\x00')[0].decode('ascii', 'replace')
+                mat.texture_name = self.data[p3:p3+sz3].split(b'\x00')[0].decode('ascii', 'ignore').strip()
                 tp = p3 + sz3
                 if tp + 12 <= end:
                     ct3, sz3, _, p3 = read_chunk(self.data, tp)
-                    mat.texture_mask = self.data[p3:p3+sz3].split(b'\x00')[0].decode('ascii', 'replace')
+                    mat.texture_mask = self.data[p3:p3+sz3].split(b'\x00')[0].decode('ascii', 'ignore').strip()
             pos = p2 + sz2
         return mat
 

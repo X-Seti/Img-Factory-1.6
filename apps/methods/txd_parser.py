@@ -224,9 +224,9 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
         pos += 4
         pos += 4  # filter/wrap flags
 
-        tex_name  = data[pos:pos+32].split(b'\x00')[0].decode('ascii','replace').strip()
+        tex_name  = data[pos:pos+32].split(b'\x00')[0].decode('ascii','ignore').strip()
         pos += 32
-        mask_name = data[pos:pos+32].split(b'\x00')[0].decode('ascii','replace').strip()
+        mask_name = data[pos:pos+32].split(b'\x00')[0].decode('ascii','ignore').strip()
         pos += 32
 
         raster_format = struct.unpack_from('<I', data, pos)[0]
