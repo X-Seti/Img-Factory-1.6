@@ -68,7 +68,7 @@ DEBUG_STANDALONE = False
 
 App_name  = "Model Viewer"
 App_build = "May 2026"
-Build     = "Build 001"
+Build     = "Build 023"
 
 
 #    Infrastructure imports
@@ -215,7 +215,7 @@ class _CornerOverlay(QWidget):
         self.setMask(region)
 
     def update_state(self, hover_corner, app_settings): #vers 2
-        self._hover    = hover
+        self._hover = hover_corner
         self._settings = app_settings
         self.update()
 
@@ -1151,7 +1151,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
                 b.clicked.connect(cb)
             return b
 
-        # ── Render mode ──────────────────────────
+        #  Render mode
         lbl_r = QLabel("Render"); lbl_r.setFont(self.panel_font)
         lay.addWidget(lbl_r)
         self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
@@ -1167,7 +1167,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addSpacing(6)
 
-        # ── View toggles ─────────────────────────
+        #  View toggles
         lbl_v = QLabel("View"); lbl_v.setFont(self.panel_font)
         lay.addWidget(lbl_v)
         self._cull_btn   = _btn("Backface Cull", "Toggle backface culling",  self.viewport.set_backface_cull, 'backface', True, True)
@@ -1179,7 +1179,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addSpacing(6)
 
-        # ── Camera ───────────────────────────────
+        #  Camera
         lbl_c = QLabel("Camera"); lbl_c.setFont(self.panel_font)
         lay.addWidget(lbl_c)
         lay.addWidget(_btn("Reset Camera", "Reset camera to default", self.viewport.reset_camera, 'reset'))
@@ -1187,7 +1187,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addSpacing(6)
 
-        # ── Paint Colours ────────────────────────
+        #  Paint Colours
         lbl_p = QLabel("Paint"); lbl_p.setFont(self.panel_font)
         lay.addWidget(lbl_p)
 
@@ -1196,10 +1196,11 @@ class ModelViewer(ToolMenuMixin, QWidget):
         swatch_lay = QHBoxLayout(swatch_row)
         swatch_lay.setContentsMargins(0,0,0,0); swatch_lay.setSpacing(4)
 
-        self._paint1_btn = QPushButton("●  Primary")
-        self._paint2_btn = QPushButton("●  Secondary")
+        self._paint1_btn = QPushButton("Primary")
+        self._paint2_btn = QPushButton("Secondary")
         for btn in (self._paint1_btn, self._paint2_btn):
-            btn.setFixedHeight(24); btn.setFont(self.infobar_font)
+            btn.setFixedHeight(28)
+            btn.setFont(self.infobar_font)
         self._paint1_btn.clicked.connect(self._pick_paint1)
         self._paint2_btn.clicked.connect(self._pick_paint2)
         swatch_lay.addWidget(self._paint1_btn)
@@ -1215,7 +1216,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addSpacing(4)
 
-        # ── Assembly ─────────────────────────────
+        #  Assembly
         lbl_a = QLabel("Assembly"); lbl_a.setFont(self.panel_font)
         lay.addWidget(lbl_a)
         self._assemble_btn = _btn("All Parts", "Show all parts assembled at world positions", self._toggle_assembly_mode, None, True, False)
@@ -1227,7 +1228,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addSpacing(6)
 
-        # ── Model Info ───────────────────────────
+        #  Model Info
         lbl_i = QLabel("Model Info"); lbl_i.setFont(self.panel_font)
         lay.addWidget(lbl_i)
         self._info_lbl = QLabel("—")
