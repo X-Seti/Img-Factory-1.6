@@ -1130,6 +1130,34 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addSpacing(6)
 
+        # ── Paint Colours ────────────────────────
+        lbl_p = QLabel("Paint"); lbl_p.setFont(self.panel_font)
+        lay.addWidget(lbl_p)
+
+        # Colour swatches row — primary + secondary
+        swatch_row = QWidget()
+        swatch_lay = QHBoxLayout(swatch_row)
+        swatch_lay.setContentsMargins(0,0,0,0); swatch_lay.setSpacing(4)
+
+        self._paint1_btn = QPushButton("●  Primary")
+        self._paint2_btn = QPushButton("●  Secondary")
+        for btn in (self._paint1_btn, self._paint2_btn):
+            btn.setFixedHeight(24); btn.setFont(self.infobar_font)
+        self._paint1_btn.clicked.connect(self._pick_paint1)
+        self._paint2_btn.clicked.connect(self._pick_paint2)
+        swatch_lay.addWidget(self._paint1_btn)
+        swatch_lay.addWidget(self._paint2_btn)
+        lay.addWidget(swatch_row)
+        self._update_paint_btns()
+
+        # Carcols swatches — populated when DFF loads
+        self._carcols_widget = QWidget()
+        self._carcols_lay = QVBoxLayout(self._carcols_widget)
+        self._carcols_lay.setContentsMargins(0,0,0,2); self._carcols_lay.setSpacing(2)
+        lay.addWidget(self._carcols_widget)
+
+        lay.addSpacing(4)
+
         # ── Assembly ─────────────────────────────
         lbl_a = QLabel("Assembly"); lbl_a.setFont(self.panel_font)
         lay.addWidget(lbl_a)
@@ -1411,6 +1439,69 @@ class ModelViewer(ToolMenuMixin, QWidget):
         if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
             self._toggle_assembly_mode(True)
 
+    def _update_paint_btns(self): #vers 1
+        vp = self.viewport
+        def _css(rgb): return f'background-color:rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)});color:{"#000" if sum(rgb)>1.5 else "#fff"}'
+        if hasattr(self,'_paint1_btn'): self._paint1_btn.setStyleSheet(_css(vp._paint1))
+        if hasattr(self,'_paint2_btn'): self._paint2_btn.setStyleSheet(_css(vp._paint2))
+
+    def _pick_paint1(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+        vp = self.viewport
+        col = QColorDialog.getColor(QColor(int(vp._paint1[0]*255),int(vp._paint1[1]*255),int(vp._paint1[2]*255)),self)
+        if col.isValid(): vp._paint1=(col.redF(),col.greenF(),col.blueF()); self._update_paint_btns(); vp.update()
+
+    def _pick_paint2(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+        vp = self.viewport
+        col = QColorDialog.getColor(QColor(int(vp._paint2[0]*255),int(vp._paint2[1]*255),int(vp._paint2[2]*255)),self)
+        if col.isValid(): vp._paint2=(col.redF(),col.greenF(),col.blueF()); self._update_paint_btns(); vp.update()
+
+    def _set_paint_pair(self, p1, p2): #vers 1
+        self.viewport._paint1=p1; self.viewport._paint2=p2
+        self._update_paint_btns(); self.viewport.update()
+
+    def _load_carcols(self, vehicle_name: str): #vers 1
+        lay = getattr(self,'_carcols_lay',None)
+        if not lay: return
+        while lay.count():
+            item = lay.takeAt(0)
+            if item.widget(): item.widget().deleteLater()
+        game_root = ''
+        vp = self.viewport
+        if hasattr(vp,'_find_game_root'): game_root = vp._find_game_root()
+        if not game_root:
+            mw = self.main_window
+            if mw:
+                for attr in ('game_root','_game_root','game_directory'):
+                    val=getattr(mw,attr,None)
+                    if val and os.path.isdir(str(val)): game_root=str(val); break
+        if not game_root: return
+        try:
+            from apps.methods.carcols_parser import get_vehicle_colours
+            pairs = get_vehicle_colours(game_root, vehicle_name)
+            if not pairs: return
+            lbl = QLabel(f'Carcols ({len(pairs)} pairs)')
+            lbl.setFont(self.infobar_font); lay.addWidget(lbl)
+            for i,(p1,p2) in enumerate(pairs[:8]):
+                row=QWidget(); rl=QHBoxLayout(row)
+                rl.setContentsMargins(0,0,0,0); rl.setSpacing(2)
+                def _css(rgb): return f'background-color:rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)});min-height:16px;border:1px solid #333'
+                b1=QPushButton(); b1.setFixedSize(20,16); b1.setStyleSheet(_css(p1))
+                b2=QPushButton(); b2.setFixedSize(20,16); b2.setStyleSheet(_css(p2))
+                b1.setToolTip(f'Primary: rgb({int(p1[0]*255)},{int(p1[1]*255)},{int(p1[2]*255)})')
+                b2.setToolTip(f'Secondary: rgb({int(p2[0]*255)},{int(p2[1]*255)},{int(p2[2]*255)})')
+                ab=QPushButton(f'#{i+1}'); ab.setFixedHeight(16); ab.setFont(self.infobar_font)
+                ab.setToolTip(f'Apply colour pair {i+1}')
+                ab.clicked.connect(lambda _=False,a=p1,b=p2: self._set_paint_pair(a,b))
+                rl.addWidget(b1); rl.addWidget(b2); rl.addWidget(ab,1)
+                lay.addWidget(row)
+        except Exception as e:
+            print(f'[carcols] {e}')
+
+
     def _set_mode(self, mode: str): #vers 1
         self.viewport.set_render_mode(mode)
 
@@ -1457,8 +1548,11 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self._set_status(
                 f"Loaded: {os.path.basename(path)} — "
                 f"{len(model.geometries)} geometries, {len(model.frames)} frames")
-            # Auto-load shared TXDs after primary TXD is loaded
+            # Load carcols colour pairs for this vehicle
+            stem = os.path.splitext(os.path.basename(path))[0]
             from PyQt6.QtCore import QTimer
+            QTimer.singleShot(100, lambda s=stem: self._load_carcols(s))
+            # Auto-load shared TXDs after primary TXD is loaded
             QTimer.singleShot(500, self._auto_load_shared_txds)
         except Exception as e:
             import traceback; traceback.print_exc()
