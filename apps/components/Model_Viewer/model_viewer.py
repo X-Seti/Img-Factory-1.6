@@ -1011,7 +1011,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self.info_radar_btn.setFixedSize(35, 35)
             self.info_radar_btn.setToolTip("About Radar Workshop")
             self.info_radar_btn.clicked.connect(self._show_about)
-            layout.addWidget(self.info_radar_btn)
+            lay.addWidget(self.info_radar_btn)
 
             # - Theme / Properties
             self.properties_btn = QPushButton()
@@ -1020,7 +1020,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self.properties_btn.setFixedSize(35, 35)
             self.properties_btn.setToolTip("Theme Settings")
             self.properties_btn.clicked.connect(self._show_workshop_settings)
-            layout.addWidget(self.properties_btn)
+            lay.addWidget(self.properties_btn)
 
             self.minimize_btn = QPushButton(); self.minimize_btn.setFixedSize(32,28)
             self.maximize_btn = QPushButton(); self.maximize_btn.setFixedSize(32,28)
