@@ -14,6 +14,9 @@ Supports COL1 (GTA III/VC) and COL2/3/4 (SA).
 import struct
 from typing import List
 
+import os, sys
+if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from col_workshop_classes import COLModel, COLVersion
 
 

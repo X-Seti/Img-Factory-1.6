@@ -698,8 +698,10 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         self.setup_ui()
         self._set_status("Open handling.cfg, carcols.dat or carmods.dat to begin")
 
-    def setup_ui(self): #vers 2
-        super().setup_ui()
+    def _create_centre_panel(self): #vers 1
+        from PyQt6.QtWidgets import QFrame, QVBoxLayout
+        panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        lay = QVBoxLayout(panel); lay.setContentsMargins(0,0,0,0); lay.setSpacing(0)
         self._tabs = QTabWidget()
         self._tab_handling = HandlingTab()
         self._tab_carcols  = CarColoursTab()
@@ -707,12 +709,13 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         self._tabs.addTab(self._tab_handling, "Handling")
         self._tabs.addTab(self._tab_carcols,  "Car Colours")
         self._tabs.addTab(self._tab_carmods,  "Car Mods (SA)")
-
-        # Vehicle Preview tab — OpenGL viewer
         self._tab_preview = self._create_preview_tab()
         self._tabs.addTab(self._tab_preview, "3D Preview")
+        lay.addWidget(self._tabs)
+        return panel
 
-        self.centre_layout.addWidget(self._tabs)
+    def setup_ui(self): #vers 3
+        super().setup_ui()
 
     def _create_preview_tab(self): #vers 1
         """Build the 3D Preview tab with DFFViewport and vehicle controls."""

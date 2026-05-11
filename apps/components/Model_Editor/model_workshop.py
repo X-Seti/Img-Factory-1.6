@@ -5430,7 +5430,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.open_dff_btn.setToolTip("Open a DFF model file directly (Ctrl+D)")
         self.open_dff_btn.setShortcut("Ctrl+D")
         self.open_dff_btn.clicked.connect(self._open_dff_standalone)
-        layout.addWidget(self.open_dff_btn)
 
         # GL Model Viewer button
         self.gl_viewer_btn = QPushButton()
@@ -5438,7 +5437,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.gl_viewer_btn.setText("3D View")
         self.gl_viewer_btn.setToolTip("Open GL Model Viewer (hardware 3D)")
         self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
-        layout.addWidget(self.gl_viewer_btn)
 
         # Open TXD button — loads TXD for the current DFF, or browses for one
         self.open_txd_btn = QPushButton()
@@ -5452,7 +5450,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             "Hold Shift to always browse for a file.")
         self.open_txd_btn.setShortcut("Ctrl+T")
         self.open_txd_btn.clicked.connect(self._open_txd_combined)
-        layout.addWidget(self.open_txd_btn)
 
         # Save button
         self.save_btn = QPushButton()
@@ -5489,7 +5486,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.export_ojs_btn.setToolTip("Export geometries as OBJ, COL, or other formats")
         self.export_ojs_btn.clicked.connect(self.export_all)
         self.export_ojs_btn.setEnabled(True)
-        layout.addWidget(self.export_ojs_btn)
 
         self.export_tex_btn = QPushButton("Extract Tex")
         self.export_tex_btn.setFont(self.button_font)
@@ -5498,7 +5494,6 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.export_tex_btn.setToolTip("Export textures as png, tga, dss or other formats")
         self.export_tex_btn.clicked.connect(self.export_all)
         self.export_tex_btn.setEnabled(True)
-        layout.addWidget(self.export_tex_btn)
 
         self.undo_btn = QPushButton()
         self.undo_btn.setFont(self.button_font)
@@ -7648,6 +7643,31 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         ide_layout.addWidget(self.find_in_ide_btn)
 
         info_layout.addLayout(ide_layout)
+
+        # Quick-access row — TXD | Objs/Col | 3D View
+        quick_row = QHBoxLayout()
+        quick_row.setSpacing(3)
+
+        for btn_attr, label, tip, cb, icon_name in [
+            ('open_txd_btn',    'TXD',      'Open TXD for current model', self._open_txd_combined,  'open'),
+            ('export_ojs_btn',  'Objs/Col', 'Export geometry / COL',      self.export_all,          'package'),
+            ('gl_viewer_btn',   '3D View',  'Open GL Model Viewer',       self._open_gl_viewer,     'cube'),
+        ]:
+            b = QPushButton(label)
+            b.setFont(self.button_font)
+            b.setFixedHeight(24)
+            b.setToolTip(tip)
+            try:
+                ico_fn = getattr(self.icon_factory, f'{icon_name}_icon', None)
+                if ico_fn:
+                    b.setIcon(ico_fn(color=icon_color))
+                    b.setIconSize(QSize(14, 14))
+            except Exception: pass
+            b.clicked.connect(cb)
+            setattr(self, btn_attr, b)
+            quick_row.addWidget(b)
+
+        info_layout.addLayout(quick_row)
 
         # -  LINES 2 & 3: Build BOTH rows, show/hide based on panel width
         # - Text+label row (wide)
