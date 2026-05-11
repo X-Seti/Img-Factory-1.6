@@ -1346,7 +1346,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self._last_dir = os.path.dirname(path)
             self.load_txd(path)
 
-    def load_dff(self, path: str): #vers 2
+    def load_dff(self, path: str): #vers 3
         try:
             from apps.methods.dff_parser import load_dff
             model = load_dff(path)
@@ -1363,9 +1363,138 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self._set_status(
                 f"Loaded: {os.path.basename(path)} — "
                 f"{len(model.geometries)} geometries, {len(model.frames)} frames")
+            # Auto-load shared TXDs after primary TXD is loaded
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(500, self._auto_load_shared_txds)
         except Exception as e:
             import traceback; traceback.print_exc()
             self._set_status(f"Error: {e}")
+
+    def _collect_needed_textures(self): #vers 1
+        """Return set of texture names the current DFF needs."""
+        if not self._dff_model: return set()
+        needed = set()
+        for g in self._dff_model.geometries:
+            for mat in g.materials:
+                name = (mat.texture_name or '').strip().lower()
+                if name: needed.add(name)
+        return needed
+
+    def _upload_txd_additive(self, path: str): #vers 1
+        """Load a TXD and upload textures WITHOUT clearing existing ones."""
+        try:
+            from apps.methods.txd_parser import parse_txd
+            from PyQt6.QtGui import QIcon, QImage, QPixmap
+            from PyQt6.QtWidgets import QListWidgetItem
+            from PyQt6.QtCore import Qt
+            with open(path, 'rb') as f: data = f.read()
+            textures = parse_txd(data)
+            if not textures: return 0
+            # Only upload textures not already loaded
+            new_textures = [t for t in textures
+                            if t['name'].lower() not in self.viewport._tex_ids]
+            if new_textures:
+                # Additive upload — don't clear existing
+                self.viewport.makeCurrent()
+                from OpenGL.GL import (glGenTextures, glBindTexture, GL_TEXTURE_2D,
+                    glTexParameteri, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR,
+                    GL_TEXTURE_MAG_FILTER, GL_LINEAR, GL_TEXTURE_WRAP_S,
+                    GL_TEXTURE_WRAP_T, GL_REPEAT, glTexImage2D, GL_RGBA,
+                    GL_UNSIGNED_BYTE, glGenerateMipmap, glDeleteTextures)
+                for t in new_textures:
+                    name = t['name'].lower()
+                    rgba = t.get('rgba_data', b'')
+                    w = t.get('width', 0); h = t.get('height', 0)
+                    if not (rgba and w > 0 and h > 0): continue
+                    gl_id = glGenTextures(1)
+                    glBindTexture(GL_TEXTURE_2D, gl_id)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+                    try:
+                        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba)
+                        glGenerateMipmap(GL_TEXTURE_2D)
+                        self.viewport._tex_ids[name] = gl_id
+                    except Exception:
+                        glDeleteTextures(1,[gl_id])
+                self.viewport.doneCurrent()
+                # Add to texture list
+                for t in new_textures:
+                    item = QListWidgetItem(f"{t['name']}  {t['width']}\xd7{t['height']}")
+                    rgba=t.get('rgba_data',b''); w=t.get('width',0); h=t.get('height',0)
+                    if rgba and w>0 and h>0:
+                        try:
+                            img=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888)
+                            px=QPixmap.fromImage(img).scaled(32,32,
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation)
+                            item.setIcon(QIcon(px))
+                        except Exception: pass
+                    self._tex_list.addItem(item)
+                self.viewport.update()
+            return len(new_textures)
+        except Exception as e:
+            return 0
+
+    def _auto_load_shared_txds(self): #vers 1
+        """After primary TXD loads, find and load any additional TXDs needed."""
+        if not self._dff_model: return
+        needed = self._collect_needed_textures()
+        already = set(self.viewport._tex_ids.keys())
+        missing = needed - already
+        if not missing: return
+
+        loaded = 0
+        dff_dir = os.path.dirname(self._current_dff_path) if self._current_dff_path else ''
+
+        # 1. Look in same directory as DFF for cross-referenced vehicle TXDs
+        if dff_dir:
+            # Collect texture->txd_stem map for the directory
+            try:
+                import os as _os
+                for txd_file in _os.listdir(dff_dir):
+                    if not txd_file.endswith('.txd'): continue
+                    # Skip the primary TXD (already loaded)
+                    stem = txd_file[:-4].lower()
+                    dff_stem = _os.path.basename(self._current_dff_path)[:-4].lower() if self._current_dff_path else ''
+                    if stem == dff_stem: continue
+                    # Check if this TXD has any of our missing textures
+                    try:
+                        from apps.methods.txd_parser import parse_txd
+                        with open(_os.path.join(dff_dir, txd_file),'rb') as f: d=f.read()
+                        names = {t['name'].lower() for t in parse_txd(d)}
+                        if names & missing:
+                            n = self._upload_txd_additive(_os.path.join(dff_dir, txd_file))
+                            if n: loaded += n; missing = self._collect_needed_textures() - set(self.viewport._tex_ids.keys())
+                    except Exception: pass
+                    if not missing: break
+            except Exception: pass
+
+        # 2. Look in current IMG for missing TXDs
+        if missing:
+            img = getattr(self, '_current_img', None)
+            if img and hasattr(img, 'entries'):
+                import tempfile
+                tmp_dir = tempfile.mkdtemp()
+                for entry in img.entries:
+                    if not entry.name.lower().endswith('.txd'): continue
+                    try:
+                        data = img.read_entry_data(entry)
+                        if not data: continue
+                        from apps.methods.txd_parser import parse_txd
+                        names = {t['name'].lower() for t in parse_txd(data)}
+                        if names & missing:
+                            p = os.path.join(tmp_dir, entry.name)
+                            with open(p,'wb') as f: f.write(data)
+                            n = self._upload_txd_additive(p)
+                            if n: loaded += n; missing = self._collect_needed_textures() - set(self.viewport._tex_ids.keys())
+                    except Exception: pass
+                    if not missing: break
+
+        if loaded:
+            self._set_status(f"{self.status_label.text()} (+{loaded} shared textures)")
+            self.viewport.update()
 
     def load_txd(self, path: str): #vers 2
         try:
