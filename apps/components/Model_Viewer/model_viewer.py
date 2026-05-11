@@ -293,6 +293,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._assembly_mode = False
         self._all_geoms     = []
         self._show_lod      = False   # hide _vlo by default
+        # Vehicle paint preview colours (user can change via Light Setup or future colour picker)
+        self._paint1 = (0.80, 0.20, 0.20)  # primary   — default red
+        self._paint2 = (0.20, 0.20, 0.80)  # secondary — default blue
         self._light_dir     = (1.0, 2.0, 1.5, 0.0)   # GL_POSITION homogeneous
         self._ambient       = 0.30
         self._diffuse       = 0.85
@@ -404,9 +407,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glColor3f(0,0,1); glVertex3f(0,0,0); glVertex3f(0,0,r)
         glEnd()
 
-    def _face_color(self, mat_id): #vers 3
-        """Return (r,g,b) 0-1 for a material.
-        Neutralises vehicle light colours and black placeholder materials."""
+    def _face_color(self, mat_id): #vers 4
+        """Return (r,g,b,use_tex_tint) 0-1 for a material.
+        Handles GTA SA vehicle paint slot system:
+          (60,255,0)   = primary paint   -> self._paint1
+          (255,0,175)  = secondary paint -> self._paint2
+          (255,255,255)= white           -> texture as-is (tint=white)
+          (r,g,b)      = real colour     -> multiply with texture
+        """
         mats = self._materials
         if mats and 0 <= mat_id < len(mats):
             mat = mats[mat_id]
@@ -416,10 +424,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             # Pure black no texture = placeholder -> grey
             if r==0 and g==0 and b==0 and not has_tex:
                 return 0.55, 0.55, 0.55
-            # Saturated vehicle light/paint mask with texture -> white
-            sat = max(r,g,b) - min(r,g,b)
-            if has_tex and sat > 150 and max(r,g,b) > 150:
-                return 1.0, 1.0, 1.0
+            # GTA SA primary paint slot: G=255, R<100, B<50
+            if g == 255 and r < 100 and b < 50:
+                return self._paint1
+            # GTA SA secondary paint slot: R=255, G<50, B>100
+            if r == 255 and g < 50 and b > 100:
+                return self._paint2
+            # Vehicle lights — bright saturated colours -> use as tint on texture
+            # Don't return solid colour, let texture render with light colour hint
             return r/255, g/255, b/255
         return 0.7, 0.7, 0.7
 
@@ -472,24 +484,33 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glDisable(GL_POLYGON_OFFSET_LINE)
 
-    def _draw_textured(self): #vers 1
+    def _draw_textured(self): #vers 2
         glEnable(GL_LIGHTING); glEnable(GL_TEXTURE_2D)
+        # GL_MODULATE: final = texture_colour * gl_colour (enables paint tinting)
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
         use_p = self._use_prelight and self._prelit
         mats  = self._materials
 
-        # Group by texture
-        by_tex: Dict[int,list] = {}; no_tex = []
+        # Group triangles by (gl_tex_id, mat_colour) so we batch correctly
+        # Key: (gl_id, r, g, b) — same texture+colour batched together
+        batches: Dict[tuple,list] = {}
+        no_tex = []
         for tri in self._triangles:
             v1,v2,v3,mid = tri
             tname = ''
             if mats and 0 <= mid < len(mats):
                 tname = getattr(mats[mid],'texture_name','') or ''
             gl_id = self._tex_ids.get(tname.lower(), 0)
-            (by_tex.setdefault(gl_id,[]) if gl_id else no_tex).append(tri)
+            if gl_id:
+                r,g,b = self._face_color(mid)
+                key = (gl_id, round(r,2), round(g,2), round(b,2))
+                batches.setdefault(key,[]).append(tri)
+            else:
+                no_tex.append(tri)
 
-        for gl_id, tris in by_tex.items():
+        for (gl_id,r,g,b), tris in batches.items():
             glBindTexture(GL_TEXTURE_2D, gl_id)
-            if not use_p: glColor3f(1,1,1)
+            if not use_p: glColor3f(r, g, b)
             glBegin(GL_TRIANGLES)
             for v1,v2,v3,mid in tris:
                 self._emit_verts(v1,v2,v3, use_prelit=use_p, use_uv=True)
@@ -1186,9 +1207,9 @@ class ModelViewer(ToolMenuMixin, QWidget):
         dlg.exec()
 
 
-    def _light_setup_dialog(self): #vers 1
-        """Light direction and intensity setup dialog."""
-        dlg = QDialog(self); dlg.setWindowTitle("Light Setup"); dlg.resize(340, 280)
+    def _light_setup_dialog(self): #vers 2
+        """Light direction, intensity and vehicle paint colour dialog."""
+        dlg = QDialog(self); dlg.setWindowTitle("Light & Paint Setup"); dlg.resize(360, 380)
         lay = QVBoxLayout(dlg)
         form = QFormLayout()
 
@@ -1235,10 +1256,65 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         lay.addLayout(form)
 
+        # Paint colours
+        from PyQt6.QtWidgets import QGroupBox, QColorDialog
+        paint_grp = QGroupBox("Vehicle Paint Preview")
+        paint_lay = QHBoxLayout(paint_grp)
+
+        def _colour_btn(label, current_rgb, setter):
+            def _to_qcolor(rgb): 
+                from PyQt6.QtGui import QColor
+                return QColor(int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255))
+            btn = QPushButton(label)
+            btn.setStyleSheet(f"background-color: rgb({int(current_rgb[0]*255)},{int(current_rgb[1]*255)},{int(current_rgb[2]*255)})")
+            btn.setFixedHeight(28)
+            def _pick():
+                col = QColorDialog.getColor(_to_qcolor(setter.__self__._paint1 if 'paint1' in label.lower() or 'primary' in label.lower() else setter.__self__._paint2), dlg)
+                if col.isValid():
+                    rgb = (col.redF(), col.greenF(), col.blueF())
+                    setter(rgb)
+                    btn.setStyleSheet(f"background-color: {col.name()}")
+                    vp.update()
+            btn.clicked.connect(_pick)
+            return btn
+
+        vp = self.viewport
+        p1_btn = QPushButton("Primary Paint")
+        p1_btn.setStyleSheet(f"background-color: rgb({int(vp._paint1[0]*255)},{int(vp._paint1[1]*255)},{int(vp._paint1[2]*255)})")
+        p1_btn.setFixedHeight(28)
+        def _pick1():
+            from PyQt6.QtGui import QColor
+            col = QColorDialog.getColor(QColor(int(vp._paint1[0]*255),int(vp._paint1[1]*255),int(vp._paint1[2]*255)), dlg)
+            if col.isValid():
+                vp._paint1 = (col.redF(), col.greenF(), col.blueF())
+                p1_btn.setStyleSheet(f"background-color: {col.name()}")
+                vp.update()
+        p1_btn.clicked.connect(_pick1)
+
+        p2_btn = QPushButton("Secondary Paint")
+        p2_btn.setStyleSheet(f"background-color: rgb({int(vp._paint2[0]*255)},{int(vp._paint2[1]*255)},{int(vp._paint2[2]*255)})")
+        p2_btn.setFixedHeight(28)
+        def _pick2():
+            from PyQt6.QtGui import QColor
+            col = QColorDialog.getColor(QColor(int(vp._paint2[0]*255),int(vp._paint2[1]*255),int(vp._paint2[2]*255)), dlg)
+            if col.isValid():
+                vp._paint2 = (col.redF(), col.greenF(), col.blueF())
+                p2_btn.setStyleSheet(f"background-color: {col.name()}")
+                vp.update()
+        p2_btn.clicked.connect(_pick2)
+
+        paint_lay.addWidget(p1_btn); paint_lay.addWidget(p2_btn)
+        lay.addWidget(paint_grp)
+
         reset_btn = QPushButton("Reset Defaults")
         def _reset():
             sx.setValue(10); sy.setValue(20); sz.setValue(15)
             sa.setValue(30); sd.setValue(85)
+            vp._paint1 = (0.80, 0.20, 0.20)
+            vp._paint2 = (0.20, 0.20, 0.80)
+            p1_btn.setStyleSheet("background-color: rgb(204,51,51)")
+            p2_btn.setStyleSheet("background-color: rgb(51,51,204)")
+            vp.update()
         reset_btn.clicked.connect(_reset)
 
         btn_row = QHBoxLayout()
