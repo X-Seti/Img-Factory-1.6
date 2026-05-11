@@ -57,6 +57,10 @@ from apps.components.Model_Editor.depends.col_workshop_structures import setup_c
 from apps.components.Model_Editor.depends.col_workshop_parser import COLParser
 from apps.components.Model_Editor.depends.col_workshop_loader import COLFile
 from apps.gui.tool_menu_mixin import ToolMenuMixin
+try:
+    from apps.methods.gl_viewport_mixin import GLViewportMixin
+except ImportError:
+    class GLViewportMixin: pass
 
 # Temporary 3D viewport placeholder
 
@@ -1825,7 +1829,7 @@ class _ModelListDelegate(QStyledItemDelegate):
         return QSize(w, max(72, r.height() + 12))
 
 
-class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorkshop
+class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
     """Model Workshop - Main window"""
 
     # - ToolMenuMixin implementation
@@ -7544,6 +7548,9 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         self.preview_widget = COL3DViewport()
         self.preview_widget._workshop_ref = self
         preview_row.addWidget(self.preview_widget, stretch=1)
+        # GL toggle — injected after QPainter viewport
+        self.preview_row = preview_row
+        self.setup_gl_toggle(preview_row)
 
         self._create_paint_bar()
 
@@ -11166,16 +11173,21 @@ class ModelWorkshop(ToolMenuMixin, QWidget): #vers 2  # renamed from ModelWorksh
         """Called when user selects a geometry in the mesh list."""
         self._show_dff_geometry(row)
 
-    def _show_dff_geometry(self, index: int): #vers 1
-        """Push a DFF geometry adapter into the 3D viewport."""
+    def _show_dff_geometry(self, index: int): #vers 2
+        """Push a DFF geometry adapter into the 2D or GL viewport."""
         adapters = getattr(self, '_dff_adapters', [])
         if not adapters or index < 0 or index >= len(adapters):
             return
         adapter = adapters[index]
-        # Push to the viewport — the COL3DViewport is stored as self.preview_widget
+        # 2D QPainter viewport
         pw = getattr(self, 'preview_widget', None)
         if pw and isinstance(pw, COL3DViewport):
             pw.set_current_model(adapter, index)
+        # GL viewport — feed raw geometry if available
+        model = getattr(self, '_current_dff_model', None)
+        if model and index < len(model.geometries):
+            g = model.geometries[index]
+            self.load_dff_in_gl(g, g.materials)
         # Also update the detail panel if present
         model = getattr(self, '_current_dff_model', None)
         if model and index < len(model.geometries):

@@ -50,6 +50,10 @@ from apps.components.Col_Editor.depends.col_workshop_structures import setup_col
 from apps.components.Col_Editor.depends.col_workshop_parser import COLParser
 from apps.components.Col_Editor.depends.col_workshop_loader import COLFile
 from apps.gui.tool_menu_mixin import ToolMenuMixin
+try:
+    from apps.methods.gl_viewport_mixin import GLViewportMixin
+except ImportError:
+    class GLViewportMixin: pass
 # COL Workshop parser system
 from apps.components.Col_Editor.depends.col_workshop_classes import (COLModel, COLVersion, COLHeader, COLBounds,COLSphere, COLBox, COLVertex, COLFace)
 
@@ -1596,7 +1600,7 @@ class _SurfaceParser: #vers 1
             print(f"_SurfaceParser.save: {ex}"); return False
 
 
-class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
+class COLWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 5
     """COL Workshop - Main window"""
 
     #    ToolMenuMixin implementation                                      
@@ -5232,6 +5236,8 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
         self.preview_widget = COL3DViewport()
         self.preview_widget._workshop_ref = self
         preview_row.addWidget(self.preview_widget, stretch=1)
+        self.preview_row = preview_row
+        self.setup_gl_toggle(preview_row)
 
         self._create_paint_bar()
 
@@ -8377,7 +8383,7 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
             if hasattr(self, 'info_name'):
                 self.info_name.setText(model_name)
 
-            # Push model into viewport
+            # Push model into 2D viewport
             pw = getattr(self, 'preview_widget', None)
             if pw:
                 if VIEWPORT_AVAILABLE and isinstance(pw, COL3DViewport):
@@ -8386,6 +8392,13 @@ class COLWorkshop(ToolMenuMixin, QWidget): #vers 4
                     w = max(400, pw.width()); h = max(400, pw.height())
                     pw.setPixmap(self._render_collision_preview(model, w, h))
                     pw.setScaledContents(False)
+            # Also update GL viewport if in GL mode (COL meshes as DFF-like geometry)
+            if getattr(self, '_gl_mode', False):
+                try:
+                    from apps.methods.col_parser import col_to_dff_geometry
+                    g, mats = col_to_dff_geometry(model)
+                    if g: self.load_dff_in_gl(g, mats)
+                except Exception: pass
 
             # Spin thumbnail in detail list
             self._start_thumbnail_spin(row, model)
