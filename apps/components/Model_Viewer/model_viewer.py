@@ -1437,8 +1437,31 @@ class ModelViewer(ToolMenuMixin, QWidget):
         except Exception as e:
             return 0
 
-    def _auto_load_shared_txds(self): #vers 1
-        """After primary TXD loads, find and load any additional TXDs needed."""
+    def _find_game_root(self): #vers 1
+        """Try to find the GTA SA game root from the DFF path or main_window settings."""
+        # From main_window app_settings
+        mw = self.main_window
+        if mw:
+            for attr in ('game_root','_game_root','game_directory'):
+                val = getattr(mw, attr, None)
+                if val and os.path.isdir(val): return val
+            if hasattr(mw,'app_settings'):
+                settings = mw.app_settings
+                for key in ('game_root','game_directory','sa_root'):
+                    val = getattr(settings,'get',lambda k,d=None:d)(key)
+                    if val and os.path.isdir(str(val)): return str(val)
+        # Walk up from DFF path looking for models/ or data/ folder
+        if self._current_dff_path:
+            p = os.path.dirname(self._current_dff_path)
+            for _ in range(8):
+                if os.path.isdir(os.path.join(p,'models')) and os.path.isdir(os.path.join(p,'data')):
+                    return p
+                p = os.path.dirname(p)
+        return ''
+
+    def _auto_load_shared_txds(self): #vers 2
+        """After primary TXD loads, find and load any additional TXDs needed.
+        Search order: models/generic/, DFF directory, current IMG."""
         if not self._dff_model: return
         needed = self._collect_needed_textures()
         already = set(self.viewport._tex_ids.keys())
@@ -1447,6 +1470,24 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         loaded = 0
         dff_dir = os.path.dirname(self._current_dff_path) if self._current_dff_path else ''
+
+        # 0. models/generic/ — vehicle.txd, wheels.txd (highest priority for shared textures)
+        game_root = self._find_game_root()
+        if game_root:
+            generic_dir = os.path.join(game_root, 'models', 'generic')
+            if os.path.isdir(generic_dir):
+                for txd_name in ('vehicle.txd', 'wheels.txd', 'vehiclecommon.txd'):
+                    txd_path = os.path.join(generic_dir, txd_name)
+                    if os.path.isfile(txd_path):
+                        n = self._upload_txd_additive(txd_path)
+                        if n:
+                            loaded += n
+                            missing = self._collect_needed_textures() - set(self.viewport._tex_ids.keys())
+                if not missing:
+                    if loaded:
+                        self._set_status(f"{self.status_label.text()} (+{loaded} shared textures)")
+                        self.viewport.update()
+                    return
 
         # 1. Look in same directory as DFF for cross-referenced vehicle TXDs
         if dff_dir:
