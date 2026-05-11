@@ -1480,83 +1480,130 @@ class ModelViewer(ToolMenuMixin, QWidget):
                 p = os.path.dirname(p)
         return ''
 
-    def _auto_load_shared_txds(self): #vers 2
-        """After primary TXD loads, find and load any additional TXDs needed.
-        Search order: models/generic/, DFF directory, current IMG."""
+    def _auto_load_shared_txds(self): #vers 3
+        """Find shared TXDs in a background thread — never blocks the UI."""
         if not self._dff_model: return
-        needed = self._collect_needed_textures()
+        needed  = self._collect_needed_textures()
         already = set(self.viewport._tex_ids.keys())
         missing = needed - already
         if not missing: return
 
-        loaded = 0
-        dff_dir = os.path.dirname(self._current_dff_path) if self._current_dff_path else ''
+        # Snapshot everything the worker needs — no shared mutable state
+        game_root  = self._find_game_root()
+        dff_dir    = os.path.dirname(self._current_dff_path) if self._current_dff_path else ''
+        dff_stem   = os.path.splitext(os.path.basename(self._current_dff_path))[0].lower() if self._current_dff_path else ''
+        img        = getattr(self, '_current_img', None)
 
-        # 0. models/generic/ — vehicle.txd, wheels.txd (highest priority for shared textures)
-        game_root = self._find_game_root()
-        if game_root:
-            generic_dir = os.path.join(game_root, 'models', 'generic')
-            if os.path.isdir(generic_dir):
-                for txd_name in ('vehicle.txd', 'wheels.txd', 'vehiclecommon.txd'):
-                    txd_path = os.path.join(generic_dir, txd_name)
-                    if os.path.isfile(txd_path):
-                        n = self._upload_txd_additive(txd_path)
-                        if n:
-                            loaded += n
-                            missing = self._collect_needed_textures() - set(self.viewport._tex_ids.keys())
-                if not missing:
-                    if loaded:
-                        self._set_status(f"{self.status_label.text()} (+{loaded} shared textures)")
-                        self.viewport.update()
-                    return
+        from PyQt6.QtCore import QThread, pyqtSignal as _sig
 
-        # 1. Look in same directory as DFF for cross-referenced vehicle TXDs
-        if dff_dir:
-            # Collect texture->txd_stem map for the directory
-            try:
-                import os as _os
-                for txd_file in _os.listdir(dff_dir):
-                    if not txd_file.endswith('.txd'): continue
-                    # Skip the primary TXD (already loaded)
-                    stem = txd_file[:-4].lower()
-                    dff_stem = _os.path.basename(self._current_dff_path)[:-4].lower() if self._current_dff_path else ''
-                    if stem == dff_stem: continue
-                    # Check if this TXD has any of our missing textures
-                    try:
-                        from apps.methods.txd_parser import parse_txd
-                        with open(_os.path.join(dff_dir, txd_file),'rb') as f: d=f.read()
-                        names = {t['name'].lower() for t in parse_txd(d)}
-                        if names & missing:
-                            n = self._upload_txd_additive(_os.path.join(dff_dir, txd_file))
-                            if n: loaded += n; missing = self._collect_needed_textures() - set(self.viewport._tex_ids.keys())
-                    except Exception: pass
-                    if not missing: break
-            except Exception: pass
+        viewer_ref = self
 
-        # 2. Look in current IMG for missing TXDs
-        if missing:
-            img = getattr(self, '_current_img', None)
-            if img and hasattr(img, 'entries'):
+        class _Worker(QThread):
+            found = _sig(list)   # emits list of {'name','rgba_data','width','height','format'}
+            status = _sig(str)
+
+            def run(self):
+                from apps.methods.txd_parser import parse_txd
                 import tempfile
-                tmp_dir = tempfile.mkdtemp()
-                for entry in img.entries:
-                    if not entry.name.lower().endswith('.txd'): continue
-                    try:
-                        data = img.read_entry_data(entry)
-                        if not data: continue
-                        from apps.methods.txd_parser import parse_txd
-                        names = {t['name'].lower() for t in parse_txd(data)}
-                        if names & missing:
-                            p = os.path.join(tmp_dir, entry.name)
-                            with open(p,'wb') as f: f.write(data)
-                            n = self._upload_txd_additive(p)
-                            if n: loaded += n; missing = self._collect_needed_textures() - set(self.viewport._tex_ids.keys())
-                    except Exception: pass
-                    if not missing: break
+                collected = []
+                miss = set(missing)  # local copy
 
-        if loaded:
-            self._set_status(f"{self.status_label.text()} (+{loaded} shared textures)")
-            self.viewport.update()
+                def _try_txd_data(data):
+                    nonlocal miss
+                    try:
+                        textures = parse_txd(data)
+                        hits = [t for t in textures if t['name'].lower() in miss
+                                and t.get('rgba_data') and t['width']>0]
+                        if hits:
+                            collected.extend(hits)
+                            miss -= {t['name'].lower() for t in hits}
+                        return len(hits)
+                    except Exception:
+                        return 0
+
+                # 0. models/generic/
+                if game_root:
+                    generic = os.path.join(game_root,'models','generic')
+                    for fn in ('vehicle.txd','wheels.txd','vehiclecommon.txd'):
+                        p = os.path.join(generic, fn)
+                        if os.path.isfile(p) and miss:
+                            try:
+                                with open(p,'rb') as f: _try_txd_data(f.read())
+                            except Exception: pass
+                    if not miss:
+                        if collected: self.found.emit(collected)
+                        return
+
+                # 1. Same directory as DFF
+                if dff_dir and miss:
+                    try:
+                        for fn in os.listdir(dff_dir):
+                            if not fn.lower().endswith('.txd'): continue
+                            if fn[:-4].lower() == dff_stem: continue
+                            if not miss: break
+                            try:
+                                with open(os.path.join(dff_dir,fn),'rb') as f: _try_txd_data(f.read())
+                            except Exception: pass
+                    except Exception: pass
+
+                # 2. Current IMG — ONLY look up exact stem.txd entries, no full scan
+                if miss and img and hasattr(img,'entries'):
+                    self.status.emit(f'Scanning IMG for {len(miss)} missing textures…')
+                    # Build a map of entry names first (fast, no data read)
+                    txd_entries = {e.name.lower(): e for e in img.entries
+                                   if e.name.lower().endswith('.txd')}
+                    # Only try TXDs whose name hints at containing missing textures
+                    # Heuristic: match first 6 chars of texture name to TXD stem
+                    tried = set()
+                    for tex_name in list(miss):
+                        if not miss: break
+                        stem6 = tex_name[:6].lower()
+                        for txd_name, entry in txd_entries.items():
+                            if txd_name[:-4] in tried: continue
+                            if txd_name.startswith(stem6) or stem6.startswith(txd_name[:4]):
+                                tried.add(txd_name[:-4])
+                                try:
+                                    data = img.read_entry_data(entry)
+                                    if data: _try_txd_data(data)
+                                except Exception: pass
+                                break
+
+                if collected:
+                    self.found.emit(collected)
+
+        self._shared_txd_worker = _Worker()
+        self._shared_txd_worker.status.connect(self._set_status)
+        self._shared_txd_worker.found.connect(self._on_shared_txds_found)
+        self._shared_txd_worker.finished.connect(lambda: self._show_progress(False))
+        self._show_progress(True)
+        self._shared_txd_worker.start()
+
+    def _on_shared_txds_found(self, textures: list): #vers 1
+        """Receive shared textures from worker thread and upload to GL on main thread."""
+        if not textures: return
+        # Filter already-loaded
+        new = [t for t in textures if t['name'].lower() not in self.viewport._tex_ids]
+        if not new: return
+        self.viewport._upload_textures(new)
+        # Add to tex list
+        from PyQt6.QtGui import QIcon, QImage, QPixmap
+        from PyQt6.QtWidgets import QListWidgetItem
+        from PyQt6.QtCore import Qt
+        for t in new:
+            item = QListWidgetItem(f"{t['name']}  {t['width']}\xd7{t['height']}")
+            rgba=t.get('rgba_data',b''); w=t.get('width',0); h=t.get('height',0)
+            if rgba and w>0 and h>0:
+                try:
+                    img=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888)
+                    px=QPixmap.fromImage(img).scaled(32,32,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                    item.setIcon(QIcon(px))
+                except Exception: pass
+            self._tex_list.addItem(item)
+        self._set_status(f'+{len(new)} shared textures loaded')
+        self.viewport.update()
+
 
     def load_txd(self, path: str): #vers 2
         try:
