@@ -805,6 +805,12 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
         self.setup_ui()
         self._apply_theme()
+        # App icon
+        try:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory as _SIF
+            self.setWindowIcon(_SIF.mesh_icon(32, '#4a9fd4'))
+        except Exception:
+            pass
 
     # - margins (template)
 
@@ -843,7 +849,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
 
     # - toolbar
-    def _create_toolbar(self): #vers 1
+    def _create_toolbar(self): #vers 2
         self.toolbar = QFrame()
         self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
         self.toolbar.setObjectName("titlebar")
@@ -851,8 +857,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
         self.toolbar.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.toolbar.setMouseTracking(True)
         self.toolbar.setFixedHeight(self.titlebarheight)
-        self.titlebar = self.toolbar  # alias for drag detection
-        icon_color = self._get_icon_color()
+        self.titlebar = self.toolbar
         ic = self._get_icon_color()
         lay = QHBoxLayout(self.toolbar)
         lay.setContentsMargins(*self.get_panel_margins())
@@ -865,98 +870,84 @@ class ModelViewer(ToolMenuMixin, QWidget):
                 return fn(size, ic) if fn else None
             except Exception: return None
 
-        from PyQt6.QtWidgets import QToolButton
-        def _tbtn(text, tip, cb, icon_name=None, checkable=False, checked=False, w=None):
+        def _ibtn(tip, cb, iname, size=35):
+            b = QPushButton(); b.setFixedSize(size, 28)
+            b.setToolTip(tip)
+            ico = _icon(iname)
+            if ico: b.setIcon(ico); b.setIconSize(QSize(size-15, size-15))
+            b.clicked.connect(cb)
+            return b
+
+        def _tbtn(text, tip, cb, iname=None):
+            from PyQt6.QtWidgets import QToolButton
             b = QToolButton(); b.setToolTip(tip); b.setFixedHeight(28)
             b.setFont(self.button_font)
-            ico = _icon(icon_name) if icon_name else None
+            ico = _icon(iname)
             if ico:
                 b.setIcon(ico); b.setIconSize(QSize(16,16))
                 b.setText(text)
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             else:
                 b.setText(text)
-                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
             b.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            if w: b.setFixedWidth(w)
-            if checkable: b.setCheckable(True); b.setChecked(checked)
-            if checkable: b.toggled.connect(cb)
-            else:         b.clicked.connect(cb)
+            b.clicked.connect(cb)
             return b
 
-        # Menu button
+        # Menu | Settings
         self.menu_toggle_btn = QPushButton("Menu")
         self.menu_toggle_btn.setFont(self.button_font)
         self.menu_toggle_btn.setFixedHeight(28)
+        ico = _icon('menu')
+        if ico: self.menu_toggle_btn.setIcon(ico); self.menu_toggle_btn.setIconSize(QSize(16,16))
         self.menu_toggle_btn.clicked.connect(self._on_menu_btn_clicked)
         lay.addWidget(self.menu_toggle_btn)
 
-        # Settings
-        self.settings_btn = QPushButton()
-        self.settings_btn.setFont(self.button_font)
-        self.settings_btn.setIcon(SVGIconFactory.settings_icon(20, icon_color))
-        self.settings_btn.setText("Settings")
-        self.settings_btn.setIconSize(QSize(20, 20))
-        self.settings_btn.setFixedHeight(28)
-        #self.settings_btn.setFixedSize(35,35)
-        self.settings_btn.setToolTip("Model Viewer Settings")
-        self.settings_btn.clicked.connect(self._show_workshop_settings)
-        self.settings_btn.setToolTip(App_name + "Workshop Settings")
-        self.settings_btn.setVisible(True)  # show in both standalone and docked
+        self.settings_btn = _ibtn("Viewer Settings", self._show_workshop_settings, 'settings')
         lay.addWidget(self.settings_btn)
 
-        lay.addSpacing(8)
+        lay.addSpacing(4)
 
-        # Open buttons
-        self.open_dff_btn = _tbtn("Open DFF", "Open DFF model", self._open_dff, 'open')
-        self.open_txd_btn = _tbtn("Open TXD", "Open TXD textures", self._open_txd, 'open')
+        # → title (draggable centre area) →
+        self._title_lbl = QLabel(App_name)
+        self._title_lbl.setFont(self.title_font)
+        self._title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._title_lbl.setVisible(self.standalone_mode)
+        lay.addStretch()
+        lay.addWidget(self._title_lbl)
+        lay.addStretch()
+
+        # Open DFF | Open TXD
+        self.open_dff_btn = _tbtn("Open DFF", "Open DFF model (Ctrl+O)", self._open_dff, 'open')
+        self.open_txd_btn = _tbtn("Open TXD", "Open TXD textures",       self._open_txd, 'open')
         lay.addWidget(self.open_dff_btn)
         lay.addWidget(self.open_txd_btn)
 
-        lay.addStretch()
+        lay.addSpacing(4)
 
-        self._title_lbl = QLabel(f"{App_name} — {Build}")
-        self._title_lbl.setVisible(self.standalone_mode)
-        lay.addWidget(self._title_lbl)
-
-        lay.addStretch()
-
-
-        # Window controls (standalone only)
+        # ⓘ ⚙ − □ ✕  (standalone only)
         if self.standalone_mode:
-            # - Info button (before Theme)
-            self.info_radar_btn = QPushButton()
-            self.info_radar_btn.setIcon(SVGIconFactory.info_icon(20, icon_color))
-            self.info_radar_btn.setIconSize(QSize(20, 20))
-            self.info_radar_btn.setFixedSize(35, 35)
-            self.info_radar_btn.setToolTip("About Radar Workshop")
-            self.info_radar_btn.clicked.connect(self._show_about)
+            self.info_radar_btn = _ibtn("About Model Viewer", self._show_about,         'info')
+            self.properties_btn = _ibtn("Theme / App Settings", self._open_app_settings,'properties')
             lay.addWidget(self.info_radar_btn)
-
-            # - Theme / Properties
-            self.properties_btn = QPushButton()
-            self.properties_btn.setIcon(SVGIconFactory.properties_icon(20, icon_color))
-            self.properties_btn.setIconSize(QSize(20, 20))
-            self.properties_btn.setFixedSize(35, 35)
-            self.properties_btn.setToolTip("Theme Settings")
-            self.properties_btn.clicked.connect(self._open_app_settings)
             lay.addWidget(self.properties_btn)
 
+            lay.addSpacing(4)
             self.minimize_btn = QPushButton(); self.minimize_btn.setFixedSize(32,28)
             self.maximize_btn = QPushButton(); self.maximize_btn.setFixedSize(32,28)
             self.close_btn    = QPushButton(); self.close_btn.setFixedSize(32,28)
-            for btn, iname, tip, cb in [
-                (self.minimize_btn,'minimize','Minimise', self.showMinimized),
-                (self.maximize_btn,'maximize','Maximise', self._toggle_maximise),
-                (self.close_btn,   'close',   'Close',    self.close),
+            for btn, iname, fallback, tip, cb in [
+                (self.minimize_btn,'minimize','—','Minimise', self.showMinimized),
+                (self.maximize_btn,'maximize','□','Maximise', self._toggle_maximise),
+                (self.close_btn,   'close',   '✕','Close',    self.close),
             ]:
                 ico = _icon(iname)
-                if ico: btn.setIcon(ico); btn.setIconSize(QSize(16,16))
-                else:   btn.setText({'minimize':'—','maximize':'□','close':'✕'}[iname])
+                if ico: btn.setIcon(ico); btn.setIconSize(QSize(14,14))
+                else:   btn.setText(fallback)
                 btn.setToolTip(tip); btn.clicked.connect(cb)
                 lay.addWidget(btn)
 
         return self.toolbar
+
 
 
     def _toggle_maximise(self): #vers 1
