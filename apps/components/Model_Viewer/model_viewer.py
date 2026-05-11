@@ -2241,11 +2241,11 @@ class ModelViewer(ToolMenuMixin, QWidget):
         # Save window geometry
         if self.standalone_mode:
             g = self.geometry()
-            self.RAD_settings.set('window_x', g.x())
-            self.RAD_settings.set('window_y', g.y())
-            self.RAD_settings.set('window_w', g.width())
-            self.RAD_settings.set('window_h', g.height())
-            self.RAD_settings.save()
+            self.MV_settings.set('window_x', g.x())
+            self.MV_settings.set('window_y', g.y())
+            self.MV_settings.set('window_w', g.width())
+            self.MV_settings.set('window_h', g.height())
+            self.MV_settings.save()
         self.window_closed.emit()
         event.accept()
 
