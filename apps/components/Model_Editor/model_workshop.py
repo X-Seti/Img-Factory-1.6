@@ -1868,7 +1868,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         super().__init__(parent)
         self.setWindowTitle(App_name)
-        self.setWindowIcon(SVGIconFactory.col_workshop_icon())
+        try:
+            self.setWindowIcon(SVGIconFactory.mesh_icon(32, '#4a9fd4'))
+        except Exception:
+            pass
         self.icon_factory = SVGIconFactory()
 
         self.main_window = main_window
@@ -5536,7 +5539,7 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         self.info_btn.setIconSize(QSize(20, 20))
         self.info_btn.setFixedWidth(35)
-        self.info_btn.clicked.connect(self._show_col_info)
+        self.info_btn.clicked.connect(self._show_about)
         layout.addWidget(self.info_btn)
 
         # Properties/Theme button
@@ -13880,98 +13883,43 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
 
         dialog.exec()
 
-    def _show_col_info(self): #vers 4
-        """Show TXD Workshop information dialog - About and capabilities"""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("About COL Workshop")
-        dialog.setMinimumWidth(600)
-        dialog.setMinimumHeight(500)
+    def _show_about(self): #vers 1
+        """Show Model Workshop about dialog."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
+        from PyQt6.QtGui import QFont
+        from PyQt6.QtCore import Qt
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"About {App_name}")
+        dlg.setMinimumWidth(480); dlg.setMinimumHeight(360)
+        lay = QVBoxLayout(dlg); lay.setSpacing(10)
 
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(15)
+        hdr = QLabel(f"{App_name}  —  Build {App_build}")
+        hdr.setFont(QFont('Arial', 14, QFont.Weight.Bold))
+        hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(hdr)
 
-        # Header
-        header = QLabel(f"COL Workshop - {App_name}")
-        header.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
+        lay.addWidget(QLabel(f"Author: X-Seti  |  Part of IMG Factory 1.6",
+                             alignment=Qt.AlignmentFlag.AlignCenter))
 
-        # Author info
-        author_label = QLabel("Author: X-Seti")
-        author_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(author_label)
+        info = QTextEdit(); info.setReadOnly(True)
+        info.setHtml("""
+            <b>Model Workshop Capabilities:</b><br><br>
+            <b>✓ DFF Support:</b> GTA III / VC / SA RenderWare DFF model files<br>
+            <b>✓ COL Support:</b> COL1 (III/VC) COL2/3/4 (SA) collision files<br>
+            <b>✓ Viewport:</b> QPainter 2D + OpenGL 3D (GL toggle)<br>
+            <b>✓ Editing:</b> Geometry, materials, UV, normals, vertex colours<br>
+            <b>✓ Export:</b> OBJ, COL, texture extraction<br>
+            <b>✓ IDE Integration:</b> Link to DAT Browser IDE entries<br>
+            <b>✓ TXD:</b> Auto-load matching TXD for textured preview<br><br>
+            <b>Shortcuts:</b><br>
+            Ctrl+O: Open  |  Ctrl+S: Save  |  Ctrl+D: Open DFF<br>
+            Ctrl+T: Open TXD  |  Ctrl+Z: Undo  |  Delete: Remove
+        """)
+        lay.addWidget(info, 1)
 
-        # Version info
-        version_label = QLabel("Version: 11.5 - October 2025")
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(version_label)
-
-        layout.addWidget(QLabel(""))  # Spacer
-
-        # Capabilities section
-        capabilities = QTextEdit()
-        capabilities.setReadOnly(True)
-        capabilities.setMaximumHeight(350)
-
-        info_text = """<b>COL Workshop Capabilities:</b><br><br>
-
-<b>✓ File Operations:</b><br>
-
-
-<b>✓ Collision Viewing & Editing:</b><br>
-
-
-<b>✓ Collision Management:</b><br>
-
-
-<b>✓ Collision Surface Painting:</b><br>
-
-
-<b>✓ Format Support:</b><br>
-
-
-<b>✓ Advanced Features:</b><br>"""
-
-        # Add format support dynamically
-        formats_available = []
-
-        # Standard formats (always via PIL)
-
-        info_text += "<br>".join(formats_available)
-        info_text += "<br><br>"
-
-        # Settings info
-        info_text += """<b>✓ Customization:</b><br>
-- Adjustable texture name length (8-64 chars)<br>
-- Button display modes (Icons/Text/Both)<br>
-- Font customization<br>
-- Preview zoom and pan offsets<br><br>
-
-<b>Keyboard Shortcuts:</b><br>
-- Ctrl+O: Open COL<br>
-- Ctrl+S: Save COL<br>
-- Ctrl+I: Import Collision col, cst, 3ds<br>
-- Ctrl+E: Export Selected col, cst, 3ds<br>
-- Ctrl+Z: Undo<br>
-- Delete: Remove Collision<br>
-- Ctrl+D: Duplicate Collision<br>"""
-
-        capabilities.setHtml(info_text)
-        layout.addWidget(capabilities)
-
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
-        close_btn.setDefault(True)
-        layout.addWidget(close_btn)
-
-        dialog.exec()
-
-
-#class SvgIcons: #vers 1 - Once functions are updated this class will be moved to the bottom
-    """SVG icon data to QIcon with theme color support"""
-
-#moved to svg_icon_factory
+        btn = QPushButton('Close'); btn.clicked.connect(dlg.accept)
+        lay.addWidget(btn)
+        dlg.exec()
 
 class ZoomablePreview(QLabel): #vers 2
     """Fixed preview widget with zoom and pan"""
