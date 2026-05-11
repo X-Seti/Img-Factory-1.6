@@ -913,86 +913,6 @@ class ModelViewer(ToolMenuMixin, QWidget):
         lay.addWidget(self.open_dff_btn)
         lay.addWidget(self.open_txd_btn)
 
-        lay.addSpacing(8)
-
-        #TODO; Move Extea buttons shown below to right panel. keep standlone here.
-
-        # Render mode (exclusive)
-        self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
-        from PyQt6.QtWidgets import QToolButton as _QTB
-        for label, mode, iname in [
-            ("Wire","wireframe","wireframe"),
-            ("Solid","solid","solid"),
-            ("Tex","textured","texture"),
-        ]:
-            b = _QTB(); b.setCheckable(True); b.setFixedHeight(26)
-            b.setFont(self.button_font)
-            b.setToolTip(f"{mode.capitalize()} render mode")
-            ico = _icon(iname,14)
-            if ico:
-                b.setIcon(ico); b.setIconSize(QSize(14,14))
-                b.setText(label)
-                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            else:
-                b.setText(label)
-            b.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            b.clicked.connect(lambda _=False, m=mode: self._set_mode(m))
-            self._mode_group.addButton(b); lay.addWidget(b)
-            if mode == 'solid': b.setChecked(True)
-
-        lay.addSpacing(4)
-
-        # Toggle buttons — 36px compact
-        for attr, label, tip, cb, iname, ch, chk in [
-            ('_cull_btn',   'Cull', 'Backface culling',    self.viewport.set_backface_cull, 'backface', True, True),
-            ('_grid_btn',   'Grid', 'Toggle grid',         self.viewport.set_show_grid,    'grid',     True, True),
-            ('_prelit_btn', 'PreLight',  'Vertex prelighting',  self.viewport.set_prelight,     'shading',  True, False),
-        ]:
-            b = _QTB(); b.setFixedHeight(28); b.setFont(self.button_font); b.setToolTip(tip)
-            ico = _icon(iname,14)
-            if ico:
-                b.setIcon(ico); b.setIconSize(QSize(14,14)); b.setText(label)
-                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            else:
-                b.setText(label)
-            b.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            b.setCheckable(ch); b.setChecked(chk if ch else False)
-            if ch: b.toggled.connect(cb)
-            else: b.clicked.connect(cb)
-            setattr(self, attr, b); lay.addWidget(b)
-
-        lay.addSpacing(4)
-        for label, tip, cb, iname in [
-            ("Cam","Reset camera",self.viewport.reset_camera,'reset'),
-            ("Light","Light setup",self._light_setup_dialog,'light'),
-        ]:
-            b = QPushButton(label); b.setFixedHeight(28); b.setFont(self.button_font)
-            b.setToolTip(tip)
-            ico = _icon(iname,14)
-            if ico: b.setIcon(ico); b.setIconSize(QSize(14,14))
-            b.clicked.connect(cb); lay.addWidget(b)
-
-        lay.addSpacing(4)
-        self._assemble_btn = QPushButton("Assemble")
-        self._assemble_btn.setFixedHeight(28)
-        self._assemble_btn.setFixedWidth(84)
-        self._assemble_btn.setCheckable(True)
-        self._assemble_btn.setChecked(False)
-        self._assemble_btn.setFont(self.button_font)
-        self._assemble_btn.setToolTip("Show all parts assembled at world positions")
-        self._assemble_btn.toggled.connect(self._toggle_assembly_mode)
-        lay.addWidget(self._assemble_btn)
-
-        self._damage_btn = QPushButton("Damage")
-        self._damage_btn.setFixedHeight(28)
-        self._damage_btn.setFixedWidth(76)
-        self._damage_btn.setCheckable(True)
-        self._damage_btn.setChecked(False)
-        self._damage_btn.setFont(self.button_font)
-        self._damage_btn.setToolTip("Show damaged state (_dam parts)")
-        self._damage_btn.toggled.connect(self._toggle_damage_mode)
-        lay.addWidget(self._damage_btn)
-
         lay.addStretch()
 
         self._title_lbl = QLabel(f"{App_name} — {Build}")
@@ -1117,16 +1037,91 @@ class ModelViewer(ToolMenuMixin, QWidget):
 
 
     # - right panel — model info
-    def _create_right_panel(self): #vers 1
+    def _create_right_panel(self): #vers 2
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(160); panel.setMaximumWidth(220)
+        panel.setMinimumWidth(160); panel.setMaximumWidth(200)
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(*self.get_panel_margins())
-        lay.setSpacing(self.panelspacing)
+        lay.setSpacing(4)
 
-        lbl = QLabel("Model Info"); lbl.setFont(self.panel_font)
-        lay.addWidget(lbl)
+        ic = self._get_icon_color()
+        def _icon(name, size=16):
+            if not ICONS_AVAILABLE: return None
+            try:
+                fn = getattr(SVGIconFactory, name+'_icon', None)
+                return fn(size, ic) if fn else None
+            except Exception: return None
 
+        from PyQt6.QtWidgets import QToolButton as _QTB
+
+        def _btn(text, tip, cb, iname=None, checkable=False, checked=False):
+            b = _QTB(); b.setFont(self.panel_font)
+            b.setToolTip(tip); b.setFixedHeight(26)
+            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            ico = _icon(iname)
+            if ico:
+                b.setIcon(ico); b.setIconSize(QSize(16,16))
+                b.setText(text)
+                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            else:
+                b.setText(text)
+            if checkable:
+                b.setCheckable(True); b.setChecked(checked)
+                b.toggled.connect(cb)
+            else:
+                b.clicked.connect(cb)
+            return b
+
+        # ── Render mode ──────────────────────────
+        lbl_r = QLabel("Render"); lbl_r.setFont(self.panel_font)
+        lay.addWidget(lbl_r)
+        self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
+        for label, mode, iname in [
+            ("Wireframe", "wireframe", "wireframe"),
+            ("Solid",     "solid",     "solid"),
+            ("Textured",  "textured",  "texture"),
+        ]:
+            b = _btn(label, f"{mode.capitalize()} render mode", lambda _=False,m=mode: self._set_mode(m), iname)
+            b.setCheckable(True)
+            b.clicked.connect(lambda _=False, m=mode: self._set_mode(m))
+            self._mode_group.addButton(b); lay.addWidget(b)
+            if mode == 'solid': b.setChecked(True)
+
+        lay.addSpacing(6)
+
+        # ── View toggles ─────────────────────────
+        lbl_v = QLabel("View"); lbl_v.setFont(self.panel_font)
+        lay.addWidget(lbl_v)
+        self._cull_btn   = _btn("Backface Cull", "Toggle backface culling",  self.viewport.set_backface_cull, 'backface', True, True)
+        self._grid_btn   = _btn("Grid",          "Toggle grid",              self.viewport.set_show_grid,    'grid',     True, True)
+        self._prelit_btn = _btn("Pre-Lighting",  "Vertex pre-lighting",      self.viewport.set_prelight,     'shading',  True, False)
+        lay.addWidget(self._cull_btn)
+        lay.addWidget(self._grid_btn)
+        lay.addWidget(self._prelit_btn)
+
+        lay.addSpacing(6)
+
+        # ── Camera ───────────────────────────────
+        lbl_c = QLabel("Camera"); lbl_c.setFont(self.panel_font)
+        lay.addWidget(lbl_c)
+        lay.addWidget(_btn("Reset Camera", "Reset camera to default", self.viewport.reset_camera, 'reset'))
+        lay.addWidget(_btn("Light Setup",  "Adjust light direction",  self._light_setup_dialog,   'light'))
+
+        lay.addSpacing(6)
+
+        # ── Assembly ─────────────────────────────
+        lbl_a = QLabel("Assembly"); lbl_a.setFont(self.panel_font)
+        lay.addWidget(lbl_a)
+        self._assemble_btn = _btn("All Parts", "Show all parts assembled", self._toggle_assembly_mode, None, True, False)
+        self._damage_btn   = _btn("Damage",    "Show damaged state",       self._toggle_damage_mode,   None, True, False)
+        lay.addWidget(self._assemble_btn)
+        lay.addWidget(self._damage_btn)
+
+        lay.addSpacing(6)
+
+        # ── Model Info ───────────────────────────
+        lbl_i = QLabel("Model Info"); lbl_i.setFont(self.panel_font)
+        lay.addWidget(lbl_i)
         self._info_lbl = QLabel("—")
         self._info_lbl.setFont(self.infobar_font)
         self._info_lbl.setWordWrap(True)
