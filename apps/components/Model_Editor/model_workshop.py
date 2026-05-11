@@ -4172,7 +4172,16 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
             self._middle_btn_row.setVisible(
                 self.is_docked and not self.standalone_mode)
 
+    def _on_menu_btn_clicked(self): #vers 1
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        if hasattr(self, '_build_menus_into_qmenu'):
+            self._build_menus_into_qmenu(menu)
+        btn = getattr(self, 'menu_btn', None)
+        if btn: menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
     def _show_workshop_settings(self): #vers 1
+
         """Show complete workshop settings dialog"""
         from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                     QTabWidget, QWidget, QGroupBox, QFormLayout,
@@ -5367,6 +5376,17 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         layout = QHBoxLayout(self.toolbar)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
+
+        # Menu button
+        self.menu_btn = QPushButton("Menu")
+        self.menu_btn.setFont(self.button_font)
+        try:
+            self.menu_btn.setIcon(self.icon_factory.menu_icon(color=icon_color))
+            self.menu_btn.setIconSize(QSize(_ICO_SZ, _ICO_SZ))
+        except Exception: pass
+        self.menu_btn.setToolTip("Menu")
+        self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
+        layout.addWidget(self.menu_btn)
 
         # Settings button
         self.settings_btn = QPushButton()
@@ -7642,32 +7662,30 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.find_in_ide_btn.setEnabled(False)
         ide_layout.addWidget(self.find_in_ide_btn)
 
+        # Add Objs/Col and 3D View to the same IDE row
+        self.export_ojs_btn = QPushButton("Objs/Col")
+        self.export_ojs_btn.setFont(self.button_font)
+        self.export_ojs_btn.setFixedHeight(26)
+        self.export_ojs_btn.setToolTip("Export geometry / COL")
+        self.export_ojs_btn.clicked.connect(self.export_all)
+        try:
+            self.export_ojs_btn.setIcon(self.icon_factory.package_icon(color=icon_color))
+            self.export_ojs_btn.setIconSize(QSize(14, 14))
+        except Exception: pass
+        ide_layout.addWidget(self.export_ojs_btn)
+
+        self.gl_viewer_btn = QPushButton("3D View")
+        self.gl_viewer_btn.setFont(self.button_font)
+        self.gl_viewer_btn.setFixedHeight(26)
+        self.gl_viewer_btn.setToolTip("Open GL Model Viewer")
+        self.gl_viewer_btn.clicked.connect(self._open_gl_viewer)
+        try:
+            self.gl_viewer_btn.setIcon(self.icon_factory.cube_icon(color=icon_color))
+            self.gl_viewer_btn.setIconSize(QSize(14, 14))
+        except Exception: pass
+        ide_layout.addWidget(self.gl_viewer_btn)
+
         info_layout.addLayout(ide_layout)
-
-        # Quick-access row — TXD | Objs/Col | 3D View
-        quick_row = QHBoxLayout()
-        quick_row.setSpacing(3)
-
-        for btn_attr, label, tip, cb, icon_name in [
-            ('open_txd_btn',    'TXD',      'Open TXD for current model', self._open_txd_combined,  'open'),
-            ('export_ojs_btn',  'Objs/Col', 'Export geometry / COL',      self.export_all,          'package'),
-            ('gl_viewer_btn',   '3D View',  'Open GL Model Viewer',       self._open_gl_viewer,     'cube'),
-        ]:
-            b = QPushButton(label)
-            b.setFont(self.button_font)
-            b.setFixedHeight(24)
-            b.setToolTip(tip)
-            try:
-                ico_fn = getattr(self.icon_factory, f'{icon_name}_icon', None)
-                if ico_fn:
-                    b.setIcon(ico_fn(color=icon_color))
-                    b.setIconSize(QSize(14, 14))
-            except Exception: pass
-            b.clicked.connect(cb)
-            setattr(self, btn_attr, b)
-            quick_row.addWidget(b)
-
-        info_layout.addLayout(quick_row)
 
         # -  LINES 2 & 3: Build BOTH rows, show/hide based on panel width
         # - Text+label row (wide)
