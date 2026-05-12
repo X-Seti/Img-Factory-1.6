@@ -949,7 +949,6 @@ class _ToolbarMixin:
         self.save_btn   = _ibtn("save_icon",   "Save  Ctrl+S",  self._save_file)
         self.export_btn = _ibtn("export_icon", "Export",        self._export_file)
         self.import_btn = _ibtn("import_icon", "Import",        self._import_file)
-        self.save_btn.setEnabled(False)
         for b in (self.open_btn, self.save_btn,
                   self.export_btn, self.import_btn):
             lo.addWidget(b)
@@ -1508,14 +1507,14 @@ class _ToolbarMixin:
 
 
     #    Menu button handler
-    def _on_menu_btn_clicked(self): #vers 1
-        if hasattr(self, '_show_topbar_menu'):
-            self._show_topbar_menu()
-            return
+    def _on_menu_btn_clicked(self): #vers 2
         pm = QMenu(self)
         self._build_menus_into_qmenu(pm)
-        btn = self.menu_toggle_btn
-        pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        btn = getattr(self, 'menu_btn', None)
+        if btn:
+            pm.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            pm.exec(self.cursor().pos())
 
 
     def _show_dropdown_menu(self):
@@ -1698,6 +1697,31 @@ class _ToolbarMixin:
         al.addWidget(atx)
         tabs.addTab(at, "About")
 
+        #    Tab: Vehicle (game path, viewport settings)
+        vt = QWidget(); vl = QVBoxLayout(vt)
+
+        game_grp = QGroupBox("GTA Game Root"); gl = QHBoxLayout(game_grp)
+        game_edit = QLineEdit(ws.get("game_root", ""))
+        game_edit.setPlaceholderText("e.g. /home/user/GTASA-PC")
+        browse_btn = QPushButton("Browse…")
+        def _browse_game():
+            from PyQt6.QtWidgets import QFileDialog
+            d = QFileDialog.getExistingDirectory(dlg, "Select GTA Game Root", game_edit.text())
+            if d: game_edit.setText(d)
+        browse_btn.clicked.connect(_browse_game)
+        gl.addWidget(game_edit, 1); gl.addWidget(browse_btn)
+        vl.addWidget(game_grp)
+
+        vp_grp = QGroupBox("3D Viewport"); vpl = QVBoxLayout(vp_grp)
+        grid_cb = QCheckBox("Show grid on startup")
+        grid_cb.setChecked(ws.get("viewport_grid", True))
+        cull_cb = QCheckBox("Backface culling on startup")
+        cull_cb.setChecked(ws.get("viewport_cull", True))
+        vpl.addWidget(grid_cb); vpl.addWidget(cull_cb)
+        vl.addWidget(vp_grp)
+        vl.addStretch()
+        tabs.addTab(vt, "Vehicle")
+
         #    Dialog buttons
         lo.addWidget(tabs)
         btns = QDialogButtonBox(
@@ -1725,6 +1749,9 @@ class _ToolbarMixin:
         ws.set("menu_style",               "dropdown" if ms_cb.currentIndex()==0 else "topbar")
         ws.set("menu_dropdown_font_size",  mf_dd.value())
         ws.set("menu_bar_height",          mf_bh.value())
+        ws.set("game_root",                game_edit.text())
+        ws.set("viewport_grid",            grid_cb.isChecked())
+        ws.set("viewport_cull",            cull_cb.isChecked())
         ws.save()
 
         # Live-apply without restart where possible
@@ -2464,8 +2491,10 @@ class _LogicStubsMixin:
     #    File operations
     def _open_file(self, path=None):   pass   # override: load your format
     def _save_file(self):              pass   # override: save your format
-    def _export_file(self):            pass   # override: export
-    def _import_file(self):            pass   # override: import
+    def _export_file(self):
+        QMessageBox.information(self, "Export", "Export not yet implemented.")
+    def _import_file(self):
+        QMessageBox.information(self, "Import", "Import not yet implemented.")
     def _clear_recent(self):
         self.WS._data["recent_files"] = []; self.WS.save()
         self._set_status("Recent files cleared")
