@@ -58,7 +58,7 @@ Parsers are self-contained. Handling parser imported from Handling_Editor.
 # VehicleWorkshop.setup_ui
 # open_vehicle_workshop
 
-import sys, os, json
+import math, sys, os, json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
@@ -1112,7 +1112,7 @@ class _ToolbarMixin:
             "DFF Models (*.dff);;All Files (*)")
         if path:
             self._last_dir = os.path.dirname(path)
-            self.MV_settings.set('last_dir', self._last_dir)
+            self.WS.set('last_dir', self._last_dir)
             self.load_dff(path)
             for ext in ('.txd','.TXD'):
                 txd = os.path.splitext(path)[0]+ext
@@ -1141,7 +1141,7 @@ class _ToolbarMixin:
             # Clear texture cache when loading new DFF
             self.viewport.clear_textures()
             self._tex_list.clear()
-            self.MV_settings.add_recent(path); self.MV_settings.save()
+            self.WS.add_recent(path); self.WS.save()
             self._populate_geom_list()
             self._geom_list.setCurrentRow(0)
             self._set_status(
@@ -1886,6 +1886,18 @@ class _LayoutMixin:
         splitter.addWidget(tex_sec)
 
         splitter.setSizes([200, 180, 150])
+
+        # Open DFF / Open TXD buttons at bottom of left panel
+        btn_row = QHBoxLayout(); btn_row.setSpacing(4)
+        self._vw_open_dff_btn = QPushButton("Open DFF")
+        self._vw_open_txd_btn = QPushButton("Open TXD")
+        for btn, cb in [(self._vw_open_dff_btn, self._vw_pick_dff),
+                        (self._vw_open_txd_btn, self._vw_pick_txd)]:
+            btn.setFixedHeight(26); btn.setFont(self.panel_font)
+            btn.clicked.connect(cb)
+            btn_row.addWidget(btn)
+        outer.addLayout(btn_row)
+
         return panel
 
     def _create_left_panel_old(self):
@@ -2824,11 +2836,11 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         # Save window geometry
         if self.standalone_mode:
             g = self.geometry()
-            self.MV_settings.set('window_x', g.x())
-            self.MV_settings.set('window_y', g.y())
-            self.MV_settings.set('window_w', g.width())
-            self.MV_settings.set('window_h', g.height())
-            self.MV_settings.save()
+            self.WS.set('window_x', g.x())
+            self.WS.set('window_y', g.y())
+            self.WS.set('window_w', g.width())
+            self.WS.set('window_h', g.height())
+            self.WS.save()
         self.window_closed.emit()
         event.accept()
 
@@ -3446,46 +3458,8 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         tab = QWidget()
         lay = QVBoxLayout(tab); lay.setContentsMargins(4,4,4,4); lay.setSpacing(4)
 
-        # Toolbar row
-        bar = QHBoxLayout()
-        # Open DFF / TXD
-        self._vw_open_dff_btn = QPushButton("Open DFF")
-        self._vw_open_dff_btn.setFixedHeight(26)
-        self._vw_open_dff_btn.clicked.connect(self._vw_pick_dff)
-        bar.addWidget(self._vw_open_dff_btn)
-
-        self._vw_open_txd_btn = QPushButton("Open TXD")
-        self._vw_open_txd_btn.setFixedHeight(26)
-        self._vw_open_txd_btn.clicked.connect(self._vw_pick_txd)
-        bar.addWidget(self._vw_open_txd_btn)
-
-        bar.addSpacing(8)
-        # Render mode
-        from PyQt6.QtWidgets import QButtonGroup
-        self._vw_mode_grp = QButtonGroup(tab); self._vw_mode_grp.setExclusive(True)
-        for label, mode in [('Wire','wireframe'),('Solid','solid'),('Tex','textured')]:
-            b = QPushButton(label); b.setCheckable(True); b.setFixedHeight(26)
-            b.clicked.connect(lambda _=False, m=mode: self._vw_set_mode(m))
-            self._vw_mode_grp.addButton(b); bar.addWidget(b)
-            if mode == 'solid': b.setChecked(True)
-
-        bar.addSpacing(8)
-        # Assemble button
-        self._vw_assemble = QPushButton('All Parts')
-        self._vw_assemble.setCheckable(True)
-        self._vw_assemble.toggled.connect(self._vw_toggle_assembly)
-        bar.addWidget(self._vw_assemble)
-        bar.addStretch()
-
-        # Paint colour buttons
-        self._vw_paint1 = QPushButton('Primary')
-        self._vw_paint2 = QPushButton('Secondary')
-        self._vw_paint1.setFixedHeight(26); self._vw_paint2.setFixedHeight(26)
-        self._vw_paint1.clicked.connect(self._vw_pick_paint1)
-        self._vw_paint2.clicked.connect(self._vw_pick_paint2)
-        bar.addWidget(self._vw_paint1)
-        bar.addWidget(self._vw_paint2)
-        lay.addLayout(bar)
+        # No toolbar bar in 3D Preview tab — controls are in right panel
+        # Open DFF/TXD are in the left panel; Render/Assembly/Paint in right panel
 
         # GL Viewport
         try:
