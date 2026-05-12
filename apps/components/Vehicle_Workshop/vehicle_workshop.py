@@ -322,8 +322,6 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glDepthFunc(GL_LEQUAL)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glShadeModel(GL_SMOOTH)
-        glEnable(GL_NORMALIZE)
         self._setup_lighting()
 
     def _setup_lighting(self): #vers 1
@@ -1802,32 +1800,6 @@ class _LayoutMixin:
     Mixed into GUIWorkshop — not used standalone.
     Override any _create_* method in your subclass to replace that panel.
     """
-
-    def setup_ui(self):
-        """Main layout: toolbar / three-panel splitter / status bar."""
-        ml = QVBoxLayout(self)
-        ml.setContentsMargins(*self.get_content_margins())
-        ml.setSpacing(self.setspacing)
-
-        ml.addWidget(self._create_toolbar())
-
-        sp = QSplitter(Qt.Orientation.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self._create_centre_panel())
-        sp.addWidget(self._create_right_panel())
-        sp.setStretchFactor(0, 1)
-        sp.setStretchFactor(1, 5)
-        sp.setStretchFactor(2, 0)
-        sp.setSizes([200, 950, self.WS.get("sidebar_width", 82)])
-        self._main_splitter = sp
-        ml.addWidget(sp)
-
-        self._status_widget = self._create_status_bar()
-        ml.addWidget(self._status_widget)
-        self._status_widget.setVisible(self.WS.get("show_statusbar", True))
-
-
-    # - margins (template)
 
     def get_content_margins(self): #vers 1
         return (self.contmergina, self.contmerginb, self.contmerginc, self.contmergind)
