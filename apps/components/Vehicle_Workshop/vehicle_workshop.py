@@ -92,21 +92,36 @@ except Exception:
     OPENGL_AVAILABLE   = False
     print("[ModelViewer] PyOpenGL not available — install python3-opengl")
 
+# ── Local depends/ path (standalone mode) ───────────────────────────────────
+_depends = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'depends')
+if _depends not in sys.path:
+    sys.path.insert(0, _depends)
+
+# AppSettings — local depends/ first, then apps.*
 APPSETTINGS_AVAILABLE = False
 try:
-    from apps.utils.app_settings_system import AppSettings, SettingsDialog
+    try:
+        from app_settings_system import AppSettings, SettingsDialog
+    except ImportError:
+        try:
+            from app_settings_system import AppSettings, SettingsDialog
+        except ImportError:
+            from apps.utils.app_settings_system import AppSettings, SettingsDialog
     APPSETTINGS_AVAILABLE = True
 except ImportError:
     AppSettings = SettingsDialog = None
 
+# SVGIconFactory — local depends/ first, then apps.*
+ICONS_AVAILABLE = False
 try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
+    try:
+        from imgfactory_svg_icons import SVGIconFactory
+    except ImportError:
+        try:
+            from imgfactory_svg_icons import SVGIconFactory
+        except ImportError:
+            from apps.methods.imgfactory_svg_icons import SVGIconFactory
     ICONS_AVAILABLE = True
-except ImportError:
-    ICONS_AVAILABLE = False
-
-try:
-    from apps.methods.imgfactory_svg_icons import SVGIconFactory
 except ImportError:
     class SVGIconFactory:
         @staticmethod
@@ -120,21 +135,30 @@ except ImportError:
         rotate_cw_icon = rotate_ccw_icon = flip_horz_icon = \
         flip_vert_icon = folder_icon = staticmethod(_s)
 
+# ToolMenuMixin — local depends/ first
 try:
-    from apps.gui.tool_menu_mixin import ToolMenuMixin
+    try:
+        from tool_menu_mixin import ToolMenuMixin
+    except ImportError:
+        try:
+            from tool_menu_mixin import ToolMenuMixin
+        except ImportError:
+            from apps.gui.tool_menu_mixin import ToolMenuMixin
 except ImportError:
     class ToolMenuMixin:
         def _build_menus_into_qmenu(self, pm): pass
 
-try:
-    from apps.methods.gl_viewport_mixin import GLViewportMixin
-except ImportError:
-    class GLViewportMixin: pass
+# GLViewportMixin — already embedded, no external import needed
+class GLViewportMixin: pass
 
+# HandlingParser — local depends/ first
 try:
-    from apps.components.Handling_Editor.handling_editor import (
-        HandlingParser, HandlingEntry, VC_FIELDS, HANDLING_FLAGS
-    )
+    try:
+        from handling_editor import HandlingParser, HandlingEntry, VC_FIELDS, HANDLING_FLAGS
+    except ImportError:
+        from apps.components.Handling_Editor.handling_editor import (
+            HandlingParser, HandlingEntry, VC_FIELDS, HANDLING_FLAGS
+        )
     _HANDLING_AVAILABLE = True
 except ImportError:
     _HANDLING_AVAILABLE = False
@@ -650,7 +674,10 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1
         try:
-            from apps.methods.dff_parser import load_dff
+            try:
+                from dff_parser import load_dff
+            except ImportError:
+                from apps.methods.dff_parser import load_dff
             self._wheels_model = load_dff(path)
             self._wheel_type   = wheel_type
         except Exception as e:
@@ -1016,7 +1043,10 @@ class _ToolbarMixin:
         # vehicles.ide — wheel type
         if game_root:
             try:
-                from apps.methods.vehicles_ide_parser import get_vehicle_info
+                try:
+                    from vehicles_ide_parser import get_vehicle_info
+                except ImportError:
+                    from apps.methods.vehicles_ide_parser import get_vehicle_info
                 entry = get_vehicle_info(game_root, vehicle_name)
                 if entry and entry.wheel_model:
                     wheel_dff = entry.wheel_dff_name()
@@ -1049,7 +1079,10 @@ class _ToolbarMixin:
         game_root = self._get_game_root()
         if not game_root: return
         try:
-            from apps.methods.carcols_parser import get_vehicle_colours
+            try:
+                from carcols_parser import get_vehicle_colours
+            except ImportError:
+                from apps.methods.carcols_parser import get_vehicle_colours
             pairs = get_vehicle_colours(game_root, vehicle_name)
             if not pairs: return
             lbl = QLabel(f'Carcols ({len(pairs)} pairs)')
@@ -1142,7 +1175,13 @@ class _ToolbarMixin:
     def _upload_txd_additive(self, path: str): #vers 1
         """Load a TXD and upload textures WITHOUT clearing existing ones."""
         try:
-            from apps.methods.txd_parser import parse_txd
+            try:
+                from txd_parser import parse_txd
+            except ImportError:
+                try:
+                    from txd_parser import parse_txd
+                except ImportError:
+                    from apps.methods.txd_parser import parse_txd
             from PyQt6.QtGui import QIcon, QImage, QPixmap
             from PyQt6.QtWidgets import QListWidgetItem
             from PyQt6.QtCore import Qt
@@ -1514,7 +1553,10 @@ class _ToolbarMixin:
 
     def _open_app_settings(self): #vers 1
         try:
-            from apps.utils.app_settings_system import SettingsDialog
+            try:
+                from app_settings_system import SettingsDialog
+            except ImportError:
+                from apps.utils.app_settings_system import SettingsDialog
             if self.app_settings:
                 dlg = SettingsDialog(self.app_settings, self)
                 dlg.exec()
@@ -1557,7 +1599,10 @@ class _ToolbarMixin:
         dlg.setWindowTitle(f"{self.App_name} — Settings")
         dlg.setMinimumSize(520, 460)
         try:
-            from apps.core.theme_utils import apply_dialog_theme
+            try:
+                from theme_utils import apply_dialog_theme
+            except ImportError:
+                from apps.core.theme_utils import apply_dialog_theme
             apply_dialog_theme(dlg, self.main_window)
         except Exception:
             pass
@@ -3533,7 +3578,6 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
 
         # GL Viewport
         try:
-            from apps.components.Model_Viewer.model_viewer import DFFViewport
             self._vw_viewport = DFFViewport()
             app_settings = getattr(getattr(self,'main_window',None),'app_settings',None)
             self._vw_viewport.app_settings = app_settings
