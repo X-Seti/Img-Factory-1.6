@@ -2278,28 +2278,17 @@ def open_model_viewer(main_window=None, dff_path=None, txd_path=None, img=None):
 
 
 if __name__ == '__main__':
+    # Must set compat profile BEFORE QApplication
+    try:
+        from PyQt6.QtGui import QSurfaceFormat
+        _f = QSurfaceFormat()
+        _f.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
+        _f.setVersion(2, 1)
+        QSurfaceFormat.setDefaultFormat(_f)
+    except Exception:
+        pass
     app = QApplication(sys.argv)
     viewer, _ = open_model_viewer()
     if len(sys.argv) > 1: viewer.load_dff(sys.argv[1])
     if len(sys.argv) > 2: viewer.load_txd(sys.argv[2])
     sys.exit(app.exec())
-
-
-if __name__ == "__main__": #Vers 1
-    import traceback
-
-    print(App_name + " starting…")
-    try:
-        app = QApplication(sys.argv)
-        viewer, _ = open_model_viewer()
-        if len(sys.argv) > 1: viewer.load_dff(sys.argv[1])
-        if len(sys.argv) > 2: viewer.load_txd(sys.argv[2])
-
-        w.setWindowTitle(App_name + " – Standalone")
-        w.resize(1300, 800); w.show(); sys.exit(app.exec())
-    except Exception as e:
-        print(f"ERROR: {e}")
-        traceback.print_exc();sys.exit(1)
-        #sys.exit(app.exec())
-
-__all__ = ['ModelViewer', 'DFFViewport', 'open_model_viewer']

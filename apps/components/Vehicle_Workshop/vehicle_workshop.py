@@ -1534,7 +1534,7 @@ class _ToolbarMixin:
     def _show_about(self):
         """[ℹ] button — show About / Info for this workshop."""
         author = getattr(self, "App_author",      "X-Seti")
-        year   = getattr(self, "App_year",        __year__)
+        year   = getattr(self, "App_year",        "2026")
         desc   = getattr(self, "App_description", "")
         QMessageBox.information(self, f"About {self.App_name}",
             f"{self.App_name}   {self.App_build}\n\n"
@@ -1684,7 +1684,7 @@ class _ToolbarMixin:
         at  = QWidget(); al = QVBoxLayout(at)
         atx = QTextEdit(); atx.setReadOnly(True)
         author = getattr(self, "App_author",      "X-Seti")
-        year   = getattr(self, "App_year",        __year__)
+        year   = getattr(self, "App_year",        "2026")
         desc   = getattr(self, "App_description", "GUIWorkshop — IMG Factory 1.6")
         atx.setHtml(
             f"<h2>{self.App_name}</h2>"
@@ -3748,6 +3748,15 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
 
 # - Main workshop widget (RadarWorkshop pattern)
 def open_vehicle_workshop(main_window=None, path: str = None): #vers 1
+    if not QApplication.instance():
+        try:
+            from PyQt6.QtGui import QSurfaceFormat
+            _f = QSurfaceFormat()
+            _f.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
+            _f.setVersion(2, 1)
+            QSurfaceFormat.setDefaultFormat(_f)
+        except Exception:
+            pass
     app = QApplication.instance() or QApplication(sys.argv)
     w = VehicleWorkshop(main_window)
     w.resize(1200, 720)
@@ -3757,6 +3766,15 @@ def open_vehicle_workshop(main_window=None, path: str = None): #vers 1
 
 
 if __name__ == "__main__":
+    # Must set compat profile BEFORE QApplication
+    try:
+        from PyQt6.QtGui import QSurfaceFormat
+        _f = QSurfaceFormat()
+        _f.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
+        _f.setVersion(2, 1)
+        QSurfaceFormat.setDefaultFormat(_f)
+    except Exception:
+        pass
     app = QApplication(sys.argv)
     w = VehicleWorkshop()
     w.resize(1200, 720)
