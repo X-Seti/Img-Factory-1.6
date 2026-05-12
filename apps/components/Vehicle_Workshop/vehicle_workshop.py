@@ -3471,7 +3471,8 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         self._tab_carcols  = CarColoursTab()
         self._tab_carmods  = CarModsTab()
         self._tab_preview = self._create_preview_tab()
-        self._tabs.addTab(self._tab_preview, "3D Preview") #TODO this should show first.
+        self._tabs.addTab(self._tab_preview, "3D Preview")
+        self._tabs.setCurrentIndex(0)
         self._tabs.addTab(self._tab_handling, "Handling")
         self._tabs.addTab(self._tab_carcols,  "Car Colours")
         self._tabs.addTab(self._tab_carmods,  "Car Mods (SA)")
@@ -3491,6 +3492,18 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
 
         # Toolbar row
         bar = QHBoxLayout()
+        # Open DFF / TXD
+        self._vw_open_dff_btn = QPushButton("Open DFF")
+        self._vw_open_dff_btn.setFixedHeight(26)
+        self._vw_open_dff_btn.clicked.connect(self._vw_pick_dff)
+        bar.addWidget(self._vw_open_dff_btn)
+
+        self._vw_open_txd_btn = QPushButton("Open TXD")
+        self._vw_open_txd_btn.setFixedHeight(26)
+        self._vw_open_txd_btn.clicked.connect(self._vw_pick_txd)
+        bar.addWidget(self._vw_open_txd_btn)
+
+        bar.addSpacing(8)
         # Render mode
         from PyQt6.QtWidgets import QButtonGroup
         self._vw_mode_grp = QButtonGroup(tab); self._vw_mode_grp.setExclusive(True)
@@ -3533,7 +3546,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         lay.addWidget(self._vw_status)
         return tab
 
-# TODO - From model_viewer
+    # Methods from model_viewer
 
 
     def _show_progress(self, visible: bool): #vers 1
@@ -4670,250 +4683,6 @@ class ModelViewer(ToolMenuMixin, QWidget):
             self._set_status(f"Error: {e}")
         finally:
             self._show_progress(False)
-
-    def _collect_needed_textures(self): #vers 1
-        """Return set of texture names the current DFF needs."""
-        if not self._dff_model: return set()
-        needed = set()
-        for g in self._dff_model.geometries:
-            for mat in g.materials:
-                name = (mat.texture_name or '').strip().lower()
-                if name: needed.add(name)
-        return needed
-
-    def _upload_txd_additive(self, path: str): #vers 1
-        """Load a TXD and upload textures WITHOUT clearing existing ones."""
-        try:
-            from apps.methods.txd_parser import parse_txd
-            from PyQt6.QtGui import QIcon, QImage, QPixmap
-            from PyQt6.QtWidgets import QListWidgetItem
-            from PyQt6.QtCore import Qt
-            with open(path, 'rb') as f: data = f.read()
-            textures = parse_txd(data)
-            if not textures: return 0
-            # Only upload textures not already loaded
-            new_textures = [t for t in textures
-                            if t['name'].lower() not in self.viewport._tex_ids]
-            if new_textures:
-                # Additive upload — don't clear existing
-                self.viewport.makeCurrent()
-                from OpenGL.GL import (glGenTextures, glBindTexture, GL_TEXTURE_2D,
-                    glTexParameteri, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR,
-                    GL_TEXTURE_MAG_FILTER, GL_LINEAR, GL_TEXTURE_WRAP_S,
-                    GL_TEXTURE_WRAP_T, GL_REPEAT, glTexImage2D, GL_RGBA,
-                    GL_UNSIGNED_BYTE, glGenerateMipmap, glDeleteTextures)
-                for t in new_textures:
-                    name = t['name'].lower()
-                    rgba = t.get('rgba_data', b'')
-                    w = t.get('width', 0); h = t.get('height', 0)
-                    if not (rgba and w > 0 and h > 0): continue
-                    gl_id = glGenTextures(1)
-                    glBindTexture(GL_TEXTURE_2D, gl_id)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-                    try:
-                        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba)
-                        glGenerateMipmap(GL_TEXTURE_2D)
-                        self.viewport._tex_ids[name] = gl_id
-                    except Exception:
-                        glDeleteTextures(1,[gl_id])
-                self.viewport.doneCurrent()
-                # Add to texture list
-                for t in new_textures:
-                    item = QListWidgetItem(f"{t['name']}  {t['width']}\xd7{t['height']}")
-                    rgba=t.get('rgba_data',b''); w=t.get('width',0); h=t.get('height',0)
-                    if rgba and w>0 and h>0:
-                        try:
-                            img=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888)
-                            px=QPixmap.fromImage(img).scaled(32,32,
-                                Qt.AspectRatioMode.KeepAspectRatio,
-                                Qt.TransformationMode.SmoothTransformation)
-                            item.setIcon(QIcon(px))
-                        except Exception: pass
-                    self._tex_list.addItem(item)
-                self.viewport.update()
-            return len(new_textures)
-        except Exception as e:
-            return 0
-
-    def _find_game_root(self): #vers 1
-        """Try to find the GTA SA game root from the DFF path or main_window settings."""
-        # From main_window app_settings
-        mw = self.main_window
-        if mw:
-            for attr in ('game_root','_game_root','game_directory'):
-                val = getattr(mw, attr, None)
-                if val and os.path.isdir(val): return val
-            if hasattr(mw,'app_settings'):
-                settings = mw.app_settings
-                for key in ('game_root','game_directory','sa_root'):
-                    val = getattr(settings,'get',lambda k,d=None:d)(key)
-                    if val and os.path.isdir(str(val)): return str(val)
-        # Walk up from DFF path looking for models/ or data/ folder
-        if self._current_dff_path:
-            p = os.path.dirname(self._current_dff_path)
-            for _ in range(8):
-                if os.path.isdir(os.path.join(p,'models')) and os.path.isdir(os.path.join(p,'data')):
-                    return p
-                p = os.path.dirname(p)
-        return ''
-
-    def _auto_load_shared_txds(self): #vers 3
-        """Find shared TXDs in a background thread — never blocks the UI."""
-        if not self._dff_model: return
-        needed  = self._collect_needed_textures()
-        already = set(self.viewport._tex_ids.keys())
-        missing = needed - already
-        if not missing: return
-
-        # Snapshot everything the worker needs — no shared mutable state
-        game_root  = self._find_game_root()
-        dff_dir    = os.path.dirname(self._current_dff_path) if self._current_dff_path else ''
-        dff_stem   = os.path.splitext(os.path.basename(self._current_dff_path))[0].lower() if self._current_dff_path else ''
-        img        = getattr(self, '_current_img', None)
-
-        from PyQt6.QtCore import QThread, pyqtSignal as _sig
-
-        viewer_ref = self
-
-        class _Worker(QThread):
-            found = _sig(list)   # emits list of {'name','rgba_data','width','height','format'}
-            status = _sig(str)
-
-            def run(self):
-                from apps.methods.txd_parser import parse_txd
-                import tempfile
-                collected = []
-                miss = set(missing)  # local copy
-
-                def _try_txd_data(data):
-                    nonlocal miss
-                    try:
-                        textures = parse_txd(data)
-                        hits = [t for t in textures if t['name'].lower() in miss
-                                and t.get('rgba_data') and t['width']>0]
-                        if hits:
-                            collected.extend(hits)
-                            miss -= {t['name'].lower() for t in hits}
-                        return len(hits)
-                    except Exception:
-                        return 0
-
-                # 0. models/generic/
-                if game_root:
-                    generic = os.path.join(game_root,'models','generic')
-                    for fn in ('vehicle.txd','wheels.txd','vehiclecommon.txd'):
-                        p = os.path.join(generic, fn)
-                        if os.path.isfile(p) and miss:
-                            try:
-                                with open(p,'rb') as f: _try_txd_data(f.read())
-                            except Exception: pass
-                    # Store wheels.DFF path for assembly use
-                    for wfn in ('wheels.DFF','wheels.dff'):
-                        wp=os.path.join(generic,wfn)
-                        if os.path.isfile(wp):
-                            viewer_ref._wheels_model_path=wp; break
-                    if not miss:
-                        if collected: self.found.emit(collected)
-                        return
-
-                # 1. Same directory as DFF
-                if dff_dir and miss:
-                    try:
-                        for fn in os.listdir(dff_dir):
-                            if not fn.lower().endswith('.txd'): continue
-                            if fn[:-4].lower() == dff_stem: continue
-                            if not miss: break
-                            try:
-                                with open(os.path.join(dff_dir,fn),'rb') as f: _try_txd_data(f.read())
-                            except Exception: pass
-                    except Exception: pass
-
-                # 1b. Current IMG (gta3.img) — look for vehicle*.txd entries
-                # SA stores vehiclegeneric256 etc inside gta3.img as separate TXDs
-                if miss and img and hasattr(img,'entries'):
-                    self.status.emit('Scanning gta3.img for vehicle textures...')
-                    txd_map={e.name.lower():e for e in img.entries if e.name.lower().endswith('.txd')}
-                    # Known SA shared vehicle TXD names inside gta3.img
-                    candidates=['vehiclecommon.txd','vehicle.txd','vehicles.txd',
-                                 'vehiclegeneric.txd','vehiclegrunge.txd',
-                                 'vehiclelights.txd','vehicletyres.txd']
-                    # Also try prefix match for any vehicle*.txd
-                    candidates += [n for n in txd_map if n.startswith('vehicle') and n not in candidates]
-                    tried=set()
-                    for cand in candidates:
-                        if not miss: break
-                        if cand in txd_map and cand not in tried:
-                            tried.add(cand)
-                            try:
-                                data=img.read_entry_data(txd_map[cand])
-                                if data: _try_txd_data(data)
-                            except Exception: pass
-
-                # 2. Current IMG — ONLY look up exact stem.txd entries, no full scan
-                if miss and img and hasattr(img,'entries'):
-                    self.status.emit(f'Scanning IMG for {len(miss)} missing textures…')
-                    # Build a map of entry names first (fast, no data read)
-                    txd_entries = {e.name.lower(): e for e in img.entries
-                                   if e.name.lower().endswith('.txd')}
-                    # Only try TXDs whose name hints at containing missing textures
-                    # Heuristic: match first 6 chars of texture name to TXD stem
-                    tried = set()
-                    for tex_name in list(miss):
-                        if not miss: break
-                        stem6 = tex_name[:6].lower()
-                        for txd_name, entry in txd_entries.items():
-                            if txd_name[:-4] in tried: continue
-                            if txd_name.startswith(stem6) or stem6.startswith(txd_name[:4]):
-                                tried.add(txd_name[:-4])
-                                try:
-                                    data = img.read_entry_data(entry)
-                                    if data: _try_txd_data(data)
-                                except Exception: pass
-                                break
-
-                if collected:
-                    self.found.emit(collected)
-
-        self._shared_txd_worker = _Worker()
-        self._shared_txd_worker.status.connect(self._set_status)
-        self._shared_txd_worker.found.connect(self._on_shared_txds_found)
-        self._shared_txd_worker.finished.connect(lambda: self._show_progress(False))
-        self._show_progress(True)
-        self._shared_txd_worker.start()
-
-    def _on_shared_txds_found(self, textures: list): #vers 2
-        """Receive shared textures from worker thread and upload to GL on main thread."""
-        # Load wheels.DFF if path was discovered by worker
-        wheels_path = getattr(self.viewport,'_wheels_model_path',None)
-        if wheels_path and not getattr(self.viewport,'_wheels_model',None):
-            self.viewport.load_wheels_dff(wheels_path)
-        if not textures: return
-        # Filter already-loaded
-        new = [t for t in textures if t['name'].lower() not in self.viewport._tex_ids]
-        if not new: return
-        self.viewport._upload_textures(new)
-        # Add to tex list
-        from PyQt6.QtGui import QIcon, QImage, QPixmap
-        from PyQt6.QtWidgets import QListWidgetItem
-        from PyQt6.QtCore import Qt
-        for t in new:
-            item = QListWidgetItem(f"{t['name']}  {t['width']}\xd7{t['height']}")
-            rgba=t.get('rgba_data',b''); w=t.get('width',0); h=t.get('height',0)
-            if rgba and w>0 and h>0:
-                try:
-                    img=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888)
-                    px=QPixmap.fromImage(img).scaled(32,32,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation)
-                    item.setIcon(QIcon(px))
-                except Exception: pass
-            self._tex_list.addItem(item)
-        self._set_status(f'+{len(new)} shared textures loaded')
-        self.viewport.update()
-
 
     def load_txd(self, path: str): #vers 2
         try:
