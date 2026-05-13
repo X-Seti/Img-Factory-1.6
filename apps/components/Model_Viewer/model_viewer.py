@@ -1646,14 +1646,52 @@ class ModelViewer(ToolMenuMixin, QWidget):
         finally:
             self._show_progress(False)
 
-    def _collect_needed_textures(self): #vers 1
-        """Return set of texture names the current DFF needs."""
+    def _strip_tex_suffix(self, name: str) -> str: #vers 1
+        """Strip GTA streaming suffix e.g. buildrt4_fehihwm -> buildrt4.
+        Pattern: trailing underscore + 4-8 lowercase letters only."""
+        return re.sub(r'_[a-z]{4,8}$', '', name)
+
+    def _get_ide_db(self): #vers 1
+        """Return IDEDatabase from mw.ide_db if loaded, else None."""
+        mw = getattr(self, 'main_window', None)
+        db = getattr(mw, 'ide_db', None)
+        if db and getattr(db, '_loaded', False) and db.model_map:
+            return db
+        db2 = getattr(getattr(mw, 'dat_browser', None), '_ide_db', None)
+        if db2 and db2.model_map:
+            return db2
+        return None
+
+    def _lookup_txd_for_stem(self, stem: str) -> str: #vers 1
+        """Return txd_name from IDE DB for model stem, or empty string."""
+        db = self._get_ide_db()
+        if not db:
+            return ''
+        obj = db.model_map.get(stem.lower())
+        if obj:
+            return obj.txd_name.lower()
+        # Try stripped stem
+        base = self._strip_tex_suffix(stem.lower())
+        if base != stem.lower():
+            obj = db.model_map.get(base)
+            if obj:
+                return obj.txd_name.lower()
+        return ''
+
+    def _collect_needed_textures(self): #vers 2
+        """Return set of texture names the current DFF needs.
+        Stores both full name and suffix-stripped base for fuzzy matching."""
         if not self._dff_model: return set()
         needed = set()
         for g in self._dff_model.geometries:
             for mat in g.materials:
                 name = (mat.texture_name or '').strip().lower()
-                if name: needed.add(name)
+                if not name:
+                    continue
+                needed.add(name)
+                base = self._strip_tex_suffix(name)
+                if base != name:
+                    needed.add(base)
         return needed
 
     def _upload_txd_additive(self, path: str): #vers 1
@@ -1748,9 +1786,11 @@ class ModelViewer(ToolMenuMixin, QWidget):
         dff_dir    = os.path.dirname(self._current_dff_path) if self._current_dff_path else ''
         dff_stem   = os.path.splitext(os.path.basename(self._current_dff_path))[0].lower() if self._current_dff_path else ''
         img        = getattr(self, '_current_img', None)
+        ide_txd    = self._lookup_txd_for_stem(dff_stem)  # from IDE DB
 
         from PyQt6.QtCore import QThread, pyqtSignal as _sig
 
+        strip_suffix = self._strip_tex_suffix
         viewer_ref = self
 
         class _Worker(QThread):
@@ -1761,17 +1801,37 @@ class ModelViewer(ToolMenuMixin, QWidget):
                 from apps.methods.txd_parser import parse_txd
                 import tempfile
                 collected = []
+                
                 miss = set(missing)  # local copy
+                # Build suffix-stripped alias map: base_name -> full_name
+                # so we can match TXD textures against suffixed DFF names
+                alias = {}
+                for n in list(miss):
+                    base = strip_suffix(n)
+                    if base != n:
+                        alias[base] = n  # base -> suffixed
 
                 def _try_txd_data(data):
                     nonlocal miss
                     try:
                         textures = parse_txd(data)
-                        hits = [t for t in textures if t['name'].lower() in miss
-                                and t.get('rgba_data') and t['width']>0]
+                        hits = []
+                        for t in textures:
+                            tname = t['name'].lower()
+                            if not (t.get('rgba_data') and t['width'] > 0):
+                                continue
+                            if tname in miss:
+                                hits.append(t)
+                            elif tname in alias:
+                                # TXD has base name, DFF used suffixed name
+                                # Serve texture under the suffixed name the DFF expects
+                                t2 = dict(t); t2['name'] = alias[tname]
+                                hits.append(t2)
+                                hits.append(t)  # also store base for future lookups
                         if hits:
                             collected.extend(hits)
-                            miss -= {t['name'].lower() for t in hits}
+                            for t in hits:
+                                miss.discard(t['name'].lower())
                         return len(hits)
                     except Exception:
                         return 0
@@ -1805,6 +1865,18 @@ class ModelViewer(ToolMenuMixin, QWidget):
                                 with open(os.path.join(dff_dir,fn),'rb') as f: _try_txd_data(f.read())
                             except Exception: pass
                     except Exception: pass
+
+                # 1a. IDE DB lookup — exact TXD name from parsed IDE files
+                if miss and img and hasattr(img, 'entries') and ide_txd:
+                    txd_key = ide_txd if ide_txd.endswith('.txd') else ide_txd + '.txd'
+                    txd_map = {e.name.lower(): e for e in img.entries if e.name.lower().endswith('.txd')}
+                    entry = txd_map.get(txd_key)
+                    if entry:
+                        self.status.emit(f'IDE: loading {txd_key}...')
+                        try:
+                            data = img.read_entry_data(entry)
+                            if data: _try_txd_data(data)
+                        except Exception: pass
 
                 # 1b. Current IMG (gta3.img) — look for vehicle*.txd entries
                 # SA stores vehiclegeneric256 etc inside gta3.img as separate TXDs
