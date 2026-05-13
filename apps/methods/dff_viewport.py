@@ -575,3 +575,58 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def wheelEvent(self, event): #vers 1
         f = 0.85 if event.angleDelta().y() > 0 else 1.15
         self._dist = max(0.1, min(50000.0, self._dist*f)); self.update()
+
+    # - Model Workshop compatibility methods
+    # These map COL3DViewport API onto DFFViewport equivalents
+
+    def zoom_in(self): #vers 1
+        self._dist = max(0.1, self._dist * 0.8); self.update()
+
+    def zoom_out(self): #vers 1
+        self._dist = min(50000.0, self._dist * 1.25); self.update()
+
+    def reset_view(self): #vers 1
+        self._yaw=45.0; self._pitch=25.0; self._pan_x=0.0; self._pan_y=0.0
+        self._auto_fit(); self.update()
+
+    def fit_to_window(self): #vers 1
+        self._auto_fit(); self.update()
+
+    def pan(self, dx, dy): #vers 1
+        scale = self._dist * 0.002
+        self._pan_x += dx * scale; self._pan_y -= dy * scale; self.update()
+
+    def set_show_mesh(self, v: bool): #vers 1
+        # DFFViewport always shows mesh — no-op for compatibility
+        self.update()
+
+    def set_backface(self, v: bool): #vers 1
+        self._backface_cull = not v; self.update()
+
+    def flip_vertical(self): #vers 1
+        self._vertices = [(x, -y, z) for x, y, z in self._vertices]; self.update()
+
+    def flip_horizontal(self): #vers 1
+        self._vertices = [(-x, y, z) for x, y, z in self._vertices]; self.update()
+
+    def rotate_cw(self): #vers 1
+        self._yaw = (self._yaw + 90) % 360; self.update()
+
+    def rotate_ccw(self): #vers 1
+        self._yaw = (self._yaw - 90) % 360; self.update()
+
+    def set_current_model(self, model, index=0): #vers 1
+        """Load a DFFModel directly — compatibility with COL3DViewport API."""
+        if not model or not model.geometries: return
+        g = model.geometries[min(index, len(model.geometries)-1)]
+        self.load_geometry(g, g.materials)
+
+    def set_checkerboard_background(self): #vers 1
+        # No-op — OpenGL bg is solid theme colour
+        pass
+
+    def set_background_color(self, color): #vers 1
+        pass
+
+    def _refresh(self): #vers 1
+        self.update()
