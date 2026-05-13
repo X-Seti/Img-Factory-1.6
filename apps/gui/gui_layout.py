@@ -1413,6 +1413,7 @@ class IMGFactoryGUILayout:
 
         if not use_pastel and _btn_style != 'flat':
             # Theme buttons mode — compact padding so 3 buttons fit in 200px panel
+            # TODO: botton custom options, font size, font weight, height, padding, bordersize.
             btn.setStyleSheet(f"""
             QPushButton {{
                 border-radius: 3px;
@@ -1631,34 +1632,31 @@ class IMGFactoryGUILayout:
         """Get short text for button"""
         # First get the localized version of the label
         localized_label = tr_button(label)
-        
+        #TODO - Translation
         short_map = {
-            "Create": "New",
-            "Open": "Open",
-            "Reload": "Reload",
-            "     ": " ",
-            "Close": "Close",
-            "Close All": "Close A",
-            "Rebuild": "Rebld",
-            "Rebuild All": "Rebld Al",
-            "Save Entry": "Save",
-            "Merge": "Merge",
-            "Split Via": "Split",
-            "Convert": "Conv",
-            "Import": "Imp",
-            "Import via": "Imp via",
-            "Refresh": "Refresh", "Export": "Exp",
-            "Export via": "Exp via", "Quick Exp": "Q Exp", "Remove": "Rem",
-            "Remove via": "Rem via", "Dump": "Dump", "Pin selected": "Pin",
-            "Rename": "Rename", "Extract": "Extract", "Select All": "Select",
-            "Inverse": "Inverse", "Sort via": "Sort", "Col Edit": "Col Edit",
-            "Txd Edit": "Txd Edit", "Dff Edit": "Dff Edit", "Ipf Edit": "Ipf Edit",
-            "IDE Edit": "IDE Edit", "IPL Edit": "IPL Edit", "Dat Edit": "Dat Edit",
-            "Zons Cull Ed": "Zons Cull", "Weap Edit": "Weap Edit", "Vehi Edit": "Vehi Edit",
-            "Peds Edit": "Peds Edit", "Radar Map": "Radar Map", "Paths Map": "Paths Map",
-            "Waterpro": "Waterpro", "Weather": "Weather", "Handling": "Handling",
-            "Objects": "Objects", "SCM code": "SCM Code", "GXT font": "GXT Edit",
-            "Menu Edit": "Menu Ed",
+            #Img, Col, TXD files
+            "Create": "New", "Open": "Open", "Hybrid": "Hybrid",
+            "Scan": " ScanDir", "Recent": "Recent", "Reload": "Reload",
+            "Encrypt": "encrypt", "Close": "Close", "Close All": "Close+",
+            "Rebuild": "Rebld", "Rebuild All": "Rebld+", "Save Entry": "Save",
+            "Merge": "Merge", "Split Via": "Split", "Convert": "Convrt",
+
+            #Entries
+            "Import": "Import", "Import via": "Imp via", "Refresh": "Refresh",
+            "Export": "Exp", "Export via": "Exp via", "Dump": "Dump", #"Quick Exp": "Q Exp",
+            "Remove": "Rem", "Remove via": "Rem via", "Extract": "Extract",
+            "Rename": "Rename", "Select All": "Select", "Inverse": "Inverse",
+            "Sort via": "Sort", "Pin selected": "Pin",
+
+            #Editors
+            "Dir Tree": "Dir", "Dat Browser": "Dat Dir", "Notepad": "Notes",
+            "Collisions": "Col Edit", "Models": "Dff Edit", "Textures": "Txd Edit",
+            "Radar": "Radar", "Waterpro": "Waterpro", "Paint": "Paint",
+            "IDE Edit": "IDE Edit","IPL Edit": "IPL Edit", "Objects": "Objects",
+            "Peds": "Peds", "Ipf Edit": "Ipf Edit", "Paths": "Paths",
+            "Vehicle": "Vehicle", "Handling": "Handling", "Carcols": "Carcols"
+            "Zons Cull": "Zons Cull", "Weapons": "Weapons", "Weather": "Weather",
+            "SCM code": "SCM Code", "GXT font": "GXT Edit", "Menu Edit": "Menu",
         }
         return short_map.get(localized_label, localized_label)
 
