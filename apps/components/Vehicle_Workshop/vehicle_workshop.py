@@ -3953,15 +3953,29 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
             self._vw_paint2.setStyleSheet(f'background:{col.name()}')
             vp.update()
 
-    def _open_file(self, path=None): #vers 1
-
+    def _open_file(self, path=None): #vers 2
+        """Open button — shows dialog for DFF or data files based on active tab."""
+        active_tab = self._tabs.currentIndex() if hasattr(self, '_tabs') else -1
+        if active_tab == 0:
+            # 3D Preview tab — open DFF
+            self._vw_pick_dff()
+            return
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open Vehicle Data File", "",
-                "Vehicle data (handling.cfg carcols.dat carmods.dat *.cfg *.dat);;All files (*)")
+                "All supported (*.dff *.cfg *.dat *.txd);;"
+                "DFF Model (*.dff);;TXD Textures (*.txd);;"
+                "Handling (handling.cfg *.cfg);;Car Colours (carcols.dat *.dat);;"
+                "Car Mods (carmods.dat *.dat);;All files (*)")
         if not path: return
         name = os.path.basename(path).lower()
-        if "handling" in name:
+        if name.endswith('.dff'):
+            self._vw_load_dff(path)
+            self._tabs.setCurrentIndex(0)
+        elif name.endswith('.txd'):
+            self._vw_load_txd(path)
+            self._tabs.setCurrentIndex(0)
+        elif "handling" in name:
             if self._tab_handling.load_file(path):
                 self._handling_path = path
                 self._tabs.setCurrentWidget(self._tab_handling)
@@ -3977,7 +3991,8 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
                 self._tabs.setCurrentWidget(self._tab_carmods)
                 self._set_status(f"Car Mods: {os.path.basename(path)}")
         else:
-            QMessageBox.warning(self, "Unknown", "Expected handling.cfg, carcols.dat or carmods.dat")
+            QMessageBox.warning(self, "Unknown",
+                "Expected a .dff, .txd, handling.cfg, carcols.dat or carmods.dat")
 
     def _save_file(self): #vers 1
         idx = self._tabs.currentIndex()
