@@ -124,6 +124,20 @@ except ImportError:
 
     _HANDLING_AVAILABLE = False
 
+# Parser imports — fall back to local depends/ when running standalone
+try:
+    from apps.methods.dff_parser import load_dff, DFFParser
+    from apps.methods.txd_parser import parse_txd
+except ImportError:
+    try:
+        from apps.components.Vehicle_Workshop.depends.dff_parser import load_dff, DFFParser
+    except ImportError:
+        load_dff = DFFParser = None
+    try:
+        from apps.components.Vehicle_Workshop.depends.txd_parser import parse_txd
+    except ImportError:
+        parse_txd = None
+
 # - Detect standalone vs docked
 def _is_standalone():
     import inspect

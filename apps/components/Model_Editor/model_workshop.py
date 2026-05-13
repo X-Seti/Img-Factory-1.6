@@ -47,6 +47,17 @@ from PyQt6.QtSvg import QSvgRenderer
 # Import project modules AFTER path setup
 from apps.methods.imgfactory_svg_icons import SVGIconFactory
 
+# Parser imports — fall back to local depends/ when running standalone
+try:
+    from apps.methods.dff_parser import load_dff, detect_dff, DFFParser
+    from apps.methods.txd_parser import parse_txd as _parse_txd_shared
+except ImportError:
+    from apps.components.Model_Editor.depends.dff_parser import load_dff, detect_dff, DFFParser
+    try:
+        from apps.components.Model_Editor.depends.txd_parser import parse_txd as _parse_txd_shared
+    except ImportError:
+        _parse_txd_shared = None
+
 # COL Workshop parser system
 from apps.components.Model_Editor.depends.col_workshop_classes import (
     COLModel, COLVersion, COLHeader, COLBounds,
