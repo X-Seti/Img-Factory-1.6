@@ -813,25 +813,74 @@ def _open_vehicle_workshop_with_data(main_window): #vers 1
             main_window.log_message(f"Vehicle Workshop error: {e}")
 
 
-def _open_dff_in_vehicle_workshop(main_window, row): #vers 1
-    """Extract DFF from IMG and open in Vehicle Workshop."""
+def _open_dff_in_vehicle_workshop(main_window, row): #vers 2
+    """Extract DFF+TXD from IMG, load into Vehicle Workshop with handling/carcols."""
     try:
         import os, tempfile
+        from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+        from PyQt6.QtWidgets import QWidget, QVBoxLayout
+        from PyQt6.QtCore import QTimer
+
         img = getattr(main_window, 'current_img', None)
         if not img or not hasattr(img, 'entries'): return
         if not (0 <= row < len(img.entries)): return
         entry = img.entries[row]
         data = img.read_entry_data(entry)
         if not data: return
+
         tmp_dir = tempfile.mkdtemp()
         dff_path = os.path.join(tmp_dir, entry.name)
         with open(dff_path, 'wb') as f: f.write(data)
-        gui = getattr(main_window, 'gui_layout', None)
-        if gui and hasattr(gui, '_open_file_in_vehicle_workshop'):
-            gui._open_file_in_vehicle_workshop(dff_path)
+
+        # Extract matching TXD from same IMG
+        txd_name = os.path.splitext(entry.name)[0].lower() + '.txd'
+        txd_path = None
+        for e in img.entries:
+            if e.name.lower() == txd_name:
+                txd_data = img.read_entry_data(e)
+                if txd_data:
+                    txd_path = os.path.join(tmp_dir, e.name)
+                    with open(txd_path, 'wb') as f: f.write(txd_data)
+                break
+
+        # Vehicle data paths cached by DAT Browser
+        vdata = getattr(main_window, 'vehicle_data_paths', {})
+
+        def _load_into(vw):
+            vw._open_file(dff_path)
+            if txd_path:
+                vw._open_file(txd_path)
+            for key in ('handling', 'carcols', 'carmods'):
+                p = vdata.get(key, '')
+                if p and os.path.isfile(p):
+                    vw._open_file(p)
+
+        mw = main_window
+        if mw and hasattr(mw, 'main_tab_widget'):
+            tw = mw.main_tab_widget
+            for i in range(tw.count()):
+                w = tw.widget(i)
+                vw = w if isinstance(w, VehicleWorkshop) else None
+                if vw is None and hasattr(w, 'findChild'):
+                    vw = w.findChild(VehicleWorkshop)
+                if vw:
+                    _load_into(vw)
+                    tw.setCurrentIndex(i)
+                    return
+            # Open new tab
+            gui = getattr(mw, 'gui_layout', None)
+            vw = VehicleWorkshop(main_window=mw)
+            _load_into(vw)
+            container = QWidget()
+            lay = QVBoxLayout(container); lay.setContentsMargins(0,0,0,0)
+            lay.addWidget(vw)
+            container.file_type = 'WORKSHOP'
+            idx = tw.addTab(container, 'Vehicle Workshop')
+            tw.setCurrentIndex(idx)
         elif hasattr(main_window, 'log_message'):
-            main_window.log_message("Vehicle Workshop not available")
+            main_window.log_message("Vehicle Workshop: no tab widget found")
     except Exception as e:
+        import traceback; traceback.print_exc()
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Vehicle Workshop error: {e}")
 
