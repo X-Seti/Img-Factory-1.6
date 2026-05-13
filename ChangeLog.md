@@ -1,4 +1,51 @@
-#this belongs in root /ChangeLog.md - Version: 64
+#this belongs in root /ChangeLog.md - Version: 65
+
+## May 2026 - DFFViewport refactor + texture/UV fixes
+
+**DFFViewport moved to shared module (`apps/methods/dff_viewport.py` v1):**
+- Single authoritative OpenGL viewport used by all three tools when docked
+- Standalone fallback: each tool has its own `methods/dff_viewport.py`
+- Vehicle Workshop uses `VehicleViewport(DFFViewport)` subclass with animation/door methods
+- Model Workshop DFF preview switched from software `COL3DViewport` to `DFFViewport` (OpenGL)
+- Model Viewer inline `DFFViewport` class removed, now imports from shared module
+
+**Texture wrap/filter mode (`dff_parser.py` v5, `txd_parser.py`, `dff_classes.py`):**
+- `Material` class gains `wrap_u`, `wrap_v`, `filter_mode` fields
+- DFF `_parse_material`: texture struct chunk now parsed for RW filter/wrap flags
+- TXD `_parse_native_texture`: filter/wrap bytes no longer skipped, included in texture dict
+- `DFFViewport._rw_wrap_to_gl()`: converts RW addressing (WRAP/CLAMP/MIRROR) to GL constants
+- `_upload_textures` v2: applies per-texture GL wrap params on upload
+- Fix: struct advance bug - `tp` always advances past struct body before reading name string
+  (previous code conditionally advanced, causing texture name corruption on all DFFs)
+- Applied to all three `dff_parser.py` copies (methods/, Model_Editor/depends/, Col_Editor/depends/)
+
+**Texture scanning - shared TXDs per game version (`model_viewer.py`):**
+- GTA3/VC: loads `models/generic.txd`, `models/particle.txd`, `models/Generic/wheels.DFF`
+- SA: loads `models/generic/vehicle.txd`, `models/generic/wheels.txd`, `models/generic/wheels.DFF`
+- Game version read from `ide_db._game` set by DAT Browser on load
+- IDE DB TXD lookup: step 1a uses exact `txd_name` from parsed IDE before prefix heuristics
+- Texture suffix stripping: `buildrt4_fehihwm` -> `buildrt4` via `_strip_tex_suffix()` regex
+- Alias map: TXD base name matched to suffixed DFF material name
+
+**UV V-flip (`model_workshop.py` `COL3DViewport` software renderer):**
+- Software renderer UV: `sy = (1.0-v)*th` - RW V=0 is bottom, QImage V=0 is top
+- Fixes upside-down textures on billboards and buildings in Model Workshop
+
+**Vehicle right-click routing (`right_click_actions.py` v6, `dat_browser.py`):**
+- `mw.vehicle_names` now populated from IDE DB `cars` section when DAT Browser loads
+- Previously only populated when handling.cfg opened manually in Vehicle Workshop
+- DFF right-click: if stem in `vehicle_names` -> "Open in Vehicle Workshop" instead of Model Viewer
+- `_open_dff_in_vehicle_workshop()` v1: extracts DFF to temp, routes via gui_layout
+
+**Parser standalone fallback (`depends/` copies):**
+- `Vehicle_Workshop/depends/`: added `dff_parser.py`, `txd_parser.py`, `dff_classes.py`
+- `Model_Editor/depends/`: added `txd_parser.py`, synced `dff_classes.py`
+- Both workshop files import from `apps.methods` first, fall back to `depends/` standalone
+
+**Bug fixes:**
+- `gui_layout.py`: `_edit_veh_file` missing - replaced with `_open_vehicle_workshop()` v1
+- `vehicle_workshop.py`: caches `mw.vehicle_names` after handling.cfg loads
+- AI Workshop standalone: created `depends/` with `session_manager`, `file_attachments`, `ssh_file_access`
 
 ## TODO — Theme-aware icons for all workshop tools
 

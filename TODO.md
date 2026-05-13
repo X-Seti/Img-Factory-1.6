@@ -1,6 +1,17 @@
-#this belongs in root /TODO.md - Version: 7
+#this belongs in root /TODO.md - Version: 8
 
 ## May 2026 - Model Workshop TODOs
+
+### Model Workshop - Texture rendering on 3D model
+**Status**: DONE (May 2026)
+- DFFViewport now shared OpenGL renderer for all tools
+- Texture wrap/filter flags parsed from DFF+TXD
+- Suffix stripping handles `name_fehihwm` style texture names
+- IDE DB used for exact TXD lookup before heuristics
+- Game-version-aware shared TXD loading (VC/GTA3/SA)
+
+### Model Workshop - Bleed-through when docked in IMG Factory
+**Status**: CONFIRMED FIXED (May 2026)
 
 ## Future Projects
 
