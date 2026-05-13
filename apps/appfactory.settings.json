@@ -38,7 +38,7 @@
   "last_img_output_path": "",
   "last_import_path": "",
   "last_export_path": "",
-  "use_pastel_buttons": true,
+  "use_pastel_buttons": false,
   "high_contrast_buttons": false,
   "button_size": 24,
   "titlebar_button_height": 32,
@@ -119,7 +119,7 @@
   "debug_log_functions": [],
   "tab_content_mode": "both",
   "button_height": 32,
-  "button_spacing_vertical": 8,
+  "button_spacing_vertical": 6,
   "button_spacing_horizontal": 6,
   "titlebar_opacity": 90
 }
