@@ -613,12 +613,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if not atomic: continue
             fi = atomic.frame_index
             name = fname.get(fi, '')
-            is_dam = name.endswith('_dam')
-            is_ok  = name.endswith('_ok')
-            is_lod = name.endswith('_vlo') or name.endswith('_lo')
+            is_dam = name.endswith('_dam') or name.endswith('_hi_dam')
+            is_ok  = name.endswith('_ok')  or name.endswith('_hi_ok')
+            is_lod = name.endswith('_vlo') or name.endswith('_lo') or name=='chassis_vlo'
+            if name in getattr(self,'_hidden_frames',set()): continue
             if is_dam and not damaged: continue
             if is_ok  and damaged: continue
-            if is_lod and not getattr(self, '_show_lod', False): continue
+            if is_lod and not getattr(self,'_show_lod',False): continue
             rot, tx, ty, tz = self._calc_world_matrix(frames, fi)
             verts = [(rot[0]*v.x+rot[1]*v.y+rot[2]*v.z+tx,
                       rot[3]*v.x+rot[4]*v.y+rot[5]*v.z+ty,
@@ -632,13 +633,30 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit))
             # Wheel instancing: place at all wheel dummy frames
             # Use wheels.DFF geometry if available, else repeat vehicle's own wheel mesh
-            if 'wheel' in name and not is_dam and not is_ok:
+            if 'wheel' in name and not is_dam and not is_ok and 'dummy' not in name:
                 wheel_data = self._get_wheel_geom_data()
                 for fi2, fn2 in fname.items():
                     if fi2 == fi: continue
                     if 'wheel' in fn2 and 'dummy' in fn2:
                         r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
                         is_left = fn2.startswith('wheel_l')
+                        # Apply steering angle to front wheels
+                        is_front = 'lf' in fn2 or 'rf' in fn2
+                        if is_front:
+                            angle = getattr(self,'_wheel_heading',0.0)
+                            if angle:
+                                ca=math.cos(math.radians(angle)); sa=math.sin(math.radians(angle))
+                                # Rotate around Z axis (GTA Z-up)
+                                steer=[ca,-sa,0, sa,ca,0, 0,0,1]
+                                r2=[r2[0]*steer[0]+r2[1]*steer[3]+r2[2]*steer[6],
+                                    r2[0]*steer[1]+r2[1]*steer[4]+r2[2]*steer[7],
+                                    r2[0]*steer[2]+r2[1]*steer[5]+r2[2]*steer[8],
+                                    r2[3]*steer[0]+r2[4]*steer[3]+r2[5]*steer[6],
+                                    r2[3]*steer[1]+r2[4]*steer[4]+r2[5]*steer[7],
+                                    r2[3]*steer[2]+r2[4]*steer[5]+r2[5]*steer[8],
+                                    r2[6]*steer[0]+r2[7]*steer[3]+r2[8]*steer[6],
+                                    r2[6]*steer[1]+r2[7]*steer[4]+r2[8]*steer[7],
+                                    r2[6]*steer[2]+r2[7]*steer[5]+r2[8]*steer[8]]
                         if wheel_data:
                             wv,wn,wu,wt,wm,wp = wheel_data
                             # Transform wheel.DFF verts to this dummy's world position
@@ -654,6 +672,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                  r2[6]*v.x+r2[7]*v.y+r2[8]*v.z+tz2) for v in geom.vertices]
                             if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
                             self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit))
+        # VC/LC: place wheels.DFF at dummies even when no wheel atomic present
+        placed_wheels=any('wheel' in fname.get(a.frame_index,'') and 'dummy' not in fname.get(a.frame_index,'') for a in atomics)
+        if not placed_wheels:
+            wheel_data=self._get_wheel_geom_data()
+            if wheel_data:
+                for fi2,fn2 in fname.items():
+                    if 'wheel' in fn2 and 'dummy' in fn2:
+                        r2,tx2,ty2,tz2=self._calc_world_matrix(frames,fi2)
+                        wv,wn,wu,wt,wm,wp=wheel_data
+                        v2=[(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
+                        if fn2.startswith('wheel_l'): v2=[(-vx,vy,vz) for vx,vy,vz in v2]
+                        self._all_geoms.append((v2,wn,wu,wt,wm,wp))
         all_pts=[p for g in self._all_geoms for p in g[0]]
         if all_pts:
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
@@ -678,7 +708,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         return r,tx,ty,tz
 
 
+    def set_wheel_heading(self, angle_deg: float): #vers 1
+        self._wheel_heading = angle_deg
+        if getattr(self,'_assembly_mode',False) and getattr(self,'_dff_model',None):
+            m=self._dff_model
+            self.load_all_geometries(m.geometries,[g.materials for g in m.geometries],
+                                     m.frames,m.atomics,getattr(self,'_damaged',False))
+
     def load_wheels_dff(self, path: str, wheel_type: str = 'wheel_saloon_l0'): #vers 1
+
         try:
             from apps.methods.dff_parser import load_dff
             self._wheels_model = load_dff(path)
@@ -1146,6 +1184,8 @@ class _ToolbarMixin:
             self._set_status(
                 f"Loaded: {os.path.basename(path)} — "
                 f"{len(model.geometries)} geometries, {len(model.frames)} frames")
+            # Populate frame hierarchy tree
+            self._populate_frame_tree()
             # Load vehicles.ide info (wheel type) + carcols colours
             stem = os.path.splitext(os.path.basename(path))[0]
             from PyQt6.QtCore import QTimer
@@ -1912,9 +1952,23 @@ class _LayoutMixin:
         tl.addWidget(self._tex_list)
         splitter.addWidget(tex_sec)
 
-        splitter.setSizes([200, 180, 150])
+        # - Frame Hierarchy section with visibility checkboxes
+        frame_sec = QWidget(); fl = QVBoxLayout(frame_sec)
+        fl.setContentsMargins(0,0,0,0); fl.setSpacing(2)
+        fl.addWidget(self._make_section_header('Frame Hierarchy'))
+        from PyQt6.QtWidgets import QTreeWidget, QTreeWidgetItem
+        self._frame_tree = QTreeWidget()
+        self._frame_tree.setFont(self.panel_font)
+        self._frame_tree.setHeaderHidden(True)
+        self._frame_tree.setColumnCount(1)
+        self._frame_tree.itemChanged.connect(self._on_frame_visibility_changed)
+        fl.addWidget(self._frame_tree)
+        splitter.addWidget(frame_sec)
+
+        splitter.setSizes([180, 120, 100, 120])
 
         # Open DFF / Open TXD buttons at bottom of left panel
+
         btn_row = QHBoxLayout(); btn_row.setSpacing(4)
         self._vw_open_dff_btn = QPushButton("Open DFF")
         self._vw_open_txd_btn = QPushButton("Open TXD")
@@ -2124,10 +2178,28 @@ class _LayoutMixin:
 
         lay.addSpacing(6)
 
+        #  Wheels
+        lbl_w = QLabel('Wheels'); lbl_w.setFont(self.panel_font)
+        lay.addWidget(lbl_w)
+        from PyQt6.QtWidgets import QSlider
+        self._wheel_heading_slider = QSlider(Qt.Orientation.Horizontal)
+        self._wheel_heading_slider.setRange(-35, 35)
+        self._wheel_heading_slider.setValue(0)
+        self._wheel_heading_slider.setToolTip('Front wheel heading angle')
+        self._wheel_heading_slider.valueChanged.connect(
+            lambda v: self.viewport.set_wheel_heading(v))
+        heading_row = QHBoxLayout()
+        heading_lbl = QLabel('Steer'); heading_lbl.setFont(self.infobar_font)
+        heading_row.addWidget(heading_lbl)
+        heading_row.addWidget(self._wheel_heading_slider, 1)
+        lay.addLayout(heading_row)
+
+        lay.addSpacing(6)
+
         #  Model Info
-        lbl_i = QLabel("Model Info"); lbl_i.setFont(self.panel_font)
+        lbl_i = QLabel('Model Info'); lbl_i.setFont(self.panel_font)
         lay.addWidget(lbl_i)
-        self._info_lbl = QLabel("—")
+        self._info_lbl = QLabel('—')
         self._info_lbl.setFont(self.infobar_font)
         self._info_lbl.setWordWrap(True)
         self._info_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -2135,6 +2207,7 @@ class _LayoutMixin:
 
         lay.addStretch()
         return panel
+
 
 
     def _populate_sidebar(self): #Vers 1
@@ -2415,7 +2488,49 @@ class _LayoutMixin:
         dlg.exec()
 
 
+    def _populate_frame_tree(self): #vers 1
+        tree = getattr(self,'_frame_tree',None)
+        if not tree or not self._dff_model: return
+        from PyQt6.QtWidgets import QTreeWidgetItem
+        from PyQt6.QtCore import Qt
+        tree.blockSignals(True)
+        tree.clear()
+        frames = self._dff_model.frames
+        items = {}
+        # Build tree from parent indices
+        for i,f in enumerate(frames):
+            name = f.name or f'frame_{i}'
+            item = QTreeWidgetItem([name])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.CheckState.Checked)
+            item.setData(0, Qt.ItemDataRole.UserRole, name.lower())
+            items[i] = item
+        for i,f in enumerate(frames):
+            p = f.parent_index
+            if p >= 0 and p != i and p in items:
+                items[p].addChild(items[i])
+            elif p == -1 or p == i:
+                tree.addTopLevelItem(items[i])
+        tree.expandAll()
+        tree.blockSignals(False)
+
+    def _on_frame_visibility_changed(self, item, col): #vers 1
+        from PyQt6.QtCore import Qt
+        name = item.data(0, Qt.ItemDataRole.UserRole) or ''
+        if not hasattr(self.viewport,'_hidden_frames'):
+            self.viewport._hidden_frames = set()
+        if item.checkState(0) == Qt.CheckState.Checked:
+            self.viewport._hidden_frames.discard(name)
+        else:
+            self.viewport._hidden_frames.add(name)
+        # Rebuild assembly if active
+        if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
+            self._toggle_assembly_mode(True)
+        else:
+            self.viewport.update()
+
     def _populate_geom_list(self): #vers 1
+
         self._geom_list.clear()
         if not self._dff_model: return
         for i, g in enumerate(self._dff_model.geometries):
