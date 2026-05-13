@@ -2999,7 +2999,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         return True
 
 
-    def mousePressEvent(self, ev): #Vers 1
+    def mousePressEvent(self, ev): #vers 2
         if ev.button() != Qt.MouseButton.LeftButton:
             super().mousePressEvent(ev); return
         self.resize_corner = self._get_resize_corner(ev.pos())
@@ -3008,11 +3008,15 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
             self.drag_position = ev.globalPosition().toPoint()
             self.initial_geometry = self.geometry()
             ev.accept(); return
-        if (hasattr(self, "titlebar") and
+        if (hasattr(self, 'titlebar') and
                 self.titlebar.geometry().contains(ev.pos())):
-            handle = self.windowHandle()
-            if handle: handle.startSystemMove()
-            ev.accept(); return
+            # Only start drag if click is not on a button/interactive child
+            from PyQt6.QtWidgets import QAbstractButton, QComboBox, QSlider
+            child = self.childAt(ev.pos())
+            if child is None or not isinstance(child, (QAbstractButton, QComboBox, QSlider)):
+                handle = self.windowHandle()
+                if handle: handle.startSystemMove()
+                ev.accept(); return
         super().mousePressEvent(ev)
 
 
