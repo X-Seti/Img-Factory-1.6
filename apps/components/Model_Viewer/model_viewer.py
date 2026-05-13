@@ -1787,6 +1787,8 @@ class ModelViewer(ToolMenuMixin, QWidget):
         dff_stem   = os.path.splitext(os.path.basename(self._current_dff_path))[0].lower() if self._current_dff_path else ''
         img        = getattr(self, '_current_img', None)
         ide_txd    = self._lookup_txd_for_stem(dff_stem)  # from IDE DB
+        _ide_db    = self._get_ide_db()
+        game_ver   = getattr(_ide_db, '_game', None) or getattr(_ide_db, 'game', 'vc')
 
         from PyQt6.QtCore import QThread, pyqtSignal as _sig
 
@@ -1836,20 +1838,42 @@ class ModelViewer(ToolMenuMixin, QWidget):
                     except Exception:
                         return 0
 
-                # 0. models/generic/
+                # 0. Shared TXDs from models/ — game-version aware
                 if game_root:
-                    generic = os.path.join(game_root,'models','generic')
-                    for fn in ('vehicle.txd','wheels.txd','vehiclecommon.txd'):
-                        p = os.path.join(generic, fn)
+                    m = os.path.join(game_root, 'models')
+                    if game_ver == 'sa':
+                        shared_txds = [
+                            os.path.join(m, 'generic', 'vehicle.txd'),
+                            os.path.join(m, 'generic', 'wheels.txd'),
+                            os.path.join(m, 'generic', 'vehiclecommon.txd'),
+                        ]
+                        wheel_dffs = [
+                            os.path.join(m, 'generic', 'wheels.DFF'),
+                            os.path.join(m, 'generic', 'wheels.dff'),
+                        ]
+                    else:
+                        # GTA3 / VC: shared TXDs sit directly in models/
+                        # wheels in models/textures/
+                        shared_txds = [
+                            os.path.join(m, 'generic.txd'),
+                            os.path.join(m, 'particle.txd'),
+                            os.path.join(m, 'textures', 'wheels.TXD'),
+                            os.path.join(m, 'textures', 'wheels.txd'),
+                        ]
+                        wheel_dffs = [
+                            os.path.join(m, 'generic', 'wheels.DFF'),
+                            os.path.join(m, 'generic', 'wheels.dff'),
+                            os.path.join(m, 'wheels.DFF'),
+                            os.path.join(m, 'wheels.dff'),
+                        ]
+                    for p in shared_txds:
                         if os.path.isfile(p) and miss:
                             try:
-                                with open(p,'rb') as f: _try_txd_data(f.read())
+                                with open(p, 'rb') as f: _try_txd_data(f.read())
                             except Exception: pass
-                    # Store wheels.DFF path for assembly use
-                    for wfn in ('wheels.DFF','wheels.dff'):
-                        wp=os.path.join(generic,wfn)
+                    for wp in wheel_dffs:
                         if os.path.isfile(wp):
-                            viewer_ref._wheels_model_path=wp; break
+                            viewer_ref._wheels_model_path = wp; break
                     if not miss:
                         if collected: self.found.emit(collected)
                         return
