@@ -1100,9 +1100,12 @@ class _ToolbarMixin:
             dff_path = os.path.join(tmp_dir, name)
             with open(dff_path,'wb') as f: f.write(data)
 
-            # Step 2: Parse + load DFF
+            # Step 2: Parse + load DFF, switch to 3D Preview tab first
             self._set_status(f"Parsing {name}…")
             QApplication.processEvents()
+            if hasattr(self, '_tabs'):
+                self._tabs.setCurrentIndex(0)
+                QApplication.processEvents()
             self.load_dff(dff_path)
             QApplication.processEvents()
 
@@ -2178,20 +2181,23 @@ class _LayoutMixin:
         m = self._dff_model
         g = m.geometries[row]
         # Use load_all_geometries for correct UV + frame hierarchy
-        if m.frames and m.atomics:
-            self.viewport.load_all_geometries(
-                m.geometries, [geom.materials for geom in m.geometries],
-                m.frames, m.atomics)
-            # Fallback: bad atomics produced empty result
-            if not getattr(self.viewport, '_all_geoms', None) and not self.viewport._vertices:
+        def _do_load():
+            if m.frames and m.atomics:
+                self.viewport.load_all_geometries(
+                    m.geometries, [geom.materials for geom in m.geometries],
+                    m.frames, m.atomics)
+                # Fallback: bad atomics produced empty result
+                if not getattr(self.viewport, '_all_geoms', None) and not self.viewport._vertices:
+                    self.viewport.load_geometry(g, g.materials)
+            else:
                 self.viewport.load_geometry(g, g.materials)
-        else:
-            self.viewport.load_geometry(g, g.materials)
-        from PyQt6.QtCore import QTimer
-        if hasattr(self.viewport, 'isValid') and not self.viewport.isValid():
-            QTimer.singleShot(100, lambda: self.viewport.update())
-        else:
             self.viewport.update()
+        from PyQt6.QtCore import QTimer
+        # Defer so GL context is initialized before first render
+        if hasattr(self.viewport, 'isValid') and not self.viewport.isValid():
+            QTimer.singleShot(150, _do_load)
+        else:
+            _do_load()
         has_prelit = bool(g.colors)
         self._prelit_btn.setEnabled(has_prelit)
         self._info_lbl.setText(
