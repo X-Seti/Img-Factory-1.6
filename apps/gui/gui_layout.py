@@ -1413,9 +1413,6 @@ class IMGFactoryGUILayout:
 
         if not use_pastel and _btn_style != 'flat':
             # Theme buttons mode — compact padding so 3 buttons fit in 200px panel
-            #btn.setStyleSheet(
-            #    "QPushButton { padding: 2px 4px; font-weight: bold; "
-            #    "border: 1px solid #555; border-radius: 3px; }")
             btn.setStyleSheet(f"""
             QPushButton {{
                 border-radius: 3px;
