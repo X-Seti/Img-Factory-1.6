@@ -58,6 +58,12 @@ except ImportError:
     except ImportError:
         _parse_txd_shared = None
 
+# DFFViewport — shared OpenGL renderer
+try:
+    from apps.methods.dff_viewport import DFFViewport
+except ImportError:
+    from apps.components.Model_Editor.methods.dff_viewport import DFFViewport
+
 # COL Workshop parser system
 from apps.components.Model_Editor.depends.col_workshop_classes import (
     COLModel, COLVersion, COLHeader, COLBounds,
@@ -7575,12 +7581,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         preview_row = QHBoxLayout()
         preview_row.setSpacing(3)
 
-        self.preview_widget = COL3DViewport()
+        self.preview_widget = DFFViewport()
         self.preview_widget._workshop_ref = self
         preview_row.addWidget(self.preview_widget, stretch=1)
-        # GL toggle — injected after QPainter viewport
         self.preview_row = preview_row
-        self.setup_gl_toggle(preview_row)
 
         self._create_paint_bar()
 
