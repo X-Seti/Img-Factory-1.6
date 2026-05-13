@@ -4273,7 +4273,16 @@ class IMGFactoryGUILayout:
                 ide_action.triggered.connect(lambda: self._open_file_in_ide_editor(file_path))
                 menu.addSeparator()
 
-            #    Generic text editor for editable types                    
+            #    Vehicle Workshop for handling.cfg and carcols.dat
+            fname_lower = os.path.basename(file_path).lower()
+            if (file_ext in ('.cfg', '.dat') and
+                any(k in fname_lower for k in ('handling','carcols','carmods'))):
+                vw_action = menu.addAction("Open in Vehicle Workshop")
+                vw_action.triggered.connect(
+                    lambda _=False, p=file_path: self._open_file_in_vehicle_workshop(p))
+                menu.addSeparator()
+
+            #    Generic text editor for editable types
             _TEXT_EDITABLE = ('.ide', '.ipl', '.dat', '.txt', '.cfg',
                               '.ini', '.zon', '.cut', '.fxt')
             if file_ext in _TEXT_EDITABLE:
@@ -4335,7 +4344,38 @@ class IMGFactoryGUILayout:
         except Exception as e:
             self.main_window.log_message(f"COL Workshop error: {str(e)}")
 
+    def _open_file_in_vehicle_workshop(self, file_path: str): #vers 1
+        """Open handling.cfg / carcols.dat in Vehicle Workshop."""
+        try:
+            from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+            mw = getattr(self, 'main_window', None)
+            # Check if Vehicle Workshop already open as a tab
+            if mw and hasattr(mw, 'main_tab_widget'):
+                tw = mw.main_tab_widget
+                for i in range(tw.count()):
+                    w = tw.widget(i)
+                    if isinstance(w, VehicleWorkshop):
+                        w._open_file(file_path)
+                        tw.setCurrentIndex(i)
+                        return
+            # Open new Vehicle Workshop tab
+            vw = VehicleWorkshop(main_window=mw)
+            vw._open_file(file_path)
+            if mw and hasattr(mw, 'main_tab_widget'):
+                from PyQt6.QtWidgets import QWidget, QVBoxLayout
+                container = QWidget()
+                lay = QVBoxLayout(container); lay.setContentsMargins(0,0,0,0)
+                lay.addWidget(vw)
+                container.file_type = 'WORKSHOP'
+                idx = mw.main_tab_widget.addTab(container, 'Vehicle Workshop')
+                mw.main_tab_widget.setCurrentIndex(idx)
+            else:
+                vw.resize(1200, 720); vw.show()
+        except Exception as e:
+            import traceback; traceback.print_exc()
+
     def _open_file_in_text_editor(self, file_path: str): #vers 1
+
         """Open any text-editable GTA file in the IMG Factory text editor."""
         try:
             from apps.core.notepad import open_text_file_in_editor

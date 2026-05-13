@@ -2670,11 +2670,15 @@ class _LayoutMixin:
             self._geom_list.addItem(f"[{i}] {name}  {len(g.vertices)}v {len(g.triangles)}t")
 
 
-    def _on_geom_selected(self, row: int): #vers 1
+    def _on_geom_selected(self, row: int): #vers 2
         if not self._dff_model or row < 0 or row >= len(self._dff_model.geometries): return
         self._current_geom = row
         g = self._dff_model.geometries[row]
         self.viewport.load_geometry(g, g.materials)
+        # Ensure GL context is initialized before rendering
+        from PyQt6.QtCore import QTimer
+        if not self.viewport.isValid():
+            QTimer.singleShot(100, lambda: self.viewport.update())
         has_prelit = bool(g.colors)
         self._prelit_btn.setEnabled(has_prelit)
         self._info_lbl.setText(
@@ -3888,16 +3892,15 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         if not path: return
         self._vw_load_txd(path)
 
-    def _vw_load_dff(self, path: str): #vers 1
+    def _vw_load_dff(self, path: str): #vers 2
         try:
             from apps.methods.dff_parser import load_dff
             m = load_dff(path)
             if not m: return
             self._vw_model = m
-            vp = getattr(self,'_vw_viewport',None)
-            if vp and hasattr(vp,'load_geometry') and m.geometries:
-                g = m.geometries[0]; vp.load_geometry(g, g.materials)
             self._vw_status.setText(f'{os.path.basename(path)} — {len(m.geometries)} geoms')
+            # Also feed the full load_dff pipeline (geom list, frame tree, shared TXDs)
+            self.load_dff(path)
             # Auto-load matching TXD
             import os as _os
             for ext in ('.txd','.TXD'):
