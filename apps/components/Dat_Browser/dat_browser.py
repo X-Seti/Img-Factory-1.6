@@ -2085,6 +2085,80 @@ class DATBrowserWidget(QWidget): #vers 3
             # Fallback path (no tab system)
             self._open_img_in_factory_item_fallback(abs_path)
 
+    def _open_img_in_vehicle_workshop(self, abs_path: str): #vers 1
+        """Open IMG file in Vehicle Workshop — workshop browses entries internally."""
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+            from PyQt6.QtWidgets import QWidget, QVBoxLayout
+            mw = self.main_window
+            if not mw: return
+            img = IMGFile(abs_path)
+            vdata = getattr(mw, 'vehicle_data_paths', {})
+            # Reuse existing Vehicle Workshop tab or open new one
+            if hasattr(mw, 'main_tab_widget'):
+                tw = mw.main_tab_widget
+                for i in range(tw.count()):
+                    w = tw.widget(i)
+                    vw = w if isinstance(w, VehicleWorkshop) else None
+                    if vw is None and hasattr(w, 'findChild'):
+                        vw = w.findChild(VehicleWorkshop)
+                    if vw:
+                        vw.load_img(img)
+                        for key in ('handling', 'carcols', 'carmods'):
+                            p = vdata.get(key, '')
+                            if p and os.path.isfile(p):
+                                vw._open_file(p)
+                        tw.setCurrentIndex(i)
+                        return
+                vw = VehicleWorkshop(main_window=mw)
+                vw.load_img(img)
+                for key in ('handling', 'carcols', 'carmods'):
+                    p = vdata.get(key, '')
+                    if p and os.path.isfile(p):
+                        vw._open_file(p)
+                container = QWidget()
+                lay = QVBoxLayout(container); lay.setContentsMargins(0,0,0,0)
+                lay.addWidget(vw)
+                container.file_type = 'WORKSHOP'
+                idx = tw.addTab(container, 'Vehicle Workshop')
+                tw.setCurrentIndex(idx)
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Vehicle Workshop error: {e}")
+
+    def _open_img_in_model_workshop(self, abs_path: str): #vers 1
+        """Open IMG file in Model Workshop — workshop browses entries internally."""
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            mw = self.main_window
+            if not mw: return
+            img = IMGFile(abs_path)
+            if hasattr(mw, 'open_model_workshop_docked'):
+                mw.open_model_workshop_docked(img_path=abs_path)
+            elif hasattr(mw, 'log_message'):
+                mw.log_message("Model Workshop not available")
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Model Workshop error: {e}")
+
+    def _open_img_in_model_viewer(self, abs_path: str): #vers 1
+        """Open IMG file in Model Viewer — viewer browses entries internally."""
+        try:
+            from apps.methods.img_core_classes import IMGFile
+            from apps.components.Model_Viewer.model_viewer import open_model_viewer
+            mw = self.main_window
+            if not mw: return
+            img = IMGFile(abs_path)
+            win, viewer = open_model_viewer(mw, img=img)
+            if hasattr(mw, '_gl_viewer_wins'):
+                mw._gl_viewer_wins.append(win)
+            else:
+                mw._gl_viewer_wins = [win]
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Model Viewer error: {e}")
+
     def _open_img_in_factory_item_fallback(self, abs_path: str): #vers 1
         """Fallback: load IMG directly into main_window without tab system."""
         mw = self.main_window
@@ -3313,6 +3387,16 @@ class DATBrowserWidget(QWidget): #vers 3
                 open_act = menu.addAction(f"⊞  Open in IMG Factory tab")
                 open_act.triggered.connect(
                     lambda _=False, p=abs_path: self._open_single_img_in_factory(p))
+                menu.addSeparator()
+                vw_act = menu.addAction("🚗  Open in Vehicle Workshop")
+                vw_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_img_in_vehicle_workshop(p))
+                mw_act = menu.addAction("🔧  Open in Model Workshop")
+                mw_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_img_in_model_workshop(p))
+                mv_act = menu.addAction("👁  Open in Model Viewer")
+                mv_act.triggered.connect(
+                    lambda _=False, p=abs_path: self._open_img_in_model_viewer(p))
             load_all_act = menu.addAction("⊞  Load ALL game IMGs into IMG Factory")
             load_all_act.triggered.connect(self._load_all_game_imgs)
             menu.addSeparator()
