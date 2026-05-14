@@ -534,9 +534,17 @@ class _ToolbarMixin:
                         wheels_path = p; break
             if wheels_path and not getattr(vp, '_wheels_model', None):
                 vp.load_wheels_dff(wheels_path)
-            # Find and load wheels.txd (SA only — VC uses generic.txd)
+            # Log what textures the wheel mesh needs
+            wheel_data = vp._get_wheel_geom_data()
+            if wheel_data:
+                wm = wheel_data[4] if len(wheel_data) > 4 else []
+                needed = [getattr(m,'texture_name','') for m in (wm or []) if getattr(m,'texture_name','')]
+                if needed:
+                    self._set_status(f'Wheel textures needed: {", ".join(needed[:6])}')
+            # Find and load wheels.txd (SA) or generic.txd contains wheel textures (VC/GTA3)
             if game_root:
                 import os as _os
+                # SA: dedicated wheels.txd
                 for p in [
                     _os.path.join(game_root,'models','generic','wheels.txd'),
                     _os.path.join(game_root,'models','Generic','wheels.txd'),
@@ -547,10 +555,28 @@ class _ToolbarMixin:
                             with open(p,'rb') as f: data = f.read()
                             textures = parse_txd(data)
                             if textures:
+                                self._set_status(f'wheels.txd: {", ".join(t["name"] for t in textures[:6])}')
                                 from PyQt6.QtCore import QTimer
                                 QTimer.singleShot(100, lambda t=textures: vp._upload_textures(t, additive=True))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self._set_status(f'wheels.txd error: {e}')
+                        break
+                # VC/GTA3: wheel textures are in generic.txd — load it additively
+                for p in [
+                    _os.path.join(game_root,'models','generic.txd'),
+                    _os.path.join(game_root,'models','Generic.txd'),
+                ]:
+                    if _os.path.isfile(p):
+                        try:
+                            from apps.methods.txd_parser import parse_txd
+                            with open(p,'rb') as f: data = f.read()
+                            textures = parse_txd(data)
+                            if textures:
+                                self._set_status(f'generic.txd: {", ".join(t["name"] for t in textures[:6])}')
+                                from PyQt6.QtCore import QTimer
+                                QTimer.singleShot(150, lambda t=textures: vp._upload_textures(t, additive=True))
+                        except Exception as e:
+                            self._set_status(f'generic.txd error: {e}')
                         break
         # Rebuild assembly
         m = getattr(self, '_dff_model', None)
@@ -1004,7 +1030,8 @@ class _ToolbarMixin:
 
                 # 2. Current IMG — ONLY look up exact stem.txd entries, no full scan
                 if miss and img and hasattr(img,'entries'):
-                    self.status.emit(f'Scanning IMG for {len(miss)} missing textures…')
+                    miss_names = ', '.join(sorted(miss)[:8])
+                    self.status.emit(f'Missing textures: {miss_names}')
                     # Build a map of entry names first (fast, no data read)
                     txd_entries = {e.name.lower(): e for e in img.entries
                                    if e.name.lower().endswith('.txd')}
@@ -1025,7 +1052,11 @@ class _ToolbarMixin:
                                 break
 
                 if collected:
+                    found_names = ', '.join(t['name'] for t in collected[:8])
+                    self.status.emit(f'Found textures: {found_names}')
                     self.found.emit(collected)
+                if miss:
+                    self.status.emit(f'Still missing: {", ".join(sorted(miss)[:8])}')
 
         self._shared_txd_worker = _Worker()
         self._shared_txd_worker.status.connect(self._set_status)
