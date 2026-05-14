@@ -514,6 +514,35 @@ class _ToolbarMixin:
         if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
             self._toggle_assembly_mode(True)
 
+    def _toggle_show_wheels(self, enabled: bool): #vers 1
+        """Load wheels.DFF if needed and trigger re-assembly."""
+        vp = self.viewport
+        vp._show_wheels = enabled
+        if enabled:
+            # Ensure wheels.DFF is loaded
+            wheels_path = getattr(vp, '_wheels_model_path', '')
+            if wheels_path and not getattr(vp, '_wheels_model', None):
+                vp.load_wheels_dff(wheels_path)
+            # Also search game root if not found yet
+            if not getattr(vp, '_wheels_model', None):
+                game_root = self._find_game_root()
+                if game_root:
+                    import os as _os
+                    for p in [
+                        _os.path.join(game_root,'models','Generic','wheels.DFF'),
+                        _os.path.join(game_root,'models','generic','wheels.DFF'),
+                        _os.path.join(game_root,'models','generic','wheels.dff'),
+                    ]:
+                        if _os.path.isfile(p):
+                            vp.load_wheels_dff(p); break
+        # Rebuild assembly with or without wheels
+        m = getattr(self, '_dff_model', None)
+        if m and m.frames and m.atomics:
+            vp.load_all_geometries(
+                m.geometries, [g.materials for g in m.geometries],
+                m.frames, m.atomics)
+        vp.update()
+
     def _update_paint_btns(self): #vers 1
         vp = self.viewport
         def _css(rgb): return f'background-color:rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)});color:{"#000" if sum(rgb)>1.5 else "#fff"}'
@@ -984,7 +1013,20 @@ class _ToolbarMixin:
         # Filter already-loaded
         new = [t for t in textures if t['name'].lower() not in self.viewport._tex_ids]
         if not new: return
-        self.viewport._upload_textures(new)
+        # Defer upload until GL context ready
+        def _do_shared_upload():
+            try:
+                vp = self.viewport
+                if hasattr(vp, 'isValid') and not vp.isValid():
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(200, _do_shared_upload)
+                    return
+                vp._upload_textures(new)
+                vp.update()
+            except Exception:
+                pass
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(50, _do_shared_upload)
         # Add to tex list
         from PyQt6.QtGui import QIcon, QImage, QPixmap
         from PyQt6.QtWidgets import QListWidgetItem
@@ -1014,14 +1056,18 @@ class _ToolbarMixin:
             textures = parse_txd(data)
             if not textures:
                 self._set_status(f'No textures: {os.path.basename(path)}'); return
-            # GL upload — defer if widget not yet shown
+            # GL upload — defer until GL context is initialized
             def _do_upload():
-                try: self.viewport._upload_textures(textures); self.viewport.update()
-                except Exception as ue: self._set_status(f'GL upload: {ue}')
-            if self.viewport.isVisible():
-                _do_upload()
-            else:
-                QTimer.singleShot(400, _do_upload)
+                try:
+                    vp = self.viewport
+                    if hasattr(vp, 'isValid') and not vp.isValid():
+                        QTimer.singleShot(200, _do_upload)
+                        return
+                    vp._upload_textures(textures)
+                    vp.update()
+                except Exception as ue:
+                    self._set_status(f'GL upload: {ue}')
+            QTimer.singleShot(50, _do_upload)
             # Texture list with thumbnails
             self._tex_list.clear()
             for t in textures:
@@ -1813,6 +1859,9 @@ class _LayoutMixin:
         #  Wheels
         lbl_w = QLabel('Wheels'); lbl_w.setFont(self.panel_font)
         lay.addWidget(lbl_w)
+        self._wheels_btn = _btn("Show Wheels", "Load and show wheels at dummy positions",
+                                self._toggle_show_wheels, None, True, False)
+        lay.addWidget(self._wheels_btn)
 
         from PyQt6.QtWidgets import QSlider
         self._wheel_heading_slider = QSlider(Qt.Orientation.Horizontal)

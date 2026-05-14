@@ -492,27 +492,27 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             geom_flags = getattr(geom, 'flags', 0)
             self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit,geom_flags))
 
-        # Place wheels at dummy frames using wheels.DFF (VC/GTA3/SA pattern)
-        # wheel_lf_dummy, wheel_rf_dummy, wheel_lb_dummy, wheel_rb_dummy
-        wheel_data = self._get_wheel_geom_data()
-        if wheel_data:
-            wv,wn,wu,wt,wm,wp = wheel_data[:6]
-            wflags = wheel_data[6] if len(wheel_data) > 6 else 0
-            for fi2, fn2 in fname.items():
-                if 'dummy' not in fn2: continue
-                if not any(w in fn2 for w in ('wheel_lf','wheel_rf','wheel_lb','wheel_rb',
-                                               'wheel_lm','wheel_rm')): continue
-                r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
-                is_left = '_l' in fn2
-                v2 = [(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,
-                       r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,
-                       r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
-                if is_left:
-                    v2 = [(-vx,vy,vz) for vx,vy,vz in v2]
-                n2 = [(r2[0]*nx+r2[1]*ny+r2[2]*nz,
-                       r2[3]*nx+r2[4]*ny+r2[5]*nz,
-                       r2[6]*nx+r2[7]*ny+r2[8]*nz) for nx,ny,nz in wn] if wn else []
-                self._all_geoms.append((v2,n2,wu,wt,wm,wp,wflags))
+        # Place wheels at dummy frames using wheels.DFF — only when _show_wheels is set
+        if getattr(self, '_show_wheels', False):
+            wheel_data = self._get_wheel_geom_data()
+            if wheel_data:
+                wv,wn,wu,wt,wm,wp = wheel_data[:6]
+                wflags = wheel_data[6] if len(wheel_data) > 6 else 0
+                for fi2, fn2 in fname.items():
+                    if 'dummy' not in fn2: continue
+                    if not any(w in fn2 for w in ('wheel_lf','wheel_rf','wheel_lb','wheel_rb',
+                                                   'wheel_lm','wheel_rm')): continue
+                    r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
+                    is_left = '_l' in fn2
+                    v2 = [(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,
+                           r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,
+                           r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
+                    if is_left:
+                        v2 = [(-vx,vy,vz) for vx,vy,vz in v2]
+                    n2 = [(r2[0]*nx+r2[1]*ny+r2[2]*nz,
+                           r2[3]*nx+r2[4]*ny+r2[5]*nz,
+                           r2[6]*nx+r2[7]*ny+r2[8]*nz) for nx,ny,nz in wn] if wn else []
+                    self._all_geoms.append((v2,n2,wu,wt,wm,wp,wflags))
         all_pts=[p for g in self._all_geoms for p in g[0]]
         if all_pts:
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
