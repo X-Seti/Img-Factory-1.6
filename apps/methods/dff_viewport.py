@@ -99,7 +99,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
         # Render state
         self._mode          = 'solid'
-        self._backface_cull = True
+        self._backface_cull = False  # GTA models are often 2-sided; off by default
         self._show_grid     = True
         self._use_prelight  = False
         self._ambient       = 0.4
@@ -255,7 +255,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if has_n:
                 n = norms[vi]; glNormal3f(n[0], n[1], n[2])
             if has_u:
-                u = uvs[vi]; glTexCoord2f(u[0], 1.0 - u[1])
+                u = uvs[vi]; glTexCoord2f(u[0], u[1])
             v = verts[vi]; glVertex3f(v[0], v[1], v[2])
 
     def _draw_wireframe(self): #vers 1
