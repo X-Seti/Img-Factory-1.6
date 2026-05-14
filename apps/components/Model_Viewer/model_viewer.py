@@ -1592,11 +1592,19 @@ class ModelViewer(ToolMenuMixin, QWidget):
                 if fn: name = fn
             self._geom_list.addItem(f"[{i}] {name}  {len(g.vertices)}v {len(g.triangles)}t")
 
-    def _on_geom_selected(self, row: int): #vers 1
+    def _on_geom_selected(self, row: int): #vers 2
         if not self._dff_model or row < 0 or row >= len(self._dff_model.geometries): return
         self._current_geom = row
-        g = self._dff_model.geometries[row]
-        self.viewport.load_geometry(g, g.materials)
+        m = self._dff_model
+        g = m.geometries[row]
+        if m.frames and m.atomics:
+            self.viewport.load_all_geometries(
+                m.geometries, [geom.materials for geom in m.geometries],
+                m.frames, m.atomics)
+            if not getattr(self.viewport, '_all_geoms', None) and not self.viewport._vertices:
+                self.viewport.load_geometry(g, g.materials)
+        else:
+            self.viewport.load_geometry(g, g.materials)
         has_prelit = bool(g.colors)
         self._prelit_btn.setEnabled(has_prelit)
         self._info_lbl.setText(

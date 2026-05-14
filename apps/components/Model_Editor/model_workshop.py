@@ -10318,10 +10318,13 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
                 f"— {len(textures)} textures")
             # Push textures into the 3D viewport cache for textured rendering
             pw = getattr(self, 'preview_widget', None)
-            if pw and hasattr(pw, 'load_textures'):
+            if pw and hasattr(pw, '_upload_textures'):
+                pw._upload_textures(textures)
+                pw.set_render_mode('textured')
+                pw.update()
+            elif pw and hasattr(pw, 'load_textures'):
                 pw.load_textures(textures)
                 if len(textures) > 0:
-                    # Always switch to textured when TXD loads
                     pw.set_render_style('textured')
         except Exception as e:
             import traceback; traceback.print_exc()
@@ -11244,27 +11247,28 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         """Called when user selects a geometry in the mesh list."""
         self._show_dff_geometry(row)
 
-    def _show_dff_geometry(self, index: int): #vers 2
-        """Push a DFF geometry adapter into the 2D or GL viewport."""
-        adapters = getattr(self, '_dff_adapters', [])
-        if not adapters or index < 0 or index >= len(adapters):
-            return
-        adapter = adapters[index]
-        # 2D QPainter viewport
+    def _show_dff_geometry(self, index: int): #vers 3
+        """Push a DFF geometry into the GL viewport using full frame hierarchy."""
+        adapters = getattr(self, '_dff_adapters', [])\
+        
+        model = getattr(self, '_current_dff_model', None)
         pw = getattr(self, 'preview_widget', None)
-        if pw and isinstance(pw, COL3DViewport):
-            pw.set_current_model(adapter, index)
-        # GL viewport — feed raw geometry if available
-        model = getattr(self, '_current_dff_model', None)
-        if model and index < len(model.geometries):
+        if not pw: return
+
+        if model and model.frames and model.atomics:
+            # Full assembly — correct UV mapping and world positions
+            pw.load_all_geometries(
+                model.geometries, [g.materials for g in model.geometries],
+                model.frames, model.atomics)
+        elif model and index < len(model.geometries):
             g = model.geometries[index]
-            self.load_dff_in_gl(g, g.materials)
-        # Also update the detail panel if present
-        model = getattr(self, '_current_dff_model', None)
+            pw.load_geometry(g, g.materials)
+        pw.update()
+
         if model and index < len(model.geometries):
             geom = model.geometries[index]
             self._set_status(
-                f"Geometry [{index}]: {geom.vertex_count} vertices, "
+                f"Geometry [{index}]: {len(geom.vertices)} vertices, "
                 f"{geom.triangle_count} triangles, "
                 f"{geom.material_count} materials"
             )
