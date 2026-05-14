@@ -2501,9 +2501,94 @@ The <code>.dir</code> file must be in the same folder as the <code>.img</code> f
 </table>
 </body>"""
 
+        dff_html = css + f"""<body>
+<h2>DFF / RenderWare Model Format — Vehicle Rendering Findings</h2>
+<p>Researched from the official RW 3.1 3dsmax exporter source and GTA VC/GTA3/SA game data.</p>
+
+<h3>UV Coordinate System</h3>
+<table>
+<tr><th>Finding</th><th>Detail</th></tr>
+<tr><td>V origin</td><td>RW exporter stores <code>v = 1 - maxV</code> before writing to DFF. V=0 is <b>top</b> of texture (D3D convention). Do <b>not</b> flip V again in OpenGL — <code>glTexCoord2f(u, v)</code> directly.</td></tr>
+<tr><td>Winding order</td><td>Non-mirrored nodes: v0,v1,v2. Mirrored nodes (negative Parity): v1,v0,v2 (swapped). GTA uses clockwise winding viewed from front.</td></tr>
+<tr><td>UV suffix</td><td>SA streaming appends 4–8 random lowercase chars e.g. <code>buildrt4_fehihwm</code>. Strip with regex <code>_[a-z]{{4,8}}$</code> before texture lookup.</td></tr>
+</table>
+
+<h3>Geometry Flags (rpGEOMETRY*)</h3>
+<table>
+<tr><th>Flag</th><th>Hex</th><th>Meaning</th></tr>
+<tr><td>rpGEOMETRYTRISTRIP</td><td>0x0001</td><td>Geometry uses tri-strip meshes</td></tr>
+<tr><td>rpGEOMETRYPOSITIONS</td><td>0x0002</td><td>Has vertex positions</td></tr>
+<tr><td>rpGEOMETRYTEXTURED</td><td>0x0004</td><td>Has UV texture coordinates</td></tr>
+<tr><td>rpGEOMETRYPRELIT</td><td>0x0008</td><td>Vertex pre-lighting colors present — use instead of GL lights</td></tr>
+<tr><td>rpGEOMETRYNORMALS</td><td>0x0010</td><td>Vertex normals present</td></tr>
+<tr><td>rpGEOMETRYLIGHT</td><td>0x0020</td><td>Affected by dynamic lighting — enable GL_LIGHTING</td></tr>
+<tr><td>rpGEOMETRYMODULATEMATERIALCOLOR</td><td>0x0040</td><td>Material colour multiplies texture (GL_MODULATE). If not set, use GL_REPLACE.</td></tr>
+<tr><td>rpGEOMETRYTEXTURED2</td><td>0x0080</td><td>Has second UV layer</td></tr>
+<tr><td>UV layer count</td><td>bits 16–23</td><td>Upper byte of flags encodes number of UV layers</td></tr>
+</table>
+
+<h3>Texture Chunk — Filter/Wrap Flags</h3>
+<table>
+<tr><th>Field</th><th>Bytes</th><th>Values</th></tr>
+<tr><td>filter_mode</td><td>uint8 at offset 0</td><td>0=NONE 1=NEAREST 2=LINEAR 3=MIP_NEAREST 4=MIP_LINEAR 5=LINEAR_MIP_NEAREST 6=LINEAR_MIP_LINEAR</td></tr>
+<tr><td>wrap_u</td><td>bits 0–3 of byte 1</td><td>0=NONE 1=WRAP 2=CLAMP 3=MIRROR</td></tr>
+<tr><td>wrap_v</td><td>bits 4–7 of byte 1</td><td>Same as wrap_u</td></tr>
+<tr><td>DFF struct</td><td>uint16 at start of TEXTURE struct</td><td>filter_mode | (wrap_u&lt;&lt;8) | (wrap_v&lt;&lt;12)</td></tr>
+<tr><td>TXD struct</td><td>4 bytes after platform_id</td><td>byte[0]=filter, byte[1]=(wrap_v&lt;&lt;4)|wrap_u</td></tr>
+</table>
+
+<h3>Vehicle Frame Hierarchy (VC/GTA3)</h3>
+<table>
+<tr><th>Frame Name Pattern</th><th>Purpose</th></tr>
+<tr><td>chassis_dummy</td><td>Root chassis attachment frame — parent of all body parts</td></tr>
+<tr><td>chassis_hi / chassis_lo / chassis_vlo</td><td>LOD levels — _hi=high detail, _lo=medium, _vlo=lowest</td></tr>
+<tr><td>wheel_lf / wheel_rf / wheel_lb / wheel_rb</td><td>Wheel geometry frames (embedded in vehicle DFF for GTA3/VC)</td></tr>
+<tr><td>wheel_lf_dummy etc.</td><td>Wheel attachment points — position only, no geometry. Place wheels.DFF here.</td></tr>
+<tr><td>door_lf_dummy / door_rf_dummy / door_lr_dummy / door_rr_dummy</td><td>Door pivot points for opening animation</td></tr>
+<tr><td>bonnet_dummy / boot_dummy</td><td>Hood/trunk pivot points</td></tr>
+<tr><td>exhaust / exhaust_2</td><td>Exhaust attachment (particles)</td></tr>
+<tr><td>ped_frontseat / ped_backseat</td><td>Seat positions for ped placement</td></tr>
+<tr><td>bump_front_dummy / bump_rear_dummy</td><td>Bumper attachment</td></tr>
+<tr><td>windscreen_dummy</td><td>Windscreen replacement position</td></tr>
+<tr><td>*_dam</td><td>Damaged state geometry — shown when vehicle is damaged</td></tr>
+<tr><td>*_ok</td><td>Undamaged state geometry — hidden when damaged</td></tr>
+</table>
+
+<h3>Wheel Textures by Game</h3>
+<table>
+<tr><th>Game</th><th>Texture File</th><th>Wheel DFF</th></tr>
+<tr><td>GTA3 / VC / LC</td><td>models/misc.txd (wheel_sp*, wheel_sal*, wheel_cla*, wheel_lig*, wheel_all*) + models/generic.txd</td><td>models/Generic/wheels.DFF</td></tr>
+<tr><td>SA</td><td>models/generic/wheels.txd + models/generic/vehicle.txd</td><td>models/generic/wheels.DFF</td></tr>
+</table>
+
+<h3>handling.cfg Vehicle Render Values</h3>
+<table>
+<tr><th>Field</th><th>Index</th><th>Use in Renderer</th></tr>
+<tr><td>CentreOfMassX/Y/Z</td><td>4,5,6</td><td>CoM indicator position in viewport</td></tr>
+<tr><td>FrontTyre</td><td>37</td><td>Wheel model ID (maps to wheel type in wheels.DFF)</td></tr>
+<tr><td>FrontTyreScale</td><td>38</td><td>Scale factor applied to front wheel geometry</td></tr>
+<tr><td>RearTyre</td><td>39</td><td>Rear wheel model ID</td></tr>
+<tr><td>RearTyreScale</td><td>40</td><td>Scale factor applied to rear wheel geometry</td></tr>
+<tr><td>SuspensionUpperLimit</td><td>30</td><td>Max suspension compression (can visualise as range)</td></tr>
+<tr><td>SuspensionLowerLimit</td><td>31</td><td>Max suspension extension</td></tr>
+</table>
+
+<h3>Shared TXD Loading Order (per game)</h3>
+<table>
+<tr><th>Step</th><th>GTA3/VC/LC</th><th>SA</th></tr>
+<tr><td>1</td><td>models/generic.txd</td><td>models/generic/vehicle.txd</td></tr>
+<tr><td>2</td><td>models/particle.txd</td><td>models/generic/wheels.txd</td></tr>
+<tr><td>3</td><td>models/misc.txd (wheel textures)</td><td>—</td></tr>
+<tr><td>4</td><td>models/wheels.TXD (if exists)</td><td>—</td></tr>
+<tr><td>5</td><td>IDE DB → exact txd_name.txd from IMG</td><td>Same</td></tr>
+<tr><td>6</td><td>Prefix heuristic scan of IMG TXDs</td><td>Same</td></tr>
+</table>
+</body>"""
+
         tabs.addTab(make_tab(img_html),    "IMG Formats")
         tabs.addTab(make_tab(ver_html),    "RW Versions")
         tabs.addTab(make_tab(txd_html),    "TXD / Textures")
+        tabs.addTab(make_tab(dff_html),    "DFF / Vehicle")
         tabs.addTab(make_tab(col_html),    "COL Collision")
         tabs.addTab(make_tab(dat_html),    "DAT / IDE / IPL")
         tabs.addTab(make_tab(matrix_html), "Platform Matrix")

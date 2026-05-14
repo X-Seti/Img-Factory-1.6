@@ -24,7 +24,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLabel, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QSplitter, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QScrollArea, QGroupBox, QTabWidget,
     QDoubleSpinBox, QSpinBox, QComboBox, QCheckBox, QPushButton,
     QFileDialog, QMessageBox, QApplication, QFormLayout, QFrame,
