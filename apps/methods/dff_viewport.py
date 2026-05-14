@@ -270,28 +270,40 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glEnable(GL_LIGHTING)
 
-    def _draw_solid(self): #vers 2
+    def _draw_solid(self): #vers 3
         if not OPENGL_AVAILABLE: return
-        glEnable(GL_LIGHTING)
-        use_p = self._use_prelight and self._prelit
+        flags = self._geom_flags()
+        use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals)
+        use_prelit   = bool(flags & self.rpGEOMETRYPRELIT) and bool(self._prelit)
+        use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR)
+        if use_lighting:
+            glEnable(GL_LIGHTING)
+        else:
+            glDisable(GL_LIGHTING)
+        use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
         opaque = []; transparent = []
         for tri in self._triangles:
             fc = self._face_color(tri[3])
             (transparent if len(fc)>3 and fc[3]<0.99 else opaque).append((tri,fc))
         glBegin(GL_TRIANGLES)
         for (v1,v2,v3,mid),(r,g,b,*rest) in opaque:
-            if not use_p: glColor4f(r,g,b,1.0)
+            a = rest[0] if rest else 1.0
+            if not use_p:
+                if use_modulate: glColor4f(r,g,b,a)
+                else: glColor4f(1.0,1.0,1.0,1.0)
             self._emit_verts(v1,v2,v3, use_prelit=use_p)
         glEnd()
         if transparent:
             glEnable(GL_BLEND); glDepthMask(False)
             glBegin(GL_TRIANGLES)
             for (v1,v2,v3,mid),(r,g,b,a) in transparent:
-                if not use_p: glColor4f(r,g,b,a)
+                if not use_p:
+                    if use_modulate: glColor4f(r,g,b,a)
+                    else: glColor4f(1.0,1.0,1.0,a)
                 self._emit_verts(v1,v2,v3, use_prelit=use_p)
             glEnd()
             glDepthMask(True); glDisable(GL_BLEND)
-        glDisable(GL_LIGHTING)
+        glEnable(GL_LIGHTING)
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
         glColor4f(0,0,0,0.18); glLineWidth(0.5)
         glEnable(GL_POLYGON_OFFSET_LINE); glPolygonOffset(-1,-1)
@@ -302,11 +314,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glDisable(GL_POLYGON_OFFSET_LINE)
 
-    def _draw_textured(self): #vers 2
+    def _draw_textured(self): #vers 3
         if not OPENGL_AVAILABLE: return
-        glEnable(GL_LIGHTING); glEnable(GL_TEXTURE_2D)
-        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
-        use_p = self._use_prelight and self._prelit
+        flags = self._geom_flags()
+        use_lighting = bool(flags & self.rpGEOMETRYLIGHT) and bool(self._normals)
+        use_prelit   = bool(flags & self.rpGEOMETRYPRELIT) and bool(self._prelit)
+        use_modulate = bool(flags & self.rpGEOMETRYMODULATEMATERIALCOLOR)
+        if use_lighting:
+            glEnable(GL_LIGHTING)
+        else:
+            glDisable(GL_LIGHTING)
+        glEnable(GL_TEXTURE_2D)
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE,
+                  GL_MODULATE if use_modulate else GL_REPLACE)
+        use_p = (use_prelit or self._use_prelight) and bool(self._prelit)
         mats  = self._materials
         batches: Dict[tuple,list] = {}
         no_tex = []
@@ -329,7 +350,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             for key, tris in batch_dict.items():
                 gl_id=key[0]; r=key[1]; g=key[2]; b=key[3]; a=key[4]
                 glBindTexture(GL_TEXTURE_2D, gl_id)
-                if not use_p: glColor4f(r, g, b, a)
+                if not use_p:
+                    if use_modulate: glColor4f(r,g,b,a)
+                    else: glColor4f(1.0,1.0,1.0,a)
                 glBegin(GL_TRIANGLES)
                 for v1,v2,v3,mid in tris:
                     self._emit_verts(v1,v2,v3, use_prelit=use_p, use_uv=True)
@@ -342,14 +365,29 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if use_blend: glEnable(GL_BLEND); glDepthMask(False)
             for v1,v2,v3,mid in tri_list:
                 r,g,b,a = self._face_color(mid)
-                if not use_p: glColor4f(r,g,b,a)
+                if not use_p:
+                    if use_modulate: glColor4f(r,g,b,a)
+                    else: glColor4f(1.0,1.0,1.0,a)
                 glBegin(GL_TRIANGLES)
                 self._emit_verts(v1,v2,v3, use_prelit=use_p)
                 glEnd()
             if use_blend: glDepthMask(True); glDisable(GL_BLEND)
-        glEnable(GL_TEXTURE_2D)
+        glEnable(GL_LIGHTING)
 
-    def _rw_wrap_to_gl(self, rw: int) -> int: #vers 1
+    # RW geometry flags
+    rpGEOMETRYTRISTRIP          = 0x0001
+    rpGEOMETRYPOSITIONS         = 0x0002
+    rpGEOMETRYTEXTURED          = 0x0004
+    rpGEOMETRYPRELIT            = 0x0008
+    rpGEOMETRYNORMALS           = 0x0010
+    rpGEOMETRYLIGHT             = 0x0020
+    rpGEOMETRYMODULATEMATERIALCOLOR = 0x0040
+    rpGEOMETRYTEXTURED2         = 0x0080
+
+    def _geom_flags(self): #vers 1
+        """Return geometry flags from current model, or sensible defaults."""
+        return getattr(self, '_current_geom_flags',
+               self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
         """Convert RW addressing mode to GL wrap constant.
         0=NONE 1=WRAP 2=CLAMP 3=MIRROR"""
         if not OPENGL_AVAILABLE: return 0
@@ -394,6 +432,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
     def load_geometry(self, geometry, materials: list): #vers 2
         self._all_geoms  = []  # clear multi-geom data
+        self._current_geom_flags = getattr(geometry, 'flags', 0)
         self._vertices  = [(v.x,v.y,v.z) for v in geometry.vertices]
         self._normals   = [(n.x,n.y,n.z) for n in geometry.normals] if geometry.normals else []
         self._uvs       = [(u.u,u.v) for u in geometry.uv_layers[0]] if geometry.uv_layers else []
@@ -423,6 +462,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 3
         self._all_geoms = []
         self._vertices  = []  # clear single-geom data
+        # Use flags from first geometry as representative
+        if geometries:
+            self._current_geom_flags = getattr(geometries[0], 'flags', 0)
         fname = {i: (f.name.lower() if f.name else '') for i,f in enumerate(frames)}
         for i, geom in enumerate(geometries):
             atomic = next((a for a in atomics if a.geometry_index == i), None)
@@ -445,7 +487,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             uvs   = [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else []
             tris  = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
             prelit= [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
-            self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit))
+            geom_flags = getattr(geom, 'flags', 0)
+            self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit,geom_flags))
             if 'wheel' in name and not is_dam and not is_ok:
                 wheel_data = self._get_wheel_geom_data()
                 for fi2, fn2 in fname.items():
@@ -459,13 +502,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                  r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,
                                  r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
                             if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
-                            self._all_geoms.append((v2,wn,wu,wt,wm,wp))
+                            self._all_geoms.append((v2,wn,wu,wt,wm,wp,geom_flags))
                         else:
                             v2=[(r2[0]*v.x+r2[1]*v.y+r2[2]*v.z+tx2,
                                  r2[3]*v.x+r2[4]*v.y+r2[5]*v.z+ty2,
                                  r2[6]*v.x+r2[7]*v.y+r2[8]*v.z+tz2) for v in geom.vertices]
                             if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
-                            self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit))
+                            self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit,geom_flags))
         all_pts=[p for g in self._all_geoms for p in g[0]]
         if all_pts:
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
@@ -519,19 +562,24 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_show_lod(self, enabled: bool): #vers 1
         self._show_lod = enabled; self.update()
 
-    def _draw_assembly(self): #vers 1
+    def _draw_assembly(self): #vers 2
         if not OPENGL_AVAILABLE: return
-        for verts,norms,uvs,tris,mats,prelit in getattr(self,'_all_geoms',[]):
-            old_v,old_n,old_u,old_t,old_m,old_p = (
+        for entry in getattr(self,'_all_geoms',[]):
+            verts,norms,uvs,tris,mats,prelit = entry[:6]
+            geom_flags = entry[6] if len(entry) > 6 else self._current_geom_flags
+            old_v,old_n,old_u,old_t,old_m,old_p,old_f = (
                 self._vertices,self._normals,self._uvs,
-                self._triangles,self._materials,self._prelit)
+                self._triangles,self._materials,self._prelit,
+                getattr(self,'_current_geom_flags',0))
             self._vertices=verts; self._normals=norms; self._uvs=uvs
             self._triangles=tris; self._materials=mats; self._prelit=prelit
+            self._current_geom_flags=geom_flags
             if   self._mode=='wireframe': self._draw_wireframe()
             elif self._mode=='solid':     self._draw_solid()
             elif self._mode=='textured':  self._draw_textured()
             (self._vertices,self._normals,self._uvs,
-             self._triangles,self._materials,self._prelit) = (old_v,old_n,old_u,old_t,old_m,old_p)
+             self._triangles,self._materials,self._prelit,
+             self._current_geom_flags) = (old_v,old_n,old_u,old_t,old_m,old_p,old_f)
 
     def set_prelight(self, v: bool): #vers 1
         self._use_prelight = v; self.update()
