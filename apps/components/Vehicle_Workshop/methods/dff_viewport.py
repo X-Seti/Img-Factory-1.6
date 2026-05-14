@@ -397,8 +397,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if rw == 3: return GL_MIRRORED_REPEAT
         return GL_REPEAT
 
-    def _upload_textures(self, textures: list): #vers 2
+    def _upload_textures(self, textures: list): #vers 3
         if not OPENGL_AVAILABLE: return
+        # Guard: don't attempt upload if GL context not initialized
+        try:
+            if hasattr(self, 'isValid') and not self.isValid():
+                # Store pending textures for later upload
+                self._pending_textures = getattr(self, '_pending_textures', []) + textures
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(200, lambda: self._flush_pending_textures())
+                return
+        except Exception:
+            pass
         self.makeCurrent(); self.clear_textures()
         for tex in textures:
             name = tex.get('name','').lower()
@@ -424,6 +434,18 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 print(f"[DFFViewport] Tex upload fail '{name}': {e}")
                 glDeleteTextures(1,[gl_id])
         glBindTexture(GL_TEXTURE_2D, 0); self.doneCurrent()
+
+    def _flush_pending_textures(self): #vers 1
+        """Upload any textures that were queued before GL context was ready."""
+        pending = getattr(self, '_pending_textures', [])
+        if not pending: return
+        if hasattr(self, 'isValid') and not self.isValid():
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(200, self._flush_pending_textures)
+            return
+        self._pending_textures = []
+        self._upload_textures(pending)
+        self.update()
 
     def clear_textures(self): #vers 2
         if OPENGL_AVAILABLE and self._tex_ids:
@@ -503,12 +525,19 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                     if not any(w in fn2 for w in ('wheel_lf','wheel_rf','wheel_lb','wheel_rb',
                                                    'wheel_lm','wheel_rm')): continue
                     r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
-                    is_left = '_l' in fn2
-                    v2 = [(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,
-                           r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,
-                           r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
-                    if is_left:
-                        v2 = [(-vx,vy,vz) for vx,vy,vz in v2]
+                    # Left wheels: mirror the wheel mesh around local X (flip Y axis of rotation)
+                    # to make the tread face outward correctly
+                    is_left = 'wheel_l' in fn2
+                    v2 = []
+                    for vx,vy,vz in wv:
+                        # Apply dummy world rotation + translation
+                        wx = r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2
+                        wy = r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2
+                        wz = r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2
+                        # Mirror left wheel by flipping the local X contribution
+                        if is_left:
+                            wx = tx2 - (r2[0]*vx+r2[1]*vy+r2[2]*vz)
+                        v2.append((wx,wy,wz))
                     n2 = [(r2[0]*nx+r2[1]*ny+r2[2]*nz,
                            r2[3]*nx+r2[4]*ny+r2[5]*nz,
                            r2[6]*nx+r2[7]*ny+r2[8]*nz) for nx,ny,nz in wn] if wn else []

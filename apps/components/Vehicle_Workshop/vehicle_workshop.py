@@ -542,6 +542,10 @@ class _ToolbarMixin:
                 m.geometries, [g.materials for g in m.geometries],
                 m.frames, m.atomics)
         vp.update()
+        # Re-scan for wheel textures
+        if enabled:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(100, self._auto_load_shared_txds)
 
     def _update_paint_btns(self): #vers 1
         vp = self.viewport
@@ -822,10 +826,21 @@ class _ToolbarMixin:
                 p = os.path.dirname(p)
         return ''
 
-    def _auto_load_shared_txds(self): #vers 3
+    def _auto_load_shared_txds(self): #vers 4
         """Find shared TXDs in a background thread — never blocks the UI."""
         if not self._dff_model: return
         needed  = self._collect_needed_textures()
+        # Add wheel mesh texture needs when wheels are shown
+        if getattr(self.viewport, '_show_wheels', False):
+            wheel_data = self.viewport._get_wheel_geom_data()
+            if wheel_data:
+                wm = wheel_data[4] if len(wheel_data) > 4 else []
+                for mat in (wm or []):
+                    tname = getattr(mat, 'texture_name', '') or ''
+                    if tname:
+                        needed.add(tname.lower())
+                        base = self.viewport._strip_tex_suffix(tname.lower())
+                        if base != tname.lower(): needed.add(base)
         already = set(self.viewport._tex_ids.keys())
         missing = needed - already
         if not missing: return
