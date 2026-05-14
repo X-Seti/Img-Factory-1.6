@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-#this belongs in components/Img_Factory/imgfactory.py - Version: 79
+#this belongs in components/Img_Factory/imgfactory.py - Version: 80
 # X-Seti - Feb 24 2026 - IMG Factory 1.6 - Icon system, button layout
 
 """
 IMG Factory 1.6 - Grand Theft Auto Archive Manager
 Main application file - always runs in "main app" mode
 """
+
+#TODO: Workflow update needed when switching panels and apps. When dat_browser opens other apps, these need to shown in the taskbar, and switch to that app automatically. when img files are opened, the only indication is the status bar, there is no taskbar icon, this icon can be clicked on, to bring the user to that tab/section.
 
 import sys
 import os

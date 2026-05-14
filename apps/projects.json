@@ -1,12 +1,4 @@
 {
-  "GTASOL 70.5": {
-    "name": "GTASOL 70.5",
-    "project_folder": "/home/x2/Projects/GTASOLBeta70.5(FireBull)",
-    "game_root": "/home/x2/Projects/GTASOLBeta70.5(FireBull)",
-    "assists_path": "/home/x2/Desktop/depends",
-    "created_date": "2026-01-20T02:11:04.637163",
-    "last_used": "2026-03-05T16:24:59.707111"
-  },
   "TG Dunsfold": {
     "name": "TG Dunsfold",
     "project_folder": "/home/x2/Desktop/gta_resouce/GTAVC_Dunsfold",
@@ -29,7 +21,7 @@
     "game_root": "/home/x2/Desktop/gta_resouce/PC/GTAVC-PC",
     "assists_path": "/home/x2/Desktop/gta_resouce",
     "created_date": "2026-05-10T16:38:03.292048",
-    "last_used": "2026-05-12T20:00:04.232639"
+    "last_used": "2026-05-13T22:39:07.490176"
   },
   "GTASA-PC": {
     "name": "GTASA-PC",
@@ -38,5 +30,13 @@
     "assists_path": "/home/x2/Desktop/gta_resouce",
     "created_date": "2026-05-10T16:39:18.222221",
     "last_used": "2026-05-11T12:31:04.690658"
+  },
+  "GTASOL 76.5": {
+    "name": "GTASOL 76.5",
+    "project_folder": "/home/x2/Projects/GTASOLBeta70.5(FireBull)",
+    "game_root": "/home/x2/Desktop/gta_resouce/GTASOL65.9(Trilogy(NoMoreTatonka)",
+    "assists_path": "/home/x2/Desktop/depends",
+    "created_date": "2026-01-20T02:11:04.637163",
+    "last_used": "2026-05-13T22:20:18.064241"
   }
 }
