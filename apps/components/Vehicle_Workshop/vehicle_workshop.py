@@ -548,7 +548,7 @@ class _ToolbarMixin:
                             textures = parse_txd(data)
                             if textures:
                                 from PyQt6.QtCore import QTimer
-                                QTimer.singleShot(100, lambda t=textures: vp._upload_textures(t))
+                                QTimer.singleShot(100, lambda t=textures: vp._upload_textures(t, additive=True))
                         except Exception:
                             pass
                         break
@@ -1052,7 +1052,7 @@ class _ToolbarMixin:
                     from PyQt6.QtCore import QTimer
                     QTimer.singleShot(200, _do_shared_upload)
                     return
-                vp._upload_textures(new)
+                vp._upload_textures(new, additive=True)
                 vp.update()
             except Exception:
                 pass
@@ -3556,7 +3556,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
             textures=parse_txd(data)
             vp=getattr(self,'_vw_viewport',None)
             if vp and hasattr(vp,'_upload_textures') and textures:
-                vp._upload_textures(textures)
+                vp._upload_textures(textures, additive=True)
                 vp.update()
         except Exception as e:
             self._vw_status.setText(f'TXD error: {e}')

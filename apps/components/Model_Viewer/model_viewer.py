@@ -1457,7 +1457,7 @@ class ModelViewer(ToolMenuMixin, QWidget):
         # Filter already-loaded
         new = [t for t in textures if t['name'].lower() not in self.viewport._tex_ids]
         if not new: return
-        self.viewport._upload_textures(new)
+        self.viewport._upload_textures(new, additive=True)
         # Add to tex list
         from PyQt6.QtGui import QIcon, QImage, QPixmap
         from PyQt6.QtWidgets import QListWidgetItem

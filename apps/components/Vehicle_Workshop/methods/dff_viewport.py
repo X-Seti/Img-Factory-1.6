@@ -402,19 +402,20 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         if rw == 3: return GL_MIRRORED_REPEAT
         return GL_REPEAT
 
-    def _upload_textures(self, textures: list): #vers 3
+    def _upload_textures(self, textures: list, additive: bool = False): #vers 4
         if not OPENGL_AVAILABLE: return
         # Guard: don't attempt upload if GL context not initialized
         try:
             if hasattr(self, 'isValid') and not self.isValid():
-                # Store pending textures for later upload
                 self._pending_textures = getattr(self, '_pending_textures', []) + textures
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(200, lambda: self._flush_pending_textures())
                 return
         except Exception:
             pass
-        self.makeCurrent(); self.clear_textures()
+        self.makeCurrent()
+        if not additive:
+            self.clear_textures()
         for tex in textures:
             name = tex.get('name','').lower()
             rgba = tex.get('rgba_data', b'')
@@ -440,7 +441,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 glDeleteTextures(1,[gl_id])
         glBindTexture(GL_TEXTURE_2D, 0); self.doneCurrent()
 
-    def _flush_pending_textures(self): #vers 1
+    def _flush_pending_textures(self): #vers 2
         """Upload any textures that were queued before GL context was ready."""
         pending = getattr(self, '_pending_textures', [])
         if not pending: return
@@ -449,7 +450,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             QTimer.singleShot(200, self._flush_pending_textures)
             return
         self._pending_textures = []
-        self._upload_textures(pending)
+        self._upload_textures(pending, additive=True)
         self.update()
 
     def clear_textures(self): #vers 2
