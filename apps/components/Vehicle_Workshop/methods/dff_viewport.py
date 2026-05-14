@@ -1,10 +1,4 @@
-# X-Seti - May13 2026 - IMG Factory 1.6 - Vehicle Workshop DFF Viewport
-# this belongs in apps/components/Vehicle_Workshop/methods/dff_viewport.py - Version: 2
-"""
-Standalone: full DFFViewport base + VehicleViewport subclass.
-Docked: apps.methods.dff_viewport is used directly.
-"""
-
+# X-Seti - May13 2026 - IMG Factory 1.6 - DFF OpenGL Viewport
 # this belongs in apps/methods/dff_viewport.py - Version: 1
 """
 DFFViewport - Shared OpenGL viewport for DFF model rendering.
@@ -174,7 +168,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         gluPerspective(45.0, max(1, w) / max(1, h), 0.01, 100000.0)
         glMatrixMode(GL_MODELVIEW)
 
-    def paintGL(self): #vers 2
+    def paintGL(self): #vers 3
         if not OPENGL_AVAILABLE: return
         bg = self._get_ui_color('bg_panel')
         glClearColor(bg.redF(), bg.greenF(), bg.blueF(), 1.0)
@@ -189,13 +183,15 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         else:
             glDisable(GL_CULL_FACE)
         self._setup_lighting()
-        if not self._vertices:
+        has_geoms = bool(getattr(self, '_all_geoms', None))
+        has_verts = bool(self._vertices)
+        if not has_geoms and not has_verts:
             if self._show_grid: self._draw_grid()
             self._draw_axes()
             return
-        if getattr(self, '_assembly_mode', False) and getattr(self, '_all_geoms', []):
+        if has_geoms:
             self._draw_assembly()
-        else:
+        elif has_verts:
             if   self._mode == 'wireframe': self._draw_wireframe()
             elif self._mode == 'solid':     self._draw_solid()
             elif self._mode == 'textured':  self._draw_textured()
@@ -396,7 +392,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._tex_ids.clear()
         self._tex_wrap.clear()
 
-    def load_geometry(self, geometry, materials: list): #vers 1
+    def load_geometry(self, geometry, materials: list): #vers 2
+        self._all_geoms  = []  # clear multi-geom data
         self._vertices  = [(v.x,v.y,v.z) for v in geometry.vertices]
         self._normals   = [(n.x,n.y,n.z) for n in geometry.normals] if geometry.normals else []
         self._uvs       = [(u.u,u.v) for u in geometry.uv_layers[0]] if geometry.uv_layers else []
@@ -423,8 +420,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
     def set_show_grid(self, v: bool): #vers 1
         self._show_grid = v; self.update()
 
-    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 2
+    def load_all_geometries(self, geometries, materials_list, frames, atomics, damaged=False): #vers 3
         self._all_geoms = []
+        self._vertices  = []  # clear single-geom data
         fname = {i: (f.name.lower() if f.name else '') for i,f in enumerate(frames)}
         for i, geom in enumerate(geometries):
             atomic = next((a for a in atomics if a.geometry_index == i), None)
