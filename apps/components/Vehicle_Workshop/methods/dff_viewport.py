@@ -491,26 +491,28 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             prelit= [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
             geom_flags = getattr(geom, 'flags', 0)
             self._all_geoms.append((verts,norms,uvs,tris,geom.materials,prelit,geom_flags))
-            if 'wheel' in name and not is_dam and not is_ok:
-                wheel_data = self._get_wheel_geom_data()
-                for fi2, fn2 in fname.items():
-                    if fi2 == fi: continue
-                    if 'wheel' in fn2 and 'dummy' in fn2:
-                        r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
-                        is_left = fn2.startswith('wheel_l')
-                        if wheel_data:
-                            wv,wn,wu,wt,wm,wp = wheel_data
-                            v2=[(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,
-                                 r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,
-                                 r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
-                            if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
-                            self._all_geoms.append((v2,wn,wu,wt,wm,wp,geom_flags))
-                        else:
-                            v2=[(r2[0]*v.x+r2[1]*v.y+r2[2]*v.z+tx2,
-                                 r2[3]*v.x+r2[4]*v.y+r2[5]*v.z+ty2,
-                                 r2[6]*v.x+r2[7]*v.y+r2[8]*v.z+tz2) for v in geom.vertices]
-                            if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
-                            self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit,geom_flags))
+
+        # Place wheels at dummy frames using wheels.DFF (VC/GTA3/SA pattern)
+        # wheel_lf_dummy, wheel_rf_dummy, wheel_lb_dummy, wheel_rb_dummy
+        wheel_data = self._get_wheel_geom_data()
+        if wheel_data:
+            wv,wn,wu,wt,wm,wp = wheel_data[:6]
+            wflags = wheel_data[6] if len(wheel_data) > 6 else 0
+            for fi2, fn2 in fname.items():
+                if 'dummy' not in fn2: continue
+                if not any(w in fn2 for w in ('wheel_lf','wheel_rf','wheel_lb','wheel_rb',
+                                               'wheel_lm','wheel_rm')): continue
+                r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
+                is_left = '_l' in fn2
+                v2 = [(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,
+                       r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,
+                       r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
+                if is_left:
+                    v2 = [(-vx,vy,vz) for vx,vy,vz in v2]
+                n2 = [(r2[0]*nx+r2[1]*ny+r2[2]*nz,
+                       r2[3]*nx+r2[4]*ny+r2[5]*nz,
+                       r2[6]*nx+r2[7]*ny+r2[8]*nz) for nx,ny,nz in wn] if wn else []
+                self._all_geoms.append((v2,n2,wu,wt,wm,wp,wflags))
         all_pts=[p for g in self._all_geoms for p in g[0]]
         if all_pts:
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
@@ -555,7 +557,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 uvs    = [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else []
                 tris   = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
                 prelit = [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
-                return verts,norms,uvs,tris,geom.materials,prelit
+                return verts,norms,uvs,tris,geom.materials,prelit,getattr(geom,'flags',0)
         return None
 
     def set_assembly_mode(self, enabled: bool): #vers 1
