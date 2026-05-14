@@ -514,6 +514,52 @@ class _ToolbarMixin:
         if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
             self._toggle_assembly_mode(True)
 
+    def _toggle_com_indicator(self): #vers 1
+        """Toggle Centre of Mass indicator in viewport."""
+        show = not getattr(self, '_show_com', False)
+        self._show_com = show
+        # Read CoM from handling if available
+        if show:
+            try:
+                m = getattr(self, '_dff_model', None)
+                stem = os.path.splitext(os.path.basename(getattr(self,'_current_dff_path','')))[0].lower()
+                if hasattr(self,'_tab_handling') and self._tab_handling._parser:
+                    entry = next((e for e in self._tab_handling._parser.entries
+                                  if e.name.lower()==stem), None)
+                    if entry and len(entry.values) > 7:
+                        cx,cy,cz = float(entry.values[4]),float(entry.values[5]),float(entry.values[6])
+                        self.viewport._com_pos = (cx,cy,cz)
+                        self._set_status(f'CoM: ({cx:.2f}, {cy:.2f}, {cz:.2f})')
+            except Exception:
+                pass
+        else:
+            self.viewport._com_pos = None
+        self.viewport.update()
+
+    def _toggle_dummy_overlay(self): #vers 1
+        """Toggle dummy frame position markers in viewport."""
+        self.viewport._show_dummies = not getattr(self.viewport, '_show_dummies', False)
+        self.viewport.update()
+
+    def _toggle_suspension_vis(self): #vers 1
+        """Toggle suspension travel range visualisation."""
+        self.viewport._show_suspension = not getattr(self.viewport, '_show_suspension', False)
+        self.viewport.update()
+
+    def _toggle_seat_overlay(self): #vers 1
+        """Toggle seat position markers."""
+        self.viewport._show_seats = not getattr(self.viewport, '_show_seats', False)
+        self.viewport.update()
+
+    def _toggle_bounds(self): #vers 1
+        """Toggle bounding box display."""
+        self.viewport._show_bounds = not getattr(self.viewport, '_show_bounds', False)
+        self.viewport.update()
+
+    def _export_dff(self): #vers 1
+        """Export current DFF geometry (stub — routes to model workshop)."""
+        self._set_status("Export: use Model Workshop for DFF export")
+
     def _toggle_show_wheels(self, enabled: bool): #vers 2
         """Load wheels.DFF + wheels.txd if needed and trigger re-assembly."""
         vp = self.viewport
@@ -1768,7 +1814,220 @@ class _LayoutMixin:
 
 
         # - right panel — model info
-    def _create_right_panel(self): #vers 2
+    def _create_right_panel(self): #vers 3
+        panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setMinimumWidth(160); panel.setMaximumWidth(210)
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(*self.get_panel_margins())
+        lay.setSpacing(3)
+
+        ic = self._get_icon_color()
+        def _icon(name, size=16):
+            if not ICONS_AVAILABLE: return None
+            try:
+                fn = getattr(SVGIconFactory, name+'_icon', None)
+                return fn(size, ic) if fn else None
+            except Exception: return None
+
+        from PyQt6.QtWidgets import QToolButton as _QTB, QSlider
+
+        def _tbtn(text, tip, cb, iname=None, checkable=False, checked=False, w=None):
+            b = _QTB(); b.setFont(self.infobar_font)
+            b.setToolTip(tip); b.setFixedHeight(26)
+            ico = _icon(iname)
+            if ico:
+                b.setIcon(ico); b.setIconSize(QSize(14,14))
+                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            b.setText(text)
+            if w: b.setFixedWidth(w)
+            else: b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if checkable:
+                b.setCheckable(True); b.setChecked(checked)
+                b.toggled.connect(cb)
+            else:
+                b.clicked.connect(lambda _=False: cb())
+            return b
+
+        def _row(*widgets, spacing=3):
+            w = QWidget(); h = QHBoxLayout(w)
+            h.setContentsMargins(0,0,0,0); h.setSpacing(spacing)
+            for ww in widgets:
+                if isinstance(ww, int): h.addSpacing(ww)
+                elif ww == 'stretch':  h.addStretch()
+                else: h.addWidget(ww, 1)
+            return w
+
+        def _sep():
+            from PyQt6.QtWidgets import QFrame as _QF
+            s = _QF(); s.setFrameShape(_QF.Shape.HLine)
+            s.setFixedHeight(1)
+            s.setStyleSheet("background:#333;")
+            return s
+
+        def _lbl(text):
+            l = QLabel(text); l.setFont(self.panel_font)
+            return l
+
+        # ── Render ──────────────────────────────────────
+        lay.addWidget(_lbl("Render"))
+        self._mode_group = QButtonGroup(self); self._mode_group.setExclusive(True)
+        mode_row = QWidget(); mode_h = QHBoxLayout(mode_row)
+        mode_h.setContentsMargins(0,0,0,0); mode_h.setSpacing(2)
+        for label, mode, iname in [("Wire","wireframe","wireframe"),
+                                    ("Solid","solid","solid"),
+                                    ("Tex","textured","texture")]:
+            b = _QTB(); b.setFont(self.infobar_font); b.setFixedHeight(26)
+            b.setToolTip(f"{mode.capitalize()} render mode")
+            ico = _icon(iname)
+            if ico: b.setIcon(ico); b.setIconSize(QSize(14,14))
+            b.setText(label)
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            b.setCheckable(True); b.setChecked(mode=='solid')
+            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            b.toggled.connect(lambda checked, m=mode: self._set_mode(m) if checked else None)
+            self._mode_group.addButton(b); mode_h.addWidget(b)
+        lay.addWidget(mode_row)
+
+        # ── View toggles (Backface + Grid same row) ──────
+        self._cull_btn   = _tbtn("Backface", "Toggle backface culling",  self.viewport.set_backface_cull, 'backface', True, False)
+        self._grid_btn   = _tbtn("Grid",     "Toggle grid",              self.viewport.set_show_grid,     'grid',     True, True)
+        self._prelit_btn = _tbtn("PreLit",   "Vertex pre-lighting",      self.viewport.set_prelight,      'shading',  True, False)
+        lay.addWidget(_row(self._cull_btn, self._grid_btn))
+        lay.addWidget(self._prelit_btn)
+
+        lay.addWidget(_sep())
+
+        # ── Camera + Light same row ──────────────────────
+        _reset_btn = _tbtn("Reset", "Reset camera", self.viewport.reset_camera, 'reset')
+        _light_btn = _tbtn("Light", "Light setup",  self._light_setup_dialog,   'light')
+        lay.addWidget(_row(_reset_btn, _light_btn))
+
+        lay.addWidget(_sep())
+
+        # ── Paint ────────────────────────────────────────
+        lay.addWidget(_lbl("Paint"))
+        self._paint1_btn = QPushButton("Primary")
+        self._paint2_btn = QPushButton("Secondary")
+        for b in (self._paint1_btn, self._paint2_btn):
+            b.setFixedHeight(26); b.setFont(self.infobar_font)
+        self._paint1_btn.clicked.connect(self._pick_paint1)
+        self._paint2_btn.clicked.connect(self._pick_paint2)
+        lay.addWidget(_row(self._paint1_btn, self._paint2_btn))
+        self._update_paint_btns()
+
+        # Carcols swatches
+        self._carcols_widget = QWidget()
+        self._carcols_lay = QVBoxLayout(self._carcols_widget)
+        self._carcols_lay.setContentsMargins(0,0,0,2); self._carcols_lay.setSpacing(2)
+        lay.addWidget(self._carcols_widget)
+
+        lay.addWidget(_sep())
+
+        # ── Assembly (3 buttons same row with icons) ─────
+        lay.addWidget(_lbl("Assembly"))
+        self._assemble_btn = _tbtn("All",    "Show all parts assembled", self._toggle_assembly_mode, 'mesh',     True, False)
+        self._damage_btn   = _tbtn("Damage", "Show damaged state",       self._toggle_damage_mode,   'warning',  True, False)
+        self._lod_btn      = _tbtn("LOD",    "Show LOD meshes",          self._toggle_lod_mode,      'zoom_out', True, False)
+        lay.addWidget(_row(self._assemble_btn, self._damage_btn, self._lod_btn))
+
+        lay.addWidget(_sep())
+
+        # ── Animate: [Play] Speed [---x---] same row ─────
+        lay.addWidget(_lbl("Animate"))
+        self._anim_btn = _tbtn('Play', 'Start/stop animation',
+            lambda: self.viewport.set_animation(self._anim_btn.isChecked()),
+            'play', True, False)
+        self._anim_btn.setFixedWidth(54)
+        spd_slider = QSlider(Qt.Orientation.Horizontal)
+        spd_slider.setRange(1, 30); spd_slider.setValue(10)
+        spd_slider.setToolTip('Animation speed')
+        spd_slider.valueChanged.connect(lambda v: self.viewport.set_animation_speed(v/10.0))
+        self._anim_speed_slider = spd_slider
+        anim_row = QWidget(); anim_h = QHBoxLayout(anim_row)
+        anim_h.setContentsMargins(0,0,0,0); anim_h.setSpacing(4)
+        anim_h.addWidget(self._anim_btn)
+        spd_lbl = QLabel('Spd'); spd_lbl.setFont(self.infobar_font)
+        anim_h.addWidget(spd_lbl); anim_h.addWidget(spd_slider, 1)
+        lay.addWidget(anim_row)
+
+        # Door toggles row
+        door_row = QWidget(); door_h = QHBoxLayout(door_row)
+        door_h.setContentsMargins(0,0,0,0); door_h.setSpacing(2)
+        for dlabel, dname in [('LF','door_lf'),('RF','door_rf'),
+                               ('LR','door_lr'),('RR','door_rr'),
+                               ('Hood','bonnet'),('Boot','boot')]:
+            db = QPushButton(dlabel); db.setFixedHeight(22)
+            db.setFont(self.infobar_font); db.setToolTip(f'Toggle {dname}')
+            db.clicked.connect(lambda _=False, n=dname: self.viewport.toggle_door(n))
+            door_h.addWidget(db)
+        lay.addWidget(door_row)
+
+        lay.addWidget(_sep())
+
+        # ── Wheels: [Show Wheels] Steer [--x--] same row ─
+        self._wheels_btn = _tbtn("Wheels", "Show wheels at dummy positions",
+                                 self._toggle_show_wheels, 'mesh', True, False)
+        self._wheels_btn.setFixedWidth(70)
+        steer_slider = QSlider(Qt.Orientation.Horizontal)
+        steer_slider.setRange(-35, 35); steer_slider.setValue(0)
+        steer_slider.setToolTip('Front wheel steering angle')
+        steer_slider.valueChanged.connect(lambda v: self.viewport.set_wheel_heading(v))
+        self._wheel_heading_slider = steer_slider
+        wheel_row = QWidget(); wheel_h = QHBoxLayout(wheel_row)
+        wheel_h.setContentsMargins(0,0,0,0); wheel_h.setSpacing(4)
+        wheel_h.addWidget(self._wheels_btn)
+        steer_lbl = QLabel('Steer'); steer_lbl.setFont(self.infobar_font)
+        wheel_h.addWidget(steer_lbl); wheel_h.addWidget(steer_slider, 1)
+        lay.addWidget(wheel_row)
+
+        lay.addWidget(_sep())
+
+        # ── Model Info (collapsible) ──────────────────────
+        info_header = QWidget(); info_h = QHBoxLayout(info_header)
+        info_h.setContentsMargins(0,0,0,0); info_h.setSpacing(4)
+        info_toggle = _QTB(); info_toggle.setText("▸ Model Info")
+        info_toggle.setFont(self.infobar_font); info_toggle.setFixedHeight(22)
+        info_toggle.setCheckable(True); info_toggle.setChecked(False)
+        info_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        info_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        info_h.addWidget(info_toggle)
+        lay.addWidget(info_header)
+
+        self._info_lbl = QLabel('—')
+        self._info_lbl.setFont(self.infobar_font)
+        self._info_lbl.setWordWrap(True)
+        self._info_lbl.setVisible(False)
+        self._info_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
+        lay.addWidget(self._info_lbl)
+
+        def _toggle_info(checked):
+            self._info_lbl.setVisible(checked)
+            info_toggle.setText(("▾" if checked else "▸") + " Model Info")
+        info_toggle.toggled.connect(_toggle_info)
+
+        lay.addWidget(_sep())
+
+        # ── Edit Buttons (placeholder for future tools) ──
+        lay.addWidget(_lbl("Editing"))
+        edit_grid = QWidget(); eg = QGridLayout(edit_grid)
+        eg.setContentsMargins(0,0,0,0); eg.setSpacing(2)
+        edit_actions = [
+            ("CoM",    "Centre of Mass indicator",        self._toggle_com_indicator),
+            ("Dummies","Show dummy frame positions",      self._toggle_dummy_overlay),
+            ("Susp",   "Suspension travel visualiser",   self._toggle_suspension_vis),
+            ("Seats",  "Show seat positions",             self._toggle_seat_overlay),
+            ("Bounds", "Show bounding box",               self._toggle_bounds),
+            ("Export", "Export DFF geometry",             self._export_dff),
+        ]
+        for i, (label, tip, cb) in enumerate(edit_actions):
+            b = QPushButton(label); b.setFixedHeight(24)
+            b.setFont(self.infobar_font); b.setToolTip(tip)
+            b.clicked.connect(lambda _=False, fn=cb: fn())
+            eg.addWidget(b, i//3, i%3)
+        lay.addWidget(edit_grid)
+
+        lay.addStretch()
+        return panel
         panel = QFrame(); panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(160); panel.setMaximumWidth(200)
         lay = QVBoxLayout(panel)
