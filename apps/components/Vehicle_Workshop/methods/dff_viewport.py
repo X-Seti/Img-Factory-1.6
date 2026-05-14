@@ -526,23 +526,25 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if wheel_data:
                 wv,wn,wu,wt,wm,wp = wheel_data[:6]
                 wflags = wheel_data[6] if len(wheel_data) > 6 else 0
+                front_scale = getattr(self, '_wheel_front_scale', 1.0)
+                rear_scale  = getattr(self, '_wheel_rear_scale',  1.0)
                 for fi2, fn2 in fname.items():
                     if 'dummy' not in fn2: continue
                     if not any(w in fn2 for w in ('wheel_lf','wheel_rf','wheel_lb','wheel_rb',
                                                    'wheel_lm','wheel_rm')): continue
                     r2,tx2,ty2,tz2 = self._calc_world_matrix(frames, fi2)
-                    # Left wheels: mirror the wheel mesh around local X (flip Y axis of rotation)
-                    # to make the tread face outward correctly
-                    is_left = 'wheel_l' in fn2
+                    is_left  = 'wheel_l' in fn2
+                    is_front = 'wheel_lf' in fn2 or 'wheel_rf' in fn2
+                    scale    = front_scale if is_front else rear_scale
                     v2 = []
                     for vx,vy,vz in wv:
-                        # Apply dummy world rotation + translation
-                        wx = r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2
-                        wy = r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2
-                        wz = r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2
-                        # Mirror left wheel by flipping the local X contribution
+                        # Scale wheel geometry around its local origin
+                        svx, svy, svz = vx*scale, vy*scale, vz*scale
+                        wx = r2[0]*svx+r2[1]*svy+r2[2]*svz+tx2
+                        wy = r2[3]*svx+r2[4]*svy+r2[5]*svz+ty2
+                        wz = r2[6]*svx+r2[7]*svy+r2[8]*svz+tz2
                         if is_left:
-                            wx = tx2 - (r2[0]*vx+r2[1]*vy+r2[2]*vz)
+                            wx = tx2 - (r2[0]*svx+r2[1]*svy+r2[2]*svz)
                         v2.append((wx,wy,wz))
                     n2 = [(r2[0]*nx+r2[1]*ny+r2[2]*nz,
                            r2[3]*nx+r2[4]*ny+r2[5]*nz,

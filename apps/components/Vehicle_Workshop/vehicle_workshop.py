@@ -593,7 +593,7 @@ class _ToolbarMixin:
         self.viewport._paint1=p1; self.viewport._paint2=p2
         self._update_paint_btns(); self.viewport.update()
 
-    def _load_vehicle_meta(self, vehicle_name: str): #vers 1
+    def _load_vehicle_meta(self, vehicle_name: str): #vers 2
         """Load vehicles.ide (wheel type) and carcols colours for vehicle."""
         game_root = self._get_game_root()
         # vehicles.ide — wheel type
@@ -605,8 +605,26 @@ class _ToolbarMixin:
                     wheel_dff = entry.wheel_dff_name()
                     self.viewport._wheel_type = wheel_dff
                     self._set_status(f'IDE: {vehicle_name} txd={entry.txd_name} wheel={wheel_dff}')
-            except Exception as e:
+            except Exception:
                 pass
+        # handling.cfg — front/rear tyre scales
+        try:
+            if hasattr(self, '_tab_handling') and hasattr(self._tab_handling, '_parser'):
+                p = self._tab_handling._parser
+                if p and p.entries:
+                    name_lo = vehicle_name.lower()
+                    entry = next((e for e in p.entries if e.name.lower() == name_lo), None)
+                    if entry and len(entry.values) > 40:
+                        try:
+                            front_scale = float(entry.values[38])
+                            rear_scale  = float(entry.values[40])
+                            self.viewport._wheel_front_scale = front_scale
+                            self.viewport._wheel_rear_scale  = rear_scale
+                            self._set_status(f'Wheel scale: front={front_scale:.2f} rear={rear_scale:.2f}')
+                        except (ValueError, IndexError):
+                            pass
+        except Exception:
+            pass
         self._load_carcols(vehicle_name)
 
     def _get_game_root(self): #vers 1
