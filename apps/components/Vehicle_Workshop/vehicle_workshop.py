@@ -544,40 +544,20 @@ class _ToolbarMixin:
             # Find and load wheels.txd (SA) or generic.txd contains wheel textures (VC/GTA3)
             if game_root:
                 import os as _os
-                # SA: dedicated wheels.txd
-                for p in [
-                    _os.path.join(game_root,'models','generic','wheels.txd'),
-                    _os.path.join(game_root,'models','Generic','wheels.txd'),
-                ]:
+                # VC/GTA3/LC: wheel textures are in misc.txd (+ generic.txd)
+                for fname in ['misc.txd','MISC.TXD','wheels.txd','wheels.TXD','generic.txd']:
+                    p = _os.path.join(game_root,'models', fname)
                     if _os.path.isfile(p):
                         try:
                             from apps.methods.txd_parser import parse_txd
                             with open(p,'rb') as f: data = f.read()
                             textures = parse_txd(data)
                             if textures:
-                                self._set_status(f'wheels.txd: {", ".join(t["name"] for t in textures[:6])}')
-                                from PyQt6.QtCore import QTimer
-                                QTimer.singleShot(100, lambda t=textures: vp._upload_textures(t, additive=True))
-                        except Exception as e:
-                            self._set_status(f'wheels.txd error: {e}')
-                        break
-                # VC/GTA3: wheel textures are in generic.txd — load it additively
-                for p in [
-                    _os.path.join(game_root,'models','generic.txd'),
-                    _os.path.join(game_root,'models','Generic.txd'),
-                ]:
-                    if _os.path.isfile(p):
-                        try:
-                            from apps.methods.txd_parser import parse_txd
-                            with open(p,'rb') as f: data = f.read()
-                            textures = parse_txd(data)
-                            if textures:
-                                self._set_status(f'generic.txd: {", ".join(t["name"] for t in textures[:6])}')
+                                self._set_status(f'{fname}: {", ".join(t["name"] for t in textures[:6])}')
                                 from PyQt6.QtCore import QTimer
                                 QTimer.singleShot(150, lambda t=textures: vp._upload_textures(t, additive=True))
                         except Exception as e:
-                            self._set_status(f'generic.txd error: {e}')
-                        break
+                            self._set_status(f'{fname} error: {e}')
         # Rebuild assembly
         m = getattr(self, '_dff_model', None)
         if m and m.frames and m.atomics:
@@ -960,10 +940,14 @@ class _ToolbarMixin:
                             os.path.join(m, 'generic', 'wheels.dff'),
                         ]
                     else:
-                        # GTA3 / VC / LC: generic.txd in models/, wheels.DFF in models/Generic/
+                        # GTA3 / VC / LC: generic.txd + misc.txd in models/, wheels.DFF in models/Generic/
                         shared_txds = [
                             os.path.join(m, 'generic.txd'),
                             os.path.join(m, 'particle.txd'),
+                            os.path.join(m, 'misc.txd'),
+                            os.path.join(m, 'MISC.TXD'),
+                            os.path.join(m, 'wheels.txd'),
+                            os.path.join(m, 'wheels.TXD'),
                         ]
                         wheel_dffs = [
                             os.path.join(m, 'Generic', 'wheels.DFF'),

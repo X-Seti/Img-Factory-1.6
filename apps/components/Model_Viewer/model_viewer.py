@@ -1347,10 +1347,14 @@ class ModelViewer(ToolMenuMixin, QWidget):
                             os.path.join(m, 'generic', 'wheels.dff'),
                         ]
                     else:
-                        # GTA3 / VC / LC: generic.txd in models/, wheels.DFF in models/Generic/
+                        # GTA3 / VC / LC: generic.txd + misc.txd in models/, wheels.DFF in models/Generic/
                         shared_txds = [
                             os.path.join(m, 'generic.txd'),
                             os.path.join(m, 'particle.txd'),
+                            os.path.join(m, 'misc.txd'),
+                            os.path.join(m, 'MISC.TXD'),
+                            os.path.join(m, 'wheels.txd'),
+                            os.path.join(m, 'wheels.TXD'),
                         ]
                         wheel_dffs = [
                             os.path.join(m, 'Generic', 'wheels.DFF'),
