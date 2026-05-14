@@ -3516,9 +3516,12 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
             self._vw_paint2.setStyleSheet(f'background:{col.name()}')
             vp.update()
 
-    def _open_file(self, path=None): #vers 3
+    def _open_file(self, path=None): #vers 4
         """Open button — shows dialog when no path given.
         When path is provided, loads directly without any dialog."""
+        # Qt triggered signal passes checked=False/True — treat as no path
+        if not isinstance(path, (str, bytes, os.PathLike)):
+            path = None
         if path is not None:
             name = os.path.basename(path).lower()
             if name.endswith('.dff'):
