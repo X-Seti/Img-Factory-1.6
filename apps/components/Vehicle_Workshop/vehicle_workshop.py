@@ -514,35 +514,51 @@ class _ToolbarMixin:
         if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
             self._toggle_assembly_mode(True)
 
-    def _toggle_show_wheels(self, enabled: bool): #vers 1
-        """Load wheels.DFF if needed and trigger re-assembly."""
+    def _toggle_show_wheels(self, enabled: bool): #vers 2
+        """Load wheels.DFF + wheels.txd if needed and trigger re-assembly."""
         vp = self.viewport
         vp._show_wheels = enabled
         if enabled:
-            # Ensure wheels.DFF is loaded
+            game_root = self._find_game_root()
             wheels_path = getattr(vp, '_wheels_model_path', '')
+            # Find wheels.DFF
+            if not wheels_path and game_root:
+                import os as _os
+                for p in [
+                    _os.path.join(game_root,'models','generic','wheels.DFF'),
+                    _os.path.join(game_root,'models','generic','wheels.dff'),
+                    _os.path.join(game_root,'models','Generic','wheels.DFF'),
+                    _os.path.join(game_root,'models','Generic','wheels.dff'),
+                ]:
+                    if _os.path.isfile(p):
+                        wheels_path = p; break
             if wheels_path and not getattr(vp, '_wheels_model', None):
                 vp.load_wheels_dff(wheels_path)
-            # Also search game root if not found yet
-            if not getattr(vp, '_wheels_model', None):
-                game_root = self._find_game_root()
-                if game_root:
-                    import os as _os
-                    for p in [
-                        _os.path.join(game_root,'models','Generic','wheels.DFF'),
-                        _os.path.join(game_root,'models','generic','wheels.DFF'),
-                        _os.path.join(game_root,'models','generic','wheels.dff'),
-                    ]:
-                        if _os.path.isfile(p):
-                            vp.load_wheels_dff(p); break
-        # Rebuild assembly with or without wheels
+            # Find and load wheels.txd (SA only — VC uses generic.txd)
+            if game_root:
+                import os as _os
+                for p in [
+                    _os.path.join(game_root,'models','generic','wheels.txd'),
+                    _os.path.join(game_root,'models','Generic','wheels.txd'),
+                ]:
+                    if _os.path.isfile(p):
+                        try:
+                            from apps.methods.txd_parser import parse_txd
+                            with open(p,'rb') as f: data = f.read()
+                            textures = parse_txd(data)
+                            if textures:
+                                from PyQt6.QtCore import QTimer
+                                QTimer.singleShot(100, lambda t=textures: vp._upload_textures(t))
+                        except Exception:
+                            pass
+                        break
+        # Rebuild assembly
         m = getattr(self, '_dff_model', None)
         if m and m.frames and m.atomics:
             vp.load_all_geometries(
                 m.geometries, [g.materials for g in m.geometries],
                 m.frames, m.atomics)
         vp.update()
-        # Re-scan for wheel textures
         if enabled:
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(100, self._auto_load_shared_txds)
@@ -839,7 +855,7 @@ class _ToolbarMixin:
                     tname = getattr(mat, 'texture_name', '') or ''
                     if tname:
                         needed.add(tname.lower())
-                        base = self.viewport._strip_tex_suffix(tname.lower())
+                        base = self._strip_tex_suffix(tname.lower())
                         if base != tname.lower(): needed.add(base)
         already = set(self.viewport._tex_ids.keys())
         missing = needed - already
