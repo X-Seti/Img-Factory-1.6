@@ -388,6 +388,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         """Return geometry flags from current model, or sensible defaults."""
         return getattr(self, '_current_geom_flags',
                self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
+
+    def _rw_wrap_to_gl(self, rw: int) -> int: #vers 1
         """Convert RW addressing mode to GL wrap constant.
         0=NONE 1=WRAP 2=CLAMP 3=MIRROR"""
         if not OPENGL_AVAILABLE: return 0
