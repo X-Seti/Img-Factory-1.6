@@ -1191,6 +1191,8 @@ class _ToolbarMixin:
                             try:
                                 with open(os.path.join(d, fn),'rb') as f: _try_txd_data(f.read())
                             except Exception: pass
+                if collected:
+                    found_names = ', '.join(t['name'] for t in collected[:8])
                     self.status.emit(f'Found textures: {found_names}')
                     self.found.emit(collected)
                 if miss:
