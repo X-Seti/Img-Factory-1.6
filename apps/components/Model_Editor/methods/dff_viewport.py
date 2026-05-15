@@ -582,22 +582,57 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         except Exception as e:
             print(f"[DFFViewport] Wheel DFF load fail: {e}")
 
-    def _get_wheel_geom_data(self): #vers 1
+    def _get_wheel_geom_data(self): #vers 2
+        """Return geometry data for the current wheel type from wheels.DFF.
+        Matches _wheel_type exactly (e.g. wheel_saloon_l0), falls back to first wheel."""
         m = self._wheels_model
         if not m or not m.geometries: return None
         fname = {i: (f.name.lower() if f.name else '') for i,f in enumerate(m.frames)}
-        wtype = self._wheel_type.lower()
-        for i,geom in enumerate(m.geometries):
+        wtype = getattr(self, '_wheel_type', 'wheel_saloon_l0').lower()
+
+        def _geom_data(geom):
+            return (
+                [(v.x,v.y,v.z) for v in geom.vertices],
+                [(n.x,n.y,n.z) for n in geom.normals] if geom.normals else [],
+                [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else [],
+                [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles],
+                geom.materials,
+                [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else [],
+                getattr(geom,'flags',0)
+            )
+
+        # Pass 1: exact match on full wheel type name
+        for i, geom in enumerate(m.geometries):
             atomic = next((a for a in m.atomics if a.geometry_index==i), None)
             if not atomic: continue
             name = fname.get(atomic.frame_index,'')
-            if wtype in name or 'wheel' in name:
-                verts  = [(v.x,v.y,v.z) for v in geom.vertices]
-                norms  = [(n.x,n.y,n.z) for n in geom.normals] if geom.normals else []
-                uvs    = [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else []
-                tris   = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
-                prelit = [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
-                return verts,norms,uvs,tris,geom.materials,prelit,getattr(geom,'flags',0)
+            if name == wtype:
+                return _geom_data(geom)
+
+        # Pass 2: wheel type contained in frame name (e.g. wheel_saloon_l0 in wheel_saloon_l0_dam)
+        for i, geom in enumerate(m.geometries):
+            atomic = next((a for a in m.atomics if a.geometry_index==i), None)
+            if not atomic: continue
+            name = fname.get(atomic.frame_index,'')
+            if wtype in name and not name.endswith('_dam'):
+                return _geom_data(geom)
+
+        # Pass 3: base type without _l0 suffix
+        base = wtype.replace('_l0','').replace('_lo','')
+        for i, geom in enumerate(m.geometries):
+            atomic = next((a for a in m.atomics if a.geometry_index==i), None)
+            if not atomic: continue
+            name = fname.get(atomic.frame_index,'')
+            if base in name and not name.endswith('_dam'):
+                return _geom_data(geom)
+
+        # Pass 4: first non-damaged wheel geometry as fallback
+        for i, geom in enumerate(m.geometries):
+            atomic = next((a for a in m.atomics if a.geometry_index==i), None)
+            if not atomic: continue
+            name = fname.get(atomic.frame_index,'')
+            if 'wheel' in name and not name.endswith('_dam'):
+                return _geom_data(geom)
         return None
 
     def set_assembly_mode(self, enabled: bool): #vers 1

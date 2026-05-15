@@ -631,13 +631,12 @@ class _ToolbarMixin:
                         wheels_path = p; break
             if wheels_path and not getattr(vp, '_wheels_model', None):
                 vp.load_wheels_dff(wheels_path)
-            # Log what textures the wheel mesh needs
+            # Log what wheel type will be used
             wheel_data = vp._get_wheel_geom_data()
             if wheel_data:
                 wm = wheel_data[4] if len(wheel_data) > 4 else []
                 needed = [getattr(m,'texture_name','') for m in (wm or []) if getattr(m,'texture_name','')]
-                if needed:
-                    self._set_status(f'Wheel textures needed: {", ".join(needed[:6])}')
+                self._set_status(f'Wheels: {vp._wheel_type} | textures: {", ".join(needed[:4])}')
             # Find and load wheels.txd (SA) or generic.txd contains wheel textures (VC/GTA3)
             if game_root:
                 import os as _os
