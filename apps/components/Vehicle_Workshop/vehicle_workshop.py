@@ -998,7 +998,19 @@ class _ToolbarMixin:
                         shared_txds = [
                             os.path.join(m, 'generic', 'vehicle.txd'),
                             os.path.join(m, 'generic', 'wheels.txd'),
+                            # Additional SA shared vehicle TXDs on disk
+                            os.path.join(m, 'generic', 'vehiclecommon.txd'),
+                            os.path.join(m, 'generic', 'vehiclegeneric.txd'),
+                            os.path.join(m, 'generic', 'vehiclegrunge.txd'),
+                            os.path.join(m, 'generic', 'vehiclelights.txd'),
+                            os.path.join(m, 'generic', 'vehicletyres.txd'),
                         ]
+                        # Also scan models/txd/ if it exists
+                        txd_dir = os.path.join(m, 'txd')
+                        if os.path.isdir(txd_dir):
+                            for fn in os.listdir(txd_dir):
+                                if fn.lower().startswith('vehicle') and fn.lower().endswith('.txd'):
+                                    shared_txds.append(os.path.join(txd_dir, fn))
                         wheel_dffs = [
                             os.path.join(m, 'generic', 'wheels.DFF'),
                             os.path.join(m, 'generic', 'wheels.dff'),
@@ -1115,8 +1127,21 @@ class _ToolbarMixin:
                                 except Exception: pass
                                 break
 
-                if collected:
-                    found_names = ', '.join(t['name'] for t in collected[:8])
+                # 3. Fallback — scan all vehicle*.txd in models/ subdirs on disk
+                if miss and game_root:
+                    m2 = os.path.join(game_root, 'models')
+                    for subdir in ('', 'generic', 'txd'):
+                        d = os.path.join(m2, subdir) if subdir else m2
+                        if not os.path.isdir(d): continue
+                        for fn in sorted(os.listdir(d)):
+                            if not miss: break
+                            fnl = fn.lower()
+                            if not fnl.endswith('.txd'): continue
+                            if not any(fnl.startswith(p) for p in ('vehicle','carpl','carpb','misc','generic')):
+                                continue
+                            try:
+                                with open(os.path.join(d, fn),'rb') as f: _try_txd_data(f.read())
+                            except Exception: pass
                     self.status.emit(f'Found textures: {found_names}')
                     self.found.emit(collected)
                 if miss:
