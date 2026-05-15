@@ -1532,14 +1532,16 @@ class DATBrowserWidget(QWidget): #vers 3
                     }
                     existing = getattr(mw, 'vehicle_names', set())
                     mw.vehicle_names = existing | vehicle_names
-                    # Cache handling/carcols/carmods paths for Vehicle Workshop
+                    # Cache vehicle data file paths for Vehicle Workshop
                     try:
                         data_dir = os.path.join(game_root, 'data')
                         vdata = {}
                         for fname, key in [
-                            ('handling.cfg', 'handling'),
-                            ('carcols.dat',  'carcols'),
-                            ('carmods.dat',  'carmods'),
+                            ('handling.cfg',  'handling'),
+                            ('carcols.dat',   'carcols'),
+                            ('carmods.dat',   'carmods'),
+                            ('cargrp.dat',    'cargrp'),
+                            ('vehicles.ide',  'vehicles_ide'),
                         ]:
                             for variant in (fname, fname.upper(), fname.lower()):
                                 p = os.path.join(data_dir, variant)

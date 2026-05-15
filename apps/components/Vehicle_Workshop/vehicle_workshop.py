@@ -560,6 +560,39 @@ class _ToolbarMixin:
         """Export current DFF geometry (stub — routes to model workshop)."""
         self._set_status("Export: use Model Workshop for DFF export")
 
+    def _parse_sa_vehicles_ide(self, path: str): #vers 1
+        """Parse SA vehicles.ide for wheel scales and store in _sa_vehicle_data."""
+        self._sa_vehicle_data = {}
+        try:
+            with open(path, 'r', errors='ignore') as f:
+                in_cars = False
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or line.startswith(';'):
+                        continue
+                    if line.lower() == 'cars':
+                        in_cars = True; continue
+                    if line.lower() in ('end','peds','boats','planes','trains','bikes','heli','mtruck'):
+                        in_cars = False; continue
+                    if not in_cars: continue
+                    parts = [p.strip() for p in line.split(',')]
+                    # SA cars format: id, model, txd, type, handlingId, gameName, anims,
+                    #                 class, freq, flags, comprules, wheelId, frontScale, rearScale, [flags2]
+                    if len(parts) < 13: continue
+                    try:
+                        model = parts[1].strip().lower()
+                        front_scale = float(parts[12])
+                        rear_scale  = float(parts[13]) if len(parts) > 13 else front_scale
+                        self._sa_vehicle_data[model] = {
+                            'front_scale': front_scale,
+                            'rear_scale':  rear_scale,
+                        }
+                    except (ValueError, IndexError):
+                        continue
+            self._set_status(f"Vehicles IDE: {len(self._sa_vehicle_data)} vehicles parsed")
+        except Exception as e:
+            self._set_status(f"Vehicles IDE parse error: {e}")
+
     def _toggle_show_wheels(self, enabled: bool): #vers 2
         """Load wheels.DFF + wheels.txd if needed and trigger re-assembly."""
         vp = self.viewport
@@ -653,22 +686,30 @@ class _ToolbarMixin:
                     self._set_status(f'IDE: {vehicle_name} txd={entry.txd_name} wheel={wheel_dff}')
             except Exception:
                 pass
-        # handling.cfg — front/rear tyre scales
+        # handling.cfg or SA vehicles.ide — front/rear tyre scales
         try:
-            if hasattr(self, '_tab_handling') and hasattr(self._tab_handling, '_parser'):
-                p = self._tab_handling._parser
-                if p and p.entries:
-                    name_lo = vehicle_name.lower()
-                    entry = next((e for e in p.entries if e.name.lower() == name_lo), None)
-                    if entry and len(entry.values) > 40:
-                        try:
-                            front_scale = float(entry.values[38])
-                            rear_scale  = float(entry.values[40])
-                            self.viewport._wheel_front_scale = front_scale
-                            self.viewport._wheel_rear_scale  = rear_scale
-                            self._set_status(f'Wheel scale: front={front_scale:.2f} rear={rear_scale:.2f}')
-                        except (ValueError, IndexError):
-                            pass
+            stem = vehicle_name.lower()
+            # SA: wheel scales are in vehicles.ide
+            sa_data = getattr(self, '_sa_vehicle_data', {})
+            if sa_data and stem in sa_data:
+                self.viewport._wheel_front_scale = sa_data[stem]['front_scale']
+                self.viewport._wheel_rear_scale  = sa_data[stem]['rear_scale']
+                self._set_status(f'SA IDE wheel scale: front={sa_data[stem]["front_scale"]:.2f} rear={sa_data[stem]["rear_scale"]:.2f}')
+            else:
+                # VC/GTA3: wheel scales in handling.cfg fields 38/40
+                if hasattr(self, '_tab_handling') and hasattr(self._tab_handling, '_parser'):
+                    p = self._tab_handling._parser
+                    if p and p.entries:
+                        entry = next((e for e in p.entries if e.name.lower() == stem), None)
+                        if entry and len(entry.values) > 40:
+                            try:
+                                front_scale = float(entry.values[38])
+                                rear_scale  = float(entry.values[40])
+                                self.viewport._wheel_front_scale = front_scale
+                                self.viewport._wheel_rear_scale  = rear_scale
+                                self._set_status(f'Wheel scale: front={front_scale:.2f} rear={rear_scale:.2f}')
+                            except (ValueError, IndexError):
+                                pass
         except Exception:
             pass
         self._load_carcols(vehicle_name)
@@ -4014,6 +4055,18 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
                 if self._tab_carmods.load_file(path):
                     self._carmods_path = path
                     self._set_status(f"Car Mods: {os.path.basename(path)}")
+            elif 'vehicles' in name and name.endswith('.ide'):
+                # SA vehicles.ide — parse wheel scales into viewport
+                try:
+                    self._vehicles_ide_path = path
+                    self._parse_sa_vehicles_ide(path)
+                    self._set_status(f"Vehicles IDE: {os.path.basename(path)}")
+                except Exception as e:
+                    self._set_status(f"Vehicles IDE error: {e}")
+            elif 'cargrp' in name:
+                # cargrp.dat — informational for now
+                self._cargrp_path = path
+                self._set_status(f"Car Groups: {os.path.basename(path)}")
             return
         # No path — show dialog based on active tab
         active_tab = self._tabs.currentIndex() if hasattr(self, '_tabs') else -1
