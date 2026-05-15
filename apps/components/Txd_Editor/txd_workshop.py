@@ -10426,9 +10426,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             is_pal4     = bool(raster_format_flags & 0x4000)  # FORMAT_EXT_PAL4
             pixel_fmt   = raster_format_flags & 0x0F00  # bits 8-11 only, excludes PAL flags
             is_sa_plus  = (rw_version >= 0x1803FFFF)
-            # GTA3/VC palettes are stored as RGBA; SA palettes are BGRA
-            # 0x0800FFFF = GTA III 1.0 USA, also treat as D3D8 no-middle-field
-            tex['palette_is_bgra'] = is_sa_plus
+            # Both GTA3/VC and SA palettes are stored as BGRA on PC
+            tex['palette_is_bgra'] = True
 
             raster_pixel_map = {
                 0x0100: 'ARGB1555', 0x0200: 'RGB565',
@@ -10656,6 +10655,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
 
                     # Store main texture data
                     if level == 0:
+                        if rgba_data is None:
+                            rgba_data = b'\x00' * (lw * lh * 4)
                         tex['rgba_data'] = rgba_data
 
                         # NEW: Extract alpha channel as separate grayscale mask

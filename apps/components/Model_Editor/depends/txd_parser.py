@@ -392,19 +392,20 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
             elif mip_size == dxt5_size:
                 fmt = 'DXT5'; rgba = _decode_dxt5(mip_data[:mip_size], w, h)
             elif rf_pal == RASTER_PAL8:
-                # 8-bit palette: 256 * 4 bytes palette + w*h bytes indices
+                # GTA3/VC/SA PC PAL8: 256*4 BGRA palette then w*h pixel indices
                 fmt = 'PAL8'
-                pal_size  = 256 * 4
-                idx_size  = w * h
+                pal_size = 256 * 4
+                idx_size = w * h
                 if len(mip_data) >= pal_size + idx_size:
                     palette = mip_data[:pal_size]
                     indices = mip_data[pal_size:pal_size+idx_size]
                     out = bytearray(w * h * 4)
                     for i, idx in enumerate(indices):
                         p = idx * 4
-                        out[i*4]   = palette[p]
+                        # BGRA -> RGBA
+                        out[i*4]   = palette[p+2]
                         out[i*4+1] = palette[p+1]
-                        out[i*4+2] = palette[p+2]
+                        out[i*4+2] = palette[p]
                         out[i*4+3] = palette[p+3]
                     rgba = bytes(out)
             elif rf_base == RASTER_8888 and mip_size == w*h*4:
