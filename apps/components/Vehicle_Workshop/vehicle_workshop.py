@@ -1000,6 +1000,7 @@ class _ToolbarMixin:
                         shared_txds = [
                             os.path.join(m, 'generic', 'vehicle.txd'),
                             os.path.join(m, 'generic', 'wheels.txd'),
+                            os.path.join(m, 'misc.txd'),  # SA has misc.txd in models/
                             # Additional SA shared vehicle TXDs on disk
                             os.path.join(m, 'generic', 'vehiclecommon.txd'),
                             os.path.join(m, 'generic', 'vehiclegeneric.txd'),
@@ -1093,7 +1094,11 @@ class _ToolbarMixin:
                     # Known SA shared vehicle TXD names inside gta3.img
                     candidates=['vehiclecommon.txd','vehicle.txd','vehicles.txd',
                                  'vehiclegeneric.txd','vehiclegrunge.txd',
-                                 'vehiclelights.txd','vehicletyres.txd']
+                                 'vehiclelights.txd','vehicletyres.txd',
+                                 # SA uses full names with size suffix inside gta3.img
+                                 'vehiclegeneric256.txd','vehiclegrunge256.txd',
+                                 'vehiclelights128.txd','vehicletyres128.txd',
+                                 'carcommon.txd','carpback.txd','carplate.txd',]
                     # Also try prefix match for any vehicle*.txd or car*.txd
                     candidates += [n for n in txd_map if n.startswith('vehicle') and n not in candidates]
                     candidates += [n for n in txd_map if n.startswith('car') and n not in candidates]
