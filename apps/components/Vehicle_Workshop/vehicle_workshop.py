@@ -3814,6 +3814,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         form = QFormLayout()
 
         vp = self.viewport
+        from PyQt6.QtWidgets import QSlider
 
         # Light direction sliders
         def _slider(lo, hi, val, scale=10):
