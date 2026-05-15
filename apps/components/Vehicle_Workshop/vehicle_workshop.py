@@ -2007,24 +2007,50 @@ class _LayoutMixin:
 
         lay.addWidget(_sep())
 
-        # ── Edit Buttons (placeholder for future tools) ──
+        # ── Edit Buttons (icon + text, collapse to icon-only when narrow) ──
         lay.addWidget(_lbl("Editing"))
-        edit_grid = QWidget(); eg = QGridLayout(edit_grid)
-        eg.setContentsMargins(0,0,0,0); eg.setSpacing(2)
         edit_actions = [
-            ("CoM",    "Centre of Mass indicator",        self._toggle_com_indicator),
-            ("Dummies","Show dummy frame positions",      self._toggle_dummy_overlay),
-            ("Susp",   "Suspension travel visualiser",   self._toggle_suspension_vis),
-            ("Seats",  "Show seat positions",             self._toggle_seat_overlay),
-            ("Bounds", "Show bounding box",               self._toggle_bounds),
-            ("Export", "Export DFF geometry",             self._export_dff),
+            ("CoM",     "Centre of Mass indicator",       self._toggle_com_indicator,  'target',   True),
+            ("Dummies", "Show dummy frame positions",     self._toggle_dummy_overlay,  'mesh',     True),
+            ("Susp",    "Suspension travel visualiser",  self._toggle_suspension_vis, 'bounds',   True),
+            ("Seats",   "Show seat positions",            self._toggle_seat_overlay,   'view',     True),
+            ("Bounds",  "Show bounding box",              self._toggle_bounds,         'wireframe',True),
+            ("Export",  "Export DFF geometry",            self._export_dff,            'export',   False),
         ]
-        for i, (label, tip, cb) in enumerate(edit_actions):
-            b = QPushButton(label); b.setFixedHeight(24)
+        edit_row1 = QWidget(); er1 = QHBoxLayout(edit_row1)
+        edit_row1.setContentsMargins(0,0,0,0) if hasattr(edit_row1,'setContentsMargins') else None
+        er1.setContentsMargins(0,0,0,0); er1.setSpacing(2)
+        edit_row2 = QWidget(); er2 = QHBoxLayout(edit_row2)
+        er2.setContentsMargins(0,0,0,0); er2.setSpacing(2)
+        self._edit_btns = []
+        for i, (label, tip, cb, iname, checkable) in enumerate(edit_actions):
+            b = _QTB(); b.setFixedHeight(26)
             b.setFont(self.infobar_font); b.setToolTip(tip)
-            b.clicked.connect(lambda _=False, fn=cb: fn())
-            eg.addWidget(b, i//3, i%3)
-        lay.addWidget(edit_grid)
+            ico = _icon(iname)
+            if ico:
+                b.setIcon(ico); b.setIconSize(QSize(14,14))
+                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            b.setText(label)
+            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if checkable:
+                b.setCheckable(True)
+                b.toggled.connect(lambda checked, fn=cb: fn())
+            else:
+                b.clicked.connect(lambda _=False, fn=cb: fn())
+            self._edit_btns.append(b)
+            (er1 if i < 3 else er2).addWidget(b)
+        lay.addWidget(edit_row1)
+        lay.addWidget(edit_row2)
+
+        # Collapse edit buttons to icon-only when panel is narrow
+        def _on_panel_resize(event):
+            narrow = panel.width() < 170
+            style = Qt.ToolButtonStyle.ToolButtonIconOnly if narrow else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+            for b in self._edit_btns:
+                if b.icon() and not b.icon().isNull():
+                    b.setToolButtonStyle(style)
+            QFrame.resizeEvent(panel, event)
+        panel.resizeEvent = _on_panel_resize
 
         lay.addStretch()
         return panel
@@ -3841,7 +3867,7 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         except Exception as e:
             self._vw_status.setText(f'Error: {e}')
 
-    def _vw_load_txd(self, path: str): #vers 1
+    def _vw_load_txd(self, path: str): #vers 2
         try:
             from apps.methods.txd_parser import parse_txd
             with open(path,'rb') as f: data=f.read()
@@ -3850,6 +3876,24 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
             if vp and hasattr(vp,'_upload_textures') and textures:
                 vp._upload_textures(textures, additive=True)
                 vp.update()
+            # Populate texture list
+            if textures and hasattr(self,'_tex_list'):
+                from PyQt6.QtGui import QIcon, QImage, QPixmap
+                from PyQt6.QtWidgets import QListWidgetItem
+                from PyQt6.QtCore import Qt
+                self._tex_list.clear()
+                for t in textures:
+                    item = QListWidgetItem(f"{t['name']}  {t.get('width',0)}\xd7{t.get('height',0)}")
+                    rgba=t.get('rgba_data',b''); w=t.get('width',0); h=t.get('height',0)
+                    if rgba and w>0 and h>0:
+                        try:
+                            img=QImage(rgba,w,h,w*4,QImage.Format.Format_RGBA8888)
+                            px=QPixmap.fromImage(img).scaled(32,32,
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation)
+                            item.setIcon(QIcon(px))
+                        except Exception: pass
+                    self._tex_list.addItem(item)
         except Exception as e:
             self._vw_status.setText(f'TXD error: {e}')
 
