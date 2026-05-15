@@ -697,6 +697,7 @@ class _ToolbarMixin:
                 self._set_status(f'SA IDE wheel scale: front={sa_data[stem]["front_scale"]:.2f} rear={sa_data[stem]["rear_scale"]:.2f}')
             else:
                 # VC/GTA3: wheel scales in handling.cfg fields 38/40
+                # SA handling.cfg only has 36 fields - wheel scale is in vehicles.ide
                 if hasattr(self, '_tab_handling') and hasattr(self._tab_handling, '_parser'):
                     p = self._tab_handling._parser
                     if p and p.entries:
@@ -710,6 +711,10 @@ class _ToolbarMixin:
                                 self._set_status(f'Wheel scale: front={front_scale:.2f} rear={rear_scale:.2f}')
                             except (ValueError, IndexError):
                                 pass
+                        elif entry and len(entry.values) <= 40:
+                            # SA handling.cfg - no wheel scale, use IDE default 1.0
+                            self.viewport._wheel_front_scale = 1.0
+                            self.viewport._wheel_rear_scale  = 1.0
         except Exception:
             pass
         self._load_carcols(vehicle_name)
@@ -1289,9 +1294,19 @@ class _ToolbarMixin:
             import traceback; traceback.print_exc()
             self._set_status(f'TXD error: {e}')
 
-    def load_img(self, img): #vers 2
-        """Populate IMG list with vehicle DFF entries only (from handling.cfg / IDE DB)."""
+    def load_img(self, img): #vers 3
+        """Populate IMG list with vehicle DFF entries only (from handling.cfg / IDE DB).
+        Also auto-loads vehicle data files from mw.vehicle_data_paths if not yet loaded."""
         self._current_img = img
+        # Auto-load vehicle data files if not already loaded
+        mw = getattr(self, 'main_window', None)
+        vdata = getattr(mw, 'vehicle_data_paths', {})
+        if vdata and not getattr(self, '_handling_loaded', False):
+            for key in ('handling', 'carcols', 'carmods', 'cargrp', 'vehicles_ide'):
+                p = vdata.get(key, '')
+                if p and os.path.isfile(p):
+                    self._open_file(p)
+            self._handling_loaded = True
         self._img_list.clear()
         if not img or not hasattr(img, 'entries'):
             return
