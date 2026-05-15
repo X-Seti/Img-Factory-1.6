@@ -389,10 +389,13 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         return getattr(self, '_current_geom_flags',
                self.rpGEOMETRYLIGHT | self.rpGEOMETRYMODULATEMATERIALCOLOR | self.rpGEOMETRYNORMALS)
 
-    def _strip_tex_suffix(self, name: str) -> str: #vers 1
-        """Strip GTA streaming suffix e.g. buildrt4_fehihwm -> buildrt4."""
+    def _strip_tex_suffix(self, name: str) -> str: #vers 2
+        """Strip GTA texture suffix.
+        Handles: buildrt4_fehihwm (alpha suffix) and vehiclegeneric256 (numeric size suffix)."""
         import re as _re
-        return _re.sub(r'_[a-z]{4,8}$', '', name)
+        n = _re.sub(r'_[a-z]{4,8}$', '', name)
+        n = _re.sub(r'\d+$', '', n)
+        return n
 
     def _rw_wrap_to_gl(self, rw: int) -> int: #vers 1
         """Convert RW addressing mode to GL wrap constant.

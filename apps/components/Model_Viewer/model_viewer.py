@@ -1132,10 +1132,12 @@ class ModelViewer(ToolMenuMixin, QWidget):
         finally:
             self._show_progress(False)
 
-    def _strip_tex_suffix(self, name: str) -> str: #vers 1
-        """Strip GTA streaming suffix e.g. buildrt4_fehihwm -> buildrt4.
-        Pattern: trailing underscore + 4-8 lowercase letters only."""
-        return re.sub(r'_[a-z]{4,8}$', '', name)
+    def _strip_tex_suffix(self, name: str) -> str: #vers 2
+        """Strip GTA texture suffix.
+        Handles: buildrt4_fehihwm (alpha suffix) and vehiclegeneric256 (numeric size suffix)."""
+        n = re.sub(r'_[a-z]{4,8}$', '', name)
+        n = re.sub(r'\d+$', '', n)
+        return n
 
     def _get_ide_db(self): #vers 1
         """Return IDEDatabase from mw.ide_db if loaded, else None."""
