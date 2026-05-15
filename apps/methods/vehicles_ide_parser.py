@@ -100,16 +100,43 @@ def parse_vehicles_ide(path: str) -> VehiclesIDE: #vers 1
                     # wheel model is not directly in IDE — derive from model name or default
                     try: e.wheel_scale = float(parts[14])
                     except: e.wheel_scale = 1.0
-                # Derive wheel type from handling or flags (SA uses separate file)
-                # Default: saloon for cars, offroad for trucks/bikes
-                if 'truck' in e.veh_type or 'van' in e.veh_type:
-                    e.wheel_model = 'wheel_lightvan'
-                elif 'bike' in section:
+                # SA wheel type derived from vehicle class (wheelId=-1 means use class default)
+                # Explicit wheelId is a geometry index in wheels.DFF (only bikes/bicycles use it)
+                wheel_id = -1
+                try:
+                    if len(parts) > 11:
+                        wheel_id = int(parts[11])
+                except (ValueError, IndexError):
+                    pass
+                veh_class_lower = e.veh_type.lower()
+                anim = parts[6].lower() if len(parts) > 6 else ''
+                SA_CLASS_WHEEL = {
+                    'richfamily':  'wheel_saloon',
+                    'executive':   'wheel_saloon',
+                    'normal':      'wheel_saloon',
+                    'poorfamily':  'wheel_saloon',
+                    'worker':      'wheel_truck',
+                    'truck':       'wheel_truck',
+                    'offroad':     'wheel_offroad',
+                    'sport':       'wheel_sport',
+                    'lightvan':    'wheel_lightvan',
+                    'van':         'wheel_lightvan',
+                    'lighttruck':  'wheel_lighttruck',
+                    'ignore':      'wheel_truck',
+                    'bicycle':     'wheel_rim',
+                    'bike':        'wheel_rim',
+                    'classic':     'wheel_classic',
+                }
+                veh_class_name = parts[7].lower().strip() if len(parts) > 7 else ''
+                if veh_class_lower in ('bike', 'mtruck') or 'bike' in veh_class_lower:
                     e.wheel_model = 'wheel_rim'
-                elif 'plane' in section or 'boat' in section:
-                    e.wheel_model = 'wheel_saloon'
+                elif veh_class_lower in ('van', 'lightvan'):
+                    e.wheel_model = 'wheel_lightvan'
+                elif veh_class_lower in ('truck', 'mtruck'):
+                    e.wheel_model = 'wheel_truck'
                 else:
-                    e.wheel_model = 'wheel_saloon'
+                    e.wheel_model = SA_CLASS_WHEEL.get(veh_class_name,
+                                    SA_CLASS_WHEEL.get(veh_class_lower, 'wheel_saloon'))
                 result.vehicles[e.model_name] = e
             except (ValueError, IndexError):
                 continue

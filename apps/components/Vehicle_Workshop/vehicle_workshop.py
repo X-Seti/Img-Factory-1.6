@@ -580,12 +580,30 @@ class _ToolbarMixin:
                     #                 class, freq, flags, comprules, wheelId, frontScale, rearScale, [flags2]
                     if len(parts) < 13: continue
                     try:
-                        model = parts[1].strip().lower()
+                        model       = parts[1].strip().lower()
+                        veh_type    = parts[3].strip().lower() if len(parts) > 3 else ''
+                        veh_class   = parts[7].strip().lower() if len(parts) > 7 else ''
                         front_scale = float(parts[12])
                         rear_scale  = float(parts[13]) if len(parts) > 13 else front_scale
+                        SA_CLASS_WHEEL = {
+                            'richfamily':'wheel_saloon','executive':'wheel_saloon',
+                            'normal':'wheel_saloon','poorfamily':'wheel_saloon',
+                            'worker':'wheel_truck','ignore':'wheel_truck',
+                            'offroad':'wheel_offroad','sport':'wheel_sport',
+                            'lightvan':'wheel_lightvan','van':'wheel_lightvan',
+                            'lighttruck':'wheel_lighttruck','classic':'wheel_classic',
+                            'bicycle':'wheel_rim','bike':'wheel_rim',
+                        }
+                        if veh_type in ('bike','mtruck') or 'bike' in veh_type:
+                            wheel_model = 'wheel_rim'
+                        elif veh_type in ('van','truck','mtruck'):
+                            wheel_model = 'wheel_truck'
+                        else:
+                            wheel_model = SA_CLASS_WHEEL.get(veh_class, 'wheel_saloon')
                         self._sa_vehicle_data[model] = {
-                            'front_scale': front_scale,
-                            'rear_scale':  rear_scale,
+                            'front_scale':  front_scale,
+                            'rear_scale':   rear_scale,
+                            'wheel_model':  wheel_model,
                         }
                     except (ValueError, IndexError):
                         continue
@@ -694,7 +712,11 @@ class _ToolbarMixin:
             if sa_data and stem in sa_data:
                 self.viewport._wheel_front_scale = sa_data[stem]['front_scale']
                 self.viewport._wheel_rear_scale  = sa_data[stem]['rear_scale']
-                self._set_status(f'SA IDE wheel scale: front={sa_data[stem]["front_scale"]:.2f} rear={sa_data[stem]["rear_scale"]:.2f}')
+                wheel_model = sa_data[stem].get('wheel_model', 'wheel_saloon_l0')
+                if not wheel_model.endswith('_l0'):
+                    wheel_model = wheel_model + '_l0'
+                self.viewport._wheel_type = wheel_model
+                self._set_status(f'SA IDE: wheel={wheel_model} front={sa_data[stem]["front_scale"]:.2f} rear={sa_data[stem]["rear_scale"]:.2f}')
             else:
                 # VC/GTA3: wheel scales in handling.cfg fields 38/40
                 # SA handling.cfg only has 36 fields - wheel scale is in vehicles.ide
