@@ -1055,32 +1055,20 @@ class _ToolbarMixin:
                             if data: _try_txd_data(data)
                         except Exception: pass
 
-                # 1b. Sibling IMGs — GTA3 uses txd.img, SA uses gta3.new.img
-                if miss and img and getattr(img, 'file_path', ''):
+                # 1b. GTA3 only: vehicle TXDs are in models/txd.img not gta3.img
+                if miss and img and getattr(img, 'file_path', '') and game_ver == 'gta3':
                     img_dir = os.path.dirname(img.file_path)
-                    sibling_imgs = []
-                    if game_ver == 'gta3':
-                        for name in ('txd.img','txd.dir'):
-                            p = os.path.join(img_dir, name)
-                            if os.path.isfile(p) and p.endswith('.img'):
-                                sibling_imgs.append(p)
-                    elif game_ver == 'sa':
-                        for name in ('gta3.new.img','gta_int.img'):
-                            p = os.path.join(img_dir, name)
-                            if os.path.isfile(p):
-                                sibling_imgs.append(p)
-                    for sib_path in sibling_imgs:
-                        if not miss: break
+                    txd_img_path = os.path.join(img_dir, 'txd.img')
+                    if os.path.isfile(txd_img_path) and ide_txd:
                         try:
                             from apps.methods.img_core_classes import IMGFile
-                            sib = IMGFile(sib_path)
-                            if ide_txd:
-                                txd_key = ide_txd if ide_txd.endswith('.txd') else ide_txd + '.txd'
-                                for e in sib.entries:
-                                    if e.name.lower() == txd_key:
-                                        data = sib.read_entry_data(e)
-                                        if data: _try_txd_data(data)
-                                        break
+                            sib = IMGFile(txd_img_path)
+                            txd_key = ide_txd if ide_txd.endswith('.txd') else ide_txd + '.txd'
+                            for e in sib.entries:
+                                if e.name.lower() == txd_key:
+                                    data = sib.read_entry_data(e)
+                                    if data: _try_txd_data(data)
+                                    break
                         except Exception: pass
 
                 # 1b. Current IMG (gta3.img) — look for vehicle*.txd entries
