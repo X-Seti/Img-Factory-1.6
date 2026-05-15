@@ -259,14 +259,89 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
         if w == 0 or h == 0 or w > 4096 or h > 4096:
             return None
 
-        # Determine if this is SA (FourCC) or VC/III (has_alpha) format
+        # Determine if this is SA (FourCC/D3D9) or VC/III (has_alpha) format
         known_fourccs = (D3D_DXT1, D3D_DXT2, D3D_DXT3, D3D_DXT4, D3D_DXT5)
-        is_sa_format  = d3d_or_alpha in known_fourccs
+        # D3D9 format codes (uncompressed)
+        D3DFMT_A8R8G8B8 = 0x16  # 22
+        D3DFMT_X8R8G8B8 = 0x15  # 21
+        D3DFMT_R5G6B5   = 0x17  # 23
+        D3DFMT_A1R5G5B5 = 0x19  # 25
+        D3DFMT_A4R4G4B4 = 0x1C  # 28
+        D3DFMT_L8       = 0x32  # 50
+        D3DFMT_A8L8     = 0x33  # 51
+        d3d9_uncompressed = (D3DFMT_A8R8G8B8, D3DFMT_X8R8G8B8, D3DFMT_R5G6B5,
+                             D3DFMT_A1R5G5B5, D3DFMT_A4R4G4B4, D3DFMT_L8, D3DFMT_A8L8)
+        is_d3d9       = platform_id == 9
+        is_sa_format  = d3d_or_alpha in known_fourccs or is_d3d9
 
         fmt  = 'UNKNOWN'
         rgba = None
 
-        if is_sa_format:
+        if is_d3d9 and d3d_or_alpha in d3d9_uncompressed:
+            # SA D3D9 uncompressed — skip 4-byte mip size then raw pixels
+            if pos + 4 <= len(data):
+                mip_size = struct.unpack_from('<I', data, pos)[0]; pos += 4
+            else:
+                mip_size = 0
+            mip_data = data[pos:pos+mip_size] if mip_size > 0 else data[pos:]
+            if d3d_or_alpha == D3DFMT_A8R8G8B8:
+                # BGRA -> RGBA
+                fmt = 'RGBA32'
+                px = bytearray(w * h * 4)
+                for i in range(min(w * h, len(mip_data) // 4)):
+                    b,g,r,a = mip_data[i*4], mip_data[i*4+1], mip_data[i*4+2], mip_data[i*4+3]
+                    px[i*4:i*4+4] = bytes([r,g,b,a])
+                rgba = bytes(px)
+            elif d3d_or_alpha == D3DFMT_X8R8G8B8:
+                fmt = 'RGBA32'
+                px = bytearray(w * h * 4)
+                for i in range(min(w * h, len(mip_data) // 4)):
+                    b,g,r,_ = mip_data[i*4], mip_data[i*4+1], mip_data[i*4+2], mip_data[i*4+3]
+                    px[i*4:i*4+4] = bytes([r,g,b,255])
+                rgba = bytes(px)
+            elif d3d_or_alpha == D3DFMT_R5G6B5:
+                fmt = 'RGB565'
+                px = bytearray(w * h * 4)
+                for i in range(min(w * h, len(mip_data) // 2)):
+                    v = struct.unpack_from('<H', mip_data, i*2)[0]
+                    r = ((v >> 11) & 0x1F) * 255 // 31
+                    g = ((v >> 5)  & 0x3F) * 255 // 63
+                    b = (v & 0x1F) * 255 // 31
+                    px[i*4:i*4+4] = bytes([r,g,b,255])
+                rgba = bytes(px)
+            elif d3d_or_alpha == D3DFMT_A1R5G5B5:
+                fmt = 'ARGB1555'
+                px = bytearray(w * h * 4)
+                for i in range(min(w * h, len(mip_data) // 2)):
+                    v = struct.unpack_from('<H', mip_data, i*2)[0]
+                    a = 255 if (v >> 15) else 0
+                    r = ((v >> 10) & 0x1F) * 255 // 31
+                    g = ((v >> 5)  & 0x1F) * 255 // 31
+                    b = (v & 0x1F) * 255 // 31
+                    px[i*4:i*4+4] = bytes([r,g,b,a])
+                rgba = bytes(px)
+            elif d3d_or_alpha == D3DFMT_A4R4G4B4:
+                fmt = 'ARGB4444'
+                px = bytearray(w * h * 4)
+                for i in range(min(w * h, len(mip_data) // 2)):
+                    v = struct.unpack_from('<H', mip_data, i*2)[0]
+                    a = ((v >> 12) & 0xF) * 17
+                    r = ((v >> 8)  & 0xF) * 17
+                    g = ((v >> 4)  & 0xF) * 17
+                    b = (v & 0xF) * 17
+                    px[i*4:i*4+4] = bytes([r,g,b,a])
+                rgba = bytes(px)
+            elif d3d_or_alpha in (D3DFMT_L8, D3DFMT_A8L8):
+                fmt = 'L8'
+                bpp = 2 if d3d_or_alpha == D3DFMT_A8L8 else 1
+                px = bytearray(w * h * 4)
+                for i in range(min(w * h, len(mip_data) // bpp)):
+                    l = mip_data[i*bpp]
+                    a = mip_data[i*bpp+1] if bpp == 2 else 255
+                    px[i*4:i*4+4] = bytes([l,l,l,a])
+                rgba = bytes(px)
+
+        elif is_sa_format:
             # SA: mip levels also preceded by 4-byte size field
             if pos + 4 <= len(data):
                 mip_size = struct.unpack_from('<I', data, pos)[0]
