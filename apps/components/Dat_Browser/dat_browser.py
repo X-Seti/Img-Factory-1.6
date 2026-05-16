@@ -1605,10 +1605,24 @@ class DATBrowserWidget(QWidget): #vers 3
                                     vdata[key] = p; break
                         if vdata:
                             mw.vehicle_data_paths = vdata
+                            # Reset flag so Vehicle Workshop reloads data for new game
+                            if hasattr(mw, 'main_tab_widget'):
+                                from PyQt6.QtWidgets import QApplication
+                                for i in range(mw.main_tab_widget.count()):
+                                    w = mw.main_tab_widget.widget(i)
+                                    if w:
+                                        for vw in w.findChildren(type(self)) if False else []:
+                                            pass
+                                        # Reset _handling_loaded on any VehicleWorkshop tabs
+                                        try:
+                                            from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+                                            for vw in w.findChildren(VehicleWorkshop):
+                                                vw._handling_loaded = False
+                                        except Exception:
+                                            pass
                             if hasattr(mw, 'log_message'):
                                 found = ', '.join(vdata.keys())
                                 mw.log_message(f"Vehicle data cached: {found}")
-                            # Preload shared vehicle TXDs in background
                             self._preload_shared_txds(game_root, game, mw)
                     except Exception:
                         pass
