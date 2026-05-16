@@ -510,6 +510,8 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             if is_dam and not damaged: continue
             if is_ok  and damaged: continue
             if is_lod and not getattr(self, '_show_lod', False): continue
+            # Skip frames hidden by the frame tree
+            if name and name in getattr(self, '_hidden_frames', set()): continue
             rot, tx, ty, tz = self._calc_world_matrix(frames, fi)
             verts = [(rot[0]*v.x+rot[1]*v.y+rot[2]*v.z+tx,
                       rot[3]*v.x+rot[4]*v.y+rot[5]*v.z+ty,
@@ -531,6 +533,9 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                 wflags = wheel_data[6] if len(wheel_data) > 6 else 0
                 front_scale = getattr(self, '_wheel_front_scale', 1.0)
                 rear_scale  = getattr(self, '_wheel_rear_scale',  1.0)
+                mult        = getattr(self, '_wheel_scale_mult', 1.0)
+                front_scale *= mult
+                rear_scale  *= mult
                 for fi2, fn2 in fname.items():
                     if 'dummy' not in fn2: continue
                     if not any(w in fn2 for w in ('wheel_lf','wheel_rf','wheel_lb','wheel_rb',

@@ -2309,6 +2309,28 @@ class _LayoutMixin:
         wheel_h.setContentsMargins(0,0,0,0); wheel_h.setSpacing(3)
         wheel_h.addWidget(self._wheels_btn); wheel_h.addWidget(steer_slider, 1)
         lay.addWidget(wheel_row)
+
+        # Wheel scale adjustment (+/- 10%)
+        scale_row = QWidget(); scale_h = QHBoxLayout(scale_row)
+        scale_h.setContentsMargins(0,0,0,0); scale_h.setSpacing(3)
+        scale_lbl = QLabel('Size'); scale_lbl.setFont(self.infobar_font)
+        scale_lbl.setFixedWidth(28)
+        wheel_scale_slider = QSlider(Qt.Orientation.Horizontal)
+        wheel_scale_slider.setRange(-10, 10); wheel_scale_slider.setValue(0)
+        wheel_scale_slider.setToolTip('Wheel size offset ±10% (does not save)')
+        self._wheel_scale_slider = wheel_scale_slider
+        self._wheel_scale_lbl = QLabel('0%'); self._wheel_scale_lbl.setFont(self.infobar_font)
+        self._wheel_scale_lbl.setFixedWidth(28)
+        def _on_scale_change(v):
+            self._wheel_scale_lbl.setText(f'{v:+d}%')
+            mult = 1.0 + v / 100.0
+            self.viewport._wheel_scale_mult = mult
+            if getattr(self.viewport, '_show_wheels', False):
+                self._toggle_show_wheels(True)
+        wheel_scale_slider.valueChanged.connect(_on_scale_change)
+        scale_h.addWidget(scale_lbl); scale_h.addWidget(wheel_scale_slider, 1)
+        scale_h.addWidget(self._wheel_scale_lbl)
+        lay.addWidget(scale_row)
         lay.addWidget(_sep())
 
         # ── Model Info (collapsible) ──────────────────────
@@ -3097,20 +3119,23 @@ class _LayoutMixin:
         tree.expandAll()
         tree.blockSignals(False)
 
-    def _on_frame_visibility_changed(self, item, col): #vers 1
+    def _on_frame_visibility_changed(self, item, col): #vers 2
         from PyQt6.QtCore import Qt
         name = item.data(0, Qt.ItemDataRole.UserRole) or ''
-        if not hasattr(self.viewport,'_hidden_frames'):
+        if not hasattr(self.viewport, '_hidden_frames'):
             self.viewport._hidden_frames = set()
         if item.checkState(0) == Qt.CheckState.Checked:
             self.viewport._hidden_frames.discard(name)
         else:
             self.viewport._hidden_frames.add(name)
-        # Rebuild assembly if active
-        if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
-            self._toggle_assembly_mode(True)
-        else:
-            self.viewport.update()
+        # Always rebuild — hidden_frames filter is applied in load_all_geometries
+        m = getattr(self, '_dff_model', None)
+        if m and m.frames and m.atomics:
+            self.viewport.load_all_geometries(
+                m.geometries, [g.materials for g in m.geometries],
+                m.frames, m.atomics,
+                damaged=getattr(self, '_damage_mode', False))
+        self.viewport.update()
 
     def _populate_geom_list(self): #vers 1
 
