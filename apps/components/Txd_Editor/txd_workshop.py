@@ -7734,13 +7734,22 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             # Change button to close
             cancel_btn.setText("Close")
             cancel_btn.setStyleSheet("background-color: palette(button); color: palette(buttonText);")
-            cancel_btn.disconnect()
+            try: cancel_btn.clicked.disconnect()
+            except Exception: pass
             cancel_btn.clicked.connect(dialog.accept)
 
             dialog.exec()
 
-            # Update window title
-            self.setWindowTitle(f"TXD Workshop: {txd_name} ({len(textures)} textures)")
+            # Update window title and parent tab
+            import re as _re
+            clean_name = _re.sub(r'_[a-z0-9]{6,12}(?=\.txd$|$)', '', txd_name, flags=_re.IGNORECASE)
+            self.setWindowTitle(f"TXD Workshop: {clean_name} ({len(textures)} textures)")
+            if self.main_window and hasattr(self.main_window, 'main_tab_widget'):
+                tw = self.main_window.main_tab_widget
+                for i in range(tw.count()):
+                    if tw.widget(i) and self in tw.widget(i).findChildren(type(self)):
+                        tw.setTabText(i, clean_name)
+                        break
 
             if self.main_window and hasattr(self.main_window, 'log_message'):
                 self.main_window.log_message(f"Loaded {len(textures)} textures from {txd_name}")
@@ -9566,7 +9575,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             # Change button to close
             cancel_btn.setText("Close")
             cancel_btn.setStyleSheet("background-color: palette(button); color: palette(buttonText);")
-            cancel_btn.disconnect()
+            try: cancel_btn.clicked.disconnect()
+            except Exception: pass
             cancel_btn.clicked.connect(dialog.accept)
 
             dialog.exec()
@@ -19277,6 +19287,9 @@ def open_txd_workshop(main_window, img_path=None): #vers 5
                 workshop.load_from_img_archive(img_path)
 
         tab_label = os.path.splitext(os.path.basename(img_path))[0] if img_path else "TXD Workshop"
+        # Strip GTA streaming suffix (e.g. barracks_hli9ksta -> barracks)
+        import re as _re
+        tab_label = _re.sub(r'_[a-z0-9]{6,12}$', '', tab_label)
         try:
             from apps.methods.imgfactory_svg_icons import get_txd_file_icon
             icon = get_txd_file_icon()

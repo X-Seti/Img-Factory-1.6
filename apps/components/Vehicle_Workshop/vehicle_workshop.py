@@ -1041,18 +1041,26 @@ class _ToolbarMixin:
                             tname = t['name'].lower()
                             if not (t.get('rgba_data') and t['width'] > 0):
                                 continue
+                            tbase = strip_suffix(tname)
                             if tname in miss:
+                                # Exact match
                                 hits.append(t)
                             elif tname in alias:
-                                # TXD has base name, DFF used suffixed name
-                                # Serve texture under the suffixed name the DFF expects
+                                # TXD has base name, miss has suffixed name
                                 t2 = dict(t); t2['name'] = alias[tname]
-                                hits.append(t2)
-                                hits.append(t)  # also store base for future lookups
+                                hits.append(t2); hits.append(t)
+                            elif tbase in miss:
+                                # TXD has suffixed name (armytruk8bit128), miss has base (armytruk8bit)
+                                hits.append(t)
+                            elif tbase in alias:
+                                # Both suffixed — map to what DFF expects
+                                t2 = dict(t); t2['name'] = alias[tbase]
+                                hits.append(t2); hits.append(t)
                         if hits:
                             collected.extend(hits)
                             for t in hits:
                                 miss.discard(t['name'].lower())
+                                miss.discard(strip_suffix(t['name'].lower()))
                         return len(hits)
                     except Exception:
                         return 0
