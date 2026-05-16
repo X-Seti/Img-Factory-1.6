@@ -560,9 +560,74 @@ class _ToolbarMixin:
         """Export current DFF geometry (stub — routes to model workshop)."""
         self._set_status("Export: use Model Workshop for DFF export")
 
-    def _parse_sa_vehicles_ide(self, path: str): #vers 1
-        """Parse SA vehicles.ide for wheel scales and store in _sa_vehicle_data."""
+    def _parse_sa_vehicles_ide(self, path: str): #vers 2
+        """Parse vehicles.ide for wheel scales - handles GTA3, VC and SA field layouts."""
         self._sa_vehicle_data = {}
+        try:
+            # Detect game from IDE DB
+            mw = getattr(self, 'main_window', None)
+            ide_db = getattr(mw, 'ide_db', None) if mw else None
+            game_ver = getattr(ide_db, '_game', None) or getattr(ide_db, 'game', 'vc')
+
+            # Field positions by game:
+            # GTA3: id,model,txd,type,handlingId,gameName,class,freq,level,compRules,wheelId,wheelScale
+            #        0   1    2   3    4           5        6     7    8     9         10      11
+            # VC/SA: id,model,txd,type,handlingId,gameName,animFile,class,freq,level,compRules,wheelId,frontScale[,rearScale]
+            #        0   1    2   3    4           5        6        7     8    9     10        11      12          13
+            if game_ver == 'gta3':
+                scale_idx = 11   # single wheel scale
+                class_idx = 6
+                type_idx  = 3
+            else:
+                scale_idx = 12   # frontScale (SA has rearScale at 13)
+                class_idx = 7
+                type_idx  = 3
+
+            with open(path, 'r', errors='ignore') as f:
+                in_cars = False
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or line.startswith(';'):
+                        continue
+                    if line.lower() == 'cars':
+                        in_cars = True; continue
+                    if line.lower() in ('end','peds','boats','planes','trains','bikes','heli','mtruck'):
+                        in_cars = False; continue
+                    if not in_cars: continue
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) < scale_idx + 1: continue
+                    try:
+                        model       = parts[1].strip().lower()
+                        veh_type    = parts[type_idx].strip().lower() if len(parts) > type_idx else ''
+                        veh_class   = parts[class_idx].strip().lower() if len(parts) > class_idx else ''
+                        front_scale = float(parts[scale_idx])
+                        rear_scale  = float(parts[scale_idx+1]) if (
+                            game_ver == 'sa' and len(parts) > scale_idx+1) else front_scale
+                        SA_CLASS_WHEEL = {
+                            'richfamily':'wheel_saloon','executive':'wheel_saloon',
+                            'normal':'wheel_saloon','poorfamily':'wheel_saloon',
+                            'worker':'wheel_truck','ignore':'wheel_truck',
+                            'offroad':'wheel_offroad','sport':'wheel_sport',
+                            'lightvan':'wheel_lightvan','van':'wheel_lightvan',
+                            'lighttruck':'wheel_lighttruck','classic':'wheel_classic',
+                            'bicycle':'wheel_rim','bike':'wheel_rim',
+                        }
+                        if veh_type in ('bike','mtruck') or 'bike' in veh_type:
+                            wheel_model = 'wheel_rim'
+                        elif veh_type in ('van','truck','mtruck'):
+                            wheel_model = 'wheel_truck'
+                        else:
+                            wheel_model = SA_CLASS_WHEEL.get(veh_class, 'wheel_saloon')
+                        self._sa_vehicle_data[model] = {
+                            'front_scale':  front_scale,
+                            'rear_scale':   rear_scale,
+                            'wheel_model':  wheel_model,
+                        }
+                    except (ValueError, IndexError):
+                        continue
+            self._set_status(f"Vehicles IDE ({game_ver}): {len(self._sa_vehicle_data)} vehicles parsed")
+        except Exception as e:
+            self._set_status(f"Vehicles IDE parse error: {e}")
         try:
             with open(path, 'r', errors='ignore') as f:
                 in_cars = False
