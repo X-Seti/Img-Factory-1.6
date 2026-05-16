@@ -1169,7 +1169,14 @@ class _ToolbarMixin:
             # Load vehicles.ide info (wheel type) + carcols colours
             stem = os.path.splitext(os.path.basename(path))[0]
             from PyQt6.QtCore import QTimer
-            QTimer.singleShot(100, lambda s=stem: self._load_vehicle_meta(s))
+            def _meta_then_wheels(s=stem):
+                self._load_vehicle_meta(s)
+                # Reset carcol index for new vehicle
+                self._carcol_idx = -1
+                # Rebuild wheels if they were showing
+                if getattr(self.viewport, '_show_wheels', False):
+                    self._toggle_show_wheels(True)
+            QTimer.singleShot(100, _meta_then_wheels)
             # Auto-load shared TXDs after primary TXD is loaded
             QTimer.singleShot(500, self._auto_load_shared_txds)
         except Exception as e:
