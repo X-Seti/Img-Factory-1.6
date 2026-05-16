@@ -504,10 +504,14 @@ class _ToolbarMixin:
                 damaged=damaged)
         self._geom_list.setEnabled(not enabled)
 
-    def _toggle_damage_mode(self, enabled: bool): #vers 1
+    def _toggle_damage_mode(self, enabled: bool): #vers 2
         self._damage_mode = enabled
-        if getattr(self,'_assemble_btn',None) and self._assemble_btn.isChecked():
-            self._toggle_assembly_mode(True)
+        m = getattr(self, '_dff_model', None)
+        if m and m.frames and m.atomics:
+            self.viewport.load_all_geometries(
+                m.geometries, [g.materials for g in m.geometries],
+                m.frames, m.atomics, damaged=enabled)
+            self.viewport.update()
 
     def _toggle_lod_mode(self, enabled: bool): #vers 1
         self.viewport.set_show_lod(enabled)
@@ -1009,7 +1013,8 @@ class _ToolbarMixin:
         if m and m.frames and m.atomics:
             vp.load_all_geometries(
                 m.geometries, [g.materials for g in m.geometries],
-                m.frames, m.atomics)
+                m.frames, m.atomics,
+                damaged=getattr(self,'_damage_mode',False))
         vp.update()
         if enabled:
             from PyQt6.QtCore import QTimer
@@ -3294,18 +3299,17 @@ class _LayoutMixin:
             self._geom_list.addItem(f"[{i}] {name}  {len(g.vertices)}v {len(g.triangles)}t")
 
 
-    def _on_geom_selected(self, row: int): #vers 4
+    def _on_geom_selected(self, row: int): #vers 5
         if not self._dff_model or row < 0 or row >= len(self._dff_model.geometries): return
         self._current_geom = row
         m = self._dff_model
         g = m.geometries[row]
-        # Use load_all_geometries for correct UV + frame hierarchy
+        damaged = getattr(self, '_damage_mode', False)
         def _do_load():
             if m.frames and m.atomics:
                 self.viewport.load_all_geometries(
                     m.geometries, [geom.materials for geom in m.geometries],
-                    m.frames, m.atomics)
-                # Fallback: bad atomics produced empty result
+                    m.frames, m.atomics, damaged=damaged)
                 if not getattr(self.viewport, '_all_geoms', None) and not self.viewport._vertices:
                     self.viewport.load_geometry(g, g.materials)
             else:
@@ -4626,7 +4630,8 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         vp.set_assembly_mode(enabled)
         if enabled:
             vp.load_all_geometries(m.geometries,[g.materials for g in m.geometries],
-                                   m.frames,m.atomics)
+                                   m.frames,m.atomics,
+                                   damaged=getattr(self,'_damage_mode',False))
         elif m.geometries:
             vp.load_geometry(m.geometries[0],m.geometries[0].materials)
 
