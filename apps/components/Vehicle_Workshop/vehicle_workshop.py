@@ -560,7 +560,102 @@ class _ToolbarMixin:
         """Export current DFF geometry (stub — routes to model workshop)."""
         self._set_status("Export: use Model Workshop for DFF export")
 
-    def _parse_sa_vehicles_ide(self, path: str): #vers 3
+    def _parse_sa_vehicles_ide(self, path: str): #vers 4
+        """Parse vehicles.ide/default.ide for wheel scales - handles GTA3, VC and SA."""
+        self._sa_vehicle_data = {}
+        try:
+            mw = getattr(self, 'main_window', None)
+            ide_db = getattr(mw, 'ide_db', None) if mw else None
+            game_ver = getattr(ide_db, '_game', None) or getattr(ide_db, 'game', 'vc')
+
+            # GTA3 wheelModelId -> wheel name (IDs 160-166)
+            GTA3_WHEEL_ID = {
+                160: 'wheel_sport',    161: 'wheel_saloon',
+                162: 'wheel_lightvan', 163: 'wheel_classic',
+                164: 'wheel_alloy',    165: 'wheel_lighttruck',
+                166: 'wheel_smallcar',
+            }
+            # VC wheelModelId -> wheel name (IDs 237-256)
+            VC_WHEEL_ID = {
+                237: 'wheel_rim',        238: 'wheel_offroad',
+                239: 'wheel_truck',      250: 'wheel_sport',
+                251: 'wheel_saloon',     252: 'wheel_lightvan',
+                253: 'wheel_classic',    254: 'wheel_alloy',
+                255: 'wheel_lighttruck', 256: 'wheel_smallcar',
+            }
+            WHEEL_ID_MAP = GTA3_WHEEL_ID if game_ver == 'gta3' else VC_WHEEL_ID
+
+            # Field positions:
+            # GTA3: id,model,txd,type,handlingId,gameName,class,freq,level,compRules,wheelId,wheelScale
+            #        0   1    2   3    4           5        6     7    8     9         10      11
+            # VC:   id,model,txd,type,handlingId,gameName,animFile,class,freq,level,compRules,wheelId,wheelScale
+            #        0   1    2   3    4           5        6        7     8    9     10        11      12
+            # SA:   id,model,txd,type,handlingId,gameName,animFile,class,freq,level,compRules,wheelId,frontScale,rearScale
+            #        0   1    2   3    4           5        6        7     8    9     10        11      12         13
+            if game_ver == 'gta3':
+                scale_idx = 11; class_idx = 6; type_idx = 3; wheel_id_idx = 10
+            else:  # vc and sa same layout
+                scale_idx = 12; class_idx = 7; type_idx = 3; wheel_id_idx = 11
+
+            SA_CLASS_WHEEL = {
+                'richfamily':'wheel_saloon', 'executive':'wheel_saloon',
+                'normal':'wheel_saloon',     'poorfamily':'wheel_saloon',
+                'worker':'wheel_truck',      'ignore':'wheel_truck',
+                'big':'wheel_lighttruck',    'taxi':'wheel_saloon',
+                'offroad':'wheel_offroad',   'sport':'wheel_sport',
+                'lightvan':'wheel_lightvan', 'van':'wheel_lightvan',
+                'lighttruck':'wheel_lighttruck', 'classic':'wheel_classic',
+                'bicycle':'wheel_rim',       'bike':'wheel_rim',
+            }
+
+            with open(path, 'r', errors='ignore') as f:
+                in_cars = False
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or line.startswith(';'):
+                        continue
+                    if line.lower() == 'cars':
+                        in_cars = True; continue
+                    if line.lower() == 'end':
+                        in_cars = False; continue
+                    if not in_cars: continue
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) < scale_idx + 1: continue
+                    try:
+                        model      = parts[1].strip().lower()
+                        veh_type   = parts[type_idx].strip().lower() if len(parts) > type_idx else ''
+                        veh_class  = parts[class_idx].strip().lower() if len(parts) > class_idx else ''
+                        front_scale = float(parts[scale_idx])
+                        rear_scale  = float(parts[scale_idx+1]) if (
+                            game_ver == 'sa' and len(parts) > scale_idx+1) else front_scale
+
+                        # Wheel type from numeric ID first
+                        wheel_model = 'wheel_saloon'
+                        if len(parts) > wheel_id_idx:
+                            try:
+                                wid = int(parts[wheel_id_idx])
+                                wheel_model = WHEEL_ID_MAP.get(wid, '')
+                            except ValueError:
+                                pass
+                        # Fall back to class if no ID match
+                        if not wheel_model:
+                            if veh_type in ('bike','mtruck') or 'bike' in veh_type:
+                                wheel_model = 'wheel_rim'
+                            elif 'van' in veh_type or veh_type == 'truck':
+                                wheel_model = 'wheel_lightvan'
+                            else:
+                                wheel_model = SA_CLASS_WHEEL.get(veh_class, 'wheel_saloon')
+
+                        self._sa_vehicle_data[model] = {
+                            'front_scale': front_scale,
+                            'rear_scale':  rear_scale,
+                            'wheel_model': wheel_model,
+                        }
+                    except (ValueError, IndexError):
+                        continue
+            self._set_status(f"IDE ({game_ver}): {len(self._sa_vehicle_data)} vehicles")
+        except Exception as e:
+            self._set_status(f"IDE parse error: {e}")
         """Parse vehicles.ide/default.ide for wheel scales - handles GTA3, VC and SA."""
         self._sa_vehicle_data = {}
         try:
