@@ -10436,8 +10436,8 @@ class TXDWorkshop(ToolMenuMixin, QWidget): #vers 4
             is_pal4     = bool(raster_format_flags & 0x4000)  # FORMAT_EXT_PAL4
             pixel_fmt   = raster_format_flags & 0x0F00  # bits 8-11 only, excludes PAL flags
             is_sa_plus  = (rw_version >= 0x1803FFFF)
-            # Both GTA3/VC and SA palettes are stored as BGRA on PC
-            tex['palette_is_bgra'] = True
+            # GTA3/VC: RGBA palette (no swap); SA: BGRA palette (swap B<->R)
+            tex['palette_is_bgra'] = is_sa_plus
 
             raster_pixel_map = {
                 0x0100: 'ARGB1555', 0x0200: 'RGB565',

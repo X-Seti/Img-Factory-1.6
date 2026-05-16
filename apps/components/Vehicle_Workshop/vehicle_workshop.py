@@ -605,28 +605,6 @@ class _ToolbarMixin:
             self._set_status(f"Carcol {idx+1}/{len(pairs)} for {stem}")
         except Exception as e:
             self._set_status(f'Carcol error: {e}')
-        """Cycle through carcols.dat pairs for the current vehicle."""
-        stem = os.path.splitext(os.path.basename(
-            getattr(self, '_current_dff_path', '')))[0].lower()
-        if not stem: return
-        game_root = self._get_game_root()
-        if not game_root: return
-        try:
-            from apps.methods.carcols_parser import get_vehicle_colours
-            pairs = get_vehicle_colours(game_root, stem)
-            if not pairs: return
-            idx = getattr(self, '_carcol_idx', -1) + 1
-            if idx >= len(pairs): idx = 0
-            self._carcol_idx = idx
-            p1, p2 = pairs[idx]
-            self._set_paint_pair(p1, p2)
-            if hasattr(self, '_carcol_btn'):
-                self._carcol_btn.setToolTip(
-                f"Pair {idx+1}/{len(pairs)} — "
-                f"Pri: rgb({int(p1[0]*255)},{int(p1[1]*255)},{int(p1[2]*255)}) "
-                f"Sec: rgb({int(p2[0]*255)},{int(p2[1]*255)},{int(p2[2]*255)})")
-        except Exception as e:
-            self._set_status(f'Carcol: {e}')
 
     def _toggle_com_indicator(self): #vers 1
         """Toggle Centre of Mass indicator in viewport."""
