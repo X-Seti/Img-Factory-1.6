@@ -363,18 +363,29 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
                 size = max(1,(w+3)//4)*max(1,(h+3)//4)*16
                 rgba = _decode_dxt5(mip_data[:size], w, h)
         else:
-            # VC/III: compression signalled by raster_format flags or mip data header
-            # Each mip level is preceded by a 4-byte size field
-            if mip_count > 0 and pos+4 <= len(data):
-                mip_size = struct.unpack_from('<I', data, pos)[0]
-                pos += 4
-                mip_data = data[pos:pos+mip_size] if pos+mip_size <= len(data) else b''
-            else:
-                mip_size = 0
-                mip_data = b''
-
+            # VC/III: mip data follows immediately after 88-byte header, no outer size prefix
+            # Layout: [palette 1024B if PAL8][pix_size uint32][pixel data]
+            # or for uncompressed: [mip_size uint32][pixel data]
+            # or for DXT: [mip_size uint32][dxt data]
             rf_base = raster_format & 0x0F00
-            rf_pal  = raster_format & 0x6000  # PAL4=0x4000, PAL8=0x2000
+            rf_pal  = raster_format & 0x6000
+
+            if rf_pal == RASTER_PAL8:
+                # PAL8: palette starts directly, then 4-byte pixel size, then indices
+                mip_data = data[pos:]
+                mip_size = len(mip_data)
+            elif rf_pal == RASTER_PAL4:
+                mip_data = data[pos:]
+                mip_size = len(mip_data)
+            else:
+                # Uncompressed/DXT: 4-byte size prefix then data
+                if pos + 4 <= len(data):
+                    mip_size = struct.unpack_from('<I', data, pos)[0]
+                    pos += 4
+                    mip_data = data[pos:pos+mip_size] if pos+mip_size <= len(data) else data[pos:]
+                else:
+                    mip_size = 0
+                    mip_data = b''  # PAL4=0x4000, PAL8=0x2000
 
             if _debug:
                 dxt1_sz = max(1,(w+3)//4)*max(1,(h+3)//4)*8
