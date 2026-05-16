@@ -856,6 +856,7 @@ class _ToolbarMixin:
             stem = vehicle_name.lower()
             # SA: wheel scales are in vehicles.ide
             sa_data = getattr(self, '_sa_vehicle_data', {})
+            self._set_status(f'Meta: sa_data={len(sa_data)} entries, stem={stem!r}, found={stem in sa_data}')
             if sa_data and stem in sa_data:
                 self.viewport._wheel_front_scale = sa_data[stem]['front_scale']
                 self.viewport._wheel_rear_scale  = sa_data[stem]['rear_scale']
