@@ -3122,6 +3122,8 @@ class _LayoutMixin:
     def _on_frame_visibility_changed(self, item, col): #vers 2
         from PyQt6.QtCore import Qt
         name = item.data(0, Qt.ItemDataRole.UserRole) or ''
+        checked = item.checkState(0) == Qt.CheckState.Checked
+        print(f"[FrameTree] {name!r} checked={checked}")
         if not hasattr(self.viewport, '_hidden_frames'):
             self.viewport._hidden_frames = set()
         if item.checkState(0) == Qt.CheckState.Checked:
