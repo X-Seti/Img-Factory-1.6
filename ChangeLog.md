@@ -3447,3 +3447,52 @@ smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop
 - `apps/components/Path_Workshop/path_workshop.py` (new)
 - `apps/methods/smart_file_router.py`
 
+
+## May 16 2026 - Vehicle Workshop rendering + GTA3/VC/SA texture/wheel fixes
+
+**PAL8 texture decoding (txd_parser.py):**
+- GTA3/VC: mip data starts immediately after 88-byte header — no outer size prefix
+- Palette is 1024 bytes BGRA, followed by 4-byte pixel size field, then w*h indices
+- Previously read 4-byte prefix that doesn't exist → garbage mip_size → wrong data
+- Fixed offset: palette=mip_data[:1024], indices=mip_data[1028:1028+w*h]
+- SA D3D9 uncompressed: all formats now decode (A8R8G8B8, RGB565, ARGB1555, ARGB4444, L8, A8L8)
+
+**GTA3/VC/SA vehicle IDE wheel data (_parse_sa_vehicles_ide v4):**
+- GTA3 uses default.ide (no vehicles.ide), wheel IDs 160-166
+- VC uses default.ide, wheel IDs 237-256 (different from GTA3)
+- SA uses vehicles.ide, wheel scale in fields [12]/[13], class-based wheel type
+- GTA3 field layout: wheelId=[10], wheelScale=[11] (no animFile field)
+- VC/SA field layout: animFile at [6], wheelId=[11], frontScale=[12], rearScale=[13]
+- dat_browser now caches default.ide as vehicles_ide key for GTA3/VC
+
+**Texture matching (_try_txd_data):**
+- Fixed: armytruk8bit (in miss) vs armytruk8bit128 (in TXD) — strip numeric suffix on both sides
+- GTA3 txd.img sibling scan for vehicle TXDs not in gta3.img
+- SA: vehiclegeneric256.txd etc. searched inside gta3.img by exact name
+
+**TXD Workshop:**
+- Segfault fix: cancel_btn.disconnect() → try: cancel_btn.clicked.disconnect()
+- Tab name strips streaming suffix (barracks_hli9ksta → barracks)
+- Tab name updated to selected TXD name when entry chosen from list
+- PAL8 BGRA flag fixed: GTA3/VC PC palette is BGRA not RGBA
+
+**Vehicle Workshop right panel (v3):**
+- Compact rows: Wire/Solid/Tex same row, Backface+Grid same row
+- Reset+Light same row, Assembly All/Damage/LOD same row
+- Play+Speed same row, Wheels+Steer same row
+- Model Info collapsible, Edit buttons with icons
+
+**Wheel rendering:**
+- Wheels hidden by default, shown with Show Wheels toggle
+- Wheel type from IDE numeric ID (exact match)
+- Wheel scale from IDE (SA/VC/GTA3)
+- Left wheel mirror correct (no X negation after world transform)
+- misc.txd + wheels.txd loaded additively for wheel textures
+- _get_wheel_geom_data v2: exact frame name match first
+
+**Known bugs to fix (bug day):**
+- Double min/close/max buttons in Vehicle Workshop tab
+- Car Mods tab label shows "(SA)" for all games
+- Edit buttons truncated text (Dummies→Dummie)
+- generic.txd loading irrelevant non-vehicle textures
+- First model load occasionally shows no textures (GL context timing)

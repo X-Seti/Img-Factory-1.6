@@ -639,3 +639,16 @@ When working on tasks:
 - [ ] Test `imgfactory.spec` on Windows — may need platform-specific binary paths
 - [ ] Icon file: ensure `assets/icon.ico` exists for Windows build
 
+
+## Vehicle Workshop bug day list (May 16 2026)
+- [ ] Double window chrome — inner workshop + outer tab frame both showing min/max/close
+- [ ] "Car Mods (SA)" tab label — should be "Car Mods" for GTA3/VC
+- [ ] Edit buttons text truncated — need more width or icon-only below threshold
+- [ ] generic.txd loaded unnecessarily for GTA3/VC — only load for vehicle-relevant textures
+- [ ] First model load timing — GL context not ready, textures occasionally miss
+- [ ] Right-click "Open in TXD Workshop" sometimes dead in IMG entries table
+- [ ] Vehicle Workshop standalone open workflow — needs cleaner DAT Browser integration
+- [ ] _handling_loaded flag reset needed when switching game/IMG
+- [ ] VC: animFile field in default.ide cars section — currently parsed but not used
+- [ ] Wheel steer slider not wired to actual wheel rotation in viewport
+- [ ] CoM/Dummy/Suspension/Seats/Bounds edit buttons — overlay rendering not yet implemented
