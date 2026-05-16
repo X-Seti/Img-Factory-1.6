@@ -410,7 +410,7 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
                 pal_size  = 256 * 4
                 pix_hdr   = 4
                 idx_size  = w * h
-                is_sa_pal = (rw_version >= 0x1803FFFF)
+                is_sa_pal = (cv >= 0x1803FFFF)
                 if len(mip_data) >= pal_size + pix_hdr + idx_size:
                     palette = mip_data[:pal_size]
                     indices = mip_data[pal_size+pix_hdr:pal_size+pix_hdr+idx_size]
